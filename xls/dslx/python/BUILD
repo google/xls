@@ -82,7 +82,9 @@ xls_pybind_extension(
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/types:span",
+        "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:warning_kind",
         "@pybind11_abseil//pybind11_abseil:absl_casters",
     ],
 )

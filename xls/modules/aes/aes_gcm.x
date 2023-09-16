@@ -350,7 +350,6 @@ proc aes_gcm_test_smoke_128 {
         assert_eq(tag, expected_tag);
 
         let tok = send(tok, terminator, true);
-        ()
     }
 }
 
@@ -599,7 +598,6 @@ proc aes_128_gcm_zero_block_commands {
         assert_eq(tag, expected_tag);
 
         send(tok, terminator, true);
-        ()
     }
 }
 

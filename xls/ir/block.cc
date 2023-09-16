@@ -14,8 +14,17 @@
 
 #include "xls/ir/block.h"
 
+#include <algorithm>
+#include <deque>
+#include <limits>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <tuple>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"

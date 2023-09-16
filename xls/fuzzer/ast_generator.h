@@ -15,13 +15,22 @@
 #ifndef XLS_FUZZER_CPP_AST_GENERATOR_H_
 #define XLS_FUZZER_CPP_AST_GENERATOR_H_
 
+#include <cstdint>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <random>
-#include <stack>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/types/span.h"
 #include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/scanner.h"
@@ -30,23 +39,62 @@
 
 namespace xls::dslx {
 
+// While building our AST, our choices can affect the legal scheduling options;
+// in particular, some ASTs cannot be scheduled in anything under N cycles (for
+// some N > 1).
+//
+// We track the impact of our choices through every value we construct using two
+// descriptors:
+// - the last operation applied to this value (or its dependencies) that could
+//   affect scheduling, here called its "last delaying operation", and
+// - the earliest stage the operation that produced this value could have
+//   legally been scheduled into, here called its "min stage".
+enum class LastDelayingOp : uint8_t { kNone, kSend, kRecv };
+
 struct TypedExpr {
   Expr* expr;
   TypeAnnotation* type;
+  LastDelayingOp last_delaying_op = LastDelayingOp::kNone;
+  int64_t min_stage = 1;
+};
+
+struct AnnotatedType {
+  TypeAnnotation* type;
+  LastDelayingOp last_delaying_op = LastDelayingOp::kNone;
+  int64_t min_stage = 1;
+};
+
+struct AnnotatedParam {
+  Param* param;
+  LastDelayingOp last_delaying_op = LastDelayingOp::kNone;
+  int64_t min_stage = 1;
+};
+
+// These tags also need to be tracked for functions, in order to model the
+// effect on their returned values.
+struct AnnotatedFunction {
+  Function* function;
+  LastDelayingOp last_delaying_op = LastDelayingOp::kNone;
+  int64_t min_stage = 1;
+};
+
+// Procs don't have return values - but we still need to track the smallest
+// number of stages the procs we generate can be legally scheduled into.
+struct AnnotatedProc {
+  Proc* proc;
+  int64_t min_stages = 1;
+};
+
+// When we return a module, we also need to track the smallest number of stages
+// it can be scheduled into as a pipeline.
+struct AnnotatedModule {
+  std::unique_ptr<Module> module;
+  int64_t min_stages = 1;
 };
 
 struct BitsAndSignedness {
   int64_t bits;
   bool signedness;
-};
-
-struct ProcProperties {
-  // A list of the state types in the proc's next function. Currently, at most a
-  // single state is supported. The order of types as they appear in the
-  // container mirrors the order present in the proc's next function.
-  std::vector<TypeAnnotation*> state_types;
-  // Parameters of the proc.
-  std::vector<Param*> params;
 };
 
 // Options that are used to configure the AST generator.
@@ -90,8 +138,8 @@ class AstGenerator {
   AstGenerator(AstGeneratorOptions options, ValueGenerator* value_gen);
 
   // Generates the entity with name "name" in a module named "module_name".
-  absl::StatusOr<std::unique_ptr<Module>> Generate(std::string top_entity_name,
-                                                   std::string module_name);
+  absl::StatusOr<AnnotatedModule> Generate(const std::string& top_entity_name,
+                                           const std::string& module_name);
 
   bool RandomBool() { return value_gen_->RandomBool(); }
 
@@ -157,8 +205,9 @@ class AstGenerator {
   // type. Returns an error status if the type is not a builtin bits type.
   absl::StatusOr<int64_t> BitsTypeGetBitCount(TypeAnnotation* type);
 
-  static std::pair<std::vector<Expr*>, std::vector<TypeAnnotation*>> Unzip(
-      absl::Span<const TypedExpr> typed_exprs);
+  static std::tuple<std::vector<Expr*>, std::vector<TypeAnnotation*>,
+                    std::vector<LastDelayingOp>>
+  Unzip(absl::Span<const TypedExpr> typed_exprs);
 
   static bool EnvContainsArray(const Env& e);
   static bool EnvContainsTuple(const Env& e);
@@ -167,20 +216,21 @@ class AstGenerator {
   static absl::StatusOr<bool> ContainsToken(const TypeAnnotation* type);
   static bool ContainsTypeRef(const TypeAnnotation* type);
 
-  // Generates a function with name "name".
-  absl::Status GenerateFunctionInModule(std::string name);
+  // Generates a function with name "name", returning the minimum number of
+  // stages the function can be scheduled in.
+  absl::StatusOr<int64_t> GenerateFunctionInModule(const std::string& name);
 
-  // Generates a proc with name "name".
-  absl::Status GenerateProcInModule(std::string name);
+  // Generates a proc with name "name", returning the minimum number of stages
+  // the proc can be scheduled in.
+  absl::StatusOr<int64_t> GenerateProcInModule(const std::string& name);
 
   // Generate a DSLX function with the given name. call_depth is the current
   // depth of the call stack (if any) calling this function to be
   // generated. param_types, if given, defines the number and types of the
   // parameters.
-  absl::StatusOr<Function*> GenerateFunction(
-      std::string name, int64_t call_depth = 0,
-      std::optional<absl::Span<TypeAnnotation* const>> param_types =
-          std::nullopt);
+  absl::StatusOr<AnnotatedFunction> GenerateFunction(
+      const std::string& name, int64_t call_depth,
+      absl::Span<const AnnotatedType> param_types);
 
   // Generate the proc's config function with the given name and proc parameters
   // (proc members).
@@ -188,7 +238,7 @@ class AstGenerator {
       std::string name, absl::Span<Param* const> proc_params);
 
   // Generate the proc's next function with the given name.
-  absl::StatusOr<Function*> GenerateProcNextFunction(std::string name);
+  absl::StatusOr<AnnotatedFunction> GenerateProcNextFunction(std::string name);
 
   // Generate a function to return a constant with the given TypeAnnotation to
   // serve as a Proc's [required] init function.
@@ -196,7 +246,7 @@ class AstGenerator {
       std::string_view name, TypeAnnotation* return_type);
 
   // Generate a DSLX proc with the given name.
-  absl::StatusOr<Proc*> GenerateProc(std::string name);
+  absl::StatusOr<AnnotatedProc> GenerateProc(const std::string& name);
 
   // Chooses a value from the environment that satisfies the predicate "take",
   // or returns nullopt if none exists.
@@ -296,12 +346,10 @@ class AstGenerator {
 
   absl::StatusOr<TypedExpr> ChooseEnvValueNotContainingToken(Env* env);
 
-  // Generates the body of a function AST node with the given
-  // parameters. call_depth is the depth of the call stack (via map or other
-  // function-calling operation) for the function being generated.
-  absl::StatusOr<TypedExpr> GenerateBody(int64_t call_depth,
-                                         absl::Span<Param* const> params,
-                                         Context* ctx);
+  // Generates the body of a function AST node. call_depth is the depth of the
+  // call stack (via map or other function-calling operation) for the function
+  // being generated, and `ctx.env` contains the parameters as NameRefs.
+  absl::StatusOr<TypedExpr> GenerateBody(int64_t call_depth, Context* ctx);
 
   absl::StatusOr<TypedExpr> GenerateUnop(Context* ctx);
 
@@ -310,7 +358,7 @@ class AstGenerator {
   // Generates a bit slice AST node.
   absl::StatusOr<TypedExpr> GenerateBitSlice(Context* ctx);
 
-  // Generates one of the bitwise reductions as an Inovation node.
+  // Generates one of the bitwise reductions as an Invocation node.
   absl::StatusOr<TypedExpr> GenerateBitwiseReduction(Context* ctx);
 
   // Generates a cast from bits to array type.
@@ -407,8 +455,11 @@ class AstGenerator {
       std::optional<int64_t> max_width_bits_types = std::nullopt);
 
   // Generates a number AST node with its associated type.
+  //
+  // The caller can optionally capture the bits value created in the AST via the
+  // "out" param.
   TypedExpr GenerateNumberWithType(
-      std::optional<BitsAndSignedness> bas = std::nullopt);
+      std::optional<BitsAndSignedness> bas = std::nullopt, Bits* out = nullptr);
 
   // Generates String AST node with a string literal of 'char_count'.
   String* GenerateString(int64_t char_count);
@@ -422,12 +473,9 @@ class AstGenerator {
   // Generates a call to a unary builtin function.
   absl::StatusOr<TypedExpr> GenerateUnopBuiltin(Context* ctx);
 
-  // Generates a parameter of a random type (if type is null) or the given type
-  // (if type is non-null).
-  Param* GenerateParam(TypeAnnotation* type = nullptr);
-
-  // Generates the given number of parameters of random types.
-  std::vector<Param*> GenerateParams(int64_t count);
+  // Generates a parameter of the given type, with `last_delaying_op` and
+  // `min_stage` matching the provided specification.
+  AnnotatedParam GenerateParam(AnnotatedType type);
 
   // Generates "count" ParametricBinding nodes for use in a function definition.
   // Currently, the all bindings have a number expression as their default.
@@ -456,8 +504,8 @@ class AstGenerator {
   absl::StatusOr<TypedExpr> GenerateCompareTuple(Context* ctx);
 
   // Generates an expression with type 'type'.
-  absl::StatusOr<Expr*> GenerateExprOfType(Context* ctx,
-                                           const TypeAnnotation* type);
+  absl::StatusOr<TypedExpr> GenerateExprOfType(Context* ctx,
+                                               TypeAnnotation* type);
 
   // Generate a MatchArmPattern with type 'type'. The pattern is represented as
   // an xls::dslx::NameDefTree.
@@ -517,7 +565,7 @@ class AstGenerator {
 
   // Creates a number AST node with value 'value' represented in a decimal
   // format.
-  Number* MakeNumber(int64_t value);
+  Number* MakeNumber(int64_t value, TypeAnnotation* type = nullptr);
 
   // Creates a number AST node with value 'value' of type 'type' represented in
   // the format specified.
@@ -636,6 +684,19 @@ class AstGenerator {
     }
     return absl::OkStatus();
   }
+
+  struct ProcProperties {
+    // A list of the state types in the proc's next function. Currently, at most
+    // a single state is supported. The order of types as they appear in the
+    // container mirrors the order present in the proc's next function.
+    std::vector<TypeAnnotation*> state_types;
+
+    // Parameters of the proc config function.
+    std::vector<Param*> config_params;
+
+    // Members of the proc.
+    std::vector<ProcMember*> members;
+  };
 
   ValueGenerator* value_gen_;
 

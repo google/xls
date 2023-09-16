@@ -14,6 +14,10 @@
 
 #include "xls/data_structures/min_cut.h"
 
+#include <limits>
+#include <random>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"

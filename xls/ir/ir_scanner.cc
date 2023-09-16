@@ -14,7 +14,12 @@
 
 #include "xls/ir/ir_scanner.h"
 
+#include <functional>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"

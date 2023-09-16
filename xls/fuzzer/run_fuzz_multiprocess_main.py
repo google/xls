@@ -60,7 +60,12 @@ _SAVE_TEMPS_PATH = flags.DEFINE_string(
     'save_temps_path', None, 'Path of directory in which to save temporary '
     'files. These temporary files include DSLX, IR, and arguments. A '
     'separate numerically-named subdirectory is created for each sample.')
-_SEED = flags.DEFINE_integer('seed', None, 'Seed value for generation')
+_SEED = flags.DEFINE_integer(
+    'seed',
+    None,
+    'Seed value for generation; by default, a nondetermistic seed is used, if a'
+    ' seed is provided, it is used for determinism',
+)
 _SIMULATE = flags.DEFINE_boolean('simulate', False, 'Run Verilog simulation.')
 _SIMULATOR = flags.DEFINE_string(
     'simulator', None, 'Verilog simulator to use. For example: "iverilog".')
@@ -141,7 +146,8 @@ def main(argv):
       summary_dir=_SUMMARY_PATH.value,
       sample_count=_SAMPLE_COUNT.value,
       duration=duration,
-      force_failure=_FORCE_FAILURE.value)
+      force_failure=_FORCE_FAILURE.value,
+  )
 
 
 if __name__ == '__main__':

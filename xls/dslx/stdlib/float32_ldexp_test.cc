@@ -15,9 +15,12 @@
 // Random-sampling test for the DSLX 32-bit floating-point ldexp.
 #include <cmath>
 #include <limits>
+#include <tuple>
 
+#include "absl/flags/flag.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -99,7 +102,6 @@ static absl::Status RealMain(uint64_t num_samples, int num_threads) {
 
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_num_samples),
-                              absl::GetFlag(FLAGS_num_threads)));
-  return 0;
+  return xls::ExitStatus(xls::RealMain(absl::GetFlag(FLAGS_num_samples),
+                                       absl::GetFlag(FLAGS_num_threads)));
 }

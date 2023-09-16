@@ -14,6 +14,8 @@
 
 #include "xls/ir/ir_matcher.h"
 
+#include <cstdint>
+#include <optional>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -22,15 +24,42 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace op_matchers {
+
+namespace internal {
+bool NameMatcherInternal::MatchAndExplain(
+    std::string_view name, ::testing::MatchResultListener* listener) const {
+  if (name_ == name) {
+    return true;
+  }
+  *listener << absl::StreamFormat("%s has incorrect name, expected: %s.", name,
+                                  name_);
+  return false;
+}
+
+void NameMatcherInternal::DescribeTo(std::ostream* os) const { *os << name_; }
+
+void NameMatcherInternal::DescribeNegationTo(std::ostream* os) const {
+  *os << absl::StreamFormat("name not %s", name_);
+}
+}  // namespace internal
 
 bool ChannelMatcher::MatchAndExplain(
     const ::xls::Channel* channel,
@@ -163,24 +192,8 @@ void NameMatcher::DescribeTo(std::ostream* os) const {
   inner_matcher_.DescribeTo(os);
 }
 
-bool NameMatcher::StringViewNameMatcherInternal::MatchAndExplain(
-    std::string_view name, ::testing::MatchResultListener* listener) const {
-  if (name_ == name) {
-    return true;
-  }
-  *listener << absl::StreamFormat("%s has incorrect name, expected: %s.", name,
-                                  name_);
-  return false;
-}
-
-void NameMatcher::StringViewNameMatcherInternal::DescribeTo(
-    std::ostream* os) const {
-  *os << name_;
-}
-
-void NameMatcher::StringViewNameMatcherInternal::DescribeNegationTo(
-    std::ostream* os) const {
-  *os << absl::StreamFormat("name not %s", name_);
+void NameMatcher::DescribeNegationTo(std::ostream* os) const {
+  inner_matcher_.DescribeNegationTo(os);
 }
 
 bool ParamMatcher::MatchAndExplain(
@@ -188,19 +201,22 @@ bool ParamMatcher::MatchAndExplain(
   if (!NodeMatcher::MatchAndExplain(node, listener)) {
     return false;
   }
-  if (name_.has_value() && node->GetName() != *name_) {
-    *listener << " has incorrect name, expected: " << *name_;
-    return false;
+  if (name_matcher_.has_value()) {
+    return name_matcher_->MatchAndExplain(node->GetName(), listener);
   }
   return true;
 }
 
 void ParamMatcher::DescribeTo(::std::ostream* os) const {
-  if (name_.has_value()) {
-    DescribeToHelper(os, {absl::StrFormat("name=\"%s\"", name_.value())});
-  } else {
-    DescribeToHelper(os, {});
+  std::vector<std::string> additional_fields;
+  if (name_matcher_.has_value()) {
+    std::stringstream ss;
+    ss << "name=\"";
+    name_matcher_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(ss.str());
   }
+  DescribeToHelper(os, additional_fields);
 }
 
 bool BitSliceMatcher::MatchAndExplain(
@@ -374,19 +390,23 @@ bool InputPortMatcher::MatchAndExplain(
   if (!NodeMatcher::MatchAndExplain(node, listener)) {
     return false;
   }
-  if (name_.has_value() && node->GetName() != *name_) {
-    *listener << " has incorrect name, expected: " << *name_;
+  if (name_matcher_.has_value() &&
+      !name_matcher_->MatchAndExplain(node->GetName(), listener)) {
     return false;
   }
   return true;
 }
 
 void InputPortMatcher::DescribeTo(::std::ostream* os) const {
-  if (name_.has_value()) {
-    DescribeToHelper(os, {absl::StrFormat("name=\"%s\"", name_.value())});
-  } else {
-    DescribeToHelper(os, {});
+  std::vector<std::string> additional_fields;
+  if (name_matcher_.has_value()) {
+    std::stringstream ss;
+    ss << "name=\"";
+    name_matcher_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(ss.str());
   }
+  DescribeToHelper(os, additional_fields);
 }
 
 bool OutputPortMatcher::MatchAndExplain(
@@ -394,19 +414,23 @@ bool OutputPortMatcher::MatchAndExplain(
   if (!NodeMatcher::MatchAndExplain(node, listener)) {
     return false;
   }
-  if (name_.has_value() && node->GetName() != *name_) {
-    *listener << " has incorrect name, expected: " << *name_;
+  if (name_matcher_.has_value() &&
+      !name_matcher_->MatchAndExplain(node->GetName(), listener)) {
     return false;
   }
   return true;
 }
 
 void OutputPortMatcher::DescribeTo(::std::ostream* os) const {
-  if (name_.has_value()) {
-    DescribeToHelper(os, {absl::StrFormat("name=\"%s\"", name_.value())});
-  } else {
-    DescribeToHelper(os, {});
+  std::vector<std::string> additional_fields;
+  if (name_matcher_.has_value()) {
+    std::stringstream ss;
+    ss << "name=\"";
+    name_matcher_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(ss.str());
   }
+  DescribeToHelper(os, additional_fields);
 }
 
 bool RegisterReadMatcher::MatchAndExplain(
@@ -415,22 +439,29 @@ bool RegisterReadMatcher::MatchAndExplain(
     return false;
   }
   if (register_name_.has_value() &&
-      node->As<xls::RegisterRead>()->GetRegister()->name() != *register_name_) {
+      !register_name_->Matches(
+          node->As<xls::RegisterRead>()->GetRegister()->name())) {
     *listener << " has incorrect register ("
               << node->As<xls::RegisterRead>()->GetRegister()->name()
-              << "), expected: " << *register_name_;
+              << "), expected: ";
+    if (listener->stream() != nullptr) {
+      register_name_->DescribeTo(listener->stream());
+    }
     return false;
   }
   return true;
 }
 
 void RegisterReadMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> additional_fields;
   if (register_name_.has_value()) {
-    DescribeToHelper(
-        os, {absl::StrFormat("register=\"%s\"", register_name_.value())});
-  } else {
-    DescribeToHelper(os, {});
+    std::stringstream ss;
+    ss << "register=\"";
+    register_name_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(ss.str());
   }
+  DescribeToHelper(os, additional_fields);
 }
 
 bool RegisterWriteMatcher::MatchAndExplain(
@@ -439,23 +470,30 @@ bool RegisterWriteMatcher::MatchAndExplain(
     return false;
   }
   if (register_name_.has_value() &&
-      node->As<xls::RegisterWrite>()->GetRegister()->name() !=
-          *register_name_) {
+      !register_name_->Matches(
+          node->As<xls::RegisterWrite>()->GetRegister()->name())) {
     *listener << " has incorrect register ("
               << node->As<xls::RegisterWrite>()->GetRegister()->name()
-              << "), expected: " << *register_name_;
+              << "), expected: ";
+
+    if (listener->stream() != nullptr) {
+      register_name_->DescribeTo(listener->stream());
+    }
     return false;
   }
   return true;
 }
 
 void RegisterWriteMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> additional_fields;
   if (register_name_.has_value()) {
-    DescribeToHelper(
-        os, {absl::StrFormat("register=\"%s\"", register_name_.value())});
-  } else {
-    DescribeToHelper(os, {});
+    std::stringstream ss;
+    ss << "register=\"";
+    register_name_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(ss.str());
   }
+  DescribeToHelper(os, additional_fields);
 }
 
 bool RegisterMatcher::MatchAndExplain(
@@ -497,6 +535,15 @@ void RegisterMatcher::DescribeTo(::std::ostream* os) const {
   }
   *os << ")";
 }
+
+void RegisterMatcher::DescribeNegationTo(::std::ostream* os) const {
+  *os << "did not match register(";
+  if (q_matcher_.has_value()) {
+    q_matcher_->DescribeTo(os);
+  }
+  *os << ")";
+}
+
 bool FunctionBaseMatcher::MatchAndExplain(
     const ::xls::FunctionBase* fb,
     ::testing::MatchResultListener* listener) const {
@@ -504,45 +551,65 @@ bool FunctionBaseMatcher::MatchAndExplain(
     return false;
   }
   *listener << fb->name();
-  if (name_.has_value() && fb->name() != *name_) {
-    *listener << absl::StreamFormat(" has incorrect name %s, expected: %s",
-                                    fb->name(), *name_);
+  if (name_.has_value() && !name_->MatchAndExplain(fb->name(), listener)) {
     return false;
   }
   return true;
 }
 
 void FunctionBaseMatcher::DescribeTo(::std::ostream* os) const {
+  std::string name_str;
   if (name_.has_value()) {
-    *os << absl::StreamFormat("FunctionBase(name=%s)", *name_);
-  } else {
-    *os << "FunctionBase()";
+    std::stringstream ss;
+    ss << "name=";
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
   }
+  *os << absl::StreamFormat("FunctionBase(%s)", name_str);
 }
 
 void ProcMatcher::DescribeTo(::std::ostream* os) const {
-  *os << absl::StreamFormat("proc %s { ... }", name_.value_or("<unspecified>"));
+  std::optional<std::string> name_str;
+  if (name_.has_value()) {
+    std::stringstream ss;
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
+  }
+  *os << absl::StreamFormat("proc %s { ... }",
+                            name_str.value_or("<unspecified>"));
 }
 
 void ProcMatcher::DescribeNegationTo(std::ostream* os) const {
+  std::string name_str;
   if (name_.has_value()) {
-    *os << absl::StreamFormat("FunctionBase was not a proc named %s.", *name_);
-  } else {
-    *os << "FunctionBase was not a proc.";
+    std::stringstream ss;
+    ss << " named ";
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
   }
+  *os << absl::StreamFormat("FunctionBase was not a proc%s.", name_str);
 }
 
 void FunctionMatcher::DescribeTo(::std::ostream* os) const {
-  *os << absl::StreamFormat("fn %s { ... }", name_.value_or("<unspecified>"));
+  std::stringstream ss;
+  std::optional<std::string> name_str;
+  if (name_.has_value()) {
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
+  }
+  *os << absl::StreamFormat("fn %s { ... }",
+                            name_str.value_or("<unspecified>"));
 }
 
 void FunctionMatcher::DescribeNegationTo(std::ostream* os) const {
+  std::string name_str;
   if (name_.has_value()) {
-    *os << absl::StreamFormat("FunctionBase was not a function named %s.",
-                              *name_);
-  } else {
-    *os << "FunctionBase was not a function.";
+    std::stringstream ss;
+    ss << " named ";
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
   }
+  *os << absl::StreamFormat("FunctionBase was not a function%s.", name_str);
 }
 
 bool MinDelayMatcher::MatchAndExplain(

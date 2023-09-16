@@ -25,7 +25,6 @@ import dataclasses
 import random
 
 from typing import Sequence, List, Tuple, Callable
-import warnings
 
 import numpy as np
 from scipy import optimize as opt
@@ -451,7 +450,7 @@ class RegressionEstimator(Estimator):
 
   def _fit_curve(
       self, raw_data_points: Sequence[RawDataPoint]
-  ) -> Tuple[Callable[[Sequence[float]], float], Sequence[float]]:
+  ) -> Tuple[Callable[[Sequence[float]], float], np.ndarray]:
     """Fits a curve to the given data points.
 
     Args:
@@ -465,29 +464,33 @@ class RegressionEstimator(Estimator):
     """
     # Split the raw data points into independent (xdata) and dependent variables
     # (ydata).
-    raw_xdata = [pt.delay_factors for pt in raw_data_points]
-    xdata = list(zip(*raw_xdata))
-    ydata = [pt.delay_ps for pt in raw_data_points]
+    raw_xdata = np.array(
+        [pt.delay_factors for pt in raw_data_points], dtype=np.float64
+    )
+    ydata = np.transpose([pt.delay_ps for pt in raw_data_points])
 
-    def delay_f(x, *params) -> float:
-      s = params[0]
-      for i in range(len(x)):
-        x_clamped = np.maximum(1.0, x[i])
-        s += params[2 * i + 1] * x[i] + params[2 * i + 2] * np.log2(x_clamped)
-      return s
+    # Construct our augmented "independent" variables in a matrix:
+    # xdata = [1, x0, log2(x0), x1, log2(x1), ...]
+    def augment_xdata(x_arr: np.ndarray) -> np.ndarray:
+      x_augmented = np.ones(
+          (x_arr.shape[0], 1 + 2 * x_arr.shape[1]), dtype=np.float64
+      )
+      x_augmented[::, 1::2] = x_arr
+      x_augmented[::, 2::2] = np.log2(np.maximum(1.0, x_arr))
+      return x_augmented
+    xdata = augment_xdata(raw_xdata)
 
-    with warnings.catch_warnings():
-      warnings.filterwarnings('ignore')
-      num_params = 1 + 2 * len(xdata)
-      # With the data points collected for one particular PDK, kSDiv doesn't
-      # converge with the default max_nfev (max function evaluations),
-      # so we set it higher to 5000.
-      # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html
-      params, _ = opt.curve_fit(
-          delay_f, xdata, ydata, p0=[1] * num_params, bounds=(0, np.inf),
-          max_nfev=5000)
+    # Now, the least-squares solution to the equation xdata @ p = ydata is
+    # exactly the set of parameters for our model! EXCEPT: we want to make sure
+    # none of the weights are negative, since we expect all terms to have net
+    # positive contribution. This helps make sure extrapolations are reasonable.
+    params = opt.nnls(xdata, ydata)[0]
 
-    return lambda x: delay_f(x, *params), params
+    def delay_f(x) -> float:
+      x_augmented = augment_xdata(np.array([x], dtype=np.float64))
+      return np.dot(x_augmented, params)[0]
+
+    return delay_f, params.flatten()
 
   def operation_delay(self, operation: delay_model_pb2.Operation) -> int:
     expressions = tuple(
@@ -500,11 +503,11 @@ class RegressionEstimator(Estimator):
     return self.delay_function(xargs)
 
   def cpp_delay_code(self, node_identifier: str) -> str:
-    terms = [str(self.params[0])]
+    terms = [repr(self.params[0])]
     for i, expression in enumerate(self.delay_expressions):
       e_str = _delay_expression_cpp_expression(expression, node_identifier)
-      terms.append('{} * {}'.format(self.params[2 * i + 1], e_str))
-      terms.append('{w} * std::log2({e} < 1.0 ? 1.0 : {e})'.format(
+      terms.append('{!r} * {}'.format(self.params[2 * i + 1], e_str))
+      terms.append('{w!r} * std::log2({e} < 1.0 ? 1.0 : {e})'.format(
           w=self.params[2 * i + 2], e=e_str))
     return 'return std::round({});'.format(' + '.join(terms))
 

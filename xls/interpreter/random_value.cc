@@ -14,6 +14,9 @@
 
 #include "xls/interpreter/random_value.h"
 
+#include <random>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "xls/interpreter/function_interpreter.h"
 

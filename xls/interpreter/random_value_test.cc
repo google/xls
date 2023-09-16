@@ -15,6 +15,7 @@
 #include "xls/interpreter/random_value.h"
 
 #include <random>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

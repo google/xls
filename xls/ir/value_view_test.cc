@@ -13,7 +13,10 @@
 // limitations under the License.
 #include "xls/ir/value_view.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -139,7 +142,7 @@ template <int64_t kBitWidth>
 absl::Status TestWidthAndOffset(int bit_offset) {
   BitsRope rope(kBitWidth + bit_offset);
   for (int i = 0; i < bit_offset; i++) {
-    rope.push_back(0);
+    rope.push_back(false);
   }
   int current_bit = 0;
   int current_byte = 0;

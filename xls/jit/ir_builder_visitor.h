@@ -14,6 +14,9 @@
 #ifndef XLS_JIT_IR_BUILDER_VISITOR_H_
 #define XLS_JIT_IR_BUILDER_VISITOR_H_
 
+#include <memory>
+#include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"

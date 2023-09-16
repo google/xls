@@ -18,6 +18,10 @@
 #include <sys/types.h>
 
 #include <cstdio>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"

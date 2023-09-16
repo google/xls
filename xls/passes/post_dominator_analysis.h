@@ -15,6 +15,9 @@
 #ifndef XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
 #define XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
 
+#include <memory>
+#include <vector>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

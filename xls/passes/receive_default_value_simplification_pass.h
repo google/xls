@@ -17,22 +17,24 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/proc.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/passes.h"
 
 namespace xls {
 
 // Optimization which removes useless selects between the data value of a
 // conditional or non-blocking receive and the default value of the receive (all
 // zeros).
-class ReceiveDefaultValueSimplificationPass : public ProcPass {
+class ReceiveDefaultValueSimplificationPass : public OptimizationProcPass {
  public:
   ReceiveDefaultValueSimplificationPass()
-      : ProcPass("recv_default", "Receive default value simplification") {}
+      : OptimizationProcPass("recv_default",
+                             "Receive default value simplification") {}
   ~ReceiveDefaultValueSimplificationPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunOnProcInternal(Proc* proc, const PassOptions& options,
+  absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
+                                         const OptimizationPassOptions& options,
                                          PassResults* results) const override;
 };
 

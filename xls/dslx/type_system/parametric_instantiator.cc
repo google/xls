@@ -26,6 +26,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/type_system/parametric_instantiator_internal.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 
@@ -103,6 +104,8 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
               << " type: " << struct_type.ToString();
   XLS_VLOG(5) << " arg types:           " << ToTypesString(args);
   XLS_VLOG(5) << " member types:        " << ToString(member_types);
+  XLS_VLOG(5) << " parametric constraints: "
+              << ToString(parametric_constraints);
   XLS_ASSIGN_OR_RETURN(auto instantiator,
                        internal::StructInstantiator::Make(
                            std::move(span), struct_type, args, member_types,

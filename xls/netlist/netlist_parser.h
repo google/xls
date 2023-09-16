@@ -17,8 +17,11 @@
 
 #include <sys/types.h>
 
+#include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

@@ -14,158 +14,22 @@
 
 #include "xls/ir/foreign_function.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
-
-using testing::ElementsAre;
-using testing::HasSubstr;
-using xls::status_testing::StatusIs;
+#include "xls/ir/bits.h"
+#include "xls/ir/foreign_function_data.pb.h"
+#include "xls/ir/value.h"
 
 namespace xls {
-
 namespace {
-TEST(CodeTemplateTest, ParsingAndExpressionExtraction) {
-  CodeTemplate code_template = *CodeTemplate::Create("");
-
-  XLS_ASSERT_OK_AND_ASSIGN(code_template, CodeTemplate::Create("just text"));
-  EXPECT_TRUE(code_template.Expressions().empty());
-
-  XLS_ASSERT_OK_AND_ASSIGN(code_template,
-                           CodeTemplate::Create("Time is {time}"));
-  EXPECT_EQ(code_template.Expressions().size(), 1);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("time"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(code_template, CodeTemplate::Create("Time is {}"));
-  EXPECT_EQ(code_template.Expressions().size(), 1);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre(""));
-
-  XLS_ASSERT_OK_AND_ASSIGN(code_template,
-                           CodeTemplate::Create("Two {foo} and {bar}"));
-  EXPECT_EQ(code_template.Expressions().size(), 2);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("foo", "bar"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(code_template,
-                           CodeTemplate::Create("Expr in brace {{{foo}}}"));
-  EXPECT_EQ(code_template.Expressions().size(), 1);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("foo"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      code_template,
-      CodeTemplate::Create("Two {foo} {{not-an-expr}} and {bar}"));
-  EXPECT_EQ(code_template.Expressions().size(), 2);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("foo", "bar"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(code_template,
-                           CodeTemplate::Create("Two ({foo} and {bar})"));
-  EXPECT_EQ(code_template.Expressions().size(), 2);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("foo", "bar"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(code_template,
-                           CodeTemplate::Create("nested function {fun()}"));
-  EXPECT_EQ(code_template.Expressions().size(), 1);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("fun()"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      code_template, CodeTemplate::Create("nested  {some{inner, braces};}"));
-  EXPECT_EQ(code_template.Expressions().size(), 1);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("some{inner, braces};"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      code_template,
-      CodeTemplate::Create("bar {inner {is not} a problem} bar"));
-  EXPECT_EQ(code_template.Expressions().size(), 1);
-  EXPECT_THAT(code_template.Expressions(),
-              ElementsAre("inner {is not} a problem"));
+TEST(ForeignFunctionTest, PartialValueSubstituteHelper) {
+  ForeignFunctionData ffi;
+  ffi.set_code_template("Some {foo} at {bar} with {baz}");
+  FfiPartialValueSubstituteHelper substitute(ffi);
+  substitute.SetNamedValue("foo", Value(UBits(0xf00d, 16)));
+  // '{bar}', we want to keep as-is.
+  substitute.SetNamedValue("baz", Value(UBits(0xc0ffee, 24)));
+  EXPECT_EQ(substitute.GetUpdatedFfiData()->code_template(),
+            "Some 16'hf00d at {bar} with 24'hc0ffee");
 }
-
-TEST(CodeTemplateTest, DetectErrors) {
-  EXPECT_THAT(CodeTemplate::Create("foo (() {x}"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("4: Parenthesis opened here missing")));
-  EXPECT_THAT(CodeTemplate::Create("foo {{abc}x"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("4: Brace opened here missing")));
-  EXPECT_THAT(CodeTemplate::Create("foo (( {x}"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("5: Parenthesis opened here missing")));
-  EXPECT_THAT(CodeTemplate::Create("foo (( {x})"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("4: Parenthesis opened here missing")));
-  EXPECT_THAT(CodeTemplate::Create("foo (())) {x}"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("8: Too many closing parentheses")));
-  EXPECT_THAT(CodeTemplate::Create("foo (() {x}}"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("11: Too many closing braces")));
-  EXPECT_THAT(CodeTemplate::Create("}}{{"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("0: Too many closing braces")));
-  EXPECT_THAT(CodeTemplate::Create("foo {"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("4: Dangling opened")));
-  EXPECT_THAT(CodeTemplate::Create("foo {x"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("4: Template expression not closed")));
-}
-
-TEST(CodeTemplateTest, ExtractErrorColumn) {
-  using CT = CodeTemplate;
-  EXPECT_EQ(5, CT::ExtractErrorColumn(CT::Create("foo ({").status()));
-  EXPECT_EQ(0, CT::ExtractErrorColumn(absl::OkStatus()));  // no contained error
-}
-
-TEST(CodeTemplateTest, TemplateFilling) {
-  CodeTemplate code_template = *CodeTemplate::Create("");
-
-  // Typical use
-  XLS_ASSERT_OK_AND_ASSIGN(
-      code_template, CodeTemplate::Create("foo #(.w({width})) {fn} (.a({x}))"));
-  EXPECT_EQ(code_template.Expressions().size(), 3);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("width", "fn", "x"));
-
-  // Attempt expanding with not enough values
-  EXPECT_THAT(
-      code_template.FillTemplate({}),
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Invalid count")));
-
-  absl::StatusOr<std::string> result =
-      code_template.FillTemplate({"param", "instance", "42"});
-  XLS_EXPECT_OK(result.status());
-  EXPECT_EQ(result.value(), "foo #(.w(param)) instance (.a(42))");
-}
-
-TEST(CodeTemplateTest, UnescapingBraces) {
-  CodeTemplate code_template = *CodeTemplate::Create("");
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      code_template,
-      CodeTemplate::Create("foo {e1} {{bar}} {e2} {{{{baz}}}} {{{e3}}}"));
-  EXPECT_EQ(code_template.Expressions().size(), 3);
-  EXPECT_THAT(code_template.Expressions(), ElementsAre("e1", "e2", "e3"));
-
-  absl::StatusOr<std::string> result =
-      code_template.FillTemplate({"answer", "life", "42"});
-  XLS_EXPECT_OK(result.status());
-  EXPECT_EQ(result.value(), "foo answer {bar} life {{baz}} {42}");
-}
-
-TEST(CodeTemplateTest, ToStringRecreatesOriginalTemplate) {
-  // Note, this implictly also tests FillTemplate() as it is used underneath.
-  CodeTemplate code_template = *CodeTemplate::Create("");
-  for (std::string_view test_template : {"",                          //
-                                         "((){x})"                    //
-                                         "{foo}",                     //
-                                         "{foo} {{justbraces}}",      //
-                                         "{foo} {{{{morebraces}}}}",  //
-                                         "{foo} suffix text",         //
-                                         "xy {bar}",                  //
-                                         "ab {bar}{baz}"}) {
-    XLS_ASSERT_OK_AND_ASSIGN(code_template,
-                             CodeTemplate::Create(test_template));
-    EXPECT_EQ(code_template.ToString(), test_template);
-  }
-}
-
 }  // namespace
 }  // namespace xls

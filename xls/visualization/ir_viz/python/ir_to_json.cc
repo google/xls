@@ -15,6 +15,8 @@
 #include "xls/visualization/ir_viz/ir_to_json.h"
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -26,6 +28,7 @@
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
 
 namespace py = pybind11;
 
@@ -70,7 +73,7 @@ static absl::StatusOr<std::string> IrToJsonWrapper(
     XLS_RET_CHECK(func_base->IsFunction());
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             func_base->AsFunctionOrDie(), *delay_estimator,
             SchedulingOptions().pipeline_stages(pipeline_stages.value())));
     return IrToJson(package.get(), *delay_estimator, &schedule,

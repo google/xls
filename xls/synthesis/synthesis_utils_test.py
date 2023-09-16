@@ -15,6 +15,7 @@
 """Tests for xls.synthesis.synthesis_utils."""
 
 import subprocess
+import time
 
 from typing import Sequence, Tuple, List, Any, Optional
 
@@ -26,7 +27,7 @@ from xls.common import runfiles
 from xls.synthesis import client_credentials
 from xls.synthesis import synthesis_utils
 
-SERVER_PATH = runfiles.get_path('xls/synthesis/dummy_synthesis_server_main')
+SERVER_PATH = runfiles.get_path('xls/synthesis/fake_synthesis_server_main')
 
 
 class SynthesisUtilsTest(absltest.TestCase):
@@ -35,6 +36,10 @@ class SynthesisUtilsTest(absltest.TestCase):
     port = portpicker.pick_unused_port()
     proc = subprocess.Popen([runfiles.get_path(SERVER_PATH), f'--port={port}'] +
                             args)
+
+    # allow some time for the server to open the port before continuing
+    time.sleep(1)
+
     return port, proc
 
   def _run_bisect(self,

@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <memory>
+#include <ostream>
 #include <string>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -103,6 +105,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
       /*warn_unroll_iters=*/100,
       /*max_unroll_iters=*/100,
       /*z3_rlimit=*/-1,
+      /*op_ordering=*/xlscc::IOOpOrdering::kNone,
       /*existing_parser=*/std::move(parser));
 
   xls::Package package("my_package");
@@ -238,6 +241,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
                             /*max_unroll_iters=*/100,
                             /*warn_unroll_iters=*/100,
                             /*z3_rlimit=*/-1,
+                            /*op_ordering=*/xlscc::IOOpOrdering::kNone,
                             /*existing_parser=*/std::move(parser)));
 
   xls::Package package("my_package");

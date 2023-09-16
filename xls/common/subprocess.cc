@@ -19,6 +19,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <csignal>
 #include <cstdlib>
@@ -245,8 +246,8 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   if (!read_status.ok()) {
     XLS_VLOG(1) << "ReadFileDescriptors non-ok status: " << read_status;
   }
-  const auto& stdout_output = output_strings[0];
-  const auto& stderr_output = output_strings[1];
+  const std::string& stdout_output = output_strings[0];
+  const std::string& stderr_output = output_strings[1];
 
   XLS_VLOG_LINES(2, absl::StrCat(bin_name, " stdout:\n ", stdout_output));
   XLS_VLOG_LINES(2, absl::StrCat(bin_name, " stderr:\n ", stderr_output));

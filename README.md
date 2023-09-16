@@ -12,10 +12,9 @@
 
 ## What is XLS?
 
-XLS implements a High Level Synthesis (HLS) toolchain which produces
-synthesizable designs (Verilog and SystemVerilog) from flexible, high-level
-descriptions of functionality. It is fully Open Source: Apache 2 licensed and
-developed via GitHub.
+XLS implements a High Level Synthesis toolchain that produces synthesizable
+designs (Verilog and SystemVerilog) from flexible, high-level descriptions of
+functionality. It is Apache 2 licensed.
 
 XLS (Accelerated HW Synthesis) aims to be the Software Development Kit (SDK) for
 the End of Moore's Law (EoML) era. In this "age of specialization", software and
@@ -24,16 +23,11 @@ collaborate on shared artifacts, understand each other's cost models, and share
 tooling/methodology. XLS attempts to leverage automation, software engineers,
 and machine cycles to accelerate this overall process.
 
-In effect, XLS enables the rapid development of *hardware IP* that also runs as
-efficient *host software* via "software style" methodology. A single XLS source
-program runs at native speeds for use in host software or a simulator, but that
-source can also be used to generate hardware block output -- the XLS tools'
-correctness ensures (and provides tools to help formally verify) that they are
-functionally identical.
-
-XLS is used inside of Google for generating feed-forward pipelines from
-"building block" routines / libraries that can be easily retargeted, reused, and
-composed in a latency-insensitive manner.
+XLS enables the rapid development of *hardware IP* that also runs as efficient
+*host software* via "software style" methodology. An XLS design runs at native
+speeds for use in host software or a simulator, but that design can also
+generate hardware block output -- the XLS tools' correctness ensures (and
+provides tools to help formally verify) that they are functionally identical.
 
 XLS also supports
 [*concurrent processes*](https://google.github.io/xls/tutorials/intro_to_procs/),
@@ -41,11 +35,24 @@ in Communicating Sequential Processes (CSP) style, that allow pipelines to
 communicate with each other and induct over time. This feature is still under
 active development but today supports base use cases.
 
-XLS is still experimental, undergoing rapid development, and not an officially
+## State of the Project
+
+XLS is experimental, undergoing rapid development, and not an officially
 supported Google product. Expect bugs and sharp edges. Please help by trying it
 out, running through [some tutorials](https://google.github.io/xls/tutorials/),
-[reporting bugs](https://github.com/google/xls/issues), and letting us know
-what you think!
+[reporting bugs](https://github.com/google/xls/issues).
+
+We are early stage and this has some practical effects:
+
+* We do not regularly review PRs. If you want to make big changes you need to
+fork.
+    * Open an issue and engage us in conversation if you wish to upstream
+      changes. Sending a PR without back and forth with us in an issue is
+      unlikely to succeed.
+* At the current point in its evolution, we regularly improve DSLX without
+      considering backward compatibility.
+    * If you are building a corpus of hardware with XLS, please be thoughtful
+      about your process for bringing in new versions of the compiler.
 
 ## Install Using Conda
 
@@ -239,6 +246,7 @@ project, see our
 [good first issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)!
 
 *   [Albert Magyar](https://github.com/albert-magyar)
+*   [Alex Light](https://github.com/allight)
 *   [Amin Kalantar](https://github.com/aminiok1)
 *   [Balint Christian](https://github.com/cbalint13)
 *   [Blaok](https://github.com/Blaok)
@@ -247,13 +255,16 @@ project, see our
 *   [Chen-hao Chang](https://github.com/cchao)
 *   [Chris Drake](https://github.com/cjdrake)
 *   [Chris Leary](https://github.com/cdleary)
+*   [Conor McCullough](https://github.com/crmymh)
 *   [Dan Killebrew](https://github.com/dkillebrew-g)
 *   [Derek Lockhart](https://github.com/dmlockhart)
 *   [Eric Astor](https://github.com/ericastor)
 *   [Ethan Mahintorabi](https://github.com/QuantamHD)
 *   [Felix Zhu](https://github.com/felixzhuologist)
 *   [Georges Rotival](https://github.com/grotival)
+*   [Hanchen Ye](https://github.com/hanchenye)
 *   [Hans Montero](https://github.com/hmontero1205)
+*   [Henner Zeller](https://github.com/hzeller)
 *   [Iliyan Malchev](https://github.com/malchev)
 *   [Johan Euphrosine](https://github.com/proppy)
 *   [Jonathan Bailey](https://github.com/jbaileyhandle)
@@ -274,4 +285,5 @@ project, see our
 *   [Sean Purser-Haskell](https://github.com/spurserh)
 *   [Ted Hong](https://github.com/hongted)
 *   [Ted Xie](https://github.com/ted-xie)
+*   [Tim Callahan](https://github.com/tcal-x)
 *   [Vincent Mirian](https://github.com/vincent-mirian-google)

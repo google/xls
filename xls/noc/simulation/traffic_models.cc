@@ -14,6 +14,11 @@
 
 #include "xls/noc/simulation/traffic_models.h"
 
+#include <algorithm>
+#include <iterator>
+#include <memory>
+#include <vector>
+
 namespace xls::noc {
 
 std::vector<DataPacket> GeneralizedGeometricTrafficModel::GetNewCyclePackets(

@@ -29,5 +29,4 @@ fn numerical_conversions() {
   assert_eq(s8:-2, u8_m2 as s8);
   assert_eq(u8:0xfe, u8_m2 as u8);
   assert_eq(s8:-2, u8_m2 as s8);
-  ()
 }

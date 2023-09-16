@@ -15,6 +15,7 @@
 #include "xls/passes/unroll_proc.h"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "absl/strings/str_format.h"

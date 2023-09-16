@@ -14,7 +14,10 @@
 
 #include "xls/interpreter/proc_runtime_test_base.h"
 
+#include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

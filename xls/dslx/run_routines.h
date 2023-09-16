@@ -20,7 +20,6 @@
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -33,6 +32,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
@@ -79,6 +79,9 @@ class AbstractRunComparator {
 //   seed: Seed for QuickCheck random input stimulus.
 //   convert_options: Options used in IR conversion, see `ConvertOptions` for
 //    details.
+//   warnings_as_errors: Whether warnings should be reported as errors (i.e.
+//    cause the run routine to report failure when a warning is encountered).
+//   warnings: Set of warnings to enable for reporting.
 struct ParseAndTestOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths = {};
@@ -89,14 +92,16 @@ struct ParseAndTestOptions {
   std::optional<int64_t> seed = std::nullopt;
   ConvertOptions convert_options;
   bool warnings_as_errors = true;
+  WarningKindSet warnings = kAllWarningsSet;
   bool trace_channels = false;
   std::optional<int64_t> max_ticks;
 };
 
-enum class TestResult {
+enum class TestResult : uint8_t {
   kFailedWarnings,
   kSomeFailed,
   kAllPassed,
+  kParseOrTypecheckError,
 };
 
 // Parses program and run all tests contained inside.

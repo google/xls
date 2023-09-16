@@ -14,6 +14,9 @@
 
 #include "xls/common/string_to_int.h"
 
+#include <limits>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"

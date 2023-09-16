@@ -15,30 +15,46 @@
 #include "xls/public/runtime_build_actions.h"
 
 #include <filesystem>
+#include <memory>
+#include <string>
+#include <string_view>
 
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/extract_module_name.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/passes/passes.h"
+#include "xls/dslx/warning_kind.h"
+#include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/opt.h"
 #include "xls/tools/proto_to_dslx.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 
 std::string_view GetDefaultDslxStdlibPath() { return kDefaultDslxStdlibPath; }
 
 absl::StatusOr<std::string> ConvertDslxToIr(
-    std::string_view dslx, std::string_view path,
-    std::string_view module_name, std::string_view dslx_stdlib_path,
+    std::string_view dslx, std::string_view path, std::string_view module_name,
+    std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths) {
   XLS_VLOG(5) << "path: " << path << " module name: " << module_name
               << " stdlib_path: " << dslx_stdlib_path;
-  dslx::ImportData import_data(dslx::CreateImportData(
-      std::string(dslx_stdlib_path), additional_search_paths));
+  dslx::ImportData import_data(
+      dslx::CreateImportData(std::string(dslx_stdlib_path),
+                             additional_search_paths, dslx::kAllWarningsSet));
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule typechecked,
       dslx::ParseAndTypecheck(dslx, path, module_name, &import_data));
@@ -80,6 +96,20 @@ absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
       std::unique_ptr<dslx::Module> module,
       ProtoToDslxViaText(proto_def, message_name, text_proto, binding_name));
   return module->ToString();
+}
+
+absl::StatusOr<ScheduleAndCodegenResult> ScheduleAndCodegenPackage(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model) {
+  XLS_ASSIGN_OR_RETURN(
+      CodegenResult result,
+      ScheduleAndCodegen(p, scheduling_options_flags_proto, codegen_flags_proto,
+                         with_delay_model));
+  return ScheduleAndCodegenResult{
+      .module_generator_result = result.module_generator_result,
+      .pipeline_schedule_proto = result.pipeline_schedule_proto,
+  };
 }
 
 }  // namespace xls

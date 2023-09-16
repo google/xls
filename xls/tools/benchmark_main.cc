@@ -12,7 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <functional>
+#include <iostream>
+#include <limits>
+#include <memory>
 #include <numeric>
+#include <optional>
+#include <random>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -21,6 +32,7 @@
 #include "absl/time/clock.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -36,8 +48,8 @@
 #include "xls/jit/function_jit.h"
 #include "xls/jit/proc_jit.h"
 #include "xls/passes/bdd_query_engine.h"
-#include "xls/passes/passes.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 
@@ -125,10 +137,11 @@ int64_t DurationToMs(absl::Duration duration) {
 // Run the standard pipeline on the given package and prints stats about the
 // passes and execution time.
 absl::Status RunOptimizationAndPrintStats(Package* package) {
-  std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
+  std::unique_ptr<OptimizationCompoundPass> pipeline =
+      CreateOptimizationPassPipeline();
 
   absl::Time start = absl::Now();
-  PassOptions pass_options;
+  OptimizationPassOptions pass_options;
   int64_t convert_array_index_to_select =
       absl::GetFlag(FLAGS_convert_array_index_to_select);
   pass_options.convert_array_index_to_select =
@@ -637,7 +650,6 @@ int main(int argc, char** argv) {
   if (absl::GetFlag(FLAGS_clock_margin_percent) > 0) {
     clock_margin_percent = absl::GetFlag(FLAGS_clock_margin_percent);
   }
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], clock_period_ps,
-                              pipeline_stages, clock_margin_percent));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(positional_arguments[0], clock_period_ps,
+                                       pipeline_stages, clock_margin_percent));
 }

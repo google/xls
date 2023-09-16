@@ -14,11 +14,14 @@
 
 #include "xls/passes/receive_default_value_simplification_pass.h"
 
+#include <optional>
+
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -102,7 +105,8 @@ std::optional<ReceiveData> MatchUselessSelectAfterReceive(Select* select) {
 }  // namespace
 
 absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
-    Proc* proc, const PassOptions& options, PassResults* results) const {
+    Proc* proc, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   for (Node* node : TopoSort(proc)) {
     if (!node->Is<Select>()) {

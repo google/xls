@@ -14,6 +14,9 @@
 
 #include "xls/common/string_to_int.h"
 
+#include <limits>
+#include <string_view>
+
 #include "absl/numeric/int128.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"

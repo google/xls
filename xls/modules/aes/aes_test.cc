@@ -16,6 +16,8 @@
 #include "openssl/aes.h"
 
 #include <cstdint>
+#include <iostream>
+#include <ostream>
 #include <string_view>
 #include <vector>
 
@@ -25,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -163,6 +166,5 @@ static absl::Status RealMain(int32_t num_samples) {
 
 int32_t main(int32_t argc, char** argv) {
   std::vector<std::string_view> args = xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK_OK(xls::aes::RealMain(absl::GetFlag(FLAGS_num_samples)));
-  return 0;
+  return xls::ExitStatus(xls::aes::RealMain(absl::GetFlag(FLAGS_num_samples)));
 }

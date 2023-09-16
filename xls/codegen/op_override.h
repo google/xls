@@ -16,6 +16,7 @@
 #define XLS_CODEGEN_OP_OVERRIDE_H_
 
 #include <memory>
+#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

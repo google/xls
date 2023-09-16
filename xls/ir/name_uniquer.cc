@@ -14,6 +14,10 @@
 
 #include "xls/ir/name_uniquer.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 

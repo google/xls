@@ -14,6 +14,11 @@
 
 #include "xls/contrib/integrator/integration_builder.h"
 
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "xls/contrib/integrator/integration_algorithms/basic_integration_algorithm.h"
 
 namespace xls {

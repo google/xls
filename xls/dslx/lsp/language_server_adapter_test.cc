@@ -19,7 +19,7 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 
 namespace xls::dslx {
 namespace {

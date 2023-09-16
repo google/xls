@@ -138,7 +138,9 @@
 
 #include <ostream>  // NOLINT
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "absl/status/statusor.h"
@@ -567,6 +569,12 @@ IsOkAndHolds(InnerMatcher&& inner_matcher) {
                        lhs, rexpr,                                            \
                        xls::status_testing::internal_status::AddFatalFailure( \
                            #rexpr, _))
+
+// Executes an expression that returns a absl::StatusOr, and compares the
+// contained variable to rexpr if the error code is OK.
+// If the Status is non-OK it generates a nonfatal test failure
+#define XLS_EXPECT_OK_AND_EQ(lhs, rexpr) \
+  EXPECT_THAT(lhs, status_testing::IsOkAndHolds(rexpr));
 
 }  // namespace status_testing
 }  // namespace xls

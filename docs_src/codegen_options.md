@@ -12,6 +12,12 @@ SystemVerilog.
 
 -   `<input.ir>` is a positional argument giving the path to the ir file.
 -   `--top` specifies the top function or proc to codegen.
+-   `--codegen_options_proto=...` specifies the filename of a protobuf
+    containing the arguments to supply codegen other than the scheduling
+    arguments. Details can be found in codegen_flags.cc
+-   `--scheduling_options_proto=...` specifies the filename of a protobuf
+    containing the scheduling arguments. Details can be found in
+    scheduling_options_flags.cc
 
 # Output locations
 
@@ -53,9 +59,22 @@ control the scheduler.
 -   `--period_relaxation_percent=...` sets the percentage that the computed
     minimum clock period is increased. May not be specified with
     `--clock_period_ps`.
+-   `--minimize_clock_on_error` is enabled by default. If enabled, when
+    `--clock_period_ps` is given with an infeasible clock (in the sense that XLS
+    cannot pipeline this input for this clock, even with other constraints
+    relaxed), XLS will find and report the minimum feasible clock period if one
+    exists. If disabled, XLS will report only that the clock period was
+    infeasible, potentially saving time.
+-   `--worst_case_throughput=...` sets the worst-case throughput bound to use
+    when `--generator=pipeline`. If set, allows scheduling a pipeline with
+    worst-case throughput no slower than once per N cycles (assuming no stalling
+    `recv`s).
 -   `--additional_input_delay_ps=...` adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
     RTL.
+-   `--ffi_fallback_delay_ps=...` Delay of foreign function calls if not
+    otherwise specified. If there is no measurement or configuration for the
+    delay of an invoked modules, this is the value used in the scheduler.
 -   `--io_constraints=...` adds constraints to the scheduler. The flag takes a
     comma-separated list of constraints of the form `foo:send:bar:recv:3:5`
     which means that sends on channel `foo` must occur between 3 and 5 cycles
@@ -68,6 +87,30 @@ control the scheduler.
     example of the use of this, see
     [this example](https://github.com/google/xls/tree/main/xls/examples/constraint.x) and
     the associated BUILD rule.
+
+# Feedback-driven Optimization (FDO) Options
+
+The following flags control the feedback-driven optimizations in XLS. For now,
+an iterative SDC scheduling method is implemented, which can take low-level
+feedbacks (typically from downstream tools, e.g., OpenROAD) to guide the delay
+estimation refinements in XLS. For now, FDO is disabled by default
+(`--fdo_iteration_number=1`).
+
+-   `--fdo_iteration_number=...` The number of FDO iterations during the
+    pipeline scheduling. Must be an integer >= 1.
+-   `--fdo_delay_driven_path_number=...` The number of delay-driven subgraphs in
+    each FDO iteration. Must be a non-negative integer.
+-   `--fdo_fanout_driven_path_number=...` The number of fanout-driven subgraphs
+    in each FDO iteration. Must be a non-negative integer.
+-   `--fdo_refinement_stochastic_ratio=...` \*path_number over
+    refinement_stochastic_ratio paths are extracted and \*path_number paths are
+    randomly selected from them for synthesis in each FDO iteration. Must be a
+    positive float <= 1.0.
+-   `--fdo_path_evaluate_strategy=...` Support path, cone, and window for now.
+-   `--fdo_synthesizer_name=...` Only support yosys for now.
+-   `--fdo_yosys_path=...` Absolute path of Yosys.
+-   `--fdo_sta_path=...` Absolute path of OpenSTA.
+-   `--fdo_synthesis_libraries=...` Synthesis and STA libraries.
 
 # Naming
 
@@ -219,13 +262,17 @@ string. These format strings use placeholders to fill in relevant information.
 
 ![Flop Outputs](./flop_outputs.svg)
 
-    -   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
-        skid buffer can hold 2 entries.
+```
+-   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
+    skid buffer can hold 2 entries.
+```
 
 ![Skid Buffer](./skid_buffer.svg)
 
-    -   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
-        block. This is essentially a single-element FIFO with bypass.
+```
+-   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
+    block. This is essentially a single-element FIFO with bypass.
+```
 
 ![Zero Latency Buffer](./zero_latency_buffer.svg)
 

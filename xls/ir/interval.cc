@@ -15,17 +15,23 @@
 #include "xls/ir/interval.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <limits>
+#include <optional>
 #include <random>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls {
-
-void Interval::EnsureValid() const {
-  XLS_CHECK(is_valid_);
-  XLS_CHECK_EQ(lower_bound_.bit_count(), upper_bound_.bit_count());
-}
 
 int64_t Interval::BitCount() const {
   EnsureValid();
@@ -49,13 +55,30 @@ bool Interval::Overlaps(const Interval& lhs, const Interval& rhs) {
   XLS_CHECK(!lhs.IsImproper());
   XLS_CHECK(!rhs.IsImproper());
   if (lhs.BitCount() == 0) {
-    // The unique zero-width interval overlaps with itself.
+    // The unique zero-width interval overlaps itself.
     return true;
   }
-  if (rhs < lhs) {
-    return Overlaps(rhs, lhs);
-  }
-  return bits_ops::UGreaterThanOrEqual(lhs.upper_bound_, rhs.lower_bound_);
+
+  // Suppose lhs = [a, b] and rhs = [c, d].
+  const Bits& a = lhs.LowerBound();
+  const Bits& b = lhs.UpperBound();
+  const Bits& c = rhs.LowerBound();
+  const Bits& d = rhs.UpperBound();
+  // Since the intervals are proper, we know that a <= b and c <= d.
+
+  // Suppose b < c; we would then have a <= b < c <= d, so no overlap.
+  // Similarly, suppose d < a; we then have c <= d < a <= b, so no overlap.
+  // On the other hand, if b >= c and d >= a, then:
+  // - a <= b and a <= d, so a <= min(b, d), and
+  // - c <= b and c <= d, so c <= min(b, d).
+  // By the definition of min(x, y):
+  // - a <= min(b, d) <= b, and
+  // - c <= min(b, d) <= d.
+  // Therefore, min(b, d) ∈ [a, b] ∩ [c, d], so the intervals overlap.
+
+  // In other words, the intervals overlap if and only if b >= c and d >= a.
+  return bits_ops::UGreaterThanOrEqual(b, c) &&
+         bits_ops::UGreaterThanOrEqual(d, a);
 }
 
 bool Interval::Disjoint(const Interval& lhs, const Interval& rhs) {
@@ -70,19 +93,33 @@ bool Interval::Abuts(const Interval& lhs, const Interval& rhs) {
     // The unique zero-width interval does not abut itself.
     return false;
   }
-  if (rhs < lhs) {
-    return Abuts(rhs, lhs);
+
+  // Suppose lhs = [a, b] and rhs = [c, d].
+  const Bits& a = lhs.LowerBound();
+  const Bits& b = lhs.UpperBound();
+  const Bits& c = rhs.LowerBound();
+  const Bits& d = rhs.UpperBound();
+  // Since the intervals are proper, we know that a <= b and c <= d.
+
+  // If b is all ones, then it's the maximum value; we must have b >= c, so they
+  // can't abut in that direction.
+  if (!b.IsAllOnes()) {
+    int64_t bp_vs_c = bits_ops::UCmp(bits_ops::Increment(b), c);
+    if (bp_vs_c == 0) {
+      // b + 1 == c, so [a, b] and [c, d] abut.
+      return true;
+    }
+    if (bp_vs_c < 0) {
+      // b + 1 < c.
+      // Since a <= b < b + 1 < c <= d, there's an element between [a, b] and
+      // [c, d], so they don't abut.
+      return false;
+    }
   }
-  // If the two intervals overlap, they definitely don't abut.
-  // This takes care of cases like
-  // `Interval::Abuts(Interval::Maximal(n), Interval::Maximal(n))`
-  // and any others I haven't thought of.
-  if (Interval::Overlaps(lhs, rhs)) {
-    return false;
-  }
-  Bits one = UBits(1, lhs.BitCount());
-  return bits_ops::UEqual(bits_ops::Add(lhs.upper_bound_, one),
-                          rhs.lower_bound_);
+
+  // b >= c, so c <= b. The only remaining way these intervals can abut is:
+  // if d is not the maximum value and a == d + 1.
+  return !d.IsAllOnes() && bits_ops::UEqual(bits_ops::Increment(d), a);
 }
 
 Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
@@ -94,14 +131,8 @@ Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
     // unique zero-width interval.
     return Interval(Bits(), Bits());
   }
-  Interval result = lhs;
-  if (bits_ops::ULessThan(rhs.lower_bound_, result.lower_bound_)) {
-    result.lower_bound_ = rhs.lower_bound_;
-  }
-  if (bits_ops::UGreaterThan(rhs.upper_bound_, result.upper_bound_)) {
-    result.upper_bound_ = rhs.upper_bound_;
-  }
-  return result;
+  return Interval(bits_ops::UMin(lhs.LowerBound(), rhs.LowerBound()),
+                  bits_ops::UMax(lhs.UpperBound(), rhs.UpperBound()));
 }
 
 std::optional<Interval> Interval::Intersect(const Interval& lhs,
@@ -109,18 +140,13 @@ std::optional<Interval> Interval::Intersect(const Interval& lhs,
   XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   XLS_CHECK(!lhs.IsImproper());
   XLS_CHECK(!rhs.IsImproper());
-  if (!Interval::Overlaps(lhs, rhs)) {
+
+  Interval intersection(bits_ops::UMax(lhs.LowerBound(), rhs.LowerBound()),
+                        bits_ops::UMin(lhs.UpperBound(), rhs.UpperBound()));
+  if (intersection.IsImproper()) {
     return std::nullopt;
   }
-  Bits lower = lhs.LowerBound();
-  if (bits_ops::UGreaterThan(rhs.LowerBound(), lower)) {
-    lower = rhs.LowerBound();
-  }
-  Bits upper = lhs.UpperBound();
-  if (bits_ops::ULessThan(rhs.UpperBound(), upper)) {
-    upper = rhs.UpperBound();
-  }
-  return Interval(lower, upper);
+  return std::move(intersection);
 }
 
 std::vector<Interval> Interval::Difference(const Interval& lhs,
@@ -128,20 +154,29 @@ std::vector<Interval> Interval::Difference(const Interval& lhs,
   XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   XLS_CHECK(!lhs.IsImproper());
   XLS_CHECK(!rhs.IsImproper());
-  if (!Interval::Overlaps(lhs, rhs)) {
-    // X - Y = X when X ∩ Y = ø
+
+  // X - Y = X - (X ∩ Y)
+  std::optional<Interval> intersection = Intersect(lhs, rhs);
+  if (!intersection.has_value()) {
+    // X ∩ Y = ø, so X - Y = X - ø = X
     return {lhs};
   }
+
+  // Suppose lhs = [a, d] and intersection = [b, c].
+  const Bits& a = lhs.LowerBound();
+  const Bits& b = intersection->LowerBound();
+  const Bits& c = intersection->UpperBound();
+  const Bits& d = lhs.UpperBound();
+  // Since intersection is a subset of lhs, a <= b <= c <= d.
+
+  // [a, d] - [b, c] = [a, b) ∪ (c, d]
   std::vector<Interval> result;
-  if (bits_ops::ULessThan(lhs.LowerBound(), rhs.LowerBound())) {
-    result.push_back(
-        Interval(lhs.LowerBound(),
-                 bits_ops::Sub(rhs.LowerBound(), UBits(1, rhs.BitCount()))));
+  result.reserve(2);
+  if (bits_ops::ULessThan(a, b)) {
+    result.push_back(Interval::RightOpen(a, b));
   }
-  if (bits_ops::ULessThan(rhs.UpperBound(), lhs.UpperBound())) {
-    result.push_back(
-        Interval(bits_ops::Add(rhs.UpperBound(), UBits(1, rhs.BitCount())),
-                 lhs.UpperBound()));
+  if (bits_ops::ULessThan(c, d)) {
+    result.push_back(Interval::LeftOpen(c, d));
   }
   return result;
 }
@@ -158,37 +193,33 @@ bool Interval::IsSubsetOf(const Interval& lhs, const Interval& rhs) {
          bits_ops::UGreaterThanOrEqual(rhs.UpperBound(), lhs.UpperBound());
 }
 
-bool Interval::ForEachElement(std::function<bool(const Bits&)> callback) const {
+bool Interval::ForEachElement(
+    const std::function<bool(const Bits&)>& callback) const {
   EnsureValid();
   if (bits_ops::UEqual(lower_bound_, upper_bound_)) {
     return callback(lower_bound_);
   }
   Bits value = lower_bound_;
-  Bits zero = UBits(0, BitCount());
-  Bits one = UBits(1, BitCount());
-  Bits max = Bits::AllOnes(BitCount());
-  if (bits_ops::UGreaterThan(lower_bound_, upper_bound_)) {
-    while (true) {
+  if (IsImproper()) {
+    Bits max = Bits::AllOnes(BitCount());
+    while (bits_ops::ULessThan(value, max)) {
       if (callback(value)) {
         return true;
       }
-      if (bits_ops::UEqual(value, max)) {
-        break;
-      }
-      value = bits_ops::Add(value, one);
+      value = bits_ops::Increment(value);
     }
-    value = zero;
-  }
-  while (true) {
     if (callback(value)) {
       return true;
     }
-    if (bits_ops::UEqual(value, upper_bound_)) {
-      break;
-    }
-    value = bits_ops::Add(value, one);
+    value = UBits(0, BitCount());
   }
-  return false;
+  while (bits_ops::ULessThan(value, upper_bound_)) {
+    if (callback(value)) {
+      return true;
+    }
+    value = bits_ops::Increment(value);
+  }
+  return callback(value);
 }
 
 std::vector<Bits> Interval::Elements() const {
@@ -213,8 +244,7 @@ Bits Interval::SizeBits() const {
 
   int64_t padded_size = BitCount() + 1;
   Bits difference = bits_ops::Sub(upper_bound_, lower_bound_);
-  return bits_ops::Add(UBits(1, padded_size),
-                       bits_ops::ZeroExtend(difference, padded_size));
+  return bits_ops::Increment(bits_ops::ZeroExtend(difference, padded_size));
 }
 
 std::optional<int64_t> Interval::Size() const {
@@ -257,10 +287,8 @@ bool Interval::IsMaximal() const {
   if (BitCount() == 0) {
     return true;
   }
-  // This works because `bits_ops::Add` overflows, and correctly handles
-  // improper intervals.
-  Bits upper_plus_one = bits_ops::Add(upper_bound_, UBits(1, BitCount()));
-  return bits_ops::UEqual(upper_plus_one, lower_bound_);
+  return bits_ops::UEqual(lower_bound_, UBits(0, BitCount())) &&
+         bits_ops::UEqual(upper_bound_, Bits::AllOnes(BitCount()));
 }
 
 bool Interval::IsTrueWhenAndWith(const Bits& value) const {
@@ -282,10 +310,9 @@ bool Interval::Covers(const Bits& point) const {
   if (IsImproper()) {
     return bits_ops::ULessThanOrEqual(lower_bound_, point) ||
            bits_ops::ULessThanOrEqual(point, upper_bound_);
-  } else {
-    return bits_ops::ULessThanOrEqual(lower_bound_, point) &&
-           bits_ops::ULessThanOrEqual(point, upper_bound_);
   }
+  return bits_ops::ULessThanOrEqual(lower_bound_, point) &&
+         bits_ops::ULessThanOrEqual(point, upper_bound_);
 }
 
 bool Interval::CoversZero() const { return Covers(UBits(0, BitCount())); }
@@ -298,8 +325,8 @@ bool Interval::CoversMax() const { return Covers(Bits::AllOnes(BitCount())); }
 
 std::string Interval::ToString() const {
   FormatPreference pref = FormatPreference::kDefault;
-  return absl::StrFormat("[%s, %s]", lower_bound_.ToString(pref, false),
-                         upper_bound_.ToString(pref, false));
+  return absl::StrFormat("[%s, %s]", BitsToString(lower_bound_, pref, false),
+                         BitsToString(upper_bound_, pref, false));
 }
 
 Interval Interval::Random(uint64_t seed, int64_t bit_count) {

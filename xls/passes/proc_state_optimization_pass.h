@@ -17,21 +17,22 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/proc.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 // Pass which tries to minimize the size and total number of elements of the
 // proc state.  The optimizations include removal of dead state elements and
 // zero-width elements.
-class ProcStateOptimizationPass : public ProcPass {
+class ProcStateOptimizationPass : public OptimizationProcPass {
  public:
   ProcStateOptimizationPass()
-      : ProcPass("proc_state_opt", "Proc State Optimization") {}
+      : OptimizationProcPass("proc_state_opt", "Proc State Optimization") {}
   ~ProcStateOptimizationPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunOnProcInternal(Proc* proc, const PassOptions& options,
+  absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
+                                         const OptimizationPassOptions& options,
                                          PassResults* results) const override;
 };
 

@@ -22,5 +22,4 @@ fn main(x: u2) -> u1 {
 fn main_test() {
   assert_eq(main(u2:0b01), u1:1);
   assert_eq(main(u2:0b10), u1:0);
-  ()
 }

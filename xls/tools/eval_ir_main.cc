@@ -12,7 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>  // NOLINT
+#include <iostream>
+#include <memory>
+#include <optional>
 #include <random>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
@@ -21,6 +28,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -28,17 +36,19 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/interpreter/function_interpreter.h"
-#include "xls/interpreter/ir_interpreter.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/function_jit.h"
-#include "xls/passes/passes.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 
 const char kUsage[] = R"(
 Evaluates an IR file with user-specified or random inputs using the IR
@@ -211,11 +221,11 @@ absl::StatusOr<std::vector<Value>> Eval(
 
 // An invariant checker which evaluates the entry function with the given
 // ArgSets. Raises an error if expectations are not matched.
-class EvalInvariantChecker : public InvariantChecker {
+class EvalInvariantChecker : public OptimizationInvariantChecker {
  public:
   explicit EvalInvariantChecker(absl::Span<const ArgSet> arg_sets, bool use_jit)
       : arg_sets_(arg_sets.begin(), arg_sets.end()), use_jit_(use_jit) {}
-  absl::Status Run(Package* package, const PassOptions& options,
+  absl::Status Run(Package* package, const OptimizationPassOptions& options,
                    PassResults* results) const override {
     if (results->invocations.empty()) {
       std::cerr << "// Evaluating entry function at start of pipeline.\n";
@@ -277,14 +287,15 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   // (either expected result passed in on the command line or the result
   // produced without optimizations).
   if (absl::GetFlag(FLAGS_optimize_ir)) {
-    std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
+    std::unique_ptr<OptimizationCompoundPass> pipeline =
+        CreateOptimizationPassPipeline();
     if (absl::GetFlag(FLAGS_eval_after_each_pass)) {
       pipeline->AddInvariantChecker<EvalInvariantChecker>(
           arg_sets, absl::GetFlag(FLAGS_use_llvm_jit));
     }
     PassResults results;
     XLS_RETURN_IF_ERROR(
-        pipeline->Run(package, PassOptions(), &results).status());
+        pipeline->Run(package, OptimizationPassOptions(), &results).status());
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),
                              "before optimizations", "after optimizations")
@@ -311,9 +322,9 @@ absl::StatusOr<ArgSet> ArgSetFromString(std::string_view args_string) {
 absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
     Function* f, std::string_view dslx_stdlib_path,
     std::string_view validator_dslx) {
-  dslx::ImportData import_data(
-      dslx::CreateImportData(std::string(dslx_stdlib_path),
-                             absl::Span<const std::filesystem::path>{}));
+  dslx::ImportData import_data(dslx::CreateImportData(
+      std::string(dslx_stdlib_path), absl::Span<const std::filesystem::path>{},
+      dslx::kAllWarningsSet));
   XLS_ASSIGN_OR_RETURN(dslx::TypecheckedModule module,
                        dslx::ParseAndTypecheck(validator_dslx, "fake_path",
                                                kPackageName, &import_data));
@@ -505,5 +516,6 @@ int main(int argc, char** argv) {
       << "At most one one of 'input_validator' or 'input_validator_path' may "
          "be specified.";
   std::string dslx_stdlib_path = absl::GetFlag(FLAGS_dslx_stdlib_path);
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], dslx_stdlib_path));
+  return xls::ExitStatus(
+      xls::RealMain(positional_arguments[0], dslx_stdlib_path));
 }

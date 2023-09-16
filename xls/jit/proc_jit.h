@@ -15,6 +15,10 @@
 #ifndef XLS_JIT_PROC_JIT_H_
 #define XLS_JIT_PROC_JIT_H_
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"

@@ -12,9 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
+#include <optional>
+#include <string_view>
+#include <vector>
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -88,7 +94,6 @@ int main(int argc, char** argv) {
     cell_library_path = positional_arguments[1];
   }
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], cell_library_path));
-
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(
+      xls::RealMain(positional_arguments[0], cell_library_path));
 }

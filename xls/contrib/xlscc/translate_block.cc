@@ -69,6 +69,7 @@ absl::Status Translator::GenerateExternalChannels(
       const auto xls_channel_op = top_decl.is_input
                                       ? xls::ChannelOps::kReceiveOnly
                                       : xls::ChannelOps::kSendOnly;
+
       XLS_ASSIGN_OR_RETURN(
           new_channel.regular,
           package_->CreateStreamingChannel(
@@ -329,7 +330,6 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     static_next_values.push_back(next_val);
   }
   XLS_CHECK_EQ(static_next_values.size(), prepared.state_init_count);
-  // const xls::BValue next_state = pb.Tuple(static_next_values);
 
   return pb.Build(prepared.token, static_next_values);
 }
@@ -373,6 +373,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
 
   const clang::CXXRecordDecl* record_decl = this_type->getAsCXXRecordDecl();
 
+  context().ast_context = &record_decl->getASTContext();
+
   XLS_RETURN_IF_ERROR(ScanStruct(record_decl));
 
   XLS_ASSIGN_OR_RETURN(
@@ -403,6 +405,12 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
     if (auto channel_type =
             std::dynamic_pointer_cast<CChannelType>(field->type())) {
       if (channel_type->GetOpType() != OpType::kNull) {
+        if (channel_type->GetOpType() == OpType::kSendRecv) {
+          return absl::UnimplementedError(
+              ErrorMessage(GetLoc(*field->name()),
+                           "Internal (InOut) channels in top class"));
+        }
+
         xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
         channel_spec->set_name(field->name()->getNameAsString());
         channel_spec->set_width_in_bits(resolved_field_type->GetBitWidth());
@@ -428,10 +436,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
             .interface_type = InterfaceType::kMemory};
         top_decls.push_back(channel_info);
       } else {
-        return absl::InvalidArgumentError(ErrorMessage(
-            GetLoc(*field->name()),
-            "Direction or depth unspecified for external channel or memory %s",
-            field->name()->getNameAsString().c_str()));
+        return absl::InvalidArgumentError(
+            ErrorMessage(GetLoc(*field->name()),
+                         "Direction or depth unspecified for external channel "
+                         "or memory '%s'",
+                         field->name()->getNameAsString().c_str()));
       }
     } else if (auto channel_type =
                    std::dynamic_pointer_cast<CReferenceType>(field->type())) {
@@ -510,10 +519,6 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   XLS_CHECK_GE(prepared.xls_func->return_value_count,
                prepared.xls_func->io_ops.size());
 
-  absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
-
-  std::list<const IOOp*> fan_ins_ordered;
-
   // The function is first invoked with defaults for any
   //  read() IO Ops.
   // If there are any read() IO Ops, then it will be invoked again
@@ -522,21 +527,16 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   //  exchange any data with the outside world between iterations.
   xls::BValue last_ret_val =
       pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
-  for (const IOOp& op : prepared.xls_func->io_ops) {
-    const int return_index = prepared.return_index_for_op.at(&op);
+
+  // Returns token
+  auto generate_op_invoke =
+      [this, &prepared, &last_ret_val, &pb](
+          const IOOp& op,
+          xls::BValue before_token) -> absl::StatusOr<xls::BValue> {
     xls::SourceInfo op_loc = op.op_location;
+    const int return_index = prepared.return_index_for_op.at(&op);
 
-    xls::BValue before_token = prepared.token;
     xls::BValue new_token;
-    if (!op.after_ops.empty()) {
-      std::vector<xls::BValue> after_tokens;
-      after_tokens.reserve(op.after_ops.size());
-      for (const IOOp* op : op.after_ops) {
-        after_tokens.push_back(op_tokens.at(op));
-      }
-      before_token = pb.AfterAll(after_tokens, body_loc);
-    }
-
     const ChannelBundle* bundle_ptr = nullptr;
 
     if (op.op != OpType::kTrace) {
@@ -670,18 +670,93 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
     } else {
       XLS_CHECK("Unknown IOOp type" == nullptr);
     }
+    return new_token;
+  };
+
+  // ASAP ops before
+  std::vector<xls::BValue> asap_befores_ordered;
+  for (const IOOp& op : prepared.xls_func->io_ops) {
+    if (op.scheduling_option != IOSchedulingOption::kASAPBefore) {
+      continue;
+    }
+
+    xls::BValue new_token;
+    xls::BValue before_token = prepared.token;
+    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(op, before_token));
+
+    asap_befores_ordered.push_back(new_token);
+  }
+  std::optional<xls::BValue> asap_befores_token;
+  if (!asap_befores_ordered.empty()) {
+    asap_befores_token = pb.AfterAll(asap_befores_ordered, body_loc);
+  }
+
+  // ASAP ops after
+  std::vector<xls::BValue> asap_afters_ordered;
+  for (const IOOp& op : prepared.xls_func->io_ops) {
+    if (op.scheduling_option != IOSchedulingOption::kASAPAfter) {
+      continue;
+    }
+
+    xls::BValue new_token;
+    xls::BValue before_token = asap_befores_token.has_value()
+                                   ? asap_befores_token.value()
+                                   : prepared.token;
+    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(op, before_token));
+
+    asap_afters_ordered.push_back(new_token);
+  }
+
+  std::optional<xls::BValue> asap_afters_token;
+  if (!asap_afters_ordered.empty()) {
+    asap_afters_token = pb.AfterAll(asap_afters_ordered, body_loc);
+  }
+
+  std::vector<xls::BValue> fan_ins_tokens;
+
+  // Add the ASAP after token if present, otherwise the before token if present
+  if (asap_befores_token.has_value() && !asap_afters_token.has_value()) {
+    fan_ins_tokens.push_back(asap_befores_token.value());
+  }
+  if (asap_afters_token.has_value()) {
+    fan_ins_tokens.push_back(asap_afters_token.value());
+  }
+
+  absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
+
+  // Then default (possibly serialized) ops
+  for (const IOOp& op : prepared.xls_func->io_ops) {
+    if (op.scheduling_option != IOSchedulingOption::kNone) {
+      continue;
+    }
+
+    xls::SourceInfo op_loc = op.op_location;
+
+    xls::BValue before_token = prepared.token;
+    xls::BValue new_token;
+    if (!op.after_ops.empty()) {
+      XLSCC_CHECK(op.scheduling_option == IOSchedulingOption::kNone, op_loc);
+
+      std::vector<xls::BValue> after_tokens;
+      after_tokens.reserve(op.after_ops.size());
+      for (const IOOp* after_op : op.after_ops) {
+        XLSCC_CHECK(after_op->scheduling_option == IOSchedulingOption::kNone,
+                    op_loc);
+        XLSCC_CHECK_NE(&op, after_op, op_loc);
+        after_tokens.push_back(op_tokens.at(after_op));
+      }
+      before_token = pb.AfterAll(after_tokens, body_loc);
+    }
+
+    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(op, before_token));
 
     XLS_CHECK(!op_tokens.contains(&op));
     op_tokens[&op] = new_token;
 
-    fan_ins_ordered.push_back(&op);
+    fan_ins_tokens.push_back(new_token);
   }
 
-  if (!fan_ins_ordered.empty()) {
-    std::vector<xls::BValue> fan_ins_tokens;
-    for (const IOOp* op : fan_ins_ordered) {
-      fan_ins_tokens.push_back(op_tokens.at(op));
-    }
+  if (!fan_ins_tokens.empty()) {
     prepared.token = pb.AfterAll(fan_ins_tokens, body_loc);
   }
 
@@ -846,6 +921,8 @@ absl::Status Translator::GenerateIRBlockPrepare(
     const xls::SourceInfo& body_loc) {
   // For defaults, updates, invokes
   GeneratedFunction temp_sf;
+
+  XLSCC_CHECK(!context_stack_.empty(), body_loc);
   context() = TranslationContext();
   context().propagate_up = false;
   context().sf = &temp_sf;
@@ -930,10 +1007,10 @@ absl::Status Translator::GenerateIRBlockPrepare(
     }
 
     if (!prepared.xls_channel_by_function_channel.contains(op.channel)) {
-      XLSCC_CHECK_EQ(
-          external_channels_by_internal_channel_.contains(op.channel) &&
-              external_channels_by_internal_channel_.count(op.channel),
-          1, body_loc);
+      XLSCC_CHECK(external_channels_by_internal_channel_.contains(op.channel),
+                  body_loc);
+      XLSCC_CHECK_EQ(external_channels_by_internal_channel_.count(op.channel),
+                     1, body_loc);
       const ChannelBundle bundle =
           external_channels_by_internal_channel_.find(op.channel)->second;
       prepared.xls_channel_by_function_channel[op.channel] = bundle;

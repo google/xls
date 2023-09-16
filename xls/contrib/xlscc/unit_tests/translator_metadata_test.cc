@@ -1680,6 +1680,22 @@ TEST_F(TranslatorMetadataTest, EnumMember) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
+TEST_F(TranslatorMetadataTest, NoContextCrash) {
+  const std::string content = R"(
+      #pragma hls_top
+      void Run(__xls_channel<int>& in,
+               __xls_channel<int>& out) {
+        int din = in.read();
+        out.write(din);
+      }
+    )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+}
+
 }  // namespace
 
 }  // namespace xlscc

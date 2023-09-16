@@ -22,9 +22,11 @@
 #ifndef XLS_PUBLIC_VALUE_H_
 #define XLS_PUBLIC_VALUE_H_
 
+// IWYU pragma: begin_exports
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+// IWYU pragma: end_exports
 
 #endif  // XLS_PUBLIC_VALUE_H_

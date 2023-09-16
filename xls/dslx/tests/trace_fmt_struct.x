@@ -17,11 +17,10 @@ struct Point {
   y: s32,
 }
 
-fn f() -> () {
+fn main() {
   let p = Point{x: u32:42, y: s32:-1};
   trace_fmt!("point: {}", p);
-  ()
 }
 
 #[test]
-fn f_test() { f() }
+fn f_test() { main() }

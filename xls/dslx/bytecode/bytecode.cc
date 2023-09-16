@@ -37,6 +37,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 #include "re2/re2.h"
@@ -45,8 +46,11 @@ namespace xls::dslx {
 namespace {
 
 absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
-  if (s == "add") {
-    return Bytecode::Op::kAdd;
+  if (s == "uadd") {
+    return Bytecode::Op::kUAdd;
+  }
+  if (s == "sadd") {
+    return Bytecode::Op::kSAdd;
   }
   if (s == "and") {
     return Bytecode::Op::kAnd;
@@ -129,8 +133,11 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "match_arm") {
     return Bytecode::Op::kMatchArm;
   }
-  if (s == "mul") {
-    return Bytecode::Op::kMul;
+  if (s == "smul") {
+    return Bytecode::Op::kSMul;
+  }
+  if (s == "umul") {
+    return Bytecode::Op::kUMul;
   }
   if (s == "ne") {
     return Bytecode::Op::kNe;
@@ -171,8 +178,11 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "store") {
     return Bytecode::Op::kStore;
   }
-  if (s == "sub") {
-    return Bytecode::Op::kSub;
+  if (s == "ssub") {
+    return Bytecode::Op::kSSub;
+  }
+  if (s == "usub") {
+    return Bytecode::Op::kUSub;
   }
   if (s == "swap") {
     return Bytecode::Op::kSwap;
@@ -194,8 +204,10 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
 
 std::string OpToString(Bytecode::Op op) {
   switch (op) {
-    case Bytecode::Op::kAdd:
-      return "add";
+    case Bytecode::Op::kSAdd:
+      return "sadd";
+    case Bytecode::Op::kUAdd:
+      return "uadd";
     case Bytecode::Op::kAnd:
       return "and";
     case Bytecode::Op::kCall:
@@ -250,8 +262,12 @@ std::string OpToString(Bytecode::Op op) {
       return "logical_or";
     case Bytecode::Op::kMatchArm:
       return "match_arm";
-    case Bytecode::Op::kMul:
-      return "mul";
+    case Bytecode::Op::kUMul:
+      return "umul";
+    case Bytecode::Op::kSMul:
+      return "smul";
+    case Bytecode::Op::kMod:
+      return "mod";
     case Bytecode::Op::kNe:
       return "ne";
     case Bytecode::Op::kNegate:
@@ -278,8 +294,10 @@ std::string OpToString(Bytecode::Op op) {
       return "spawn";
     case Bytecode::Op::kStore:
       return "store";
-    case Bytecode::Op::kSub:
-      return "sub";
+    case Bytecode::Op::kSSub:
+      return "ssub";
+    case Bytecode::Op::kUSub:
+      return "usub";
     case Bytecode::Op::kSwap:
       return "swap";
     case Bytecode::Op::kTrace:
@@ -329,12 +347,19 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
   return MatchArmItem(Kind::kWildcard);
 }
 
+/* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeRange(
+    InterpValue start, InterpValue limit) {
+  return MatchArmItem(Kind::kRange,
+                      RangeData{std::move(start), std::move(limit)});
+}
+
 Bytecode::MatchArmItem::MatchArmItem(Kind kind)
     : kind_(kind), data_(std::nullopt) {}
 
 Bytecode::MatchArmItem::MatchArmItem(
     Kind kind,
-    std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data)
+    std::variant<InterpValue, SlotIndex, RangeData, std::vector<MatchArmItem>>
+        data)
     : kind_(kind), data_(std::move(data)) {}
 
 absl::StatusOr<InterpValue> Bytecode::MatchArmItem::interp_value() const {
@@ -346,6 +371,18 @@ absl::StatusOr<InterpValue> Bytecode::MatchArmItem::interp_value() const {
   }
 
   return std::get<InterpValue>(data_.value());
+}
+
+absl::StatusOr<Bytecode::MatchArmItem::RangeData>
+Bytecode::MatchArmItem::range() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("MatchArmItem does not hold data.");
+  }
+  if (!std::holds_alternative<RangeData>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not RangeData.");
+  }
+
+  return std::get<RangeData>(data_.value());
 }
 
 absl::StatusOr<Bytecode::SlotIndex> Bytecode::MatchArmItem::slot_index() const {
@@ -376,6 +413,11 @@ std::string Bytecode::MatchArmItem::ToString() const {
     case Kind::kInterpValue:
       return absl::StrCat("value:",
                           std::get<InterpValue>(data_.value()).ToString());
+    case Kind::kRange: {
+      const auto& range_data = std::get<RangeData>(data_.value());
+      return absl::StrCat("range:", range_data.start.ToString(), "..",
+                          range_data.limit.ToString());
+    }
     case Kind::kLoad:
       return absl::StrCat("load:", std::get<SlotIndex>(data_.value()).value());
     case Kind::kStore:
@@ -413,11 +455,6 @@ DEF_UNARY_BUILDER(Range);
 DEF_UNARY_BUILDER(Swap);
 
 #undef DEF_UNARY_BUILDER
-
-/* static */ Bytecode Bytecode::MakeCreateTuple(Span span,
-                                                NumElements num_elements) {
-  return Bytecode(std::move(span), Op::kCreateTuple, num_elements);
-}
 
 /* static */ Bytecode Bytecode::MakeJumpRelIf(Span span, JumpTarget target) {
   return Bytecode(std::move(span), Op::kJumpRelIf, target);
@@ -680,10 +717,8 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
 absl::StatusOr<std::unique_ptr<BytecodeFunction>> BytecodeFunction::Create(
     const Module* owner, const Function* source_fn, const TypeInfo* type_info,
     std::vector<Bytecode> bytecodes) {
-  auto bf = absl::WrapUnique(
+  return absl::WrapUnique(
       new BytecodeFunction(owner, source_fn, type_info, std::move(bytecodes)));
-  XLS_RETURN_IF_ERROR(bf->Init());
-  return bf;
 }
 
 BytecodeFunction::BytecodeFunction(const Module* owner,
@@ -694,17 +729,6 @@ BytecodeFunction::BytecodeFunction(const Module* owner,
       source_fn_(source_fn),
       type_info_(type_info),
       bytecodes_(std::move(bytecodes)) {}
-
-absl::Status BytecodeFunction::Init() {
-  num_slots_ = 0;
-  for (const auto& bc : bytecodes_) {
-    if (bc.op() == Bytecode::Op::kLoad || bc.op() == Bytecode::Op::kStore) {
-      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot, bc.slot_index());
-      num_slots_ = std::max(num_slots_, slot.value() + 1);
-    }
-  }
-  return absl::OkStatus();
-}
 
 std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
   // Create a modifiable copy of the bytecodes.
@@ -731,15 +755,6 @@ std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
   }
 
   return bytecodes;
-}
-
-std::string BytecodeFunction::ToString() const {
-  std::vector<std::string> lines;
-  lines.reserve(bytecodes_.size());
-  for (const auto& bytecode : bytecodes_) {
-    lines.push_back(bytecode.ToString());
-  }
-  return absl::StrJoin(lines, "\n");
 }
 
 }  // namespace xls::dslx

@@ -19,23 +19,23 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 // class IdentityRemovalPass eliminates all identity() expressions
 // by forward substituting it's parameters to the uses of the
 // identity's def.
-class IdentityRemovalPass : public FunctionBasePass {
+class IdentityRemovalPass : public OptimizationFunctionBasePass {
  public:
   IdentityRemovalPass()
-      : FunctionBasePass("ident_remove", "Identity Removal") {}
+      : OptimizationFunctionBasePass("ident_remove", "Identity Removal") {}
   ~IdentityRemovalPass() override = default;
 
  protected:
   // Iterate all nodes and eliminate identities.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

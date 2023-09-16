@@ -14,6 +14,8 @@
 
 #include "xls/common/logging/log_flags.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
@@ -34,7 +36,7 @@ template <typename T>
 class ScopedFlagSetter {
  public:
   ScopedFlagSetter(absl::Flag<T>* flag, const T& value)
-      : flag_(flag), original_value_(absl::GetFlag(*flag)) {
+      : flag_(flag), original_value_(absl::GetFlag(*flag)) {  // NOLINT
     absl::SetFlag(flag, value);
   }
 

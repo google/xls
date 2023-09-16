@@ -1,0 +1,33 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#ifndef FAKE_PATH_H_
+#define FAKE_PATH_H_
+#include <cstdint>
+#include <ostream>
+
+#include "absl/status/statusor.h"
+#include "xls/public/value.h"
+
+struct MyStruct {
+  uint32_t x;
+  uint16_t y;
+  uint8_t z;
+  int64_t w;
+  bool v;
+
+  static constexpr int64_t kXWidth = 32;
+  static constexpr int64_t kYWidth = 15;
+  static constexpr int64_t kZWidth = 8;
+  static constexpr int64_t kWWidth = 63;
+  static constexpr int64_t kVWidth = 1;
+
+  static absl::StatusOr<MyStruct> FromValue(const ::xls::Value& value);
+  ::xls::Value ToValue() const;
+  std::string ToString(int indent = 0) const;
+  bool operator==(const MyStruct& other) const;
+  bool operator!=(const MyStruct& other) const {
+    return !(*this == other);
+  }
+  friend std::ostream& operator<<(std::ostream& os, const MyStruct& data);
+};
+
+#endif  // FAKE_PATH_H_

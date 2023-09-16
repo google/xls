@@ -1,0 +1,17 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#include <vector>
+
+#include "fake_path.h"
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+
+std::string MyEnumToString(MyEnum value) {
+  switch (value) {
+    case MyEnum::kMIN: return "MyEnum::kMIN";
+    case MyEnum::kMID: return "MyEnum::kMID";
+    case MyEnum::kMAX: return "MyEnum::kMAX";
+    default: return "<unknown>";
+  }
+}
+

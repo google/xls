@@ -14,6 +14,10 @@
 
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 
+#include <memory>
+#include <string_view>
+#include <utility>
+
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/errors.h"
 

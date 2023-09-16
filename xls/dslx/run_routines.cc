@@ -281,13 +281,14 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     failed += 1;
   };
 
-  auto import_data = CreateImportData(options.stdlib_path, options.dslx_paths);
+  auto import_data = CreateImportData(options.stdlib_path, options.dslx_paths,
+                                      options.warnings);
 
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
-      return TestResult::kSomeFailed;
+      return TestResult::kParseOrTypecheckError;
     }
     return tm_or.status();
   }

@@ -15,6 +15,11 @@
 #ifndef XLS_NOC_EXPERIMENT_FACTORY_H_
 #define XLS_NOC_EXPERIMENT_FACTORY_H_
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/container/btree_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"

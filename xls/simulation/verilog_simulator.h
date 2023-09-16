@@ -15,7 +15,10 @@
 #ifndef XLS_SIMULATION_VERILOG_SIMULATOR_H_
 #define XLS_SIMULATION_VERILOG_SIMULATOR_H_
 
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

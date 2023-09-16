@@ -17,20 +17,21 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 // Pass which performs constant folding. Every op with only literal operands is
 // replaced by a equivalent literal. Runs DCE after constant folding.
-class ConstantFoldingPass : public FunctionBasePass {
+class ConstantFoldingPass : public OptimizationFunctionBasePass {
  public:
-  ConstantFoldingPass() : FunctionBasePass("const_fold", "Constant folding") {}
+  ConstantFoldingPass()
+      : OptimizationFunctionBasePass("const_fold", "Constant folding") {}
   ~ConstantFoldingPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

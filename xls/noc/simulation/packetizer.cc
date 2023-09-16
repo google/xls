@@ -14,6 +14,8 @@
 
 #include "xls/noc/simulation/packetizer.h"
 
+#include <vector>
+
 namespace xls::noc {
 
 absl::StatusOr<std::vector<Bits>*>
@@ -66,7 +68,7 @@ absl::Status Packetizer::AcceptNewFlit(DataFlit flit) {
     for (Bits& b : *partial_packet_store) {
       XLS_VLOG(1) << absl::StreamFormat(
           "... packetizer concat %s",
-          b.ToString(FormatPreference::kBinary, true));
+          BitsToString(b, FormatPreference::kBinary, true));
       received_data.push_back(b);
     }
 

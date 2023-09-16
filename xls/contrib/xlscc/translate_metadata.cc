@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <list>
+#include <memory>
+
 #include "absl/status/status.h"
 #include "clang/include/clang/Basic/SourceManager.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
@@ -174,6 +177,14 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
   XLS_CHECK_NE(parser_.get(), nullptr);
   XLS_ASSIGN_OR_RETURN(const clang::FunctionDecl* top_function,
                        parser_->GetTopFunction());
+
+  PushContextGuard temporary_this_context(*this, GetLoc(*top_function));
+
+  // Don't allow "this" to be propagated up: it's only temporary for use
+  // within the initializer list
+  context().propagate_up = false;
+  context().override_this_decl_ = top_function;
+  context().ast_context = &top_function->getASTContext();
 
   xlscc_metadata::MetadataOutput ret;
 

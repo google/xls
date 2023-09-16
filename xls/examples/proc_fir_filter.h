@@ -14,11 +14,12 @@
 #ifndef XLS_EXAMPLES_PROC_FIR_FILTER_H
 #define XLS_EXAMPLES_PROC_FIR_FILTER_H
 
+#include <string_view>
 #include <vector>
-#include "xls/ir/channel.h"
-#include "xls/ir/package.h"
-#include "xls/ir/function_builder.h"
 
+#include "xls/ir/channel.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/package.h"
 
 namespace xls {
 

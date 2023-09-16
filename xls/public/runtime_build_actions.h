@@ -29,10 +29,17 @@
 // these actions remaining stable, they will evolve as the XLS system evolves.
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/codegen/module_signature.h"
+#include "xls/public/ir.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
+#include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 
@@ -95,6 +102,23 @@ absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
                                         std::string_view message_name,
                                         std::string_view text_proto,
                                         std::string_view binding_name);
+
+struct ScheduleAndCodegenResult {
+  verilog::ModuleGeneratorResult module_generator_result;
+  std::optional<PipelineScheduleProto> pipeline_schedule_proto = std::nullopt;
+};
+
+// Schedules and codegen a given package.
+//
+// Args:
+//  p: The package to schedule and codegen.
+//  scheduling_options_flags_proto: The scheduling params.
+//  codegen_flags_proto: The codegen params.
+//  with_delay_model: Whether the delay model should be used for codegen.
+absl::StatusOr<ScheduleAndCodegenResult> ScheduleAndCodegenPackage(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model);
 
 }  // namespace xls
 

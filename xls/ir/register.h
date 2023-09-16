@@ -15,7 +15,10 @@
 #ifndef XLS_IR_REGISTER_H_
 #define XLS_IR_REGISTER_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"

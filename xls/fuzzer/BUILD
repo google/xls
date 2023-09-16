@@ -25,6 +25,11 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+filegroup(
+    name = "x_files",
+    srcs = glob(["crashers/*.x"]),
+)
+
 py_library(
     name = "cli_helpers",
     srcs = ["cli_helpers.py"],
@@ -387,6 +392,7 @@ cc_binary(
     srcs = ["summarize_ir_main.cc"],
     deps = [
         ":sample_summary_cc_proto",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -394,6 +400,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:op",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -403,6 +410,7 @@ cc_binary(
     srcs = ["read_summary_main.cc"],
     deps = [
         ":sample_summary_cc_proto",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -420,6 +428,7 @@ cc_binary(
     name = "find_failing_input_main",
     srcs = ["find_failing_input_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -512,8 +521,13 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:scanner",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -521,6 +535,8 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -529,13 +545,20 @@ cc_test(
     srcs = ["ast_generator_test.cc"],
     deps = [
         ":ast_generator",
+        ":value_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
+        "//xls/dslx/frontend:ast",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -546,15 +569,22 @@ cc_library(
     deps = [
         ":ast_generator",
         ":cpp_sample",
+        ":sample_cc_proto",
         ":value_generator",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:unwrap_meta_type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -581,12 +611,12 @@ cc_test(
     srcs = ["dslx_mutator_test.cc"],
     deps = [
         ":dslx_mutator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:mock_distributions",
         "@com_google_absl//absl/status",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -606,10 +636,10 @@ cc_test(
     deps = [
         ":cpp_sample_generator",
         ":value_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:concrete_type",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -676,11 +706,11 @@ cc_test(
     srcs = ["value_generator_test.cc"],
     deps = [
         ":value_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -689,10 +719,10 @@ cc_test(
     srcs = ["sample_cc_test.cc"],
     deps = [
         ":cpp_sample",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
-        "@com_google_googletest//:gtest",
     ],
 )
 

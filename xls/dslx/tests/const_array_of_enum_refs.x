@@ -17,9 +17,9 @@ enum MyEnum: u2 {
   BAR = 3,
 }
 const A = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];
+
 #[test]
 fn t_test() {
   assert_eq(MyEnum::FOO, A[u32:0]);
   assert_eq(MyEnum::BAR, A[u32:1]);
-  ()
 }

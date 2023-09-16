@@ -21,7 +21,11 @@
 //  - Output in formats other than DSLX.
 //
 // These will be added when/if needed.
+#include <iostream>
+#include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -30,6 +34,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "openssl/aead.h"  // NOLINT
+#include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/modules/aes/aes_test_common.h"
@@ -299,7 +304,6 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  XLS_QCHECK_OK(xls::aes::RealMain(absl::GetFlag(FLAGS_mode), key_bits,
-                                   num_aad_blocks, num_msg_blocks));
-  return 0;
+  return xls::ExitStatus(xls::aes::RealMain(absl::GetFlag(FLAGS_mode), key_bits,
+                                            num_aad_blocks, num_msg_blocks));
 }

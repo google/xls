@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_SUBMODULAR_H_
 #define XLS_DATA_STRUCTURES_SUBMODULAR_H_
 
+#include <limits>
 #include <optional>
 #include <random>
 

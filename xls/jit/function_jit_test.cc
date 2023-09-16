@@ -15,7 +15,12 @@
 #include "xls/jit/function_jit.h"
 
 #include <cstdio>
+#include <cstring>
+#include <ios>
+#include <memory>
 #include <random>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -198,8 +203,8 @@ TEST(FunctionJitTest, OneHotZeroBit) {
               IsOkAndHolds(Value(UBits(1, 1))));
 }
 
-// Very basic smoke test for packed types.
-TEST(FunctionJitTest, PackedSmoke) {
+// Very basic smoke test for packed and unpacked types.
+TEST(FunctionJitTest, PackedAndUnpackedSmoke) {
   Package package("my_package");
   std::string ir_text = R"(
   fn get_identity(x: bits[8]) -> bits[8] {
@@ -210,15 +215,26 @@ TEST(FunctionJitTest, PackedSmoke) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+
   uint8_t input_data[] = {0x5a};
-  uint8_t output_data;
-  PackedBitsView<8> input(input_data, 0);
-  PackedBitsView<8> output(&output_data, 0);
-  XLS_ASSERT_OK(jit->RunWithPackedViews(input, output));
-  EXPECT_EQ(output_data, 0x5a);
+  {
+    uint8_t output_data = 0;
+    PackedBitsView<8> input(input_data, 0);
+    PackedBitsView<8> output(&output_data, 0);
+    XLS_ASSERT_OK(jit->RunWithPackedViews(input, output));
+    EXPECT_EQ(output_data, 0x5a);
+  }
+
+  {
+    uint8_t output_data = 0;
+    BitsView<8> unpacked_input(input_data);
+    MutableBitsView<8> unpacked_output(&output_data);
+    XLS_ASSERT_OK(jit->RunWithUnpackedViews(unpacked_input, unpacked_output));
+    EXPECT_EQ(output_data, 0x5a);
+  }
 }
 
-TEST(FunctionJitTest, PackedSmokeWide) {
+TEST(FunctionJitTest, PackedAndUnpackedSmokeWide) {
   Package package("my_package");
   std::string ir_text = R"(
   fn get_identity(x: bits[80]) -> bits[80] {
@@ -230,13 +246,25 @@ TEST(FunctionJitTest, PackedSmokeWide) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+
   uint8_t input_data[] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa};
-  uint8_t output_data[10];
-  PackedBitsView<80> input(input_data, 0);
-  PackedBitsView<80> output(output_data, 0);
-  XLS_ASSERT_OK(jit->RunWithPackedViews(input, output));
-  EXPECT_THAT(output_data, testing::ElementsAre(0x2, 0x2, 0x3, 0x4, 0x5, 0x6,
-                                                0x7, 0x8, 0x9, 0xa));
+  {
+    uint8_t output_data[10];
+    PackedBitsView<80> input(input_data, 0);
+    PackedBitsView<80> output(output_data, 0);
+    XLS_ASSERT_OK(jit->RunWithPackedViews(input, output));
+    EXPECT_THAT(output_data, testing::ElementsAre(0x2, 0x2, 0x3, 0x4, 0x5, 0x6,
+                                                  0x7, 0x8, 0x9, 0xa));
+  }
+
+  {
+    uint8_t output_data[10];
+    BitsView<80> input(input_data);
+    MutableBitsView<80> output(output_data);
+    XLS_ASSERT_OK(jit->RunWithUnpackedViews(input, output));
+    EXPECT_THAT(output_data, testing::ElementsAre(0x2, 0x2, 0x3, 0x4, 0x5, 0x6,
+                                                  0x7, 0x8, 0x9, 0xa));
+  }
 }
 
 // Tests PackedBitView<X> input/output handling.
@@ -259,7 +287,7 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   Bits expected = bits_ops::Add(a, b);
   int64_t byte_width = jit->GetPackedReturnTypeSize();
   auto output_data = std::make_unique<uint8_t[]>(byte_width);
-  bzero(output_data.get(), byte_width);
+  std::memset(output_data.get(), 0, byte_width);
 
   auto a_vector = a.ToBytes();
   auto b_vector = b.ToBytes();
@@ -267,6 +295,44 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   PackedBitsView<kBitWidth> a_view(a_vector.data(), 0);
   PackedBitsView<kBitWidth> b_view(b_vector.data(), 0);
   PackedBitsView<kBitWidth> output(output_data.get(), 0);
+  XLS_RETURN_IF_ERROR(jit->RunWithPackedViews(a_view, b_view, output));
+  for (int i = 0; i < CeilOfRatio(kBitWidth, kCharBit); i++) {
+    XLS_RET_CHECK(output_data[i] == expected_vector[i])
+        << std::hex << ": byte " << i << ": "
+        << static_cast<uint64_t>(output_data[i]) << " vs. "
+        << static_cast<uint64_t>(expected_vector[i]);
+  }
+  return absl::OkStatus();
+}
+
+// Tests UnackedBitView<X> input/output handling.
+template <int64_t kBitWidth>
+absl::Status TestUnpackedBits(std::minstd_rand& bitgen) {
+  Package package("my_package");
+  std::string ir_template = R"(
+  fn get_identity(x: bits[$0], y:bits[$0]) -> bits[$0] {
+    ret add.1: bits[$0] = add(x, y)
+  }
+  )";
+  std::string ir_text = absl::Substitute(ir_template, kBitWidth);
+  XLS_ASSIGN_OR_RETURN(Function * function,
+                       Parser::ParseFunction(ir_text, &package));
+  XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
+  Value v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
+  Bits a(v.bits());
+  v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
+  Bits b(v.bits());
+  Bits expected = bits_ops::Add(a, b);
+  int64_t byte_width = jit->GetPackedReturnTypeSize();
+  auto output_data = std::make_unique<uint8_t[]>(byte_width);
+  std::memset(output_data.get(), 0, byte_width);
+
+  auto a_vector = a.ToBytes();
+  auto b_vector = b.ToBytes();
+  auto expected_vector = expected.ToBytes();
+  BitsView<kBitWidth> a_view(a_vector.data());
+  BitsView<kBitWidth> b_view(b_vector.data());
+  MutableBitsView<kBitWidth> output(output_data.get());
   XLS_RETURN_IF_ERROR(jit->RunWithPackedViews(a_view, b_view, output));
   for (int i = 0; i < CeilOfRatio(kBitWidth, kCharBit); i++) {
     XLS_RET_CHECK(output_data[i] == expected_vector[i])
@@ -300,6 +366,27 @@ TEST(FunctionJitTest, PackedBits) {
   XLS_ASSERT_OK(TestPackedBits<44>(bitgen));
   XLS_ASSERT_OK(TestPackedBits<543>(bitgen));
   XLS_ASSERT_OK(TestPackedBits<1000>(bitgen));
+}
+
+// Smoke test of UnpackedBitsViews in the JIT.
+TEST(FunctionJitTest, UnpackedBits) {
+  std::minstd_rand bitgen;
+
+  // The usual suspects:
+  XLS_ASSERT_OK(TestUnpackedBits<1>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<2>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<4>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<8>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<16>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<32>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<64>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<128>(bitgen));
+
+  // Now some weirdos:
+  XLS_ASSERT_OK(TestUnpackedBits<7>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<15>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<44>(bitgen));
+  XLS_ASSERT_OK(TestUnpackedBits<127>(bitgen));
 }
 
 // Concatenates the contents of several Bits objects into a single one.
@@ -701,5 +788,93 @@ TEST(FunctionJitTest, CompoundTokenCompareError) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr("Tokens are incomparable")));
 }
+
+TEST(FunctionJitTest, TupleViewSmokeTest2) {
+  Package package("my_package");
+
+  std::string ir_text = R"(
+fn f(x: bits[1], y: bits[21]) -> (bits[1], bits[21]) {
+  ret tuple.4: (bits[1], bits[21]) = tuple(x, y)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+
+  // Test using values.
+  {
+    Value x(UBits(0x1, 1));
+    Value y(UBits(0xabcd, 21));
+    Value ret = Value::Tuple(std::vector<Value>{x, y});
+
+    std::vector args{x, y};
+    EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
+  }
+
+  // Test using views.
+  {
+    int64_t x = 0x1;
+    int64_t y = 0xabcd;
+    uint8_t result[8] = {0};
+
+    std::vector<uint8_t*> args{reinterpret_cast<uint8_t*>(&x),
+                               reinterpret_cast<uint8_t*>(&y)};
+    absl::Span<uint8_t> result_buffer(result);
+    InterpreterEvents events;
+    XLS_ASSERT_OK(jit->RunWithViews(args, result_buffer, &events));
+
+    xls::TupleView<xls::BitsView<1>, xls::BitsView<21>> result_view(result);
+    EXPECT_EQ(result_view.Get<0>().GetValue(), 0x1);
+    EXPECT_EQ(result_view.Get<1>().GetValue(), 0xabcd);
+    EXPECT_THAT(result, testing::ElementsAreArray(
+                            {0x1, 0x00, 0x00, 0x00, 0xcd, 0xab, 0x00, 0x00}));
+  }
+}
+
+TEST(FunctionJitTest, TupleViewSmokeTest) {
+  Package package("my_package");
+
+  std::string ir_text = R"(
+fn f(x: bits[1], y: bits[8]) -> (bits[1], bits[8], bits[16]) {
+  literal.3: bits[16] = literal(value=43981)
+  ret tuple.4: (bits[1], bits[8], bits[16]) = tuple(x, y, literal.3)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+
+  // Test using values.
+  {
+    Value x(UBits(0x1, 1));
+    Value y(UBits(0x34, 8));
+    Value ret =
+        Value::Tuple(std::vector<Value>{x, y, Value(UBits(0xabcd, 16))});
+
+    std::vector args{x, y};
+    EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
+  }
+
+  // Test using views.
+  {
+    int64_t x = 0x1;
+    int64_t y = 0x34;
+    uint8_t result[4] = {0};
+
+    std::vector<uint8_t*> args{reinterpret_cast<uint8_t*>(&x),
+                               reinterpret_cast<uint8_t*>(&y)};
+    absl::Span<uint8_t> result_buffer(result);
+    InterpreterEvents events;
+    XLS_ASSERT_OK(jit->RunWithViews(args, result_buffer, &events));
+
+    xls::TupleView<xls::BitsView<1>, xls::BitsView<8>, xls::BitsView<16>>
+        result_view(result);
+    EXPECT_EQ(result_view.Get<0>().GetValue(), 0x1);
+    EXPECT_EQ(result_view.Get<1>().GetValue(), 0x34);
+    EXPECT_EQ(result_view.Get<2>().GetValue(), 0xabcd);
+    EXPECT_THAT(result, testing::ElementsAreArray({0x1, 0x34, 0xcd, 0xab}));
+  }
+}
+
 }  // namespace
 }  // namespace xls

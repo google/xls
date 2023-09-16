@@ -16,6 +16,9 @@
 #define XLS_INTERPRETER_PROC_EVALUATOR_H_
 
 #include <memory>
+#include <optional>
+#include <ostream>
+#include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"

@@ -19,22 +19,23 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 // class DeadCodeEliminationPass iterates up from a functions result
 // nodes and marks all visited node. After that, all unvisited nodes
 // are considered dead.
-class DeadFunctionEliminationPass : public Pass {
+class DeadFunctionEliminationPass : public OptimizationPass {
  public:
   explicit DeadFunctionEliminationPass()
-      : Pass("dfe", "Dead Function Elimination") {}
+      : OptimizationPass("dfe", "Dead Function Elimination") {}
   ~DeadFunctionEliminationPass() override = default;
 
  protected:
   // Iterate all nodes and mark and eliminate unreachable functions.
-  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
                                    PassResults* results) const override;
 };
 

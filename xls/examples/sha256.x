@@ -106,7 +106,6 @@ fn compute_pad_bits_test() {
   assert_eq(u32:0, compute_pad_bits(u32:512));
   assert_eq(u32:511, compute_pad_bits(u32:513));
   assert_eq(u32:0, compute_pad_bits(u32:1024));
-  ()
 }
 
 // The SHA algorithm tells us to precondition our input by tacking on a

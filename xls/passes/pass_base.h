@@ -27,12 +27,11 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
+#include "xls/common/casts.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/package.h"
-#include "xls/ir/ram_rewrite.pb.h"
 
 namespace xls {
 
@@ -40,72 +39,10 @@ namespace xls {
 // pass pipelines. The base classes are templated allowing polymorphism of the
 // data types the pass operates on.
 
-// Metadata for RAMs.
-// TODO(google/xls#873): Ideally this metadata should live in the IR.
-//
-// Kinds of RAMs.
-enum class RamKind {
-  kAbstract,
-  k1RW,
-  k1R1W,
-  k2RW,
-};
-
-std::string_view RamKindToString(RamKind kind);
-absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto);
-
-// Configuration describing the behavior of a RAM.
-struct RamConfig {
-  RamKind kind;
-  int64_t depth;
-  // Determines granularity of mask.
-  std::optional<int64_t> word_partition_size;
-  // If nullopt, RAM has no initial value. Reading uninitialized memory is
-  // undefined.
-  std::optional<std::vector<Value>> initial_value = std::nullopt;
-
-  // Computed address width: clog2(depth).
-  int64_t addr_width() const;
-  // Computed mask width: if word_partition_size is nullopt, 0, else
-  // ceil(width/word_partition_size).
-  std::optional<int64_t> mask_width(int64_t data_width) const;
-
-  static absl::StatusOr<RamConfig> FromProto(const RamConfigProto& proto);
-};
-
-struct RamModelBuilderResult {
-  std::unique_ptr<Package> package;
-  absl::flat_hash_map<std::string, int64_t> channel_logical_name_to_physical_id;
-};
-
-using ram_model_builder_t = std::function<RamModelBuilderResult(RamConfig)>;
-
-// A configuration describing a desired RAM rewrite.
-struct RamRewrite {
-  // Configuration of RAM we start with.
-  RamConfig from_config;
-  // Mapping of the starting channels, from logical (e.g. read_req) to physical,
-  // (the channel's name, e.g. foo_read_req).
-  absl::flat_hash_map<std::string, std::string>
-      from_channels_logical_to_physical;
-  // Configuration of RAM we will rewrite the "from" RAM into.
-  RamConfig to_config;
-  // Name prefix for the new ram model
-  std::string to_name_prefix;
-  // If populated, also add a RAM model of kind "to_kind" driving the new
-  // channels using the builder function.
-  std::optional<ram_model_builder_t> model_builder;
-
-  static absl::StatusOr<RamRewrite> FromProto(const RamRewriteProto& proto);
-};
-
-absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
-    const RamRewritesProto& proto);
-
 // Options data structure passed to each pass run invocation. This data
 // structure is passed by const reference to PassBase::Run and should contain
 // options which affect how passes are run.
-struct PassOptions {
+struct PassOptionsBase {
   // If non-empty, this is the path to the directory in which to dump
   // intermediate IR files.
   std::filesystem::path ir_dump_path;
@@ -117,23 +54,6 @@ struct PassOptions {
   // both run_only_passes and skip_passes are present, then only passes which
   // are present in run_only_passes and not present in skip_passes will be run.
   std::vector<std::string> skip_passes;
-
-  // Whether to inline all procs by calling the proc inlining pass.
-  // TODO(meheff): 2022/2/13 Devise a better mechanism for deciding whether or
-  // not to inline procs including figuring out which procs to inline. At the
-  // minimum, there should be a specialization of PassOptions for the
-  // optimization pass pipeline which holds this value.
-  bool inline_procs = false;
-
-  // If this is not `std::nullopt`, convert array indexes with fewer than or
-  // equal to the given number of possible indices (by range analysis) into
-  // chains of selects. Otherwise, this optimization is skipped, since it can
-  // sometimes reduce output quality.
-  std::optional<int64_t> convert_array_index_to_select = std::nullopt;
-
-  // List of RAM rewrites, generally lowering abstract RAMs into concrete
-  // variants.
-  std::vector<RamRewrite> ram_rewrites;
 };
 
 // An object containing information about the invocation of a pass (single call
@@ -177,8 +97,7 @@ struct PassResults {
 //     PassBase::Run. This type should be derived from PassResults because
 //     PassResults contains fields required by CompoundPassBase when executing
 //     pass pipelines.
-template <typename IrT, typename OptionsT = PassOptions,
-          typename ResultsT = PassResults>
+template <typename IrT, typename OptionsT, typename ResultsT = PassResults>
 class PassBase {
  public:
   PassBase(std::string_view short_name, std::string_view long_name)
@@ -221,8 +140,7 @@ class PassBase {
 // A base class for abstractions which check invariants of the IR. These
 // checkers are added to compound passes (pass pipelines) and run before and
 // after each pass in the pipeline.
-template <typename IrT, typename OptionsT = PassOptions,
-          typename ResultsT = PassResults>
+template <typename IrT, typename OptionsT, typename ResultsT = PassResults>
 class InvariantCheckerBase {
  public:
   virtual ~InvariantCheckerBase() = default;
@@ -233,8 +151,7 @@ class InvariantCheckerBase {
 // CompoundPass is a container for other passes. For example, the scalar
 // optimizer can be a compound pass holding many passes for scalar
 // optimizations.
-template <typename IrT, typename OptionsT = PassOptions,
-          typename ResultsT = PassResults>
+template <typename IrT, typename OptionsT, typename ResultsT = PassResults>
 class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
  public:
   using Pass = PassBase<IrT, OptionsT, ResultsT>;
@@ -321,8 +238,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
 };
 
 // A compound pass which runs its set of passes to fixed point.
-template <typename IrT, typename OptionsT = PassOptions,
-          typename ResultsT = PassResults>
+template <typename IrT, typename OptionsT, typename ResultsT = PassResults>
 class FixedPointCompoundPassBase
     : public CompoundPassBase<IrT, OptionsT, ResultsT> {
  public:

@@ -14,6 +14,8 @@
 
 #include "xls/delay_model/delay_estimators.h"
 
+#include <string_view>
+
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 

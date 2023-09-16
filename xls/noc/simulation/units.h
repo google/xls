@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_SIMULATION_UNITS_H_
 #define XLS_NOC_SIMULATION_UNITS_H_
 
+#include <cmath>
 #include <queue>
 #include <vector>
 

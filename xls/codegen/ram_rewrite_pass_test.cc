@@ -41,6 +41,8 @@
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/proc.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 namespace verilog {
@@ -229,20 +231,34 @@ class RamRewritePassTest
             IODirection::kReceive,
             /*minimum_latency=*/ram1rw_config->latency(),
             /*maximum_latency=*/ram1rw_config->latency()));
-        continue;
-      }
-      if (ram_config->ram_kind() == "1R1W") {
-        auto* ram1rw_config =
-            down_cast<Ram1R1WConfiguration*>(ram_config.get());
         scheduling_options.add_constraint(IOConstraint(
-            ram1rw_config->r_port_configuration().request_channel_name,
+            ram1rw_config->rw_port_configuration().request_channel_name,
             IODirection::kSend,
-            ram1rw_config->r_port_configuration().response_channel_name,
+            ram1rw_config->rw_port_configuration()
+                .write_completion_channel_name,
             IODirection::kReceive,
             /*minimum_latency=*/ram1rw_config->latency(),
             /*maximum_latency=*/ram1rw_config->latency()));
-        // No write response port, no constraint to add.
-        // TODO(rigge): add write completion scheduling constraint.
+        continue;
+      }
+      if (ram_config->ram_kind() == "1R1W") {
+        auto* ram1r1w_config =
+            down_cast<Ram1R1WConfiguration*>(ram_config.get());
+        scheduling_options.add_constraint(IOConstraint(
+            ram1r1w_config->r_port_configuration().request_channel_name,
+            IODirection::kSend,
+            ram1r1w_config->r_port_configuration().response_channel_name,
+            IODirection::kReceive,
+            /*minimum_latency=*/ram1r1w_config->latency(),
+            /*maximum_latency=*/ram1r1w_config->latency()));
+        scheduling_options.add_constraint(IOConstraint(
+            ram1r1w_config->w_port_configuration().request_channel_name,
+            IODirection::kSend,
+            ram1r1w_config->w_port_configuration()
+                .write_completion_channel_name,
+            IODirection::kReceive,
+            /*minimum_latency=*/ram1r1w_config->latency(),
+            /*maximum_latency=*/ram1r1w_config->latency()));
         continue;
       }
     }
@@ -250,7 +266,7 @@ class RamRewritePassTest
     XLS_ASSIGN_OR_RETURN(auto delay_estimator, GetDelayEstimator("unit"));
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(proc, *delay_estimator, scheduling_options));
+        RunPipelineSchedule(proc, *delay_estimator, scheduling_options));
 
     XLS_ASSIGN_OR_RETURN(auto unit,
                          ProcToPipelinedBlock(schedule, codegen_options, proc));
@@ -726,11 +742,11 @@ proc my_proc(__token: token, __state: (), init={()}) {
   rcv2_token: token = tuple_index(rcv2, index=0)
   rcv2_tuple: (bits[32]) = tuple_index(rcv2, index=1)
   rcv2_data: bits[32] = tuple_index(rcv2_tuple, index=0)
-  wr_comp0_rcv: (token, ()) = receive(rcv2_token, channel_id=6)
+  wr_comp0_rcv: (token, ()) = receive(send0_token, channel_id=6)
   wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
-  wr_comp1_rcv: (token, ()) = receive(rcv2_token, channel_id=7)
+  wr_comp1_rcv: (token, ()) = receive(send1_token, channel_id=7)
   wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
-  wr_comp2_rcv: (token, ()) = receive(rcv2_token, channel_id=8)
+  wr_comp2_rcv: (token, ()) = receive(send2_token, channel_id=8)
   wr_comp2_token: token = tuple_index(wr_comp2_rcv, index=0)
   after_all_token: token = after_all(rcv0_token, rcv1_token, rcv2_token, wr_comp0_token, wr_comp1_token, wr_comp2_token)
   next_state: () = tuple()
@@ -763,7 +779,7 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   next (wr_comp_token, next_state)
 }
   )",
-        .pipeline_stages = 2,
+        .pipeline_stages = 3,
         .ram_config_strings = kSingle1R1W,
     },
     RamChannelRewriteTestParam{
@@ -790,7 +806,7 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   next (wr_comp_token, next_state)
 }
   )",
-        .pipeline_stages = 2,
+        .pipeline_stages = 3,
         .ram_config_strings = kSingle1R1W,
         .expect_read_mask = true,
         .expect_write_mask = true,
@@ -824,7 +840,7 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   next (wr_comp_token, next_state)
 }
   )",
-        .pipeline_stages = 2,
+        .pipeline_stages = 3,
         .ram_config_strings = kSingle1R1W,
     },
     RamChannelRewriteTestParam{
@@ -861,15 +877,16 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv_token2: token = tuple_index(rcv2, index=0)
   to_send3: (bits[32], bits[32], ()) = tuple(__state, __state, empty_tuple)
   send_token5: token = send(rcv_token2, to_send2, channel_id=8)
-  wr_comp0_rcv: (token, ()) = receive(send_token5, channel_id=9)
+  wr_comp0_rcv: (token, ()) = receive(send_token1, channel_id=9)
   wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
-  wr_comp1_rcv: (token, ()) = receive(wr_comp0_token, channel_id=10)
+  wr_comp1_rcv: (token, ()) = receive(send_token3, channel_id=10)
   wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
-  wr_comp2_rcv: (token, ()) = receive(wr_comp1_token, channel_id=11)
+  wr_comp2_rcv: (token, ()) = receive(send_token5, channel_id=11)
   wr_comp2_token: token = tuple_index(wr_comp2_rcv, index=0)
+  next_token: token = after_all(rcv_token2, wr_comp0_token, wr_comp1_token, wr_comp2_token)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp2_token, next_state)
+  next (next_token, next_state)
 }
   )",
         .pipeline_stages = 20,
@@ -902,12 +919,13 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv_token1: token = tuple_index(rcv1, index=0)
   to_send2: (bits[32], bits[32], ()) = tuple(__state, __state, empty_tuple)
   send_token2: token = send(rcv_token1, to_send2, channel_id=4)
-  wr_comp0_rcv: (token, ()) = receive(send_token2, channel_id=5)
+  wr_comp0_rcv: (token, ()) = receive(send_token0, channel_id=5)
   wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
-  wr_comp1_rcv: (token, ()) = receive(wr_comp0_token, channel_id=6)
+  wr_comp1_rcv: (token, ()) = receive(send_token2, channel_id=6)
   wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
+  next_token: token = after_all(send_token2, wr_comp0_token, wr_comp1_token)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp1_token, next_state)
+  next (next_token, next_state)
 }
   )",
         .pipeline_stages = 4,
@@ -957,18 +975,30 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
 
   XLS_ASSIGN_OR_RETURN(Proc * proc, package->GetProc("my_proc"));
 
-  auto scheduling_options = SchedulingOptions().pipeline_stages(2);
-  // Add constraints for each req/resp pair to be scheduled one cycle apart
-  scheduling_options.add_constraint(
-      IOConstraint("req", IODirection::kSend, "resp", IODirection::kReceive,
-                   /*minimum_latency=*/1, /*maximum_latency=*/1));
-  scheduling_options.add_constraint(
-      IOConstraint("req", IODirection::kSend, "wr_comp", IODirection::kReceive,
-                   /*minimum_latency=*/1, /*maximum_latency=*/1));
+  auto scheduling_options = SchedulingOptions();
+  // Add constraints for each req/resp pair to be scheduled one cycle apart, and
+  // put enough stages in the pipeline for all of our scenarios.
+  if (ram_kind == "1RW") {
+    scheduling_options.pipeline_stages(2)
+        .add_constraint(IOConstraint(
+            "req", IODirection::kSend, "resp", IODirection::kReceive,
+            /*minimum_latency=*/1, /*maximum_latency=*/1))
+        .add_constraint(IOConstraint(
+            "req", IODirection::kSend, "wr_comp", IODirection::kReceive,
+            /*minimum_latency=*/1, /*maximum_latency=*/1));
+  } else if (ram_kind == "1R1W") {
+    scheduling_options.pipeline_stages(3)
+        .add_constraint(IOConstraint(
+            "rd_req", IODirection::kSend, "rd_resp", IODirection::kReceive,
+            /*minimum_latency=*/1, /*maximum_latency=*/1))
+        .add_constraint(IOConstraint(
+            "wr_req", IODirection::kSend, "wr_comp", IODirection::kReceive,
+            /*minimum_latency=*/1, /*maximum_latency=*/1));
+  }
   XLS_ASSIGN_OR_RETURN(auto delay_estimator, GetDelayEstimator("unit"));
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *delay_estimator, scheduling_options));
+      RunPipelineSchedule(proc, *delay_estimator, scheduling_options));
   XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
                        ProcToPipelinedBlock(schedule, codegen_options, proc));
   XLS_RET_CHECK_OK(RunCodegenPassPipeline(pass_options, unit.block));

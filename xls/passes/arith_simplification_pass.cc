@@ -14,6 +14,12 @@
 
 #include "xls/passes/arith_simplification_pass.h"
 
+#include <algorithm>
+#include <functional>
+#include <optional>
+#include <tuple>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -24,6 +30,8 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -817,8 +825,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
                            NarrowOrExtend(n->operand(0), /*n_is_signed=*/false,
                                           n->BitCountOrDie()));
       Bits one = UBits(1, adjusted_lhs->BitCountOrDie());
-      Bits bits_mask = bits_ops::Sub(
-          bits_ops::ShiftLeftLogical(one, rhs.CountTrailingZeros()), one);
+      Bits bits_mask = bits_ops::Decrement(
+          bits_ops::ShiftLeftLogical(one, rhs.CountTrailingZeros()));
       XLS_ASSIGN_OR_RETURN(Node * mask, n->function_base()->MakeNode<Literal>(
                                             n->loc(), Value(bits_mask)));
       XLS_VLOG(2) << "FOUND: umod of power of two";
@@ -1117,7 +1125,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 }  // namespace
 
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   return TransformNodesToFixedPoint(
       f, [this](Node* n) { return MatchArithPatterns(opt_level_, n); });
 }

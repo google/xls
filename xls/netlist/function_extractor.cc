@@ -14,7 +14,12 @@
 
 #include "xls/netlist/function_extractor.h"
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"

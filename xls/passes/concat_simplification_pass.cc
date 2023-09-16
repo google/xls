@@ -18,6 +18,7 @@
 #include <deque>
 #include <iterator>
 #include <map>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -27,10 +28,13 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -371,10 +375,18 @@ absl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
 
   // Create reductions of concat operands.
   Concat* concat = node->operand(0)->As<Concat>();
+
+  // Early exit if concat results in bitwith 0.
+  if (concat->GetType()->GetFlatBitCount() == 0) {
+    return false;
+  }
+
   std::vector<Node*> new_reductions;
   for (Node* cat_operand : concat->operands()) {
-    XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}));
-    new_reductions.push_back(reduce);
+    if (cat_operand->GetType()->GetFlatBitCount() > 0) {
+      XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}));
+      new_reductions.push_back(reduce);
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(Op non_reductive_op,
@@ -424,7 +436,7 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 
   // For zero-bit concatenations, we simply report we didn't change anything
   // (there's nothing to change with respect to operands).
-  if (concat->operands().empty()) {
+  if (concat->GetType()->GetFlatBitCount() == 0) {
     return false;
   }
 
@@ -463,7 +475,8 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 }  // namespace
 
 absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   // For optimizations which replace concats with other concats use a worklist
   // of unprocessed concats in the graphs. As new concats are created they are
   // added to the worklist.

@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -32,8 +33,8 @@
 
 namespace xls {
 
-DEFINE_STRONG_INT_TYPE(PathNodeId, int32_t);
-DEFINE_STRONG_INT_TYPE(PathEdgeId, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(PathNodeId, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(PathEdgeId, int32_t);
 
 // This is a function table representing types that have the ability to take
 // sums and differences, with a neutral zero element. The classic example of a

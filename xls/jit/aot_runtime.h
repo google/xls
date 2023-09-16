@@ -19,6 +19,8 @@
 #define XLS_JIT_AOT_RUNTIME_H_
 
 #include <memory>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"

@@ -61,7 +61,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
   auto foo = fsm.AddState("Foo");
   auto bar = fsm.AddState("Bar");
 
-  auto baz_out = fsm.AddOutput1("baz", /*default_value=*/false);
+  auto baz_out = fsm.AddOutput1("baz", /*default_value=*/0);
   auto qux_out = fsm.AddRegister("qux", 7);
 
   foo->NextState(bar);

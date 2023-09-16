@@ -56,8 +56,10 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -71,6 +73,8 @@
 
 namespace xls::dslx {
 namespace {
+
+constexpr WarningCollector* kNoWarningCollector = nullptr;
 
 // Returns a status that indicates an error in the IR conversion process.
 absl::Status ConversionErrorStatus(const std::optional<Span>& span,
@@ -219,6 +223,11 @@ class FunctionConverterVisitor : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleConstAssert(const ConstAssert* node) override {
+    // No need to IR-convert these, because they're checked by the typechecker.
+    return absl::OkStatus();
+  }
+
   // A macro used for AST types where we want to visit all children, then call
   // the FunctionConverter handler (i.e. postorder traversal).
 #define TRAVERSE_DISPATCH(__type)                            \
@@ -309,6 +318,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(QuickCheck)
   INVALID(Spawn)
   INVALID(StructDef)
+  INVALID(ProcMember)
 
   // This should have been unrolled into a sequence of statements and is
   // unconvertible.
@@ -542,7 +552,7 @@ absl::Status FunctionConverter::HandleNumber(const Number* node) {
   XLS_RET_CHECK(!type->IsMeta());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                       std::get<InterpValue>(dim.value()).GetBitValueInt64());
+                       std::get<InterpValue>(dim.value()).GetBitValueViaSign());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count));
   DefConst(node, Value(bits));
   return absl::OkStatus();
@@ -550,7 +560,7 @@ absl::Status FunctionConverter::HandleNumber(const Number* node) {
 
 absl::Status FunctionConverter::HandleString(const String* node) {
   std::vector<Value> elements;
-  for (const char letter : node->text()) {
+  for (const uint8_t letter : node->text()) {
     elements.push_back(Value(UBits(letter, /*bit_count=*/8)));
   }
   XLS_ASSIGN_OR_RETURN(Value array, Value::Array(elements));
@@ -726,12 +736,12 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t old_bit_count,
-      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
   if (new_bit_count < old_bit_count) {
     auto bvalue_status = DefWithStatus(
         node,
@@ -775,25 +785,18 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
 
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t old_bit_count,
-      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
 
-  // Perform actual cast.
-  if (auto* array_type = dynamic_cast<ArrayType*>(output_type.get())) {
+  if (dynamic_cast<ArrayType*>(output_type.get()) != nullptr ||
+      dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
     return absl::UnimplementedError(
         absl::StrFormat("ConversionError: CheckedCast to and from arrays (%s) "
-                        "is not currently supported for IR conversion.",
-                        node->span().ToString()));
-  }
-
-  if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
-    return absl::UnimplementedError(
-        absl::StrFormat("ConversionError: Checkedast to and from arrays (%s) "
                         "is not currently supported for IR conversion.",
                         node->span().ToString()));
   }
@@ -835,7 +838,7 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
 
   // Perform actual cast. Validity is checked during type_check.
   Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
@@ -978,13 +981,14 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
 
   const auto* range_op = dynamic_cast<const Range*>(iterable);
   if (range_op != nullptr) {
-    XLS_ASSIGN_OR_RETURN(start_value,
-                         ConstexprEvaluator::EvaluateToValue(
-                             import_data_, current_type_info_, bindings,
-                             range_op->start(), nullptr));
-    XLS_ASSIGN_OR_RETURN(limit_value, ConstexprEvaluator::EvaluateToValue(
-                                          import_data_, current_type_info_,
-                                          bindings, range_op->end(), nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        start_value, ConstexprEvaluator::EvaluateToValue(
+                         import_data_, current_type_info_, kNoWarningCollector,
+                         bindings, range_op->start(), nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        limit_value, ConstexprEvaluator::EvaluateToValue(
+                         import_data_, current_type_info_, kNoWarningCollector,
+                         bindings, range_op->end(), nullptr));
   } else {
     const auto* iterable_call = dynamic_cast<const Invocation*>(iterable);
     if (iterable_call == nullptr) {
@@ -1007,19 +1011,21 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
     Expr* start = iterable_call->args()[0];
     Expr* limit = iterable_call->args()[1];
 
-    XLS_ASSIGN_OR_RETURN(start_value, ConstexprEvaluator::EvaluateToValue(
-                                          import_data_, current_type_info_,
-                                          bindings, start, nullptr));
-    XLS_ASSIGN_OR_RETURN(limit_value, ConstexprEvaluator::EvaluateToValue(
-                                          import_data_, current_type_info_,
-                                          bindings, limit, nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        start_value, ConstexprEvaluator::EvaluateToValue(
+                         import_data_, current_type_info_, kNoWarningCollector,
+                         bindings, start, nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        limit_value, ConstexprEvaluator::EvaluateToValue(
+                         import_data_, current_type_info_, kNoWarningCollector,
+                         bindings, limit, nullptr));
   }
 
   if (!start_value.IsBits() || !limit_value.IsBits()) {
     return error();
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t start_int, start_value.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t start_int, start_value.GetBitValueViaSign());
   XLS_ASSIGN_OR_RETURN(int64_t bit_width, start_value.GetBitCount());
 
   XLS_ASSIGN_OR_RETURN(InterpValue start_ge_limit, start_value.Ge(limit_value));
@@ -1031,9 +1037,9 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
   XLS_RET_CHECK(trip_count.IsBits());
   int64_t trip_count_int;
   if (trip_count.IsSigned()) {
-    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueInt64());
+    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueViaSign());
   } else {
-    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueUint64());
+    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueViaSign());
   }
 
   return RangeData{start_int, trip_count_int, bit_width};
@@ -1091,6 +1097,9 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
             XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(ivar));
             return body_converter.function_builder_->Param("__", ivar_type);
           },
+          [&](Range*) -> absl::StatusOr<BValue> {
+            return absl::InternalError("Induction variable cannot be a range");
+          },
           [&](Number*) -> absl::StatusOr<BValue> {
             return absl::InternalError("Induction variable cannot be a number");
           },
@@ -1138,7 +1147,10 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     }
   } else {
     // For tuple loop carries we have to destructure names on entry.
-    NameDefTree* accum = std::get<NameDefTree*>(flat[1]);
+    // Note this could be something like a NameDef or something like a
+    // WildcardPattern -- even if it's a wildcard pattern we throw away, we
+    // still want to make the loop with the same pattern.
+    AstNode* accum = carry_node;
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> carry_type,
                          ResolveType(accum));
     XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type,
@@ -1154,11 +1166,17 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     body_converter.SetNodeToIr(accum, carry);
     // This will destructure the names for us in the body of the anonymous
     // function.
-    XLS_RETURN_IF_ERROR(body_converter
-                            .HandleMatcher(/*matcher=*/accum, /*index=*/{},
-                                           /*matched_value=*/carry,
-                                           /*matched_type=*/*carry_type)
-                            .status());
+    if (auto* ndt = dynamic_cast<NameDefTree*>(accum)) {
+      XLS_RETURN_IF_ERROR(body_converter
+                              .HandleMatcher(/*matcher=*/ndt, /*index=*/{},
+                                             /*matched_value=*/carry,
+                                             /*matched_type=*/*carry_type)
+                              .status());
+    } else {
+      XLS_RET_CHECK(dynamic_cast<WildcardPattern*>(accum) != nullptr)
+          << "Expect post-typechecking loop binding to be NameDefTree or "
+             "WildcardPattern";
+    }
   }
 
   // We need to capture the lexical scope and pass it to his loop body function.
@@ -1234,9 +1252,22 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   if (implicit_token_data_.has_value()) {
     XLS_ASSIGN_OR_RETURN(BValue retval,
                          body_converter.function_builder_->GetLastValue());
+    std::vector<BValue> after_all_tokens(
+        body_converter.implicit_token_data_->control_tokens.begin(),
+        body_converter.implicit_token_data_->control_tokens.end());
+    after_all_tokens.push_back(
+        body_converter.implicit_token_data_->entry_token);
+    BValue implicit_token;
+    if (after_all_tokens.size() > 1) {
+      implicit_token =
+          body_converter.function_builder_->AfterAll(after_all_tokens);
+    } else {
+      implicit_token = after_all_tokens[0];
+    }
+
     body_converter.function_builder_->Tuple(
-        {body_converter.implicit_token_data_->entry_token,
-         body_converter.implicit_token_data_->activated, retval});
+        {implicit_token, body_converter.implicit_token_data_->activated,
+         retval});
   }
 
   XLS_ASSIGN_OR_RETURN(xls::Function * body_function,
@@ -1282,38 +1313,67 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
     XLS_VLOG(5) << absl::StreamFormat("Matcher is leaf: %s (%s)",
                                       ToAstNode(leaf)->ToString(),
                                       ToAstNode(leaf)->GetNodeTypeName());
-    if (std::holds_alternative<WildcardPattern*>(leaf)) {
-      return Def(matcher, [&](const SourceInfo& loc) {
-        return function_builder_->Literal(UBits(1, 1), loc);
-      });
-    }
-    if (std::holds_alternative<Number*>(leaf) ||
-        std::holds_alternative<ColonRef*>(leaf)) {
+    auto equality = [&]() -> absl::StatusOr<BValue> {
       XLS_RETURN_IF_ERROR(Visit(ToAstNode(leaf)));
       XLS_ASSIGN_OR_RETURN(BValue to_match, Use(ToAstNode(leaf)));
       return Def(matcher, [&](const SourceInfo& loc) {
         return function_builder_->Eq(to_match, matched_value);
       });
-    }
-    if (std::holds_alternative<NameRef*>(leaf)) {
-      // Comparing for equivalence to a (referenced) name.
-      auto* name_ref = std::get<NameRef*>(leaf);
-      const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
-      XLS_ASSIGN_OR_RETURN(BValue to_match, Use(name_def));
-      BValue result = Def(matcher, [&](const SourceInfo& loc) {
-        return function_builder_->Eq(to_match, matched_value);
-      });
-      XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref));
-      return result;
-    }
-    XLS_RET_CHECK(std::holds_alternative<NameDef*>(leaf));
-    auto* name_def = std::get<NameDef*>(leaf);
-    BValue ok = Def(name_def, [&](const SourceInfo& loc) {
-      return function_builder_->Literal(UBits(1, 1));
-    });
-    SetNodeToIr(matcher, matched_value);
-    SetNodeToIr(ToAstNode(leaf), matched_value);
-    return ok;
+    };
+    return absl::visit(
+        Visitor{
+            [&](WildcardPattern*) -> absl::StatusOr<BValue> {
+              return Def(matcher, [&](const SourceInfo& loc) {
+                return function_builder_->Literal(UBits(1, 1), loc);
+              });
+            },
+            [&](Number* n) -> absl::StatusOr<BValue> { return equality(); },
+            [&](ColonRef* n) -> absl::StatusOr<BValue> { return equality(); },
+            [&](Range* n) -> absl::StatusOr<BValue> {
+              XLS_RETURN_IF_ERROR(Visit(ToAstNode(n->start())));
+              XLS_RETURN_IF_ERROR(Visit(ToAstNode(n->end())));
+              bool signed_input =
+                  down_cast<const BitsType*>(&matched_type)->is_signed();
+              XLS_ASSIGN_OR_RETURN(BValue start, Use(n->start()));
+              XLS_ASSIGN_OR_RETURN(BValue limit, Use(n->end()));
+              SourceInfo loc = ToSourceInfo(n->span());
+              auto ge = [&](const BValue& lhs, const BValue& rhs) {
+                if (signed_input) {
+                  return function_builder_->SGe(lhs, rhs, loc);
+                }
+                return function_builder_->UGe(lhs, rhs, loc);
+              };
+              auto lt = [&](const BValue& lhs, const BValue& rhs) {
+                if (signed_input) {
+                  return function_builder_->SLt(lhs, rhs, loc);
+                }
+                return function_builder_->ULt(lhs, rhs, loc);
+              };
+              return function_builder_->And(ge(matched_value, start),
+                                            lt(matched_value, limit));
+            },
+            [&](NameRef* n) -> absl::StatusOr<BValue> {
+              // Comparing for equivalence to a (referenced) name.
+              auto* name_ref = std::get<NameRef*>(leaf);
+              const auto* name_def =
+                  std::get<const NameDef*>(name_ref->name_def());
+              XLS_ASSIGN_OR_RETURN(BValue to_match, Use(name_def));
+              BValue result = Def(matcher, [&](const SourceInfo& loc) {
+                return function_builder_->Eq(to_match, matched_value);
+              });
+              XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref));
+              return result;
+            },
+            [&](NameDef* name_def) -> absl::StatusOr<BValue> {
+              BValue ok = Def(name_def, [&](const SourceInfo& loc) {
+                return function_builder_->Literal(UBits(1, 1));
+              });
+              SetNodeToIr(matcher, matched_value);
+              SetNodeToIr(ToAstNode(leaf), matched_value);
+              return ok;
+            },
+        },
+        leaf);
   }
 
   auto* matched_tuple_type = dynamic_cast<const TupleType*>(&matched_type);
@@ -1551,7 +1611,8 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
     std::optional<std::string> label;
     ParametricEnv bindings(parametric_env_map_);
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        import_data_, current_type_info_, bindings, label_expr));
+        import_data_, current_type_info_, kNoWarningCollector, bindings,
+        label_expr));
 
     std::optional<InterpValue> start_value =
         current_type_info_->GetConstExprOption(label_expr);
@@ -1722,6 +1783,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
                       decltype(&FunctionConverter::HandleBuiltinClz)>
       map = {
           {"array_rev", &FunctionConverter::HandleBuiltinArrayRev},
+          {"array_size", &FunctionConverter::HandleBuiltinArraySize},
           {"clz", &FunctionConverter::HandleBuiltinClz},
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
           {"gate!", &FunctionConverter::HandleBuiltinGate},
@@ -2062,7 +2124,6 @@ absl::Status FunctionConverter::HandleFunction(
                      node->GetFreeParametricKeySet(), parametric_env));
   auto builder =
       std::make_unique<FunctionBuilder>(mangled_name, package(), true);
-  builder->SetForeignFunctionData(node->extern_verilog_module());
 
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
@@ -2083,6 +2144,10 @@ absl::Status FunctionConverter::HandleFunction(
     XLS_RETURN_IF_ERROR(Visit(param));
   }
 
+  // Replace const values known here with their values in FFI template to
+  // pass down templates with less variables.
+  FfiPartialValueSubstituteHelper const_prefill(node->extern_verilog_module());
+
   for (ParametricBinding* parametric_binding : node->parametric_bindings()) {
     XLS_VLOG(5) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
@@ -2097,10 +2162,15 @@ absl::Status FunctionConverter::HandleFunction(
                          parametric_type->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(Value param_value,
                          InterpValueToValue(*parametric_value));
-    DefConst(parametric_binding, param_value);
+    const CValue evaluated = DefConst(parametric_binding, param_value);
+    const_prefill.SetNamedValue(parametric_binding->name_def()->identifier(),
+                                evaluated.ir_value);
     XLS_RETURN_IF_ERROR(
         DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
   }
+
+  // If there is foreign function data, all constant values are replaced now.
+  builder_ptr->SetForeignFunctionData(const_prefill.GetUpdatedFfiData());
 
   XLS_VLOG(3) << "Function has " << constant_deps_.size() << " constant deps";
   for (ConstantDef* dep : constant_deps_) {
@@ -2222,11 +2292,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     Value param_value;
     if (parametric_value->IsSigned()) {
       XLS_ASSIGN_OR_RETURN(int64_t bit_value,
-                           parametric_value->GetBitValueInt64());
+                           parametric_value->GetBitValueViaSign());
       param_value = Value(SBits(bit_value, bit_count));
     } else {
       XLS_ASSIGN_OR_RETURN(uint64_t bit_value,
-                           parametric_value->GetBitValueUint64());
+                           parametric_value->GetBitValueViaSign());
       param_value = Value(UBits(bit_value, bit_count));
     }
     DefConst(parametric_binding, param_value);
@@ -2481,6 +2551,14 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
         return function_builder_->UDiv(lhs, rhs, loc);
       };
       break;
+    case BinopKind::kMod:
+      ir_func = [&](const SourceInfo& loc) {
+        if (signed_input) {
+          return function_builder_->SMod(lhs, rhs, loc);
+        }
+        return function_builder_->UMod(lhs, rhs, loc);
+      };
+      break;
     // Non-equality comparisons.
     case BinopKind::kGe:
       ir_func = [&](const SourceInfo& loc) {
@@ -2568,7 +2646,7 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
       current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   auto* struct_type = dynamic_cast<const StructType*>(lhs_type.value());
-  const std::string& identifier = node->attr()->identifier();
+  std::string_view identifier = node->attr();
   XLS_ASSIGN_OR_RETURN(int64_t index, struct_type->GetMemberIndex(identifier));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
   BValue ir = Def(node, [&](const SourceInfo& loc) {
@@ -2620,7 +2698,12 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
                            SetNodeToIr(node, bvalue);
                            return absl::OkStatus();
                          },
-                         [&](TypeAlias* ta) -> absl::Status {
+                         [&](TypeAlias* n) -> absl::Status {
+                           // Nothing to do, all was resolved at type inference
+                           // time.
+                           return absl::OkStatus();
+                         },
+                         [&](ConstAssert* n) -> absl::Status {
                            // Nothing to do, all was resolved at type inference
                            // time.
                            return absl::OkStatus();
@@ -2677,6 +2760,15 @@ absl::Status FunctionConverter::HandleBuiltinAndReduce(const Invocation* node) {
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->AndReduce(arg, loc);
   });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinArraySize(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  // All array sizes are constexpr since they're based on known types.
+  XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(Value v, InterpValueToValue(iv));
+  DefConst(node, v);
   return absl::OkStatus();
 }
 
@@ -3002,9 +3094,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
   if (!t.has_value()) {
     return ConversionErrorStatus(
         node->GetSpan(),
-        absl::StrFormat(
-            "Failed to convert IR because type was missing for AST node: %s",
-            node->ToString()));
+        absl::StrFormat("Failed to convert IR because type was missing for AST "
+                        "node: %s (kind: %s)",
+                        node->ToString(), AstNodeKindToString(node->kind())));
   }
 
   return t.value()->MapSize([this](const ConcreteTypeDim& dim) {

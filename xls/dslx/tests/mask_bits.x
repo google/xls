@@ -21,5 +21,4 @@ pub fn mask_bits<X: u32, Y:u32= {X + u32:1}>() -> bits[X] {
 fn test_mask_bits() {
   assert_eq(u8:0xff, mask_bits<u32:8>());
   //assert_eq(u13:0x1fff, mask_bits<u32:13>());
-  ()
 }

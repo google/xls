@@ -15,8 +15,13 @@
 // Takes in an IR file and produces an IR file that has been run through the
 // standard optimization pipeline.
 
+#include <iostream>
+#include <string_view>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
@@ -36,7 +41,7 @@ Dumps delay information about an XLS function including per-node delay
 information and critical-path. Example invocations:
 
 Emit delay information about a function:
-   delay_info_main --delay_model=unit --entry=ENTRY IR_FILE
+   delay_info_main --delay_model=unit --top=ENTRY IR_FILE
 
 Emit delay information about a function including per-stage critical path
 information:
@@ -136,6 +141,5 @@ int main(int argc, char** argv) {
                                           argv[0]);
   }
 
-  XLS_QCHECK_OK(xls::tools::RealMain(positional_arguments[0]));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::tools::RealMain(positional_arguments[0]));
 }

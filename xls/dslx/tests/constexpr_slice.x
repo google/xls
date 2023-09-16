@@ -24,7 +24,6 @@ fn p1<N: s32, M: s32 = {N + s32:1}, M_U32: u32 = {M as u32}>(a: u32) -> uN[M_U32
 
 fn main() -> (u8, u16, u8, u4, u17) {
   let a = u32:0xdeadbeef;
-  let x = u32:8;
   let i: u8 = a[0:8];
   let j: u16 = p<s32:16>(a);
   let k: u8 = a[s32:1 + s32:8 : 17];

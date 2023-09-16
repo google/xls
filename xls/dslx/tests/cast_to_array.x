@@ -52,6 +52,4 @@ fn cast_to_array_test() {
   assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]);
   let y = u16:0xbeef;
   assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]);
-
-  ()
 }

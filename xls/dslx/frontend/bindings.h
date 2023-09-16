@@ -17,11 +17,13 @@
 #ifndef XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
 #define XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -37,9 +39,8 @@ namespace xls::dslx {
 // Bindings (name references in the environment that map back to definition
 // points in the AST) resolve to this BoundNode variant, which are all kinds of
 // definitions.
-using BoundNode =
-    std::variant<EnumDef*, TypeAlias*, ConstantDef*, const NameDef*,
-                 BuiltinNameDef*, StructDef*, Import*>;
+using BoundNode = std::variant<EnumDef*, TypeAlias*, ConstantDef*, NameDef*,
+                               BuiltinNameDef*, StructDef*, Import*>;
 
 // Returns a string, useful for reporting in error messages, for the type of the
 // AST node contained inside of the given BoundNode variant; e.g. "Import".
@@ -56,6 +57,19 @@ inline absl::Status ParseErrorStatus(const Span& span,
   return absl::InvalidArgumentError(
       absl::StrFormat("ParseError: %s %s", span.ToString(), message));
 }
+
+inline absl::Status ParseNameErrorStatus(const Span& span,
+                                         std::string_view name) {
+  return ParseErrorStatus(
+      span, absl::StrFormat("Cannot find a definition for name: \"%s\"", name));
+}
+
+// If `status` has a message containing a ParseNameErrorStatus payload as
+// created above, extracts the name that the ParseNameError is referring to, or
+// returns nullopt (e.g. if the status error code is not as expected, or it's
+// not an appropriate error message).
+std::optional<std::string_view> MaybeExtractParseNameError(
+    const absl::Status& status);
 
 struct PositionalErrorData {
   Span span;
@@ -166,9 +180,7 @@ class Bindings {
     if (result.has_value()) {
       return *result;
     }
-    return ParseErrorStatus(
-        span,
-        absl::StrFormat("Cannot find a definition for name: \"%s\"", name));
+    return ParseNameErrorStatus(span, name);
   }
 
   // Resolves "name" as an AST binding and returns the associated NameDefNode.

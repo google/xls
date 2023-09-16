@@ -14,6 +14,10 @@
 
 #include "xls/scheduling/function_partition.h"
 
+#include <limits>
+#include <utility>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "xls/common/logging/logging.h"

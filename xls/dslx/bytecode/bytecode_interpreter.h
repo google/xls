@@ -102,10 +102,12 @@ class BytecodeInterpreter {
   // when the PC is already pointing to the end of the bytecode.
   absl::Status EvalNextInstruction();
 
-  absl::Status EvalAdd(const Bytecode& bytecode);
+  absl::Status EvalAdd(const Bytecode& bytecode, bool is_signed);
+  absl::Status EvalSub(const Bytecode& bytecode, bool is_signed);
+  absl::Status EvalMul(const Bytecode& bytecode, bool is_signed);
+
   absl::Status EvalAnd(const Bytecode& bytecode);
   absl::Status EvalCall(const Bytecode& bytecode);
-  absl::Status EvalCheckedCast(const Bytecode& bytecode);
   absl::Status EvalCast(const Bytecode& bytecode, bool is_checked = false);
   absl::Status EvalConcat(const Bytecode& bytecode);
   absl::Status EvalCreateArray(const Bytecode& bytecode);
@@ -127,7 +129,7 @@ class BytecodeInterpreter {
   absl::Status EvalLogicalOr(const Bytecode& bytecode);
   absl::Status EvalLt(const Bytecode& bytecode);
   absl::Status EvalMatchArm(const Bytecode& bytecode);
-  absl::Status EvalMul(const Bytecode& bytecode);
+  absl::Status EvalMod(const Bytecode& bytecode);
   absl::Status EvalNe(const Bytecode& bytecode);
   absl::Status EvalNegate(const Bytecode& bytecode);
   absl::Status EvalOr(const Bytecode& bytecode);
@@ -148,15 +150,11 @@ class BytecodeInterpreter {
         "config.");
   }
   absl::Status EvalStore(const Bytecode& bytecode);
-  absl::Status EvalSub(const Bytecode& bytecode);
   absl::Status EvalSwap(const Bytecode& bytecode);
   absl::Status EvalTrace(const Bytecode& bytecode);
   absl::Status EvalWidthSlice(const Bytecode& bytecode);
   absl::Status EvalXor(const Bytecode& bytecode);
 
-  absl::Status EvalUnop(
-      const std::function<absl::StatusOr<InterpValue>(const InterpValue& arg)>&
-          op);
   absl::Status EvalBinop(
       const std::function<absl::StatusOr<InterpValue>(
           const InterpValue& lhs, const InterpValue& rhs)>& op);
@@ -183,7 +181,6 @@ class BytecodeInterpreter {
       Frame* frame, const Bytecode::MatchArmItem& item,
       const InterpValue& value);
 
-  static absl::StatusOr<InterpValue> Pop(std::vector<InterpValue>& stack);
   absl::StatusOr<InterpValue> Pop() { return stack_.Pop(); }
 
   ImportData* const import_data_;
@@ -269,11 +266,13 @@ class ProcInstance {
  public:
   ProcInstance(Proc* proc, std::unique_ptr<BytecodeInterpreter> interpreter,
                std::unique_ptr<BytecodeFunction> next_fn,
-               std::vector<InterpValue> next_args)
+               std::vector<InterpValue> next_args,
+               const TypeInfo* type_info)
       : proc_(proc),
         interpreter_(std::move(interpreter)),
         next_fn_(std::move(next_fn)),
-        next_args_(std::move(next_args)) {}
+        next_args_(std::move(next_args)),
+        type_info_(type_info) {}
 
   // Executes a single "tick" of the ProcInstance.
   absl::StatusOr<ProcRunResult> Run();
@@ -283,6 +282,7 @@ class ProcInstance {
   std::unique_ptr<BytecodeInterpreter> interpreter_;
   std::unique_ptr<BytecodeFunction> next_fn_;
   std::vector<InterpValue> next_args_;
+  const TypeInfo* type_info_;
 };
 
 }  // namespace xls::dslx

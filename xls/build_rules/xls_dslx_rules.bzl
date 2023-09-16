@@ -104,6 +104,7 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
         "compare",
         "dslx_path",
         "warnings_as_errors",
+        "disable_warnings",
         "max_ticks",
         "format_preference",
     )
@@ -315,6 +316,7 @@ def _xls_dslx_library_impl(ctx):
         mnemonic = "ParseAndTypeCheckDSLXSourceFile",
         progress_message = "Parsing and type checking DSLX source files of " +
                            "target %s" % (ctx.attr.name),
+        toolchain = None,
     )
 
     placeholder_files_depset = get_transitive_dslx_placeholder_files_depset(

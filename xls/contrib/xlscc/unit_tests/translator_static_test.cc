@@ -13,11 +13,14 @@
 // limitations under the License.
 
 #include <cstdio>
+#include <list>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -1168,6 +1171,66 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructWithOnReset2) {
           .status(),
       xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
                                     testing::HasSubstr("using side-effects")));
+}
+
+TEST_F(TranslatorStaticTest, ReturnStaticLValue) {
+  const std::string content = R"(
+
+      int& GetStatic() {
+        static int x = 22;
+        return x;
+      }
+
+      #pragma hls_top
+      int my_package() {
+        int& sx = GetStatic();
+        return sx++;
+      })";
+
+  const absl::flat_hash_map<std::string, xls::Value> args = {};
+
+  xls::Value expected_vals[] = {
+      xls::Value(xls::SBits(22, 32)),
+      xls::Value(xls::SBits(23, 32)),
+      xls::Value(xls::SBits(24, 32)),
+  };
+
+  RunWithStatics(args, expected_vals, content);
+}
+
+TEST_F(TranslatorStaticTest, ReturnStaticLValueTemplated) {
+  const std::string content = R"(
+
+      template<int N>
+      int& GetStatic() {
+        static int x = 22;
+        return x;
+      }
+
+      template<>
+      int& GetStatic<2>() {
+        static int xx = 100;
+        return xx;
+      }
+
+      #pragma hls_top
+      int my_package() {
+        int& sx = GetStatic<1>();
+        int& sy = GetStatic<2>();
+        sy += 2;
+        sx++;
+        return sx + sy;
+      })";
+
+  const absl::flat_hash_map<std::string, xls::Value> args = {};
+
+  xls::Value expected_vals[] = {
+      xls::Value(xls::SBits(125, 32)),
+      xls::Value(xls::SBits(128, 32)),
+      xls::Value(xls::SBits(131, 32)),
+  };
+
+  RunWithStatics(args, expected_vals, content);
 }
 
 }  // namespace

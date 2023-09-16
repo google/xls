@@ -23,6 +23,7 @@ load(
     "xls_cc_ir",
 )
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -93,6 +94,82 @@ xls_cc_ir(
     block_pb_out = "block_from_class.pbtxt",
     ir_file = "block_from_class.ir",
 )
+
+[
+    # Benchmarks for multiple memory accesses.
+    # The example performs N reads and a write on a 1R1W memory, codegens + synthesizes the result.
+    (
+        xls_cc_ir(
+            name = "mem_iterated_read_{iterations}_ir".format(iterations = read_iterations),
+            src = "mem_iterated_read.cc",
+            block_from_class = "MemIteratedRead",
+            block_pb_out = "mem_iterated_read_{iterations}.pbtxt".format(iterations = read_iterations),
+            ir_file = "mem_iterated_read_{iterations}.ir".format(iterations = read_iterations),
+            xlscc_args = {
+                "defines": "READ_ITERATIONS={iterations},".format(iterations = read_iterations),
+            },
+        ),
+        xls_ir_opt_ir(
+            name = "mem_iterated_read_{iterations}_opt_ir".format(iterations = read_iterations),
+            src = "mem_iterated_read_{iterations}.ir".format(iterations = read_iterations),
+            opt_ir_args = {
+                "inline_procs": "True",
+            },
+            opt_ir_file = "mem_iterated_read_{iterations}.opt.ir".format(iterations = read_iterations),
+        ),
+        xls_ir_verilog(
+            name = "mem_iterated_read_{iterations}_v".format(iterations = read_iterations),
+            src = "mem_iterated_read_{iterations}.opt.ir".format(iterations = read_iterations),
+            codegen_args = {
+                "module_name": "mem_iterated_read",
+                "pipeline_stages": "2",
+                "delay_model": "asap7",
+                "generator": "pipeline",
+                "reset": "rst",
+                "reset_active_low": "false",
+                "reset_asynchronous": "false",
+                "reset_data_path": "false",
+                "flop_inputs": "false",
+                "flop_outputs": "false",
+                "top": "MemIteratedRead_proc",
+                # Yosys can't handle our default asserts.
+                "use_system_verilog": "False",
+                "ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_comp}".format(
+                    rd_req = "mem__read_request",
+                    rd_resp = "mem__read_response",
+                    wr_comp = "mem__write_response",
+                    wr_req = "mem__write_request",
+                ),
+            },
+            verilog_file = "mem_iterated_read_{iterations}.v".format(iterations = read_iterations),
+        ),
+        verilog_library(
+            name = "mem_iterated_read_{iterations}".format(iterations = read_iterations),
+            srcs = [":mem_iterated_read_{iterations}.v".format(iterations = read_iterations)],
+        ),
+        synthesize_rtl(
+            name = "mem_iterated_read_{iterations}_synth_asap7".format(iterations = read_iterations),
+            standard_cells = "@org_theopenroadproject_asap7//:asap7_rvt_1x",
+            tags = ["manual"],
+            top_module = "mem_iterated_read",
+            deps = [
+                ":mem_iterated_read_{iterations}".format(iterations = read_iterations),
+            ],
+        ),
+        benchmark_synth(
+            name = "mem_iterated_read_{iterations}_benchmark_synth_asap7".format(iterations = read_iterations),
+            synth_target = ":mem_iterated_read_{iterations}_synth_asap7".format(iterations = read_iterations),
+            tags = ["manual"],
+        ),
+    )
+    for read_iterations in [
+        1,
+        2,
+        3,
+        4,
+        10,
+    ]
+]
 
 xls_ir_opt_ir(
     name = "mux3_opt_ir",
@@ -364,6 +441,7 @@ cc_test(
     srcs = ["mux3_opt_ir_test.cc"],
     data = [":mux3_opt_ir.opt.ir"],
     deps = [
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -371,7 +449,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -383,6 +460,7 @@ cc_test(
         ":mux3_stages_5_v.sv",
     ],
     deps = [
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -390,6 +468,5 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest",
     ],
 )

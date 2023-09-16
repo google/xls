@@ -14,7 +14,11 @@
 
 #include "xls/data_structures/binary_decision_diagram.h"
 
+#include <algorithm>
 #include <limits>
+#include <string>
+#include <tuple>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

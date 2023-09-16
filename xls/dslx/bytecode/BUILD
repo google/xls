@@ -89,6 +89,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
+        "//xls/common:casts",
         "//xls/common:symbolized_stacktrace",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -115,6 +116,7 @@ cc_test(
         ":bytecode_emitter",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -122,7 +124,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
-        "@com_google_googletest//:gtest",
+        "@com_github_google_re2//:re2",
     ],
 )
 
@@ -143,10 +145,10 @@ cc_test(
     deps = [
         ":interpreter_stack",
         "@com_google_absl//absl/status",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -158,8 +160,8 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/ir",
         "//xls/ir:format_preference",
     ],
 )
@@ -211,6 +213,7 @@ cc_library(
     deps = [
         ":builtins",
         ":bytecode",
+        ":bytecode_cache_interface",
         ":bytecode_emitter",
         ":bytecode_interpreter_options",
         ":frame",
@@ -232,9 +235,12 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+        "//xls/ir:big_int",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
+        "//xls/ir:format_strings",
     ],
 )
 
@@ -245,11 +251,14 @@ cc_test(
         ":builtins",
         ":bytecode_emitter",
         ":bytecode_interpreter",
+        ":bytecode_interpreter_options",
         ":interpreter_stack",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
+        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
@@ -257,8 +266,8 @@ cc_test(
         "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:run_routines",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",
-        "@com_google_googletest//:gtest",
     ],
 )

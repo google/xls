@@ -14,6 +14,8 @@
 
 #include "xls/netlist/function_extractor.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"

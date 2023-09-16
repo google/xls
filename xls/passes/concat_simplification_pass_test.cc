@@ -34,6 +34,7 @@
 #include "xls/passes/bdd_simplification_pass.h"
 #include "xls/passes/bit_slice_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -54,22 +55,23 @@ class ConcatSimplificationPassTest : public IrTestBase {
       PassResults results;
       XLS_ASSIGN_OR_RETURN(bool concat_changed,
                            ConcatSimplificationPass().RunOnFunctionBase(
-                               f, PassOptions(), &results));
+                               f, OptimizationPassOptions(), &results));
       changed = changed || concat_changed;
       any_concat_changed = any_concat_changed || concat_changed;
 
       // Run other passes to clean things up.
       XLS_ASSIGN_OR_RETURN(bool dce_changed,
                            DeadCodeEliminationPass().RunOnFunctionBase(
-                               f, PassOptions(), &results));
+                               f, OptimizationPassOptions(), &results));
       changed = changed || dce_changed;
       XLS_ASSIGN_OR_RETURN(bool slice_changed,
                            BitSliceSimplificationPass().RunOnFunctionBase(
-                               f, PassOptions(), &results));
+                               f, OptimizationPassOptions(), &results));
       changed = changed || slice_changed;
 
-      XLS_ASSIGN_OR_RETURN(bool cse_changed, BddCsePass().RunOnFunctionBase(
-                                                 f, PassOptions(), &results));
+      XLS_ASSIGN_OR_RETURN(bool cse_changed,
+                           BddCsePass().RunOnFunctionBase(
+                               f, OptimizationPassOptions(), &results));
       changed = changed || cse_changed;
     }
 

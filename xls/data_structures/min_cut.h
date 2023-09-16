@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_MIN_CUT_H_
 #define XLS_DATA_STRUCTURES_MIN_CUT_H_
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -25,8 +26,8 @@
 namespace xls {
 namespace min_cut {
 
-DEFINE_STRONG_INT_TYPE(NodeId, int32_t);
-DEFINE_STRONG_INT_TYPE(EdgeId, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(NodeId, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(EdgeId, int32_t);
 
 // A directed edge in the graph used for computing mincuts.
 struct Edge {

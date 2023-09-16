@@ -13,6 +13,15 @@
 // limitations under the License.
 #include "xls/jit/function_base_jit.h"
 
+#include <algorithm>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"

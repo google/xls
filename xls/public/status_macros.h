@@ -18,6 +18,8 @@
 #ifndef XLS_PUBLIC_STATUS_MACROS_H_
 #define XLS_PUBLIC_STATUS_MACROS_H_
 
+// IWYU pragma: begin_exports
 #include "xls/common/status/status_macros.h"
+// IWYU pragma: end_exports
 
 #endif  // XLS_PUBLIC_STATUS_MACROS_H_

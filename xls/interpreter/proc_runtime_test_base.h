@@ -15,7 +15,10 @@
 #ifndef XLS_INTERPRETER_PROC_RUNTIME_TEST_BASE_H_
 #define XLS_INTERPRETER_PROC_RUNTIME_TEST_BASE_H_
 
+#include <functional>
 #include <memory>
+#include <string>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

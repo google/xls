@@ -14,6 +14,8 @@
 
 #include "xls/ir/function.h"
 
+#include <string>
+
 #include "pybind11/pybind11.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/python/wrapper_types.h"

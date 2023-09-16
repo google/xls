@@ -14,7 +14,10 @@
 
 #include "xls/common/logging/check_ops.h"
 
+#include <memory>
+#include <ostream>
 #include <sstream>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

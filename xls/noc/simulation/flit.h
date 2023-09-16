@@ -15,11 +15,14 @@
 #ifndef XLS_NOC_SIMULATION_FLIT_H_
 #define XLS_NOC_SIMULATION_FLIT_H_
 
+#include <string>
+
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/noc/simulation/common.h"
 
 // This file contains classes used to store and build objects related to
@@ -69,7 +72,7 @@ struct DataFlit {
         "{type: %s (%d), source_index: %d, dest_index: %d, "
         "vc: %d, data: %s}",
         FlitTypeToString(type), type, source_index, destination_index, vc,
-        data.ToString(FormatPreference::kHex, true));
+        BitsToString(data, FormatPreference::kHex, true));
   }
 
   // String converter to support absl::StrFormat() and related functions.
@@ -187,7 +190,8 @@ struct MetadataFlit {
 
   std::string ToString() const {
     return absl::StrFormat("{type: %s (%d), data: %s}", FlitTypeToString(type),
-                           type, data.ToString(FormatPreference::kHex, true));
+                           type,
+                           BitsToString(data, FormatPreference::kHex, true));
   }
 
   // String converter to support absl::StrFormat() and related functions.

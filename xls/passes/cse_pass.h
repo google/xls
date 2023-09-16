@@ -17,7 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -52,14 +52,16 @@ absl::flat_hash_map<T, T> FixedPointOfSPO(
 // Pass which performs common subexpression elimination. Equivalent ops with the
 // same operands are commoned. The pass can find arbitrarily large common
 // expressions.
-class CsePass : public FunctionBasePass {
+class CsePass : public OptimizationFunctionBasePass {
  public:
-  CsePass() : FunctionBasePass("cse", "Common subexpression elimination") {}
+  CsePass()
+      : OptimizationFunctionBasePass("cse",
+                                     "Common subexpression elimination") {}
   ~CsePass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

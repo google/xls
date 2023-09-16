@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn non_test_slice(x: u8[4], start: u32) -> u8[3] {
+fn main(x: u8[4], start: u32) -> u8[3] {
   slice(x, start, u8[3]:[0, ...])
 }
+
 #[test]
 fn slice_test() {
   let a: u8[4] = u8[4]:[4, ...];
-  assert_eq(u8[3]:[4, 4, 4], non_test_slice(a, u32:1));
+  assert_eq(u8[3]:[4, 4, 4], main(a, u32:1));
   assert_eq(u8[3]:[4, 4, 4], u8[3]:[4, ...]);
   assert_eq(u8:4, (u8[3]:[4, ...])[u32:2]);
-  ()
 }

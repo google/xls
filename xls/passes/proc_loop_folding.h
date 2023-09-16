@@ -16,10 +16,11 @@
 #define XLS_PASSES_PROC_LOOP_FOLDING_H_
 
 #include <optional>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -36,16 +37,16 @@ namespace xls {
 // often good to minimize how many there are. By rolling the CountedFor into
 // the proc state, we end up with only a single multiplier, which can be a
 // nice area and power consumption optimization.
-class RollIntoProcPass : public ProcPass {
+class RollIntoProcPass : public OptimizationProcPass {
  public:
   explicit RollIntoProcPass(
       std::optional<int64_t> unroll_factor = std::nullopt);
   ~RollIntoProcPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunOnProcInternal(
-      Proc* proc, const PassOptions& options,
-      PassResults* results) const override;
+  absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
+                                         const OptimizationPassOptions& options,
+                                         PassResults* results) const override;
 
   // Unroll the CountedFor function body. This will make it easier to do this
   // kind of optimization in this pass.

@@ -14,6 +14,9 @@
 
 #include "xls/common/file/path.h"
 
+#include <system_error>
+#include <utility>
+
 #include "absl/status/statusor.h"
 #include "xls/common/status/error_code_to_status.h"
 

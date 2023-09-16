@@ -14,6 +14,12 @@
 
 #include "xls/scheduling/schedule_bounds.h"
 
+#include <algorithm>
+#include <limits>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"

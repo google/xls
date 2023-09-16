@@ -16,6 +16,8 @@
 
 #include <memory>
 #include <random>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -113,13 +115,13 @@ TEST_F(BddFunctionTest, Parity) {
 }
 
 TEST_F(BddFunctionTest, BenchmarkTest) {
-  // Run samples through various bechmarks and verify against the interpreter.
+  // Run samples through various benchmarks and verify against the interpreter.
   //
   // TODO(leary): 2021-07-20 Temporary workaround for copybara rewrite -- want
   // to get this into a .inc file.
   // clang-format off
   std::vector<std::string> benchmarks = {
-    "examples/crc32", "examples/sha256"};
+    "examples/crc32", "examples/sha256"}; // NOLINT
   // clang-format on
   for (std::string& benchmark : benchmarks) {
     XLS_ASSERT_OK_AND_ASSIGN(

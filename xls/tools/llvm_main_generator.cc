@@ -29,7 +29,9 @@
 //  - The sample is invoked with the allocas above.
 //  - The result is extracted from the output buffer and printed to the terminal
 //    (in XLS value textual form) via UnpackAndPrintBuffer().
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
@@ -40,6 +42,7 @@
 #include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/IRReader/IRReader.h"
 #include "llvm/include/llvm/Support/SourceMgr.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -218,8 +221,7 @@ int main(int argc, char** argv) {
   XLS_QCHECK(!absl::GetFlag(FLAGS_output_type).empty())
       << "--output_type cannot be empty.";
 
-  XLS_QCHECK_OK(xls::RealMain(
+  return xls::ExitStatus(xls::RealMain(
       absl::GetFlag(FLAGS_input), absl::GetFlag(FLAGS_output),
       absl::GetFlag(FLAGS_entry_function), absl::GetFlag(FLAGS_output_type)));
-  return 0;
 }

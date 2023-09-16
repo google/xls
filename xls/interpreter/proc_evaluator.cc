@@ -14,6 +14,9 @@
 
 #include "xls/interpreter/proc_evaluator.h"
 
+#include <ostream>
+#include <string>
+
 #include "xls/common/logging/logging.h"
 
 namespace xls {

@@ -14,6 +14,9 @@
 
 #include "xls/common/math_util.h"
 
+#include <functional>
+#include <vector>
+
 namespace xls {
 namespace {
 

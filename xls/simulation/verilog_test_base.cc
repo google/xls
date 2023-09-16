@@ -15,6 +15,8 @@
 #include "xls/simulation/verilog_test_base.h"
 
 #include <cstdlib>
+#include <string>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

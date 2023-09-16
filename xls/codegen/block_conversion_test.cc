@@ -14,11 +14,18 @@
 
 #include "xls/codegen/block_conversion.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <numeric>
 #include <optional>
+#include <ostream>
 #include <random>
+#include <sstream>
 #include <string>
+#include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -33,6 +40,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
@@ -45,6 +53,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace m = xls::op_matchers;
@@ -374,8 +383,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
             absl::StrFormat("%s not found in input", signal_name));
       }
       return inputs.at(signal_name);
-    } else if (signal_type == SignalType::kOutput ||
-               signal_type == SignalType::kExpectedOutput) {
+    }
+    if (signal_type == SignalType::kOutput ||
+        signal_type == SignalType::kExpectedOutput) {
       if (!outputs.contains(signal_name)) {
         return absl::InternalError(
             absl::StrFormat("%s not found in output", signal_name));
@@ -446,8 +456,8 @@ TEST_F(BlockConversionTest, SimplePipelinedFunction) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
@@ -472,8 +482,8 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
   {
     // No flopping inputs or outputs.
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -547,8 +557,8 @@ TEST_F(BlockConversionTest, ZeroWidthPipeline) {
                            fb.BuildWithReturnValue(fb.Tuple({x, y})));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
       FunctionToPipelinedBlock(
@@ -662,8 +672,8 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
@@ -1450,8 +1460,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   CodegenOptions options;
   options.module_name("my_proc");
@@ -1520,7 +1530,7 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
 
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             proc, TestDelayEstimator(),
             SchedulingOptions()
                 .pipeline_stages(stage_count)
@@ -2070,10 +2080,10 @@ class SimpleRunningCounterProcTestSweepFixture
     XLS_VLOG_LINES(2, proc->DumpIr());
 
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::Run(proc, TestDelayEstimator(),
-                                               SchedulingOptions()
-                                                   .pipeline_stages(stage_count)
-                                                   .clock_period_ps(10)));
+                         RunPipelineSchedule(proc, TestDelayEstimator(),
+                                             SchedulingOptions()
+                                                 .pipeline_stages(stage_count)
+                                                 .clock_period_ps(10)));
 
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
@@ -2265,7 +2275,7 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
 
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             proc, TestDelayEstimator(),
             SchedulingOptions()
                 .pipeline_stages(stage_count)
@@ -2708,10 +2718,10 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
     XLS_VLOG(2) << "Multi input streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
-    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::Run(
-                             proc, TestDelayEstimator(),
-                             SchedulingOptions().pipeline_stages(stage_count)));
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        RunPipelineSchedule(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(stage_count)));
 
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
@@ -2921,8 +2931,8 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
 
   // Pipelined test
   {
@@ -2990,10 +3000,10 @@ class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
     XLS_VLOG(2) << "Multi io streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
-    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::Run(
-                             proc, TestDelayEstimator(),
-                             SchedulingOptions().pipeline_stages(stage_count)));
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        RunPipelineSchedule(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(stage_count)));
 
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
@@ -3240,8 +3250,8 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBlock) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(1)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1)));
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
   options.valid_control("input_valid", "output_valid");
@@ -3361,8 +3371,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={1}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
@@ -3427,8 +3437,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
@@ -3506,8 +3516,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
@@ -3581,10 +3591,10 @@ TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(proc, TestDelayEstimator(),
-                              SchedulingOptions(SchedulingStrategy::RANDOM)
-                                  .pipeline_stages(20)
-                                  .seed(seed)));
+        RunPipelineSchedule(proc, TestDelayEstimator(),
+                            SchedulingOptions(SchedulingStrategy::RANDOM)
+                                .pipeline_stages(20)
+                                .seed(seed)));
     CodegenOptions options;
     options.flop_inputs(false).flop_outputs(false).clock_name("clk");
     options.valid_control("input_valid", "output_valid");
@@ -3677,10 +3687,10 @@ TEST_F(ProcConversionTestFixture, AddRandomScheduler) {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(proc, TestDelayEstimator(),
-                              SchedulingOptions(SchedulingStrategy::RANDOM)
-                                  .pipeline_stages(20)
-                                  .seed(seed)));
+        RunPipelineSchedule(proc, TestDelayEstimator(),
+                            SchedulingOptions(SchedulingStrategy::RANDOM)
+                                .pipeline_stages(20)
+                                .seed(seed)));
     CodegenOptions options;
     options.flop_inputs(false).flop_outputs(false).clock_name("clk");
     options.valid_control("input_valid", "output_valid");
@@ -3781,10 +3791,13 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(proc, TestDelayEstimator(),
-                              SchedulingOptions(SchedulingStrategy::RANDOM)
-                                  .pipeline_stages(20)
-                                  .seed(seed)));
+        RunPipelineSchedule(
+            proc, TestDelayEstimator(),
+            SchedulingOptions(SchedulingStrategy::RANDOM)
+                .pipeline_stages(20)
+                .seed(seed)
+                // The random scheduler doesn't support constraints.
+                .clear_constraints()));
     CodegenOptions options;
     options.flop_inputs(false).flop_outputs(false).clock_name("clk");
     options.valid_control("input_valid", "output_valid");
@@ -3924,7 +3937,7 @@ class NonblockingReceivesProcTest : public ProcConversionTestFixture {
 
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             proc, TestDelayEstimator(),
             SchedulingOptions()
                 .pipeline_stages(stage_count)
@@ -4165,7 +4178,7 @@ class ProcWithStateTest : public BlockConversionTest {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(proc, TestDelayEstimator(), scheduling_options));
+        RunPipelineSchedule(proc, TestDelayEstimator(), scheduling_options));
 
     CodegenOptions options;
     options.module_name(TestName());
@@ -4321,9 +4334,8 @@ TEST_F(ProcConversionTestFixture, RecvDataFeedingSendPredicate) {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
-            proc, TestDelayEstimator(),
-            SchedulingOptions().pipeline_stages(1).seed(seed)));
+        RunPipelineSchedule(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(1).seed(seed)));
     CodegenOptions options;
     options.flop_inputs(false).flop_outputs(false).clock_name("clk");
     options.valid_control("input_valid", "output_valid");

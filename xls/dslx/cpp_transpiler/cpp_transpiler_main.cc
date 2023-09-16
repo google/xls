@@ -19,6 +19,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -27,6 +28,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/warning_kind.h"
 
 ABSL_FLAG(std::string, output_header_path, "",
           "Path at which to write the generated header.");
@@ -59,8 +61,8 @@ absl::Status RealMain(const std::filesystem::path& module_path,
                       std::string_view namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
-  ImportData import_data(
-      CreateImportData(dslx_stdlib_path, /*additional_search_paths=*/{}));
+  ImportData import_data(CreateImportData(
+      dslx_stdlib_path, /*additional_search_paths=*/{}, kAllWarningsSet));
   XLS_ASSIGN_OR_RETURN(TypecheckedModule module,
                        ParseAndTypecheck(module_text, std::string(module_path),
                                          "source", &import_data));
@@ -91,7 +93,7 @@ int main(int argc, char* argv[]) {
   std::string output_source_path = absl::GetFlag(FLAGS_output_source_path);
   XLS_QCHECK(!output_source_path.empty())
       << "--output_source_path must be specified.";
-  XLS_QCHECK_OK(xls::dslx::RealMain(
+  return xls::ExitStatus(xls::dslx::RealMain(
       args[0], absl::GetFlag(FLAGS_dslx_stdlib_path), output_header_path,
       output_source_path, absl::GetFlag(FLAGS_namespaces)));
 

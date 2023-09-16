@@ -19,6 +19,9 @@
 #ifndef XLS_NOC_SIMULATION_GLOBAL_ROUTING_TABLE_H_
 #define XLS_NOC_SIMULATION_GLOBAL_ROUTING_TABLE_H_
 
+#include <utility>
+#include <vector>
+
 #include "absl/container/flat_hash_set.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/indexer.h"

@@ -15,6 +15,8 @@
 #include "xls/common/strong_int.h"
 
 #include <cstdint>
+#include <iostream>
+#include <sstream>
 #include <type_traits>
 
 #include "gmock/gmock.h"
@@ -27,15 +29,15 @@ namespace {
 
 using ::testing::Eq;
 
-DEFINE_STRONG_INT_TYPE(StrongInt8, int8_t);
-DEFINE_STRONG_INT_TYPE(StrongUInt8, uint8_t);
-DEFINE_STRONG_INT_TYPE(StrongInt16, int16_t);
-DEFINE_STRONG_INT_TYPE(StrongUInt16, uint16_t);
-DEFINE_STRONG_INT_TYPE(StrongInt32, int32_t);
-DEFINE_STRONG_INT_TYPE(StrongInt64, int64_t);
-DEFINE_STRONG_INT_TYPE(StrongUInt32, uint32_t);
-DEFINE_STRONG_INT_TYPE(StrongUInt64, uint64_t);
-DEFINE_STRONG_INT_TYPE(StrongLong, long);  // NOLINT
+XLS_DEFINE_STRONG_INT_TYPE(StrongInt8, int8_t);
+XLS_DEFINE_STRONG_INT_TYPE(StrongUInt8, uint8_t);
+XLS_DEFINE_STRONG_INT_TYPE(StrongInt16, int16_t);
+XLS_DEFINE_STRONG_INT_TYPE(StrongUInt16, uint16_t);
+XLS_DEFINE_STRONG_INT_TYPE(StrongInt32, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(StrongInt64, int64_t);
+XLS_DEFINE_STRONG_INT_TYPE(StrongUInt32, uint32_t);
+XLS_DEFINE_STRONG_INT_TYPE(StrongUInt64, uint64_t);
+XLS_DEFINE_STRONG_INT_TYPE(StrongLong, long);  // NOLINT
 
 TEST(StrongIntTypeIdTest, TypeIdIsAsExpected) {
   EXPECT_EQ("StrongInt8", StrongInt8::TypeName());
@@ -848,9 +850,9 @@ TEST(StrongIntTest, ExplicitCasting) {
 // conversions work.
 namespace other_namespace {
 
-DEFINE_STRONG_INT_TYPE(Inches, int64_t);
-DEFINE_STRONG_INT_TYPE(Feet, int64_t);
-DEFINE_STRONG_INT_TYPE(Centimeters, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(Inches, int64_t);
+XLS_DEFINE_STRONG_INT_TYPE(Feet, int64_t);
+XLS_DEFINE_STRONG_INT_TYPE(Centimeters, int32_t);
 
 constexpr Feet StrongIntConvert(const Inches &arg, Feet * /* unused */) {
   return Feet(arg.value() / 12);

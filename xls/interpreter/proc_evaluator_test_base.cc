@@ -14,6 +14,8 @@
 
 #include "xls/interpreter/proc_evaluator_test_base.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

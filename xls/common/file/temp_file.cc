@@ -18,6 +18,10 @@
 #include <unistd.h>
 
 #include <cstdlib>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

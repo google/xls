@@ -14,7 +14,10 @@
 
 #include "xls/tools/wrap_io.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <string_view>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/finite_state_machine.h"

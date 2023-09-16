@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load(
+    "//xls/build_rules:xls_macros.bzl",
+    "xls_dslx_cpp_type_library",
+)
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
@@ -34,6 +39,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx/bytecode",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
@@ -45,16 +51,22 @@ cc_library(
 cc_test(
     name = "cpp_transpiler_test",
     srcs = ["cpp_transpiler_test.cc"],
+    data = glob([
+        "testdata/*",
+    ]),
     deps = [
         ":cpp_transpiler",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:golden_files",
+        "//xls/common:source_location",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -66,8 +78,7 @@ cc_binary(
         ":cpp_transpiler",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -75,5 +86,22 @@ cc_binary(
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_kind",
+    ],
+)
+
+xls_dslx_cpp_type_library(
+    name = "test_types_lib",
+    src = ":test_types.x",
+    namespace = "xls::test",
+)
+
+cc_test(
+    name = "test_types_test",
+    srcs = ["test_types_test.cc"],
+    deps = [
+        ":test_types_lib",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
     ],
 )

@@ -15,19 +15,23 @@
 #ifndef XLS_CODEGEN_CODEGEN_WRAPPER_PASS_H_
 #define XLS_CODEGEN_CODEGEN_WRAPPER_PASS_H_
 
+#include <memory>
+#include <utility>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls::verilog {
 
-// A codegen pass wrapper which wraps a FunctionBasePass. This is useful for
-// adding an optimization or transformation pass (most passes in xls/passes are
-// FunctionBasePasses) to the codegen pipeline. The wrapped pass is run on the
-// block being lowered to Verilog.
+// A codegen pass wrapper which wraps a OptimizationFunctionBasePass. This is
+// useful for adding an optimization or transformation pass (most passes in
+// xls/passes are OptimizationFunctionBasePasses) to the codegen pipeline. The
+// wrapped pass is run on the block being lowered to Verilog.
 class CodegenWrapperPass : public CodegenPass {
  public:
-  explicit CodegenWrapperPass(std::unique_ptr<FunctionBasePass> wrapped_pass)
+  explicit CodegenWrapperPass(
+      std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass)
       : CodegenPass(absl::StrFormat("codegen_%s", wrapped_pass->short_name()),
                     absl::StrFormat("%s (codegen)", wrapped_pass->long_name())),
         wrapped_pass_(std::move(wrapped_pass)) {}
@@ -38,7 +42,7 @@ class CodegenWrapperPass : public CodegenPass {
                                    PassResults* results) const override;
 
  private:
-  std::unique_ptr<FunctionBasePass> wrapped_pass_;
+  std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass_;
 };
 
 }  // namespace xls::verilog

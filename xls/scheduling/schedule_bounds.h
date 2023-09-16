@@ -15,9 +15,12 @@
 #ifndef XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
 #define XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

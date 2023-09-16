@@ -26,9 +26,24 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
+
+std::optional<std::string_view> MaybeExtractParseNameError(
+    const absl::Status& status) {
+  if (status.code() != absl::StatusCode::kInvalidArgument) {
+    return std::nullopt;
+  }
+  std::string_view name;
+  if (RE2::PartialMatch(status.message(),
+                        R"(Cannot find a definition for name: \"(\w+)\")",
+                        &name)) {
+    return name;
+  }
+  return std::nullopt;
+}
 
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
     const absl::Status& status, std::optional<std::string_view> target_type) {
@@ -39,7 +54,11 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
   };
   std::string_view s = status.message();
   std::string type_indicator;
-  if (!RE2::Consume(&s, "(\\w+): ", &type_indicator)) {
+  // Note: we permit angle braces around the filename for cases that are
+  // delimiting special things like fake files or stdin; e.g.
+  //
+  //    <fake>:1:2
+  if (!RE2::Consume(&s, "(<?\\w+>?): ", &type_indicator)) {
     return error();
   }
   if (target_type.has_value() && type_indicator != *target_type) {
@@ -65,8 +84,8 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
   if (std::holds_alternative<ConstantDef*>(bn)) {
     return std::get<ConstantDef*>(bn)->name_def();
   }
-  if (std::holds_alternative<const NameDef*>(bn)) {
-    return std::get<const NameDef*>(bn);
+  if (std::holds_alternative<NameDef*>(bn)) {
+    return std::get<NameDef*>(bn);
   }
   if (std::holds_alternative<BuiltinNameDef*>(bn)) {
     return std::get<BuiltinNameDef*>(bn);
@@ -83,27 +102,21 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
 }
 
 Span BoundNodeGetSpan(BoundNode bn) {
-  if (std::holds_alternative<ConstantDef*>(bn)) {
-    return std::get<ConstantDef*>(bn)->span();
-  }
-  if (std::holds_alternative<TypeAlias*>(bn)) {
-    return std::get<TypeAlias*>(bn)->span();
-  }
-  if (std::holds_alternative<StructDef*>(bn)) {
-    return std::get<StructDef*>(bn)->span();
-  }
-  if (std::holds_alternative<EnumDef*>(bn)) {
-    return std::get<EnumDef*>(bn)->span();
-  }
-  if (std::holds_alternative<const NameDef*>(bn)) {
-    return std::get<const NameDef*>(bn)->span();
-  }
-  if (std::holds_alternative<BuiltinNameDef*>(bn)) {
-    Pos p("<builtin>", 0, 0);
-    return Span(p, p);
-  }
-  XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
-                 << ToAstNode(bn)->ToString();
+  return absl::visit(Visitor{
+                         [](EnumDef* n) { return n->span(); },
+                         [](TypeAlias* n) { return n->span(); },
+                         [](ConstantDef* n) { return n->span(); },
+                         [](NameDef* n) { return n->span(); },
+                         [](BuiltinNameDef* n) {
+                           // Builtin name defs have no real span, so we provide
+                           // a fake one here.
+                           Pos p("<builtin>", 0, 0);
+                           return Span(p, p);
+                         },
+                         [](StructDef* n) { return n->span(); },
+                         [](Import* n) { return n->span(); },
+                     },
+                     bn);
 }
 
 std::string BoundNodeGetTypeString(const BoundNode& bn) {
@@ -112,7 +125,7 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
   if (std::holds_alternative<TypeAlias*>(bn)) { return "TypeAlias"; }
   if (std::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
   if (std::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
-  if (std::holds_alternative<const NameDef*>(bn)) { return "NameDef"; }
+  if (std::holds_alternative<NameDef*>(bn)) { return "NameDef"; }
   if (std::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
   if (std::holds_alternative<Import*>(bn)) { return "Import"; }
   // clang-format on

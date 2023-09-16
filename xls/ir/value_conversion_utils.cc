@@ -14,6 +14,9 @@
 
 #include "xls/ir/value_conversion_utils.h"
 
+#include <tuple>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"

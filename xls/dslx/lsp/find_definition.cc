@@ -14,6 +14,10 @@
 
 #include "xls/dslx/lsp/find_definition.h"
 
+#include <optional>
+#include <variant>
+#include <vector>
+
 namespace xls::dslx {
 
 std::optional<Span> FindDefinition(const Module& m, const Pos& selected) {

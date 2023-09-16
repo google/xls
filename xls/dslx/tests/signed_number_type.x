@@ -23,5 +23,4 @@ fn main_test() {
   let z: s8 = main(x, y);
   assert_lt(z, s8:0);
   assert_eq(false, z >= s8:0);
-  ()
 }

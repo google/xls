@@ -21,10 +21,6 @@
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder.h"
 
-// TODO(tedhong): 2021-01-10 Move this to xls/common
-#define XLS_EXPECT_OK_AND_EQ(lhs, rexpr) \
-  EXPECT_THAT(lhs, status_testing::IsOkAndHolds(rexpr));
-
 namespace xls {
 namespace noc {
 namespace {

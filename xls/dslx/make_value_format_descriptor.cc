@@ -14,6 +14,12 @@
 
 #include "xls/dslx/make_value_format_descriptor.h"
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 

@@ -14,6 +14,12 @@
 
 #include "xls/jit/type_layout.h"
 
+#include <cstring>
+#include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_helpers.h"
 

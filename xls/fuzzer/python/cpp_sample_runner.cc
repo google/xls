@@ -14,6 +14,11 @@
 
 #include "xls/fuzzer/cpp_sample_runner.h"
 
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "pybind11/chrono.h"

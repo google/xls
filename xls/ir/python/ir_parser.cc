@@ -14,6 +14,11 @@
 
 #include "xls/ir/ir_parser.h"
 
+#include <memory>
+#include <optional>
+#include <string_view>
+#include <utility>
+
 #include "absl/status/statusor.h"
 #include "pybind11/pybind11.h"
 #include "pybind11_abseil/absl_casters.h"

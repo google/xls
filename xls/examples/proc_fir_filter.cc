@@ -14,6 +14,7 @@
 #include "xls/examples/proc_fir_filter.h"
 
 #include <string>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

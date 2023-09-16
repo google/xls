@@ -14,6 +14,13 @@
 
 #include "xls/simulation/verilog_simulator.h"
 
+#include <algorithm>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"

@@ -48,6 +48,7 @@ class InterpreterTest(test_base.TestCase):
       want_error: bool = False,
       alsologtostderr: bool = False,
       warnings_as_errors: bool = True,
+      disable_warnings: Sequence[str] = (),
       extra_flags: Sequence[str] = (),
   ) -> str:
     temp_file = self.create_tempfile(content=program)
@@ -57,6 +58,8 @@ class InterpreterTest(test_base.TestCase):
       cmd.append('--alsologtostderr')
     if not warnings_as_errors:
       cmd.append('--warnings_as_errors=false')
+    if disable_warnings:
+      cmd.append('--disable_warnings=%s' % ','.join(disable_warnings))
     cmd.extend(extra_flags)
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
     if want_error:
@@ -121,7 +124,11 @@ class InterpreterTest(test_base.TestCase):
       };
     }
     """)
-    stderr = self._parse_and_test(program, want_error=True)
+    # warnings-as-errors off because we have a useless match expression just to
+    # trigger the type error.
+    stderr = self._parse_and_test(
+        program, warnings_as_errors=False, want_error=True
+    )
     self.assertIn(
         'The program being interpreted failed! The value was not matched',
         stderr)
@@ -262,7 +269,6 @@ class InterpreterTest(test_base.TestCase):
       let s = MyStruct{x: u32:42};
       trace_fmt!("s as hex: {:#x}", s);
       trace_fmt!("s as bin: {:#b}", s);
-      ()
     }
 
     #[test]
@@ -295,7 +301,6 @@ class InterpreterTest(test_base.TestCase):
       let a = MyStruct[1]:[s];
       trace_fmt!("a as hex: {:#x}", a);
       trace_fmt!("a as bin: {:#b}", a);
-      ()
     }
 
     #[test]
@@ -327,7 +332,6 @@ class InterpreterTest(test_base.TestCase):
     fn main() {
       let a = MyEnum[2]:[MyEnum::ONE, MyEnum::TWO];
       trace_fmt!("a: {:#x}", a);
-      ()
     }
 
     #[test]
@@ -350,7 +354,6 @@ class InterpreterTest(test_base.TestCase):
     fn main() {
       let t = (MyEnum::ONE, MyEnum::TWO, u32:42);
       trace_fmt!("t: {:#x}", t);
-      ()
     }
 
     #[test]
@@ -527,6 +530,37 @@ class InterpreterTest(test_base.TestCase):
         self.assertIn(want.kind, stderr)
       else:
         stderr = self._parse_and_test(program, want_error=False)
+
+  def test_disable_warning(self):
+    """Tests that we can disable one kind of warning."""
+    program = """
+    fn f() { let _ = (); }
+    """
+    self._parse_and_test(
+        program,
+        want_error=False,
+        alsologtostderr=True,
+        warnings_as_errors=True,
+        disable_warnings=['useless_let_binding'],
+    )
+
+  def test_disable_warning_does_not_affect_another_kind(self):
+    """Disable one kind of warning without affecting another."""
+    program = """
+    fn f(a: u32, b: u32, c: u32) -> (u32, u32, u32) { (a, b, c,) }
+    """
+    stderr = self._parse_and_test(
+        program,
+        want_error=True,
+        alsologtostderr=True,
+        warnings_as_errors=True,
+        disable_warnings=['useless_let_binding'],
+    )
+    self.assertIn(
+        'Tuple expression (with >1 element) is on a single line, but has a'
+        ' trailing comma.',
+        stderr,
+    )
 
 
 if __name__ == '__main__':

@@ -25,7 +25,6 @@ fn casts() {
   assert_eq(u1:1, u1:1 as u1);
   assert_eq(s1:1, s1:1 as s1);
   assert_eq(s1:-1, s1:-1 as s1);
-  ()
 }
 
 #[test]
@@ -81,8 +80,14 @@ fn widening_casts() {
   assert_eq(u3:5, widening_cast<u3>(u3:5));
   assert_eq(u3:6, widening_cast<u3>(u3:6));
   assert_eq(u3:7, widening_cast<u3>(u3:7));
+}
 
-  ()
+#[test]
+fn array_casts() {
+  assert_eq(uN[32]:0xff_aa_55_00,
+            uN[8][4]:[u8:0xff, u8:0xaa, u8:0x55, u8:0x00] as u32);
+  assert_eq(uN[32]:0xff_aa_55_00 as u8[4],
+            uN[8][4]:[u8:0xff, u8:0xaa, u8:0x55, u8:0x00]);
 }
 
 #[test]
@@ -171,6 +176,4 @@ fn checked_casts() {
   assert_eq(u3:5, checked_cast<u3>(u3:5));
   assert_eq(u3:6, checked_cast<u3>(u3:6));
   assert_eq(u3:7, checked_cast<u3>(u3:7));
-
-  ()
 }

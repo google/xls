@@ -22,5 +22,4 @@ fn test_main() {
   assert_eq(main(u32:5), u16:5);
   assert_eq(main(u32:0xffff), u16:0xffff);
   assert_eq(main(u32:0x1ffff), u16:0xffff);
-  ()
 }

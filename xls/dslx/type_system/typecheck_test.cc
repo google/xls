@@ -19,7 +19,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -29,6 +28,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
+#include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -249,8 +249,8 @@ fn f() -> u32 { id(u32:42) }
 TEST(TypecheckErrorTest, RecursionCausesError) {
   std::string program = "fn f(x: u32) -> u32 { f(x) }";
   EXPECT_THAT(Typecheck(program),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("This may be due to recursion")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Recursion of function `f` detected")));
 }
 
 TEST(TypecheckErrorTest, ParametricRecursionCausesError) {
@@ -258,11 +258,9 @@ TEST(TypecheckErrorTest, ParametricRecursionCausesError) {
 fn f<X: u32>(x: bits[X]) -> u32 { f(x) }
 fn g() -> u32 { f(u32: 5) }
 )";
-  EXPECT_THAT(
-      Typecheck(program),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Recursive call to `f` detected during type-checking "
-                         "-- recursive calls are unsupported.")));
+  EXPECT_THAT(Typecheck(program),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Recursion of function `f` detected")));
 }
 
 TEST(TypecheckErrorTest, HigherOrderRecursionCausesError) {
@@ -273,11 +271,9 @@ fn g() -> u32[3] {
     map(x0, h)
 }
 )";
-  EXPECT_THAT(
-      Typecheck(program),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Recursive call to `h` detected during type-checking "
-                         "-- recursive calls are unsupported.")));
+  EXPECT_THAT(Typecheck(program),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Recursion of function `h` detected")));
 }
 
 TEST(TypecheckErrorTest, InvokeWrongArg) {
@@ -335,6 +331,78 @@ fn f() -> u32 {
     accum
   }(u32:0)
 })"));
+}
+
+TEST(TypecheckTest, ForWildcardIvar) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f() -> u32 {
+  for (_, accum) in range(u32:0, u32:3) {
+    accum
+  }(u32:0)
+})"));
+}
+
+TEST(TypecheckTest, ConstAssertParametricOk) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn p<N: u32>() -> u32 {
+  const_assert!(N == u32:42);
+  N
+}
+fn main() -> u32 {
+  p<u32:42>()
+})"));
+}
+
+TEST(TypecheckTest, ConstAssertViaConstBindings) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn main() -> () {
+  const M = u32:1;
+  const N = u32:2;
+  const O = M + N;
+  const_assert!(O == u32:3);
+  ()
+})"));
+}
+
+TEST(TypecheckTest, ConstAssertCallFunction) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn is_mol(x: u32) -> bool {
+  x == u32:42
+}
+fn p<N: u32>() -> () {
+  const_assert!(is_mol(N));
+  ()
+}
+fn main() -> () {
+  p<u32:42>()
+})"));
+}
+
+TEST(TypecheckErrorTest, ConstAssertFalse) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() -> () {
+  const_assert!(false);
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("const_assert! failure: `false`")));
+}
+
+TEST(TypecheckErrorTest, ConstAssertFalseExpr) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() -> () {
+  const_assert!(u32:2 + u32:3 != u32:5);
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("const_assert! failure")));
+}
+
+TEST(TypecheckErrorTest, ConstAssertNonConstexpr) {
+  EXPECT_THAT(Typecheck(R"(
+fn main(p: u32) -> () {
+  const_assert!(p == u32:42);
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("const_assert! expression is not constexpr")));
 }
 
 TEST(TypecheckTest, ForBuiltinInBody) {
@@ -646,6 +714,43 @@ fn f() -> u32 {
                                  "of right hand side")));
 }
 
+TEST(TypecheckErrorTest, CoverBuiltinWrongArgc) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f() -> () {
+  cover!()
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Invalid number of arguments passed to 'cover!'")));
+}
+
+TEST(TypecheckErrorTest, MapBuiltinWrongArgc0) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f() {
+  map()
+}
+)"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Expected 2 arguments to `map` builtin but got 0 argument(s)")));
+}
+
+TEST(TypecheckErrorTest, MapBuiltinWrongArgc1) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f(x: u32[3]) -> u32[3] {
+  map(x)
+}
+)"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Expected 2 arguments to `map` builtin but got 1 argument(s)")));
+}
+
 TEST(TypecheckTest, UpdateBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[3] {
@@ -669,6 +774,14 @@ TEST(TypecheckTest, EnumerateBuiltin) {
 type MyTup = (u32, u2);
 fn f(x: u2[7]) -> MyTup[7] {
   enumerate(x)
+}
+)"));
+}
+
+TEST(TypecheckTest, TernaryEmptyBlocks) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f(p: bool) -> () {
+  if p { } else { }
 }
 )"));
 }
@@ -916,6 +1029,14 @@ TEST(TypecheckTest, ArrayEllipsis) {
   XLS_EXPECT_OK(Typecheck("fn main() -> u8[2] { u8[2]:[0, ...] }"));
 }
 
+TEST(TypecheckErrorTest, ArrayEllipsisNoTrailingElement) {
+  EXPECT_THAT(
+      Typecheck("fn main() -> u8[2] { u8[2]:[...] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Array cannot have an ellipsis without an element to "
+                         "repeat; please add at least one element")));
+}
+
 TEST(TypecheckTest, BadArrayAddition) {
   EXPECT_THAT(Typecheck(R"(
 fn f(a: bits[32][4], b: bits[32][4]) -> bits[32][4] {
@@ -990,6 +1111,21 @@ TEST(TypecheckTest, SliceWithOutOfRangeLimit) {
   EXPECT_THAT(Typecheck("fn f(x: uN[8]) -> uN[8] { x[s3:0 :] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Slice limit does not fit in index type")));
+}
+
+TEST(TypecheckTest, SliceWithNonS32LiteralBounds) {
+  // overlarge value in start
+  EXPECT_THAT(
+      Typecheck("fn f(x: uN[128]) -> uN[128] { x[40000000000000000000:] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Value '40000000000000000000' does not fit in the "
+                         "bitwidth of a sN[32]")));
+  // overlarge value in limit
+  EXPECT_THAT(
+      Typecheck("fn f(x: uN[128]) -> uN[128] { x[:40000000000000000000] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Value '40000000000000000000' does not fit in the "
+                         "bitwidth of a sN[32]")));
 }
 
 TEST(TypecheckTest, WidthSlices) {
@@ -1287,7 +1423,7 @@ struct Point {
   y: u32,
 }
 )" + program;
-  return Typecheck(program);
+  return Typecheck(program).status();
 }
 
 TEST(TypecheckStructInstanceTest, AccessMissingMember) {
@@ -1408,7 +1544,7 @@ struct Point<N: u32, M: u32 = {N + N}> {
   y: bits[M],
 }
 )" + program;
-  return Typecheck(program);
+  return Typecheck(program).status();
 }
 
 TEST(TypecheckParametricStructInstanceTest, WrongDerivedType) {
@@ -1540,8 +1676,7 @@ struct S {
 }
 fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
 )";
-  TypecheckedModule tm;
-  XLS_EXPECT_OK(Typecheck(program, &tm));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
@@ -1563,8 +1698,7 @@ fn f(x: u32) -> u32 {
   x
 }
 )";
-  TypecheckedModule tm;
-  XLS_EXPECT_OK(Typecheck(program, &tm));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
@@ -1572,6 +1706,28 @@ fn f(x: u32) -> u32 {
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "`let _ = expr;` statement can be simplified to `expr;` -- there "
             "is no need for a `let` binding here");
+  XLS_ASSERT_OK(PrintPositionalError(
+      tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
+      std::cerr,
+      [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
+      PositionalErrorColor::kWarningColor));
+}
+
+TEST(TypecheckTest, UselessTrailingNilGivesWarning) {
+  const std::string program = R"(
+fn f() -> () {
+  trace_fmt!("oh no");
+  ()
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).span,
+            Span(Pos(filename, 3, 2), Pos(filename, 3, 4)));
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Block has a trailing nil (empty) tuple after a semicolon -- this "
+            "is implied, please remove it");
   XLS_ASSERT_OK(PrintPositionalError(
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
       std::cerr,
@@ -1765,6 +1921,185 @@ fn main(x: s8) -> s32 {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Can not cast from type sN[8] (8 bits) to "
                                  "uN[9] (9 bits) with widening_cast")));
+}
+
+TEST(TypecheckTest, OverlargeValue80Bits) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f() {
+  let x:sN[0] = sN[80]:0x800000000000000000000;
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Value '0x800000000000000000000' does not fit "
+                                 "in the bitwidth of a sN[80] (80)")));
+}
+
+TEST(TypecheckTest, NegateTuple) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f() -> (u32, u32) {
+  -(u32:42, u32:64)
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unary operation `-` can only be applied to "
+                                 "bits-typed operands")));
+}
+
+TEST(TypecheckErrorTest, MatchOnBitsWithEmptyTuplePattern) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: u32) -> u32 {
+  match x {
+    () => x,
+  }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("uN[32] Pattern expected matched-on type to be a tuple")));
+}
+
+TEST(TypecheckErrorTest, MatchOnBitsWithIrrefutableTuplePattern) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: u32) -> u32 {
+  match x {
+    (y) => y,
+  }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("uN[32] Pattern expected matched-on type to be a tuple.")));
+}
+
+TEST(TypecheckErrorTest, MatchOnTupleWithWrongSizedTuplePattern) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: (u32)) -> u32 {
+  match x {
+    (x, y) => x,
+  }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("(uN[32]) Pattern wanted 2 tuple elements, "
+                                 "matched-on value had 1 element")));
+}
+
+TEST(TypecheckTest, UnusedBindingInBodyGivesWarning) {
+  const std::string program = R"(
+fn f(x: u32) -> u32 {
+    let y = x + u32:42;
+    x
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Definition of `y` (type `uN[32]`) is not used in function `f`");
+}
+
+TEST(TypecheckTest, FiveUnusedBindingsInLetBindingPattern) {
+  const std::string program = R"(
+fn f(t: (u32, u32, u32, u32, u32)) -> u32 {
+    let (a, b, c, d, e) = t;
+    t.0
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 5);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Definition of `a` (type `uN[32]`) is not used in function `f`");
+  EXPECT_EQ(tm.warnings.warnings().at(1).message,
+            "Definition of `b` (type `uN[32]`) is not used in function `f`");
+  EXPECT_EQ(tm.warnings.warnings().at(2).message,
+            "Definition of `c` (type `uN[32]`) is not used in function `f`");
+  EXPECT_EQ(tm.warnings.warnings().at(3).message,
+            "Definition of `d` (type `uN[32]`) is not used in function `f`");
+  EXPECT_EQ(tm.warnings.warnings().at(4).message,
+            "Definition of `e` (type `uN[32]`) is not used in function `f`");
+}
+
+TEST(TypecheckTest, UnusedMatchBindingInBodyGivesWarning) {
+  const std::string program = R"(
+fn f(x: u32) -> u32 {
+  match x {
+    y => x
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Definition of `y` (type `uN[32]`) is not used in function `f`");
+}
+
+TEST(TypecheckTest, ConcatU1U1) {
+  XLS_ASSERT_OK(Typecheck("fn f(x: u1, y: u1) -> u2 { x ++ y }"));
+}
+
+TEST(TypecheckTest, ConcatU1S1) {
+  XLS_ASSERT_OK(Typecheck("fn f(x: u1, y: s1) -> u2 { x ++ y }"));
+}
+
+TEST(TypecheckTest, ConcatU2S1) {
+  XLS_ASSERT_OK(Typecheck("fn f(x: u2, y: s1) -> u3 { x ++ y }"));
+}
+
+TEST(TypecheckTest, ConcatU1Nil) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: u1, y: ()) -> () { x ++ y }").status(),
+      IsPosError("XlsTypeError",
+                 HasSubstr("uN[1] vs (): Concatenation requires operand types "
+                           "to be either both-arrays or both-bits")));
+}
+
+TEST(TypecheckTest, ConcatS1Nil) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: s1, y: ()) -> () { x ++ y }").status(),
+      IsPosError("XlsTypeError",
+                 HasSubstr("sN[1] vs (): Concatenation requires operand types "
+                           "to be either both-arrays or both-bits")));
+}
+
+TEST(TypecheckTest, ConcatNilNil) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: (), y: ()) -> () { x ++ y }").status(),
+      IsPosError("XlsTypeError",
+                 HasSubstr("() vs (): Concatenation requires operand types to "
+                           "be either both-arrays or both-bits")));
+}
+
+TEST(TypecheckTest, ConcatU1ArrayOfOneU8) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: u1, y: u8[1]) -> () { x ++ y }").status(),
+      IsPosError("XlsTypeError",
+                 HasSubstr("uN[1] vs uN[8][1]: Attempting to concatenate "
+                           "array/non-array values together")));
+}
+
+TEST(TypecheckTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
+  XLS_ASSERT_OK(Typecheck("fn f(x: u8[3], y: u8[1]) -> u8[4] { x ++ y }"));
+}
+
+TEST(TypecheckTest, ConcatNilArrayOfOneU8) {
+  EXPECT_THAT(Typecheck("fn f(x: (), y: u8[1]) -> () { x ++ y }").status(),
+              IsPosError("XlsTypeError",
+                         HasSubstr("() vs uN[8][1]: Attempting to concatenate "
+                                   "array/non-array values together")));
 }
 
 }  // namespace

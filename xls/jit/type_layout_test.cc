@@ -15,6 +15,9 @@
 #include "xls/jit/type_layout.h"
 
 #include <memory>
+#include <random>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

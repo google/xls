@@ -16,11 +16,23 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
+#include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "xls/common/bits_util.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 namespace bits_ops {
@@ -31,11 +43,11 @@ namespace {
 Bits TruncateOrSignExtend(const Bits& bits, int64_t bit_count) {
   if (bits.bit_count() == bit_count) {
     return bits;
-  } else if (bits.bit_count() < bit_count) {
-    return SignExtend(bits, bit_count);
-  } else {
-    return bits.Slice(0, bit_count);
   }
+  if (bits.bit_count() < bit_count) {
+    return SignExtend(bits, bit_count);
+  }
+  return bits.Slice(0, bit_count);
 }
 
 }  // namespace
@@ -210,21 +222,30 @@ Bits Sub(const Bits& lhs, const Bits& rhs) {
   return TruncateOrSignExtend(diff, lhs.bit_count());
 }
 
-static Bits Mul(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
-  if (lhs.bit_count() <= 64) {
-    uint64_t lhs_int = lhs.ToUint64().value();
-    uint64_t rhs_int = rhs.ToUint64().value();
-    uint64_t result = (lhs_int * rhs_int) & Mask(lhs.bit_count());
-    return UBits(result, lhs.bit_count());
+Bits Increment(const Bits& x) {
+  InlineBitmap result = x.bitmap();
+  for (int64_t i = 0; i < result.word_count(); ++i) {
+    uint64_t word = result.GetWord(i);
+    if (word < std::numeric_limits<uint64_t>::max()) {
+      result.SetWord(i, word + 1);
+      break;
+    }
+    result.SetWord(i, 0);
   }
+  return Bits::FromBitmap(std::move(result));
+}
 
-  BigInt product =
-      BigInt::Mul(BigInt::MakeSigned(SignExtend(lhs, lhs.bit_count())),
-                  BigInt::MakeSigned(SignExtend(rhs, lhs.bit_count())));
-  return product.ToSignedBitsWithBitCount(lhs.bit_count() * 2)
-      .value()
-      .Slice(0, lhs.bit_count());
+Bits Decrement(const Bits& x) {
+  InlineBitmap result = x.bitmap();
+  for (int64_t i = 0; i < result.word_count(); ++i) {
+    uint64_t word = result.GetWord(i);
+    if (word > 0) {
+      result.SetWord(i, word - 1);
+      break;
+    }
+    result.SetWord(i, ~uint64_t{0});
+  }
+  return Bits::FromBitmap(std::move(result));
 }
 
 Bits SMul(const Bits& lhs, const Bits& rhs) {
@@ -282,11 +303,10 @@ Bits SDiv(const Bits& lhs, const Bits& rhs) {
       // Divide by zero and lhs is negative.  Return largest magnitude negative
       // number: 0b1000...000.
       return Concat({UBits(1, 1), UBits(0, lhs.bit_count() - 1)});
-    } else {
-      // Divide by zero and lhs is non-negative. Return largest positive number:
-      // 0b0111...111.
-      return ZeroExtend(Bits::AllOnes(lhs.bit_count() - 1), lhs.bit_count());
     }
+    // Divide by zero and lhs is non-negative. Return largest positive number:
+    // 0b0111...111.
+    return ZeroExtend(Bits::AllOnes(lhs.bit_count() - 1), lhs.bit_count());
   }
   BigInt quotient =
       BigInt::Div(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs));
@@ -301,9 +321,7 @@ Bits SMod(const Bits& lhs, const Bits& rhs) {
   return TruncateOrSignExtend(modulo.ToSignedBits(), rhs.bit_count());
 }
 
-bool UEqual(const Bits& lhs, const Bits& rhs) {
-  return lhs.bitmap().UCmp(rhs.bitmap()) == 0;
-}
+bool UEqual(const Bits& lhs, const Bits& rhs) { return UCmp(lhs, rhs) == 0; }
 
 bool UEqual(const Bits& lhs, int64_t rhs) {
   XLS_CHECK_GE(rhs, 0);
@@ -311,19 +329,29 @@ bool UEqual(const Bits& lhs, int64_t rhs) {
 }
 
 bool UGreaterThanOrEqual(const Bits& lhs, const Bits& rhs) {
-  return !ULessThan(lhs, rhs);
+  return UCmp(lhs, rhs) >= 0;
 }
 
 bool UGreaterThan(const Bits& lhs, const Bits& rhs) {
-  return !ULessThanOrEqual(lhs, rhs);
+  return UCmp(lhs, rhs) > 0;
 }
 
 bool ULessThanOrEqual(const Bits& lhs, const Bits& rhs) {
-  return lhs.bitmap().UCmp(rhs.bitmap()) <= 0;
+  return UCmp(lhs, rhs) <= 0;
 }
 
-bool ULessThan(const Bits& lhs, const Bits& rhs) {
-  return lhs.bitmap().UCmp(rhs.bitmap()) < 0;
+bool ULessThan(const Bits& lhs, const Bits& rhs) { return UCmp(lhs, rhs) < 0; }
+
+int64_t UCmp(const Bits& lhs, const Bits& rhs) {
+  return lhs.bitmap().UCmp(rhs.bitmap());
+}
+
+const Bits& UMin(const Bits& lhs, const Bits& rhs) {
+  return ULessThan(lhs, rhs) ? lhs : rhs;
+}
+
+const Bits& UMax(const Bits& lhs, const Bits& rhs) {
+  return ULessThan(lhs, rhs) ? rhs : lhs;
 }
 
 bool UGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
@@ -479,7 +507,7 @@ Bits Reverse(const Bits& bits) {
 Bits DropLeadingZeroes(const Bits& bits) {
   int64_t first_one;
   for (first_one = bits.bit_count() - 1; first_one >= 0; first_one--) {
-    if (bits.Get(first_one) == 1) {
+    if (bits.Get(first_one)) {
       break;
     }
   }
@@ -499,7 +527,7 @@ Bits BitSliceUpdate(const Bits& to_update, int64_t start,
     return to_update;
   }
 
-  // Construct the result as the sliced concatentation of three slices:
+  // Construct the result as the sliced concatenation of three slices:
   //   (1) slice of some least-significant bits of to_update.
   //   (2) slice of update_value
   //   (3) slice of some most-significant bits of to_update.
@@ -596,16 +624,100 @@ Bits operator^(const Bits& lhs, const Bits& rhs) {
 Bits operator~(const Bits& bits) { return bits_ops::Not(bits); }
 
 Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size) {
-  int64_t offset_lsbs_size = std::max(0l, result_size - 2);
+  int64_t offset_lsbs_size = std::max(int64_t{0}, result_size - 2);
   int64_t msbs_size = result_size - offset_lsbs_size;
   int64_t offset_lsbs_shift_amount =
-      std::max(0l, std::min(offset_lsbs_size - 1, shift_size));
+      std::max(int64_t{0}, std::min(offset_lsbs_size - 1, shift_size));
   Bits offset_bits = bits_ops::ShiftRightLogical(
       Bits::AllOnes(offset_lsbs_size), offset_lsbs_shift_amount);
   if (msbs_size > 0) {
     offset_bits = bits_ops::Concat({Bits::MaxSigned(msbs_size), offset_bits});
   }
   return offset_bits;
+}
+
+std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
+                            bool emit_leading_zeros) {
+  XLS_CHECK_NE(preference, FormatPreference::kDefault);
+  if (preference == FormatPreference::kSignedDecimal) {
+    // Leading zeros don't make a lot of sense in decimal format as there is no
+    // clean correspondence between decimal digits and binary digits.
+    XLS_CHECK(!emit_leading_zeros)
+        << "emit_leading_zeros not supported for decimal format.";
+
+    return BigInt::MakeSigned(bits).ToDecimalString();
+  }
+
+  if (preference == FormatPreference::kUnsignedDecimal) {
+    // Leading zeros don't make a lot of sense in decimal format as there is no
+    // clean correspondence between decimal digits and binary digits.
+    XLS_CHECK(!emit_leading_zeros)
+        << "emit_leading_zeros not supported for decimal format.";
+
+    return BigInt::MakeUnsigned(bits).ToDecimalString();
+  }
+  if (bits.bit_count() == 0) {
+    return "0";
+  }
+
+  const bool binary_format = (preference == FormatPreference::kBinary) ||
+                             (preference == FormatPreference::kPlainBinary);
+  const bool hex_format = (preference == FormatPreference::kHex) ||
+                          (preference == FormatPreference::kPlainHex);
+  const bool plain_format = (preference == FormatPreference::kPlainBinary) ||
+                            (preference == FormatPreference::kPlainHex);
+
+  XLS_CHECK(binary_format || hex_format);
+
+  const int64_t digit_width = binary_format ? 1 : 4;
+  const int64_t digit_count = CeilOfRatio(bits.bit_count(), digit_width);
+  // Include separators every 4 digits (to break up binary and hex numbers),
+  // unless we are printing in a plain format.
+  const bool include_separators = !plain_format;
+  const int64_t kSeparatorPeriod = 4;
+
+  std::string result;
+  bool eliding_leading_zeros = !emit_leading_zeros;
+  for (int64_t digit_no = digit_count - 1; digit_no >= 0; --digit_no) {
+    // If including separators, add one every kSeparatorPeriod digits.
+    if (include_separators && ((digit_no + 1) % kSeparatorPeriod == 0) &&
+        !result.empty()) {
+      absl::StrAppend(&result, "_");
+    }
+    // Slice out a Bits which contains 1 digit.
+    int64_t start = digit_no * digit_width;
+    int64_t width = std::min(digit_width, bits.bit_count() - start);
+    // As single digit necessarily fits in a uint64_t, so the value() is safe.
+    uint64_t digit_value = bits.Slice(start, width).ToUint64().value();
+    if (digit_value == 0 && eliding_leading_zeros && digit_no != 0) {
+      continue;
+    }
+    eliding_leading_zeros = false;
+    absl::StrAppend(&result, absl::StrFormat("%x", digit_value));
+  }
+  return result;
+}
+
+std::string BitsToString(const Bits& bits, FormatPreference preference,
+                         bool include_bit_count) {
+  if (preference == FormatPreference::kDefault) {
+    if (bits.bit_count() <= 64) {
+      preference = FormatPreference::kUnsignedDecimal;
+    } else {
+      preference = FormatPreference::kHex;
+    }
+  }
+  std::string result;
+  if (preference == FormatPreference::kBinary) {
+    result = "0b";
+  } else if (preference == FormatPreference::kHex) {
+    result = "0x";
+  }
+  absl::StrAppend(&result, BitsToRawDigits(bits, preference));
+  if (include_bit_count) {
+    absl::StrAppendFormat(&result, " [%d bits]", bits.bit_count());
+  }
+  return result;
 }
 
 }  // namespace xls

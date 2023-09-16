@@ -26,14 +26,16 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info_to_proto.h"
-#include "xls/dslx/type_system/typecheck.h"
+#include "xls/dslx/warning_kind.h"
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
@@ -55,9 +57,9 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
                       const std::filesystem::path& dslx_stdlib_path,
                       const std::filesystem::path& input_path,
                       std::optional<std::filesystem::path> output_path) {
-  ImportData import_data(
-      CreateImportData(dslx_stdlib_path,
-                       /*additional_search_paths=*/dslx_paths));
+  ImportData import_data(CreateImportData(
+      dslx_stdlib_path,
+      /*additional_search_paths=*/dslx_paths, kAllWarningsSet));
   XLS_ASSIGN_OR_RETURN(std::string input_contents, GetFileContents(input_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(input_path.c_str()));
   absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(
@@ -108,7 +110,6 @@ int main(int argc, char* argv[]) {
 
   std::filesystem::path dslx_stdlib_path(absl::GetFlag(FLAGS_dslx_stdlib_path));
 
-  XLS_QCHECK_OK(xls::dslx::RealMain(dslx_paths, dslx_stdlib_path, input_path,
-                                    output_path));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::dslx::RealMain(dslx_paths, dslx_stdlib_path,
+                                             input_path, output_path));
 }

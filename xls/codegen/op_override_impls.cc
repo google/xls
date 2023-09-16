@@ -14,6 +14,15 @@
 
 #include "xls/codegen/op_override_impls.h"
 
+#include <algorithm>
+#include <array>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include "absl/strings/str_replace.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/status_macros.h"
@@ -163,9 +172,8 @@ absl::StatusOr<NodeRepresentation> OpOverrideAssertion::Emit(
       std::string assert_str,
       GenerateFormatString(assertion_format_string_, supported_placeholders,
                            unsupported_placeholders));
-  return mb.AssertAlwaysComb(node->loc())
-      ->statements()
-      ->Add<InlineVerilogStatement>(asrt->loc(), absl::StrCat(assert_str, ";"));
+  return mb.assert_section()->Add<InlineVerilogStatement>(asrt->loc(),
+                                                          assert_str);
 }
 
 std::unique_ptr<OpOverride> OpOverrideInstantiation::Clone() const {

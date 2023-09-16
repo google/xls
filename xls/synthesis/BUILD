@@ -67,7 +67,10 @@ cc_grpc_library(
     name = "synthesis_service_cc_grpc",
     srcs = [":synthesis_service_proto"],
     grpc_only = 1,
-    deps = [":synthesis_service_cc_proto"],
+    deps = [
+        ":synthesis_service_cc_proto",
+        "@com_github_grpc_grpc//:grpc++",
+    ],
 )
 
 py_grpc_library(
@@ -77,8 +80,9 @@ py_grpc_library(
 )
 
 py_binary(
-    name = "synthesis_client_main",
+    name = "synthesis_client_py",
     srcs = ["synthesis_client_main.py"],
+    main = "synthesis_client_main.py",
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
@@ -118,17 +122,16 @@ py_test(
 )
 
 cc_binary(
-    name = "dummy_synthesis_server_main",
-    srcs = ["dummy_synthesis_server_main.cc"],
+    name = "fake_synthesis_server_main",
+    srcs = ["fake_synthesis_server_main.cc"],
     deps = [
-        ":server_credentials",
+        ":credentials",
         ":synthesis_cc_proto",
         ":synthesis_service_cc_grpc",
         "//xls/common:init_xls",
         "//xls/common/logging",
-        "//xls/common/status:status_macros",
         "@com_github_grpc_grpc//:grpc++",
-        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
     ],
@@ -138,7 +141,7 @@ py_test(
     name = "synthesis_server_test",
     srcs = ["synthesis_server_test.py"],
     data = [
-        ":dummy_synthesis_server_main",
+        ":fake_synthesis_server_main",
         ":synthesis_client_main",
     ],
     python_version = "PY3",
@@ -155,9 +158,9 @@ py_test(
 )
 
 cc_library(
-    name = "server_credentials",
-    srcs = ["server_credentials.cc"],
-    hdrs = ["server_credentials.h"],
+    name = "credentials",
+    srcs = ["credentials.cc"],
+    hdrs = ["credentials.h"],
     deps = ["@com_github_grpc_grpc//:grpc++"],
 )
 
@@ -201,7 +204,7 @@ py_library(
 py_test(
     name = "synthesis_utils_test",
     srcs = ["synthesis_utils_test.py"],
-    data = [":dummy_synthesis_server_main"],
+    data = [":fake_synthesis_server_main"],
     python_version = "PY3",
     shard_count = 7,
     srcs_version = "PY3",
@@ -211,5 +214,37 @@ py_test(
         requirement("portpicker"),
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+cc_library(
+    name = "synthesis_client",
+    srcs = ["synthesis_client.cc"],
+    hdrs = ["synthesis_client.h"],
+    deps = [
+        ":credentials",
+        ":synthesis_cc_proto",
+        ":synthesis_service_cc_grpc",
+        "//xls/common/status:status_macros",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_binary(
+    name = "synthesis_client_main",
+    srcs = ["synthesis_client_main.cc"],
+    deps = [
+        ":synthesis_cc_proto",
+        ":synthesis_client",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )

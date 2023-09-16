@@ -15,6 +15,9 @@
 #ifndef XLS_COMMON_LOGGING_LOGGING_TEST_BASE_H_
 #define XLS_COMMON_LOGGING_LOGGING_TEST_BASE_H_
 
+#include <string>
+#include <vector>
+
 #include "gtest/gtest.h"
 #include "xls/common/logging/log_entry.h"
 #include "xls/common/logging/log_sink.h"

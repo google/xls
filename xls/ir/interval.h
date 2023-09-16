@@ -15,11 +15,14 @@
 #ifndef XLS_IR_INTERVAL_H_
 #define XLS_IR_INTERVAL_H_
 
+#include <cstdint>
+#include <functional>
 #include <iosfwd>
 #include <optional>
+#include <string>
+#include <vector>
 
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 
@@ -30,6 +33,8 @@ namespace xls {
 // is greater than the upper bound, so the interval wraps around the end),
 // though some methods do not support them (and check to ensure that they are
 // not called on them).
+//
+// NOTE: The interval bounds are always treated as unsigned.
 class Interval {
  public:
   // No argument constructor for `Interval`. This returns the interval from a
@@ -46,6 +51,27 @@ class Interval {
   Interval(const Bits& lower_bound, const Bits& upper_bound)
       : is_valid_(true), lower_bound_(lower_bound), upper_bound_(upper_bound) {
     XLS_CHECK_EQ(lower_bound_.bit_count(), upper_bound_.bit_count());
+  }
+
+  // Returns the interval [lower_bound, upper_bound].
+  static Interval Closed(const Bits& lower_bound, const Bits& upper_bound) {
+    return Interval(lower_bound, upper_bound);
+  }
+
+  // Returns the interval (lower_bound, upper_bound].
+  static Interval LeftOpen(const Bits& lower_bound, const Bits& upper_bound) {
+    return Interval(bits_ops::Increment(lower_bound), upper_bound);
+  }
+
+  // Returns the interval [lower_bound, upper_bound).
+  static Interval RightOpen(const Bits& lower_bound, const Bits& upper_bound) {
+    return Interval(lower_bound, bits_ops::Decrement(upper_bound));
+  }
+
+  // Returns the interval (lower_bound, upper_bound).
+  static Interval Open(const Bits& lower_bound, const Bits& upper_bound) {
+    return Interval(bits_ops::Increment(lower_bound),
+                    bits_ops::Decrement(upper_bound));
   }
 
   // The inclusive lower bound of the interval.
@@ -111,7 +137,7 @@ class Interval {
   // each point. If the callback returns `true`, terminate the iteration early
   // and return `true`. Otherwise, continue the iteration until all points have
   // been visited and return `false`.
-  bool ForEachElement(std::function<bool(const Bits&)> callback) const;
+  bool ForEachElement(const std::function<bool(const Bits&)>& callback) const;
 
   // This is similar to `ForEachElement`, except it accumulates the result
   // into a `std::vector<Bits>` instead of using a callback. This is often
@@ -176,12 +202,15 @@ class Interval {
 
   // Lexicographic ordering of intervals.
   friend bool operator<(const Interval& lhs, const Interval& rhs) {
-    if (bits_ops::ULessThan(lhs.lower_bound_, rhs.lower_bound_)) {
+    const int64_t lower_bound_cmp =
+        bits_ops::UCmp(lhs.lower_bound_, rhs.lower_bound_);
+    if (lower_bound_cmp < 0) {
       return true;
-    } else if (bits_ops::UEqual(lhs.lower_bound_, rhs.lower_bound_)) {
-      return bits_ops::ULessThan(lhs.upper_bound_, rhs.upper_bound_);
     }
-    return false;
+    if (lower_bound_cmp > 0) {
+      return false;
+    }
+    return bits_ops::ULessThan(lhs.upper_bound_, rhs.upper_bound_);
   }
 
   // Equality of intervals.
@@ -200,7 +229,7 @@ class Interval {
   }
 
  private:
-  void EnsureValid() const;
+  void EnsureValid() const { XLS_CHECK(is_valid_); }
 
   bool is_valid_;
   Bits lower_bound_;

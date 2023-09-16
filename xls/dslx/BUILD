@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Frontend syntax.
+# Domain Specific Language implementation for HW construction that mimics Rust.
 
 # pytype tests are present in this file
 
@@ -32,13 +32,18 @@ cc_library(
         ":errors",
         ":import_data",
         ":interp_value",
+        ":warning_collector",
+        ":warning_kind",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
+        "//xls/dslx/bytecode:bytecode_interpreter_options",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:concrete_type_zero_value",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
@@ -61,6 +66,9 @@ cc_test(
         ":create_import_data",
         ":import_data",
         ":parse_and_typecheck",
+        ":warning_collector",
+        ":warning_kind",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -72,7 +80,6 @@ cc_test(
         "//xls/dslx/type_system:typecheck",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -83,7 +90,7 @@ cc_library(
     deps = [
         ":default_dslx_stdlib_path",
         ":import_data",
-        "//xls/dslx/bytecode",
+        ":warning_kind",
         "//xls/dslx/bytecode:bytecode_cache",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/types:span",
@@ -96,11 +103,23 @@ cc_library(
     hdrs = ["errors.h"],
     deps = [
         ":import_record",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:concrete_type",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "errors_test",
+    srcs = ["errors_test.cc"],
+    deps = [
+        ":errors",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:concrete_type",
     ],
 )
 
@@ -110,11 +129,13 @@ cc_library(
     hdrs = ["interp_value_helpers.h"],
     deps = [
         ":interp_value",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/type_system:concrete_type",
         "//xls/ir:bits_ops",
         "//xls/ir:ir_parser",
+        "//xls/ir:value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -129,13 +150,16 @@ cc_test(
     deps = [
         ":interp_value",
         ":interp_value_helpers",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:concrete_type",
+        "//xls/ir:bits",
+        "//xls/ir:value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -165,11 +189,13 @@ cc_library(
     hdrs = ["interp_value.h"],
     deps = [
         ":value_format_descriptor",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
         "//xls/ir:value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -184,10 +210,10 @@ cc_test(
     srcs = ["interp_value_test.cc"],
     deps = [
         ":interp_value",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -212,12 +238,12 @@ cc_test(
     srcs = ["interp_bindings_test.cc"],
     deps = [
         ":interp_bindings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -234,14 +260,15 @@ cc_library(
     srcs = ["import_data.cc"],
     hdrs = ["import_data.h"],
     deps = [
-        ":default_dslx_stdlib_path",
         ":errors",
         ":import_record",
         ":interp_bindings",
-        "//xls/common/file:filesystem",
+        ":warning_kind",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/dslx/bytecode:bytecode_cache_interface",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -301,9 +328,9 @@ cc_test(
     srcs = ["mangle_test.cc"],
     deps = [
         ":mangle",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -313,6 +340,7 @@ cc_library(
     hdrs = ["dslx_builtins.h"],
     deps = [
         ":errors",
+        ":interp_value",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:builtins_metadata",
@@ -355,13 +383,13 @@ cc_test(
     srcs = ["error_printer_test.cc"],
     deps = [
         ":error_printer",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -392,6 +420,7 @@ cc_library(
         ":interp_value_helpers",
         ":mangle",
         ":parse_and_typecheck",
+        ":warning_kind",
         "//xls/dslx/bytecode:bytecode_cache",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
@@ -399,13 +428,9 @@ cc_library(
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/dslx/type_system:typecheck",
-        "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:events",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -420,12 +445,12 @@ cc_test(
     deps = [
         ":run_comparator",
         ":run_routines",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -434,7 +459,7 @@ cc_library(
     srcs = ["parse_and_typecheck.cc"],
     hdrs = ["parse_and_typecheck.h"],
     deps = [
-        ":import_routines",
+        ":import_data",
         ":warning_collector",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -483,12 +508,14 @@ cc_binary(
         ":command_line_utils",
         ":run_comparator",
         ":run_routines",
+        ":warning_kind",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
+        "//xls/common/status:status_macros",
         "//xls/ir:format_preference",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
@@ -499,6 +526,7 @@ cc_binary(
     name = "highlight_main",
     srcs = ["highlight_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/dslx/frontend:builtins_metadata",
@@ -553,9 +581,34 @@ py_test(
 )
 
 cc_library(
+    name = "warning_kind",
+    srcs = ["warning_kind.cc"],
+    hdrs = ["warning_kind.h"],
+    deps = [
+        "//xls/common:strong_int",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "warning_kind_test",
+    srcs = ["warning_kind_test.cc"],
+    deps = [
+        ":warning_kind",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+    ],
+)
+
+cc_library(
     name = "warning_collector",
     hdrs = ["warning_collector.h"],
     deps = [
+        ":warning_kind",
         "//xls/dslx/frontend:pos",
     ],
 )
@@ -584,5 +637,79 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "shadow_builtin_test",
+    srcs = ["shadow_builtin_test.cc"],
+    deps = [
+        ":run_routines",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:builtins_metadata",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "interp_value_from_string",
+    srcs = ["interp_value_from_string.cc"],
+    hdrs = ["interp_value_from_string.h"],
+    data = ["//xls/dslx/stdlib:x_files"],
+    deps = [
+        ":create_import_data",
+        ":import_data",
+        ":interp_value",
+        ":parse_and_typecheck",
+        ":warning_kind",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "interp_value_from_string_test",
+    srcs = ["interp_value_from_string_test.cc"],
+    deps = [
+        ":default_dslx_stdlib_path",
+        ":interp_value",
+        ":interp_value_from_string",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+    ],
+)
+
+cc_library(
+    name = "error_test_utils",
+    testonly = True,
+    hdrs = ["error_test_utils.h"],
+    deps = [
+        "//xls/dslx/frontend:bindings",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "error_test_utils_test",
+    srcs = ["error_test_utils_test.cc"],
+    deps = [
+        ":error_test_utils",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/dslx/frontend:bindings",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:scanner",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )

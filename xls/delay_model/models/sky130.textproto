@@ -633,6 +633,11 @@ op_models {
     fixed: 0
   }
 }
+op_models { op: "kInputPort" estimator { fixed: 0 } }
+op_models { op: "kOutputPort" estimator { fixed: 0 } }
+op_models { op: "kRegisterRead" estimator { fixed: 0 } }
+op_models { op: "kRegisterWrite" estimator { fixed: 0 } }
+
 data_points {
   operation {
     op: "kIdentity"

@@ -14,7 +14,13 @@
 
 #include "xls/solvers/z3_netlist_translator.h"
 
+#include <deque>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"

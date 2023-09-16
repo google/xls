@@ -20,5 +20,4 @@ fn main(p: bool, x: u32) -> u32 {
 fn test_main() {
   assert_eq(u32:0, main(false, u32:1));
   assert_eq(u32:1, main(true, u32:1));
-  ()
 }

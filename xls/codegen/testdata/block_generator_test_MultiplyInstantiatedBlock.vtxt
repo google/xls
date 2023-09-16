@@ -19,6 +19,8 @@ module my_block(
   wire [31:0] instantiation_output_9;
   wire [31:0] instantiation_output_12;
   wire [31:0] instantiation_output_15;
+
+  // ===== Instantiations
   subtractor sub0 (
     .a(x),
     .b(y),

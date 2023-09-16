@@ -15,6 +15,7 @@
 #ifndef XLS_IR_INSTANTIATION_H_
 #define XLS_IR_INSTANTIATION_H_
 
+#include <ostream>
 #include <string>
 #include <string_view>
 

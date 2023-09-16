@@ -14,17 +14,22 @@
 
 #include "xls/passes/inlining_pass.h"
 
+#include <memory>
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -39,10 +44,11 @@ class InliningPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Inline(Package* package) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         InliningPass().Run(package, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(
+        bool changed,
+        InliningPass().Run(package, OptimizationPassOptions(), &results));
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .Run(package, PassOptions(), &results)
+                            .Run(package, OptimizationPassOptions(), &results)
                             .status());
     return changed;
   }

@@ -15,6 +15,11 @@
 #include "xls/examples/sample_packages.h"
 
 #include <filesystem>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"

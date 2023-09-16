@@ -14,6 +14,8 @@
 
 #include "xls/passes/cse_pass.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
@@ -25,6 +27,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -54,11 +57,13 @@ class CsePassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(
-        bool changed, CsePass().RunOnFunctionBase(f, PassOptions(), &results));
+        bool changed,
+        CsePass().RunOnFunctionBase(f, OptimizationPassOptions(), &results));
     // Run dce to clean things up.
-    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunctionBase(f, PassOptions(), &results)
-                            .status());
+    XLS_RETURN_IF_ERROR(
+        DeadCodeEliminationPass()
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+            .status());
     // Return whether cse changed anything.
     return changed;
   }

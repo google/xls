@@ -15,6 +15,8 @@
 #ifndef XLS_COMMON_LOGGING_CONDITION_H_
 #define XLS_COMMON_LOGGING_CONDITION_H_
 
+#include <ostream>
+
 #include "xls/common/logging/log_message.h"
 #include "xls/common/logging/null_stream.h"
 

@@ -14,6 +14,9 @@
 
 #include "xls/common/golden_files.h"
 
+#include <string>
+#include <string_view>
+
 #include "absl/flags/flag.h"
 #include "absl/strings/strip.h"
 #include "xls/common/file/filesystem.h"

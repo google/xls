@@ -130,6 +130,7 @@ def _convert_to_ir(ctx, src):
         "dslx_path",
         "emit_fail_as_assert",
         "warnings_as_errors",
+        "disable_warnings",
     )
 
     # With runs outside a monorepo, the execution root for the workspace of
@@ -185,6 +186,7 @@ def _convert_to_ir(ctx, src):
         ),
         mnemonic = "ConvertDSLX",
         progress_message = "Converting DSLX file to XLS IR: %s" % (src.path),
+        toolchain = None,
     )
     return runfiles, ir_file
 
@@ -210,6 +212,7 @@ def _optimize_ir(ctx, src):
         "opt_level",
         "convert_array_index_to_select",
         "inline_procs",
+        "top",
     )
 
     is_args_valid(opt_ir_args, IR_OPT_FLAGS)
@@ -256,6 +259,7 @@ def _optimize_ir(ctx, src):
         ),
         mnemonic = "OptimizeIR",
         progress_message = "Optimizing IR file: %s" % (src.path),
+        toolchain = None,
     )
     return runfiles, opt_ir_file
 
@@ -420,6 +424,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "show_known_bits",
         "delay_model",
         "convert_array_index_to_select",
+        "scheduling_options_proto",
     )
 
     benchmark_ir_args = append_default_to_args(
@@ -1009,6 +1014,13 @@ xls_benchmark_ir_attrs = {
               "arguments, refer to the benchmark_main application at " +
               "//xls/tools/benchmark_main.cc.",
     ),
+    "scheduling_options_proto": attr.label(
+        allow_single_file = True,
+        default = None,
+        doc = "Protobuf filename of scheduling arguments to the benchmark IR tool. " +
+              "For details on the arguments, refer to the benchmark_main application at " +
+              "//xls/tools/benchmark_main.cc.",
+    ),
 }
 
 xls_benchmark_ir = rule(
@@ -1101,6 +1113,7 @@ def _xls_ir_cc_library_impl(ctx):
         executable = aot_compiler_tool.path,
         mnemonic = "AOTCompile",
         progress_message = "AOT compiling %s" % src.path,
+        toolchain = None,
     )
 
     ctx.actions.run_shell(
@@ -1113,6 +1126,7 @@ def _xls_ir_cc_library_impl(ctx):
             unformatted = unformatted_header_file.path,
             formatted = header_file.path,
         ),
+        toolchain = None,
     )
 
     ctx.actions.run_shell(
@@ -1125,6 +1139,7 @@ def _xls_ir_cc_library_impl(ctx):
             unformatted = unformatted_source_file.path,
             formatted = source_file.path,
         ),
+        toolchain = None,
     )
 
     return [

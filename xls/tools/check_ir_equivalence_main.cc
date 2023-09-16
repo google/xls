@@ -12,13 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
+#include <memory>
+#include <string>
+#include <string_view>
 #include <thread>  // NOLINT(build/c++11)
+#include <utility>
+#include <vector>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
@@ -30,8 +37,8 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/map_inlining_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/passes.h"
 #include "xls/passes/unroll_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
@@ -98,12 +105,13 @@ static absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
   // To work around this, we have to inline such calls.
   // Fortunately, inlining is pretty simple and unlikely to change semantics.
   // TODO(b/154025625): Replace this with a new InliningPass.
-  CompoundPass inlining_passes("inlining_passes", "All inlining passes.");
+  OptimizationCompoundPass inlining_passes("inlining_passes",
+                                           "All inlining passes.");
   inlining_passes.Add<MapInliningPass>();
   inlining_passes.Add<UnrollPass>();
   inlining_passes.Add<InliningPass>();
   inlining_passes.Add<DeadCodeEliminationPass>();
-  PassOptions options;
+  OptimizationPassOptions options;
   PassResults results;
   for (const auto& package : packages) {
     bool keep_going = true;
@@ -167,6 +175,6 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
   XLS_QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
-  XLS_QCHECK_OK(xls::RealMain(positional_args, absl::GetFlag(FLAGS_top),
-                              absl::GetFlag(FLAGS_timeout)));
+  return xls::ExitStatus(xls::RealMain(
+      positional_args, absl::GetFlag(FLAGS_top), absl::GetFlag(FLAGS_timeout)));
 }

@@ -48,7 +48,6 @@ proc node {
     // Send the activation east and the partial product south.
     let tok = send(tok, to_east, activation);
     let tok = send(tok, to_south, product);
-    ()
   }
 }
 
@@ -107,7 +106,6 @@ proc matmul<ROWS: u32, COLS: u32> {
     let tok = send(tok, zeroes_out[1], float32::zero(false));
     let tok = send(tok, zeroes_out[2], float32::zero(false));
     let tok = send(tok, zeroes_out[3], float32::zero(false));
-    ()
   }
 }
 
@@ -137,14 +135,14 @@ proc test_proc {
     } (tok);
 
     // Send extra inputs to keep the system moving while our results are processing.
-    let tok = for (j, tok): (u32, token) in range(u32:0, u32:4) {
+    let tok = for (_, tok): (u32, token) in range(u32:0, u32:4) {
       for (i, tok): (u32, token) in range(u32:0, u32:4) {
           send(tok, activations_out[i], f32_0)
       } (tok)
     } (tok);
 
     // Flush the intermediate values.
-    let tok = for (j, tok): (u32, token) in range(u32:0, u32:0) {
+    let tok = for (_, tok): (u32, token) in range(u32:0, u32:0) {
       for (i, tok): (u32, token) in range(u32:0, u32:4) {
           let (tok, _) = recv(tok, results_in[i]);
           tok
@@ -161,6 +159,5 @@ proc test_proc {
     assert_eq(value, f32_4);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }

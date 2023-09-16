@@ -47,5 +47,4 @@ fn f_test() {
   assert_eq(g(), u32:3);
   assert_eq(p<FOO>(), u32:3);
   assert_eq(main(), u32:9);
-  ()
 }

@@ -15,6 +15,9 @@
 #ifndef XLS_AREA_MODEL_AREA_ESTIMATOR_H_
 #define XLS_AREA_MODEL_AREA_ESTIMATOR_H_
 
+#include <memory>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"

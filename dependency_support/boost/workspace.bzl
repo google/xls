@@ -32,5 +32,6 @@ def repo():
             # toolchain. The patch below selects the same Python headers
             # that the rest of XLS uses.
             "@com_google_xls//dependency_support/boost:add_python.patch",
+            "@com_google_xls//dependency_support/boost:backtrace_from_rule.patch",
         ],
     )

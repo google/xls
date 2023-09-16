@@ -263,6 +263,5 @@ proc aes_ctr_test_128 {
         assert_eq(ptxt, expected);
 
         let tok = send(tok, terminator, true);
-        ()
     }
 }

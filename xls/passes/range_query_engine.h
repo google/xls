@@ -17,9 +17,13 @@
 
 #include <iosfwd>
 #include <optional>
+#include <string>
+#include <utility>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -28,9 +32,13 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/ternary.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -38,6 +46,48 @@ namespace xls {
 using IntervalSetTree = LeafTypeTree<IntervalSet>;
 
 class RangeQueryVisitor;
+
+// Bundle of data that can be memoized.
+struct RangeData {
+  // TODO(google/xls#1090): TernaryVector is a std::vector<u8> basically and is
+  // not very efficient. We should change this.
+  std::optional<TernaryVector> ternary;
+  IntervalSetTree interval_set;
+};
+
+// A helper for memoizing/restricting a range query run.
+class RangeDataProvider {
+ public:
+  RangeDataProvider() = default;
+  virtual ~RangeDataProvider() = default;
+
+  // Get the a-priori known interval set tree for the node. Return nullopt if it
+  // needs to be recalculated.
+  virtual std::optional<RangeData> GetKnownIntervals(Node* node) = 0;
+
+  // Iterate over a pre-computed function topological ordering.
+  // It is required that any node which needs to have its intervals initialized
+  // (either by the range-query engine itself or by calling 'GetKnownIntervals')
+  // is included in this iteration.
+  virtual absl::Status IterateFunction(DfsVisitor* visitor) = 0;
+};
+
+// Default empty-set givens. Nothing about the function is known.
+class NoGivensProvider final : public RangeDataProvider {
+ public:
+  explicit NoGivensProvider(FunctionBase* function) : function_(function) {}
+
+  std::optional<RangeData> GetKnownIntervals(Node* node) override {
+    return std::nullopt;
+  }
+
+  absl::Status IterateFunction(DfsVisitor* visitor) override {
+    return function_->Accept(visitor);
+  }
+
+ private:
+  FunctionBase* function_;
+};
 
 // A query engine which tracks sets of intervals that a value can be in.
 class RangeQueryEngine : public QueryEngine {
@@ -47,10 +97,36 @@ class RangeQueryEngine : public QueryEngine {
 
   // Populate the data in this `RangeQueryEngine` using the
   // given `FunctionBase*`;
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+    NoGivensProvider givens(f);
+    return PopulateWithGivens(givens);
+  }
+
+  // Populate the data in this `RangeQueryEngine givens` with the data returned
+  // by `RangeGivensHelper` taken as a given. If `givens` is null proceed as
+  // though there are no givens (ie `GetKnownIntervals` always returns
+  // std::nullopt and `ShouldContinue` always returns true)
+  absl::StatusOr<ReachedFixpoint> PopulateWithGivens(RangeDataProvider& givens);
 
   bool IsTracked(Node* node) const override {
     return known_bits_.contains(node);
+  }
+
+  // Check if the node has known intervals associated with it (either directly
+  // or implicitly through known ternary bits).
+  //
+  // This is not the same as IsTracked since that (for complicated reasons which
+  // relate to compatibility with the BDD query engine) actually checks whether
+  // we have known ternary bits associated with the node. In the case of 'bits'
+  // type values this is the same but in cases where the value is a tuple or an
+  // array the value might have intervals associated with it but no actual
+  // ternary bits (and thus not be 'tracked' as far as the query engine API is
+  // concerned).
+  //
+  // TODO(allight): 2023-09-05, We should possibly rewrite these or at least
+  // change the names.
+  bool HasKnownIntervals(Node* node) const {
+    return IsTracked(node) || interval_sets_.contains(node);
   }
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {

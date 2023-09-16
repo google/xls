@@ -14,14 +14,22 @@
 
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
+#include <cstdint>
+#include <list>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -36,8 +44,10 @@
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 using testing::Optional;
@@ -221,7 +231,8 @@ absl::Status XlsccTestBase::ScanFile(
   translator_.reset(new xlscc::Translator(
       error_on_init_interval,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
-      /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1, std::move(parser)));
+      /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
+      /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }
@@ -381,6 +392,22 @@ void XlsccTestBase::ProcTest(
       auto interpreter,
       xls::CreateInterpreterSerialProcRuntime(package_.get()));
 
+  auto print_list =
+      [](const absl::flat_hash_map<std::string, std::list<xls::Value>>& l) {
+        for (const auto& [name, values] : l) {
+          std::ostringstream value_str;
+          for (const xls::Value& value : values) {
+            value_str << value.ToString() << " ";
+          }
+          XLS_LOG(INFO) << "-- " << name.c_str() << ": " << value_str.str();
+        }
+      };
+
+  XLS_LOG(INFO) << "Inputs:";
+  print_list(inputs_by_channel);
+  XLS_LOG(INFO) << "Outputs:";
+  print_list(outputs_by_channel);
+
   xls::ChannelQueueManager& queue_manager = interpreter->queue_manager();
 
   // Write all inputs.
@@ -423,6 +450,8 @@ void XlsccTestBase::ProcTest(
 
       while (!ch_out_queue.IsEmpty()) {
         const xls::Value& next_output = values.front();
+        XLS_LOG(INFO) << "Checking output on channel: "
+                      << ch_out_queue.channel()->name();
         EXPECT_THAT(ch_out_queue.Read(), Optional(next_output));
         values.pop_front();
       }
@@ -443,7 +472,7 @@ void XlsccTestBase::ProcTest(
   }
 
   EXPECT_GE(tick, min_ticks);
-  EXPECT_LT(tick, max_ticks);
+  EXPECT_LE(tick, max_ticks);
 
   for (const auto& [proc_name, events] : expected_events_by_proc_name) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, package_->GetProc(proc_name));
@@ -472,6 +501,27 @@ absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
   return ret;
 }
 
+absl::StatusOr<uint64_t> XlsccTestBase::GetBitsForChannelNameContains(
+    std::string_view name_cont) {
+  XLS_CHECK_NE(nullptr, package_.get());
+  uint64_t ret = 0;
+
+  const xls::Channel* already_found = nullptr;
+  for (const xls::Channel* channel : package_->channels()) {
+    if (absl::StrContains(channel->name(), name_cont)) {
+      if (already_found != nullptr) {
+        return absl::NotFoundError(absl::StrFormat(
+            "Channel with name containing %s already found, %s vs %s",
+            name_cont, already_found->name(), channel->name()));
+      }
+
+      ret = channel->type()->GetFlatBitCount();
+      already_found = channel;
+    }
+  }
+  return ret;
+}
+
 absl::StatusOr<xlscc_metadata::MetadataOutput>
 XlsccTestBase::GenerateMetadata() {
   return translator_->GenerateMetadata();
@@ -479,6 +529,69 @@ XlsccTestBase::GenerateMetadata() {
 
 absl::StatusOr<xlscc::HLSBlock> XlsccTestBase::GetBlockSpec() {
   return block_spec_;
+}
+
+absl::StatusOr<std::vector<xls::Node*>> XlsccTestBase::GetIOOpsForChannel(
+    xls::FunctionBase* proc, int64_t channel_id) {
+  std::vector<xls::Node*> ret;
+  for (xls::Node* node : proc->nodes()) {
+    if (node->Is<xls::Send>()) {
+      if (node->As<xls::Send>()->channel_id() == channel_id) {
+        ret.push_back(node);
+      }
+    }
+    if (node->Is<xls::Receive>()) {
+      if (node->As<xls::Receive>()->channel_id() == channel_id) {
+        ret.push_back(node);
+      }
+    }
+  }
+  return ret;
+}
+
+absl::Status XlsccTestBase::TokensForNode(
+    xls::Node* node, absl::flat_hash_set<xls::Node*>& predecessors) {
+  if (node->Is<xls::Send>()) {
+    predecessors.insert(node->As<xls::Send>()->token());
+    return absl::OkStatus();
+  }
+  if (node->Is<xls::Receive>()) {
+    predecessors.insert(node->As<xls::Receive>()->token());
+    return absl::OkStatus();
+  }
+  if (node->Is<xls::TupleIndex>()) {
+    predecessors.insert(node->As<xls::TupleIndex>()->operand(0));
+    return absl::OkStatus();
+  }
+  if (node->Is<xls::AfterAll>()) {
+    for (xls::Node* operand : node->As<xls::AfterAll>()->operands()) {
+      predecessors.insert(operand);
+    }
+    return absl::OkStatus();
+  }
+  return absl::UnimplementedError(absl::StrFormat(
+      "Don't know how to get token for node %s", node->ToString()));
+}
+
+absl::StatusOr<bool> XlsccTestBase::NodeIsAfterTokenWise(xls::Proc* proc,
+                                                         xls::Node* before,
+                                                         xls::Node* after) {
+  absl::flat_hash_set<xls::Node*> tokens_after = {after};
+
+  while (!tokens_after.contains(proc->TokenParam())) {
+    // Don't change the set while iterating through it
+    absl::flat_hash_set<xls::Node*> next_tokens_after = {};
+    for (xls::Node* node_after : tokens_after) {
+      XLS_RETURN_IF_ERROR(TokensForNode(node_after, next_tokens_after));
+    }
+    tokens_after = next_tokens_after;
+
+    if (tokens_after.contains(before)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 absl::StatusOr<std::vector<xls::Node*>> XlsccTestBase::GetOpsForChannel(
@@ -508,10 +621,10 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                            SourceToIr(content, &func, /* clang_argv= */ {},
                                       /* io_test_mode= */ true));
 
-  XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
-
   XLS_LOG(INFO) << "Package IR: ";
-  XLS_LOG(INFO) << package_->DumpIr();
+  XLS_LOG(INFO) << ir_src;
+
+  XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
 
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->GetTopAsFunction());
 

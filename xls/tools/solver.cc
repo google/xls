@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -96,9 +101,8 @@ int main(int argc, char** argv) {
         "Expected invocation:\n  %s <path> -subject <node>\n", argv[0]);
   }
 
-  XLS_QCHECK_OK(
+  return xls::ExitStatus(
       xls::RealMain(positional_arguments[0], absl::GetFlag(FLAGS_subject),
                     absl::GetFlag(FLAGS_kind), absl::GetFlag(FLAGS_other),
                     absl::GetFlag(FLAGS_timeout_ms)));
-  return EXIT_SUCCESS;
 }

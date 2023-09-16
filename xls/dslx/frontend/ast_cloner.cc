@@ -28,16 +28,19 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 
 namespace xls::dslx {
+namespace {
 
 class AstCloner : public AstNodeVisitor {
  public:
-  explicit AstCloner(Module* module) : module_(module) {}
+  explicit AstCloner(Module* module, bool clone_type_definitions = true)
+      : module_(module), clone_type_definitions_(clone_type_definitions) {}
 
   absl::Status HandleArray(const Array* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
@@ -75,7 +78,7 @@ class AstCloner : public AstNodeVisitor {
     // We must've seen the NameDef here, so we don't need to visit it.
     old_to_new_[n] = module_->Make<Attr>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
-        down_cast<NameDef*>(old_to_new_.at(n->attr())));
+        std::string{n->attr()});
     return absl::OkStatus();
   }
 
@@ -101,6 +104,13 @@ class AstCloner : public AstNodeVisitor {
     }
     old_to_new_[n] = module_->Make<Block>(n->span(), std::move(new_statements),
                                           n->trailing_semi());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleConstAssert(const ConstAssert* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<ConstAssert>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->arg())));
     return absl::OkStatus();
   }
 
@@ -454,6 +464,10 @@ class AstCloner : public AstNodeVisitor {
                 leaf = down_cast<WildcardPattern*>(old_to_new_.at(wp));
                 return absl::OkStatus();
               },
+              [&](Range* r) -> absl::Status {
+                leaf = down_cast<Range*>(old_to_new_.at(r));
+                return absl::OkStatus();
+              },
           },
           n->leaf()));
       old_to_new_[n] = module_->Make<NameDefTree>(n->span(), leaf);
@@ -496,6 +510,14 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleProcMember(const ProcMember* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<ProcMember>(
+        down_cast<NameDef*>(old_to_new_.at(n->name_def())),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleParametricBinding(const ParametricBinding* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -520,10 +542,10 @@ class AstCloner : public AstNodeVisitor {
           down_cast<ParametricBinding*>(old_to_new_.at(pb)));
     }
 
-    std::vector<Param*> new_members;
+    std::vector<ProcMember*> new_members;
     new_members.reserve(n->members().size());
-    for (const Param* member : n->members()) {
-      new_members.push_back(down_cast<Param*>(old_to_new_.at(member)));
+    for (const ProcMember* member : n->members()) {
+      new_members.push_back(down_cast<ProcMember*>(old_to_new_.at(member)));
     }
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
@@ -745,36 +767,38 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleTypeRef(const TypeRef* n) override {
-    TypeDefinition new_type_definition;
+    TypeDefinition new_type_definition = n->type_definition();
 
-    // A TypeRef doesn't own its referenced type definition, so we have to
-    // explicitly visit it.
-    XLS_RETURN_IF_ERROR(absl::visit(
-        Visitor{[&](ColonRef* colon_ref) -> absl::Status {
-                  XLS_RETURN_IF_ERROR(colon_ref->Accept(this));
-                  new_type_definition =
-                      down_cast<ColonRef*>(old_to_new_.at(colon_ref));
-                  return absl::OkStatus();
-                },
-                [&](EnumDef* enum_def) -> absl::Status {
-                  XLS_RETURN_IF_ERROR(enum_def->Accept(this));
-                  new_type_definition =
-                      down_cast<EnumDef*>(old_to_new_.at(enum_def));
-                  return absl::OkStatus();
-                },
-                [&](StructDef* struct_def) -> absl::Status {
-                  XLS_RETURN_IF_ERROR(struct_def->Accept(this));
-                  new_type_definition =
-                      down_cast<StructDef*>(old_to_new_.at(struct_def));
-                  return absl::OkStatus();
-                },
-                [&](TypeAlias* type_alias) -> absl::Status {
-                  XLS_RETURN_IF_ERROR(type_alias->Accept(this));
-                  new_type_definition =
-                      down_cast<TypeAlias*>(old_to_new_.at(type_alias));
-                  return absl::OkStatus();
-                }},
-        n->type_definition()));
+    if (clone_type_definitions_) {
+      // A TypeRef doesn't own its referenced type definition, so we have to
+      // explicitly visit it.
+      XLS_RETURN_IF_ERROR(absl::visit(
+          Visitor{[&](ColonRef* colon_ref) -> absl::Status {
+                    XLS_RETURN_IF_ERROR(colon_ref->Accept(this));
+                    new_type_definition =
+                        down_cast<ColonRef*>(old_to_new_.at(colon_ref));
+                    return absl::OkStatus();
+                  },
+                  [&](EnumDef* enum_def) -> absl::Status {
+                    XLS_RETURN_IF_ERROR(enum_def->Accept(this));
+                    new_type_definition =
+                        down_cast<EnumDef*>(old_to_new_.at(enum_def));
+                    return absl::OkStatus();
+                  },
+                  [&](StructDef* struct_def) -> absl::Status {
+                    XLS_RETURN_IF_ERROR(struct_def->Accept(this));
+                    new_type_definition =
+                        down_cast<StructDef*>(old_to_new_.at(struct_def));
+                    return absl::OkStatus();
+                  },
+                  [&](TypeAlias* type_alias) -> absl::Status {
+                    XLS_RETURN_IF_ERROR(type_alias->Accept(this));
+                    new_type_definition =
+                        down_cast<TypeAlias*>(old_to_new_.at(type_alias));
+                    return absl::OkStatus();
+                  }},
+          n->type_definition()));
+    }
 
     old_to_new_[n] = module_->Make<TypeRef>(n->span(), new_type_definition);
     return absl::OkStatus();
@@ -862,15 +886,30 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  Module* module_;
+  Module* const module_;
+  const bool clone_type_definitions_;
   absl::flat_hash_map<const AstNode*, AstNode*> old_to_new_;
 };
+
+}  // namespace
 
 absl::StatusOr<AstNode*> CloneAst(AstNode* root) {
   if (dynamic_cast<Module*>(root) != nullptr) {
     return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
   }
   AstCloner cloner(root->owner());
+  XLS_RETURN_IF_ERROR(root->Accept(&cloner));
+  return cloner.old_to_new().at(root);
+}
+
+absl::StatusOr<AstNode*> CloneAstSansTypeDefinitions(AstNode* root) {
+  XLS_RET_CHECK(root != nullptr);
+  if (dynamic_cast<Module*>(root) != nullptr) {
+    return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
+  }
+
+  XLS_RET_CHECK(root->owner() != nullptr);
+  AstCloner cloner(root->owner(), /*clone_type_definitions=*/false);
   XLS_RETURN_IF_ERROR(root->Accept(&cloner));
   return cloner.old_to_new().at(root);
 }
@@ -932,9 +971,15 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module) {
               new_member = down_cast<Import*>(cloner.old_to_new().at(i));
               return absl::OkStatus();
             },
+            [&](ConstAssert* n) -> absl::Status {
+              XLS_RETURN_IF_ERROR(n->Accept(&cloner));
+              new_member = down_cast<ConstAssert*>(cloner.old_to_new().at(n));
+              return absl::OkStatus();
+            },
         },
         member));
-    XLS_RETURN_IF_ERROR(new_module->AddTop(new_member));
+    XLS_RETURN_IF_ERROR(
+        new_module->AddTop(new_member, /*make_collision_error=*/nullptr));
   }
   return new_module;
 }

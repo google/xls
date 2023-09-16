@@ -14,6 +14,10 @@
 
 #include "xls/public/runtime_build_actions.h"
 
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11_abseil/statusor_caster.h"

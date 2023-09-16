@@ -13,7 +13,12 @@
 // limitations under the License.
 #include "xls/netlist/interpreter.h"
 
+#include <atomic>
+#include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"

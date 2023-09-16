@@ -28,11 +28,14 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 namespace {
@@ -313,6 +316,12 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
           auto* array_type = dynamic_cast<const ArrayType*>(type);
           XLS_CHECK(array_type != nullptr);
           return &array_type->element_type();
+        }
+        XLS_CHECK(v.kind() == ValueKind::kTuple);
+        // Tuple values can either come from tuples or structs. Check for
+        // structs first.
+        if (auto* struct_type = dynamic_cast<const StructType*>(type)) {
+          return &struct_type->GetMemberType(i);
         }
         auto* tuple_type = dynamic_cast<const TupleType*>(type);
         XLS_CHECK(tuple_type != nullptr);

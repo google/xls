@@ -14,6 +14,8 @@
 
 #include "xls/common/logging/null_guard.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

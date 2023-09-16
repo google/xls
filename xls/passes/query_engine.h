@@ -15,13 +15,24 @@
 #ifndef XLS_PASSES_QUERY_ENGINE_H_
 #define XLS_PASSES_QUERY_ENGINE_H_
 
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
+#include "xls/passes/predicate_state.h"
 
 namespace xls {
 
@@ -85,6 +96,11 @@ class QueryEngine {
   // values for the given node and what that bit's known value is.
   virtual LeafTypeTree<TernaryVector> GetTernary(Node* node) const = 0;
 
+  // Return a query engine which is specialized with the given predicates. The
+  // reference has an lifetime of the source engine.
+  virtual std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
+      const absl::flat_hash_set<PredicateState>& state) const;
+
   // Returns a `LeafTypeTree<IntervalSet>` indicating which interval sets the
   // various parts of the value for a given node can exist in.
   virtual LeafTypeTree<IntervalSet> GetIntervals(Node* node) const {
@@ -92,22 +108,22 @@ class QueryEngine {
     LeafTypeTree<IntervalSet> result(node->GetType());
     for (int64_t i = 0; i < ternary.elements().size(); ++i) {
       const TernaryVector& vector = ternary.elements()[i];
-      absl::InlinedVector<bool, 1> min(vector.size());
-      absl::InlinedVector<bool, 1> max(vector.size());
+      InlineBitmap min(vector.size());
+      InlineBitmap max(vector.size());
       for (int64_t j = 0; j < vector.size(); ++j) {
         if (vector[j] == TernaryValue::kKnownZero) {
-          min[j] = false;
-          max[j] = false;
+          // Leave both min[j] and max[j] false.
         } else if (vector[j] == TernaryValue::kKnownOne) {
-          min[j] = true;
-          max[j] = true;
+          min.Set(j, true);
+          max.Set(j, true);
         } else {
-          min[j] = false;
-          max[j] = true;
+          // Leave min[j] false, but set max[j] true.
+          max.Set(j, true);
         }
       }
       IntervalSet interval_set(vector.size());
-      interval_set.AddInterval(Interval(Bits(min), Bits(max)));
+      interval_set.AddInterval(Interval(Bits::FromBitmap(std::move(min)),
+                                        Bits::FromBitmap(std::move(max))));
       interval_set.Normalize();
       result.elements()[i] = interval_set;
     }

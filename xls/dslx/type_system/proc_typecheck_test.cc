@@ -257,5 +257,25 @@ proc entry {
                       "Want argument 0 to 'send' to be a token; got uN[32]")));
 }
 
+TEST(TypecheckTest, SimpleProducer) {
+  constexpr std::string_view kProgram = R"(
+proc producer {
+    s: chan<u32> out;
+
+    init { true }
+
+    config(s: chan<u32> out) {
+        (s,)
+    }
+
+    next(tok: token, do_send: bool) {
+        let tok = send_if(tok, s, do_send, ((do_send) as u32));
+        !do_send
+    }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 }  // namespace
 }  // namespace xls::dslx

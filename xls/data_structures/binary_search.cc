@@ -14,6 +14,10 @@
 
 #include "xls/data_structures/binary_search.h"
 
+#include <cstdint>
+
+#include "absl/functional/function_ref.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -22,41 +26,36 @@
 namespace xls {
 
 int64_t BinarySearchMaxTrue(int64_t start, int64_t end,
-                            absl::FunctionRef<bool(int64_t i)> f) {
-  XLS_CHECK_LE(start, end);
-  XLS_CHECK(f(start))
-      << "Lowest value in range fails condition of binary search.";
-  if (f(end)) {
-    return end;
-  }
+                            absl::FunctionRef<bool(int64_t i)> f,
+                            BinarySearchAssumptions assumptions) {
   return BinarySearchMaxTrueWithStatus(
              start, end,
-             [&](int64_t i) -> absl::StatusOr<bool> { return f(i); })
+             [&](int64_t i) -> absl::StatusOr<bool> { return f(i); },
+             assumptions)
       .value();
 }
 
 int64_t BinarySearchMinTrue(int64_t start, int64_t end,
-                            absl::FunctionRef<bool(int64_t i)> f) {
-  XLS_CHECK_LE(start, end);
-  XLS_CHECK(f(end))
-      << "Highest value in range fails condition of binary search.";
-  if (f(start)) {
-    return start;
-  }
+                            absl::FunctionRef<bool(int64_t i)> f,
+                            BinarySearchAssumptions assumptions) {
   return BinarySearchMinTrueWithStatus(
              start, end,
-             [&](int64_t i) -> absl::StatusOr<bool> { return f(i); })
+             [&](int64_t i) -> absl::StatusOr<bool> { return f(i); },
+             assumptions)
       .value();
 }
 
 absl::StatusOr<int64_t> BinarySearchMaxTrueWithStatus(
     int64_t start, int64_t end,
-    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f) {
+    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f,
+    BinarySearchAssumptions assumptions) {
   XLS_RET_CHECK_LE(start, end);
-  XLS_ASSIGN_OR_RETURN(bool f_start, f(start));
-  if (!f_start) {
-    return absl::InvalidArgumentError(
-        "Lowest value in range fails condition of binary search.");
+  if (assumptions != BinarySearchAssumptions::kStartKnownTrue) {
+    XLS_ASSIGN_OR_RETURN(bool f_start, f(start));
+    if (!f_start) {
+      return absl::InvalidArgumentError(
+          "Lowest value in range fails condition of binary search.");
+    }
   }
   XLS_ASSIGN_OR_RETURN(bool f_end, f(end));
   if (f_end) {
@@ -78,12 +77,15 @@ absl::StatusOr<int64_t> BinarySearchMaxTrueWithStatus(
 
 absl::StatusOr<int64_t> BinarySearchMinTrueWithStatus(
     int64_t start, int64_t end,
-    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f) {
+    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f,
+    BinarySearchAssumptions assumptions) {
   XLS_RET_CHECK_LE(start, end);
-  XLS_ASSIGN_OR_RETURN(bool f_end, f(end));
-  if (!f_end) {
-    return absl::InvalidArgumentError(
-        "Highest value in range fails condition of binary search.");
+  if (assumptions != BinarySearchAssumptions::kEndKnownTrue) {
+    XLS_ASSIGN_OR_RETURN(bool f_end, f(end));
+    if (!f_end) {
+      return absl::InvalidArgumentError(
+          "Highest value in range fails condition of binary search.");
+    }
   }
   XLS_ASSIGN_OR_RETURN(bool f_start, f(start));
   if (f_start) {

@@ -15,6 +15,9 @@
 #ifndef XLS_IR_EVENTS_H_
 #define XLS_IR_EVENTS_H_
 
+#include <string>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 

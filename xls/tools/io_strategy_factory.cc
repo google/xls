@@ -14,6 +14,9 @@
 
 #include "xls/tools/io_strategy_factory.h"
 
+#include <memory>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 
 namespace xls {

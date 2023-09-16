@@ -15,11 +15,17 @@
 #ifndef XLS_IR_VALUE_H_
 #define XLS_IR_VALUE_H_
 
+#include <cstddef>
+#include <ostream>
+#include <string>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {

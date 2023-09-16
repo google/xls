@@ -15,6 +15,7 @@
 """Tests of the synthesis service: client and dummy server."""
 
 import subprocess
+import time
 
 import portpicker
 
@@ -45,6 +46,10 @@ class SynthesisServerTest(absltest.TestCase):
     port = portpicker.pick_unused_port()
     proc = subprocess.Popen([runfiles.get_path(SERVER_PATH), f'--port={port}'] +
                             args)
+
+    # workaround: allow some time for the server to open the port
+    time.sleep(1)
+
     return port, proc
 
   def test_slack(self):

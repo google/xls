@@ -39,7 +39,10 @@
 #include "absl/types/variant.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 
@@ -150,6 +153,8 @@ ExprOrType ToExprOrType(AstNode* n) {
 
 std::string_view AstNodeKindToString(AstNodeKind kind) {
   switch (kind) {
+    case AstNodeKind::kConstAssert:
+      return "const assert";
     case AstNodeKind::kStatement:
       return "statement";
     case AstNodeKind::kTypeAnnotation:
@@ -182,6 +187,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "function";
     case AstNodeKind::kProc:
       return "proc";
+    case AstNodeKind::kProcMember:
+      return "proc member";
     case AstNodeKind::kNameRef:
       return "name reference";
     case AstNodeKind::kConstRef:
@@ -268,17 +275,6 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "unroll-for";
   }
   XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
-}
-
-absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e) {
-  if (auto* n = dynamic_cast<NameRef*>(e)) {
-    return ColonRef::Subject(n);
-  }
-  if (auto* n = dynamic_cast<ColonRef*>(e)) {
-    return ColonRef::Subject(n);
-  }
-  return absl::InvalidArgumentError(
-      "Expression AST node is not a ColonRef subject.");
 }
 
 AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
@@ -499,6 +495,7 @@ std::string BinopKindFormat(BinopKind kind) {
     case BinopKind::kOr:         return "|";
     case BinopKind::kXor:        return "^";
     case BinopKind::kDiv:        return "/";
+    case BinopKind::kMod:        return "%";
     case BinopKind::kLogicalAnd: return "&&";
     case BinopKind::kLogicalOr:  return "||";
     case BinopKind::kConcat:     return "++";
@@ -773,6 +770,17 @@ std::optional<Import*> ColonRef::ResolveImportSubject() const {
   return import;
 }
 
+// -- class ProcMember
+
+ProcMember::ProcMember(Module* owner, NameDef* name_def,
+                       TypeAnnotation* type_annotation)
+    : AstNode(owner),
+      name_def_(name_def),
+      type_annotation_(type_annotation),
+      span_(name_def_->span().start(), type_annotation_->span().limit()) {}
+
+ProcMember::~ProcMember() = default;
+
 // -- class Param
 
 Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type_annotation)
@@ -1031,32 +1039,47 @@ absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
   return it->second;
 }
 
-absl::Status Module::AddTop(ModuleMember member) {
+absl::Status Module::AddTop(ModuleMember member,
+                            const MakeCollisionError& make_collision_error) {
   // Get name
-  std::string member_name =
-      absl::visit(Visitor{
-                      [](Function* f) { return f->identifier(); },
-                      [](Proc* p) { return p->identifier(); },
-                      [](TestFunction* tf) { return tf->identifier(); },
-                      [](TestProc* tp) { return tp->proc()->identifier(); },
-                      [](QuickCheck* qc) { return qc->identifier(); },
-                      [](TypeAlias* td) { return td->identifier(); },
-                      [](StructDef* sd) { return sd->identifier(); },
-                      [](ConstantDef* cd) { return cd->identifier(); },
-                      [](EnumDef* ed) { return ed->identifier(); },
-                      [](Import* i) { return i->identifier(); },
-                  },
-                  member);
+  std::optional<std::string> member_name = absl::visit(
+      Visitor{
+          [](Function* f) { return std::make_optional(f->identifier()); },
+          [](Proc* p) { return std::make_optional(p->identifier()); },
+          [](TestFunction* tf) { return std::make_optional(tf->identifier()); },
+          [](TestProc* tp) {
+            return std::make_optional(tp->proc()->identifier());
+          },
+          [](QuickCheck* qc) { return std::make_optional(qc->identifier()); },
+          [](TypeAlias* td) { return std::make_optional(td->identifier()); },
+          [](StructDef* sd) { return std::make_optional(sd->identifier()); },
+          [](ConstantDef* cd) { return std::make_optional(cd->identifier()); },
+          [](EnumDef* ed) { return std::make_optional(ed->identifier()); },
+          [](Import* i) { return std::make_optional(i->identifier()); },
+          [](ConstAssert* n) -> std::optional<std::string> {
+            return std::nullopt;
+          },
+      },
+      member);
 
-  if (top_by_name_.contains(member_name)) {
-    AstNode* node = ToAstNode(top_by_name_.at(member_name));
+  if (member_name.has_value() && top_by_name_.contains(member_name.value())) {
+    const AstNode* node = ToAstNode(top_by_name_.at(member_name.value()));
+    const Span existing_span = node->GetSpan().value();
+    const AstNode* new_node = ToAstNode(member);
+    const Span new_span = new_node->GetSpan().value();
+    if (make_collision_error != nullptr) {
+      return make_collision_error(name_, member_name.value(), existing_span,
+                                  node, new_span, new_node);
+    }
     return absl::InvalidArgumentError(absl::StrFormat(
         "Module %s already contains a member named %s @ %s: %s", name_,
-        member_name, node->GetSpan().value().ToString(), node->ToString()));
+        member_name.value(), existing_span.ToString(), node->ToString()));
   }
 
   top_.push_back(member);
-  top_by_name_.insert({member_name, member});
+  if (member_name.has_value()) {
+    top_by_name_.insert({member_name.value(), member});
+  }
   return absl::OkStatus();
 }
 
@@ -1072,6 +1095,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](ConstantDef*) { return "constant-definition"; },
                          [](EnumDef*) { return "enum-definition"; },
                          [](Import*) { return "import"; },
+                         [](ConstAssert*) { return "const-assert"; },
                      },
                      module_member);
 }
@@ -1394,6 +1418,9 @@ Invocation::~Invocation() = default;
 
 std::vector<AstNode*> Invocation::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {callee()};
+  for (const ExprOrType& eot : explicit_parametrics()) {
+    results.push_back(ToAstNode(eot));
+  }
   for (Expr* arg : args_) {
     results.push_back(arg);
   }
@@ -1433,6 +1460,21 @@ std::string Spawn::ToStringInternal() const {
 
   return absl::StrFormat("spawn %s%s(%s)", callee()->ToString(), param_str,
                          config_args);
+}
+
+// -- class ConstAssert
+
+ConstAssert::ConstAssert(Module* owner, Span span, Expr* arg)
+    : AstNode(owner), span_(std::move(span)), arg_(arg) {}
+
+ConstAssert::~ConstAssert() = default;
+
+std::vector<AstNode*> ConstAssert::GetChildren(bool want_types) const {
+  return std::vector<AstNode*>{arg()};
+}
+
+std::string ConstAssert::ToString() const {
+  return absl::StrFormat("const_assert!(%s);", arg()->ToString());
 }
 
 // -- class ZeroMacro
@@ -1551,15 +1593,6 @@ std::vector<std::string> StructDef::GetMemberNames() const {
   return names;
 }
 
-std::optional<int64_t> StructDef::GetMemberIndex(std::string_view name) const {
-  for (int64_t i = 0; i < members_.size(); ++i) {
-    if (members_[i].first->identifier() == name) {
-      return i;
-    }
-  }
-  return std::nullopt;
-}
-
 // -- class StructInstance
 
 StructInstance::StructInstance(
@@ -1614,17 +1647,6 @@ std::string Unop::ToStringInternal() const {
   return absl::StrFormat("%s%s", UnopKindToString(unop_kind_), operand);
 }
 
-absl::StatusOr<UnopKind> UnopKindFromString(std::string_view s) {
-  if (s == "!") {
-    return UnopKind::kInvert;
-  }
-  if (s == "-") {
-    return UnopKind::kNegate;
-  }
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Invalid UnopKind string: \"%s\"", s));
-}
-
 std::string UnopKindToString(UnopKind k) {
   switch (k) {
     case UnopKind::kInvert:
@@ -1671,6 +1693,7 @@ Precedence Binop::GetPrecedenceInternal() const {
     // strong arithmetic
     case BinopKind::kMul:
     case BinopKind::kDiv:
+    case BinopKind::kMod:
       return Precedence::kStrongArithmetic;
     case BinopKind::kConcat:
       return Precedence::kConcat;
@@ -1881,6 +1904,11 @@ std::string Function::ToUndecoratedString(std::string_view identifier) const {
                          body_->ToString());
 }
 
+absl::btree_set<std::string> Function::GetFreeParametricKeySet() const {
+  std::vector<std::string> keys = GetFreeParametricKeys();
+  return absl::btree_set<std::string>(keys.begin(), keys.end());
+}
+
 std::vector<std::string> Function::GetFreeParametricKeys() const {
   std::vector<std::string> results;
   for (ParametricBinding* b : parametric_bindings_) {
@@ -1900,7 +1928,7 @@ TestFunction::~TestFunction() = default;
 Proc::Proc(Module* owner, Span span, NameDef* name_def,
            NameDef* config_name_def, NameDef* next_name_def,
            const std::vector<ParametricBinding*>& parametric_bindings,
-           const std::vector<Param*>& members, Function* config, Function* next,
+           std::vector<ProcMember*> members, Function* config, Function* next,
            Function* init, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
@@ -1911,7 +1939,7 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
       config_(config),
       next_(next),
       init_(init),
-      members_(members),
+      members_(std::move(members)),
       is_public_(is_public) {}
 
 Proc::~Proc() = default;
@@ -1921,7 +1949,7 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   for (ParametricBinding* pb : parametric_bindings_) {
     results.push_back(pb);
   }
-  for (Param* p : members_) {
+  for (ProcMember* p : members_) {
     results.push_back(p);
   }
   results.push_back(config_);
@@ -1942,14 +1970,17 @@ std::string Proc::ToString() const {
               absl::StrAppend(out, parametric_binding->ToString());
             }));
   }
-  auto param_append = [](std::string* out, const Param* param) {
-    out->append(absl::StrCat(param->ToString(), ";"));
+  auto param_append = [](std::string* out, const Param* p) {
+    out->append(absl::StrCat(p->ToString(), ";"));
+  };
+  auto member_append = [](std::string* out, const ProcMember* member) {
+    out->append(absl::StrCat(member->ToString(), ";"));
   };
   std::string config_params_str =
       absl::StrJoin(config_->params(), ", ", param_append);
   std::string state_params_str =
       absl::StrJoin(next_->params(), ", ", param_append);
-  std::string members_str = absl::StrJoin(members_, "\n", param_append);
+  std::string members_str = absl::StrJoin(members_, "\n", member_append);
   if (!members_str.empty()) {
     members_str.append("\n");
   }
@@ -2113,7 +2144,7 @@ std::string TupleTypeAnnotation::ToString() const {
 
 // -- class Statement
 
-/* static */ absl::StatusOr<std::variant<Expr*, TypeAlias*, Let*>>
+/* static */ absl::StatusOr<std::variant<Expr*, TypeAlias*, Let*, ConstAssert*>>
 Statement::NodeToWrapped(AstNode* n) {
   if (auto* e = dynamic_cast<Expr*>(n)) {
     return e;
@@ -2124,12 +2155,14 @@ Statement::NodeToWrapped(AstNode* n) {
   if (auto* l = dynamic_cast<Let*>(n)) {
     return l;
   }
+  if (auto* d = dynamic_cast<ConstAssert*>(n)) {
+    return d;
+  }
   return absl::InvalidArgumentError(absl::StrCat(
       "AST node could not be wrapped in a statement: ", n->GetNodeTypeName()));
 }
 
-Statement::Statement(Module* owner,
-                     std::variant<Expr*, TypeAlias*, Let*> wrapped)
+Statement::Statement(Module* owner, Statement::Wrapped wrapped)
     : AstNode(owner), wrapped_(wrapped) {
   XLS_CHECK_NE(ToAstNode(wrapped_), this);
 }
@@ -2358,7 +2391,25 @@ std::string Number::ToStringInternal() const {
 
 std::string Number::ToStringNoType() const { return text_; }
 
+absl::StatusOr<bool> Number::FitsInType(int64_t bit_count) const {
+  XLS_RET_CHECK_GE(bit_count, 0);
+  switch (number_kind_) {
+    case NumberKind::kBool:
+      return bit_count >= 1;
+    case NumberKind::kCharacter:
+      return bit_count >= CHAR_BIT;
+    case NumberKind::kOther: {
+      XLS_ASSIGN_OR_RETURN(auto sm, GetSignAndMagnitude(text_));
+      auto [sign, bits] = sm;
+      return bit_count >= bits.bit_count();
+    }
+  }
+  return absl::InternalError(
+      absl::StrFormat("Unreachable; invalid number kind: %d", number_kind_));
+}
+
 absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
+  XLS_RET_CHECK_GE(bit_count, 0);
   switch (number_kind_) {
     case NumberKind::kBool: {
       Bits result(bit_count);
@@ -2373,12 +2424,11 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
     case NumberKind::kOther: {
       XLS_ASSIGN_OR_RETURN(auto sm, GetSignAndMagnitude(text_));
       auto [sign, bits] = sm;
-      if (bit_count < bits.bit_count()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Internal error: %s Cannot fit number value %s in %d bits; %d "
-            "required: `%s`",
-            span().ToString(), text_, bit_count, bits.bit_count(), ToString()));
-      }
+      XLS_RET_CHECK_GE(bits.bit_count(), 0);
+      XLS_RET_CHECK(bit_count >= bits.bit_count()) << absl::StreamFormat(
+          "Internal error: %s Cannot fit number value %s in %d bits; %d "
+          "required: `%s`",
+          span().ToString(), text_, bit_count, bits.bit_count(), ToString());
       bits = bits_ops::ZeroExtend(bits, bit_count);
       if (sign) {
         bits = bits_ops::Negate(bits);
@@ -2440,11 +2490,28 @@ Span ExprOrTypeSpan(const ExprOrType &expr_or_type) {
   }, expr_or_type);
 }
 
-std::string ExprOrTypeToString(const ExprOrType &expr_or_type) {
-  return absl::visit(Visitor{
-                         [](Expr* expr) { return expr->ToString(); },
-                         [](TypeAnnotation* type) { return type->ToString(); },
-                     },
-                     expr_or_type);
+absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
+                                                   bool want_types) {
+  std::vector<AstNode*> nodes;
+
+  class CollectVisitor : public AstNodeVisitor {
+   public:
+    explicit CollectVisitor(std::vector<AstNode*>& nodes) : nodes_(nodes) {}
+
+#define DECLARE_HANDLER(__type)                           \
+  absl::Status Handle##__type(const __type* n) override { \
+    nodes_.push_back(const_cast<__type*>(n));             \
+    return absl::OkStatus();                              \
+  }
+    XLS_DSLX_AST_NODE_EACH(DECLARE_HANDLER)
+#undef DECLARE_HANDLER
+
+   private:
+    std::vector<AstNode*>& nodes_;
+  } collect_visitor(nodes);
+
+  XLS_RETURN_IF_ERROR(WalkPostOrder(root, &collect_visitor, want_types));
+  return nodes;
 }
+
 }  // namespace xls::dslx

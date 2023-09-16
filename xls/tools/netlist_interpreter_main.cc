@@ -15,11 +15,16 @@
 // Driver for NetlistInterpreter: loads a netlist from disk, feeds Value input
 // (taken from the command line) into it, and prints the result.
 
+#include <iostream>
+#include <string>
+#include <vector>
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/codegen/flattening.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
@@ -65,16 +70,15 @@ static absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
     netlist::CellLibraryProto lib_proto;
     XLS_RET_CHECK(lib_proto.ParseFromString(proto_text));
     return netlist::CellLibrary::FromProto(lib_proto);
-  } else {
-    XLS_ASSIGN_OR_RETURN(std::string cell_library_text,
-                         GetFileContents(cell_library_path));
-    XLS_ASSIGN_OR_RETURN(
-        auto char_stream,
-        netlist::cell_lib::CharStream::FromText(cell_library_text));
-    XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto lib_proto,
-                         netlist::function::ExtractFunctions(&char_stream));
-    return netlist::CellLibrary::FromProto(lib_proto);
   }
+  XLS_ASSIGN_OR_RETURN(std::string cell_library_text,
+                       GetFileContents(cell_library_path));
+  XLS_ASSIGN_OR_RETURN(
+      auto char_stream,
+      netlist::cell_lib::CharStream::FromText(cell_library_text));
+  XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto lib_proto,
+                       netlist::function::ExtractFunctions(&char_stream));
+  return netlist::CellLibrary::FromProto(lib_proto);
 }
 
 static absl::Status RealMain(const std::string& netlist_path,
@@ -176,9 +180,7 @@ int main(int argc, char* argv[]) {
 
   std::string output_type = absl::GetFlag(FLAGS_output_type);
 
-  XLS_QCHECK_OK(xls::RealMain(netlist_path, cell_library_path,
-                              cell_library_proto_path, module_name, inputs,
-                              output_type, dump_cells));
-
-  return 0;
+  return xls::ExitStatus(xls::RealMain(netlist_path, cell_library_path,
+                                       cell_library_proto_path, module_name,
+                                       inputs, output_type, dump_cells));
 }

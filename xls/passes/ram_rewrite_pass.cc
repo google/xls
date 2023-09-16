@@ -39,6 +39,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -748,9 +749,9 @@ Type* GetMaskType(Package* package, std::optional<int64_t> mask_width) {
   return package->GetTupleType({});
 }
 
-absl::StatusOr<bool> RamRewritePass::RunInternal(Package* p,
-                                                 const PassOptions& options,
-                                                 PassResults* results) const {
+absl::StatusOr<bool> RamRewritePass::RunInternal(
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   // Given the mapping from logical names (e.g. read_req) to physical names
   // (e.g. channel_for_read_req_0), build a new mapping from logical names ->
   // Channel objects.

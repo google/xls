@@ -20,7 +20,7 @@ import xls.dslx.tests.mod_simple_enum
 type EnumType = mod_simple_enum::EnumType;
 
 fn main(x: EnumType) -> bool {
-  for (i, accum): (u32, bool) in range(u32:0, u32:1) {
+  for (_, _): (u32, bool) in range(u32:0, u32:1) {
     match x {
       EnumType::FIRST => false,
       EnumType::SECOND => true,
@@ -33,5 +33,4 @@ fn main(x: EnumType) -> bool {
 fn test_main() {
   assert_eq(false, main(EnumType::FIRST));
   assert_eq(true, main(EnumType::SECOND));
-  ()
 }

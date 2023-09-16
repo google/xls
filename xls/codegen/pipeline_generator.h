@@ -23,6 +23,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/name_to_bit_count.h"
 #include "xls/codegen/vast.h"
+#include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -41,16 +42,22 @@ inline CodegenOptions BuildPipelineOptions() {
 // Emits the given function as a verilog module which follows the given
 // schedule. The module is pipelined with a latency and initiation interval
 // given in the signature.
+// If a delay estimator is provided, the signature also includes delay
+// information about the pipeline stages.
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
-    const CodegenOptions& options = BuildPipelineOptions());
+    const CodegenOptions& options = BuildPipelineOptions(),
+    const DelayEstimator* delay_estimator = nullptr);
 
 // Emits the given function or proc as a verilog module which follows the given
 // schedule. The module is pipelined with a latency and initiation interval
 // given in the signature.
+// If a delay estimator is provided, the signature also includes delay
+// information about the pipeline stages.
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, FunctionBase* module,
-    const CodegenOptions& options = BuildPipelineOptions());
+    const CodegenOptions& options = BuildPipelineOptions(),
+    const DelayEstimator* delay_estimator = nullptr);
 
 }  // namespace verilog
 }  // namespace xls

@@ -15,6 +15,8 @@
 #ifndef XLS_SCHEDULING_SCHEDULING_PASS_PIPELINE_H_
 #define XLS_SCHEDULING_SCHEDULING_PASS_PIPELINE_H_
 
+#include <memory>
+
 #include "absl/status/statusor.h"
 #include "xls/scheduling/scheduling_pass.h"
 

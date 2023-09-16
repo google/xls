@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_IR_CONVERT_CONVERT_OPTIONS_H_
 #define XLS_DSLX_IR_CONVERT_CONVERT_OPTIONS_H_
 
+#include "xls/dslx/warning_kind.h"
+
 namespace xls::dslx {
 
 // Bundles together options (common among the API routines below) used in
@@ -34,6 +36,11 @@ struct ConvertOptions {
 
   // Should warnings be treated as errors?
   bool warnings_as_errors = true;
+
+  // Set of warnings that are enabled.
+  //
+  // Note that this is only used in IR conversion routines that do typechecking.
+  WarningKindSet enabled_warnings = kAllWarningsSet;
 };
 
 }  // namespace xls::dslx

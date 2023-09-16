@@ -14,6 +14,10 @@
 
 #include "xls/ir/channel_ops.h"
 
+#include <ostream>
+#include <string>
+#include <string_view>
+
 #include "xls/common/logging/logging.h"
 
 namespace xls {

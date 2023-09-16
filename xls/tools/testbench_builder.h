@@ -40,6 +40,8 @@
 #include <functional>
 #include <iostream>
 #include <optional>
+#include <string>
+#include <thread>
 
 #include "absl/strings/str_format.h"
 #include "xls/tools/testbench.h"

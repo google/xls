@@ -17,9 +17,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
+#include <utility>
 
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/endian.h"
 #include "xls/common/logging/logging.h"
@@ -72,11 +75,31 @@ class InlineBitmap {
     return result;
   }
 
+  // Constructs a bitmap of width `bits.size()` using the given bits,
+  // interpreting index 0 as the LSD.
+  static InlineBitmap FromBits(absl::Span<bool const> bits) {
+    InlineBitmap result(bits.size(), /*fill=*/false);
+    int64_t bit_idx = 0;
+    uint64_t* word = result.data_.data();
+    for (bool bit : bits) {
+      *word |= static_cast<uint64_t>(bit) << bit_idx;
+      if (++bit_idx >= kWordBits) {
+        ++word;
+        bit_idx = 0;
+      }
+    }
+    return result;
+  }
+
   explicit InlineBitmap(int64_t bit_count, bool fill = false)
       : bit_count_(bit_count),
         data_(CeilOfRatio(bit_count, kWordBits), fill ? -1ULL : 0ULL) {
     XLS_DCHECK_GE(bit_count, 0);
-    MaskLastWord();
+    // If we initialized our data to zero, no need to mask out the bits past the
+    // end of the bitmap; they're already zero.
+    if (fill) {
+      MaskLastWord();
+    }
   }
 
   bool operator==(const InlineBitmap& other) const {
@@ -84,10 +107,7 @@ class InlineBitmap {
       return false;
     }
     for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
-      uint64_t mask = MaskForWord(wordno);
-      uint64_t lhs = (data_[wordno] & mask);
-      uint64_t rhs = (other.data_[wordno] & mask);
-      if (lhs != rhs) {
+      if (data_[wordno] != other.data_[wordno]) {
         return false;
       }
     }
@@ -98,8 +118,7 @@ class InlineBitmap {
   int64_t bit_count() const { return bit_count_; }
   bool IsAllOnes() const {
     for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
-      uint64_t mask = MaskForWord(wordno);
-      if ((data_[wordno] & mask) != mask) {
+      if (data_[wordno] != MaskForWord(wordno)) {
         return false;
       }
     }
@@ -107,8 +126,7 @@ class InlineBitmap {
   }
   bool IsAllZeroes() const {
     for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
-      uint64_t mask = MaskForWord(wordno);
-      if ((data_[wordno] & mask) != 0) {
+      if (data_[wordno] != 0) {
         return false;
       }
     }
@@ -156,6 +174,10 @@ class InlineBitmap {
     XLS_DCHECK_LT(wordno, word_count());
     return data_[wordno];
   }
+  void SetWord(int64_t wordno, uint64_t value) {
+    XLS_DCHECK_LT(wordno, word_count());
+    data_[wordno] = value & MaskForWord(wordno);
+  }
 
   // Sets a byte in the data underlying the bitmap.
   //
@@ -183,9 +205,8 @@ class InlineBitmap {
     return absl::bit_cast<uint8_t*>(data_.data())[byteno];
   }
 
-  // Writes the underlying byts of the inline bit map to the given
-  // buffer. Byte order is little-endian. Writes out Ceil(bit_count_ / 8) number
-  // of bytes.
+  // Writes the underlying bytes of the inline bit map to the given buffer. Byte
+  // order is little-endian. Writes out Ceil(bit_count_ / 8) number of bytes.
   void WriteBytesToBuffer(absl::Span<uint8_t> bytes) const {
     XLS_CHECK(kEndianness == Endianness::kLittleEndian);
     // memcpy() requires valid pointers even when the number of bytes copied is
@@ -201,40 +222,34 @@ class InlineBitmap {
   // two's complement integers. If equal, returns 0. If this is greater than
   // other, returns 1. If this is less than other, returns -1.
   int64_t UCmp(const InlineBitmap& other) const {
-    int64_t bit_diff = bit_count_ - other.bit_count_;
-    int64_t bit_min = std::min(bit_count_, other.bit_count_);
-
-    int64_t my_idx = bit_count_ - 1;
-    int64_t other_idx = other.bit_count_ - 1;
-
-    while (bit_diff > 0) {
-      if (Get(my_idx)) {
+    // If this InlineBitmap is longer than other, check if any of the excess
+    // bits are set; if so, this is bigger.
+    int64_t my_word_idx = word_count() - 1;
+    int64_t other_word_idx = other.word_count() - 1;
+    for (; my_word_idx > other_word_idx; --my_word_idx) {
+      if (GetWord(my_word_idx) > 0) {
         return 1;
       }
-      my_idx--;
-      bit_diff--;
     }
-    while (bit_diff < 0) {
-      if (other.Get(other_idx)) {
+    // Do the same if other is longer than this.
+    for (; other_word_idx > my_word_idx; --other_word_idx) {
+      if (other.GetWord(other_word_idx) > 0) {
         return -1;
       }
-      other_idx--;
-      bit_diff++;
     }
 
-    for (int64_t i = 0; i < bit_min; i++) {
-      bool my_word = Get(my_idx);
-      bool other_word = other.Get(other_idx);
-      if (my_word && !other_word) {
+    // Compare word-by-word; due to masking on creation, this is guaranteed to
+    // be accurate and should be much faster than going bit-by-bit.
+    for (int64_t wordno = my_word_idx; wordno >= 0; --wordno) {
+      const uint64_t my_word = GetWord(wordno);
+      const uint64_t other_word = other.GetWord(wordno);
+      if (my_word > other_word) {
         return 1;
       }
-      if (!my_word && other_word) {
+      if (my_word < other_word) {
         return -1;
       }
-      my_idx--;
-      other_idx--;
     }
-
     return 0;
   }
 
@@ -247,6 +262,7 @@ class InlineBitmap {
   }
 
   int64_t byte_count() const { return CeilOfRatio(bit_count_, int64_t{8}); }
+  int64_t word_count() const { return data_.size(); }
 
   template <typename H>
   friend H AbslHashValue(H h, const InlineBitmap& ib) {
@@ -258,7 +274,6 @@ class InlineBitmap {
 
   static constexpr int64_t kWordBits = 64;
   static constexpr int64_t kWordBytes = 8;
-  int64_t word_count() const { return data_.size(); }
 
   void MaskLastWord() {
     if (word_count() == 0) {

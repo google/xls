@@ -26,7 +26,6 @@ fn f() {
   let p: Point = main(u32:42);
   assert_eq(u32:42, p.x);
   assert_eq(u32:42, p.y);
-  ()
 }
 
 #[test]

@@ -14,6 +14,10 @@
 
 #include "xls/ir/value_helpers.h"
 
+#include <functional>
+#include <utility>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"

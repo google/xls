@@ -39,9 +39,7 @@ struct BytecodeEmitterOptions {
   FormatPreference format_preference;
 };
 
-// Translates a DSLX expression tree into a linear sequence of bytecode
-// (bytecodes?).
-// TODO(rspringer): Handle the rest of the Expr node types.
+// Translates a DSLX expression tree into a linear sequence of bytecodes.
 class BytecodeEmitter : public ExprVisitor {
  public:
   // `caller_bindings` contains the symbolic bindings associated with the
@@ -74,6 +72,9 @@ class BytecodeEmitter : public ExprVisitor {
   ~BytecodeEmitter() override;
   absl::Status Init(const Function* f);
 
+  // Precondition: node must be Bits typed.
+  absl::StatusOr<bool> IsBitsTypeNodeSigned(const AstNode* node) const;
+
   // Adds the given bytecode to the program.
   void Add(Bytecode bytecode) { bytecode_.push_back(std::move(bytecode)); }
   absl::Status HandleArray(const Array* node) override;
@@ -84,6 +85,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleChannelDecl(const ChannelDecl* node) override;
   absl::Status HandleColonRef(const ColonRef* node) override;
   absl::StatusOr<InterpValue> HandleColonRefInternal(const ColonRef* node);
+  absl::Status HandleConstAssert(const ConstAssert* node) override;
   absl::Status HandleConstantArray(const ConstantArray* node) override;
   absl::Status HandleConstRef(const ConstRef* node) override;
   absl::Status HandleFor(const For* node) override;
@@ -120,10 +122,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleBuiltinRecvNonBlocking(const Invocation* node);
   absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
   absl::Status HandleBuiltinJoin(const Invocation* node);
-
-  // Given a TypeAlias, determines the EnumDef to which it refers.
-  absl::StatusOr<EnumDef*> ResolveTypeAliasToEnum(const TypeInfo* type_info,
-                                                  TypeAlias* type_alias);
 
   absl::StatusOr<InterpValue> HandleColonRefToEnum(const ColonRef* colon_ref,
                                                    EnumDef* enum_def,

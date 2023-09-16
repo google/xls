@@ -15,6 +15,7 @@
 #include "xls/passes/boolean_simplification_pass.h"
 
 #include <memory>
+#include <optional>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -27,6 +28,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -43,11 +45,12 @@ class BooleanSimplificationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          BooleanSimplificationPass().RunOnFunctionBase(
-                             f, PassOptions(), &results));
+                             f, OptimizationPassOptions(), &results));
     // Run dce to clean things up.
-    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunctionBase(f, PassOptions(), &results)
-                            .status());
+    XLS_RETURN_IF_ERROR(
+        DeadCodeEliminationPass()
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+            .status());
     // Return whether boolean simplification changed anything.
     return changed;
   }

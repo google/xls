@@ -25,5 +25,4 @@ fn main(x: Foo) -> Foo {
 fn test_main() {
   assert_eq(Foo::B, main(Foo::A));
   assert_eq(Foo::A, main(Foo::B));
-  ()
 }

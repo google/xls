@@ -46,6 +46,7 @@ xls_pybind_extension(
         "//xls/ir",
         "//xls/ir/python:wrapper_types",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
         "@pybind11_abseil//pybind11_abseil:absl_casters",
         "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],

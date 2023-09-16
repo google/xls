@@ -15,6 +15,7 @@
 #ifndef XLS_IR_CALL_GRAPH_H_
 #define XLS_IR_CALL_GRAPH_H_
 
+#include <string_view>
 #include <vector>
 
 #include "xls/ir/function.h"

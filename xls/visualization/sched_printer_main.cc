@@ -13,7 +13,10 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstdint>
+#include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -22,26 +25,29 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
+#include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 const char kUsage[] = R"(
 Dump scheduling result to stdout in Graphviz's dot plain text format.
@@ -308,7 +314,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator) {
   absl::StatusOr<PipelineSchedule> schedule_status =
-      PipelineSchedule::Run(main, *delay_estimator, scheduling_options);
+      RunPipelineSchedule(main, *delay_estimator, scheduling_options);
 
   if (!schedule_status.ok()) {
     if (absl::IsResourceExhausted(schedule_status.status())) {
@@ -327,9 +333,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
   return schedule_status;
 }
 
-absl::Status RealMain(std::string_view ir_path,
-                      std::optional<int64_t> clock_period_ps,
-                      std::optional<int64_t> pipeline_stages) {
+absl::Status RealMain(std::string_view ir_path) {
   if (ir_path == "-") {
     ir_path = "/dev/stdin";
   }
@@ -345,14 +349,19 @@ absl::Status RealMain(std::string_view ir_path,
       top_str.empty() ? std::nullopt : std::make_optional(top_str);
   XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindTop(p.get(), maybe_top_str));
 
-  XLS_QCHECK(absl::GetFlag(FLAGS_pipeline_stages) != 0 ||
-             absl::GetFlag(FLAGS_clock_period_ps) != 0)
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+      GetSchedulingOptionsFlagsProto());
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptions scheduling_options,
+      SetUpSchedulingOptions(scheduling_options_flags_proto, p.get()));
+
+  XLS_QCHECK(scheduling_options.pipeline_stages() != 0 ||
+             scheduling_options.clock_period_ps() != 0)
       << "Must specify --pipeline_stages or --clock_period_ps (or both).";
 
-  XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                       SetUpSchedulingOptions(p.get()));
   XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
-                       SetUpDelayEstimator());
+                       SetUpDelayEstimator(scheduling_options_flags_proto));
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       RunSchedulingPipeline(main, scheduling_options, delay_estimator));
@@ -386,16 +395,6 @@ int main(int argc, char** argv) {
     XLS_LOG(QFATAL) << "Expected path argument with IR: " << argv[0]
                     << " <ir_path>";
   }
-
-  std::optional<int64_t> clock_period_ps;
-  if (absl::GetFlag(FLAGS_clock_period_ps) > 0) {
-    clock_period_ps = absl::GetFlag(FLAGS_clock_period_ps);
-  }
-  std::optional<int64_t> pipeline_stages;
-  if (absl::GetFlag(FLAGS_pipeline_stages) > 0) {
-    pipeline_stages = absl::GetFlag(FLAGS_pipeline_stages);
-  }
-  XLS_QCHECK_OK(
-      xls::RealMain(positional_arguments[0], clock_period_ps, pipeline_stages));
+  XLS_CHECK_OK(xls::RealMain(positional_arguments[0]));
   return EXIT_SUCCESS;
 }

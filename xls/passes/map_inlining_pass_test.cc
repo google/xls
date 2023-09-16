@@ -19,6 +19,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 namespace {
@@ -48,7 +49,7 @@ fn main() -> bits[16][4] {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(kPackage));
   XLS_ASSERT_OK_AND_ASSIGN(auto func, package->GetFunction("main"));
   MapInliningPass pass;
-  PassOptions options;
+  OptimizationPassOptions options;
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pass.RunOnFunctionBase(func, options, nullptr));
   ASSERT_TRUE(changed);
@@ -79,7 +80,7 @@ fn main(a: bits[32][4]) -> bits[16][4] {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(kPackage));
   XLS_ASSERT_OK_AND_ASSIGN(auto func, package->GetFunction("main"));
   MapInliningPass pass;
-  PassOptions options;
+  OptimizationPassOptions options;
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pass.RunOnFunctionBase(func, options, nullptr));
   ASSERT_TRUE(changed);

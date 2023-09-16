@@ -16,9 +16,16 @@
 // for use in logical equivalence checking.
 
 #include <functional>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -119,8 +126,7 @@ int main(int argc, char** argv) {
                     << " <lib_path> <cell_name>";
   }
 
-  XLS_QCHECK_OK(xls::netlist::cell_lib::RealMain(
+  return xls::ExitStatus(xls::netlist::cell_lib::RealMain(
       positional_arguments[0], positional_arguments[1],
       absl::GetFlag(FLAGS_stream_from_file)));
-  return EXIT_SUCCESS;
 }

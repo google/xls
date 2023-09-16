@@ -21,8 +21,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 namespace {
@@ -36,7 +36,18 @@ TEST(BindingsTest, ParseErrorGetData) {
   Pos limit_pos("fake_file.x", 43, 65);
   Span span(start_pos, limit_pos);
   absl::Status status = ParseErrorStatus(span, "my message");
-  XLS_ASSERT_OK_AND_ASSIGN(auto got, GetPositionalErrorData(status));
+  XLS_ASSERT_OK_AND_ASSIGN(PositionalErrorData got,
+                           GetPositionalErrorData(status));
+  EXPECT_EQ(got.span, span);
+  EXPECT_EQ(got.message, "my message");
+  EXPECT_EQ(got.error_type, "ParseError");
+}
+
+TEST(BindingsTest, ParseErrorFakeSpanGetData) {
+  Span span = FakeSpan();
+  absl::Status status = ParseErrorStatus(span, "my message");
+  XLS_ASSERT_OK_AND_ASSIGN(PositionalErrorData got,
+                           GetPositionalErrorData(status));
   EXPECT_EQ(got.span, span);
   EXPECT_EQ(got.message, "my message");
   EXPECT_EQ(got.error_type, "ParseError");
@@ -68,6 +79,22 @@ TEST(BindingsTest, ResolveNameOrNulloptMissingCase) {
   std::optional<AnyNameDef> result =
       bindings.ResolveNameOrNullopt("not_present");
   EXPECT_FALSE(result.has_value());
+}
+
+TEST(ParseNameErrorTest, ExtractName) {
+  const std::string_view kName = "shoobadooba";
+  const Span kFakeSpan = FakeSpan();
+  const absl::Status name_error = ParseNameErrorStatus(kFakeSpan, kName);
+  std::optional<std::string_view> name = MaybeExtractParseNameError(name_error);
+  ASSERT_TRUE(name.has_value());
+  EXPECT_EQ(name.value(), kName);
+}
+
+TEST(ParseNameErrorTest, ExtractFromNonNameError) {
+  const absl::Status error = absl::InvalidArgumentError(
+      "Cannot find a definition for stuff: \"andthings\"");
+  std::optional<std::string_view> name = MaybeExtractParseNameError(error);
+  ASSERT_FALSE(name.has_value());
 }
 
 }  // namespace

@@ -43,13 +43,13 @@ cc_test(
     srcs = ["ir_integrator_test.cc"],
     deps = [
         ":ir_integrator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -71,12 +71,12 @@ cc_test(
     srcs = ["integration_builder_test.cc"],
     deps = [
         ":integration_builder",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )

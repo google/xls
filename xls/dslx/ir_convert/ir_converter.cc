@@ -65,6 +65,8 @@
 namespace xls::dslx {
 namespace {
 
+constexpr WarningCollector* kNoWarningCollector = nullptr;
+
 // Tries four heuristics as names for potential entry functions of the package.
 // Returns the first found heuristic. Otherwise, returns an absl::NotFoundError.
 absl::StatusOr<xls::Function*> GetEntryFunction(xls::Package* package) {
@@ -172,9 +174,10 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
       // Verify that there are no parametric bindings.
       XLS_RET_CHECK(record.parametric_env().empty());
       XLS_ASSIGN_OR_RETURN(
-          InterpValue iv, ConstexprEvaluator::EvaluateToValue(
-                              import_data, record.type_info(),
-                              record.parametric_env(), p->init()->body(), foo));
+          InterpValue iv,
+          ConstexprEvaluator::EvaluateToValue(
+              import_data, record.type_info(), kNoWarningCollector,
+              record.parametric_env(), p->init()->body(), foo));
       XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(iv));
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }
@@ -423,7 +426,7 @@ absl::Status AddContentsToPackage(
       std::unique_ptr<Module> module,
       ParseText(file_contents, module_name, /*print_on_error=*/true,
                 /*filename=*/path.value_or("<UNKNOWN>"), printed_error));
-  WarningCollector warnings;
+  WarningCollector warnings(import_data->enabled_warnings());
   absl::StatusOr<TypeInfo*> type_info_or =
       CheckModule(module.get(), import_data, &warnings);
   if (!type_info_or.ok()) {
@@ -480,7 +483,8 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
         "path to know where to resolve the entry function");
   }
   for (std::string_view path : paths) {
-    ImportData import_data(CreateImportData(stdlib_path, dslx_paths));
+    ImportData import_data(CreateImportData(stdlib_path, dslx_paths,
+                                            convert_options.enabled_warnings));
     XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
     XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
     XLS_RETURN_IF_ERROR(AddContentsToPackage(

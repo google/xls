@@ -14,6 +14,8 @@
 
 #include "xls/ir/format_preference.h"
 
+#include <string_view>
+
 #include "absl/strings/str_format.h"
 
 namespace xls {

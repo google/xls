@@ -14,6 +14,8 @@
 
 #include "xls/scheduling/schedule_bounds.h"
 
+#include <limits>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

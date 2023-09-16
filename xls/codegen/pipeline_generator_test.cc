@@ -30,6 +30,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
@@ -74,8 +75,8 @@ TEST_P(PipelineGeneratorTest, TrivialFunction) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -98,8 +99,8 @@ TEST_P(PipelineGeneratorTest, ReturnLiteral) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -129,8 +130,8 @@ TEST_P(PipelineGeneratorTest, ReturnTupleLiteral) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -158,8 +159,8 @@ TEST_P(PipelineGeneratorTest, ReturnEmptyTuple) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -181,8 +182,8 @@ TEST_P(PipelineGeneratorTest, NestedEmptyTuple) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -208,8 +209,8 @@ TEST_P(PipelineGeneratorTest, TakesEmptyTuple) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(
@@ -232,8 +233,8 @@ TEST_P(PipelineGeneratorTest, PassesEmptyTuple) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(
@@ -254,8 +255,8 @@ TEST_P(PipelineGeneratorTest, ReturnArrayLiteral) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -285,8 +286,8 @@ TEST_P(PipelineGeneratorTest, SingleNegate) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(40)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -306,8 +307,8 @@ TEST_P(PipelineGeneratorTest, PassThroughArray) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -338,8 +339,8 @@ TEST_P(PipelineGeneratorTest, TupleOfArrays) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -370,8 +371,8 @@ TEST_P(PipelineGeneratorTest, MultidimensionalArray) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -415,7 +416,7 @@ TEST_P(PipelineGeneratorTest, TreeOfAdds) {
       TestDelayEstimator().GetOperationDelayInPs(out.node()));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(
+      RunPipelineSchedule(
           func, TestDelayEstimator(),
           SchedulingOptions().clock_period_ps(add_delay_in_ps * 2)));
 
@@ -462,8 +463,8 @@ TEST_P(PipelineGeneratorTest, BigExpressionInOneStage) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(4000)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(4000)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -489,8 +490,8 @@ TEST_P(PipelineGeneratorTest, IdentityOfMul) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(50)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(50)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -517,8 +518,8 @@ TEST_P(PipelineGeneratorTest, RequiredNamedIntermediates) {
   // stage.
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(400)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -546,8 +547,8 @@ TEST_P(PipelineGeneratorTest, BinarySelect) {
   // stage.
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(400)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -574,8 +575,8 @@ TEST_P(PipelineGeneratorTest, TwoBitSelector) {
   // stage.
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(400)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -603,8 +604,8 @@ TEST_P(PipelineGeneratorTest, TwoBitSelectorAllCasesPopulated) {
   // stage.
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(400)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -632,8 +633,8 @@ TEST_P(PipelineGeneratorTest, ValidSignal) {
   // stage.
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(400)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -661,8 +662,8 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -722,8 +723,8 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
     // stage.
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(func, TestDelayEstimator(),
-                              SchedulingOptions().clock_period_ps(400)));
+        RunPipelineSchedule(func, TestDelayEstimator(),
+                            SchedulingOptions().clock_period_ps(400)));
 
     const int64_t kAssertReset = active_low ? 0 : 1;
     const int64_t kDeassertReset = active_low ? 1 : 0;
@@ -824,8 +825,8 @@ TEST_P(PipelineGeneratorTest, CustomModuleName) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(40)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -847,8 +848,8 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsAndOutputs) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -879,8 +880,8 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsNotOutputs) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -911,8 +912,8 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopOutputsNotInputs) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -943,8 +944,8 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopNeitherInputsNorOutputs) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -980,8 +981,8 @@ TEST_P(PipelineGeneratorTest, EmitsCoverpoints) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(1)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -1011,8 +1012,8 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(5)));
 
   ResetProto reset_proto;
   reset_proto.set_name("rst");
@@ -1104,7 +1105,7 @@ proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(
+      RunPipelineSchedule(
           proc, TestDelayEstimator(),
           SchedulingOptions().clock_period_ps(50).pipeline_stages(2)));
 

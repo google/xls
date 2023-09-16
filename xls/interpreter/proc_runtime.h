@@ -16,6 +16,7 @@
 #define XLS_INTERPRETER_PROC_RUNTIME_H_
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "absl/status/statusor.h"

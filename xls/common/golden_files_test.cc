@@ -14,6 +14,8 @@
 
 #include "xls/common/golden_files.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"

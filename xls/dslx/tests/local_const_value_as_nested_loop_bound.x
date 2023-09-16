@@ -14,9 +14,9 @@
 
 fn main(input: u32) -> u32 {
   const FOO = u32:2;
-  for(idx, acc): (u32, u32) in range(u32:0, FOO) {
-    for(idx, acc): (u32, u32) in range(u32:0, FOO) {
-      for(idx, acc): (u32, u32) in range(u32:0, FOO) {
+  for(_, acc): (u32, u32) in range(u32:0, FOO) {
+    for(_, acc): (u32, u32) in range(u32:0, FOO) {
+      for(_, acc): (u32, u32) in range(u32:0, FOO) {
         acc + input
       }(acc)
     }(acc)

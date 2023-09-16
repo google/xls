@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -30,6 +31,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
@@ -1152,6 +1154,15 @@ fn f(x: u32) {
 })");
 }
 
+TEST_F(ParserTest, MatchWithNumberRangePattern) {
+  RoundTrip(R"(fn f(x: u32) {
+    match x {
+        u32:42..u32:64 => u32:64,
+        _ => u32:42,
+    }
+})");
+}
+
 TEST_F(ParserTest, ArrayTypeAnnotation) {
   std::string s = "u8[2]";
   scanner_.emplace(kFilename, s);
@@ -1442,6 +1453,18 @@ TEST_F(ParserTest, ConstantArray) {
 
 TEST_F(ParserTest, DoubleNegation) { RoundTripExpr("!!x", {"x"}, false); }
 
+TEST_F(ParserTest, ArithmeticOperatorPrecedence) {
+  Expr* e = RoundTripExpr("-a + b % c", {"a", "b", "c"});
+  auto* binop = dynamic_cast<Binop*>(e);
+  EXPECT_EQ(binop->binop_kind(), BinopKind::kAdd);
+
+  auto* unop = dynamic_cast<Unop*>(binop->lhs());
+  EXPECT_EQ(unop->unop_kind(), UnopKind::kNegate);
+
+  auto* binop_rhs = dynamic_cast<Binop*>(binop->rhs());
+  EXPECT_EQ(binop_rhs->binop_kind(), BinopKind::kMod);
+}
+
 TEST_F(ParserTest, LogicalOperatorPrecedence) {
   Expr* e = RoundTripExpr("!a || !b && c", {"a", "b", "c"});
   auto* binop = dynamic_cast<Binop*>(e);
@@ -1645,6 +1668,40 @@ proc main {
                "from within a proc config function."));
 }
 
+TEST_F(ParserTest, ProcDuplicateConfig) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+    x12: chan<u8> in;
+    config(x27: chan<u8> in) { (x27,) }
+    config(x27: chan<u8> in) { (x27,) }
+    next(x0: token, s: ()) { () }
+})";
+  Scanner s{"test.x", std::string{kProgram}};
+  Parser parser{"test", &s};
+  auto module_status = parser.ParseModule();
+  ASSERT_THAT(module_status,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("proc `main` config function was already "
+                                 "specified @ test.x:5:5-5:11")));
+}
+
+TEST_F(ParserTest, ProcDuplicateNext) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+    x12: chan<u8> in;
+    config(x27: chan<u8> in) { (x27,) }
+    next(x0: token, s: ()) { () }
+    next(x0: token, s: ()) { () }
+})";
+  Scanner s{"test.x", std::string{kProgram}};
+  Parser parser{"test", &s};
+  auto module_status = parser.ParseModule();
+  ASSERT_THAT(module_status,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("proc `main` next function was already "
+                                 "specified @ test.x:6:5-6:9")));
+}
+
 TEST_F(ParserTest, NumberSpan) {
   XLS_ASSERT_OK_AND_ASSIGN(Expr * e, ParseExpr("u32:42"));
   auto* number = dynamic_cast<Number*>(e);
@@ -1772,6 +1829,132 @@ TEST_F(ParserTest, ChannelDeclWithFifoDepthExpression) {
   Scanner s{"test.x", std::string(kProgram)};
   Parser parser{"test", &s};
   XLS_EXPECT_OK(parser.ParseModule());
+}
+
+TEST_F(ParserTest, UnterminatedString) {
+  constexpr std::string_view kProgram = R"(const A=")";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(
+      parser.ParseModule(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("ScanError: test.x:1:10-1:10 Reached end of file "
+                         "without finding a closing double quote")));
+}
+
+TEST_F(ParserTest, UnterminatedEscapedChar) {
+  constexpr std::string_view kProgram = "'\\d";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("ScanError: test.x:1:2-1:3 Unrecognized "
+                                 "escape sequence: `\\d`")));
+}
+
+TEST_F(ParserTest, UnterminatedEscapedUnicodeChar) {
+  constexpr std::string_view kProgram = R"(const A="\u)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unexpected EOF in escaped unicode character")));
+}
+
+TEST_F(ParserTest, UnterminatedEscapedHexChar) {
+  constexpr std::string_view kProgram = "const A='\\x";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unexpected EOF in escaped hexadecimal character")))
+      << module_or.status();
+}
+
+TEST_F(ParserTest, ConstShadowsImport) {
+  constexpr std::string_view kProgram = R"(import x
+const x)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       "ParseError: test.x:2:7-2:8 Constant definition is "
+                       "shadowing an existing definition from test.x:1:1-1:7"));
+}
+
+TEST_F(ParserTest, ZeroLengthStringAtEof) {
+  constexpr std::string_view kProgram = "const A=\"\"";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Zero-length strings are not supported.")))
+      << module_or.status();
+}
+
+TEST_F(ParserTest, RepetitiveImport) {
+  constexpr std::string_view kProgram = R"(import repetitively
+import repetitively)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Import of `repetitively` is shadowing an existing "
+                         "definition at test.x:1:1-1:7")))
+      << module_or.status();
+}
+
+TEST_F(ParserTest, UnreasonablyDeepExpr) {
+  // Note: this is the minimum number of parentheses required to trigger the
+  // error.
+  constexpr std::string_view kProgram = R"(const E=
+((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((()";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or, StatusIs(absl::StatusCode::kInvalidArgument,
+                                  HasSubstr("Expression is too deeply nested")))
+      << module_or.status();
+}
+
+TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
+  constexpr std::string_view kProgram = "const A=4[5]:[";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Type before ':' for presumed array literal was not a "
+                         "type definition; got `4` (kind: number)")))
+      << module_or.status();
+}
+
+TEST(ParserErrorTest, WildcardPatternExpressionStatement) {
+  constexpr std::string_view kProgram = R"(
+const MOL = u32:42;
+#[test]
+fn test_f() {
+    let _ = assert_eq(u32:42, MOL);
+    _
+}
+)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("Wildcard pattern `_` cannot be used as a reference")))
+      << module_or.status();
 }
 
 }  // namespace xls::dslx

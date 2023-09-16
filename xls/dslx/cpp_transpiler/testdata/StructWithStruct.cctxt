@@ -1,0 +1,106 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#include <vector>
+
+#include "fake_path.h"
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+
+absl::StatusOr<InnerStruct> InnerStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
+    return absl::InvalidArgumentError(
+        "InnerStruct::FromValue input must be a 2-tuple.");
+  }
+
+  InnerStruct result;
+  result.x = value.element(0).bits().ToUint64().value();
+  result.y = value.element(1).bits().ToUint64().value();
+  return result;
+}
+
+::xls::Value InnerStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value x_value;
+  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
+  members.push_back(x_value);
+  ::xls::Value y_value;
+  y_value = ::xls::Value(::xls::UBits(y, /*bit_count=*/16));
+  members.push_back(y_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const InnerStruct& data) {
+  os << data.ToString();
+  return os;
+}
+std::string InnerStruct::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "InnerStruct {\n";
+  result += indent_str + "  x: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  y: " + elements[1].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool InnerStruct::operator==(const InnerStruct& other) const {
+  return x == other.x && y == other.y;
+}
+
+absl::StatusOr<OuterStruct> OuterStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 3) {
+    return absl::InvalidArgumentError(
+        "OuterStruct::FromValue input must be a 3-tuple.");
+  }
+
+  OuterStruct result;
+  result.x = value.element(0).bits().ToUint64().value();
+  auto result_a_or = InnerStruct::FromValue(value.element(1));
+  if (!result_a_or.ok()) {
+    return result_a_or.status();
+  }
+  result.a = result_a_or.value();
+  auto result_b_or = InnerStruct::FromValue(value.element(2));
+  if (!result_b_or.ok()) {
+    return result_b_or.status();
+  }
+  result.b = result_b_or.value();
+  return result;
+}
+
+::xls::Value OuterStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(3);
+  ::xls::Value x_value;
+  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
+  members.push_back(x_value);
+  ::xls::Value a_value;
+  a_value = a.ToValue();
+  members.push_back(a_value);
+  ::xls::Value b_value;
+  b_value = b.ToValue();
+  members.push_back(b_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
+  os << data.ToString();
+  return os;
+}
+std::string OuterStruct::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "OuterStruct {\n";
+  result += indent_str + "  x: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  a: " + a.ToString(indent + 1) + ",\n";
+  result += indent_str + "  b: " + b.ToString(indent + 1) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool OuterStruct::operator==(const OuterStruct& other) const {
+  return x == other.x && a == other.a && b == other.b;
+}

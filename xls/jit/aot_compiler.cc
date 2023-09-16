@@ -17,6 +17,12 @@
 // wrap (i.e., simplify) execution of the generated code, and writes the trio to
 // disk.
 
+#include <iostream>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"

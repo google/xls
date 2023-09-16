@@ -15,6 +15,9 @@
 #ifndef XLS_FUZZER_DSLX_MUTATOR_H_
 #define XLS_FUZZER_DSLX_MUTATOR_H_
 
+#include <string>
+#include <string_view>
+
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/statusor.h"
 

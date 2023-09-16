@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -22,17 +23,19 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/run_comparator.h"
 #include "xls/dslx/run_routines.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/format_preference.h"
 
 // LINT.IfChange
@@ -53,8 +56,13 @@ ABSL_FLAG(
 // TODO(leary): 2021-01-19 allow filters with wildcards.
 ABSL_FLAG(std::string, test_filter, "",
           "Target (currently *single*) test name to run.");
+
+ABSL_FLAG(std::string, disable_warnings, "",
+          "Comma-delimited list of warnings to disable -- not generally "
+          "recommended, but can be used in exceptional circumstances");
 ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
+
 ABSL_FLAG(bool, trace_channels, false,
           "If true, values sent and received on channels are emitted as trace "
           "messages");
@@ -66,7 +74,7 @@ ABSL_FLAG(int64_t, max_ticks, 100000,
 namespace xls::dslx {
 namespace {
 
-enum class CompareFlag {
+enum class CompareFlag : uint8_t {
   kNone,
   kJit,
   kInterpreter,
@@ -76,14 +84,16 @@ const char* kUsage = R"(
 Parses, typechecks, and executes all tests inside of a DSLX module.
 )";
 
-absl::Status RealMain(std::string_view entry_module_path,
+absl::StatusOr<TestResult> RealMain(std::string_view entry_module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       const std::optional<std::string>& test_filter,
                       FormatPreference format_preference,
                       CompareFlag compare_flag, bool execute,
                       bool warnings_as_errors, std::optional<int64_t> seed,
-                      bool trace_channels, std::optional<int64_t> max_ticks,
-                      bool* printed_error) {
+                      bool trace_channels, std::optional<int64_t> max_ticks) {
+  XLS_ASSIGN_OR_RETURN(
+      WarningKindSet warnings,
+      WarningKindSetFromDisabledString(absl::GetFlag(FLAGS_disable_warnings)));
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
 
@@ -107,13 +117,13 @@ absl::Status RealMain(std::string_view entry_module_path,
                                  .execute = execute,
                                  .seed = seed,
                                  .warnings_as_errors = warnings_as_errors,
+                                 .warnings = warnings,
                                  .trace_channels = trace_channels,
                                  .max_ticks = max_ticks};
   XLS_ASSIGN_OR_RETURN(
       TestResult test_result,
       ParseAndTest(program, module_name, entry_module_path, options));
-  *printed_error = test_result != TestResult::kAllPassed;
-  return absl::OkStatus();
+  return test_result;
 }
 
 }  // namespace
@@ -180,13 +190,14 @@ int main(int argc, char* argv[]) {
     preference = flag_preference.value();
   }
 
-  bool printed_error = false;
-  absl::Status status = xls::dslx::RealMain(
+  absl::StatusOr<xls::dslx::TestResult> test_result = xls::dslx::RealMain(
       args[0], dslx_paths, test_filter, preference, compare_flag, execute,
-      warnings_as_errors, seed, trace_channels, max_ticks, &printed_error);
-  if (printed_error) {
+      warnings_as_errors, seed, trace_channels, max_ticks);
+  if (!test_result.ok()) {
+    return xls::ExitStatus(test_result.status());
+  }
+  if (*test_result != xls::dslx::TestResult::kAllPassed) {
     return EXIT_FAILURE;
   }
-  XLS_QCHECK_OK(status);
   return EXIT_SUCCESS;
 }

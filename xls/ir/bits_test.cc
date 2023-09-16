@@ -14,15 +14,21 @@
 
 #include "xls/ir/bits.h"
 
+#include <algorithm>
+#include <limits>
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
 #include "rapidcheck/gtest.h"
 #include "rapidcheck.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/bits_test_helpers.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/value.h"
 
@@ -33,30 +39,6 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
-
-// Create a Bits of the given bit count with the prime number index bits set to
-// one.
-Bits PrimeBits(int64_t bit_count) {
-  auto is_prime = [](int64_t n) {
-    if (n < 2) {
-      return false;
-    }
-    for (int64_t i = 2; i * i < n; ++i) {
-      if (n % i == 0) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  std::vector<uint8_t> bytes(CeilOfRatio(bit_count, int64_t{8}), 0);
-  for (int64_t i = 0; i < bit_count; ++i) {
-    if (is_prime(i)) {
-      bytes[i / 8] |= 1 << (i % 8);
-    }
-  }
-  return Bits::FromBytes(bytes, bit_count);
-}
 
 TEST(BitsTest, BitsConstructor) {
   Bits empty(0);
@@ -89,7 +71,7 @@ TEST(BitsTest, BitsVectorConstructor) {
   std::vector<uint8_t> bytes = {0x1,  0xab, 0xcd, 0xef, 0x12, 0x34,
                                 0x56, 0x78, 0x90, 0xfe, 0xdc, 0xba};
   std::reverse(bytes.begin(), bytes.end());
-  EXPECT_EQ(Bits::FromBytes(bytes, 89).ToString(FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(Bits::FromBytes(bytes, 89), FormatPreference::kHex),
             "0x1ab_cdef_1234_5678_90fe_dcba");
 }
 
@@ -294,132 +276,6 @@ TEST(BitsTest, ToUint64OrInt64) {
 }
 
 // Remove 0x or 0b prefix and separators to get plain output.
-std::string ToPlainString(std::string s) {
-  return absl::StrJoin(absl::StrSplit(s.substr(2), '_'), "");
-}
-
-TEST(BitsTest, ToString) {
-  auto test_binary = [](Bits b, std::string expected) {
-    EXPECT_EQ(b.ToString(FormatPreference::kBinary), expected);
-    EXPECT_EQ(b.ToString(FormatPreference::kPlainBinary),
-              ToPlainString(expected));
-  };
-
-  auto test_hex = [](Bits b, std::string expected) {
-    EXPECT_EQ(b.ToString(FormatPreference::kHex), expected);
-    EXPECT_EQ(b.ToString(FormatPreference::kPlainHex), ToPlainString(expected));
-  };
-
-  Bits empty_bits(0);
-  EXPECT_EQ(empty_bits.ToString(FormatPreference::kUnsignedDecimal), "0");
-  EXPECT_EQ(empty_bits.ToString(FormatPreference::kSignedDecimal), "0");
-  test_hex(empty_bits, "0x0");
-  test_binary(empty_bits, "0b0");
-  EXPECT_EQ(empty_bits.ToString(FormatPreference::kUnsignedDecimal,
-                                /*include_bit_count=*/true),
-            "0 [0 bits]");
-  EXPECT_EQ(empty_bits.ToString(FormatPreference::kSignedDecimal,
-                                /*include_bit_count=*/true),
-            "0 [0 bits]");
-
-  Bits b1 = UBits(1, 1);
-  EXPECT_EQ(b1.ToString(FormatPreference::kUnsignedDecimal), "1");
-  EXPECT_EQ(b1.ToString(FormatPreference::kSignedDecimal), "-1");
-  test_hex(b1, "0x1");
-  test_binary(b1, "0b1");
-
-  test_binary(UBits(1, 16), "0b1");
-  test_hex(UBits(1, 16), "0x1");
-
-  Bits b42 = UBits(42, 7);
-  EXPECT_EQ(b42.ToString(FormatPreference::kUnsignedDecimal), "42");
-  EXPECT_EQ(b42.ToString(FormatPreference::kSignedDecimal), "42");
-  test_hex(b42, "0x2a");
-  test_binary(b42, "0b10_1010");
-
-  Bits prime64 = PrimeBits(64);
-  EXPECT_EQ(prime64.ToString(FormatPreference::kUnsignedDecimal),
-            "2892025783495830204");
-  EXPECT_EQ(prime64.ToString(FormatPreference::kSignedDecimal),
-            "2892025783495830204");
-  test_hex(prime64, "0x2822_8a20_a28a_2abc");
-  test_binary(
-      prime64,
-      "0b10_1000_0010_0010_1000_1010_0010_0000_1010_0010_1000_1010_0010_"
-      "1010_1011_1100");
-
-  // Test widths wider than 64. Decimal output for wide bit counts is not
-  // supported.
-  test_hex(PrimeBits(65), "0x2822_8a20_a28a_2abc");
-  test_binary(
-      PrimeBits(65),
-      "0b10_1000_0010_0010_1000_1010_0010_0000_1010_0010_1000_1010_0010_"
-      "1010_1011_1100");
-
-  test_hex(PrimeBits(96), "0x208_8288_2822_8a20_a28a_2abc");
-  test_binary(
-      PrimeBits(96),
-      "0b10_0000_1000_1000_0010_1000_1000_0010_1000_0010_0010_1000_1010_"
-      "0010_0000_1010_0010_1000_1010_0010_1010_1011_1100");
-}
-
-TEST(BitsTest, ToRawString) {
-  Bits empty_bits(0);
-  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kUnsignedDecimal), "0");
-  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kSignedDecimal), "0");
-  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kHex), "0");
-  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kBinary), "0");
-  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kHex,
-                                   /*emit_leading_zeros=*/true),
-            "0");
-  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kBinary,
-                                   /*emit_leading_zeros=*/true),
-            "0");
-
-  EXPECT_EQ(UBits(1, 16).ToRawDigits(FormatPreference::kBinary), "1");
-  EXPECT_EQ(UBits(1, 16).ToRawDigits(FormatPreference::kHex), "1");
-  EXPECT_EQ(UBits(1, 16).ToRawDigits(FormatPreference::kBinary,
-                                     /*emit_leading_zeros=*/true),
-            "0000_0000_0000_0001");
-  EXPECT_EQ(UBits(1, 16).ToRawDigits(FormatPreference::kPlainBinary,
-                                     /*emit_leading_zeros=*/true),
-            "0000000000000001");
-  EXPECT_EQ(UBits(1, 16).ToRawDigits(FormatPreference::kHex,
-                                     /*emit_leading_zeros=*/true),
-            "0001");
-  EXPECT_EQ(UBits(1, 16).ToRawDigits(FormatPreference::kPlainHex,
-                                     /*emit_leading_zeros=*/true),
-            "0001");
-
-  EXPECT_EQ(UBits(0x1b, 13).ToRawDigits(FormatPreference::kBinary), "1_1011");
-  EXPECT_EQ(UBits(0x1b, 13).ToRawDigits(FormatPreference::kHex), "1b");
-  EXPECT_EQ(UBits(0x1b, 13).ToRawDigits(FormatPreference::kBinary,
-                                        /*emit_leading_zeros=*/true),
-            "0_0000_0001_1011");
-  EXPECT_EQ(UBits(0x1b, 13).ToRawDigits(FormatPreference::kPlainBinary,
-                                        /*emit_leading_zeros=*/true),
-            "0000000011011");
-  EXPECT_EQ(UBits(0x1b, 13).ToRawDigits(FormatPreference::kHex,
-                                        /*emit_leading_zeros=*/true),
-            "001b");
-  EXPECT_EQ(UBits(0x1b, 13).ToRawDigits(FormatPreference::kPlainHex,
-                                        /*emit_leading_zeros=*/true),
-            "001b");
-
-  EXPECT_EQ(UBits(0x55, 17).ToRawDigits(FormatPreference::kBinary,
-                                        /*emit_leading_zeros=*/true),
-            "0_0000_0000_0101_0101");
-  EXPECT_EQ(UBits(0x55, 17).ToRawDigits(FormatPreference::kPlainBinary,
-                                        /*emit_leading_zeros=*/true),
-            "00000000001010101");
-  EXPECT_EQ(UBits(0x55, 17).ToRawDigits(FormatPreference::kHex,
-                                        /*emit_leading_zeros=*/true),
-            "0_0055");
-  EXPECT_EQ(UBits(0x55, 17).ToRawDigits(FormatPreference::kPlainHex,
-                                        /*emit_leading_zeros=*/true),
-            "00055");
-}
-
 TEST(BitsTest, UBitsFactory) {
   Bits b0 = UBits(0, 1);
   EXPECT_THAT(b0.ToInt64(), IsOkAndHolds(0));
@@ -608,7 +464,7 @@ TEST(BitsTest, Slice) {
   EXPECT_EQ(big_prime, big_prime.Slice(0, big_prime.bit_count()));
   // Random primes in some range: 2377 2381 2383 2389 2393
   // Slice out this range and verify the appropriate 5 bits are set.
-  EXPECT_EQ(big_prime.Slice(2377, 17).ToString(FormatPreference::kBinary),
+  EXPECT_EQ(BitsToString(big_prime.Slice(2377, 17), FormatPreference::kBinary),
             "0b1_0001_0000_0101_0001");
 }
 

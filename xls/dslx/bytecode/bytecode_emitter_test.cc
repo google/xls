@@ -24,6 +24,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/create_import_data.h"
@@ -31,6 +33,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -94,7 +97,7 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
   ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(2));
 
   bc = &bytecodes[4];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kAdd);
+  ASSERT_EQ(bc->op(), Bytecode::Op::kUAdd);
   ASSERT_FALSE(bc->has_data());
 }
 
@@ -264,7 +267,7 @@ fn do_match() -> u32 {
 023 pop
 024 load 0
 025 literal u32:1
-026 add
+026 uadd
 027 jump_rel +3
 028 jump_dest
 029 fail trace data: The value was not matched: value: , default
@@ -291,24 +294,38 @@ fn binops_galore() {
   let a = u32:4;
   let b = u32:2;
 
-  let add = a + b;
-  let and = a & b;
-  let concat = a ++ b;
-  let div = a / b;
-  let eq = a == b;
-  let ge = a >= b;
-  let gt = a > b;
-  let le = a <= b;
-  let lt = a < b;
-  let mul = a * b;
-  let ne = a != b;
-  let or = a | b;
-  let shl = a << b;
-  let shr = a >> b;
-  let sub = a - b;
-  let xor = a ^ b;
+  let uadd = a + b;
+  let uand = a & b;
+  let uconcat = a ++ b;
+  let udiv = a / b;
+  let ueq = a == b;
+  let uge = a >= b;
+  let ugt = a > b;
+  let ule = a <= b;
+  let ult = a < b;
+  let umul = a * b;
+  let une = a != b;
+  let uor = a | b;
+  let ushl = a << b;
+  let ushr = a >> b;
+  let usub = a - b;
+  let uxor = a ^ b;
 
-  ()
+  let c = s32:4;
+  let d = s32:2;
+  let sadd = c + d;
+  let sand = c & d;
+  let sdiv = c / d;
+  let seq = c == d;
+  let sge = c >= d;
+  let sgt = c > d;
+  let sle = c <= d;
+  let slt = c < d;
+  let smul = c * d;
+  let sne = c != d;
+  let sor = c | d;
+  let ssub = c - d;
+  let sxor = c ^ d;
 })";
 
   ImportData import_data(CreateImportDataForTest());
@@ -317,54 +334,43 @@ fn binops_galore() {
       EmitBytecodes(&import_data, kProgram, "binops_galore"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 69);
-  const Bytecode* bc = &bytecodes[6];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kAdd);
-
-  bc = &bytecodes[10];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kAnd);
-
-  bc = &bytecodes[14];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kConcat);
-
-  bc = &bytecodes[18];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kDiv);
-
-  bc = &bytecodes[22];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kEq);
-
-  bc = &bytecodes[26];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kGe);
-
-  bc = &bytecodes[30];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kGt);
-
-  bc = &bytecodes[34];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLe);
-
-  bc = &bytecodes[38];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLt);
-
-  bc = &bytecodes[42];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kMul);
-
-  bc = &bytecodes[46];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kNe);
-
-  bc = &bytecodes[50];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kOr);
-
-  bc = &bytecodes[54];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kShl);
-
-  bc = &bytecodes[58];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kShr);
-
-  bc = &bytecodes[62];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kSub);
-
-  bc = &bytecodes[66];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kXor);
+  std::string got = BytecodesToString(bytecodes, /*source_locs=*/false);
+  std::vector<std::string_view> opcodes;
+  for (std::string_view line : absl::StrSplit(got, '\n')) {
+    if (RE2::FullMatch(line, RE2(R"(^\d+ (literal|store|load).*$)"))) {
+      continue;
+    }
+    opcodes.push_back(line);
+  }
+  EXPECT_EQ(absl::StrJoin(opcodes, "\n"), R"(006 uadd
+010 and
+014 concat
+018 div
+022 eq
+026 ge
+030 gt
+034 le
+038 lt
+042 umul
+046 ne
+050 or
+054 shl
+058 shr
+062 usub
+066 xor
+074 sadd
+078 and
+082 div
+086 eq
+090 ge
+094 gt
+098 le
+102 lt
+106 smul
+110 ne
+114 or
+118 ssub
+122 xor)");
 }
 
 // Tests emission of all of the supported binary operators.
@@ -461,7 +467,7 @@ index @ test.x:6:4-6:11
 load 1 @ test.x:6:14-6:15
 literal u32:1 @ test.x:6:20-6:21
 index @ test.x:6:15-6:22
-add @ test.x:6:12-6:13)";
+uadd @ test.x:6:12-6:13)";
   std::string got = absl::StrJoin(bf->bytecodes(), "\n",
                                   [](std::string* out, const Bytecode& b) {
                                     absl::StrAppend(out, b.ToString());
@@ -666,12 +672,16 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
 )";
 
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
-                           ParseAndTypecheck(kImportedProgram, "import_0.x",
-                                             "import_0", &import_data));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(kImportedProgram, "import_0.x",
+                                               "import_0", &import_data));
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
@@ -702,12 +712,16 @@ fn imported_enum_ref() -> u3 {
 )";
 
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
-                           ParseAndTypecheck(kImportedProgram, "import_0.x",
-                                             "import_0", &import_data));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(kImportedProgram, "import_0.x",
+                                               "import_0", &import_data));
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
@@ -744,7 +758,7 @@ fn handles_const_refs() -> u32 {
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, bc->value_data());
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   ASSERT_EQ(int_value, 100);
 }
 
@@ -1011,7 +1025,7 @@ fn main() -> u8[13] {
   XLS_ASSERT_OK_AND_ASSIGN(int64_t length, value.GetLength());
   EXPECT_EQ(13, length);
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t char_value,
-                           value.GetValuesOrDie().at(0).GetBitValueUint64());
+                           value.GetValuesOrDie().at(0).GetBitValueUnsigned());
   EXPECT_EQ(char_value, 't');
 }
 
@@ -1087,10 +1101,10 @@ fn main() -> u32 {
       "store 3 @ test.x:3:11-3:16",
       "load 3 @ test.x:4:5-4:10",
       "load 2 @ test.x:4:13-4:14",
-      "add @ test.x:4:11-4:12",
+      "uadd @ test.x:4:11-4:12",
       "load 1 @ test.x:3:6-5:11",
       "literal u32:1 @ test.x:3:6-5:11",
-      "add @ test.x:3:6-5:11",
+      "uadd @ test.x:3:6-5:11",
       "store 1 @ test.x:3:6-5:11",
       "jump_rel -20 @ test.x:3:6-5:11",
       "jump_dest @ test.x:3:6-5:11",
@@ -1151,7 +1165,7 @@ pop @ test.x:9:9-9:10
 create_tuple 0 @ test.x:10:5-10:7
 load 2 @ test.x:8:6-11:8
 literal u32:1 @ test.x:8:6-11:8
-add @ test.x:8:6-11:8
+uadd @ test.x:8:6-11:8
 store 2 @ test.x:8:6-11:8
 jump_rel -25 @ test.x:8:6-11:8
 jump_dest @ test.x:8:6-11:8)";
@@ -1228,12 +1242,16 @@ fn main() -> u32 {
 )";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TypecheckedModule tm,
+        ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      tm, ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
 
@@ -1357,7 +1375,7 @@ proc Parent {
       "load 1 @ test.x:8:20-8:21",         //
       "load 2 @ test.x:8:24-8:25",         //
       "cast uN[64] @ test.x:8:24-8:32",    //
-      "add @ test.x:8:22-8:23",            //
+      "uadd @ test.x:8:22-8:23",           //
       "create_tuple 3 @ test.x:8:5-8:34",  //
   };
   for (int i = 0; i < config_bytecodes.size(); i++) {
@@ -1365,7 +1383,7 @@ proc Parent {
   }
 
   std::vector<NameDef*> members;
-  for (const Param* member : child->members()) {
+  for (const ProcMember* member : child->members()) {
     members.push_back(member->name_def());
   }
   child_ti =
@@ -1387,12 +1405,12 @@ proc Parent {
       "load 4 @ test.x:17:5-17:6",
       "load 1 @ test.x:17:9-17:10",
       "cast uN[64] @ test.x:17:9-17:17",
-      "add @ test.x:17:7-17:8",
+      "uadd @ test.x:17:7-17:8",
       "load 2 @ test.x:17:20-17:21",
-      "add @ test.x:17:18-17:19",
+      "uadd @ test.x:17:18-17:19",
       "load 6 @ test.x:17:24-17:25",
       "cast uN[64] @ test.x:17:24-17:32",
-      "add @ test.x:17:22-17:23"};
+      "uadd @ test.x:17:22-17:23"};
   for (int i = 0; i < next_bytecodes.size(); i++) {
     ASSERT_EQ(next_bytecodes[i].ToString(), kNextExpected[i]);
   }
@@ -1414,12 +1432,16 @@ fn main() -> u32 {
 )";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TypecheckedModule tm,
+        ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      tm, ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
   Function* f = tf->fn();
@@ -1433,9 +1455,8 @@ fn main() -> u32 {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 3);
   const std::vector<std::string> kNextExpected = {
-      "literal u32:4 @ test.x:6:6-6:16",
-      "literal u32:1 @ test.x:6:23-6:24",
-      "add @ test.x:6:17-6:18"};
+      "literal u32:4 @ test.x:6:6-6:16", "literal u32:1 @ test.x:6:23-6:24",
+      "uadd @ test.x:6:17-6:18"};
   for (int i = 0; i < bytecodes.size(); i++) {
     ASSERT_EQ(bytecodes[i].ToString(), kNextExpected[i]);
   }

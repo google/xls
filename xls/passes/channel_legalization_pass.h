@@ -16,7 +16,7 @@
 #define XLS_PASSES_CHANNEL_LEGALIZATION_PASS_H_
 
 #include "absl/status/statusor.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -73,15 +73,16 @@ namespace xls {
 // │  proc_0 │              │  adapter_proc    │
 // └─────────┘              └──────────────────┘
 //
-class ChannelLegalizationPass : public Pass {
+class ChannelLegalizationPass : public OptimizationPass {
  public:
   ChannelLegalizationPass()
-      : Pass("channel_legalization",
-             "Legalize multiple send/recvs per channel") {}
+      : OptimizationPass("channel_legalization",
+                         "Legalize multiple send/recvs per channel") {}
   ~ChannelLegalizationPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
                                    PassResults* results) const override;
 };
 

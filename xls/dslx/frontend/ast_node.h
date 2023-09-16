@@ -15,7 +15,11 @@
 #ifndef XLS_DSLX_FRONTEND_AST_NODE_H_
 #define XLS_DSLX_FRONTEND_AST_NODE_H_
 
+#include <optional>
+#include <ostream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/pos.h"
@@ -36,6 +40,7 @@ enum class AstNodeKind {
   kColonRef,
   kConstantDef,
   kConstRef,
+  kConstAssert,
   kEnumDef,
   kFor,
   kFormatMacro,
@@ -56,6 +61,7 @@ enum class AstNodeKind {
   kParam,
   kParametricBinding,
   kProc,
+  kProcMember,
   kQuickCheck,
   kRange,
   kRecv,
@@ -87,6 +93,11 @@ enum class AstNodeKind {
 };
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
+
+template <typename Sink>
+void AbslStringify(Sink& sink, AstNodeKind kind) {
+  sink.Append(AstNodeKindToString(kind));
+}
 
 inline std::ostream& operator<<(std::ostream& os, AstNodeKind kind) {
   os << AstNodeKindToString(kind);

@@ -14,6 +14,8 @@
 
 #include "xls/passes/map_inlining_pass.h"
 
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -22,15 +24,16 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_builder.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
 
 MapInliningPass::MapInliningPass()
-    : FunctionBasePass("map_inlining", "Inline map operations") {}
+    : OptimizationFunctionBasePass("map_inlining", "Inline map operations") {}
 
 absl::StatusOr<bool> MapInliningPass::RunOnFunctionBaseInternal(
-    FunctionBase* function, const PassOptions& options,
+    FunctionBase* function, const OptimizationPassOptions& options,
     PassResults* results) const {
   bool changed = false;
   std::vector<Node*> map_nodes;

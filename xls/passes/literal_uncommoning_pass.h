@@ -17,22 +17,23 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 // Pass which clones Literals such that each literal has only a single use
 // (inverse of CSE). The motivation is that Literals are trivially and freely
 // materializable so no need to share an instance.
-class LiteralUncommoningPass : public FunctionBasePass {
+class LiteralUncommoningPass : public OptimizationFunctionBasePass {
  public:
   LiteralUncommoningPass()
-      : FunctionBasePass("literal_uncommon", "Literal uncommoning") {}
+      : OptimizationFunctionBasePass("literal_uncommon",
+                                     "Literal uncommoning") {}
   ~LiteralUncommoningPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

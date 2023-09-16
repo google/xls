@@ -30,9 +30,12 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 
@@ -124,8 +127,9 @@ std::string TagToString(InterpValueTag tag) {
 
 // Converts an interp value (precondition: `v.IsBits()`) to a string, given a
 // format preference.
-static std::string BitsToString(const InterpValue& v, FormatPreference format,
-                                bool include_type_prefix = true) {
+static std::string InterpValueBitsToString(const InterpValue& v,
+                                           FormatPreference format,
+                                           bool include_type_prefix = true) {
   const Bits& bits = v.GetBitsOrDie();
   const int64_t bit_count = v.GetBitCount().value();
 
@@ -141,9 +145,10 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
 
   switch (v.tag()) {
     case InterpValueTag::kUBits: {
-      std::string value_str = bits.ToString(format);
+      std::string value_str = BitsToString(bits, format);
       if (format == FormatPreference::kSignedDecimal && bits.msb()) {
-        value_str = absl::StrCat("-", bits_ops::Negate(bits).ToString(format));
+        value_str =
+            absl::StrCat("-", BitsToString(bits_ops::Negate(bits), format));
       }
       if (!include_type_prefix) {
         return value_str;
@@ -152,13 +157,14 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
       return absl::StrCat(type_str, ":", value_str);
     }
     case InterpValueTag::kSBits: {
-      std::string value_str = bits.ToString(format);
+      std::string value_str = BitsToString(bits, format);
       if ((format == FormatPreference::kSignedDecimal ||
            format == FormatPreference::kDefault) &&
           bits.msb()) {
         // If we're a signed number in decimal format, give the value for the
         // bit pattern that has the leading negative sign.
-        value_str = absl::StrCat("-", bits_ops::Negate(bits).ToString(format));
+        value_str =
+            absl::StrCat("-", BitsToString(bits_ops::Negate(bits), format));
       }
       if (!include_type_prefix) {
         return value_str;
@@ -169,7 +175,7 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
     default:
       break;
   }
-  XLS_LOG(FATAL) << "Invalid tag for BitsToString: " << v.tag();
+  XLS_LOG(FATAL) << "Invalid tag for InterpValueBitsToString: " << v.tag();
 }
 
 std::string InterpValue::ToString(bool humanize,
@@ -179,9 +185,9 @@ std::string InterpValue::ToString(bool humanize,
         GetValuesOrDie(), ", ",
         [humanize, format](std::string* out, const InterpValue& v) {
           if (humanize && v.IsBits()) {
-            absl::StrAppend(
-                out,
-                BitsToString(v, format, /*include_type_prefix=*/!humanize));
+            absl::StrAppend(out,
+                            InterpValueBitsToString(
+                                v, format, /*include_type_prefix=*/!humanize));
             return;
           }
           absl::StrAppend(out, v.ToString(humanize, format));
@@ -191,16 +197,16 @@ std::string InterpValue::ToString(bool humanize,
   switch (tag_) {
     case InterpValueTag::kUBits:
     case InterpValueTag::kSBits:
-      return BitsToString(*this, format,
-                          /*include_type_prefix=*/!humanize);
+      return InterpValueBitsToString(*this, format,
+                                     /*include_type_prefix=*/!humanize);
     case InterpValueTag::kArray:
       return absl::StrFormat("[%s]", make_guts());
     case InterpValueTag::kTuple:
       return absl::StrFormat("(%s)", make_guts());
     case InterpValueTag::kEnum: {
       EnumData enum_data = std::get<EnumData>(payload_);
-      return absl::StrFormat("%s:%s", enum_data.def->identifier(),
-                             enum_data.value.ToString());
+      return absl::StrFormat("%s:%v", enum_data.def->identifier(),
+                             enum_data.value);
     }
     case InterpValueTag::kFunction:
       if (std::holds_alternative<Builtin>(GetFunctionOrDie())) {
@@ -533,6 +539,9 @@ absl::StatusOr<InterpValue> InterpValue::AddWithCarry(
   XLS_RET_CHECK(other.IsUBits());
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
+
+  // First zero-extend the operands so we can observe the carry bit in the
+  // result.
   int64_t extended = std::max(lhs.bit_count(), rhs.bit_count()) + 1;
   Bits new_lhs = bits_ops::ZeroExtend(lhs, extended);
   Bits new_rhs = bits_ops::ZeroExtend(rhs, extended);
@@ -585,7 +594,7 @@ absl::StatusOr<InterpValue> InterpValue::Slice(
     if (out_of_bounds.IsTrue()) {
       result.push_back(subject.back());
     } else {
-      XLS_ASSIGN_OR_RETURN(uint64_t offset_int, offset.GetBitValueUint64());
+      XLS_ASSIGN_OR_RETURN(uint64_t offset_int, offset.GetBitValueUnsigned());
       result.push_back(subject[offset_int]);
     }
   }
@@ -738,6 +747,24 @@ absl::StatusOr<InterpValue> InterpValue::FloorDiv(
   return InterpValue(tag_, result);
 }
 
+absl::StatusOr<InterpValue> InterpValue::FloorMod(
+    const InterpValue& other) const {
+  if (tag_ != other.tag_) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot floormod values: %s vs %s", TagToString(tag_),
+                        TagToString(other.tag_)));
+  }
+  XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
+  XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
+  Bits result;
+  if (IsSBits()) {
+    result = bits_ops::SMod(lhs, rhs);
+  } else {
+    result = bits_ops::UMod(lhs, rhs);
+  }
+  return InterpValue(tag_, result);
+}
+
 absl::StatusOr<InterpValue> InterpValue::Concat(
     const InterpValue& other) const {
   if (tag_ != other.tag_) {
@@ -783,26 +810,26 @@ absl::StatusOr<int64_t> InterpValue::GetBitCount() const {
   return b.bit_count();
 }
 
-absl::StatusOr<int64_t> InterpValue::GetBitValueCheckSign() const {
+absl::StatusOr<int64_t> InterpValue::GetBitValueViaSign() const {
   if (IsEnum()) {
     EnumData enum_data = std::get<EnumData>(payload_);
     if (enum_data.is_signed) {
-      return GetBitValueInt64();
+      return GetBitValueSigned();
     }
 
-    return GetBitValueUint64();
+    return GetBitValueUnsigned();
   }
   if (IsSBits()) {
-    return GetBitValueInt64();
+    return GetBitValueSigned();
   }
   if (IsUBits()) {
-    return GetBitValueUint64();
+    return GetBitValueUnsigned();
   }
   return absl::InvalidArgumentError("Value cannot be converted to bits: " +
                                     ToHumanString());
 }
 
-absl::StatusOr<uint64_t> InterpValue::GetBitValueUint64() const {
+absl::StatusOr<uint64_t> InterpValue::GetBitValueUnsigned() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.ToUint64();
 }
@@ -815,7 +842,7 @@ bool InterpValue::FitsInNBitsUnsigned(int64_t n) const {
   return HasBits() && GetBitsOrDie().FitsInNBitsUnsigned(n);
 }
 
-absl::StatusOr<int64_t> InterpValue::GetBitValueInt64() const {
+absl::StatusOr<int64_t> InterpValue::GetBitValueSigned() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.ToInt64();
 }

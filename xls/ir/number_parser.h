@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/bits.h"

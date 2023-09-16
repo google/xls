@@ -21,9 +21,15 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
@@ -35,17 +41,26 @@ using status_testing::IsOkAndHolds;
 using ::testing::AllOf;
 
 // The test is parameterized on whether to use range analysis or not.
-class NarrowingPassTest : public IrTestBase,
-                          public testing::WithParamInterface<bool> {
+class NarrowingPassTest
+    : public IrTestBase,
+      public testing::WithParamInterface<NarrowingPass::AnalysisType> {
  protected:
   NarrowingPassTest() = default;
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    PassOptions options;
+    OptimizationPassOptions options;
     options.convert_array_index_to_select = 2;
-    return NarrowingPass(/*use_range_analysis=*/GetParam())
-        .Run(p, options, &results);
+    return NarrowingPass(/*analysis=*/GetParam()).Run(p, options, &results);
+  }
+
+  bool DoesRangeAnalysis() const {
+    switch (GetParam()) {
+      case NarrowingPass::AnalysisType::kBdd:
+        return false;
+      case NarrowingPass::AnalysisType::kRange:
+        return true;
+    }
   }
 };
 
@@ -503,7 +518,7 @@ TEST_P(NarrowingPassTest, ArrayIndexWithAllSameValue) {
       p->GetBitsType(32));
   fb.ArrayIndex(array, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  if (/*use_range_analysis=*/GetParam()) {
+  if (/*analysis=*/GetParam() == NarrowingPass::AnalysisType::kRange) {
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(), m::Literal(600));
   }
@@ -533,7 +548,7 @@ TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  if (/*use_range_analysis=*/GetParam()) {
+  if (/*analysis=*/GetParam() == NarrowingPass::AnalysisType::kRange) {
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(),
                 m::Select(m::And(m::Eq(index.node(), m::Literal(7))),
@@ -563,11 +578,67 @@ TEST_P(NarrowingPassTest, SideEffectfulButNarrowable) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_P(NarrowingPassTest, KnownZeroValueGateRemoved) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("x", p->GetBitsType(1));
+  BValue known_zero = fb.Literal(UBits(0, 8));
+  fb.Gate(param, known_zero);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
+  if (DoesRangeAnalysis()) {
+    EXPECT_TRUE(changed);
+    EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
+  } else {
+    EXPECT_FALSE(changed);
+  }
+}
+
+TEST_P(NarrowingPassTest, KnownNonZeroGateConditionRemovedIfConstant) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Literal(UBits(12, 8));
+  BValue known_nonzero = fb.Literal(UBits(1, 1));
+  fb.Gate(known_nonzero, param);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
+  if (DoesRangeAnalysis()) {
+    EXPECT_TRUE(changed);
+    EXPECT_THAT(f->return_value(), m::Literal(UBits(12, 8)));
+  } else {
+    EXPECT_FALSE(changed);
+  }
+}
+
+TEST_P(NarrowingPassTest, KnownZeroGateConditionRemoved) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("x", p->GetBitsType(8));
+  BValue known_zero = fb.Literal(UBits(0, 1));
+  fb.Gate(known_zero, param);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
+  if (DoesRangeAnalysis()) {
+    EXPECT_TRUE(changed);
+    EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
+  } else {
+    EXPECT_FALSE(changed);
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     testing::Values(false, true),
     [](const testing::TestParamInfo<NarrowingPassTest::ParamType>& info) {
-      return info.param ? "with_range_analysis" : "without_range_analysis";
+      switch (info.param) {
+        case NarrowingPass::AnalysisType::kBdd:
+          return "kWithoutRangeAnalysis";
+        case NarrowingPass::AnalysisType::kRange:
+          return "kWithRangeAnalysis";
+      }
     });
 
 }  // namespace

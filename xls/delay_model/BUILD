@@ -29,14 +29,34 @@ cc_library(
     srcs = ["delay_estimator.cc"],
     hdrs = ["delay_estimator.h"],
     deps = [
+        "//xls/common:test_macros",
+        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:op",
+        "//xls/netlist:cell_library",
         "//xls/netlist:logical_effort",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "ffi_delay_estimator",
+    srcs = ["ffi_delay_estimator.cc"],
+    hdrs = ["ffi_delay_estimator.h"],
+    deps = [
+        ":delay_estimator",
+        "//xls/ir",
+        "//xls/ir:op",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -46,15 +66,16 @@ cc_test(
     deps = [
         ":delay_estimator",
         ":delay_estimators",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -66,6 +87,7 @@ cc_test(
         ":delay_estimator",
         ":delay_estimators",
         ":delay_heap",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
@@ -78,7 +100,6 @@ cc_test(
         "//xls/ir:type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -88,11 +109,11 @@ cc_test(
     deps = [
         ":delay_estimator",
         ":delay_estimators",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -116,6 +137,7 @@ cc_test(
         ":analyze_critical_path",
         ":delay_estimator",
         ":delay_estimators",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -125,7 +147,6 @@ cc_test(
         "//xls/ir:type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 

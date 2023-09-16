@@ -45,5 +45,4 @@ fn test_parametric() {
   let q = ParametricPoint3 { x: u16:42, ..p };
   assert_eq(p.y, q.y);
   assert_eq(p.z, q.z);
-  ()
 }

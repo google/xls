@@ -14,6 +14,9 @@
 
 #include "xls/dslx/run_comparator.h"
 
+#include <string_view>
+#include <utility>
+
 #include "xls/dslx/mangle.h"
 #include "xls/interpreter/function_interpreter.h"
 

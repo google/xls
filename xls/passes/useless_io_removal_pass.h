@@ -17,21 +17,22 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 // Pass which removes sends/receives that have literal false as their condition.
 // Also removes the condition from sends/receives that have literal true as
 // their condition.
-class UselessIORemovalPass : public Pass {
+class UselessIORemovalPass : public OptimizationPass {
  public:
   UselessIORemovalPass()
-      : Pass("useless_io_remove", "Remove useless send/receive") {}
+      : OptimizationPass("useless_io_remove", "Remove useless send/receive") {}
   ~UselessIORemovalPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
                                    PassResults* results) const override;
 };
 

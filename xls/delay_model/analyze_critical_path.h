@@ -16,6 +16,9 @@
 #define XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
 
 #include <cstdint>
+#include <functional>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"

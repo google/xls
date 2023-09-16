@@ -16,6 +16,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <type_traits>
 
 #include "absl/strings/str_format.h"
 
@@ -42,7 +44,8 @@ std::string Strerror(int error_num) {
   char buffer[kBufferSize] = {};
 
   if constexpr (kXsiCompliant) {
-    if (strerror_r(error_num, buffer, kBufferSize) != nullptr) {
+    if (strerror_r(error_num, buffer, kBufferSize) !=
+        static_cast<strerror_r_type>(nullptr)) {
       return absl::StrFormat(
           "Unknown error, strerror_r failed. error number %d", error_num);
     }

@@ -14,6 +14,9 @@
 
 #include "xls/passes/canonicalization_pass.h"
 
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
@@ -24,6 +27,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -36,7 +40,7 @@ class CanonicalizePassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return CanonicalizationPass().Run(p, PassOptions(), &results);
+    return CanonicalizationPass().Run(p, OptimizationPassOptions(), &results);
   }
 };
 

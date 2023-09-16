@@ -15,6 +15,8 @@
 #include "xls/common/logging/log_entry.h"
 
 #include <ctime>
+#include <string>
+#include <string_view>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/strings/str_cat.h"
@@ -86,8 +88,7 @@ LogEntry::LogEntry(std::string_view full_filename, int line,
       severity_(absl::NormalizeLogSeverity(severity)),
       verbose_level_(kNoVerboseLevel),
       timestamp_(timestamp),
-      tid_(GetCachedTID()),
-      text_message_("") {
+      tid_(GetCachedTID()) {
   GenerateTimestampAsTm();
 }
 

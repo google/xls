@@ -28,5 +28,4 @@ fn test_sample_values() {
   assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:1), (true, u2:0));
   assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:3), (true, u2:2));
   assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:5), (false, u2:0));
-  ()
 }

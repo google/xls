@@ -15,6 +15,11 @@
 #ifndef XLS_CODEGEN_BLOCK_CONVERSION_H_
 #define XLS_CODEGEN_BLOCK_CONVERSION_H_
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"

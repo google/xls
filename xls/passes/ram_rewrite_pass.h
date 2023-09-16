@@ -15,10 +15,11 @@
 #ifndef XLS_PASSES_RAM_REWRITE_PASS_H_
 #define XLS_PASSES_RAM_REWRITE_PASS_H_
 
+#include <optional>
 #include <string_view>
 
 #include "absl/status/statusor.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -53,14 +54,15 @@ Type* GetMaskType(Package* package, std::optional<int64_t> mask_width);
 
 // Pass that rewrites RAMs of one type to a new type. Generally this will be
 // some kind of lowering from more abstract to concrete RAMs.
-class RamRewritePass : public Pass {
+class RamRewritePass : public OptimizationPass {
  public:
-  explicit RamRewritePass() : Pass("ram_rewrite", "RAM Rewrite") {}
+  explicit RamRewritePass() : OptimizationPass("ram_rewrite", "RAM Rewrite") {}
 
   ~RamRewritePass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
                                    PassResults* results) const override;
 };
 

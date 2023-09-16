@@ -16,6 +16,7 @@
 #define XLS_DSLX_FRONTEND_PARSER_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <initializer_list>
 #include <memory>
@@ -58,13 +59,13 @@ inline T TryGet(const std::variant<Types...>& v) {
 // either a conditional body or a struct instance); we can call
 // ParseExpression() with the "no struct literal" restriction to help us wrangle
 // this sort of case.
-enum class ExprRestriction {
+enum class ExprRestriction : uint8_t {
   kNone = 0,
   kNoStructLiteral = 1,
 };
 
 // Flag set of ExprRestriction values.
-DEFINE_STRONG_INT_TYPE(ExprRestrictions, uint32_t);
+XLS_DEFINE_STRONG_INT_TYPE(ExprRestrictions, uint32_t);
 
 constexpr ExprRestrictions kNoRestrictions = ExprRestrictions(0);
 
@@ -96,6 +97,8 @@ class Parser : public TokenParser {
   absl::StatusOr<Block*> ParseBlockExpression(Bindings& bindings);
 
   absl::StatusOr<TypeAlias*> ParseTypeAlias(bool is_public, Bindings& bindings);
+
+  absl::StatusOr<ConstAssert*> ParseConstAssert(Bindings& bindings);
 
   Module& module() { return *module_; }
 
@@ -212,8 +215,6 @@ class Parser : public TokenParser {
     return parsed;
   }
 
-  absl::StatusOr<Expr*> ParseDim(Bindings& bindings);
-
   // Parses dimension on a type; e.g. `u32[3]` => `(3,)`; `uN[2][3]` => `(3,
   // 2)`.
   absl::StatusOr<std::vector<Expr*>> ParseDims(Bindings& bindings,
@@ -242,8 +243,6 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Expr*> ParseStructInstance(Bindings& bindings,
                                             TypeAnnotation* type = nullptr);
-
-  absl::StatusOr<Expr*> ParseCastOrStructInstance(Bindings& bindings);
 
   absl::StatusOr<std::variant<NameRef*, ColonRef*>> ParseNameOrColonRef(
       Bindings& bindings, std::string_view context = "");
@@ -275,9 +274,6 @@ class Parser : public TokenParser {
 
   // Returns a parsed number (literal number) expression.
   absl::StatusOr<Number*> ParseNumber(Bindings& bindings);
-
-  absl::StatusOr<std::variant<Number*, NameRef*>> ParseNumOrConstRef(
-      Bindings& bindings);
 
   absl::StatusOr<Let*> ParseLet(Bindings& bindings);
 
@@ -341,21 +337,6 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Expr*> ParseCastAsExpression(Bindings& bindings,
                                               ExprRestrictions restrictions);
-
-  template <typename T>
-  std::function<absl::StatusOr<T>()> BindFront(
-      absl::StatusOr<T> (Parser::*f)(Bindings&), Bindings& bindings) {
-    return [this, &bindings, f] { return (this->*f)(bindings); };
-  }
-
-  template <typename T>
-  std::function<absl::StatusOr<T>()> BindFront(
-      absl::StatusOr<T> (Parser::*f)(Bindings&, ExprRestrictions),
-      Bindings& bindings, ExprRestrictions restrictions) {
-    return [this, &bindings, f, restrictions] {
-      return (this->*f)(bindings, restrictions);
-    };
-  }
 
   static constexpr std::initializer_list<TokenKind> kStrongArithmeticKinds = {
       TokenKind::kStar, TokenKind::kSlash, TokenKind::kPercent};
@@ -421,15 +402,14 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Param*> ParseParam(Bindings& bindings);
 
+  // Parses a member declaration in the body of a `proc` definition.
+  absl::StatusOr<ProcMember*> ParseProcMember(Bindings& bindings);
+
   // Parses a sequence of parameters, starting with cursor over '(', returns
   // after ')' is consumed.
   //
   // Permits trailing commas.
-  absl::StatusOr<std::vector<Param*>> ParseParams(Bindings& bindings) {
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-    return ParseCommaSeq<Param*>(BindFront(&Parser::ParseParam, bindings),
-                                 TokenKind::kCParen);
-  }
+  absl::StatusOr<std::vector<Param*>> ParseParams(Bindings& bindings);
 
   absl::StatusOr<NameDefTree*> ParseTuplePattern(const Pos& start_pos,
                                                  Bindings& bindings);
@@ -547,29 +527,26 @@ class Parser : public TokenParser {
   // Traverses a Proc declaration to collect all the member data elements
   // present therein - in other words, it collects everything but the "config"
   // and "next" elements.
-  absl::StatusOr<std::vector<Param*>> CollectProcMembers(Bindings& bindings);
+  absl::StatusOr<std::vector<ProcMember*>> CollectProcMembers(
+      Bindings& bindings);
 
-  // Parses Proc config, next, and init functions, respectively.
+  // Parses a proc config function.
+  //
+  // Args:
+  //  parametric_bindings: Parametric bindings created at the proc level.
+  //  proc_members: Member declarations at the proc scope.
   absl::StatusOr<Function*> ParseProcConfig(
-      Bindings& bindings,
-      const std::vector<ParametricBinding*>& parametric_bindings,
-      const std::vector<Param*>& proc_members, std::string_view proc_name,
+      Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
+      const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
       bool is_public);
-  absl::StatusOr<Function*> ParseProcNext(
-      Bindings& bindings,
-      const std::vector<ParametricBinding*>& parametric_bindings,
-      std::string_view proc_name, bool is_public);
-  absl::StatusOr<Function*> ParseProcInit(
-      Bindings& bindings,
-      const std::vector<ParametricBinding*>& parametric_bindings,
-      std::string_view proc_name);
 
-  // We use this function instead of CloneAst because we don't want to clone the
-  // underlying StructDefs, EnumDefs, etc., or else ConcreteType comparisons
-  // will fail (StructType::operator==).
-  // TODO(rspringer): Should we change that operator to use structural instead
-  // of pointer equality?
-  absl::StatusOr<TypeAnnotation*> CloneReturnType(TypeAnnotation* input);
+  absl::StatusOr<Function*> ParseProcNext(
+      Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
+      std::string_view proc_name, bool is_public);
+
+  absl::StatusOr<Function*> ParseProcInit(
+      Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
+      std::string_view proc_name);
 
   std::unique_ptr<Module> module_;
 
@@ -579,6 +556,12 @@ class Parser : public TokenParser {
   // we can emit either a ConstRef or NameRef. This set holds those NDTs known
   // to be constant for that purpose.
   absl::flat_hash_set<NameDefTree*> const_ndts_;
+
+  // To avoid over-recursion (and ensuing stack overflows) we keep track of the
+  // approximate expression depth, and bail when expressions are unreasonably
+  // deeply nested.
+  static constexpr int64_t kApproximateExpressionDepthLimit = 64;
+  int64_t approximate_expression_depth_ = 0;
 };
 
 const Span& GetSpan(const std::variant<NameDef*, WildcardPattern*>& v);

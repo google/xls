@@ -21,8 +21,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -86,14 +88,12 @@ absl::StatusOr<int64_t> Proc::GetStateParamIndex(Param* param) const {
   return std::distance(StateParams().begin(), it);
 }
 
-std::vector<int64_t> Proc::GetNextStateIndices(Node* node) const {
-  std::vector<int64_t> indices;
-  for (int64_t i = 0; i < GetStateElementCount(); ++i) {
-    if (node == GetNextStateElement(i)) {
-      indices.push_back(i);
-    }
+absl::btree_set<int64_t> Proc::GetNextStateIndices(Node* node) const {
+  auto it = next_state_indices_.find(node);
+  if (it == next_state_indices_.end()) {
+    return absl::btree_set<int64_t>();
   }
-  return indices;
+  return it->second;
 }
 
 absl::Status Proc::SetNextToken(Node* next) {
@@ -136,7 +136,9 @@ absl::Status Proc::SetNextStateElement(int64_t index, Node* next) {
         index, next->GetName(), next->GetType()->ToString(),
         GetStateElementType(index)->ToString()));
   }
+  next_state_indices_[next_state_[index]].erase(index);
   next_state_[index] = next;
+  next_state_indices_[next].insert(index);
   return absl::OkStatus();
 }
 
@@ -183,24 +185,70 @@ absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
 absl::StatusOr<Param*> Proc::ReplaceStateElement(
     int64_t index, std::string_view state_param_name, const Value& init_value,
     std::optional<Node*> next_state) {
-  // Copy name to a string and value to avoid the use-after-free footgun of
-  // `state_param_name` or `init_value` referring to the existing to-be-removed
-  // state element.
+  XLS_RET_CHECK_LT(index, GetStateElementCount());
+
+  // Copy name to a local variable to avoid the use-after-free footgun of
+  // `state_param_name` referring to the existing to-be-removed state element.
   std::string s(state_param_name);
-  XLS_RETURN_IF_ERROR(RemoveStateElement(index));
-  return InsertStateElement(index, s, init_value, next_state);
+
+  // Check that it's safe to remove the current state param node.
+  Param* old_param = GetStateParam(index);
+  if (!old_param->users().empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot remove state element %d of proc %s, existing "
+                        "state param %s has uses",
+                        index, name(), old_param->GetName()));
+  }
+  next_state_indices_[next_state_[index]].erase(index);
+  next_state_[index] = nullptr;
+  XLS_RETURN_IF_ERROR(RemoveNode(old_param));
+
+  // Construct the new param node, and update all trackers.
+  XLS_ASSIGN_OR_RETURN(
+      Param * param,
+      MakeNodeWithName<Param>(SourceInfo(), s,
+                              package()->GetTypeForValue(init_value)));
+  // Move the param into place (not forgetting the offset for state params,
+  // since the token param is always at index 0).
+  XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index + 1));
+  if (next_state.has_value() &&
+      !ValueConformsToType(init_value, next_state.value()->GetType())) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot add state element at %d, next state value %s (type %s) does "
+        "not match type of initial value: %s",
+        index, next_state.value()->GetName(),
+        next_state.value()->GetType()->ToString(), init_value.ToString()));
+  }
+  init_values_[index] = init_value;
+  next_state_[index] = next_state.value_or(param);
+  next_state_indices_[next_state_[index]].insert(index);
+
+  return param;
 }
 
 absl::Status Proc::RemoveStateElement(int64_t index) {
   XLS_RET_CHECK_LT(index, GetStateElementCount());
+  if (index < GetStateElementCount() - 1) {
+    for (auto& [_, indices] : next_state_indices_) {
+      // Relabel all indices > `index`.
+      auto it = indices.upper_bound(index);
+      absl::btree_set<int64_t> relabeled_indices(indices.begin(), it);
+      for (; it != indices.end(); ++it) {
+        relabeled_indices.insert((*it) - 1);
+      }
+      indices = std::move(relabeled_indices);
+    }
+  }
+  next_state_indices_[next_state_[index]].erase(index);
   next_state_.erase(next_state_.begin() + index);
-  if (!StateParams()[index]->users().empty()) {
+  Param* old_param = GetStateParam(index);
+  if (!old_param->users().empty()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot remove state element %d of proc %s, existing "
                         "state param %s has uses",
-                        index, name(), StateParams()[index]->GetName()));
+                        index, name(), old_param->GetName()));
   }
-  XLS_RETURN_IF_ERROR(RemoveNode(StateParams()[index]));
+  XLS_RETURN_IF_ERROR(RemoveNode(old_param));
 
   init_values_.erase(init_values_.begin() + index);
   return absl::OkStatus();
@@ -217,6 +265,7 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
     int64_t index, std::string_view state_param_name, const Value& init_value,
     std::optional<Node*> next_state) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
+  const bool is_append = (index == GetStateElementCount());
   XLS_ASSIGN_OR_RETURN(
       Param * param,
       MakeNodeWithName<Param>(SourceInfo(), state_param_name,
@@ -230,12 +279,33 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
           index, next_state.value()->GetName(),
           next_state.value()->GetType()->ToString(), init_value.ToString()));
     }
-    next_state_.insert(next_state_.begin() + index, next_state.value());
-  } else {
-    next_state_.insert(next_state_.begin() + index, param);
   }
+  if (!is_append) {
+    for (auto& [_, indices] : next_state_indices_) {
+      // Relabel all indices >= `index`.
+      auto it = indices.lower_bound(index);
+      absl::btree_set<int64_t> relabeled_indices(indices.begin(), it);
+      for (; it != indices.end(); ++it) {
+        relabeled_indices.insert((*it) + 1);
+      }
+      indices = std::move(relabeled_indices);
+    }
+  }
+  next_state_.insert(next_state_.begin() + index, next_state.value_or(param));
+  next_state_indices_[next_state_[index]].insert(index);
   init_values_.insert(init_values_.begin() + index, init_value);
   return param;
+}
+
+bool Proc::HasImplicitUse(Node* node) const {
+  if (node == NextToken()) {
+    return true;
+  }
+  if (auto it = next_state_indices_.find(node);
+      it != next_state_indices_.end() && !it->second.empty()) {
+    return true;
+  }
+  return false;
 }
 
 absl::StatusOr<Proc*> Proc::Clone(

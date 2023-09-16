@@ -14,6 +14,10 @@
 
 #include "xls/common/file/temp_directory.h"
 
+#include <string>
+#include <system_error>
+#include <utility>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"

@@ -16,6 +16,7 @@
 #define XLS_IR_PYTHON_WRAPPER_TYPES_H_
 
 #include <memory>
+#include <string_view>
 #include <type_traits>
 
 #include "absl/status/statusor.h"

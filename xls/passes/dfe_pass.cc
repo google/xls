@@ -34,6 +34,8 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -81,7 +83,8 @@ void MarkReachedFunctions(FunctionBase* func,
 // Starting from the return_value(s), DFS over all nodes. Unvisited
 // nodes, or parameters, are dead.
 absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
-    Package* p, const PassOptions& options, PassResults* results) const {
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   std::optional<FunctionBase*> top = p->GetTop();
   if (!top.has_value()) {
     return false;

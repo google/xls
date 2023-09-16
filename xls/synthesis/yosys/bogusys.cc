@@ -12,13 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
@@ -103,7 +107,5 @@ int main(int argc, char** argv) {
   for (int i = 0; i < argc; ++i) {
     args[i] = argv[i];
   }
-  XLS_QCHECK_OK(xls::synthesis::RealMain(args));
-
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::synthesis::RealMain(args));
 }

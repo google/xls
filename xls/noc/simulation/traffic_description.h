@@ -17,6 +17,8 @@
 
 #include <algorithm>
 #include <queue>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"

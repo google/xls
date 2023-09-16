@@ -139,7 +139,6 @@ fn test_create_key_schedule_256() {
         u8:0xc4 ++ u8:0x70 ++ u8:0x42 ++ u8:0xf7,
     ];
     assert_eq(expected_14, sched[14]);
-    ()
 }
 
 // Verifies we produce a correct schedule for a given input key.
@@ -183,7 +182,6 @@ fn test_key_schedule_128() {
             u8:0x59 ++ u8:0xd1 ++ u8:0x69 ++ u8:0x25,
             u8:0x03 ++ u8:0x21 ++ u8:0xe7 ++ u8:0xaa,
             u8:0xb9 ++ u8:0xae ++ u8:0x62 ++ u8:0xe0]);
-    ()
 }
 
 pub fn encrypt(key: Key, key_width: KeyWidth, block: Block) -> Block {

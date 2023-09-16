@@ -24,8 +24,10 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <string>
 #include <tuple>
 #include <type_traits>
+#include <vector>
 
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"

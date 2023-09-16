@@ -14,14 +14,21 @@
 
 #include "xls/contrib/xlscc/cc_parser.h"
 
+#include <algorithm>
 #include <fstream>
+#include <map>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/RecursiveASTVisitor.h"
+#include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Frontend/CompilerInstance.h"
 #include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/include/clang/Tooling/Tooling.h"
@@ -205,23 +212,26 @@ xls::SourceInfo CCParser::GetLoc(const clang::PresumedLoc& loc) {
 }
 
 absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
-    const clang::SourceLocation& loc) {
-  return FindPragmaForLoc(sm_->getPresumedLoc(loc));
+    const clang::SourceLocation& loc, bool ignore_label) {
+  return FindPragmaForLoc(sm_->getPresumedLoc(loc), ignore_label);
 }
 
 absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
-    const clang::PresumedLoc& ploc) {
+    const clang::PresumedLoc& ploc, bool ignore_label) {
+  // NOTE: Semantics should be the same as Translator::FindIntrinsicCall()!
   if (!files_scanned_for_pragmas_.contains(ploc.getFilename())) {
     XLS_RETURN_IF_ERROR(ScanFileForPragmas(ploc.getFilename()));
   }
   // Look on the line before.
   PragmaLoc loc(ploc.getFilename(), ploc.getLine() - 1);
+
   if (!hls_pragmas_.contains(loc)) {
     return Pragma(Pragma_Null);
   }
 
   // Look for a label there. If found, look at the line before that.
-  if (hls_pragmas_.at(loc).type() == Pragma_Label && std::get<1>(loc) > 0) {
+  if (ignore_label && hls_pragmas_.at(loc).type() == Pragma_Label &&
+      std::get<1>(loc) > 0) {
     loc = PragmaLoc(ploc.getFilename(), ploc.getLine() - 2);
     if (!hls_pragmas_.contains(loc)) {
       return Pragma(Pragma_Null);
@@ -272,6 +282,7 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
         }
         continue;
       }
+
       std::map<std::string, PragmaType>::iterator it =
           pragmas.find(absl::AsciiStrToLower(name));
       if (it != pragmas.end()) {
@@ -311,9 +322,21 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
           case Pragma_SyntheticInt:
             hls_pragmas_[location] = Pragma(pragma_val);
             break;
-          case Pragma_Top:
-            hls_pragmas_[location] = Pragma(pragma_val, params);
+          case Pragma_Top: {
+            if (name == "design") {
+              if (params == "block") {
+                hls_pragmas_[location] = Pragma(Pragma_Block);
+              } else if (params == "top") {
+                hls_pragmas_[location] = Pragma(Pragma_Top);
+              } else {
+                XLS_LOG(WARNING)
+                    << "Ignoring unknown #pragma hls_design: " << params;
+              }
+            } else {
+              hls_pragmas_[location] = Pragma(Pragma_Top);
+            }
             break;
+          }
           case Pragma_Unroll:
             if (params.empty() || params == "yes") {
               hls_pragmas_[location] = Pragma(pragma_val);
@@ -333,6 +356,9 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
           case Pragma_Null:
           case Pragma_Label:
             prev_location = PragmaLoc("", -1);
+            break;
+          case Pragma_Block:
+            hls_pragmas_[location] = Pragma(pragma_val);
             break;
         }
       }
@@ -408,8 +434,9 @@ absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                       FindPragmaForLoc(GetPresumedLoc(*funcdecl)));
+  XLS_ASSIGN_OR_RETURN(
+      Pragma pragma,
+      FindPragmaForLoc(GetPresumedLoc(*funcdecl), /*ignore_label=*/true));
 
   if (pragma.type() == Pragma_Top || fname == top_function_name_) {
     if (top_function_ == nullptr) {
@@ -506,22 +533,23 @@ struct __xls_bits { };
 enum __xls_channel_dir {
   __xls_channel_dir_Unknown=0,    // OpType::kNull
   __xls_channel_dir_Out=1,        // OpType::kSend
-  __xls_channel_dir_In=2          // OpType::kRecv
+  __xls_channel_dir_In=2,         // OpType::kRecv
+  __xls_channel_dir_InOut=3       // OpType::kSendRecv
 };
 
 template<typename T, __xls_channel_dir Dir=__xls_channel_dir_Unknown>
 class __xls_channel {
  public:
-  T read() {
+  T read()const {
     return T();
   }
-  T write(T val) {
+  T write(T val)const {
     return val;
   }
-  void read(T& out) {
+  void read(T& out)const {
     (void)out;
   }
-  bool nb_read(T& out) {
+  bool nb_read(T& out)const {
     (void)out;
     return true;
   }
@@ -530,14 +558,15 @@ class __xls_channel {
 template<typename T, unsigned long long Size>
 class __xls_memory {
  public:
-  T& operator[](long long int addr) {
+  unsigned long long size()const {
+    return Size;
+  };
+
+  T& operator[](long long int addr)const {
     static T ret;
     return ret;
   }
-  T operator[](long long int addr)const {
-    return T();
-  }
-  void write(long long int addr, const T& value) {
+  void write(long long int addr, const T& value) const {
     return;
   }
   T read(long long int addr) const {
@@ -560,6 +589,14 @@ bool __xlscc_on_reset = false;
 __xls_bits<64> __xlscc_fixed_32_32_bits_for_double(double input);
 __xls_bits<64> __xlscc_fixed_32_32_bits_for_float(float input);
 
+// For use with loops
+void __xlscc_pipeline(long long factor) { }
+void __xlscc_unroll(long long factor) { }
+
+// Place at the beginning of the token graph, connected to the end, in parallel
+// to anything else, rather than serializing as by default
+void __xlscc_asap() { }
+
 #endif//__XLS_BUILTIN_H
           )"));
 
@@ -578,7 +615,6 @@ void __xlscc_top_class_instance_ref() {
 void __xlscc_top_class_instance_ref2() {
   __xlscc_top_class_instance_ref();
 }
-
 }  // namespace
 )",
                                                                top_class_name_);

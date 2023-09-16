@@ -14,6 +14,9 @@
 
 #include "xls/fuzzer/cpp_run_fuzz.h"
 
+#include <optional>
+#include <string>
+
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "pybind11/chrono.h"

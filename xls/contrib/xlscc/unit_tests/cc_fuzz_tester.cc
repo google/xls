@@ -16,8 +16,11 @@
 #include <ctime>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
@@ -41,7 +44,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
 
@@ -87,7 +90,7 @@ class GeneratedTester : public XlsccTestBase {
       const absl::flat_hash_map<std::string, xls::Value>& args,
       const xls::InterpreterEvents& unopt_events) {
     // Run main pipeline.
-    (void)xls::RunStandardPassPipeline(package_.get());
+    (void)xls::RunOptimizationPassPipeline(package_.get());
 
     // Run interpreter on optimized IR.
     {

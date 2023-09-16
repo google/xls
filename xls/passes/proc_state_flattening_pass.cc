@@ -14,12 +14,19 @@
 
 #include "xls/passes/proc_state_flattening_pass.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -214,7 +221,8 @@ absl::Status FlattenState(Proc* proc) {
 }  // namespace
 
 absl::StatusOr<bool> ProcStateFlatteningPass::RunOnProcInternal(
-    Proc* proc, const PassOptions& options, PassResults* results) const {
+    Proc* proc, const OptimizationPassOptions& options,
+    PassResults* results) const {
   if (!HasTupleStateElement(proc)) {
     return false;
   }

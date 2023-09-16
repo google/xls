@@ -14,6 +14,8 @@
 
 #include "xls/scheduling/scheduling_checker.h"
 
+#include <optional>
+
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/verifier.h"

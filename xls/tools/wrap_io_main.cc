@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
+#include <memory>
+#include <string>
+#include <utility>
+
 #include "absl/flags/flag.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -36,7 +43,7 @@ namespace xls {
 namespace tools {
 namespace {
 
-void RealMain() {
+absl::Status RealMain() {
   std::string signature_proto_path = absl::GetFlag(FLAGS_signature_proto_path);
   XLS_QCHECK_NE(signature_proto_path, "")
       << "Must provide -signature_proto_path";
@@ -68,8 +75,10 @@ void RealMain() {
   auto io_strategy = std::move(io_strategy_status).value();
   absl::StatusOr<verilog::Module*> module_status = verilog::WrapIO(
       wrapped_module_name, instance_name, signature, io_strategy.get(), &f);
-  XLS_QCHECK_OK(module_status.status());
-  std::cout << f.Emit() << std::endl;
+  if (module_status.ok()) {
+    std::cout << f.Emit() << std::endl;
+  }
+  return module_status.status();
 }
 
 }  // namespace
@@ -78,5 +87,5 @@ void RealMain() {
 
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
-  xls::tools::RealMain();
+  return xls::ExitStatus(xls::tools::RealMain());
 }

@@ -15,13 +15,18 @@
 #ifndef XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
 #define XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
 
-#include "absl/container/flat_hash_map.h"
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/function.h"
+#include "xls/fdo/delay_manager.h"
 #include "xls/ir/function_base.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/node.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -30,15 +35,12 @@ namespace xls {
 // Abstraction describing the binding of Nodes to cycles.
 class PipelineSchedule {
  public:
-  // Produces a feed-forward pipeline schedule using the given delay model and
-  // scheduling options.
-  static absl::StatusOr<PipelineSchedule> Run(
-      FunctionBase* f, const DelayEstimator& delay_estimator,
-      const SchedulingOptions& options);
-
   // Reconstructs a PipelineSchedule object from a proto representation.
   static absl::StatusOr<PipelineSchedule> FromProto(
       FunctionBase* function, const PipelineScheduleProto& proto);
+
+  // Builds trivial pipeline schedule with all nodes in a single stage
+  static absl::StatusOr<PipelineSchedule> SingleStage(FunctionBase* function);
 
   // Constructs a schedule for the given function with the given cycle map. If
   // length is not given, then the length equal to the largest cycle in cycle
@@ -87,6 +89,13 @@ class PipelineSchedule {
   // given clock period.
   absl::Status VerifyTiming(int64_t clock_period_ps,
                             const DelayEstimator& delay_estimator) const;
+  absl::Status VerifyTiming(int64_t clock_period_ps,
+                            const DelayManager& delay_manager) const;
+
+  // Verifies that all scheduling constraints are followed.
+  absl::Status VerifyConstraints(
+      absl::Span<const SchedulingConstraint> constraints,
+      std::optional<int64_t> worst_case_throughput) const;
 
   // Returns a protobuf holding this object's scheduling info.
   PipelineScheduleProto ToProto(const DelayEstimator& delay_estimator) const;

@@ -16,7 +16,10 @@
 #define XLS_NOC_SIMULATION_PARAMETERS_H_
 
 #include <cstdint>
+#include <string_view>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"

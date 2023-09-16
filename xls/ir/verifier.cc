@@ -16,8 +16,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -35,8 +38,8 @@
 #include "xls/ir/block.h"
 #include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/code_template.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/foreign_function.h"
 #include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
@@ -905,10 +908,10 @@ class NodeChecker : public DfsVisitor {
           StrFormat("Select has useless default value: selector has %d bits "
                     "with %d cases",
                     selector_width, sel->cases().size()));
-    } else if ((selector_width > minimum_selector_width ||
-                (selector_width == minimum_selector_width &&
-                 !power_of_2_cases)) &&
-               !sel->default_value().has_value()) {
+    }
+    if ((selector_width > minimum_selector_width ||
+         (selector_width == minimum_selector_width && !power_of_2_cases)) &&
+        !sel->default_value().has_value()) {
       return absl::InternalError(StrFormat(
           "Select has no default value: selector has %d bits with %d cases",
           selector_width, sel->cases().size()));

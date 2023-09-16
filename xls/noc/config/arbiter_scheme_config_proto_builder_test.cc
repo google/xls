@@ -14,6 +14,8 @@
 
 #include "xls/noc/config/arbiter_scheme_config_proto_builder.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

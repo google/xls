@@ -14,6 +14,8 @@
 
 #include "xls/ir/type.h"
 
+#include <string>
+
 #include "google/protobuf/text_format.h"
 #include "pybind11/pybind11.h"
 #include "xls/ir/python/wrapper_types.h"

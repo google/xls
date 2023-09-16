@@ -14,15 +14,19 @@
 
 #include "xls/passes/literal_uncommoning_pass.h"
 
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   // Construct separate list of the initial literals to avoid iterator
   // invalidation problems because we will be adding additional nodes during
   // the transformation.

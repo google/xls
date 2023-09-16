@@ -14,6 +14,9 @@
 
 #include "xls/fuzzer/scrub_crasher.h"
 
+#include <string>
+#include <string_view>
+
 namespace xls {
 
 std::string ScrubCrasher(std::string_view s) { return std::string{s}; }

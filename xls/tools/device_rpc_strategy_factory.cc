@@ -14,6 +14,9 @@
 
 #include "xls/tools/device_rpc_strategy_factory.h"
 
+#include <memory>
+#include <string_view>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"

@@ -38,13 +38,17 @@ namespace xls::verilog {
 // to codegen.
 
 // Options passed to each pass.
-struct CodegenPassOptions : public PassOptions {
+struct CodegenPassOptions : public PassOptionsBase {
   // Options to use for codegen.
   CodegenOptions codegen_options;
 
   // Optional schedule. If given, a feedforward pipeline is generated based on
   // the schedule.
   std::optional<PipelineSchedule> schedule;
+
+  // Optional delay estimator. If given, block delay metrics will be added to
+  // the signature.
+  const DelayEstimator* delay_estimator = nullptr;
 };
 
 using Stage = int64_t;

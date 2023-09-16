@@ -15,11 +15,14 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/status/status.h"

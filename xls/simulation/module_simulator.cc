@@ -14,8 +14,13 @@
 
 #include "xls/simulation/module_simulator.h"
 
+#include <algorithm>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -28,6 +33,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/tools/eval_helpers.h"
 
 namespace xls {
@@ -64,9 +70,9 @@ std::vector<Bits> ValueListToBitsList(absl::Span<const Value> values) {
 
 // Converts a list of IR Bits to a list of IR Values.
 absl::StatusOr<std::vector<Value>> BitsListToValueList(
-    absl::Span<const Bits> bits, const TypeProto& type) {
+    absl::Span<const Bits> bits_list, const TypeProto& type) {
   std::vector<Value> values_list;
-  for (const Bits& bits : bits) {
+  for (const Bits& bits : bits_list) {
     XLS_ASSIGN_OR_RETURN(Value value, UnflattenBitsToValue(bits, type));
     values_list.push_back(value);
   }

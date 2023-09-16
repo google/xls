@@ -18,6 +18,8 @@
 #ifndef XLS_PUBLIC_FUNCTION_BUILDER_H_
 #define XLS_PUBLIC_FUNCTION_BUILDER_H_
 
+// IWYU pragma: begin_exports
 #include "xls/ir/function_builder.h"
+// IWYU pragma: end_exports
 
 #endif  // XLS_PUBLIC_FUNCTION_BUILDER_H_

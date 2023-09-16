@@ -14,13 +14,15 @@
 
 #include "xls/ir/big_int.h"
 
-#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls {
@@ -130,8 +132,8 @@ TEST_F(BigIntTest, MakeUnsigned) {
 
   std::string wide_input = "0xabcd_abcd_1234_1234_aaaa_bbbb_cccc_dddd";
   XLS_ASSERT_OK_AND_ASSIGN(Bits wide_bits, ParseNumber(wide_input));
-  EXPECT_EQ(BigInt::MakeUnsigned(wide_bits).ToUnsignedBits().ToString(
-                FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(BigInt::MakeUnsigned(wide_bits).ToUnsignedBits(),
+                         FormatPreference::kHex),
             wide_input);
 }
 
@@ -184,8 +186,8 @@ TEST_F(BigIntTest, MakeSigned) {
 
   std::string wide_input = "0xabcd_abcd_1234_1234_aaaa_bbbb_cccc_dddd";
   XLS_ASSERT_OK_AND_ASSIGN(Bits wide_bits, ParseNumber(wide_input));
-  EXPECT_EQ(BigInt::MakeSigned(wide_bits).ToSignedBits().ToString(
-                FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(BigInt::MakeSigned(wide_bits).ToSignedBits(),
+                         FormatPreference::kHex),
             wide_input);
 }
 

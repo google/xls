@@ -18,11 +18,13 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
 
 namespace m = ::xls::op_matchers;
@@ -38,13 +40,16 @@ class ProcStateFlatteningPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed, ProcStateFlatteningPass().Run(
-                                           p, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(
+        bool changed,
+        ProcStateFlatteningPass().Run(p, OptimizationPassOptions(), &results));
     // Run tuple_simplification and dce to clean things up.
-    XLS_RETURN_IF_ERROR(
-        TupleSimplificationPass().Run(p, PassOptions(), &results).status());
-    XLS_RETURN_IF_ERROR(
-        DeadCodeEliminationPass().Run(p, PassOptions(), &results).status());
+    XLS_RETURN_IF_ERROR(TupleSimplificationPass()
+                            .Run(p, OptimizationPassOptions(), &results)
+                            .status());
+    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
+                            .Run(p, OptimizationPassOptions(), &results)
+                            .status());
     return changed;
   }
 };

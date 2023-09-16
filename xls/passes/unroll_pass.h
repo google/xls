@@ -17,17 +17,18 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
-class UnrollPass : public FunctionBasePass {
+class UnrollPass : public OptimizationFunctionBasePass {
  public:
-  UnrollPass() : FunctionBasePass("loop_unroll", "Unroll counted loops") {}
+  UnrollPass()
+      : OptimizationFunctionBasePass("loop_unroll", "Unroll counted loops") {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

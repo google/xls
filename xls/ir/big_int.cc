@@ -14,9 +14,16 @@
 
 #include "xls/ir/big_int.h"
 
+#include <algorithm>
+#include <limits>
+#include <ostream>
+#include <tuple>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "openssl/bn.h"
+#include "openssl/mem.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls {
@@ -145,6 +152,22 @@ Bits BigInt::ToUnsignedBits() const {
   // FromBytes expects bytes in little endian order.
   std::reverse(byte_vector.begin(), byte_vector.end());
   return Bits::FromBytes(byte_vector, bit_count);
+}
+
+std::string BigInt::ToDecimalString() const {
+  char* s = BN_bn2dec(&bn_);
+  XLS_CHECK(s != nullptr) << "BigNum allocation failure";
+  std::string str(s);
+  OPENSSL_free(s);
+  return str;
+}
+
+std::string BigInt::ToHexString() const {
+  char* s = BN_bn2hex(&bn_);
+  XLS_CHECK(s != nullptr) << "BigNum allocation failure";
+  std::string str(s);
+  OPENSSL_free(s);
+  return str;
 }
 
 absl::StatusOr<Bits> BigInt::ToSignedBitsWithBitCount(int64_t bit_count) const {
@@ -345,12 +368,9 @@ std::tuple<BigInt, int64_t> BigInt::FactorizePowerOfTwo(const BigInt& input) {
 
 std::ostream& operator<<(std::ostream& os, const BigInt& big_int) {
   if (BigInt::LessThan(big_int, BigInt())) {
-    os << "-"
-       << BigInt::Negate(big_int).ToUnsignedBits().ToString(
-              FormatPreference::kHex, /*include_bit_count=*/true);
+    os << "-" << BigInt::Negate(big_int).ToUnsignedBits().ToDebugString();
   } else {
-    os << big_int.ToUnsignedBits().ToString(FormatPreference::kHex,
-                                            /*include_bit_count=*/true);
+    os << big_int.ToUnsignedBits().ToDebugString();
   }
   return os;
 }

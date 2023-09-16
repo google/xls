@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -24,6 +26,8 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -42,6 +46,13 @@ absl::flat_hash_set<Node*> DependenciesOf(Node* root) {
     }
     if (!discovered.contains(popped)) {
       discovered.insert(popped);
+
+      if (popped->Is<Invoke>()) {
+        // Disregard any dependencies that pass through Invoke nodes; we can't
+        // tell whether the function invocation necessarily establishes a
+        // dependency chain from all of its inputs to all of its outputs.
+        continue;
+      }
       for (Node* child : popped->operands()) {
         stack.push_back(child);
       }
@@ -217,6 +228,22 @@ absl::StatusOr<bool> ReplaceOverlappingAfterAll(AfterAll* node) {
   bool changed = false;
   for (int64_t i = 0; i < node->operand_count(); ++i) {
     Node* operand = node->operand(i);
+
+    // NOTE: `DependenciesOf` does not find transitive dependencies through
+    // Invoke nodes, since it can't tell which outputs have dependency chains to
+    // which inputs. By skipping those, this is a more conservative
+    // optimization, and is safe to run even before function inlining; it just
+    // may miss some optimization opportunities. Rerunning the pass after
+    // function inlining will clean up any of these opportunities that remain.
+    //
+    // In particular, if we assumed Invoke nodes created dependencies from all
+    // of their inputs to their output, we would accidentally treat the Invoke
+    // node's output as overlapping with all of its input tokens, which could
+    // cause us to remove the only path from a side-effecting op's token to the
+    // sink... but IR verification couldn't catch the mistake until after
+    // function inlining, since the verification logic also treats functions as
+    // opaque. (See the CL that introduced this comment for how this could
+    // cause important problems.)
     absl::flat_hash_set<Node*> deps = DependenciesOf(operand);
     for (int64_t j = 0; j < node->operand_count(); ++j) {
       Node* other_operand = node->operand(j);
@@ -270,7 +297,8 @@ int64_t NumberOfTokensInType(Type* type) {
 }  // namespace
 
 absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   for (Node* node : f->nodes()) {
     if (NumberOfTokensInType(node->GetType()) > 1) {
       return false;

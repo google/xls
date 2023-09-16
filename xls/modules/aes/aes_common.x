@@ -343,7 +343,6 @@ pub fn trace_block(block: Block) {
         bytes1[0], bytes1[1], bytes1[2], bytes1[3],
         bytes2[0], bytes2[1], bytes2[2], bytes2[3],
         bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
-    ()
 }
 
 // Until GitHub issue #629 is resolved, this MUST NOT be called in AOT-compiled
@@ -354,7 +353,6 @@ pub fn trace_key(key: Key) {
         "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
         key[0], key[1], key[2], key[3],
         key[4], key[5], key[6], key[7]);
-    ()
 }
 
 // Convenience function to XOR two blocks.

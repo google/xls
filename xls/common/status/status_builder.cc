@@ -15,7 +15,11 @@
 #include "xls/common/status/status_builder.h"
 
 #include <cstdio>
+#include <ostream>
+#include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
 
 #include "absl/base/log_severity.h"
 #include "absl/container/flat_hash_map.h"

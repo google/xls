@@ -14,6 +14,11 @@
 
 #include "xls/codegen/codegen_options.h"
 
+#include <memory>
+#include <optional>
+#include <string_view>
+#include <utility>
+
 #include "xls/common/proto_adaptor_utils.h"
 
 namespace xls::verilog {

@@ -26,6 +26,8 @@
 #include <iostream>
 #include <ostream>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -33,7 +35,9 @@
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "external/verible/common/lsp/lsp-text-buffer.h"
 #include "external/verible/common/lsp/message-stream-splitter.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/lsp/language_server_adapter.h"
 
 ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
@@ -204,6 +208,5 @@ absl::Status RealMain() {
 int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
-  XLS_QCHECK_OK(xls::dslx::RealMain());
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::dslx::RealMain());
 }

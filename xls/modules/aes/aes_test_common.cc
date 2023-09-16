@@ -15,7 +15,11 @@
 
 #include <arpa/inet.h>
 
+#include <array>
 #include <filesystem>
+#include <iostream>
+#include <string>
+#include <vector>
 
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"

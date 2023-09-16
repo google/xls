@@ -14,6 +14,7 @@
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 
 #include <cstdint>
+#include <ios>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,12 +27,15 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/temp_file.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode/builtins.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -458,15 +462,15 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   ASSERT_EQ(num_elements, 3);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue element,
                            value.Index(InterpValue::MakeU32(0)));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, element.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, element.GetBitValueViaSign());
   EXPECT_EQ(bit_value, 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
   EXPECT_EQ(bit_value, 4);
 
   XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(2)));
-  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
   EXPECT_EQ(bit_value, 5);
 }
 
@@ -792,15 +796,15 @@ fn arrays() -> u32[3] {
   ASSERT_EQ(num_elements, 3);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue element,
                            value.Index(InterpValue::MakeU32(0)));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, element.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, element.GetBitValueViaSign());
   EXPECT_EQ(bit_value, 0);
 
   XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
   EXPECT_EQ(bit_value, 1);
 
   XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(2)));
-  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
   EXPECT_EQ(bit_value, 32);
 }
 
@@ -923,9 +927,9 @@ fn oob_width_slice() -> (u32, u32)[4] {
     XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* tuple_elements,
                              array_elements->at(i).GetValues());
     XLS_ASSERT_OK_AND_ASSIGN(uint64_t value,
-                             tuple_elements->at(0).GetBitValueUint64());
+                             tuple_elements->at(0).GetBitValueViaSign());
     EXPECT_EQ(value, i);
-    XLS_ASSERT_OK_AND_ASSIGN(value, tuple_elements->at(1).GetBitValueUint64());
+    XLS_ASSERT_OK_AND_ASSIGN(value, tuple_elements->at(1).GetBitValueViaSign());
     EXPECT_EQ(value, 0xfeedf00d);
   }
 }
@@ -1188,7 +1192,7 @@ fn main() -> u32 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 80);
 }
 
@@ -1208,7 +1212,7 @@ fn main() -> u32 {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 12);
 }
 
@@ -1229,7 +1233,7 @@ fn main() -> u32 {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 300);
 }
 
@@ -1255,7 +1259,7 @@ fn main() -> u16 {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 0xadbe);
 }
 
@@ -1266,7 +1270,7 @@ fn main() -> u32 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 0xdeadbeef);
 }
 
@@ -1277,7 +1281,7 @@ fn main() -> u32 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 16);
 }
 
@@ -1288,7 +1292,7 @@ fn main() -> u32 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 16);
 }
 
@@ -1303,7 +1307,7 @@ fn main() -> u8 {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 0x41);
 }
 
@@ -1318,7 +1322,7 @@ fn main() -> u32 {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 0x80604020);
 }
 
@@ -1333,7 +1337,7 @@ fn main() -> u32 {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 0x00000020);
 }
 
@@ -1350,7 +1354,7 @@ fn main() -> u32[5] {
   EXPECT_EQ(elements->size(), 5);
   for (int i = 0; i < elements->size(); i++) {
     XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value,
-                             elements->at(i).GetBitValueUint64());
+                             elements->at(i).GetBitValueViaSign());
     EXPECT_EQ(int_value, i + 100);
   }
 }
@@ -1364,13 +1368,13 @@ fn main(p: bool, x: u32) -> u32 {
       InterpValue value,
       Interpret(kProgram, "main",
                 {InterpValue::MakeBool(true), InterpValue::MakeU32(0xbeef)}));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 0xbeef);
 
   XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main",
                                             {InterpValue::MakeBool(false),
                                              InterpValue::MakeU32(0xbeef)}));
-  XLS_ASSERT_OK_AND_ASSIGN(int_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 0x0);
 }
 
@@ -1452,7 +1456,7 @@ fn main() -> u32[8] {
   EXPECT_EQ(elements->size(), 8);
   for (int i = 0; i < elements->size(); i++) {
     XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value,
-                             elements->at(i).GetBitValueUint64());
+                             elements->at(i).GetBitValueViaSign());
     EXPECT_EQ(int_value, i + 8);
   }
 }
@@ -1464,7 +1468,7 @@ fn main() -> u7 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x7f));
+  EXPECT_THAT(value.GetBitValueViaSign(), IsOkAndHolds(0x7f));
 }
 
 TEST(BytecodeInterpreterTest, TypeMaxExprS7) {
@@ -1474,7 +1478,7 @@ fn main() -> s3 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  EXPECT_THAT(value.GetBitValueInt64(), IsOkAndHolds(3));
+  EXPECT_THAT(value.GetBitValueViaSign(), IsOkAndHolds(3));
 }
 
 TEST(BytecodeInterpreterTest, TypeMaxExprTypeAlias) {
@@ -1485,7 +1489,7 @@ fn main() -> MyU9 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x1ff));
+  EXPECT_THAT(value.GetBitValueViaSign(), IsOkAndHolds(0x1ff));
 }
 
 TEST(BytecodeInterpreterTest, MultipleExpressionStatements) {
@@ -1496,7 +1500,7 @@ fn main() -> u32 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(64));
+  EXPECT_THAT(value.GetBitValueViaSign(), IsOkAndHolds(64));
 }
 
 TEST(BytecodeInterpreterTest, ForWithCover) {
@@ -1517,6 +1521,39 @@ fn main() {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   EXPECT_TRUE(value.IsUnit());
+}
+
+// https://github.com/google/xls/issues/981
+TEST(BytecodeInterpreterTest, AssertEqFailProcIterations) {
+  constexpr std::string_view kProgram = R"(
+#[test_proc]
+proc BTester {
+    terminator: chan<bool> out;
+
+    init { (u32:0) }
+
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+
+    next(tok: token, state: u32) {
+        assert_eq(state, u32:0);
+        // ensure at least 2 `next()` iterations to create an interpreter frame.
+        let tok = send_if(tok, terminator, state > u32:1, true);
+        (state + u32:1)
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr std::string_view kModuleName = "test";
+  ParseAndTestOptions options;
+  ::testing::internal::CaptureStderr();
+  absl::StatusOr<TestResult> result = ParseAndTest(
+      kProgram, kModuleName, std::string{temp_file.path()}, options);
+  std::string stdcerr(::testing::internal::GetCapturedStderr());
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+  EXPECT_THAT(stdcerr, HasSubstr("were not equal"));
 }
 
 TEST(BytecodeInterpreterTest, DistinctNestedParametricProcs) {
@@ -1577,7 +1614,6 @@ proc BTester {
         let (tok, result) = recv(tok, data_out);
         assert_eq(result, u32:9);
         let tok = send(tok, terminator, true);
-        ()
     }
 })";
 
@@ -1805,7 +1841,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 
@@ -1832,7 +1867,6 @@ proc tester_proc {
     let (tok, result) = recv(tok, data_in);
 
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -1889,7 +1923,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 
@@ -1916,7 +1949,6 @@ proc tester_proc {
     let (tok, result) = recv(tok, data_in);
 
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -1975,7 +2007,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i, valid) = recv_non_blocking(tok, in_ch, u32:0);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 
@@ -1998,7 +2029,6 @@ proc tester_proc {
     let tok = send_if(tok, data_out, false, u32:42);
     let (tok, result) = recv(tok, data_in);
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -2054,7 +2084,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, Foo { a:i.a + u32:1, b:i.b + u16:1 });
-    ()
   }
 }
 
@@ -2082,7 +2111,6 @@ proc tester_proc {
     let (tok, result) = recv(tok, data_in);
 
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -2140,7 +2168,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 
@@ -2168,7 +2195,6 @@ proc tester_proc {
     let (tok, result) = recv(tok, data_in[0]);
 
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -2224,7 +2250,7 @@ fn main(x: s32) -> s4 {
 
     if (x >= -8 && x < 8) {
       XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
-      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueInt64());
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueViaSign());
       EXPECT_EQ(x, bit_value);
     } else {
       EXPECT_THAT(value_or.status(),
@@ -2247,7 +2273,7 @@ fn main(x: s32) -> u4 {
 
     if (x >= 0 && x < 16) {
       XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
-      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueUint64());
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueViaSign());
       EXPECT_EQ(x, bit_value);
     } else {
       EXPECT_THAT(value_or.status(),
@@ -2270,7 +2296,7 @@ fn main(x: u32) -> s4 {
 
     if (x < 8) {
       XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
-      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueInt64());
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueViaSign());
       EXPECT_EQ(x, bit_value);
     } else {
       EXPECT_THAT(value_or.status(),
@@ -2293,7 +2319,7 @@ fn main(x: u32) -> u4 {
 
     if (x < 16) {
       XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
-      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueUint64());
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueViaSign());
       EXPECT_EQ(x, bit_value);
     } else {
       EXPECT_THAT(value_or.status(),
@@ -2356,6 +2382,150 @@ TEST(ByteCodeInterpreterTest, CheckHighlightLineByLineDifferences) {
             "> queen\n"
             "< jack\n"
             "< queen\n");
+}
+
+TEST(BytecodeInterpreterTest, RolloverHookTestForAdd) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u2, y: u2) -> u2 {
+  x + y
+}
+)";
+
+  for (uint64_t flat = 0; flat < 16; ++flat) {
+    uint64_t x = (flat >> 0) & 0x3;
+    uint64_t y = (flat >> 2) & 0x3;
+    std::vector<Span> source_spans;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        InterpValue result,
+        Interpret(kProgram, "main",
+                  {
+                      InterpValue::MakeUBits(2, x),
+                      InterpValue::MakeUBits(2, y),
+                  },
+                  BytecodeInterpreterOptions().rollover_hook(
+                      [&](const Span& s) { source_spans.push_back(s); })));
+    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+                << " result: " << result.ToString();
+
+    for (const Span& source_span : source_spans) {
+      XLS_VLOG(1) << "Rollover span: " << source_span;
+    }
+
+    if (x + y >= 4) {  // We should have a rollover in these cases.
+      ASSERT_EQ(source_spans.size(), 1);
+      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+    } else {
+      ASSERT_TRUE(source_spans.empty());
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, RolloverHookTestForSub) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u2, y: u2) -> u2 {
+  x - y
+}
+)";
+
+  for (uint64_t flat = 0; flat < 16; ++flat) {
+    uint64_t x = (flat >> 0) & 0x3;
+    uint64_t y = (flat >> 2) & 0x3;
+    std::vector<Span> source_spans;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        InterpValue result,
+        Interpret(kProgram, "main",
+                  {
+                      InterpValue::MakeUBits(2, x),
+                      InterpValue::MakeUBits(2, y),
+                  },
+                  BytecodeInterpreterOptions().rollover_hook(
+                      [&](const Span& s) { source_spans.push_back(s); })));
+    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+                << " result: " << result.ToString();
+
+    for (const Span& source_span : source_spans) {
+      XLS_VLOG(1) << "Rollover span: " << source_span;
+    }
+
+    if (static_cast<int64_t>(x) - static_cast<int64_t>(y) <
+        0) {  // We should have a rollover in these cases.
+      ASSERT_EQ(source_spans.size(), 1);
+      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+    } else {
+      ASSERT_TRUE(source_spans.empty());
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, RolloverHookTestForUMul) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u2, y: u2) -> u2 {
+  x * y
+}
+)";
+
+  for (uint64_t flat = 0; flat < 16; ++flat) {
+    uint64_t x = (flat >> 0) & 0x3;
+    uint64_t y = (flat >> 2) & 0x3;
+    std::vector<Span> source_spans;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        InterpValue result,
+        Interpret(kProgram, "main",
+                  {
+                      InterpValue::MakeUBits(2, x),
+                      InterpValue::MakeUBits(2, y),
+                  },
+                  BytecodeInterpreterOptions().rollover_hook(
+                      [&](const Span& s) { source_spans.push_back(s); })));
+    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+                << " result: " << result.ToString();
+
+    for (const Span& source_span : source_spans) {
+      XLS_VLOG(1) << "Rollover span: " << source_span;
+    }
+
+    if (x * y >= 4) {  // We should have a rollover in these cases.
+      ASSERT_EQ(source_spans.size(), 1);
+      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+    } else {
+      ASSERT_TRUE(source_spans.empty());
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, RolloverHookTestForSMul) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: s2, y: s2) -> s2 {
+  x * y
+}
+)";
+
+  for (int64_t x : {-2, -1, 0, 1}) {
+    for (int64_t y : {-2, -1, 0, 1}) {
+      std::vector<Span> source_spans;
+      XLS_ASSERT_OK_AND_ASSIGN(
+          InterpValue result,
+          Interpret(kProgram, "main",
+                    {
+                        InterpValue::MakeSBits(2, x),
+                        InterpValue::MakeSBits(2, y),
+                    },
+                    BytecodeInterpreterOptions().rollover_hook(
+                        [&](const Span& s) { source_spans.push_back(s); })));
+
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t got, result.GetBitValueViaSign());
+      bool rollover = x * y != got;
+      XLS_VLOG(1) << " x: " << x << " y: " << y
+                  << " result: " << result.ToString()
+                  << " rollover: " << rollover;
+      if (rollover) {
+        ASSERT_EQ(source_spans.size(), 1);
+        EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+      } else {
+        ASSERT_TRUE(source_spans.empty());
+      }
+    }
+  }
 }
 
 }  // namespace

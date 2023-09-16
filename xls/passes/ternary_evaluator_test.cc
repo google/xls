@@ -14,6 +14,10 @@
 
 #include "xls/passes/ternary_evaluator.h"
 
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"

@@ -170,6 +170,31 @@ xls_dslx_opt_ir(
     dslx_top = "run_instruction",
 )
 
+xls_dslx_library(
+    name = "ffi",
+    srcs = ["ffi.x"],
+)
+
+xls_dslx_test(
+    name = "ffi_test",
+    srcs = ["ffi.x"],
+)
+
+xls_dslx_verilog(
+    name = "ffi_codegen",
+    codegen_args = {
+        "module_name": "ffi",
+        "generator": "pipeline",
+        "pipeline_stages": "1",
+        "delay_model": "sky130",
+        "ffi_fallback_delay_ps": "123",
+        "use_system_verilog": "true",
+    },
+    dslx_top = "main",
+    library = ":ffi",
+    verilog_file = "ffi.sv",
+)
+
 # TODO: 2021-05-28 Add xls_ir_equivalence_test, xls_eval_ir_test and
 # xls_benchmark_ir.
 xls_dslx_test(
@@ -292,6 +317,7 @@ cc_test(
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -302,7 +328,6 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -313,6 +338,7 @@ cc_test(
         ":proc_fir_filter",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -322,7 +348,6 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -587,4 +612,29 @@ xls_dslx_test(
         "compare": "none",
     },
     library = ":fp32_fmac_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "overflow_detect",
+    srcs = ["overflow_detect.x"],
+    dslx_top = "main",
+    ir_file = "overflow_detect.ir",
+    opt_ir_file = "overflow_detect.opt.ir",
+)
+
+xls_dslx_opt_ir(
+    name = "nested_sel",
+    srcs = ["nested_sel.x"],
+    dslx_top = "main",
+)
+
+xls_dslx_opt_ir_test(
+    name = "nested_sel_test",
+    dep = ":nested_sel",
+)
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
 )

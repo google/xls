@@ -15,6 +15,7 @@
 #ifndef XLS_INTERPRETER_PROC_EVALUATOR_TEST_BASE_H_
 #define XLS_INTERPRETER_PROC_EVALUATOR_TEST_BASE_H_
 
+#include <functional>
 #include <memory>
 
 #include "gmock/gmock.h"

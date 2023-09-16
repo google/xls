@@ -17,7 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -25,15 +25,15 @@ namespace xls {
 // operands where one operand is an ancestor of another in the token graph, then
 // the ancestor can be omitted. Similarly, duplicate operands can be removed
 // and AfterAlls with one operand can be replaced with their operand.
-class TokenSimplificationPass : public FunctionBasePass {
+class TokenSimplificationPass : public OptimizationFunctionBasePass {
  public:
   TokenSimplificationPass()
-      : FunctionBasePass("token_simp", "Simplify token networks") {}
+      : OptimizationFunctionBasePass("token_simp", "Simplify token networks") {}
   ~TokenSimplificationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

@@ -44,7 +44,6 @@ fn parametric_call_local_parametric() {
   let actual = dot_product_local(a, b);
   let expected = u32:38;
   assert_eq(actual, expected);
-  ()
 }
 
 // #2: Test invoking a imported ("ColonRef") parametric.
@@ -70,5 +69,4 @@ fn parametric_call_modref_parametric() {
   let actual = dot_product_modref(a, b);
   let expected = u32:38;
   assert_eq(actual, expected);
-  ()
 }

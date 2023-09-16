@@ -14,6 +14,9 @@
 
 #include "xls/passes/arith_simplification_pass.h"
 
+#include <cstdlib>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
@@ -26,6 +29,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -41,7 +45,7 @@ class ArithSimplificationPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     return ArithSimplificationPass(kMaxOptLevel)
-        .Run(p, PassOptions(), &results);
+        .Run(p, OptimizationPassOptions(), &results);
   }
 
   void CheckUnsignedDivide(int n, int divisor);
@@ -342,7 +346,8 @@ void ArithSimplificationPassTest::CheckUnsignedDivide(int n, int divisor) {
 
   // Clean up the dumped IR
   PassResults results;
-  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
+                                            &results),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -398,7 +403,8 @@ TEST_F(ArithSimplificationPassTest, UDivWrongIssue736) {
 
   // Clean up the dumped IR
   PassResults results;
-  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
+                                            &results),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -442,7 +448,8 @@ TEST_F(ArithSimplificationPassTest, SDivWrongIssue736) {
 
   // Clean up the dumped IR
   PassResults results;
-  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
+                                            &results),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -486,7 +493,8 @@ void ArithSimplificationPassTest::CheckSignedDividePowerOfTwo(int n,
 
   // Clean up the dumped IR
   PassResults results;
-  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
+                                            &results),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -565,7 +573,8 @@ void ArithSimplificationPassTest::CheckSignedDivideNotPowerOfTwo(int n,
 
   // Clean up the dumped IR
   PassResults results;
-  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
+                                            &results),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();

@@ -16,9 +16,10 @@
 #define XLS_SCHEDULING_SCHEDULING_WRAPPER_PASS_H_
 
 #include <memory>
+#include <utility>
 
 #include "absl/status/statusor.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
@@ -34,7 +35,7 @@ namespace xls {
 // scheduling pass must be rerun after this wrapped pass.
 class SchedulingWrapperPass : public SchedulingPass {
  public:
-  explicit SchedulingWrapperPass(std::unique_ptr<Pass> wrapped_pass,
+  explicit SchedulingWrapperPass(std::unique_ptr<OptimizationPass> wrapped_pass,
                                  bool reschedule_new_nodes = false)
       : SchedulingPass(
             absl::StrFormat("scheduling_%s", wrapped_pass->short_name()),
@@ -49,7 +50,7 @@ class SchedulingWrapperPass : public SchedulingPass {
       SchedulingPassResults* results) const override;
 
  private:
-  std::unique_ptr<Pass> wrapped_pass_;
+  std::unique_ptr<OptimizationPass> wrapped_pass_;
   bool reschedule_new_nodes_;
 };
 

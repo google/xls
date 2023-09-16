@@ -14,6 +14,13 @@
 
 #include "xls/codegen/finite_state_machine.h"
 
+#include <algorithm>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string_view>
+#include <vector>
+
 #include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

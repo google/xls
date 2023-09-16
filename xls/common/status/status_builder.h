@@ -17,8 +17,10 @@
 
 #include <limits>
 #include <memory>
+#include <ostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/base/log_severity.h"

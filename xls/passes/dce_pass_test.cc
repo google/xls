@@ -21,6 +21,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 namespace {
@@ -34,8 +35,8 @@ class DeadCodeEliminationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(FunctionBase* f) {
     PassResults results;
-    return DeadCodeEliminationPass().RunOnFunctionBase(f, PassOptions(),
-                                                       &results);
+    return DeadCodeEliminationPass().RunOnFunctionBase(
+        f, OptimizationPassOptions(), &results);
   }
 };
 

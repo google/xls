@@ -15,6 +15,8 @@
 #ifndef XLS_NOC_CONFIG_FLATTENED_MULTI_DIMENSIONAL_ARRAY_H_
 #define XLS_NOC_CONFIG_FLATTENED_MULTI_DIMENSIONAL_ARRAY_H_
 
+#include <algorithm>
+#include <optional>
 #include <vector>
 
 #include "absl/container/inlined_vector.h"

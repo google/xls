@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -34,6 +35,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -326,7 +328,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 }  // namespace
 
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 

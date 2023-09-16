@@ -14,6 +14,10 @@
 
 #include "xls/scheduling/scheduling_wrapper_pass.h"
 
+#include <algorithm>
+#include <optional>
+#include <utility>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
@@ -24,7 +28,8 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     SchedulingUnit<>* unit, const SchedulingPassOptions& options,
     PassResults* results) const {
   if (!unit->schedule.has_value()) {
-    return wrapped_pass_->Run(unit->ir, options, results);
+    return wrapped_pass_->Run(unit->ir, OptimizationPassOptions(options),
+                              results);
   }
 
   absl::flat_hash_map<int64_t, Node*> nodes_before;
@@ -34,8 +39,9 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(bool changed,
-                       wrapped_pass_->Run(unit->ir, options, results));
+  XLS_ASSIGN_OR_RETURN(
+      bool changed,
+      wrapped_pass_->Run(unit->ir, OptimizationPassOptions(options), results));
   if (!changed) {
     return false;
   }

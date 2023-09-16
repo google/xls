@@ -21,6 +21,7 @@ package(
 
 exports_files(
     [
+        "xlscc_providers.bzl",
         "xlscc_rules.bzl",
         "xlscc_rules_build_defs.bzl",
     ],
@@ -45,6 +46,7 @@ bzl_library(
         "//xls/build_rules:xls_providers_bzl",
         "//xls/build_rules:xls_toolchains_bzl",
         "//xls/build_rules:xls_type_check_helpers_bzl",
+        "//xls/contrib/xlscc/build_rules:xlscc_providers_bzl",
     ],
 )
 
@@ -64,4 +66,16 @@ bzl_library(
     deps = [
         ":xlscc_rules_bzl",
     ],
+)
+
+bzl_library(
+    name = "xlscc_providers_bzl",
+    srcs = ["xlscc_providers.bzl"],
+    visibility = ["//xls/contrib/xlscc/build_rules/__subpackages__"],
+)
+
+bzl_library(
+    name = "cc_generator_bzl",
+    srcs = ["cc_generator.bzl"],
+    visibility = ["//visibility:private"],
 )

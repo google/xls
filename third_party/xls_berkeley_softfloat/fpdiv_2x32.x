@@ -206,6 +206,4 @@ fn special_cases_tests() {
   let two  = F32 { sign: u1:0, bexp: u8:128, fraction: u23:0 };
   let result = fpdiv_2x32(inf, two);
   assert_eq(result, inf);
-
-  ()
 }

@@ -14,9 +14,12 @@
 
 // Converts a protobuf schema and instantiating message into DSLX structs and
 // constant data.
+#include <string>
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "google/protobuf/text_format.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -76,8 +79,7 @@ int main(int argc, char* argv[]) {
 
   std::string var_name = absl::GetFlag(FLAGS_var_name);
   XLS_QCHECK(!var_name.empty()) << "--var_name must be specified.";
-  XLS_QCHECK_OK(xls::RealMain(source_root_path, proto_def_path, proto_name,
-                              textproto_path, var_name, output_path));
-
-  return 0;
+  return xls::ExitStatus(xls::RealMain(source_root_path, proto_def_path,
+                                       proto_name, textproto_path, var_name,
+                                       output_path));
 }

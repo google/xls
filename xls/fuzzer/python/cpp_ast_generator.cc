@@ -16,6 +16,8 @@
 // (which currently drives the sampling / running process).
 
 #include <memory>
+#include <optional>
+#include <string>
 
 #include "absl/status/statusor.h"
 #include "pybind11/functional.h"
@@ -96,15 +98,6 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
                 .generate_proc = t[5].cast<bool>(),
                 .emit_stateless_proc = t[6].cast<bool>()};
           }));
-
-  m.def("generate",
-        [](const AstGeneratorOptions& options,
-           ValueGenerator& value_gen) -> absl::StatusOr<std::string> {
-          AstGenerator g(options, &value_gen);
-          XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                               g.Generate("main", "test"));
-          return module->ToString();
-        });
 
   m.def(
       "choose_bit_pattern",

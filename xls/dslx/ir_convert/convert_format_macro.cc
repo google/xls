@@ -14,6 +14,11 @@
 
 #include "xls/dslx/ir_convert/convert_format_macro.h"
 
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
+
 #include "xls/dslx/make_value_format_descriptor.h"
 
 namespace xls::dslx {

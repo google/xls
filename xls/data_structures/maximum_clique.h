@@ -15,7 +15,9 @@
 #ifndef XLS_DATA_STRUCTURES_MAXIMUM_CLIQUE_H_
 #define XLS_DATA_STRUCTURES_MAXIMUM_CLIQUE_H_
 
+#include <memory>
 #include <optional>
+#include <string>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"

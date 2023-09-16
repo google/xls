@@ -14,6 +14,10 @@
 
 #include "xls/noc/simulation/indexer.h"
 
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_format.h"
 

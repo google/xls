@@ -58,3 +58,9 @@ xls_dslx_test(
         "compare": "none",
     },
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

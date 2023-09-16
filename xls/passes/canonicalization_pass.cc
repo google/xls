@@ -14,12 +14,16 @@
 
 #include "xls/passes/canonicalization_pass.h"
 
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_util.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -65,8 +69,7 @@ bool AreSequentialLiterals(Node* m, Node* n) {
   const Bits& n_bits = n->As<Literal>()->value().bits();
   // Zero extend before adding one to avoid overflow.
   return bits_ops::UEqual(
-      bits_ops::Add(bits_ops::ZeroExtend(m_bits, m_bits.bit_count() + 1),
-                    UBits(1, m_bits.bit_count() + 1)),
+      bits_ops::Increment(bits_ops::ZeroExtend(m_bits, m_bits.bit_count() + 1)),
       n_bits);
 }
 
@@ -209,7 +212,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
     const Bits& literal = n->operand(1)->As<Literal>()->value().bits();
     if (n->op() == Op::kUGe && !literal.IsZero()) {
       XLS_VLOG(2) << "Replaced Uge(x, K) with Ugt(x, K - 1)";
-      Bits k_minus_one = bits_ops::Sub(literal, UBits(1, literal.bit_count()));
+      Bits k_minus_one = bits_ops::Decrement(literal);
       XLS_ASSIGN_OR_RETURN(
           Literal * new_literal,
           n->function_base()->MakeNode<Literal>(n->loc(), Value(k_minus_one)));
@@ -220,7 +223,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
     }
     if (n->op() == Op::kULe && !literal.IsAllOnes()) {
       XLS_VLOG(2) << "Replaced ULe(x, literal) with Ult(x, literal + 1)";
-      Bits k_plus_one = bits_ops::Add(literal, UBits(1, literal.bit_count()));
+      Bits k_plus_one = bits_ops::Increment(literal);
       XLS_ASSIGN_OR_RETURN(
           Literal * new_literal,
           n->function_base()->MakeNode<Literal>(n->loc(), Value(k_plus_one)));
@@ -316,7 +319,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
 }
 
 absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBaseInternal(
-    FunctionBase* func, const PassOptions& options,
+    FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results) const {
   return TransformNodesToFixedPoint(func, CanonicalizeNode);
 }

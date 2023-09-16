@@ -420,7 +420,7 @@ def xls_synthesis_metrics(
       Critical path end point
 
     Args:
-        name: Output "DesignStats" textproto will be <name>.textproto
+        name: Output "DesignStats" textproto will be `<name>.textproto`
         srcs: Targets from which log files will be scanned.
               For post-synth, use "synthesize_rtl" and "run_opensta" targets.
         **kwargs: Accepts add'l keyword arguments. Passed to native.genrule().

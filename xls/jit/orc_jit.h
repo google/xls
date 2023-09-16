@@ -15,6 +15,11 @@
 #ifndef XLS_JIT_ORC_JIT_H_
 #define XLS_JIT_ORC_JIT_H_
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/Core.h"

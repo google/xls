@@ -14,6 +14,10 @@
 
 #include "xls/common/status/matchers.h"
 
+#include <ostream>
+#include <string>
+#include <string_view>
+
 #include "absl/strings/str_cat.h"
 
 namespace xls {

@@ -31,7 +31,6 @@ proc Main {
         let (tok, do_recv) = recv(tok, do_recv_in);
         let (tok, foo, foo_valid) = recv_if_non_blocking(tok, data_in, do_recv, u32:123);
         send(tok, result_out, (foo, foo_valid));
-        ()
     }
 }
 
@@ -77,6 +76,5 @@ proc Tester {
         assert_eq(result, (u32:2, true));
 
         let tok = send(tok, terminator, true);
-        ()
     }
 }

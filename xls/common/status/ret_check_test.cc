@@ -14,6 +14,8 @@
 
 #include "xls/common/status/ret_check.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"

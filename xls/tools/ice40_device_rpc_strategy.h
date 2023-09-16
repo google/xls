@@ -15,6 +15,8 @@
 #ifndef XLS_TOOLS_ICE40_DEVICE_RPC_STRATEGY_H_
 #define XLS_TOOLS_ICE40_DEVICE_RPC_STRATEGY_H_
 
+#include <optional>
+
 #include "absl/status/statusor.h"
 #include "xls/tools/device_rpc_strategy.h"
 

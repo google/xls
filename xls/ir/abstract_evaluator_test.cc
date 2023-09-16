@@ -15,6 +15,7 @@
 #include "xls/ir/abstract_evaluator.h"
 
 #include <random>
+#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"

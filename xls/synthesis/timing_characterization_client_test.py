@@ -30,7 +30,7 @@ class TimingCharacterizationClientMainTest(absltest.TestCase):
     # Maps an op name to the set of bit configurations we've run that op with.
     data_points = collections.defaultdict(set)
 
-    # Set up some dummy data.
+    # Set up some fake data.
     ops = ["op_a", "op_b", "op_c", "op_d", "op_e"]
     bit_configs = ["3, 1, 1", "4, 1, 2", "5, 2, 1", "6, 2, 2"]
     for op in ops:

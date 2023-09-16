@@ -14,6 +14,10 @@
 
 #include "xls/public/ir_parser.h"
 
+#include <memory>
+#include <optional>
+#include <string_view>
+
 #include "xls/ir/ir_parser.h"
 
 namespace xls {

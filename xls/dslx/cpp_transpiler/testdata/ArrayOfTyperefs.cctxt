@@ -1,0 +1,101 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#include <vector>
+
+#include "/tmp/fake_path.h"
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+
+absl::StatusOr<Foo> Foo::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
+    return absl::InvalidArgumentError(
+        "Foo::FromValue input must be a 2-tuple.");
+  }
+
+  Foo result;
+  result.a = value.element(0).bits().ToUint64().value();
+  result.b = value.element(1).bits().ToUint64().value();
+  return result;
+}
+
+::xls::Value Foo::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value a_value;
+  a_value = ::xls::Value(::xls::UBits(a, /*bit_count=*/32));
+  members.push_back(a_value);
+  ::xls::Value b_value;
+  b_value = ::xls::Value(::xls::UBits(b, /*bit_count=*/64));
+  members.push_back(b_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const Foo& data) {
+  os << data.ToString();
+  return os;
+}
+std::string Foo::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "Foo {\n";
+  result += indent_str + "  a: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  b: " + elements[1].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool Foo::operator==(const Foo& other) const {
+  return a == other.a && b == other.b;
+}
+
+absl::StatusOr<Bar> Bar::FromValue(const ::xls::Value& value) {
+  if (value.size() != 1) {
+    return absl::InvalidArgumentError(
+        "Bar::FromValue input must be a 1-tuple.");
+  }
+
+  Bar result;
+  for (int idx_1 = 0; idx_1 < 2; idx_1++) {
+    auto result_c_idx_1__or = Foo::FromValue(value.element(0).element(idx_1));
+    if (!result_c_idx_1__or.ok()) {
+      return result_c_idx_1__or.status();
+    }
+    result.c[idx_1] = result_c_idx_1__or.value();
+  }
+  return result;
+}
+
+::xls::Value Bar::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(1);
+  ::xls::Value c_value;
+  std::vector<::xls::Value> c_elements;
+  c_elements.reserve(ABSL_ARRAYSIZE(c));
+  for (int idx_1 = 0; idx_1 < ABSL_ARRAYSIZE(c); idx_1++) {
+    ::xls::Value c_element;
+    c_element = c[idx_1].ToValue();
+    c_elements.push_back(c_element);
+  }
+  c_value = ::xls::Value::ArrayOrDie(c_elements);
+  members.push_back(c_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const Bar& data) {
+  os << data.ToString();
+  return os;
+}
+std::string Bar::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "Bar {\n";
+  result += indent_str + "  c: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool Bar::operator==(const Bar& other) const {
+  return c == other.c;
+}

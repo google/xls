@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn min_clip<X:u32, MIN:sN[X]=sN[X]:0>(value:sN[X]) -> sN[X] {
+fn min_clip<X: u32, MIN: sN[X] = {sN[X]:0}>(value: sN[X]) -> sN[X] {
   if (value < MIN) { MIN } else { value }
+}
+
+fn main(x: s4) -> s4 {
+  const X = u32:4;
+  min_clip<X>(x)
 }
 
 #[test]
 fn test_min_clip() {
-  const X = u32:4;
-  assert_eq(min_clip<X>(s4:-1), s4:0)
+  assert_eq(main(s4:-1), s4:0)
 }

@@ -14,6 +14,9 @@
 
 #include "xls/fuzzer/dslx_mutator.h"
 
+#include <string>
+#include <string_view>
+
 #include "absl/random/random.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/scanner.h"

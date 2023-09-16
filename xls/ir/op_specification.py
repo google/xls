@@ -532,8 +532,16 @@ OpClass.kinds['ASSERT'] = OpClass(
                    Method(name='condition',
                           return_cpp_type='Node*',
                           expression='operand(1)'),
+                   Method(name='set_label',
+                          return_cpp_type='void',
+                          expression_is_body=True,
+                          params='std::string new_label',
+                          expression='label_ = std::move(new_label);',
+                          is_const=False),
                    ],
-    attributes=[StringAttribute('message'), OptionalStringAttribute('label')]
+    attributes=[StringAttribute('message'),
+                OptionalStringAttribute('label'),
+                OptionalStringAttribute('original_label')]
 )
 
 OpClass.kinds['TRACE'] = OpClass(
@@ -565,8 +573,15 @@ OpClass.kinds['COVER'] = OpClass(
                    Method(name='condition',
                           return_cpp_type='Node*',
                           expression='operand(1)'),
+                   Method(name='set_label',
+                          expression_is_body=True,
+                          return_cpp_type='void',
+                          params='std::string new_label',
+                          expression='label_ = std::move(new_label);',
+                          is_const=False),
                    ],
-    attributes=[StringAttribute('label')]
+    attributes=[StringAttribute('label'),
+                OptionalStringAttribute('original_label')]
 )
 
 OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(

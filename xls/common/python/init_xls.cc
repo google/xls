@@ -14,6 +14,9 @@
 
 #include "xls/common/init_xls.h"
 
+#include <string>
+#include <vector>
+
 #include "absl/base/call_once.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"

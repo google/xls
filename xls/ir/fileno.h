@@ -23,9 +23,9 @@
 
 namespace xls {
 
-DEFINE_STRONG_INT_TYPE(Fileno, int32_t);
-DEFINE_STRONG_INT_TYPE(Lineno, int32_t);
-DEFINE_STRONG_INT_TYPE(Colno, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(Fileno, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(Lineno, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(Colno, int32_t);
 
 }  // namespace xls
 

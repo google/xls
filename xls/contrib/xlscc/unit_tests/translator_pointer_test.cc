@@ -13,11 +13,14 @@
 // limitations under the License.
 
 #include <cstdio>
+#include <list>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -661,9 +664,8 @@ TEST_F(TranslatorPointerTest, Nullptr) {
       })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("nullptr")));
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("nullptr")));
 }
 
 TEST_F(TranslatorPointerTest, PointerInStruct) {
@@ -910,11 +912,11 @@ TEST_F(TranslatorPointerTest, ReferenceFuncReturn) {
       return y;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Don't know how to translate lvalue of "
-                                     "type DeclRefExpr from callee context")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Don't know how to handle lvalue return")));
 }
 
 TEST_F(TranslatorPointerTest, ReferenceReturnThis) {
@@ -1058,23 +1060,6 @@ TEST_F(TranslatorPointerTest, PointerToPointer) {
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("Don't know how to convert")));
-}
-
-TEST_F(TranslatorPointerTest, ReturnReferenceToStatic) {
-  const std::string content = R"(
-       short& get_static() {
-        static short val_a = 11;
-        return val_a;
-       }
-
-       int my_package(int a) {
-        return get_static();
-       })";
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Don't know how to translate lvalue")));
 }
 
 TEST_F(TranslatorPointerTest, MethodUsingMemberReference) {

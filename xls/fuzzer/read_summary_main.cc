@@ -12,11 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -206,9 +212,8 @@ void DumpSampleInfo(const SampleInfo& info) {
   auto fmt = [&](const std::string& s, bool first_col = false) {
     if (first_col) {
       return absl::StrFormat("%-20s", s);
-    } else {
-      return absl::StrFormat("%13s", s);
     }
+    return absl::StrFormat("%13s", s);
   };
   auto fmt_num = [&](int64_t n) { return fmt(absl::StrCat(n), false); };
 
@@ -279,6 +284,5 @@ int main(int argc, char** argv) {
         "Expected invocation: %s [SUMMARY_FILE...]", argv[0]);
   }
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(positional_arguments));
 }

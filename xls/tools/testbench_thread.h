@@ -15,7 +15,10 @@
 #ifndef XLS_TOOLS_TESTBENCH_THREAD_H_
 #define XLS_TOOLS_TESTBENCH_THREAD_H_
 
+#include <atomic>
 #include <functional>
+#include <memory>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

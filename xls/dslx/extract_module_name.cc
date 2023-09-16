@@ -14,6 +14,8 @@
 
 #include "xls/dslx/extract_module_name.h"
 
+#include <string>
+
 #include "absl/strings/str_format.h"
 
 namespace xls::dslx {

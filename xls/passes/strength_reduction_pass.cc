@@ -14,6 +14,9 @@
 
 #include "xls/passes/strength_reduction_pass.h"
 
+#include <algorithm>
+#include <utility>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -24,6 +27,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
 
@@ -335,7 +339,8 @@ absl::StatusOr<bool> StrengthReduceNode(
 }  // namespace
 
 absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   TernaryQueryEngine query_engine;
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,

@@ -36,7 +36,7 @@ proc consumer {
     }
 
     next(tok: token, do_recv: bool) {
-        let (tok, foo) = recv_if(tok, r, do_recv, u32:42);
+        let (tok, _) = recv_if(tok, r, do_recv, u32:42);
         !do_recv
     }
 }
@@ -47,7 +47,6 @@ proc main {
         let (s, r) = chan<u32>;
         spawn producer(s);
         spawn consumer(r);
-        ()
     }
     next(tok: token, state: ()) { () }
 }
@@ -83,6 +82,5 @@ proc test_main {
         assert_eq(v, u32:1);
 
         let tok = send(tok, terminator, true);
-        ()
     }
 }

@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -20,6 +22,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -108,7 +111,6 @@ int main(int argc, char** argv) {
                                           argv[0]);
   }
   XLS_QCHECK(!absl::GetFlag(FLAGS_input_file).empty());
-  XLS_QCHECK_OK(
+  return xls::ExitStatus(
       xls::RealMain(positional_arguments[0], absl::GetFlag(FLAGS_input_file)));
-  return 0;
 }

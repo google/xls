@@ -20,11 +20,11 @@ load(
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
-    "xls_dslx_test",
     "xls_ir_opt_ir",
 )
 load("//xls/dslx/tests:build_defs.bzl", "dslx_lang_test")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -70,12 +70,34 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "simple_mod",
+)
+
+dslx_lang_test(
+    name = "simple_div",
+)
+
+dslx_lang_test(
     name = "simple_inequality",
     convert_to_ir = False,
 )
 
 dslx_lang_test(
     name = "simple_array_equality",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(name = "simple_const_assert")
+
+dslx_lang_test(
+    name = "module_level_const_assert",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "module_level_const_assert_that_calls_fn",
+    # No meaningful entry point to convert.
     convert_to_ir = False,
 )
 
@@ -145,6 +167,13 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "parametric_shift",
+    # TODO(leary): 2023-08-14 Runs into "cannot translate zero length bitvector
+    # with uses".
+    test_ir_equivalence = False,
+)
+
+dslx_lang_test(
     name = "for_over_range_u8",
     convert_to_ir = False,
 )
@@ -185,7 +214,11 @@ dslx_lang_test(
 
 dslx_lang_test(name = "local_type_alias")
 
-dslx_lang_test(name = "block_with_trailing_semi")
+dslx_lang_test(
+    name = "block_with_trailing_semi",
+    # We intenionally have unused vars.
+    warnings_as_errors = False,
+)
 
 dslx_lang_test(
     name = "binops",
@@ -263,6 +296,24 @@ dslx_lang_test(name = "parametric_dot_product")
 
 dslx_lang_test(name = "parametric_plus_global_as_dimension")
 
+dslx_lang_test(
+    name = "parametric_range",
+    # Note: no meaningful function to convert to IR.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "for_over_range",
+    # No meaningful entry point to convert.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "enumerate",
+    # No meaningful entry point to convert.
+    convert_to_ir = False,
+)
+
 dslx_lang_test(name = "character_conversion")
 
 dslx_lang_test(name = "string_conversion")
@@ -287,6 +338,10 @@ dslx_lang_test(name = "match_sample")
 dslx_lang_test(name = "match_const")
 
 dslx_lang_test(name = "match_multi")
+
+dslx_lang_test(name = "match_range_or_wildcard")
+
+dslx_lang_test(name = "match_overlapping_range_and_value")
 
 dslx_lang_test(name = "elseif_sample")
 
@@ -341,42 +396,56 @@ dslx_lang_test(name = "subtract_to_negative")
 
 dslx_lang_test(name = "trace")
 
-# Note: This test is enough to keep the example code compiling,
-# but does not currently check the output.
-# TODO(https://github.com/google/xls/issues/489): 2021-09-02
-# Check the trace output of this test
-xls_dslx_test(
-    name = "trace_fmt_hello_test",
-    srcs = ["trace_fmt_hello.x"],
-    dslx_test_args = {"compare": "interpreter"},
+# Note: Trace output is checked in xls/dslx:interpreter_test and similar
+# trace_fmt tests.
+dslx_lang_test(
+    name = "trace_fmt_hello",
+    # No trace op Z3 translation.
+    test_ir_equivalence = False,
 )
 
-xls_dslx_test(
+# Note: Trace output is checked in xls/dslx:interpreter_test and similar
+# trace_fmt tests.
+dslx_lang_test(
     name = "trace_fmt_struct",
-    srcs = ["trace_fmt_struct.x"],
+    # No trace op Z3 translation.
+    test_ir_equivalence = False,
 )
 
 dslx_lang_test(name = "array_of_typedef_in_tuple")
 
 dslx_lang_test(
     name = "array_of_tuple",
-    # No meaningful function to convert, all tests.
+    # No meaningful entry function to convert.
     convert_to_ir = False,
 )
 
 dslx_lang_test(name = "array_slice")
 
-dslx_lang_test(name = "array_update")
-
-# TODO(leary): 2019-07-24 Missing support for array of tuples eliding cast node.
-xls_dslx_test(
-    name = "parametric_array_of_tuples_dslx_test",
-    srcs = ["parametric_array_of_tuples.x"],
+dslx_lang_test(
+    name = "parametric_proc",
+    # No meaningful entry function to convert.
+    convert_to_ir = False,
 )
 
-xls_dslx_test(
-    name = "parametric_functions_dslx_test",
-    srcs = ["parametric_functions.x"],
+dslx_lang_test(name = "array_update")
+
+dslx_lang_test(
+    name = "parametric_array_of_tuples",
+)
+
+dslx_lang_test(
+    name = "parametric_functions",
+)
+
+dslx_lang_test(
+    name = "array_literal_ellipsis",
+)
+
+dslx_lang_test(
+    name = "cover",
+    # cover! not supported yet in translation to z3.
+    test_ir_equivalence = False,
 )
 
 dslx_lang_test(
@@ -385,9 +454,16 @@ dslx_lang_test(
     test_ir_equivalence = False,
 )
 
-xls_dslx_test(
-    name = "parametric_issue_727_test",
-    srcs = ["parametric_issue_727.x"],
+dslx_lang_test(
+    name = "parametric_issue_727",
+    # Note: no meaningful function to convert to IR.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "const_array_of_enum_refs",
+    # Note: no meaningful function to convert to IR.
+    convert_to_ir = False,
 )
 
 dslx_lang_test(
@@ -398,64 +474,64 @@ dslx_lang_test(
     name = "derived_parametric_value_as_nested_loop_bound",
 )
 
-# Note: no meaningful function to convert to IR.
-xls_dslx_test(
-    name = "bit_slice_dslx_test",
-    srcs = ["bit_slice.x"],
+dslx_lang_test(
+    name = "bit_slice",
+    # Note: no meaningful function to convert to IR.
+    convert_to_ir = False,
 )
 
 dslx_lang_test(name = "bit_slice_update")
 
 dslx_lang_test(name = "const_slice_limit")
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "bit_slice_syntax_dslx_test",
-    srcs = ["bit_slice_syntax.x"],
+dslx_lang_test(
+    name = "bit_slice_syntax",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "tuple_indexing_dslx_test",
-    srcs = ["tuple_indexing.x"],
+dslx_lang_test(
+    name = "tuple_indexing",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
 dslx_lang_test(name = "clz")
 
 dslx_lang_test(name = "ctz")
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "one_hot_dslx_test",
-    srcs = ["one_hot.x"],
+dslx_lang_test(
+    name = "one_hot",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
+dslx_lang_test(
     name = "one_hot_sel",
-    srcs = ["one_hot_sel.x"],
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
+dslx_lang_test(
     name = "priority_sel",
-    srcs = ["priority_sel.x"],
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
 dslx_lang_test(name = "reductions")
 
 dslx_lang_test(name = "signed_number_type")
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "numerical_conversions_dslx_test",
-    srcs = ["numerical_conversions.x"],
+dslx_lang_test(
+    name = "numerical_conversions",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "numerical_conversions2_dslx_test",
-    srcs = ["numerical_conversions2.x"],
+dslx_lang_test(
+    name = "numerical_conversions2",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
 dslx_lang_test(
@@ -463,50 +539,45 @@ dslx_lang_test(
     dslx_deps = [":mod_imported_typedef_dslx"],
 )
 
-xls_dslx_test(
-    name = "builtin_array_rev_dslx_test",
-    srcs = ["builtin_array_rev.x"],
+dslx_lang_test(
+    name = "builtin_array_rev",
 )
 
-xls_dslx_test(
-    name = "builtin_array_size_dslx_test",
-    srcs = ["builtin_array_size.x"],
+dslx_lang_test(
+    name = "builtin_array_size",
+    # Note: no meaningful entry function to convert.
+    convert_to_ir = False,
 )
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "enum_values_dslx_test",
-    srcs = ["enum_values.x"],
+dslx_lang_test(
+    name = "enum_values",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
-# TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
-xls_dslx_test(
-    name = "casts_dslx_test",
-    srcs = ["casts.x"],
+dslx_lang_test(
+    name = "casts",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
-# TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
-xls_dslx_test(
-    name = "cast_to_array_dslx_test",
-    srcs = ["cast_to_array.x"],
+dslx_lang_test(
+    name = "cast_to_array",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
-xls_dslx_test(
-    name = "parametric_with_comparison_dslx_test",
-    srcs = ["parametric_with_comparison.x"],
+dslx_lang_test(
+    name = "parametric_with_comparison",
 )
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "parametric_smul_dslx_test",
-    srcs = ["parametric_smul.x"],
+dslx_lang_test(
+    name = "parametric_smul",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "mulp_test",
-    srcs = ["mulp.x"],
-)
+dslx_lang_test(name = "mulp")
 
 dslx_lang_test(name = "basic_struct")
 
@@ -514,10 +585,11 @@ dslx_lang_test(name = "basic_struct_parameter")
 
 dslx_lang_test(name = "basic_struct_attr")
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "struct_equality_dslx_test",
-    srcs = ["struct_equality.x"],
+dslx_lang_test(
+    name = "struct_equality",
+    # TODO(https://github.com/google/xls/issues/1083): No struct equality
+    # translation to Z3 is currently implemented.
+    test_ir_equivalence = False,
 )
 
 dslx_lang_test(name = "basic_struct_update")
@@ -655,6 +727,8 @@ dslx_lang_test(name = "local_const_value")
 
 dslx_lang_test(name = "const_value_as_nested_loop_bound")
 
+dslx_lang_test(name = "local_const_value_as_nested_loop_bound")
+
 dslx_lang_test(name = "local_const_value_in_parametric")
 
 dslx_lang_test(name = "constant_array_unannotated_type")
@@ -700,6 +774,20 @@ dslx_lang_test(name = "for_up_to_const_local")
 
 dslx_lang_test(name = "map_of_stdlib_parametric")
 
+dslx_lang_test(
+    name = "map_consecutive",
+    # Primarily a #[test] function.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "simple_map_assert_eq",
+    # Primarily a #[test] function.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(name = "simplest_map")
+
 # Library meant to be imported.
 xls_dslx_library(
     name = "mod_imported_array_dslx",
@@ -712,6 +800,10 @@ dslx_lang_test(
         ":mod_imported_array_dslx",
         ":mod_imported_lsb_dslx",
     ],
+)
+
+dslx_lang_test(
+    name = "parametric_const_in_parametric_type_expr",
 )
 
 dslx_lang_test(
@@ -876,6 +968,13 @@ dslx_lang_test(name = "bitslice_negated_constexpr_bounds")
 
 dslx_lang_test(name = "enum_value_from_const")
 
+dslx_lang_test(
+    name = "const_struct_array",
+    # TODO(https://github.com/google/xls/issues/1084): 2023-07-25 We cannot yet
+    # convert the array_size builtin to IR.
+    convert_to_ir = False,
+)
+
 # -- mod_imported_const_struct_dslx
 
 xls_dslx_library(
@@ -909,10 +1008,10 @@ dslx_lang_test(name = "constexpr_with_typed_stuff_after")
 
 dslx_lang_test(name = "for_up_to_constexpr_cast")
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "bits_concat_dslx_test",
-    srcs = ["bits_concat.x"],
+dslx_lang_test(
+    name = "bits_concat",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
 )
 
 dslx_lang_test(name = "local_const_value_in_parametric_match")
@@ -1028,3 +1127,18 @@ exports_files([
     "mod_const_enum_importer.x",
     "mod_simple_const_enum.x",
 ])
+
+build_test(
+    name = "dslx_have_targets",
+    # Note: we exclude `mod_` prefixed `.x` files because those are, by
+    # convention, just used as "modules with entities for inclusion" i.e. for
+    # testing module import facilities, and don't contain significant
+    # functionality on their own.
+    targets = [x[:-len(".x")] + "_dslx" for x in glob(["*.x"]) if not x.startswith("mod_")],
+)
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

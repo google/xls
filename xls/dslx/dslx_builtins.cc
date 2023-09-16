@@ -35,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
@@ -555,7 +556,7 @@ void PopulateSignatureToLambdaMap(
     });
     XLS_ASSIGN_OR_RETURN(
         int64_t target,
-        std::get<InterpValue>(b->size().value()).GetBitValueUint64());
+        std::get<InterpValue>(b->size().value()).GetBitValueViaSign());
     checker.CheckIsLen(*a, target, [&] {
       return absl::StrFormat("Bit width %d must match %s array size %s", target,
                              a->ToString(), a->size().ToString());
@@ -617,8 +618,8 @@ void PopulateSignatureToLambdaMap(
                             .status());
     XLS_ASSIGN_OR_RETURN(InterpValue start, data.constexpr_eval(0));
     XLS_ASSIGN_OR_RETURN(InterpValue limit, data.constexpr_eval(1));
-    XLS_ASSIGN_OR_RETURN(int64_t start_int, start.GetBitValueUint64());
-    XLS_ASSIGN_OR_RETURN(int64_t limit_int, limit.GetBitValueUint64());
+    XLS_ASSIGN_OR_RETURN(int64_t start_int, start.GetBitValueViaSign());
+    XLS_ASSIGN_OR_RETURN(int64_t limit_int, limit.GetBitValueViaSign());
     int64_t length = limit_int - start_int;
     if (length < 0) {
       return TypeInferenceErrorStatus(
@@ -855,6 +856,8 @@ void PopulateSignatureToLambdaMap(
                        .Len(2)
                        .IsArray(0, &array_type)
                        .IsU1(1);
+    // Need to ensure we didn't get an error before we use the array type.
+    XLS_RETURN_IF_ERROR(checker.status());
     checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
       return absl::StrFormat("Element type of argument 0 %s should be a u8.",
                              array_type->ToString());
@@ -870,6 +873,8 @@ void PopulateSignatureToLambdaMap(
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
                        .IsArray(0, &array_type);
+    // Need to ensure we didn't get an error before we use the array type.
+    XLS_RETURN_IF_ERROR(checker.status());
     checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
       return absl::StrFormat("Element type of argument 0 %s should be a u8.",
                              array_type->ToString());

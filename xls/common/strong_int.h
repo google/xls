@@ -38,7 +38,7 @@
 //
 // ...should be identical to the generated assembly for:
 //
-//    DEFINE_STRONG_INT_TYPE(MyStrongInt, int64_t);
+//    XLS_DEFINE_STRONG_INT_TYPE(MyStrongInt, int64_t);
 //    MyStrongInt foo(123);
 //    MyStrongInt bar(456);
 //    MyStrongInt baz = foo + bar;
@@ -54,12 +54,12 @@
 // For example, the below demonstrates a case where the 2 are not equivalent
 // at compile time and can lead to subtle initialization bugs:
 //
-//    DEFINE_STRONG_INT_TYPE(MyStrongInt8, int8_t);
+//    XLS_DEFINE_STRONG_INT_TYPE(MyStrongInt8, int8_t);
 //    int8_t foo = 1024;        // Compile error: const conversion to ...
 //    MyStrongInt8 foo(1024); // Compiles ok: foo has undefined / 0 value.
 //
 // Usage:
-//   DEFINE_STRONG_INT_TYPE(Name, NativeType);
+//   XLS_DEFINE_STRONG_INT_TYPE(Name, NativeType);
 //
 //     Defines a new StrongInt type named 'Name' in the current namespace with
 //     no validation of operations.
@@ -264,8 +264,8 @@ class StrongInt {
   //
   // Example: Assume you have two StrongInt types.
   //
-  //      DEFINE_STRONG_INT_TYPE(Bytes, int64_t);
-  //      DEFINE_STRONG_INT_TYPE(Megabytes, int64_t);
+  //      XLS_DEFINE_STRONG_INT_TYPE(Bytes, int64_t);
+  //      XLS_DEFINE_STRONG_INT_TYPE(Megabytes, int64_t);
   //
   //  If you want to be able to (explicitly) construct an instance of Bytes from
   //  an instance of Megabytes, simply define a converter function in the same
@@ -574,12 +574,12 @@ struct IsStrongInt<StrongInt<Ts...>> : public std::true_type {};
 // validation of under/overflow situations.
 // The struct int_type_name ## _tag_ trickery is needed to ensure that a new
 // type is created per type_name.
-#define DEFINE_STRONG_INT_TYPE(type_name, value_type)                       \
-  struct type_name##_strong_int_tag_ {                                      \
-    static constexpr std::string_view TypeName() { return #type_name; }    \
-  };                                                                        \
-  typedef ::xls::StrongInt<type_name##_strong_int_tag_, value_type,         \
-                           ::xls::NullStrongIntValidator>                   \
+#define XLS_DEFINE_STRONG_INT_TYPE(type_name, value_type)               \
+  struct type_name##_strong_int_tag_ {                                  \
+    static constexpr std::string_view TypeName() { return #type_name; } \
+  };                                                                    \
+  typedef ::xls::StrongInt<type_name##_strong_int_tag_, value_type,     \
+                           ::xls::NullStrongIntValidator>               \
       type_name;
 
 namespace std {

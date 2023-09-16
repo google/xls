@@ -60,10 +60,6 @@ struct DataFlitQueue {
 };
 
 // Represents a fifo/buffer used to store metadata phits.
-struct MetadataFlitQueue {
-  std::queue<MetadataFlit> queue;
-  int64_t max_queue_size;
-};
 
 class NocSimulator;
 
@@ -154,7 +150,6 @@ class SimLink : public SimNetworkComponentBase {
   int64_t GetSourceConnectionIndex() const;
 
   // Get the sink connection index that in used in the simulator.
-  int64_t GetSinkConnectionIndex() const;
 
  private:
   SimLink() = default;
@@ -424,17 +419,9 @@ class NocSimulator {
 
   // Allocates and returns an index that can be used with
   // GetPortIdStore to retreive an array of size)
-  int64_t GetNewPortIdStore(int64_t size) {
-    int64_t next_start = port_id_store_.size();
-    port_id_store_.resize(next_start + size);
-    return next_start;
-  }
 
   // Returns a reference to the store previously reserved with
   // GetNewConnectionIndicesStore.
-  absl::Span<PortId> GetPortIdStore(int64_t start, int64_t size = 1) {
-    return absl::Span<PortId>(port_id_store_.data() + start, size);
-  }
 
   // Returns current/in-progress cycle;
   int64_t GetCurrentCycle() { return cycle_; }

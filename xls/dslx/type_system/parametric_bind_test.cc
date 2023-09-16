@@ -14,6 +14,9 @@
 
 #include "xls/dslx/type_system/parametric_bind.h"
 
+#include <memory>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

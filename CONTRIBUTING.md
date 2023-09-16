@@ -1,7 +1,9 @@
 # How to Contribute
 
-We'd love to accept your patches and contributions to this project. There are
-just a few small guidelines you need to follow.
+We are currently very restrictive in the patches we review or accept due to
+limited bandwidth. We recommend filing an issue for back-and-forth discussion on
+implementation strategy before sending a PR. Also, note the community guidelines
+below.
 
 ## Community Guidelines
 

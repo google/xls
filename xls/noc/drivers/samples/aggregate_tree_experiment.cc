@@ -14,6 +14,8 @@
 
 #include "xls/noc/drivers/samples/aggregate_tree_experiment.h"
 
+#include <string>
+
 #include "absl/status/statusor.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder.h"

@@ -36,6 +36,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
@@ -859,6 +860,20 @@ BValue BuilderBase::SDiv(BValue lhs, BValue rhs, const SourceInfo& loc,
   }
   return AddBinOp(Op::kSDiv, lhs, rhs, loc, name);
 }
+BValue BuilderBase::UMod(BValue lhs, BValue rhs, const SourceInfo& loc,
+                         std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddBinOp(Op::kUMod, lhs, rhs, loc, name);
+}
+BValue BuilderBase::SMod(BValue lhs, BValue rhs, const SourceInfo& loc,
+                         std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddBinOp(Op::kSMod, lhs, rhs, loc, name);
+}
 BValue BuilderBase::Eq(BValue lhs, BValue rhs, const SourceInfo& loc,
                        std::string_view name) {
   if (ErrorPending()) {
@@ -1237,7 +1252,7 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
         loc);
   }
   return AddNode<xls::Assert>(loc, token.node(), condition.node(), message,
-                              label, name);
+                              label, /*original_label=*/std::nullopt, name);
 }
 
 BValue BuilderBase::Trace(BValue token, BValue condition,
@@ -1322,7 +1337,8 @@ BValue BuilderBase::Cover(BValue token, BValue condition,
   if (label.empty()) {
     return SetError("The label of a cover node cannot be empty.", loc);
   }
-  return AddNode<xls::Cover>(loc, token.node(), condition.node(), label, name);
+  return AddNode<xls::Cover>(loc, token.node(), condition.node(), label,
+                             /*original_label=*/std::nullopt, name);
 }
 
 BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,

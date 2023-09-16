@@ -40,6 +40,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -48,17 +49,33 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/token_utils.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/warning_kind.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 namespace {
+
+bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
+  if (auto* name_ref = dynamic_cast<const NameRef*>(e)) {
+    const AnyNameDef any_name_def = name_ref->name_def();
+    return std::holds_alternative<const NameDef*>(any_name_def) &&
+           std::get<const NameDef*>(any_name_def) == name_def;
+  }
+  return false;
+}
 
 // Deduces the concrete types of the arguments to a parametric function or
 // proc and returns them to the caller.
@@ -115,8 +132,8 @@ absl::StatusOr<std::unique_ptr<ParametricExpression>> ExprToParametric(
     XLS_ASSIGN_OR_RETURN(
         InterpValue constexpr_value,
         ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-            n, default_type.get()));
+            ctx->import_data(), ctx->type_info(), ctx->warnings(),
+            GetCurrentParametricEnv(ctx), n, default_type.get()));
     return std::make_unique<ParametricConstant>(std::move(constexpr_value));
   }
   return absl::InvalidArgumentError(
@@ -249,6 +266,9 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
 
 // If the width is known for "type", checks that "number" fits in that type.
 absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
+  XLS_VLOG(5) << "TryEnsureFitsInType; number: " << number.ToString() << " @ "
+              << number.span() << " type: " << type;
+
   // Characters have a `u8` type. They can support the dash (negation symbol).
   if (number.number_kind() != NumberKind::kCharacter &&
       number.text()[0] == '-' && !type.is_signed()) {
@@ -265,20 +285,23 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
     // check that the number is compliant.
     return absl::OkStatus();
   }
+
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_dim.GetAsInt64());
-  absl::StatusOr<Bits> bits = number.GetBits(bit_count);
-  if (!bits.ok()) {
+
+  // Helper to give an informative error on the appropriate range when we
+  // determine the numerical value given doesn't fit into the type.
+  auto does_not_fit = [&number, &type, bit_count]() {
     std::string low;
     std::string high;
     if (type.is_signed()) {
-      low =
-          Bits::MinSigned(bit_count).ToString(FormatPreference::kSignedDecimal);
-      high =
-          Bits::MaxSigned(bit_count).ToString(FormatPreference::kSignedDecimal);
+      low = BitsToString(Bits::MinSigned(bit_count),
+                         FormatPreference::kSignedDecimal);
+      high = BitsToString(Bits::MaxSigned(bit_count),
+                          FormatPreference::kSignedDecimal);
     } else {
-      low = Bits(bit_count).ToString(FormatPreference::kUnsignedDecimal);
-      high =
-          Bits::AllOnes(bit_count).ToString(FormatPreference::kUnsignedDecimal);
+      low = BitsToString(Bits(bit_count), FormatPreference::kUnsignedDecimal);
+      high = BitsToString(Bits::AllOnes(bit_count),
+                          FormatPreference::kUnsignedDecimal);
     }
 
     return TypeInferenceErrorStatus(
@@ -287,13 +310,38 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
                         "the bitwidth of a %s (%d). "
                         "Valid values are [%s, %s].",
                         number.text(), type.ToString(), bit_count, low, high));
+  };
+
+  XLS_ASSIGN_OR_RETURN(bool fits_in_type, number.FitsInType(bit_count));
+  if (!fits_in_type) {
+    return does_not_fit();
   }
   return absl::OkStatus();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
                                                          DeduceCtx* ctx) {
-  return ctx->Deduce(node->operand());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> operand_type,
+                       ctx->Deduce(node->operand()));
+
+  if (dynamic_cast<BitsType*>(operand_type.get()) == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), operand_type.get(),
+        absl::StrFormat(
+            "Unary operation `%s` can only be applied to bits-typed operands.",
+            UnopKindToString(node->unop_kind())));
+  }
+
+  return operand_type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceProcMember(
+    const ProcMember* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(auto concrete_type,
+                       ctx->Deduce(node->type_annotation()));
+  auto* meta_type = dynamic_cast<MetaType*>(concrete_type.get());
+  std::unique_ptr<ConcreteType>& param_type = meta_type->wrapped();
+  return std::move(param_type);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
@@ -308,6 +356,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
     return std::move(param_type);
   }
 
+  // Special case handling for parameters to config functions. These must be
+  // made constexpr.
+  //
   // When deducing a proc at top level, we won't have constexpr values for its
   // config params, which will cause Spawn deduction to fail, so we need to
   // create dummy InterpValues for its parameter channels.
@@ -362,9 +413,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue constexpr_value,
-      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentParametricEnv(ctx),
-                                          node->value(), result.get()));
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), node->value(), result.get()));
   ctx->type_info()->NoteConstExpr(node, constexpr_value);
   ctx->type_info()->NoteConstExpr(node->value(), constexpr_value);
   ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value);
@@ -392,10 +443,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
   // TupleIndex RHSs are always constexpr numbers.
   XLS_ASSIGN_OR_RETURN(
       InterpValue index_value,
-      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentParametricEnv(ctx),
-                                          node->index(), index_type.get()));
-  XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueUint64());
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), node->index(), index_type.get()));
+  XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueViaSign());
   if (index >= tuple_type->size()) {
     return TypeInferenceErrorStatus(
         node->span(), tuple_type,
@@ -434,7 +485,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
   if (node->span().start().lineno() == node->span().limit().lineno() &&
       node->members().size() > 1 && node->has_trailing_comma()) {
     ctx->warnings()->Add(
-        node->span(),
+        node->span(), WarningKind::kSingleLineTupleTrailingComma,
         absl::StrFormat("Tuple expression (with >1 element) is on a single "
                         "line, but has a trailing comma."));
   }
@@ -567,6 +618,17 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
 
   auto* lhs_bits = dynamic_cast<BitsType*>(lhs.get());
   auto* rhs_bits = dynamic_cast<BitsType*>(rhs.get());
+  bool lhs_is_bits = lhs_bits != nullptr;
+  bool rhs_is_bits = rhs_bits != nullptr;
+  if (!lhs_is_bits || !rhs_is_bits) {
+    return ctx->TypeMismatchError(node->span(), node->lhs(), *lhs, node->rhs(),
+                                  *rhs,
+                                  "Concatenation requires operand types to be "
+                                  "either both-arrays or both-bits");
+  }
+
+  XLS_RET_CHECK(lhs_bits != nullptr);
+  XLS_RET_CHECK(rhs_bits != nullptr);
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
                        lhs_bits->size().Add(rhs_bits->size()));
   return std::make_unique<BitsType>(/*signed=*/false, /*size=*/new_size);
@@ -810,8 +872,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
       XLS_RETURN_IF_ERROR(ValidateNumber(*number, *type));
       ctx->type_info()->SetItem(number, *type);
       XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-          ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-          number, type.get()));
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), number, type.get()));
     } else {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
                            ctx->Deduce(member.value));
@@ -825,8 +887,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-            member.value, nullptr));
+            ctx->import_data(), ctx->type_info(), ctx->warnings(),
+            GetCurrentParametricEnv(ctx), member.value, nullptr));
     members.push_back(value);
   }
 
@@ -857,6 +919,7 @@ static absl::Status BindNames(const NameDefTree* name_def_tree,
                               std::optional<InterpValue> constexpr_value) {
   if (name_def_tree->is_leaf()) {
     AstNode* name_def = ToAstNode(name_def_tree->leaf());
+
     ctx->type_info()->SetItem(name_def, type);
     if (constexpr_value.has_value()) {
       ctx->type_info()->NoteConstExpr(name_def, constexpr_value.value());
@@ -919,18 +982,19 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
 
   std::optional<InterpValue> maybe_constexpr_value;
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-      node->rhs(), rhs.get()));
+      ctx->import_data(), ctx->type_info(), ctx->warnings(),
+      GetCurrentParametricEnv(ctx), node->rhs(), rhs.get()));
   if (ctx->type_info()->IsKnownConstExpr(node->rhs())) {
     XLS_ASSIGN_OR_RETURN(maybe_constexpr_value,
                          ctx->type_info()->GetConstExpr(node->rhs()));
   }
+
   XLS_RETURN_IF_ERROR(
       BindNames(node->name_def_tree(), *rhs, ctx, maybe_constexpr_value));
 
   if (node->name_def_tree()->IsWildcardLeaf()) {
     ctx->warnings()->Add(
-        node->name_def_tree()->span(),
+        node->name_def_tree()->span(), WarningKind::kUselessLetBinding,
         "`let _ = expr;` statement can be simplified to `expr;` -- there is no "
         "need for a `let` binding here");
   }
@@ -994,8 +1058,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
   }
 
   // Bind the names to their associated types for use in the body.
+  NameDefTree* bindings = node->names();
+
+  if (!bindings->IsIrrefutable()) {
+    return TypeInferenceErrorStatus(
+        bindings->span(), nullptr,
+        absl::StrFormat("for-loop bindings must be irrefutable (i.e. the "
+                        "pattern must match all possible values)"));
+  }
+
   XLS_RETURN_IF_ERROR(
-      BindNames(node->names(), *target_annotated_type, ctx, std::nullopt));
+      BindNames(bindings, *target_annotated_type, ctx, std::nullopt));
 
   // Now we can deduce the body.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
@@ -1021,16 +1094,24 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnrollFor(
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
 // should not cause a type error to occur).
 static bool IsAcceptableCast(const ConcreteType& from, const ConcreteType& to) {
-  auto is_array = [](const ConcreteType& ct) -> bool {
-    return dynamic_cast<const ArrayType*>(&ct) != nullptr;
-  };
   auto is_bits = [](const ConcreteType& ct) -> bool {
     return dynamic_cast<const BitsType*>(&ct) != nullptr;
   };
   auto is_enum = [](const ConcreteType& ct) -> bool {
     return dynamic_cast<const EnumType*>(&ct) != nullptr;
   };
-  if ((is_array(from) && is_bits(to)) || (is_bits(from) && is_array(to))) {
+  auto is_bits_array = [&](const ConcreteType& ct) -> bool {
+    const ArrayType* at = dynamic_cast<const ArrayType*>(&ct);
+    if (at == nullptr) {
+      return false;
+    }
+    if (is_bits(at->element_type())) {
+      return true;
+    }
+    return false;
+  };
+  if ((is_bits_array(from) && is_bits(to)) ||
+      (is_bits(from) && is_bits_array(to))) {
     return from.GetTotalBitCount() == to.GetTotalBitCount();
   }
   if ((is_bits(from) || is_enum(from)) && is_bits(to)) {
@@ -1059,6 +1140,44 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(const Cast* node,
         absl::StrFormat("Cannot cast from expression type %s to %s.",
                         expr->ToErrorString(), type->ToErrorString()));
   }
+  return type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstAssert(
+    const ConstAssert* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       DeduceAndResolve(node->arg(), ctx));
+  auto want = BitsType::MakeU1();
+  if (*type != *want) {
+    return ctx->TypeMismatchError(
+        node->span(), /*lhs_node=*/node->arg(), *type, nullptr, *want,
+        "const_assert! takes a (constexpr) boolean argument");
+  }
+
+  const ParametricEnv parametric_env = GetCurrentParametricEnv(ctx);
+  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+      ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
+      node->arg(), type.get()));
+  if (!ctx->type_info()->IsKnownConstExpr(node->arg())) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("const_assert! expression is not constexpr"));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
+                       ctx->type_info()->GetConstExpr(node->arg()));
+  if (constexpr_value.IsFalse()) {
+    XLS_ASSIGN_OR_RETURN(
+        auto constexpr_map,
+        MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
+                         node->arg(), parametric_env));
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("const_assert! failure: `%s` constexpr environment: %s",
+                        node->arg()->ToString(),
+                        EnvMapToString(constexpr_map)));
+  }
+
   return type;
 }
 
@@ -1119,6 +1238,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
     }
   }
 
+  if (node->has_ellipsis() && node->members().empty()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Array cannot have an ellipsis without an element to repeat; please "
+        "add at least one element");
+  }
+
   auto dim = ConcreteTypeDim::CreateU32(member_types.size());
 
   // Try to infer the array type from the first member.
@@ -1149,6 +1275,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
         "Array was not annotated with an array type.");
   }
 
+  if (array_type->HasParametricDims()) {
+    return TypeInferenceErrorStatus(
+        node->type_annotation()->span(), array_type,
+        absl::StrFormat("Annotated type for array "
+                        "literal must be constexpr; type has dimensions that "
+                        "cannot be resolved."));
+  }
+
   if (member_types.empty()) {
     return annotated;
   }
@@ -1167,8 +1301,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
     // Need to constexpr evaluate here - while we have the concrete type - or
     // else we'd infer the wrong array size.
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-        node, array_type));
+        ctx->import_data(), ctx->type_info(), ctx->warnings(),
+        GetCurrentParametricEnv(ctx), node, array_type));
     return annotated;
   }
 
@@ -1195,7 +1329,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(const Attr* node,
                                                     type->ToString()));
   }
 
-  const std::string& attr_name = node->attr()->identifier();
+  std::string_view attr_name = node->attr();
   if (!struct_type->HasNamedMember(attr_name)) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
@@ -1213,9 +1347,89 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(const Attr* node,
   return result_type;
 }
 
+// Returns whether "e" is definitely a meaningless expression-statement; i.e. if
+// in statement context definitely has no side-effects and thus should be
+// flagged.
+//
+// Note that some invocations of functions will have no side-effects and will be
+// meaningless, but because we don't look inside of callees to see if they are
+// side-effecting, we conservatively mark those as potentially useful.
+static bool DefinitelyMeaninglessExpression(Expr* e) {
+  absl::StatusOr<std::vector<AstNode*>> nodes_under_e =
+      CollectUnder(e, /*want_types=*/true);
+  if (!nodes_under_e.ok()) {
+    XLS_LOG(WARNING) << "Could not collect nodes under `" << e->ToString()
+                     << "`; status: " << nodes_under_e.status();
+    return false;
+  }
+  for (AstNode* n : nodes_under_e.value()) {
+    // In the DSL side effects can only be caused by invocations or
+    // invocation-like AST nodes.
+    switch (n->kind()) {
+      case AstNodeKind::kInvocation:
+      case AstNodeKind::kFormatMacro:
+      case AstNodeKind::kSpawn:
+        return false;
+      default:
+        continue;
+    }
+  }
+  return true;
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStatement(
     const Statement* node, DeduceCtx* ctx) {
-  return ctx->Deduce(ToAstNode(node->wrapped()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
+                       ctx->Deduce(ToAstNode(node->wrapped())));
+  return result;
+}
+
+// Warns if the next-to-last statement in a block has a trailing semi and the
+// last statement is a nil tuple expression, as this is redundant; i.e.
+//
+//    {
+//      foo;
+//      ()  <-- useless, semi on previous statement implies it
+//    }
+static void DetectUselessTrailingTuplePattern(const Block* block,
+                                              DeduceCtx* ctx) {
+  // TODO(https://github.com/google/xls/issues/1124) 2023-08-31 Proc config
+  // parsing functions synthesize a tuple at the end, and we don't want to flag
+  // that since the user didn't even create it.
+  if (block->parent()->kind() == AstNodeKind::kFunction &&
+      dynamic_cast<const Function*>(block->parent())->tag() ==
+          Function::Tag::kProcConfig) {
+    return;
+  }
+
+  // Need at least a statement (i.e. with semicolon after it) and an
+  // expression-statement at the end to match this pattern.
+  if (block->statements().size() < 2) {
+    return;
+  }
+
+  // Trailing statement has to be an expression-statement.
+  const Statement* last_stmt = block->statements().back();
+  if (!std::holds_alternative<Expr*>(last_stmt->wrapped())) {
+    return;
+  }
+
+  // It has to be a tuple.
+  const auto* last_expr = std::get<Expr*>(last_stmt->wrapped());
+  auto* trailing_tuple = dynamic_cast<const XlsTuple*>(last_expr);
+  if (trailing_tuple == nullptr) {
+    return;
+  }
+
+  // Tuple has to be nil.
+  if (!trailing_tuple->empty()) {
+    return;
+  }
+
+  ctx->warnings()->Add(
+      trailing_tuple->span(), WarningKind::kTrailingTupleAfterSemi,
+      absl::StrFormat("Block has a trailing nil (empty) tuple after a "
+                      "semicolon -- this is implied, please remove it"));
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
@@ -1228,6 +1442,37 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
   if (node->trailing_semi()) {
     last = ConcreteType::MakeUnit();
   }
+
+  // We only want to check the last statement for "useless expression-statement"
+  // property if it is not yielding a value from a block; e.g.
+  //
+  //    {
+  //      my_invocation!();
+  //      u32:42  // <- ok, no trailing semi
+  //    }
+  //
+  // vs
+  //
+  //    {
+  //      my_invocation!();
+  //      u32:42;  // <- useless, trailing semi means block yields nil
+  //    }
+  const bool should_check_last_statement = node->trailing_semi();
+  for (int64_t i = 0; i < static_cast<int64_t>(node->statements().size()) -
+                              (should_check_last_statement ? 0 : 1);
+       ++i) {
+    const Statement* s = node->statements()[i];
+    if (std::holds_alternative<Expr*>(s->wrapped()) &&
+        DefinitelyMeaninglessExpression(std::get<Expr*>(s->wrapped()))) {
+      Expr* e = std::get<Expr*>(s->wrapped());
+      ctx->warnings()->Add(e->span(), WarningKind::kUselessExpressionStatement,
+                           absl::StrFormat("Expression statement `%s` appears "
+                                           "useless (i.e. has no side-effects)",
+                                           e->ToString()));
+    }
+  }
+
+  DetectUselessTrailingTuplePattern(node, ctx);
   return last;
 }
 
@@ -1242,6 +1487,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
   XLS_ASSIGN_OR_RETURN(
       type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
                            "array type-prefix position"));
+
   auto* array_type = dynamic_cast<ArrayType*>(type.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(
@@ -1522,8 +1768,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     }
     ctx->type_info()->SetItem(start, *resolved_start_type);
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-        start_number, resolved_start_type.get()));
+        ctx->import_data(), ctx->type_info(), ctx->warnings(),
+        GetCurrentParametricEnv(ctx), start_number, resolved_start_type.get()));
   } else {
     // Aside from a bare literal (with no type) we should be able to deduce the
     // start expression's type.
@@ -1613,7 +1859,7 @@ static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
             bound_name, error_suffix));
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t as_64b, value.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t as_64b, value.GetBitValueViaSign());
   XLS_VLOG(3) << absl::StreamFormat("Slice %s bound @ %s has value: %d",
                                     bound_name, bound->span().ToString(),
                                     as_64b);
@@ -1645,10 +1891,11 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
 
   absl::flat_hash_map<std::string, InterpValue> env;
   XLS_ASSIGN_OR_RETURN(
-      env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), node,
-                            ctx->fn_stack().back().parametric_env()));
+      env,
+      MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
+                       node, ctx->fn_stack().back().parametric_env()));
 
-  std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
+  std::unique_ptr<BitsType> s32 = BitsType::MakeS32();
   auto* slice = std::get<Slice*>(node->rhs());
 
   // Constexpr evaluate start & limit, skipping deducing in the case of
@@ -1665,7 +1912,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     if (should_deduce(slice->start())) {
       XLS_RETURN_IF_ERROR(Deduce(slice->start(), ctx).status());
     } else {
-      // If the slice start is untyped, assume S32.
+      // If the slice start is untyped, assume S32, and check it fits in that
+      // size.
+      XLS_RETURN_IF_ERROR(
+          TryEnsureFitsInType(*down_cast<Number*>(slice->start()), *s32));
       ctx->type_info()->SetItem(slice->start(), *s32);
     }
   }
@@ -1677,7 +1927,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     if (should_deduce(slice->limit())) {
       XLS_RETURN_IF_ERROR(Deduce(slice->limit(), ctx).status());
     } else {
-      // If the slice limit is untyped, assume S32.
+      // If the slice limit is untyped, assume S32, and check it fits in that
+      // size.
+      XLS_RETURN_IF_ERROR(
+          TryEnsureFitsInType(*down_cast<Number*>(slice->limit()), *s32));
       ctx->type_info()->SetItem(slice->limit(), *s32);
     }
   }
@@ -1697,8 +1950,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     ParametricExpression::Evaluated evaluated =
         owned_parametric->Evaluate(ToParametricEnv(fn_parametric_env));
     InterpValue v = std::get<InterpValue>(evaluated);
-    bit_count = v.IsSigned() ? v.GetBitValueInt64().value()
-                             : v.GetBitValueUint64().value();
+    bit_count = v.GetBitValueViaSign().value();
   } else {
     XLS_ASSIGN_OR_RETURN(bit_count, lhs_bit_count_ctd.GetAsInt64());
   }
@@ -1817,13 +2069,23 @@ static absl::Status Unify(NameDefTree* name_def_tree, const ConcreteType& other,
     }
   } else {
     const NameDefTree::Nodes& nodes = name_def_tree->nodes();
-    if (auto* type = dynamic_cast<const TupleType*>(&other);
-        type != nullptr && type->size() == nodes.size()) {
-      for (int64_t i = 0; i < nodes.size(); ++i) {
-        const ConcreteType& subtype = type->GetMemberType(i);
-        NameDefTree* subtree = nodes[i];
-        XLS_RETURN_IF_ERROR(Unify(subtree, subtype, ctx));
-      }
+    auto* type = dynamic_cast<const TupleType*>(&other);
+    if (type == nullptr) {
+      return TypeInferenceErrorStatus(
+          name_def_tree->span(), &other,
+          "Pattern expected matched-on type to be a tuple.");
+    }
+    if (type->size() != nodes.size()) {
+      return TypeInferenceErrorStatus(
+          name_def_tree->span(), &other,
+          absl::StrFormat("Pattern wanted %d tuple elements, matched-on "
+                          "value had %d element",
+                          nodes.size(), type->size()));
+    }
+    for (int64_t i = 0; i < nodes.size(); ++i) {
+      const ConcreteType& subtype = type->GetMemberType(i);
+      NameDefTree* subtree = nodes[i];
+      XLS_RETURN_IF_ERROR(Unify(subtree, subtype, ctx));
     }
   }
   return absl::OkStatus();
@@ -1863,6 +2125,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(const Match* node,
     }
 
     for (NameDefTree* pattern : arm->patterns()) {
+      // Deduce types for all patterns with types that can be checked.
+      //
+      // Note that NameDef is handled in the Unify() call below, and
+      // WildcardPattern has no type because it's a black hole.
+      for (NameDefTree::Leaf leaf : pattern->Flatten()) {
+        if (!std::holds_alternative<NameDef*>(leaf) &&
+            !std::holds_alternative<WildcardPattern*>(leaf)) {
+          XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(leaf)).status());
+        }
+      }
+
       XLS_RETURN_IF_ERROR(Unify(pattern, *matched, ctx));
     }
   }
@@ -1883,6 +2156,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(const Match* node,
           "preceding match arms.");
     }
   }
+
   return std::move(arm_types[0]);
 }
 
@@ -2140,7 +2414,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
 
   if (validated.seen_names.size() == all_names.size()) {
     ctx->warnings()->Add(
-        node->splatted()->span(),
+        node->splatted()->span(), WarningKind::kUselessStructSplat,
         absl::StrFormat("'Splatted' struct instance has all members of struct "
                         "defined, consider removing the `..%s`",
                         node->splatted()->ToString()));
@@ -2201,6 +2475,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBuiltinTypeAnnotation(
 // something is either fully constexpr-evaluatable, or symbolic.
 static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
                                                      DeduceCtx* ctx) {
+  std::unique_ptr<BitsType> u32 = BitsType::MakeU32();
+  auto validate_high_bit = [&u32](const Span& span, uint32_t value) {
+    if ((value >> 31) == 0) {
+      return absl::OkStatus();
+    }
+    return TypeInferenceErrorStatus(
+        span, u32.get(),
+        absl::StrFormat("Dimension value is too large, high bit is set: %#x; "
+                        "was a negative number accidentally cast to a size?",
+                        value));
+  };
+
   // We allow numbers in dimension position to go without type annotations -- we
   // implicitly make the type of the dimension u32, as we generally do with
   // dimension values.
@@ -2211,21 +2497,28 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
                                       "Please do not annotate a type on "
                                       "dimensions (they are implicitly u32).");
     }
-    ctx->type_info()->SetItem(number, *BitsType::MakeU32());
+
+    XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *u32));
+
+    ctx->type_info()->SetItem(number, *u32);
     XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
+    const uint32_t value_u32 = static_cast<uint32_t>(value);
+    XLS_RET_CHECK_EQ(value, value_u32);
+
+    XLS_RETURN_IF_ERROR(validate_high_bit(number->span(), value_u32));
+
     // No need to use the ConstexprEvaluator here. We've already got the goods.
     // It'd have trouble anyway, since this number isn't type-decorated.
-    ctx->type_info()->NoteConstExpr(dim_expr, InterpValue::MakeU32(value));
-    return ConcreteTypeDim::CreateU32(value);
+    ctx->type_info()->NoteConstExpr(dim_expr, InterpValue::MakeU32(value_u32));
+    return ConcreteTypeDim::CreateU32(value_u32);
   }
 
   // First we check that it's a u32 (in the future we'll want it to be a usize).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> dim_type,
                        ctx->Deduce(dim_expr));
-  auto u32_type = BitsType::MakeU32();
-  if (*dim_type != *u32_type) {
+  if (*dim_type != *u32) {
     return ctx->TypeMismatchError(
-        dim_expr->span(), nullptr, *dim_type, nullptr, *u32_type,
+        dim_expr->span(), nullptr, *dim_type, nullptr, *u32,
         absl::StrFormat(
             "Dimension %s must be a `u32` (soon to be `usize`, see "
             "https://github.com/google/xls/issues/450 for details).",
@@ -2237,17 +2530,18 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
   XLS_VLOG(5) << "Attempting to evaluate dimension expression: `"
               << dim_expr->ToString()
               << "` via parametric env: " << parametric_env;
-  XLS_RETURN_IF_ERROR(
-      ConstexprEvaluator::Evaluate(ctx->import_data(), ctx->type_info(),
-                                   parametric_env, dim_expr, dim_type.get()));
+  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+      ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
+      dim_expr, dim_type.get()));
   if (ctx->type_info()->IsKnownConstExpr(dim_expr)) {
     XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
                          ctx->type_info()->GetConstExpr(dim_expr));
     XLS_ASSIGN_OR_RETURN(uint64_t int_value,
-                         constexpr_value.GetBitValueUint64());
-    uint32_t u32 = static_cast<uint32_t>(int_value);
-    XLS_RET_CHECK_EQ(u32, int_value);
-    return ConcreteTypeDim::CreateU32(u32);
+                         constexpr_value.GetBitValueViaSign());
+    uint32_t u32_value = static_cast<uint32_t>(int_value);
+    XLS_RETURN_IF_ERROR(validate_high_bit(dim_expr->span(), u32_value));
+    XLS_RET_CHECK_EQ(u32_value, int_value);
+    return ConcreteTypeDim::CreateU32(u32_value);
   }
 
   // If there wasn't a known constexpr we could evaluate it to at this point, we
@@ -2313,6 +2607,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
     const ArrayTypeAnnotation* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "DeduceArrayTypeAnnotation; node: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, DimToConcrete(node->dim(), ctx));
+
   std::unique_ptr<ConcreteType> t;
   if (auto* element_type =
           dynamic_cast<BuiltinTypeAnnotation*>(node->element_type());
@@ -2469,38 +2764,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelDecl(
     }
   }
 
+  if (node->fifo_depth().has_value()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> fifo_depth,
+                         ctx->Deduce(node->fifo_depth().value()));
+    auto want = BitsType::MakeU32();
+    if (*fifo_depth != *want) {
+      return ctx->TypeMismatchError(
+          node->span(), node->fifo_depth().value(), *fifo_depth, nullptr, *want,
+          "Channel declaration FIFO depth must be a u32.");
+    }
+  }
+
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.push_back(std::move(producer));
   elements.push_back(std::move(consumer));
   return std::make_unique<TupleType>(std::move(elements));
-}
-
-// Note: return value will never be nullptr.
-absl::StatusOr<std::unique_ptr<ChannelType>> DeduceChannelType(
-    const Expr* node, std::string_view primitive, std::string_view signature,
-    ChannelDirection needed_dir, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_arg_type,
-                       Deduce(node, ctx));
-  ChannelType* channel_type =
-      dynamic_cast<ChannelType*>(channel_arg_type.get());
-  if (channel_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->span(), channel_arg_type.get(),
-        absl::StrFormat("%s requires a channel argument: %s", primitive,
-                        signature));
-  }
-
-  if (channel_type->direction() != needed_dir) {
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrCat("Cannot ", primitive, " on an ",
-                     ChannelDirectionToString(channel_type->direction()),
-                     "put channel."));
-  }
-
-  // Note: this is wrapped immediately below in its more-derived type form.
-  (void)channel_arg_type.release();
-  return absl::WrapUnique(channel_type);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
@@ -2525,14 +2803,23 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
   // evaluatable.
   XLS_ASSIGN_OR_RETURN(
       InterpValue start_value,
-      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentParametricEnv(ctx),
-                                          node->start(), start_type.get()));
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), node->start(), start_type.get()));
   XLS_ASSIGN_OR_RETURN(
       InterpValue end_value,
-      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentParametricEnv(ctx),
-                                          node->end(), end_type.get()));
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), node->end(), end_type.get()));
+
+  XLS_ASSIGN_OR_RETURN(InterpValue le, end_value.Le(start_value));
+  if (le.IsTrue()) {
+    ctx->warnings()->Add(
+        node->span(), WarningKind::kEmptyRangeLiteral,
+        absl::StrFormat("`%s` from `%s` to `%s` is an empty range",
+                        node->ToString(), start_value.ToString(),
+                        end_value.ToString()));
+  }
 
   InterpValue array_size = InterpValue::MakeUnit();
   XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start_value.Ge(end_value));
@@ -2547,12 +2834,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
 
 // Generic function to do the heavy lifting of deducing the type of an
 // Invocation or Spawn's constituent functions.
-absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
+static absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     DeduceCtx* ctx, const Invocation* invocation,
     const std::vector<InstantiateArg>& args,
     const std::function<absl::StatusOr<Function*>(const Instantiation*,
                                                   DeduceCtx*)>& resolve_fn,
-    const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env = {}) {
+    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
+                              InterpValue>& constexpr_env = {}) {
   bool is_parametric_fn = false;
   // We can't resolve builtins as AST Functions, hence this check.
   if (!IsBuiltinFn(invocation->callee())) {
@@ -2633,7 +2921,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
       node, node->callee(), node->next()->args(), ctx, &next_args));
 
   // For each [constexpr] arg, mark the associated Param as constexpr.
-  absl::flat_hash_map<const Param*, InterpValue> constexpr_env;
+  absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
+                      InterpValue>
+      constexpr_env;
   size_t argc = node->config()->args().size();
   size_t paramc = proc->config()->params().size();
   if (argc != paramc) {
@@ -2646,8 +2936,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-            node->config()->args()[i], nullptr));
+            ctx->import_data(), ctx->type_info(), ctx->warnings(),
+            GetCurrentParametricEnv(ctx), node->config()->args()[i], nullptr));
     constexpr_env.insert({proc->config()->params()[i], value});
   }
 
@@ -2656,7 +2946,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   // it and the ConstexprEvaluator, so we have to do it eagerly here.
   // Un-wind that, if possible.
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
+      ctx->import_data(), ctx->type_info(), ctx->warnings(),
+      GetCurrentParametricEnv(ctx),
       down_cast<Invocation*>(node->next()->args()[0]),
       /*concrete_type=*/nullptr));
 
@@ -2683,10 +2974,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   constexpr_env.clear();
   XLS_RET_CHECK_EQ(tuple->members().size(), proc->members().size());
   for (int i = 0; i < tuple->members().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(InterpValue value, ConstexprEvaluator::EvaluateToValue(
-                                                ctx->import_data(), config_ti,
-                                                GetCurrentParametricEnv(ctx),
-                                                tuple->members()[i], nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        ConstexprEvaluator::EvaluateToValue(
+            ctx->import_data(), config_ti, ctx->warnings(),
+            GetCurrentParametricEnv(ctx), tuple->members()[i], nullptr));
     constexpr_env.insert({proc->members()[i], value});
   }
 
@@ -2699,6 +2991,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
     const Invocation* node, DeduceCtx* ctx) {
   const absl::Span<Expr* const>& args = node->args();
+  if (args.size() != 2) {
+    return ArgCountMismatchErrorStatus(
+        node->span(),
+        absl::StrFormat(
+            "Expected 2 arguments to `map` builtin but got %d argument(s).",
+            args.size()));
+  }
 
   // First, get the input element type.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> arg0_type,
@@ -2731,11 +3030,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
     const Invocation* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString();
 
+  // Detect direct recursion. Indirect recursion is currently not syntactically
+  // possible (as of 2023-08-22) since you cannot refer to a name that has not
+  // yet been defined in the grammar.
+  const FnStackEntry& entry = ctx->fn_stack().back();
+  if (entry.f() != nullptr &&
+      IsNameRefTo(node->callee(), entry.f()->name_def())) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Recursion of function `%s` detected -- recursion is "
+                        "currently unsupported.",
+                        node->callee()->ToString()));
+  }
+
   // Map is special.
-  auto* callee_name_ref = dynamic_cast<NameRef*>(node->callee());
-  bool callee_is_map =
-      callee_name_ref != nullptr && callee_name_ref->identifier() == "map";
-  if (callee_is_map) {
+  if (IsBuiltinFn(node->callee(), "map")) {
     return DeduceMapInvocation(node, ctx);
   }
 
@@ -2856,13 +3165,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
                                                             DeduceCtx* ctx) {
   AstNode* name_def = ToAstNode(node->name_def());
+  XLS_RET_CHECK(name_def != nullptr);
+
   std::optional<ConcreteType*> item = ctx->type_info()->GetItem(name_def);
   if (item.has_value()) {
     auto concrete_type = (*item)->CloneToUnique();
     return concrete_type;
   }
 
-  return TypeMissingErrorStatus(/*node=*/name_def, /*user=*/node);
+  return TypeMissingErrorStatus(/*node=*/*name_def, /*user=*/node);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstRef(
@@ -2891,6 +3202,7 @@ class DeduceVisitor : public AstNodeVisitor {
 
   DEDUCE_DISPATCH(Unop)
   DEDUCE_DISPATCH(Param)
+  DEDUCE_DISPATCH(ProcMember)
   DEDUCE_DISPATCH(ConstantDef)
   DEDUCE_DISPATCH(Number)
   DEDUCE_DISPATCH(String)
@@ -2903,6 +3215,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Let)
   DEDUCE_DISPATCH(For)
   DEDUCE_DISPATCH(Cast)
+  DEDUCE_DISPATCH(ConstAssert)
   DEDUCE_DISPATCH(StructDef)
   DEDUCE_DISPATCH(Array)
   DEDUCE_DISPATCH(Attr)
@@ -3019,15 +3332,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
                        DeduceInternal(node, ctx));
   XLS_RET_CHECK(type != nullptr);
   ctx->type_info()->SetItem(node, *type);
-  XLS_VLOG(5) << "Deduced type of `" << node->ToString()
-              << "` (kind: " << node->GetNodeTypeName() << ") => "
-              << type->ToString() << " in " << ctx->type_info();
+  XLS_VLOG(5) << absl::StreamFormat(
+      "Deduced type of `%s` @ %p (kind: %s) => %s in %p", node->ToString(),
+      node, node->GetNodeTypeName(), type->ToString(), ctx->type_info());
 
   return type;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
-                                                               DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+    const AstNode* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> deduced,
                        ctx->Deduce(node));
   return Resolve(*deduced, ctx);

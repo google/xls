@@ -12,13 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <list>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xlscc {
 namespace {
@@ -1117,7 +1130,7 @@ TEST_F(TranslatorMemoryTest, MemoryWriteWithTernaryIOOp) {
           IOOpTest("memory2__write", memory_write_tuple, true)});
 }
 
-TEST_F(TranslatorMemoryTest, MemoryWriteWithTernaryMethoFormIOOp) {
+TEST_F(TranslatorMemoryTest, MemoryWriteWithTernaryMethodFormIOOp) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -1149,6 +1162,219 @@ TEST_F(TranslatorMemoryTest, MemoryWriteWithTernaryMethoFormIOOp) {
          /*outputs=*/
          {IOOpTest("memory1__write", memory_write_tuple_invalid, false),
           IOOpTest("memory2__write", memory_write_tuple, true)});
+}
+
+TEST_F(TranslatorMemoryTest, MemoryTokenNetwork) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       class Foo {
+        __xls_channel<int, __xls_channel_dir_Out> out;
+        __xls_memory<int, 32> memory;
+
+        #pragma hls_top
+        void my_package() {
+          out.write(memory[5]);
+        }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Proc * ret,
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec));
+
+  int64_t memory_read_request_id = -1, memory_read_response_id = -1;
+
+  for (xls::Channel* channel : package_->channels()) {
+    const std::string ch_name = channel->name();
+    if (ch_name == "memory__read_request") {
+      memory_read_request_id = channel->id();
+    } else if (ch_name == "memory__read_response") {
+      memory_read_response_id = channel->id();
+    }
+  }
+
+  ASSERT_GE(memory_read_request_id, 0);
+  ASSERT_GE(memory_read_response_id, 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<xls::Node*> nodes_for_memory_read_response_id,
+      GetIOOpsForChannel(ret, memory_read_response_id));
+  ASSERT_EQ(nodes_for_memory_read_response_id.size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<xls::Node*> nodes_for_memory_read_request_id,
+      GetIOOpsForChannel(ret, memory_read_request_id));
+  ASSERT_EQ(nodes_for_memory_read_request_id.size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool request_before_response,
+      NodeIsAfterTokenWise(ret, /*before=*/nodes_for_memory_read_request_id[0],
+                           /*after=*/nodes_for_memory_read_response_id[0]));
+  EXPECT_TRUE(request_before_response);
+}
+
+TEST_F(TranslatorMemoryTest, MemoryTokenNetworkReadAfterWrite) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       class Foo {
+        __xls_channel<int, __xls_channel_dir_In> in;
+        __xls_memory<int, 32> memory;
+        __xls_channel<int, __xls_channel_dir_Out> out;
+
+        #pragma hls_top
+        void my_package() {
+          memory[5] = in.read();
+          out.write(memory[5]);
+        }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Proc * ret,
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec));
+
+  int64_t memory_read_request_id = -1, memory_write_request_id = -1;
+
+  for (xls::Channel* channel : package_->channels()) {
+    const std::string ch_name = channel->name();
+    if (ch_name == "memory__read_request") {
+      memory_read_request_id = channel->id();
+    } else if (ch_name == "memory__write_request") {
+      memory_write_request_id = channel->id();
+    }
+  }
+
+  ASSERT_GE(memory_read_request_id, 0);
+  ASSERT_GE(memory_write_request_id, 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<xls::Node*> nodes_for_memory_read_request_id,
+      GetIOOpsForChannel(ret, memory_read_request_id));
+  ASSERT_EQ(nodes_for_memory_read_request_id.size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<xls::Node*> nodes_for_memory_write_request_id,
+      GetIOOpsForChannel(ret, memory_write_request_id));
+  ASSERT_EQ(nodes_for_memory_write_request_id.size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool write_before_read,
+      NodeIsAfterTokenWise(ret, /*before=*/nodes_for_memory_write_request_id[0],
+                           /*after=*/nodes_for_memory_read_request_id[0]));
+  EXPECT_TRUE(write_before_read);
+}
+
+TEST_F(TranslatorMemoryTest, PingPong) {
+  const std::string content = R"(
+    class Block {
+    public:
+    static constexpr int N = 8;
+
+    __xls_memory<int, N>& storeA;
+    __xls_memory<int, N>& storeB;
+
+    __xls_channel<int, __xls_channel_dir_In>& in;
+    __xls_channel<int, __xls_channel_dir_Out>& out;
+
+    void Ping(bool phase)const {
+      __xls_memory<int, N>& store = phase ? storeA : storeB;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<N;++i) {
+        store[(N-1)-i] = in.read();
+      }
+    }
+    void Pong(bool phase)const {
+      __xls_memory<int, N>& store = phase ? storeA : storeB;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<N;++i) {
+        out.write(store[i]);
+      }
+    }
+
+    #pragma hls_top
+    void Run() {
+      struct Nothing { };
+      static __xls_channel<Nothing, __xls_channel_dir_InOut> sync;
+
+      #pragma hls_pipeline_init_interval 1
+      __xlscc_asap();for(bool phase=false;;phase = !phase) {
+        Ping(phase);
+        sync.write(Nothing());
+      }
+
+      #pragma hls_pipeline_init_interval 1
+      __xlscc_asap();for(bool phase=true;;phase = !phase) {
+        (void)sync.read();
+        Pong(phase);
+      }
+    }
+  };)";
+
+  const int N = 8;
+  const int ITERS = 2;
+  const int32_t input_refs[ITERS][N] = {
+      {4, 5, 6, 7, 8, 9, 10, 11},
+      {3, 22, 10, 3, 8, 1, 2, 55},
+  };
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+
+  for (int iter = 0; iter < ITERS; ++iter) {
+    for (int i = 0; i < N; ++i) {
+      inputs["in"].push_back(xls::Value(xls::SBits(input_refs[iter][i], 32)));
+      inputs["out"].push_back(
+          xls::Value(xls::SBits(input_refs[iter][(N - 1) - i], 32)));
+
+      outputs[iter ? "storeA__write_request" : "storeB__write_request"]
+          .push_back(xls::Value::Tuple({
+              xls::Value(xls::UBits((N - 1) - i, 3)),           // addr
+              xls::Value(xls::SBits(input_refs[iter][i], 32)),  // value
+              xls::Value::Tuple({})                             // mask
+          }));
+      inputs[iter ? "storeA__write_response" : "storeB__write_response"]
+          .push_back(xls::Value::Tuple({}));
+
+      outputs[iter ? "storeB__read_request" : "storeA__read_request"].push_back(
+          xls::Value::Tuple({
+              xls::Value(xls::UBits(i, 3)),  // addr
+              xls::Value::Tuple({})          // mask
+          }));
+      inputs[iter ? "storeB__read_response" : "storeA__read_response"]
+          .push_back(xls::Value::Tuple(
+              {xls::Value(xls::SBits(input_refs[iter][(N - 1) - i], 32))}));
+    }
+  }
+
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3,
+           /* max_ticks = */ 16);
+}
+
+TEST_F(TranslatorMemoryTest, Size) {
+  const std::string content = R"(
+      class Block {
+      public:
+        __xls_memory<int, 32>& store;
+
+       #pragma hls_top
+       long long my_package() {
+         return store.size();
+       }
+    };)";
+
+  auto out_tuple =
+      xls::Value::Tuple({xls::Value::Tuple({xls::Value::Tuple({})}),
+                         xls::Value(xls::UBits(32, 64))});
+
+  Run({{"this", xls::Value::Tuple({xls::Value::Tuple({})})}}, out_tuple,
+      content);
 }
 
 }  // namespace

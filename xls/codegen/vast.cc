@@ -15,7 +15,12 @@
 #include "xls/codegen/vast.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -29,7 +34,9 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
-#include "xls/ir/foreign_function.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/code_template.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls {
 namespace verilog {
@@ -166,9 +173,8 @@ DataType* VerilogFile::BitVectorType(int64_t bit_count, const SourceInfo& loc,
   if (bit_count == 1) {
     if (is_signed) {
       return Make<DataType>(loc, /*width=*/nullptr, /*is_signed=*/true);
-    } else {
-      return Make<DataType>(loc);
     }
+    return Make<DataType>(loc);
   }
   return BitVectorTypeNoScalar(bit_count, loc, is_signed);
 }
@@ -564,6 +570,7 @@ std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
               [=](AlwaysFlop* af) { return af->Emit(line_info); },
               [=](VerilogFunction* f) { return f->Emit(line_info); },
               [=](Cover* c) { return c->Emit(line_info); },
+              [=](ConcurrentAssertion* ca) { return ca->Emit(line_info); },
               [=](ModuleSection* s) { return s->Emit(line_info); }},
       member);
 }
@@ -618,8 +625,10 @@ std::string InlineVerilogRef::Emit(LineInfo* line_info) const {
   return name_;
 }
 
-std::string Assert::Emit(LineInfo* line_info) const {
+std::string ConcurrentAssertion::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
+  LineInfoIncrease(line_info, 1);
+
   // The $fatal statement takes finish_number as the first argument which is a
   // value in the set {0, 1, 2}. This value "sets the level of diagnostic
   // information reported by the tool" (from IEEE Std 1800-2017).
@@ -627,11 +636,21 @@ std::string Assert::Emit(LineInfo* line_info) const {
   // XLS emits asserts taking combinational inputs, so a deferred
   // immediate assertion is used.
   constexpr int64_t kFinishNumber = 0;
-  std::string result = absl::StrFormat(
-      "assert #0 (%s) else $fatal(%d%s);", condition_->Emit(line_info),
-      kFinishNumber,
-      error_message_.empty() ? ""
-                             : absl::StrFormat(", \"%s\"", error_message_));
+  std::string result;
+  if (!label_.empty()) {
+    absl::StrAppendFormat(&result, "%s: ", label_);
+  }
+  absl::StrAppendFormat(&result, "assert property (@(%s) ",
+                        clocking_event_->Emit(line_info));
+  if (disable_iff_.has_value()) {
+    absl::StrAppendFormat(&result, "disable iff (%s) ",
+                          disable_iff_.value()->Emit(line_info));
+  }
+  absl::StrAppendFormat(&result, "%s) else $fatal(%d%s);",
+                        condition_->Emit(line_info), kFinishNumber,
+                        error_message_.empty()
+                            ? ""
+                            : absl::StrFormat(", \"%s\"", error_message_));
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -657,10 +676,9 @@ std::string SystemTaskCall::Emit(LineInfo* line_info) const {
         }));
     LineInfoEnd(line_info, this);
     return result;
-  } else {
-    LineInfoEnd(line_info, this);
-    return absl::StrFormat("$%s;", name_);
   }
+  LineInfoEnd(line_info, this);
+  return absl::StrFormat("$%s;", name_);
 }
 
 std::string SystemFunctionCall::Emit(LineInfo* line_info) const {
@@ -673,11 +691,10 @@ std::string SystemFunctionCall::Emit(LineInfo* line_info) const {
         });
     LineInfoEnd(line_info, this);
     return absl::StrFormat("$%s(%s)", name_, arg_list);
-  } else {
-    LineInfoIncrease(line_info, NumberOfNewlines(name_));
-    LineInfoEnd(line_info, this);
-    return absl::StrFormat("$%s", name_);
   }
+  LineInfoIncrease(line_info, NumberOfNewlines(name_));
+  LineInfoEnd(line_info, this);
+  return absl::StrFormat("$%s", name_);
 }
 
 std::string Module::Emit(LineInfo* line_info) const {
@@ -711,26 +728,27 @@ std::string Literal::Emit(LineInfo* line_info) const {
   LineInfoEnd(line_info, this);
   if (format_ == FormatPreference::kDefault) {
     XLS_CHECK_LE(bits_.bit_count(), 32);
-    return absl::StrFormat("%s",
-                           bits_.ToString(FormatPreference::kUnsignedDecimal));
+    return absl::StrFormat(
+        "%s", BitsToString(bits_, FormatPreference::kUnsignedDecimal));
   }
   if (format_ == FormatPreference::kUnsignedDecimal) {
     std::string prefix;
     if (emit_bit_count_) {
       prefix = absl::StrFormat("%d'd", bits_.bit_count());
     }
-    return absl::StrFormat("%s%s", prefix,
-                           bits_.ToString(FormatPreference::kUnsignedDecimal));
+    return absl::StrFormat(
+        "%s%s", prefix,
+        BitsToString(bits_, FormatPreference::kUnsignedDecimal));
   }
   if (format_ == FormatPreference::kBinary) {
     return absl::StrFormat(
         "%d'b%s", bits_.bit_count(),
-        bits_.ToRawDigits(format_, /*emit_leading_zeros=*/true));
+        BitsToRawDigits(bits_, format_, /*emit_leading_zeros=*/true));
   }
   XLS_CHECK_EQ(format_, FormatPreference::kHex);
-  return absl::StrFormat(
-      "%d'h%s", bits_.bit_count(),
-      bits_.ToRawDigits(FormatPreference::kHex, /*emit_leading_zeros=*/true));
+  return absl::StrFormat("%d'h%s", bits_.bit_count(),
+                         BitsToRawDigits(bits_, FormatPreference::kHex,
+                                         /*emit_leading_zeros=*/true));
 }
 
 bool Literal::IsLiteralWithValue(int64_t target) const {
@@ -1239,19 +1257,17 @@ std::string TemplateInstantiation::Emit(LineInfo* line_info) const {
   absl::StatusOr<CodeTemplate> code_template =
       CodeTemplate::Create(template_text_);
   XLS_CHECK(code_template.ok());  // Already verified earlier.
-  for (const std::string& original : code_template->Expressions()) {
-    if (original == "fn") {
-      replacements.push_back(instance_name_);
-      continue;
+  std::string result = code_template->Substitute([&](std::string_view tmpl) {
+    if (tmpl == "fn") {
+      return instance_name_;
     }
-    auto found = std::find_if(
-        connections_.begin(), connections_.end(),
-        [&](const Connection& c) { return c.port_name == original; });
-    XLS_CHECK(found != connections_.end())
-        << "ExternInstantiation: cant map: template value '" << original << "'";
-    replacements.push_back(found->expression->Emit(line_info));
-  }
-  std::string result = code_template->FillTemplate(replacements).value();
+    auto found =
+        std::find_if(connections_.begin(), connections_.end(),
+                     [&](const Connection& c) { return c.port_name == tmpl; });
+    XLS_CHECK(found != connections_.end())  // Should've been verified earlier
+        << "ExternInstantiation: can't map: template value '" << tmpl << "'";
+    return found->expression->Emit(line_info);
+  });
   absl::StrAppend(&result, ";");
   LineInfoIncrease(line_info, NumberOfNewlines(result));
   LineInfoEnd(line_info, this);

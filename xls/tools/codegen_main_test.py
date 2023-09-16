@@ -251,20 +251,24 @@ class CodeGenMainTest(parameterized.TestCase):
   def test_assert_format(self):
     ir_file = self.create_tempfile(content=ASSERT_IR)
     verilog = subprocess.check_output([
-        CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
         '--top=invert_with_assert',
-        "--assert_format='`MY_ASSERT({condition}, \"{message}\")'",
-        ir_file.full_path
+        '--assert_format=`MY_ASSERT({condition}, "{message}")',
+        ir_file.full_path,
     ]).decode('utf-8')
     self._compare_to_golden(verilog)
 
   def test_gate_format(self):
     ir_file = self.create_tempfile(content=GATE_IR)
     verilog = subprocess.check_output([
-        CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
         '--top=gate_example',
-        "--gate_format='assign {output} = `MY_GATE({input}, {condition})'",
-        ir_file.full_path
+        '--gate_format=assign {output} = `MY_GATE({input}, {condition})',
+        ir_file.full_path,
     ]).decode('utf-8')
     self._compare_to_golden(verilog)
 

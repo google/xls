@@ -14,6 +14,11 @@
 
 #include "xls/noc/config_ng/network_component.h"
 
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "xls/common/logging/logging.h"
 
 namespace xls::noc {

@@ -15,6 +15,12 @@
 #ifndef XLS_CONTRIB_XLSCC_PARSE_CPP_H_
 #define XLS_CONTRIB_XLSCC_PARSE_CPP_H_
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <tuple>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -37,6 +43,7 @@ enum PragmaType {
   Pragma_Label,
   Pragma_ArrayAllowDefaultPad,
   Pragma_SyntheticInt,
+  Pragma_Block,
 };
 
 class Pragma {
@@ -127,8 +134,10 @@ class CCParser {
 
   void AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output);
   void AddSourceInfoToPackage(xls::Package& package);
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc);
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc,
+                                          bool ignore_label);
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc,
+                                          bool ignore_label);
 
   xls::SourceInfo GetLoc(const clang::Stmt& stmt);
   clang::PresumedLoc GetPresumedLoc(const clang::Stmt& stmt);

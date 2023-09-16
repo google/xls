@@ -15,11 +15,8 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_H_
 
-#include <filesystem>  // NOLINT
-#include <memory>
 #include <optional>
 #include <variant>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -41,7 +38,8 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
 // parametric.
 absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation,
-    const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env);
+    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
+                              InterpValue>& constexpr_env);
 
 // Validates type annotations on all functions within "module".
 //

@@ -24,6 +24,7 @@
 
 #include <array>
 #include <cstdint>
+#include <ostream>
 #include <vector>
 
 #include "absl/status/statusor.h"

@@ -17,22 +17,22 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 // Pass which commons equivalent expressions in the graph using binary decision
 // diagrams.
-class BddCsePass : public FunctionBasePass {
+class BddCsePass : public OptimizationFunctionBasePass {
  public:
   explicit BddCsePass()
-      : FunctionBasePass("bdd_cse",
-                         "BDD-based Common Subexpression Elimination") {}
+      : OptimizationFunctionBasePass(
+            "bdd_cse", "BDD-based Common Subexpression Elimination") {}
   ~BddCsePass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

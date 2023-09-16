@@ -25,7 +25,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
@@ -36,6 +35,7 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/interpreter:serial_proc_runtime",
@@ -43,7 +43,7 @@ cc_library(
         "//xls/jit:function_jit",
         "//xls/jit:jit_proc_runtime",
         "//xls/jit:jit_runtime",
-        "//xls/passes:standard_pipeline",
+        "//xls/passes:optimization_pass_pipeline",
     ],
 )
 
@@ -55,12 +55,12 @@ cc_test(
         ":ir_wrapper",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:golden_files",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/dslx:parse_and_typecheck",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir:value_view",
-        "@com_google_googletest//:gtest",
     ],
 )

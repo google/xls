@@ -20,5 +20,4 @@ fn enumerate_test() {
   assert_eq(enumerated[u32:1], (u32:1, u32:2));
   assert_eq(enumerated[u32:2], (u32:2, u32:4));
   assert_eq(enumerated[u32:3], (u32:3, u32:8));
-  ()
 }

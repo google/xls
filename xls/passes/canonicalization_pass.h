@@ -19,7 +19,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -28,15 +28,15 @@ namespace xls {
 // between a node and a literal, the literal should only be the
 // 2nd operand. This preprocessing of the IR helps to simplify
 // later passes.
-class CanonicalizationPass : public FunctionBasePass {
+class CanonicalizationPass : public OptimizationFunctionBasePass {
  public:
   explicit CanonicalizationPass()
-      : FunctionBasePass("canon", "Canonicalization") {}
+      : OptimizationFunctionBasePass("canon", "Canonicalization") {}
   ~CanonicalizationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

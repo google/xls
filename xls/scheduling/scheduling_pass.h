@@ -16,13 +16,18 @@
 #define XLS_SCHEDULING_SCHEDULING_PASS_H_
 
 #include <optional>
+#include <string>
+#include <string_view>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/fdo/synthesizer.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 
@@ -53,12 +58,13 @@ struct SchedulingUnit {
 };
 
 // Options passed to each scheduling pass.
-struct SchedulingPassOptions : public PassOptions {
+struct SchedulingPassOptions : public PassOptionsBase {
   // The options to use when creating and mutating the schedule.
   SchedulingOptions scheduling_options;
 
   // Delay estimator to use for scheduling.
   const DelayEstimator* delay_estimator = nullptr;
+  const synthesis::Synthesizer* synthesizer = nullptr;
 };
 
 using SchedulingPassResults = PassResults;
@@ -71,10 +77,10 @@ using SchedulingInvariantChecker = SchedulingCompoundPass::InvariantChecker;
 
 // Abstract base class for scheduling passes operating at function/proc scope.
 // The derived classes must define RunOnFunctionBaseInternal.
-class SchedulingFunctionBasePass : public SchedulingPass {
+class SchedulingOptimizationFunctionBasePass : public SchedulingPass {
  public:
-  SchedulingFunctionBasePass(std::string_view short_name,
-                             std::string_view long_name)
+  SchedulingOptimizationFunctionBasePass(std::string_view short_name,
+                                         std::string_view long_name)
       : SchedulingPass(short_name, long_name) {}
 
   // Runs the pass on a single function/proc.

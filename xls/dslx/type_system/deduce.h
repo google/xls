@@ -20,6 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
@@ -52,8 +53,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
                                                       DeduceCtx* ctx);
 
 // Helpers that sequences Deduce, then Resolve.
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
-                                                               DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+    const AstNode* node, DeduceCtx* ctx);
 
 // Decorates parametric binding AST nodes with their deduced types.
 //

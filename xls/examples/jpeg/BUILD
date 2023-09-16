@@ -123,6 +123,7 @@ run_opensta(
     name = "idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
     sta_tcl = "//xls/synthesis/openroad:sta_by_stage.tcl",
     synth_target = ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
+    tags = ["manual"],
 )
 
 xls_synthesis_metrics(
@@ -131,6 +132,7 @@ xls_synthesis_metrics(
         ":idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
         ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
     ],
+    tags = ["manual"],
 )
 
 xls_dslx_test(
@@ -160,9 +162,9 @@ cc_test(
     srcs = ["idct_chen_jit_wrapper_test.cc"],
     deps = [
         ":idct_chen_jit_wrapper",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -193,9 +195,9 @@ cc_test(
     deps = [
         ":constants",
         ":streams",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -219,9 +221,15 @@ cc_test(
     deps = [
         ":jpeg_grm",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
+)
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
 )

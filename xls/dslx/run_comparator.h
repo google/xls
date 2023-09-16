@@ -15,6 +15,10 @@
 #ifndef XLS_DSLX_RUN_COMPARATOR_H_
 #define XLS_DSLX_RUN_COMPARATOR_H_
 
+#include <memory>
+#include <string>
+#include <string_view>
+
 #include "xls/common/test_macros.h"
 #include "xls/dslx/run_routines.h"
 #include "xls/jit/function_jit.h"

@@ -15,7 +15,10 @@
 #ifndef XLS_DELAY_MODEL_DELAY_HEAP_H_
 #define XLS_DELAY_MODEL_DELAY_HEAP_H_
 
+#include <functional>
 #include <set>
+#include <string>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

@@ -16,7 +16,11 @@
 #define XLS_IR_BLOCK_H_
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <variant>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"

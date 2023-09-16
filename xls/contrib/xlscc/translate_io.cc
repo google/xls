@@ -14,22 +14,27 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
 #include "clang/include/clang/AST/OperationKinds.h"
 #include "clang/include/clang/AST/Type.h"
+#include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
 
 namespace xlscc {
@@ -106,6 +111,16 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     op.input_value = CValue(pbval, channel_item_type);
   }
 
+  XLS_ASSIGN_OR_RETURN(std::optional<const IOOp*> last_op,
+                       GetPreviousOp(op, loc));
+
+  if (last_op.has_value()) {
+    op.after_ops.push_back(last_op.value());
+  }
+
+  // Sequence after the previous op on the channel
+  // TODO(seanhaskell): This is inefficient for memories. Parallelize operations
+  // once "token phi" type features are available.
   context().sf->io_ops.push_back(op);
 
   if (op.op == OpType::kRecv || op.op == OpType::kRead) {
@@ -120,18 +135,92 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   return &context().sf->io_ops.back();
 }
 
+absl::StatusOr<std::optional<const IOOp*>> Translator::GetPreviousOp(
+    const IOOp& op, const xls::SourceInfo& loc) {
+  if (op_ordering_ == IOOpOrdering::kNone) {
+    return std::nullopt;
+  }
+  if (op_ordering_ == IOOpOrdering::kChannelWise) {
+    std::vector<const IOOp*> previous_ops_on_channel;
+
+    for (const IOOp& existing_op : context().sf->io_ops) {
+      if (existing_op.channel != op.channel) {
+        continue;
+      }
+      if (existing_op.scheduling_option != IOSchedulingOption::kNone) {
+        continue;
+      }
+      previous_ops_on_channel.push_back(&existing_op);
+    }
+
+    if (!previous_ops_on_channel.empty()) {
+      const IOOp* last_op = previous_ops_on_channel.back();
+      return last_op;
+    }
+    return std::nullopt;
+  }
+  if (op_ordering_ == IOOpOrdering::kLexical) {
+    // Sequence after the previous op on any channel
+    std::vector<const IOOp*> previous_ops_on_channel;
+
+    for (const IOOp& existing_op : context().sf->io_ops) {
+      if (existing_op.scheduling_option != IOSchedulingOption::kNone) {
+        continue;
+      }
+      previous_ops_on_channel.push_back(&existing_op);
+    }
+
+    if (!previous_ops_on_channel.empty()) {
+      const IOOp* last_op = previous_ops_on_channel.back();
+      return last_op;
+    }
+    return std::nullopt;
+  }
+  return absl::UnimplementedError(
+      ErrorMessage(loc, "IO op ordering %i", static_cast<int>(op_ordering_)));
+}
+
 absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
                                                const xls::SourceInfo& loc) {
+  // Ignore &
   XLS_ASSIGN_OR_RETURN(StrippedType stripped, StripTypeQualifiers(param));
-  absl::StatusOr<std::shared_ptr<CType>> obj_type_ret =
-      TranslateTypeFromClang(stripped.base, loc);
 
-  // Ignore un-translatable types like pointers
-  if (!obj_type_ret.ok()) {
-    return false;
+  const clang::Type* type = stripped.base.getTypePtr();
+
+  if (auto subst =
+          clang::dyn_cast<const clang::SubstTemplateTypeParmType>(type)) {
+    return TypeIsChannel(subst->getReplacementType(), loc);
   }
 
-  return obj_type_ret.value()->Is<CChannelType>();
+  if (type->getTypeClass() == clang::Type::TypeClass::TemplateSpecialization) {
+    // Up-cast to avoid multiple inheritance of getAsRecordDecl()
+    std::shared_ptr<CInstantiableTypeAlias> ret(
+        new CInstantiableTypeAlias(type->getAsRecordDecl()));
+
+    // TODO(seanhaskell): Put these strings in one place
+    if (ret->base()->getNameAsString() == "__xls_channel" ||
+        ret->base()->getNameAsString() == "__xls_memory") {
+      return true;
+    }
+  }
+
+  if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
+    clang::RecordDecl* decl = record->getDecl();
+
+    if (auto class_template_spec =
+            clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(
+                decl)) {
+      const std::string template_name =
+          class_template_spec->getSpecializedTemplate()->getNameAsString();
+
+      // TODO(seanhaskell): Put these strings in one place
+      if (template_name == "__xls_channel" || template_name == "__xls_memory") {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 absl::StatusOr<int64_t> Translator::GetIntegerTemplateArgument(
@@ -157,6 +246,11 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
 
   XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                        StripTypeQualifiers(channel_type));
+
+  if (auto subst = clang::dyn_cast<const clang::SubstTemplateTypeParmType>(
+          stripped.base.getTypePtr())) {
+    return GetChannelType(subst->getReplacementType(), ctx, loc);
+  }
 
   if (auto template_spec =
           clang::dyn_cast<const clang::TemplateSpecializationType>(
@@ -422,6 +516,12 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
                                        channel_specific_condition};
         op.ret_value = context().fb->Tuple(sp, loc);
       }
+    } else if (op_name == "size") {
+      XLSCC_CHECK_GT(channel->memory_size, 0, loc);
+      CValue value(context().fb->Literal(xls::UBits(channel->memory_size, 64)),
+                   std::make_shared<CIntType>(64, /*is_signed=*/false));
+      IOOpReturn const_ret = {.generate_expr = false, .value = value};
+      return const_ret;
     } else {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Unsupported IO op: %s", op_name));
@@ -542,6 +642,11 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
 
   switch (op.op) {
     case OpType::kNull:
+    case OpType::kSendRecv:
+      XLSCC_CHECK(
+          "AddConditionToIOReturn() unsupported for Null and InOut "
+          "directions" == nullptr,
+          loc);
       break;
     case OpType::kRecv:
       op_condition = retval;
@@ -586,6 +691,11 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
 
   switch (op.op) {
     case OpType::kNull:
+    case OpType::kSendRecv:
+      XLSCC_CHECK(
+          "AddConditionToIOReturn() unsupported for Null and InOut "
+          "directions" == nullptr,
+          loc);
       break;
     case OpType::kRecv:
       new_retval = op_condition;

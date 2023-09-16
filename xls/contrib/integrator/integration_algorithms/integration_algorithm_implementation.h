@@ -14,6 +14,9 @@
 #ifndef XLS_INTEGRATOR_INTEGRATION_ALGORITHM_IMPLEMENTATION_
 #define XLS_INTEGRATOR_INTEGRATION_ALGORITHM_IMPLEMENTATION_
 
+#include <memory>
+#include <vector>
+
 #include "xls/contrib/integrator/integration_algorithms/integration_algorithm.h"
 
 namespace xls {

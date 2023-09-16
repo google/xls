@@ -16,7 +16,10 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <memory>
 #include <queue>
+#include <utility>
+#include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"

@@ -145,6 +145,9 @@ class InterpValue {
   static InterpValue MakeMaxValue(bool is_signed, int64_t bit_count);
 
   static InterpValue MakeUnit() { return MakeTuple({}); }
+  static InterpValue MakeU8(uint8_t value) {
+    return MakeUBits(/*bit_count=*/8, value);
+  }
   static InterpValue MakeS32(uint32_t value) {
     return MakeSBits(/*bit_count=*/32, value);
   }
@@ -250,11 +253,18 @@ class InterpValue {
   // Various operations -- tag is not applicable for the operation, a status
   // error should be returned.
 
-  absl::StatusOr<int64_t> GetBitValueCheckSign() const;
+  // Gets the underlying bit value and inspects the type(-tag)'s signedness to
+  // determine whether it should sign-extend or zero-extend to produce the
+  // resulting int64_t.
+  absl::StatusOr<int64_t> GetBitValueViaSign() const;
 
   absl::StatusOr<int64_t> GetBitCount() const;
-  absl::StatusOr<uint64_t> GetBitValueUint64() const;
-  absl::StatusOr<int64_t> GetBitValueInt64() const;
+
+  // Gets the underlying bit value with zero-extension to produce a uint64_t.
+  absl::StatusOr<uint64_t> GetBitValueUnsigned() const;
+
+  // Gets the underlying bit value with sign-extension to produce a int64_t.
+  absl::StatusOr<int64_t> GetBitValueSigned() const;
 
   // Returns true iff the value HasBits and the bits values fits in a
   // (u)int64_t.
@@ -277,6 +287,10 @@ class InterpValue {
   absl::StatusOr<InterpValue> ZeroExt(int64_t new_bit_count) const;
   absl::StatusOr<InterpValue> SignExt(int64_t new_bit_count) const;
   absl::StatusOr<InterpValue> Concat(const InterpValue& other) const;
+
+  // Performs an add of two uN[N]s and returns a 2-tuple of:
+  //
+  //  `(carry: bool, sum: uN[N])`
   absl::StatusOr<InterpValue> AddWithCarry(const InterpValue& other) const;
 
   absl::StatusOr<InterpValue> Add(const InterpValue& other) const;
@@ -292,6 +306,7 @@ class InterpValue {
   absl::StatusOr<InterpValue> BitwiseAnd(const InterpValue& other) const;
   absl::StatusOr<InterpValue> ArithmeticNegate() const;
   absl::StatusOr<InterpValue> FloorDiv(const InterpValue& other) const;
+  absl::StatusOr<InterpValue> FloorMod(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Index(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Index(int64_t index) const;
   absl::StatusOr<InterpValue> Update(const InterpValue& index,
@@ -326,6 +341,11 @@ class InterpValue {
       bool humanize = false,
       FormatPreference format = FormatPreference::kDefault) const;
   std::string ToHumanString() const { return ToString(/*humanize=*/true); }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const InterpValue& v) {
+    absl::Format(&sink, "%s", v.ToString());
+  }
 
   absl::StatusOr<std::string> ToFormattedString(
       const ValueFormatDescriptor& fmt_desc, int64_t indentation = 0) const;

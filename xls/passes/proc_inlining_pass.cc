@@ -52,6 +52,7 @@
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/dataflow_visitor.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/token_provenance_analysis.h"
@@ -471,7 +472,8 @@ class VirtualChannel {
         absl::StrFormat("Channel %s lost data, send fired but receive did not",
                         channel_->name()),
         /*label=*/
-        absl::StrFormat("%s_data_loss_assert", channel_->name()));
+        absl::StrFormat("%s_data_loss_assert", channel_->name()),
+        /*original_label=*/std::nullopt);
   }
 
   // Returns the signal indicating whether any send/receive fired this tick.
@@ -1705,9 +1707,9 @@ absl::Status SetProcState(Proc* proc, absl::Span<const StateElement> elements) {
 
 }  // namespace
 
-absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
-                                                   const PassOptions& options,
-                                                   PassResults* results) const {
+absl::StatusOr<bool> ProcInliningPass::RunInternal(
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   if (!options.inline_procs || p->procs().size() <= 1) {
     return false;
   }

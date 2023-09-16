@@ -25,14 +25,18 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 namespace {
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::Eq;
 using ::testing::HasSubstr;
 
 TEST(InterpValueHelpersTest, CastBitsToArray) {
@@ -47,7 +51,7 @@ TEST(InterpValueHelpersTest, CastBitsToArray) {
   for (int i = 0; i < 4; i++) {
     XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, converted.Index(i));
     ASSERT_TRUE(value.IsBits());
-    XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+    XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
     ASSERT_EQ(int_value, 0xa5);
   }
 }
@@ -188,6 +192,63 @@ TEST(InterpValueHelpersTest, InterpValueAsStringWorks) {
   EXPECT_THAT(InterpValueAsString(u9_array),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Array elements must be u8")));
+}
+
+TEST(InterpValueHelpersTest, ValueToInterpValue) {
+  EXPECT_THAT(ValueToInterpValue(Value(UBits(3, 32))),
+              IsOkAndHolds(Eq(InterpValue::MakeUBits(32, 3))));
+  EXPECT_THAT(
+      ValueToInterpValue(Value(UBits(3, 32)), BitsType::MakeU32().get()),
+      IsOkAndHolds(Eq(InterpValue::MakeU32(3))));
+
+  EXPECT_THAT(
+      ValueToInterpValue(Value::UBitsArray({3, 4, 5}, 32).value()),
+      IsOkAndHolds(Eq(InterpValue::MakeArray({
+                                                 InterpValue::MakeU32(3),
+                                                 InterpValue::MakeU32(4),
+                                                 InterpValue::MakeU32(5),
+                                             })
+                          .value())));
+  ArrayType array_type(BitsType::MakeU32(), ConcreteTypeDim::CreateU32(3));
+  EXPECT_THAT(
+      ValueToInterpValue(Value::UBitsArray({3, 4, 5}, 32).value(), &array_type),
+      IsOkAndHolds(Eq(InterpValue::MakeArray({
+                                                 InterpValue::MakeU32(3),
+                                                 InterpValue::MakeU32(4),
+                                                 InterpValue::MakeU32(5),
+                                             })
+                          .value())));
+
+  EXPECT_THAT(ValueToInterpValue(
+                  Value::Tuple({Value(UBits(3, 32)), Value(UBits(4, 32))})),
+              IsOkAndHolds(Eq(InterpValue::MakeTuple(
+                  {InterpValue::MakeU32(3), InterpValue::MakeU32(4)}))));
+  // Tuple values can either come from structs or tuples, try passing in a
+  // compatible concrete type of both.
+  EXPECT_THAT(
+      ValueToInterpValue(
+          Value::Tuple({Value(UBits(3, 32)), Value(UBits(4, 32))}),
+          TupleType::Create2(BitsType::MakeU32(), BitsType::MakeU32()).get()),
+      IsOkAndHolds(Eq(InterpValue::MakeTuple(
+          {InterpValue::MakeU32(3), InterpValue::MakeU32(4)}))));
+  NameDef struct_name_def(/*owner=*/nullptr, /*span=*/Span::Fake(), "my_struct",
+                          /*definer=*/nullptr);
+  StructDef struct_def(/*owner=*/nullptr, /*span=*/Span::Fake(),
+                       /*name_def=*/&struct_name_def,
+                       /*parametric_bindings=*/{},
+                       // these members are unused, but need to have the same
+                       // number of elements as members in 'stuct_type'.
+                       /*members=*/{{nullptr, nullptr}, {nullptr, nullptr}},
+                       /*is_public=*/false);
+  std::vector<std::unique_ptr<ConcreteType>> members;
+  members.push_back(BitsType::MakeU8());
+  members.push_back(BitsType::MakeU1());
+  StructType struct_type(std::move(members), struct_def);
+  EXPECT_THAT(ValueToInterpValue(
+                  Value::Tuple({Value(UBits(3, 32)), Value(UBits(4, 32))}),
+                  &struct_type),
+              IsOkAndHolds(Eq(InterpValue::MakeTuple(
+                  {InterpValue::MakeU32(3), InterpValue::MakeU32(4)}))));
 }
 
 }  // namespace

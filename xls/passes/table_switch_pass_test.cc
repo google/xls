@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -28,6 +29,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
@@ -42,7 +44,7 @@ class TableSwitchPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(FunctionBase* f) {
     PassResults results;
     TableSwitchPass pass;
-    return pass.RunOnFunctionBase(f, PassOptions(), &results);
+    return pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results);
   }
 
   // Returns a vector holding the results of the given function when run with
@@ -202,7 +204,7 @@ fn main(index: bits[32]) -> bits[32] {
   TableSwitchPass pass;
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
-  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
               IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array,
@@ -227,7 +229,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
   TableSwitchPass pass;
-  EXPECT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
+  EXPECT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
               IsOkAndHolds(false));
 }
 
@@ -261,7 +263,7 @@ fn main(index: bits[32], bad_selector: bits[3]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
   TableSwitchPass pass;
-  EXPECT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
+  EXPECT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
               IsOkAndHolds(false));
 }
 
@@ -506,7 +508,7 @@ fn main(x4: bits[62], x1: bits[25], x2: bits[24]) -> bits[62] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
   PassResults results;
   TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
+  ASSERT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
               IsOkAndHolds(false));
 }
 

@@ -14,13 +14,17 @@
 
 #include "xls/data_structures/leaf_type_tree.h"
 
+#include <algorithm>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 
@@ -95,10 +99,11 @@ TEST_F(LeafTypeTreeTest, TupleType) {
   EXPECT_EQ(tree.Get({1}), UBits(33, 44));
   EXPECT_THAT(tree.elements(), ElementsAre(Bits(), UBits(33, 44), Bits()));
 
-  EXPECT_EQ(tree.ToString([](const Bits& b) { return b.ToString(); }),
+  EXPECT_EQ(tree.ToString([](const Bits& b) { return BitsToString(b); }),
             "(0, 33, 0)");
-  EXPECT_EQ(tree.ToMultilineString([](const Bits& b) { return b.ToString(); }),
-            R"((
+  EXPECT_EQ(
+      tree.ToMultilineString([](const Bits& b) { return BitsToString(b); }),
+      R"((
   0,
   33,
   0

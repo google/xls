@@ -19,11 +19,9 @@
 #include <cstdint>
 #include <functional>
 #include <ios>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -31,27 +29,31 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/builtins.h"
 #include "xls/dslx/bytecode/bytecode.h"
+#include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 namespace {
@@ -186,8 +188,12 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
   XLS_VLOG(10) << "Running bytecode: " << bytecode.ToString()
                << " depth before: " << stack_.size();
   switch (bytecode.op()) {
-    case Bytecode::Op::kAdd: {
-      XLS_RETURN_IF_ERROR(EvalAdd(bytecode));
+    case Bytecode::Op::kUAdd: {
+      XLS_RETURN_IF_ERROR(EvalAdd(bytecode, /*is_signed=*/false));
+      break;
+    }
+    case Bytecode::Op::kSAdd: {
+      XLS_RETURN_IF_ERROR(EvalAdd(bytecode, /*is_signed=*/true));
       break;
     }
     case Bytecode::Op::kAnd: {
@@ -302,8 +308,16 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalMatchArm(bytecode));
       break;
     }
-    case Bytecode::Op::kMul: {
-      XLS_RETURN_IF_ERROR(EvalMul(bytecode));
+    case Bytecode::Op::kSMul: {
+      XLS_RETURN_IF_ERROR(EvalMul(bytecode, /*is_signed=*/true));
+      break;
+    }
+    case Bytecode::Op::kUMul: {
+      XLS_RETURN_IF_ERROR(EvalMul(bytecode, /*is_signed=*/false));
+      break;
+    }
+    case Bytecode::Op::kMod: {
+      XLS_RETURN_IF_ERROR(EvalMod(bytecode));
       break;
     }
     case Bytecode::Op::kNe: {
@@ -359,8 +373,12 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalStore(bytecode));
       break;
     }
-    case Bytecode::Op::kSub: {
-      XLS_RETURN_IF_ERROR(EvalSub(bytecode));
+    case Bytecode::Op::kUSub: {
+      XLS_RETURN_IF_ERROR(EvalSub(bytecode, /*is_signed=*/false));
+      break;
+    }
+    case Bytecode::Op::kSSub: {
+      XLS_RETURN_IF_ERROR(EvalSub(bytecode, /*is_signed=*/true));
       break;
     }
     case Bytecode::Op::kSwap: {
@@ -384,26 +402,6 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
   return absl::OkStatus();
 }
 
-/* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Pop(
-    std::vector<InterpValue>& stack) {
-  if (stack.empty()) {
-    return absl::InternalError("Tried to pop off an empty stack.");
-  }
-  InterpValue value = std::move(stack.back());
-  stack.pop_back();
-  return value;
-}
-
-absl::Status BytecodeInterpreter::EvalUnop(
-    const std::function<absl::StatusOr<InterpValue>(const InterpValue& arg)>&
-        op) {
-  XLS_RET_CHECK_GE(stack_.size(), 1);
-  XLS_ASSIGN_OR_RETURN(InterpValue arg, Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue result, op(arg));
-  stack_.Push(std::move(result));
-  return absl::OkStatus();
-}
-
 absl::Status BytecodeInterpreter::EvalBinop(
     const std::function<absl::StatusOr<InterpValue>(
         const InterpValue& lhs, const InterpValue& rhs)>& op) {
@@ -415,9 +413,27 @@ absl::Status BytecodeInterpreter::EvalBinop(
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::EvalAdd(const Bytecode& bytecode) {
-  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
-    return lhs.Add(rhs);
+absl::Status BytecodeInterpreter::EvalAdd(const Bytecode& bytecode,
+                                          bool is_signed) {
+  return EvalBinop([&](const InterpValue& lhs,
+                       const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+    XLS_ASSIGN_OR_RETURN(InterpValue output, lhs.Add(rhs));
+
+    // Slow path: when rollover warning hook is enabled.
+    if (options_.rollover_hook() != nullptr) {
+      auto make_big_int = [is_signed](const Bits& bits) {
+        return is_signed ? BigInt::MakeSigned(bits)
+                         : BigInt::MakeUnsigned(bits);
+      };
+      bool rollover =
+          make_big_int(lhs.GetBitsOrDie()) + make_big_int(rhs.GetBitsOrDie()) !=
+          make_big_int(output.GetBitsOrDie());
+      if (rollover) {
+        options_.rollover_hook()(bytecode.source_span());
+      }
+    }
+
+    return output;
   });
 }
 
@@ -661,6 +677,12 @@ absl::Status BytecodeInterpreter::EvalDiv(const Bytecode& bytecode) {
   });
 }
 
+absl::Status BytecodeInterpreter::EvalMod(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.FloorMod(rhs);
+  });
+}
+
 absl::Status BytecodeInterpreter::EvalDup(const Bytecode& bytecode) {
   XLS_RET_CHECK(!stack_.empty());
   stack_.Push(stack_.PeekOrDie());
@@ -830,52 +852,69 @@ absl::StatusOr<bool> BytecodeInterpreter::MatchArmEqualsInterpValue(
     Frame* frame, const Bytecode::MatchArmItem& item,
     const InterpValue& value) {
   using Kind = Bytecode::MatchArmItem::Kind;
-  if (item.kind() == Kind::kInterpValue) {
-    XLS_ASSIGN_OR_RETURN(InterpValue arm_value, item.interp_value());
-    return arm_value.Eq(value);
-  }
-
-  if (item.kind() == Kind::kLoad) {
-    XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
-    if (frame->slots().size() <= slot_index.value()) {
-      return absl::InternalError(
-          absl::StrCat("MatchArm load item index was OOB: ", slot_index.value(),
-                       " vs. ", frame->slots().size(), "."));
+  switch (item.kind()) {
+    case Kind::kInterpValue: {
+      XLS_ASSIGN_OR_RETURN(InterpValue arm_value, item.interp_value());
+      return arm_value.Eq(value);
     }
-    InterpValue arm_value = frame->slots().at(slot_index.value());
-    return arm_value.Eq(value);
-  }
+    case Kind::kRange: {
+      XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem::RangeData range,
+                           item.range());
+      XLS_VLOG(10) << "value: " << value.ToString()
+                   << " start: " << range.start.ToString()
+                   << " limit: " << range.limit.ToString();
+      XLS_ASSIGN_OR_RETURN(InterpValue val_ge_start, value.Ge(range.start));
+      XLS_ASSIGN_OR_RETURN(InterpValue val_lt_limit, value.Lt(range.limit));
+      XLS_ASSIGN_OR_RETURN(InterpValue conjunction,
+                           val_ge_start.BitwiseAnd(val_lt_limit));
+      XLS_VLOG(10) << "val_ge_start: " << val_ge_start.ToString()
+                   << " val_lt_limit: " << val_lt_limit.ToString()
+                   << " conjunction: " << conjunction.ToString();
+      return conjunction.IsTrue();
+    }
+    case Kind::kLoad: {
+      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
+      if (frame->slots().size() <= slot_index.value()) {
+        return absl::InternalError(absl::StrCat(
+            "MatchArm load item index was OOB: ", slot_index.value(), " vs. ",
+            frame->slots().size(), "."));
+      }
+      InterpValue arm_value = frame->slots().at(slot_index.value());
+      return arm_value.Eq(value);
+    }
 
-  if (item.kind() == Kind::kStore) {
-    XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
-    frame->StoreSlot(slot_index, value);
-    return true;
-  }
+    case Kind::kStore: {
+      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
+      frame->StoreSlot(slot_index, value);
+      return true;
+    }
 
-  if (item.kind() == Kind::kWildcard) {
-    return true;
-  }
+    case Kind::kWildcard:
+      return true;
 
-  // Otherwise, we're a tuple. Recurse.
-  XLS_ASSIGN_OR_RETURN(auto item_elements, item.tuple_elements());
-  XLS_ASSIGN_OR_RETURN(auto* value_elements, value.GetValues());
-  if (item_elements.size() != value_elements->size()) {
-    return absl::InternalError(
-        absl::StrCat("Match arm item had a different number of elements "
-                     "than the corresponding InterpValue: ",
-                     item.ToString(), " vs. ", value.ToString()));
-  }
+    case Kind::kTuple: {
+      // Otherwise, we're a tuple. Recurse.
+      XLS_ASSIGN_OR_RETURN(auto item_elements, item.tuple_elements());
+      XLS_ASSIGN_OR_RETURN(auto* value_elements, value.GetValues());
+      if (item_elements.size() != value_elements->size()) {
+        return absl::InternalError(
+            absl::StrCat("Match arm item had a different number of elements "
+                         "than the corresponding InterpValue: ",
+                         item.ToString(), " vs. ", value.ToString()));
+      }
 
-  for (int i = 0; i < item_elements.size(); i++) {
-    XLS_ASSIGN_OR_RETURN(
-        bool equal, MatchArmEqualsInterpValue(&frames_.back(), item_elements[i],
-                                              value_elements->at(i)));
-    if (!equal) {
-      return false;
+      for (int i = 0; i < item_elements.size(); i++) {
+        XLS_ASSIGN_OR_RETURN(bool equal, MatchArmEqualsInterpValue(
+                                             &frames_.back(), item_elements[i],
+                                             value_elements->at(i)));
+        if (!equal) {
+          return false;
+        }
+      }
+
+      return true;
     }
   }
-
-  return true;
 }
 
 absl::Status BytecodeInterpreter::EvalMatchArm(const Bytecode& bytecode) {
@@ -889,9 +928,27 @@ absl::Status BytecodeInterpreter::EvalMatchArm(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::EvalMul(const Bytecode& bytecode) {
-  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
-    return lhs.Mul(rhs);
+absl::Status BytecodeInterpreter::EvalMul(const Bytecode& bytecode,
+                                          bool is_signed) {
+  return EvalBinop([&](const InterpValue& lhs,
+                       const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+    XLS_ASSIGN_OR_RETURN(InterpValue output, lhs.Mul(rhs));
+
+    // Slow path: when rollover warning hook is enabled.
+    if (options_.rollover_hook() != nullptr) {
+      auto make_big_int = [is_signed](const Bits& bits) {
+        return is_signed ? BigInt::MakeSigned(bits)
+                         : BigInt::MakeUnsigned(bits);
+      };
+      bool rollover =
+          make_big_int(lhs.GetBitsOrDie()) * make_big_int(rhs.GetBitsOrDie()) !=
+          make_big_int(output.GetBitsOrDie());
+      if (rollover) {
+        options_.rollover_hook()(bytecode.source_span());
+      }
+    }
+
+    return output;
   });
 }
 
@@ -1074,8 +1131,8 @@ absl::Status BytecodeInterpreter::EvalSlice(const Bytecode& bytecode) {
 
   // At this point, both start and length must be nonnegative, so we force them
   // to UBits, since Slice expects that.
-  XLS_ASSIGN_OR_RETURN(int64_t start_value, start.GetBitValueInt64());
-  XLS_ASSIGN_OR_RETURN(int64_t length_value, length.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t start_value, start.GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t length_value, length.GetBitValueViaSign());
   XLS_RET_CHECK_GE(start_value, 0);
   XLS_RET_CHECK_GE(length_value, 0);
   start = InterpValue::MakeBits(/*is_signed=*/false, start.GetBitsOrDie());
@@ -1108,9 +1165,27 @@ absl::StatusOr<std::optional<int64_t>> BytecodeInterpreter::EvalJumpRelIf(
   return std::nullopt;
 }
 
-absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode) {
-  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
-    return lhs.Sub(rhs);
+absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode,
+                                          bool is_signed) {
+  return EvalBinop([&](const InterpValue& lhs,
+                       const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+    XLS_ASSIGN_OR_RETURN(InterpValue output, lhs.Sub(rhs));
+
+    // Slow path: when rollover warning hook is enabled.
+    if (options_.rollover_hook() != nullptr) {
+      auto make_big_int = [is_signed](const Bits& bits) {
+        return is_signed ? BigInt::MakeSigned(bits)
+                         : BigInt::MakeUnsigned(bits);
+      };
+      bool rollover =
+          make_big_int(lhs.GetBitsOrDie()) - make_big_int(rhs.GetBitsOrDie()) !=
+          make_big_int(output.GetBitsOrDie());
+      if (rollover) {
+        options_.rollover_hook()(bytecode.source_span());
+      }
+    }
+
+    return output;
   });
 }
 
@@ -1197,7 +1272,7 @@ absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
     stack_.Push(oob_value);
     return absl::OkStatus();
   }
-  XLS_ASSIGN_OR_RETURN(uint64_t start_index, start.GetBitValueUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t start_index, start.GetBitValueUnsigned());
 
   XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
   XLS_ASSIGN_OR_RETURN(Bits basis_bits, basis.GetBits());
@@ -1350,7 +1425,7 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
       Bytecode(span, Bytecode::Op::kLoad, Bytecode::SlotIndex(1)));
   bytecodes.push_back(
       Bytecode(span, Bytecode::Op::kLiteral, InterpValue::MakeU32(1)));
-  bytecodes.push_back(Bytecode(span, Bytecode::Op::kAdd));
+  bytecodes.push_back(Bytecode(span, Bytecode::Op::kUAdd));
   bytecodes.push_back(
       Bytecode(span, Bytecode::Op::kStore, Bytecode::SlotIndex(1)));
 
@@ -1482,7 +1557,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
 
   std::vector<NameDef*> member_defs;
   member_defs.reserve(proc->members().size());
-  for (const Param* param : proc->members()) {
+  for (const ProcMember* param : proc->members()) {
     member_defs.push_back(param->name_def());
   }
 
@@ -1503,7 +1578,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
       std::unique_ptr<BytecodeInterpreter> next_interpreter,
       CreateUnique(import_data, next_bf.get(), full_next_args, options));
   proc_instances->push_back(ProcInstance{proc, std::move(next_interpreter),
-                                         std::move(next_bf), full_next_args});
+                                         std::move(next_bf), full_next_args,
+                                         type_info});
   return absl::OkStatus();
 }
 
@@ -1526,7 +1602,7 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
     }
 
     XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_,
-                                                /*type_info=*/nullptr));
+                                                type_info_));
     return ProcRunResult{.execution_state = ProcExecutionState::kCompleted,
                          .blocked_channel_name = std::nullopt,
                          .progress_made = progress_made};

@@ -12,21 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <numeric>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/time.h"
 #include "xls/codegen/block_metrics.h"
+#include "xls/codegen/xls_metrics.pb.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/block.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 const char kUsage[] = R"(
 Dumps various codegen-related metrics about a block and corresponding Verilog
@@ -55,7 +68,7 @@ absl::Status ScheduleAndPrintStats(Package* package,
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(top.value(), delay_estimator, options));
+      RunPipelineSchedule(top.value(), delay_estimator, options));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
                                   total_time / absl::Milliseconds(1));
@@ -98,15 +111,20 @@ absl::Status RealMain(std::string_view opt_ir_path,
   XLS_ASSIGN_OR_RETURN(std::string verilog_contents,
                        GetFileContents(verilog_path));
 
-  std::optional<DelayEstimator*> delay_estimator;
+  const DelayEstimator* delay_estimator = nullptr;
 
   if (absl::GetFlag(FLAGS_schedule)) {
+    XLS_ASSIGN_OR_RETURN(
+        SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+        GetSchedulingOptionsFlagsProto());
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                         SetUpSchedulingOptions(block_package.get()));
-    XLS_ASSIGN_OR_RETURN(delay_estimator, SetUpDelayEstimator());
+                         SetUpSchedulingOptions(scheduling_options_flags_proto,
+                                                block_package.get()));
+    XLS_ASSIGN_OR_RETURN(delay_estimator,
+                         SetUpDelayEstimator(scheduling_options_flags_proto));
 
     XLS_RETURN_IF_ERROR(ScheduleAndPrintStats(
-        opt_package.get(), *delay_estimator.value(), scheduling_options));
+        opt_package.get(), *delay_estimator, scheduling_options));
   }
 
   XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(block_package.get()));
@@ -152,7 +170,7 @@ int main(int argc, char** argv) {
         argv[0]);
   }
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], positional_arguments[1],
-                              positional_arguments[2]));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(positional_arguments[0],
+                                       positional_arguments[1],
+                                       positional_arguments[2]));
 }

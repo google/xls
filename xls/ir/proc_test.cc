@@ -16,9 +16,16 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -28,6 +35,7 @@ namespace {
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 
 class ProcTest : public IrTestBase {};
 
@@ -77,6 +85,7 @@ TEST_F(ProcTest, MutateProc) {
 
   EXPECT_THAT(proc->GetNextStateElement(0), m::Literal(UBits(100, 100)));
   EXPECT_THAT(proc->GetStateParam(0), m::Type("bits[100]"));
+  EXPECT_THAT(proc->GetNextStateIndices(new_state), ElementsAre(0));
 }
 
 TEST_F(ProcTest, AddAndRemoveState) {
@@ -99,9 +108,12 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetInitValueElement(0), Value(UBits(42, 32)));
   EXPECT_EQ(proc->GetInitValueElement(1), Value(UBits(100, 32)));
 
-  // Add a state element with a specifed next state (the state parameter "x").
-  XLS_ASSERT_OK(proc->AppendStateElement(
-      "z", Value(UBits(123, 32)), /*next_state=*/proc->GetStateParam(0)));
+  // Add a state element with a specified next state (the literal 0).
+  XLS_ASSERT_OK_AND_ASSIGN(Literal * zero_literal,
+                           proc->MakeNodeWithName<Literal>(
+                               SourceInfo(), Value(UBits(0, 32)), "zero"));
+  XLS_ASSERT_OK(proc->AppendStateElement("z", Value(UBits(123, 32)),
+                                         /*next_state=*/zero_literal));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "y");
@@ -111,18 +123,21 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetInitValueElement(2), Value(UBits(123, 32)));
   EXPECT_EQ(proc->GetNextStateElement(0)->GetName(), "my_add");
   EXPECT_EQ(proc->GetNextStateElement(1)->GetName(), "y");
-  EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "x");
+  EXPECT_EQ(proc->GetNextStateElement(2), zero_literal);
+  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(2));
 
   XLS_ASSERT_OK(proc->RemoveStateElement(1));
   EXPECT_EQ(proc->GetStateElementCount(), 2);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "z");
+  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(1));
 
   XLS_ASSERT_OK(proc->InsertStateElement(0, "foo", Value(UBits(123, 32))));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "foo");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");
+  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(2));
 
   XLS_ASSERT_OK(proc->InsertStateElement(3, "bar", Value(UBits(1, 64))));
   EXPECT_EQ(proc->GetStateElementCount(), 4);
@@ -130,6 +145,7 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");
   EXPECT_EQ(proc->GetStateParam(3)->GetName(), "bar");
+  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(2));
 
   XLS_ASSERT_OK(proc->ReplaceStateElement(2, "baz", Value::Tuple({})));
   EXPECT_EQ(proc->GetStateElementCount(), 4);
@@ -137,6 +153,7 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(2)->GetName(), "baz");
   EXPECT_EQ(proc->GetStateParam(3)->GetName(), "bar");
+  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), IsEmpty());
 
   EXPECT_THAT(proc->DumpIr(),
               HasSubstr("proc p(tkn: token, foo: bits[32], x: bits[32], baz: "
@@ -225,6 +242,21 @@ TEST_F(ProcTest, ReplaceStateThatStillHasUse) {
       proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
   EXPECT_THAT(proc->ReplaceStateElement(0, "new_state", Value(UBits(100, 100)),
                                         new_state),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("state param st has uses")));
+}
+
+TEST_F(ProcTest, RemoveStateThatStillHasUse) {
+  // Don't call CreatePackage which creates a VerifiedPackage because we
+  // intentionally create a malformed proc.
+  Package p(TestName());
+  ProcBuilder pb("p", "tkn", &p);
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), {add}));
+
+  EXPECT_THAT(proc->RemoveStateElement(0),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("state param st has uses")));
 }

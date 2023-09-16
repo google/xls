@@ -25,16 +25,15 @@ import std
 
 import xls.examples.ram
 
-type RamReq = ram::SinglePortRamReq;
-type RamResp = ram::SinglePortRamResp;
+type RamReq = ram::RWRamReq;
+type RamResp = ram::RWRamResp;
 
 fn double(x: u32) -> u32 { x * u32:2 }
 fn addr_width(size: u32) -> u32 { std::clog2(size) }
 fn half_floor(size: u32) -> u32 { (size >> u32: 1) }
 fn is_odd(size: u32) -> bool { size[0:1] != u1:0 }
 
-struct DelayState<DATA_WIDTH:u32, DELAY: u32,
- ADDR_WIDTH:u32={addr_width(half_floor(DELAY))}> {
+struct DelayState<DATA_WIDTH:u32, ADDR_WIDTH:u32> {
   // Current index into the RAM
   idx: bits[ADDR_WIDTH],
   // For the first DELAY cycles, the RAM has not been filled and whatever you
@@ -85,7 +84,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
     ram_wr_comp: chan<()> in;
 
     init {
-        DelayState<DATA_WIDTH, DELAY> {
+        DelayState {
             idx: bits[ADDR_WIDTH]: 0,
             init_done: false,
             prev_read: bits[DATA_WIDTH]: 0,
@@ -102,7 +101,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
         (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
-    next(tok: token, state: DelayState<DATA_WIDTH, DELAY, ADDR_WIDTH>) {
+    next(tok: token, state: DelayState<DATA_WIDTH, ADDR_WIDTH>) {
         let we = !state.is_read_stage;
         let re = state.is_read_stage && state.init_done;
 
@@ -273,8 +272,6 @@ proc delay_smoke_test_even {
 
         let tok = join(stok, rtok);
         send(tok, terminator, true);
-
-        ()
     }
 }
 
@@ -307,7 +304,7 @@ const TEST1_DELAY = u32:2047;
             send(tok, data_in_r, i)
         } (tok);
         // first, receive the inits
-        let rtok = for (i, tok): (u32, token) in range(u32:0, TEST1_DELAY) {
+        let rtok = for (_, tok): (u32, token) in range(u32:0, TEST1_DELAY) {
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, u32:3);
             tok
@@ -321,7 +318,5 @@ const TEST1_DELAY = u32:2047;
 
         let tok = join(stok, rtok);
         send(tok, terminator, true);
-
-        ()
     }
 }

@@ -60,6 +60,7 @@ const UJ_CLASS = u7:0b1101111;
 //
 // R-type instructions, where funct7 is also being used.
 const ADD = u3:0b000;   // Note: SUB has the same opcode, different funct7.
+const ADD_FUNCT7 = u7:0b0000000;
 const SUB = u3:0b000;
 const SUB_FUNCT7 = u7:0b0100000;
 const SLL = u3:0b001;
@@ -347,7 +348,7 @@ fn run_r_instruction(pc: u32,
                      regs: u32[REG_COUNT],
                      dmem: u8[DMEM_SIZE])
                  -> (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
-  let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(ins);
+  let (funct7, rs2, rs1, funct3, rd, _opcode) = decode_r_instruction(ins);
   let new_value = match funct3 {
      XOR => regs[rs1]  ^ regs[rs2],
      AND => regs[rs1]  & regs[rs2],
@@ -355,16 +356,18 @@ fn run_r_instruction(pc: u32,
      SLL => regs[rs1] << regs[rs2],
      // Note: ADD and SUB have the same opcode
      ADD => match funct7 {
-        ADD_FUNCT7 => regs[rs1] + regs[rs2],
-        SUB_FUNCT7 => regs[rs1] - regs[rs2],
-        _          => fail!("unknown_ADD_funct7", u32:0),
+        SUB_FUNCT7 => {
+          regs[rs1] - regs[rs2]
         },
+        _ => {
+          regs[rs1] + regs[rs2]
+        }
+     },
      // Note: SRL and SRA have the same opcode
      SRL => match funct7 {
-        SRL_FUNCT7 => regs[rs1] >> regs[rs2],
         SRA_FUNCT7 => ((regs[rs1] as s32) >> regs[rs2]) as u32,
-        _          => fail!("unknown_SRL_funct7", u32:0),
-        },
+        _ => regs[rs1] >> regs[rs2],
+     },
      // LD.R, ST.C (atomics) will not be implemented here.
      _   => fail!("unmatched_func3", u32:0)
   };
@@ -387,7 +390,7 @@ fn run_i_instruction(pc: u32,
            SLLI => regs[rs1] <<  (imm12 as u32),
            XORI => regs[rs1] ^   (imm12 as u32),
            SRLI => regs[rs1] >>  (imm12 as u32),
-           SRLA => ((regs[rs1] as s32) >> (imm12 as u32)) as u32,
+           SRAI => ((regs[rs1] as s32) >> (imm12 as u32)) as u32,
            ORI  => regs[rs1] |   (imm12 as u32),
            ANDI => regs[rs1] &   (imm12 as u32),
            _    => fail!("unmatched_I_ARITH_func3", u32:0)
@@ -436,7 +439,7 @@ fn run_s_instruction(pc: u32,
                      regs: u32[REG_COUNT],
                      dmem: u8[DMEM_SIZE])
                      -> (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
-  let (imm12, rs2, rs1, funct3, opcode) = decode_s_instruction(ins);
+  let (imm12, rs2, rs1, funct3, _opcode) = decode_s_instruction(ins);
 
   // Store various byte length to dmem.
   // This is where are much smarter load/store queue mechanism
@@ -474,7 +477,7 @@ fn run_u_instruction(pc: u32,
                      regs: u32[REG_COUNT],
                      dmem: u8[DMEM_SIZE])
                      -> (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
-  let (imm20, rdest, opcode) = decode_u_instruction(ins);
+  let (imm20, rdest, _opcode) = decode_u_instruction(ins);
   (pc + u32:4, update(regs, rdest, (imm20 as u32) << u32:12), dmem)
 }
 
@@ -485,7 +488,7 @@ fn run_uj_instruction(pc: u32,
                       regs: u32[REG_COUNT],
                       dmem: u8[DMEM_SIZE])
                       -> (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
-   let (imm20, rdest, opcode) = decode_j_instruction(ins);
+   let (imm20, rdest, _opcode) = decode_j_instruction(ins);
    (pc + signex(imm20 ++ u1:0, u32:0), update(regs, rdest, pc + u32:4), dmem)
 }
 
@@ -496,7 +499,7 @@ fn run_b_instruction(pc: u32,
                      regs: u32[REG_COUNT],
                      dmem: u8[DMEM_SIZE])
                  -> (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
-  let (imm12, rs2, rs1, funct3, opcode) = decode_b_instruction(ins);
+  let (imm12, rs2, rs1, funct3, _opcode) = decode_b_instruction(ins);
   let pc4 = pc + u32:4;
   let pc_imm = pc + signex(imm12 ++ u1:0, u32:0);
   let new_pc = match funct3 {
@@ -537,6 +540,7 @@ fn run_instruction(pc: u32,
 // Make an R-type instruction.
 fn make_r_insn(op: u3, rdest: u5, r1: u5, r2: u5) -> u32 {
   let funct7 = match op {
+     ADD => ADD_FUNCT7,
      SUB => SUB_FUNCT7,
      SRA => SRA_FUNCT7,
      LRD => LRD_FUNCT7,
@@ -544,6 +548,18 @@ fn make_r_insn(op: u3, rdest: u5, r1: u5, r2: u5) -> u32 {
      _   => u7:0
   };
   funct7 ++ r2 ++ r1 ++ op ++ rdest ++ R_CLASS
+}
+
+#[test]
+fn round_trip_r_insn_test() {
+  let i = make_r_insn(ADD, r6, r8, r7);
+  let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(i);
+  assert_eq(funct7, u7:0);
+  assert_eq(rs2, r7);
+  assert_eq(rs1, r8);
+  assert_eq(funct3, u3:0);
+  assert_eq(rd, r6);
+  assert_eq(opcode, R_CLASS);
 }
 
 // Make an I-type instruction for I_ARITH and I_LD
@@ -615,16 +631,22 @@ fn risc_v_example_test() {
   // Run instructions in sequence
   let (PC, regs, dmem) = run_instruction(PC,
                          make_r_insn(XOR, r3, r1, r2), regs, dmem);  // 3
+  assert_eq(regs[r3],  u32:3);
   let (PC, regs, dmem) = run_instruction(PC,
                          make_r_insn(ADD, r6, r3, r3), regs, dmem);  // 6
+  assert_eq(regs[r3],  u32:3);
+  assert_eq(regs[r6],  u32:6);
   let (PC, regs, dmem) = run_instruction(PC,
                          make_s_insn(SW, r6, r0, u12:4), regs, dmem);  // 6
   let (PC, regs, dmem) = run_instruction(PC,
                          make_i_insn(ADDI, r7, r6, u12:1), regs, dmem); // 7
+  assert_eq(regs[r7],  u32:7);
   let (PC, regs, dmem) = run_instruction(PC,
                          make_i_insn(LW, r8, r0, u12:4), regs, dmem); // 6
+  assert_eq(regs[r8],  u32:6);
   let (PC, regs, dmem) = run_instruction(PC,
                          make_r_insn(ADD, r6, r8, r7), regs, dmem);  // 13
+  assert_eq(regs[r6],  u32:13);
   let (PC, regs, dmem) = run_instruction(PC,
                          make_jalr_insn(JALR, r1, r6, u12:128), regs, dmem);
   let (PC, regs, dmem) = run_instruction(PC,
@@ -647,7 +669,7 @@ fn risc_v_example_test() {
   let (PC, regs, dmem) = run_instruction(PC,
                          make_b_insn(BGE, r1, r2, u12:8), regs, dmem);
   assert_eq(PC, u32:0xc4);
-  let (PC, regs, dmem) = run_instruction(PC,
+  let (PC, _regs, _dmem) = run_instruction(PC,
                          make_b_insn(BLT, r2, r1, s12:-8 as u12), regs, dmem);
   assert_eq(PC, u32:0xb4);
 }

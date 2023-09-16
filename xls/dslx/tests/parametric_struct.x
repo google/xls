@@ -68,6 +68,9 @@ fn test_funcs() {
   let s = from_point(p);
   let t = from_point(q);
 
+  assert_eq(s, ParametricPoint{x: u2:1, y: u4:1});
+  assert_eq(t, ParametricPoint{x: u5:1, y: u10:1});
+
   // WrapperStruct wraps an instance of ParametricPoint.
   let s_wrapper = WrapperStruct { pp: r };
   assert_eq(r, s_wrapper.pp);
@@ -78,6 +81,4 @@ fn test_funcs() {
       make_point(u8: 7, u16: 8),
   ]);
   assert_eq(sum, make_point(u8: 15, u16: 18));
-
-  ()
 }

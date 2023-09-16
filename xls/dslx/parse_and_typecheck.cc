@@ -29,6 +29,7 @@
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/type_system/typecheck.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
@@ -75,7 +76,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
 
   std::string_view module_name = module->name();
 
-  WarningCollector warnings;
+  WarningCollector warnings(import_data->enabled_warnings());
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        CheckModule(module.get(), import_data, &warnings));
   TypecheckedModule result{module.get(), type_info, std::move(warnings)};

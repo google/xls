@@ -14,6 +14,12 @@
 
 #include "xls/noc/simulation/noc_traffic_injector.h"
 
+#include <algorithm>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"

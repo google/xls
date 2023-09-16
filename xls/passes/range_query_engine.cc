@@ -14,9 +14,18 @@
 
 #include "xls/passes/range_query_engine.h"
 
+#include <algorithm>
+#include <functional>
 #include <limits>
+#include <optional>
+#include <ostream>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/math_util.h"
@@ -25,9 +34,16 @@
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/interval.h"
+#include "xls/ir/interval_set.h"
+#include "xls/ir/interval_ops.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -35,12 +51,28 @@ enum class Tonicity { Monotone, Antitone, Unknown };
 
 class RangeQueryVisitor : public DfsVisitor {
  public:
-  explicit RangeQueryVisitor(RangeQueryEngine* engine)
-      : engine_(engine), rf_(ReachedFixpoint::Unchanged) {}
+  explicit RangeQueryVisitor(RangeQueryEngine* engine,
+                             RangeDataProvider& givens)
+      : engine_(engine), givens_(givens), rf_(ReachedFixpoint::Unchanged) {}
 
   ReachedFixpoint GetReachedFixpoint() const { return rf_; }
 
  private:
+  bool SetIfGiven(Node* node) {
+    std::optional<RangeData> memoized_result = givens_.GetKnownIntervals(node);
+    if (memoized_result.has_value()) {
+      if (memoized_result->ternary.has_value()) {
+        engine_->known_bits_[node] =
+            ternary_ops::ToKnownBits(*memoized_result->ternary);
+        engine_->known_bit_values_[node] =
+            ternary_ops::ToKnownBitsValues(*memoized_result->ternary);
+      }
+      engine_->interval_sets_[node] = memoized_result->interval_set;
+      return true;
+    }
+    return false;
+  }
+
   // The maximum size of an interval set that can be resident in memory at any
   // one time. When accumulating a result interval set, if the set exceeds this
   // size, `MinimizeIntervals` will be called to reduce its size at the cost of
@@ -159,7 +191,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // If the given interval sets are disjoint, returns `false`.
   // In all other cases, returns `std::nullopt`.
   static std::optional<bool> AnalyzeEq(const IntervalSet& lhs,
-                                        const IntervalSet& rhs);
+                                       const IntervalSet& rhs);
 
   // Analyze whether elements of the two given interval sets must be less than,
   // must not be less than, or may be either.
@@ -170,7 +202,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // returns `false`.
   // In all other cases, returns `std::nullopt`.
   static std::optional<bool> AnalyzeLt(const IntervalSet& lhs,
-                                        const IntervalSet& rhs);
+                                       const IntervalSet& rhs);
 
   // An interval set covering exactly the binary representation of `false`.
   static IntervalSet FalseIntervalSet();
@@ -261,6 +293,7 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 
   RangeQueryEngine* engine_;
+  RangeDataProvider& givens_;
   ReachedFixpoint rf_;
 };
 
@@ -367,9 +400,10 @@ IntervalSet MinimizeIntervals(IntervalSet intervals, int64_t size) {
   return result;
 }
 
-absl::StatusOr<ReachedFixpoint> RangeQueryEngine::Populate(FunctionBase* f) {
-  RangeQueryVisitor visitor(this);
-  XLS_RETURN_IF_ERROR(f->Accept(&visitor));
+absl::StatusOr<ReachedFixpoint> RangeQueryEngine::PopulateWithGivens(
+    RangeDataProvider& givens) {
+  RangeQueryVisitor visitor(this, givens);
+  XLS_RETURN_IF_ERROR(givens.IterateFunction(&visitor));
   return visitor.GetReachedFixpoint();
 }
 
@@ -401,18 +435,11 @@ void RangeQueryEngine::SetIntervalSetTree(
   IntervalSetTree new_ist =
       LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
           IntervalSet::Intersect, old_ist, interval_sets);
-  int64_t size = node->GetType()->GetFlatBitCount();
   if (node->GetType()->IsBits()) {
-    IntervalSet interval_set = new_ist.Get({});
-    XLS_CHECK(interval_set.IsNormalized());
-    XLS_CHECK(!interval_set.Intervals().empty()) << node->ToString();
-    Bits lcs = bits_ops::LongestCommonPrefixMSB(
-        {interval_set.Intervals().front().LowerBound(),
-         interval_set.Intervals().back().UpperBound()});
-    known_bits_[node] = bits_ops::Concat(
-        {Bits::AllOnes(lcs.bit_count()), Bits(size - lcs.bit_count())});
-    known_bit_values_[node] =
-        bits_ops::Concat({lcs, Bits(size - lcs.bit_count())});
+    interval_ops::KnownBits bits =
+        interval_ops::ExtractKnownBits(new_ist.Get({}), /*source=*/node);
+    known_bits_[node] = bits.known_bits;
+    known_bit_values_[node] = bits.known_bit_values;
   }
   interval_sets_[node] = new_ist;
 }
@@ -561,7 +588,7 @@ absl::Status RangeQueryVisitor::HandleMonotoneAntitoneBinOp(
 }
 
 std::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
-                                                  const IntervalSet& rhs) {
+                                                 const IntervalSet& rhs) {
   XLS_CHECK(lhs.IsNormalized());
   XLS_CHECK(rhs.IsNormalized());
 
@@ -586,7 +613,7 @@ std::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
 }
 
 std::optional<bool> RangeQueryVisitor::AnalyzeLt(const IntervalSet& lhs,
-                                                  const IntervalSet& rhs) {
+                                                 const IntervalSet& rhs) {
   if (std::optional<Interval> lhs_hull = lhs.ConvexHull()) {
     if (std::optional<Interval> rhs_hull = rhs.ConvexHull()) {
       if (Interval::Disjoint(*lhs_hull, *rhs_hull)) {
@@ -625,8 +652,17 @@ IntervalSetTree RangeQueryVisitor::EmptyIntervalSetTree(Type* type) {
   return result;
 }
 
+// Helper to just pull result straight from givens if possible.
+#define INITIALIZE_OR_SKIP(node)   \
+  do {                             \
+    if (SetIfGiven(node)) {        \
+      return absl::OkStatus();     \
+    }                              \
+    engine_->InitializeNode(node); \
+  } while (false)
+
 absl::Status RangeQueryVisitor::HandleAdd(BinOp* add) {
-  engine_->InitializeNode(add);
+  INITIALIZE_OR_SKIP(add);
   return HandleMonotoneMonotoneBinOp(
       [](const Bits& lhs, const Bits& rhs) -> std::optional<Bits> {
         int64_t padded_size = std::max(lhs.bit_count(), rhs.bit_count()) + 1;
@@ -643,20 +679,20 @@ absl::Status RangeQueryVisitor::HandleAdd(BinOp* add) {
 }
 
 absl::Status RangeQueryVisitor::HandleAfterAll(AfterAll* after_all) {
-  engine_->InitializeNode(after_all);
+  INITIALIZE_OR_SKIP(after_all);
   // Produces a token, so maximal range is okay.
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleMinDelay(MinDelay* min_delay) {
-  engine_->InitializeNode(min_delay);
+  INITIALIZE_OR_SKIP(min_delay);
   // Produces a token, so maximal range is okay.
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleAndReduce(
     BitwiseReductionOp* and_reduce) {
-  engine_->InitializeNode(and_reduce);
+  INITIALIZE_OR_SKIP(and_reduce);
   IntervalSet intervals = GetIntervalSetTree(and_reduce->operand(0)).Get({});
 
   LeafTypeTree<IntervalSet> result(and_reduce->GetType());
@@ -685,7 +721,7 @@ absl::Status RangeQueryVisitor::HandleAndReduce(
 }
 
 absl::Status RangeQueryVisitor::HandleArray(Array* array) {
-  engine_->InitializeNode(array);
+  INITIALIZE_OR_SKIP(array);
   std::vector<LeafTypeTree<IntervalSet>> children;
   for (Node* element : array->operands()) {
     children.push_back(GetIntervalSetTree(element));
@@ -696,7 +732,7 @@ absl::Status RangeQueryVisitor::HandleArray(Array* array) {
 }
 
 absl::Status RangeQueryVisitor::HandleArrayConcat(ArrayConcat* array_concat) {
-  engine_->InitializeNode(array_concat);
+  INITIALIZE_OR_SKIP(array_concat);
   std::vector<LeafTypeTree<IntervalSet>> elements;
   for (Node* element : array_concat->operands()) {
     LeafTypeTree<IntervalSet> concatee = GetIntervalSetTree(element);
@@ -711,23 +747,23 @@ absl::Status RangeQueryVisitor::HandleArrayConcat(ArrayConcat* array_concat) {
 }
 
 absl::Status RangeQueryVisitor::HandleAssert(Assert* assert_op) {
-  engine_->InitializeNode(assert_op);
+  INITIALIZE_OR_SKIP(assert_op);
   // Produces a token, so maximal range is okay.
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleBitSlice(BitSlice* bit_slice) {
-  engine_->InitializeNode(bit_slice);
+  INITIALIZE_OR_SKIP(bit_slice);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
-  engine_->InitializeNode(update);
+  INITIALIZE_OR_SKIP(update);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleConcat(Concat* concat) {
-  engine_->InitializeNode(concat);
+  INITIALIZE_OR_SKIP(concat);
   return HandleVariadicOp(
       bits_ops::Concat,
       std::vector<Tonicity>(concat->operands().size(), Tonicity::Monotone),
@@ -735,40 +771,40 @@ absl::Status RangeQueryVisitor::HandleConcat(Concat* concat) {
 }
 
 absl::Status RangeQueryVisitor::HandleCountedFor(CountedFor* counted_for) {
-  engine_->InitializeNode(counted_for);
+  INITIALIZE_OR_SKIP(counted_for);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleCover(Cover* cover) {
-  engine_->InitializeNode(cover);
+  INITIALIZE_OR_SKIP(cover);
   // Produces a token, so maximal range is okay.
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleDecode(Decode* decode) {
-  engine_->InitializeNode(decode);
+  INITIALIZE_OR_SKIP(decode);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
-  engine_->InitializeNode(dynamic_bit_slice);
+  INITIALIZE_OR_SKIP(dynamic_bit_slice);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleDynamicCountedFor(
     DynamicCountedFor* dynamic_counted_for) {
-  engine_->InitializeNode(dynamic_counted_for);
+  INITIALIZE_OR_SKIP(dynamic_counted_for);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleEncode(Encode* encode) {
-  engine_->InitializeNode(encode);
+  INITIALIZE_OR_SKIP(encode);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleEq(CompareOp* eq) {
-  engine_->InitializeNode(eq);
+  INITIALIZE_OR_SKIP(eq);
 
   if (!eq->operand(0)->GetType()->IsBits()) {
     // TODO(meheff): 2022/09/06 Add support for non-bits types.
@@ -792,7 +828,7 @@ absl::Status RangeQueryVisitor::HandleEq(CompareOp* eq) {
 }
 
 absl::Status RangeQueryVisitor::HandleGate(Gate* gate) {
-  engine_->InitializeNode(gate);
+  INITIALIZE_OR_SKIP(gate);
   IntervalSet cond_intervals = GetIntervalSetTree(gate->operand(0)).Get({});
 
   // `cond` true passes through the data operand.
@@ -817,34 +853,34 @@ absl::Status RangeQueryVisitor::HandleGate(Gate* gate) {
 }
 
 absl::Status RangeQueryVisitor::HandleIdentity(UnOp* identity) {
-  engine_->InitializeNode(identity);
+  INITIALIZE_OR_SKIP(identity);
   return HandleMonotoneUnaryOp([](const Bits& b) { return b; }, identity);
 }
 
 absl::Status RangeQueryVisitor::HandleInstantiationInput(
     InstantiationInput* instantiation_input) {
-  engine_->InitializeNode(instantiation_input);
+  INITIALIZE_OR_SKIP(instantiation_input);
   return absl::OkStatus();  // TODO(meheff): implement: interprocedural
 }
 
 absl::Status RangeQueryVisitor::HandleInstantiationOutput(
     InstantiationOutput* instantiation_output) {
-  engine_->InitializeNode(instantiation_output);
+  INITIALIZE_OR_SKIP(instantiation_output);
   return absl::OkStatus();  // TODO(meheff): implement: interprocedural
 }
 
 absl::Status RangeQueryVisitor::HandleInputPort(InputPort* input_port) {
-  engine_->InitializeNode(input_port);
+  INITIALIZE_OR_SKIP(input_port);
   return absl::OkStatus();  // TODO(taktoa): implement: interprocedural
 }
 
 absl::Status RangeQueryVisitor::HandleInvoke(Invoke* invoke) {
-  engine_->InitializeNode(invoke);
+  INITIALIZE_OR_SKIP(invoke);
   return absl::OkStatus();  // TODO(taktoa): implement: interprocedural
 }
 
 absl::Status RangeQueryVisitor::HandleLiteral(Literal* literal) {
-  engine_->InitializeNode(literal);
+  INITIALIZE_OR_SKIP(literal);
   XLS_ASSIGN_OR_RETURN(
       LeafTypeTree<Value> v_ltt,
       ValueToLeafTypeTree(literal->value(), literal->GetType()));
@@ -862,12 +898,12 @@ absl::Status RangeQueryVisitor::HandleLiteral(Literal* literal) {
 }
 
 absl::Status RangeQueryVisitor::HandleMap(Map* map) {
-  engine_->InitializeNode(map);
+  INITIALIZE_OR_SKIP(map);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
-  engine_->InitializeNode(array_index);
+  INITIALIZE_OR_SKIP(array_index);
 
   IntervalSetTree array_interval_set_tree =
       GetIntervalSetTree(array_index->array());
@@ -944,42 +980,42 @@ absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
 }
 
 absl::Status RangeQueryVisitor::HandleArraySlice(ArraySlice* slice) {
-  engine_->InitializeNode(slice);
+  INITIALIZE_OR_SKIP(slice);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleArrayUpdate(ArrayUpdate* update) {
-  engine_->InitializeNode(update);
+  INITIALIZE_OR_SKIP(update);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleNaryAnd(NaryOp* and_op) {
-  engine_->InitializeNode(and_op);
+  INITIALIZE_OR_SKIP(and_op);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleNaryNand(NaryOp* nand_op) {
-  engine_->InitializeNode(nand_op);
+  INITIALIZE_OR_SKIP(nand_op);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleNaryNor(NaryOp* nor_op) {
-  engine_->InitializeNode(nor_op);
+  INITIALIZE_OR_SKIP(nor_op);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleNaryOr(NaryOp* or_op) {
-  engine_->InitializeNode(or_op);
+  INITIALIZE_OR_SKIP(or_op);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleNaryXor(NaryOp* xor_op) {
-  engine_->InitializeNode(xor_op);
+  INITIALIZE_OR_SKIP(xor_op);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleNe(CompareOp* ne) {
-  engine_->InitializeNode(ne);
+  INITIALIZE_OR_SKIP(ne);
 
   if (!ne->operand(0)->GetType()->IsBits()) {
     // TODO(meheff): 2022/09/06 Add support for non-bits types.
@@ -1003,27 +1039,27 @@ absl::Status RangeQueryVisitor::HandleNe(CompareOp* ne) {
 }
 
 absl::Status RangeQueryVisitor::HandleNeg(UnOp* neg) {
-  engine_->InitializeNode(neg);
+  INITIALIZE_OR_SKIP(neg);
   return HandleAntitoneUnaryOp(bits_ops::Negate, neg);
 }
 
 absl::Status RangeQueryVisitor::HandleNot(UnOp* not_op) {
-  engine_->InitializeNode(not_op);
+  INITIALIZE_OR_SKIP(not_op);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleOneHot(OneHot* one_hot) {
-  engine_->InitializeNode(one_hot);
+  INITIALIZE_OR_SKIP(one_hot);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleOneHotSel(OneHotSelect* sel) {
-  engine_->InitializeNode(sel);
+  INITIALIZE_OR_SKIP(sel);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
-  engine_->InitializeNode(sel);
+  INITIALIZE_OR_SKIP(sel);
   IntervalSet selector_intervals = GetIntervalSetTree(sel->selector()).Get({});
   LeafTypeTree<IntervalSet> result(sel->GetType());
   for (int64_t i = 0; i < result.elements().size(); ++i) {
@@ -1062,7 +1098,7 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
 }
 
 absl::Status RangeQueryVisitor::HandleOrReduce(BitwiseReductionOp* or_reduce) {
-  engine_->InitializeNode(or_reduce);
+  INITIALIZE_OR_SKIP(or_reduce);
   IntervalSet intervals = GetIntervalSetTree(or_reduce->operand(0)).Get({});
 
   LeafTypeTree<IntervalSet> result(or_reduce->GetType());
@@ -1091,78 +1127,78 @@ absl::Status RangeQueryVisitor::HandleOrReduce(BitwiseReductionOp* or_reduce) {
 }
 
 absl::Status RangeQueryVisitor::HandleOutputPort(OutputPort* output_port) {
-  engine_->InitializeNode(output_port);
+  INITIALIZE_OR_SKIP(output_port);
   return absl::OkStatus();  // TODO(taktoa): implement: interprocedural
 }
 
 absl::Status RangeQueryVisitor::HandleParam(Param* param) {
-  engine_->InitializeNode(param);
+  INITIALIZE_OR_SKIP(param);
   // We don't know anything about params.
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleReceive(Receive* receive) {
-  engine_->InitializeNode(receive);
+  INITIALIZE_OR_SKIP(receive);
   return absl::OkStatus();  // TODO(taktoa): implement: interprocedural
 }
 
 absl::Status RangeQueryVisitor::HandleRegisterRead(RegisterRead* reg_read) {
-  engine_->InitializeNode(reg_read);
+  INITIALIZE_OR_SKIP(reg_read);
   return absl::OkStatus();  // TODO(taktoa): implement: needs fixed point
 }
 
 absl::Status RangeQueryVisitor::HandleRegisterWrite(RegisterWrite* reg_write) {
-  engine_->InitializeNode(reg_write);
+  INITIALIZE_OR_SKIP(reg_write);
   return absl::OkStatus();  // TODO(taktoa): implement: needs fixed point
 }
 
 absl::Status RangeQueryVisitor::HandleReverse(UnOp* reverse) {
-  engine_->InitializeNode(reverse);
+  INITIALIZE_OR_SKIP(reverse);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleSDiv(BinOp* div) {
-  engine_->InitializeNode(div);
+  INITIALIZE_OR_SKIP(div);
   return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
 absl::Status RangeQueryVisitor::HandleSGe(CompareOp* ge) {
-  engine_->InitializeNode(ge);
+  INITIALIZE_OR_SKIP(ge);
   return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
 absl::Status RangeQueryVisitor::HandleSGt(CompareOp* gt) {
-  engine_->InitializeNode(gt);
+  INITIALIZE_OR_SKIP(gt);
   return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
 absl::Status RangeQueryVisitor::HandleSLe(CompareOp* le) {
-  engine_->InitializeNode(le);
+  INITIALIZE_OR_SKIP(le);
   return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
 absl::Status RangeQueryVisitor::HandleSLt(CompareOp* lt) {
-  engine_->InitializeNode(lt);
+  INITIALIZE_OR_SKIP(lt);
   return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
 absl::Status RangeQueryVisitor::HandleSMod(BinOp* mod) {
-  engine_->InitializeNode(mod);
+  INITIALIZE_OR_SKIP(mod);
   return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
 absl::Status RangeQueryVisitor::HandleSMul(ArithOp* mul) {
-  engine_->InitializeNode(mul);
+  INITIALIZE_OR_SKIP(mul);
   return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
 absl::Status RangeQueryVisitor::HandleSMulp(PartialProductOp* mul) {
-  engine_->InitializeNode(mul);
+  INITIALIZE_OR_SKIP(mul);
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
-  engine_->InitializeNode(sel);
+  INITIALIZE_OR_SKIP(sel);
   IntervalSet selector_intervals = GetIntervalSetTree(sel->selector()).Get({});
   bool default_possible = false;
   absl::btree_set<uint64_t> selector_values;
@@ -1210,27 +1246,27 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
 }
 
 absl::Status RangeQueryVisitor::HandleSend(Send* send) {
-  engine_->InitializeNode(send);
+  INITIALIZE_OR_SKIP(send);
   return absl::OkStatus();  // TODO(taktoa): implement: interprocedural
 }
 
 absl::Status RangeQueryVisitor::HandleShll(BinOp* shll) {
-  engine_->InitializeNode(shll);
+  INITIALIZE_OR_SKIP(shll);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleShra(BinOp* shra) {
-  engine_->InitializeNode(shra);
+  INITIALIZE_OR_SKIP(shra);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleShrl(BinOp* shrl) {
-  engine_->InitializeNode(shrl);
+  INITIALIZE_OR_SKIP(shrl);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleSignExtend(ExtendOp* sign_ext) {
-  engine_->InitializeNode(sign_ext);
+  INITIALIZE_OR_SKIP(sign_ext);
   return HandleMonotoneUnaryOp(
       [sign_ext](const Bits& bits) -> Bits {
         return bits_ops::SignExtend(bits, sign_ext->new_bit_count());
@@ -1239,7 +1275,7 @@ absl::Status RangeQueryVisitor::HandleSignExtend(ExtendOp* sign_ext) {
 }
 
 absl::Status RangeQueryVisitor::HandleSub(BinOp* sub) {
-  engine_->InitializeNode(sub);
+  INITIALIZE_OR_SKIP(sub);
   return HandleMonotoneAntitoneBinOp(
       [](const Bits& lhs, const Bits& rhs) -> std::optional<Bits> {
         if (bits_ops::ULessThanOrEqual(rhs, lhs)) {
@@ -1251,13 +1287,13 @@ absl::Status RangeQueryVisitor::HandleSub(BinOp* sub) {
 }
 
 absl::Status RangeQueryVisitor::HandleTrace(Trace* trace_op) {
-  engine_->InitializeNode(trace_op);
+  INITIALIZE_OR_SKIP(trace_op);
   // Produces a token, so maximal range is okay.
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleTuple(Tuple* tuple) {
-  engine_->InitializeNode(tuple);
+  INITIALIZE_OR_SKIP(tuple);
   std::vector<LeafTypeTree<IntervalSet>> children;
   for (Node* element : tuple->operands()) {
     children.push_back(GetIntervalSetTree(element));
@@ -1268,14 +1304,14 @@ absl::Status RangeQueryVisitor::HandleTuple(Tuple* tuple) {
 }
 
 absl::Status RangeQueryVisitor::HandleTupleIndex(TupleIndex* index) {
-  engine_->InitializeNode(index);
+  INITIALIZE_OR_SKIP(index);
   LeafTypeTree<IntervalSet> arg = GetIntervalSetTree(index->operand(0));
   SetIntervalSetTree(index, arg.CopySubtree({index->index()}));
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleUDiv(BinOp* div) {
-  engine_->InitializeNode(div);
+  INITIALIZE_OR_SKIP(div);
   // I (taktoa) verified on 8 bit unsigned integers that UDiv is antitone in
   // its second argument.
   return HandleMonotoneAntitoneBinOp(
@@ -1286,7 +1322,7 @@ absl::Status RangeQueryVisitor::HandleUDiv(BinOp* div) {
 }
 
 absl::Status RangeQueryVisitor::HandleUGe(CompareOp* ge) {
-  engine_->InitializeNode(ge);
+  INITIALIZE_OR_SKIP(ge);
   IntervalSet lhs_intervals = GetIntervalSetTree(ge->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(ge->operand(1)).Get({});
 
@@ -1307,7 +1343,7 @@ absl::Status RangeQueryVisitor::HandleUGe(CompareOp* ge) {
 }
 
 absl::Status RangeQueryVisitor::HandleUGt(CompareOp* gt) {
-  engine_->InitializeNode(gt);
+  INITIALIZE_OR_SKIP(gt);
   IntervalSet lhs_intervals = GetIntervalSetTree(gt->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(gt->operand(1)).Get({});
 
@@ -1325,7 +1361,7 @@ absl::Status RangeQueryVisitor::HandleUGt(CompareOp* gt) {
 }
 
 absl::Status RangeQueryVisitor::HandleULe(CompareOp* le) {
-  engine_->InitializeNode(le);
+  INITIALIZE_OR_SKIP(le);
   IntervalSet lhs_intervals = GetIntervalSetTree(le->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(le->operand(1)).Get({});
 
@@ -1346,7 +1382,7 @@ absl::Status RangeQueryVisitor::HandleULe(CompareOp* le) {
 }
 
 absl::Status RangeQueryVisitor::HandleULt(CompareOp* lt) {
-  engine_->InitializeNode(lt);
+  INITIALIZE_OR_SKIP(lt);
   IntervalSet lhs_intervals = GetIntervalSetTree(lt->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(lt->operand(1)).Get({});
 
@@ -1364,36 +1400,39 @@ absl::Status RangeQueryVisitor::HandleULt(CompareOp* lt) {
 }
 
 absl::Status RangeQueryVisitor::HandleUMod(BinOp* mod) {
-  engine_->InitializeNode(mod);
+  INITIALIZE_OR_SKIP(mod);
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
 absl::Status RangeQueryVisitor::HandleUMul(ArithOp* mul) {
-  engine_->InitializeNode(mul);
-  // Only provably non-overflowing multiplies can be handled properly.
-  // Hopefully soonish we'll replace overflowing multiplies with multiply
-  // followed by truncate, after which this code will work well automatically.
-  if (mul->GetType()->GetFlatBitCount() >=
-      (mul->operand(0)->GetType()->GetFlatBitCount() +
-       mul->operand(1)->GetType()->GetFlatBitCount())) {
-    return HandleMonotoneMonotoneBinOp(
-        [mul](const Bits& x, const Bits& y) -> std::optional<Bits> {
-          return bits_ops::ZeroExtend(bits_ops::UMul(x, y),
-                                      mul->GetType()->GetFlatBitCount());
-        },
-        mul);
-  }
-  return absl::OkStatus();
+  INITIALIZE_OR_SKIP(mul);
+  // NB this is only monotone given we are checking for the overflow condition
+  // inside the lambda. Otherwise it would not be monotonic.  Only provably
+  // non-overflowing multiplies can be handled properly.
+  // TODO(allight) 2023-08-10 google/xls#1098 We should consider replacing
+  // potentially overflowing multiplies with multiply followed by truncate,
+  // after which this code will work well automatically.
+  return HandleMonotoneMonotoneBinOp(
+      [mul](const Bits& x, const Bits& y) -> std::optional<Bits> {
+        int64_t bit_count = mul->GetType()->GetFlatBitCount();
+        Bits result = bits_ops::UMul(x, y);
+        if (result.FitsInNBitsUnsigned(bit_count)) {
+          return bits_ops::ZeroExtend(bits_ops::DropLeadingZeroes(result),
+                                      bit_count);
+        }
+        return std::nullopt;
+      },
+      mul);
 }
 
 absl::Status RangeQueryVisitor::HandleUMulp(PartialProductOp* mul) {
-  engine_->InitializeNode(mul);
+  INITIALIZE_OR_SKIP(mul);
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleXorReduce(
     BitwiseReductionOp* xor_reduce) {
-  engine_->InitializeNode(xor_reduce);
+  INITIALIZE_OR_SKIP(xor_reduce);
   // XorReduce determines the parity of the number of 1s in a bitstring.
   // Incrementing a bitstring always outputs in a bitstring with a different
   // parity of 1s (since even + 1 = odd and odd + 1 = even). Therefore, this
@@ -1426,13 +1465,15 @@ absl::Status RangeQueryVisitor::HandleXorReduce(
 }
 
 absl::Status RangeQueryVisitor::HandleZeroExtend(ExtendOp* zero_ext) {
-  engine_->InitializeNode(zero_ext);
+  INITIALIZE_OR_SKIP(zero_ext);
   return HandleMonotoneUnaryOp(
       [zero_ext](const Bits& bits) -> Bits {
         return bits_ops::ZeroExtend(bits, zero_ext->new_bit_count());
       },
       zero_ext);
 }
+
+#undef INITIALIZE_OR_SKIP
 
 // Recursive helper function which writes the given IntervalSetTree to the given
 // output stream.

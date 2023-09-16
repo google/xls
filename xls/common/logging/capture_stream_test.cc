@@ -15,6 +15,7 @@
 #include "xls/common/logging/capture_stream.h"
 
 #include <cstdio>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

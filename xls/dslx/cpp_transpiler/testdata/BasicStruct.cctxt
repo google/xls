@@ -1,0 +1,65 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#include <vector>
+
+#include "fake_path.h"
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+
+absl::StatusOr<MyStruct> MyStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 5) {
+    return absl::InvalidArgumentError(
+        "MyStruct::FromValue input must be a 5-tuple.");
+  }
+
+  MyStruct result;
+  result.x = value.element(0).bits().ToUint64().value();
+  result.y = value.element(1).bits().ToUint64().value();
+  result.z = value.element(2).bits().ToUint64().value();
+  result.w = value.element(3).bits().ToInt64().value();
+  result.v = value.element(4).bits().ToUint64().value();
+  return result;
+}
+
+::xls::Value MyStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(5);
+  ::xls::Value x_value;
+  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
+  members.push_back(x_value);
+  ::xls::Value y_value;
+  y_value = ::xls::Value(::xls::UBits(y, /*bit_count=*/15));
+  members.push_back(y_value);
+  ::xls::Value z_value;
+  z_value = ::xls::Value(::xls::UBits(z, /*bit_count=*/8));
+  members.push_back(z_value);
+  ::xls::Value w_value;
+  w_value = ::xls::Value(::xls::SBits(w, /*bit_count=*/63));
+  members.push_back(w_value);
+  ::xls::Value v_value;
+  v_value = ::xls::Value(::xls::UBits(v, /*bit_count=*/1));
+  members.push_back(v_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
+  os << data.ToString();
+  return os;
+}
+std::string MyStruct::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "MyStruct {\n";
+  result += indent_str + "  x: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  y: " + elements[1].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  z: " + elements[2].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  w: " + elements[3].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  v: " + elements[4].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool MyStruct::operator==(const MyStruct& other) const {
+  return x == other.x && y == other.y && z == other.z && w == other.w && v == other.v;
+}

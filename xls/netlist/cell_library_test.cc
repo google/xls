@@ -15,6 +15,7 @@
 #include "xls/netlist/cell_library.h"
 
 #include <memory>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

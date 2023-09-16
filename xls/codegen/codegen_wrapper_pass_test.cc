@@ -14,6 +14,8 @@
 
 #include "xls/codegen/codegen_wrapper_pass.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/codegen/codegen_pass.h"

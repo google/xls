@@ -14,6 +14,10 @@
 
 #include "xls/dslx/type_system/maybe_explain_error.h"
 
+#include <string>
+#include <string_view>
+#include <variant>
+
 #include "xls/dslx/errors.h"
 
 namespace xls::dslx {

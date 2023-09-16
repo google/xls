@@ -15,6 +15,11 @@
 
 #include "xls/synthesis/yosys/yosys_util.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
@@ -140,6 +145,10 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
     if (RE2::PartialMatch(line, R"(^worst slack (-?\d+.\d+))", &slack_ps)) {
       XLS_RET_CHECK(absl::SimpleAtof(slack_ps, &tmp_float));
       stats.slack_ps = static_cast<int64_t>(tmp_float);
+      // ensure that negative slack (even small) is reported as negative!
+      if (tmp_float < 0.0 && stats.slack_ps == 0) {
+        stats.slack_ps = -1;
+      }
     }
   }
 

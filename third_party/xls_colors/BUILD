@@ -39,6 +39,7 @@ cc_test(
     deps = [
         ":fast_hsv2rgb",
         "//xls/codegen:combinational_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -50,7 +51,6 @@ cc_test(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 

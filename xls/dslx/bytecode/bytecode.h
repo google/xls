@@ -45,7 +45,8 @@ class Bytecode {
   // "TOS0" refers to the top stack element.
   enum class Op {
     // Adds the top two values on the stack.
-    kAdd,
+    kUAdd,
+    kSAdd,
     // Performs a bitwise AND of the top two values on the stack.
     kAnd,
     // Invokes the function given in the Bytecode's data argument. Arguments are
@@ -69,6 +70,8 @@ class Bytecode {
     kCreateTuple,
     // Divides the N-1th value on the stack by the Nth value.
     kDiv,
+    // Determines remainder of division of the N-1th value by the Nth value.
+    kMod,
     // Expands the N-tuple on the top of the stack by one level, placing leading
     // elements at the top of the stack. In other words, expanding the tuple
     // `(a, (b, c))` will result in a stack of `(b, c), a`, where `a` is on top
@@ -117,7 +120,8 @@ class Bytecode {
     // member.
     kMatchArm,
     // Multiplies the top two values on the stack.
-    kMul,
+    kUMul,
+    kSMul,
     // Compares TOS1 to B, storing true if TOS1 != TOS0.
     kNe,
     // Performs two's complement negation of TOS0.
@@ -162,7 +166,8 @@ class Bytecode {
     // Stores the value at stack top into the arg-data-specified slot.
     kStore,
     // Subtracts the Nth value from the N-1th value on the stack.
-    kSub,
+    kUSub,
+    kSSub,
     // Swaps TOS0 and TOS1 on the stack.
     kSwap,
     // Prints information about the given arguments to the terminal.
@@ -176,15 +181,15 @@ class Bytecode {
 
   // Indicates the amount by which the PC should be adjusted.
   // Used by kJumpRel and kJumpRelIf opcodes.
-  DEFINE_STRONG_INT_TYPE(JumpTarget, int64_t);
+  XLS_DEFINE_STRONG_INT_TYPE(JumpTarget, int64_t);
 
   // Indicates the size of a data structure; used by kCreateArray and
   // kCreateTuple opcodes.
-  DEFINE_STRONG_INT_TYPE(NumElements, int64_t);
+  XLS_DEFINE_STRONG_INT_TYPE(NumElements, int64_t);
 
   // Indicates the index into which to store or from which to load a value. Used
   // by kLoad and kStore opcodes.
-  DEFINE_STRONG_INT_TYPE(SlotIndex, int64_t);
+  XLS_DEFINE_STRONG_INT_TYPE(SlotIndex, int64_t);
 
   // Data needed to resolve a potentially parametric Function invocation to
   // its concrete implementation.
@@ -205,19 +210,27 @@ class Bytecode {
     static MatchArmItem MakeInterpValue(const InterpValue& interp_value);
     static MatchArmItem MakeLoad(SlotIndex slot_index);
     static MatchArmItem MakeStore(SlotIndex slot_index);
+    static MatchArmItem MakeRange(InterpValue start, InterpValue limit);
     static MatchArmItem MakeTuple(std::vector<MatchArmItem> elements);
     static MatchArmItem MakeWildcard();
 
     enum class Kind {
       kInterpValue,
       kLoad,
+      kRange,
       kStore,
       kTuple,
       kWildcard,
     };
 
+    struct RangeData {
+      InterpValue start;
+      InterpValue limit;
+    };
+
     absl::StatusOr<InterpValue> interp_value() const;
     absl::StatusOr<SlotIndex> slot_index() const;
+    absl::StatusOr<RangeData> range() const;
     absl::StatusOr<std::vector<MatchArmItem>> tuple_elements() const;
     Kind kind() const { return kind_; }
 
@@ -225,13 +238,13 @@ class Bytecode {
 
    private:
     explicit MatchArmItem(Kind kind);
-    MatchArmItem(
-        Kind kind,
-        std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data);
+    MatchArmItem(Kind kind, std::variant<InterpValue, SlotIndex, RangeData,
+                                         std::vector<MatchArmItem>>
+                                data);
 
     Kind kind_;
-    std::optional<
-        std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>>>
+    std::optional<std::variant<InterpValue, SlotIndex, RangeData,
+                               std::vector<MatchArmItem>>>
         data_;
   };
 
@@ -315,9 +328,7 @@ class Bytecode {
                             std::unique_ptr<ConcreteType>, InvocationData,
                             MatchArmItem, SpawnData, TraceData, ChannelData>;
 
-  static Bytecode MakeCreateTuple(Span span, NumElements elements);
   static Bytecode MakeDup(Span span);
-  static Bytecode MakeFail(Span span, std::string);
   static Bytecode MakeIndex(Span span);
   static Bytecode MakeTupleIndex(Span span);
   static Bytecode MakeInvert(Span span);
@@ -413,24 +424,18 @@ class BytecodeFunction {
   const Function* source_fn() const { return source_fn_; }
   const TypeInfo* type_info() const { return type_info_; }
   const std::vector<Bytecode>& bytecodes() const { return bytecodes_; }
-  // Returns the total number of binding "slots" used by the bytecodes.
-  int64_t num_slots() const { return num_slots_; }
 
   // Creates and returns a [caller-owned] copy of the internal bytecodes.
   std::vector<Bytecode> CloneBytecodes() const;
 
-  std::string ToString() const;
-
  private:
   BytecodeFunction(const Module* owner, const Function* source_fn,
                    const TypeInfo* type_info, std::vector<Bytecode> bytecode);
-  absl::Status Init();
 
   const Module* owner_;
   const Function* source_fn_;
   const TypeInfo* type_info_;
   std::vector<Bytecode> bytecodes_;
-  int64_t num_slots_;
 };
 
 // Converts the given sequence of bytecodes to a more human-readable string,

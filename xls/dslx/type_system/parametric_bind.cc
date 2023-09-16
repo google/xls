@@ -14,7 +14,12 @@
 
 #include "xls/dslx/type_system/parametric_bind.h"
 
+#include <cstdint>
+#include <memory>
+#include <string>
+
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls::dslx {
 namespace {
@@ -107,7 +112,7 @@ absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
   }
 
   const InterpValue& seen = ctx.parametric_env.at(pdim_name);
-  XLS_ASSIGN_OR_RETURN(int64_t seen_value, seen.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t seen_value, seen.GetBitValueViaSign());
   if (seen_value == arg_dim_i64) {
     return absl::OkStatus();  // No contradiction.
   }

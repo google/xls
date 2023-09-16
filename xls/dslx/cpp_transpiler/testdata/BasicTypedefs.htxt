@@ -1,0 +1,32 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#ifndef FAKE_PATH_H_
+#define FAKE_PATH_H_
+#include <cstdint>
+#include <ostream>
+
+#include "absl/status/statusor.h"
+#include "xls/public/value.h"
+
+namespace robs::secret::space {
+
+using MyType = uint8_t;
+
+using MySignedType = int8_t;
+
+using MyThirdType = int16_t;
+
+using MyArrayType1 = uint32_t[8];
+
+using MyArrayType2 = uint32_t[4];
+
+using MyArrayType3 = MySignedType[4];
+
+using MyArrayType4 = int8_t[4];
+
+using MyArrayType5 = bool;
+
+using MyFirstTuple = std::tuple<uint8_t, int8_t, MyType, MySignedType, MyArrayType1, MyArrayType2>;
+
+}  // namespace robs::secret::space
+
+#endif  // FAKE_PATH_H_

@@ -15,6 +15,7 @@
 #include "xls/netlist/cell_library.h"
 
 #include <cstdint>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

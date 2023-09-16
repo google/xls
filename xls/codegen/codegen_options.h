@@ -15,8 +15,11 @@
 #ifndef XLS_CODEGEN_CODEGEN_OPTIONS_H_
 #define XLS_CODEGEN_CODEGEN_OPTIONS_H_
 
+#include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "xls/codegen/module_signature.pb.h"

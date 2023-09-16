@@ -26,6 +26,5 @@ fn ctz_test() {
   assert_eq(u3:0, ctz(u3:0b001));
   assert_eq(u3:0, ctz(u3:0b111));
   assert_eq(u3:3, ctz(u3:0b000));
-  ()
 }
 

@@ -22,5 +22,4 @@ fn slice_test() {
   assert_eq(u8[2]:[3, 4], slice(a, u32:2, u8[2]:[0, 0]));
   assert_eq(u8[3]:[2, 3, 4], slice(a, u32:1, u8[3]:[0, 0, 0]));
   assert_eq(u8[3]:[2, 3, 4], non_test_slice(a, u32:1));
-  ()
 }

@@ -14,6 +14,12 @@
 
 #include "xls/passes/boolean_simplification_pass.h"
 
+#include <algorithm>
+#include <optional>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
@@ -23,6 +29,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_util.h"
 #include "xls/netlist/logical_effort.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 namespace {
@@ -440,7 +447,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
       XLS_ASSIGN_OR_RETURN(Bits result, FlowFromFrontierToNode(
                                             frontier, node, memoized_results));
       XLS_VLOG(3) << "Flow result for " << node << ": "
-                  << result.ToString(FormatPreference::kBinary, true);
+                  << BitsToString(result, FormatPreference::kBinary, true);
       XLS_ASSIGN_OR_RETURN(Node * replacement,
                            ResolveTruthTable(result, operands, node));
       if (replacement == nullptr) {
@@ -477,7 +484,8 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
 }  // namespace
 
 absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   BooleanFlowTracker visitor;
   XLS_RETURN_IF_ERROR(f->Accept(&visitor));
   for (auto& pair : visitor.node_replacements()) {

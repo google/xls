@@ -24,6 +24,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -40,7 +41,7 @@ class TokenSimplificationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          TokenSimplificationPass().RunOnFunctionBase(
-                             f, PassOptions(), &results));
+                             f, OptimizationPassOptions(), &results));
     return changed;
   }
 };
@@ -212,6 +213,34 @@ TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(proc->NextToken(), m::Send());
+}
+
+TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
+     package test_module
+
+     chan test_channel(
+       bits[32], id=0, kind=streaming, ops=send_only,
+       flow_control=ready_valid, metadata="""""")
+
+     fn test_fn(tok1: token, tok2: token) -> token {
+       ret tok: token = param(name=tok2)
+     }
+
+     top proc main(tok: token, state: (), init={()}) {
+       literal.1: bits[32] = literal(value=10)
+       send.2: token = send(tok, literal.1, channel_id=0)
+       send.3: token = send(tok, literal.1, channel_id=0)
+       invoke.4: token = invoke(send.2, send.3, to_apply=test_fn)
+       after_all.5: token = after_all(tok, send.2, send.3, invoke.4)
+       tuple.6: () = tuple()
+       next (after_all.5, tuple.6)
+     }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(proc->NextToken(),
+              m::AfterAll(m::Send(), m::Send(), m::Invoke()));
 }
 
 }  // namespace

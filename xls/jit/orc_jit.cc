@@ -18,7 +18,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <system_error>  // NOLINT
+#include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
@@ -163,8 +166,8 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
     llvm::SmallVector<char, 0> stream_buffer;
     llvm::raw_svector_ostream ostream(stream_buffer);
     llvm::legacy::PassManager mpm;
-    if (target_machine_->addPassesToEmitFile(mpm, ostream, nullptr,
-                                             llvm::CGFT_AssemblyFile)) {
+    if (target_machine_->addPassesToEmitFile(
+            mpm, ostream, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
       XLS_VLOG(3) << "Could not create ASM generation pass!";
     }
     mpm.run(*bare_module);
@@ -247,8 +250,8 @@ absl::Status OrcJit::Init() {
           llvm::SmallVector<char, 0> stream_buffer;
           llvm::raw_svector_ostream ostream(stream_buffer);
           llvm::legacy::PassManager mpm;
-          if (target_machine_->addPassesToEmitFile(mpm, ostream, nullptr,
-                                                   llvm::CGFT_ObjectFile)) {
+          if (target_machine_->addPassesToEmitFile(
+                  mpm, ostream, nullptr, llvm::CodeGenFileType::ObjectFile)) {
             XLS_VLOG(3) << "Could not create ASM generation pass!";
           }
           mpm.run(*module.getModuleUnlocked());
@@ -335,6 +338,11 @@ absl::Status OrcJit::CompileModule(std::unique_ptr<llvm::Module>&& module) {
 
 absl::StatusOr<llvm::orc::ExecutorAddr> OrcJit::LoadSymbol(
     std::string_view function_name) {
+#ifdef __APPLE__
+  // On Apple systems, symbols are still prepended with an underscore.
+  std::string function_name_with_underscore = absl::StrCat("_", function_name);
+  function_name = function_name_with_underscore;
+#endif /* __APPLE__ */
   llvm::Expected<llvm::orc::ExecutorSymbolDef> symbol =
       execution_session_.lookup(&dylib_, function_name);
   if (!symbol) {

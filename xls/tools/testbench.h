@@ -15,8 +15,10 @@
 #ifndef XLS_TOOLS_TESTBENCH_H_
 #define XLS_TOOLS_TESTBENCH_H_
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
+#include <iostream>
 #include <thread>  // NOLINT(build/c++11)
 #include <type_traits>
 

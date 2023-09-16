@@ -131,6 +131,11 @@ class Span {
   // not considered to be contained in the span.)
   bool Contains(const Pos& pos) const { return start_ <= pos && pos < limit_; }
 
+  bool operator<(const Span& other) const {
+    return start_ < other.start_ ||
+           (start_ == other.start_ && limit_ < other.limit_);
+  }
+
  private:
   Pos start_;
   Pos limit_;

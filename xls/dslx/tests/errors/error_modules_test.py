@@ -33,15 +33,24 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
       warnings_as_errors: bool = True,
       want_err_retcode: bool = True,
       path_is_runfile: bool = True,
+      alsologtostderr: bool = False,
   ) -> str:
     cmd = [
         _INTERP_PATH,
         path,
         '--warnings_as_errors={}'.format(str(warnings_as_errors).lower()),
     ]
+
+    if alsologtostderr:
+      cmd.append(' --alsologtostderr')
+
     logging.info('running: %s', subp.list2cmdline(cmd))
     p = subp.run(cmd, stderr=subp.PIPE, check=False, encoding='utf-8')
     logging.info('stderr: %r', p.stderr)
+
+    # Check that there is no RET_CHECK output in stderr.
+    self.assertNotIn('RET_CHECK', p.stderr)
+
     if want_err_retcode:
       self.assertNotEqual(p.returncode, 0)
     else:
@@ -132,7 +141,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_duplicate_top_name(self):
     stderr = self._run('xls/dslx/tests/errors/duplicate_top_name.x')
-    self.assertIn('already contains a member named xType', stderr)
+    self.assertIn('already contains a member named `xType`', stderr)
     self.assertIn(
         'xls/dslx/tests/errors/duplicate_top_name.x:16:1-16:17',
         stderr,
@@ -223,16 +232,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_self_recursion(self):
     stderr = self._run('xls/dslx/tests/errors/self_recursion.x')
     self.assertIn(
-        'xls/dslx/tests/errors/self_recursion.x:17:16-17:33', stderr
+        'xls/dslx/tests/errors/self_recursion.x:17:33-17:44', stderr
     )
-    self.assertIn('This may be due to recursion', stderr)
+    self.assertIn('Recursion of function `regular_recursion` detected', stderr)
 
   def test_tail_call(self):
     stderr = self._run('xls/dslx/tests/errors/tail_call.x')
     self.assertIn(
-        'xls/dslx/tests/errors/tail_call.x:16:34-16:35', stderr
+        'xls/dslx/tests/errors/tail_call.x:16:35-16:44', stderr
     )
-    self.assertIn('This may be due to recursion', stderr)
+    self.assertIn('Recursion of function `f` detected', stderr)
 
   def test_let_destructure_same_name(self):
     stderr = self._run(
@@ -321,6 +330,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_cast_bits_to_struct_array(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/cast_bits_to_struct_array.x'
+    )
+    self.assertIn(
+        'Cannot cast from expression type uN[64] to S { member: uN[32] }[2]',
+        stderr,
+    )
+
   def test_cast_int_to_struct(self):
     stderr = self._run('xls/dslx/tests/errors/cast_int_to_struct.x')
     self.assertIn("Cannot cast from expression type uN[32] to struct 'S'",
@@ -332,9 +350,20 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         "Cannot cast from expression type struct 'S' structure: S { member: uN[32] } to uN[32]",
         stderr)
 
+  def test_cast_struct_array_to_bits(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/cast_struct_array_to_bits.x'
+    )
+    self.assertIn(
+        'Cannot cast from expression type S { member: uN[32] }[2] to uN[64]',
+        stderr,
+    )
+
   def test_destructure_fallible(self):
     stderr = self._run(
-        'xls/dslx/tests/errors/destructure_fallible.x'
+        'xls/dslx/tests/errors/destructure_fallible.x',
+        # Intentional defined-but-not-used.
+        warnings_as_errors=False,
     )
     self.assertIn(
         'FailureError: The program being interpreted failed! (u8:0, u8:0)',
@@ -392,11 +421,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/non_const_array_type_dimension.x'
     )
-    # TODO(leary): 2021-06-21 This error should become something like "can only
-    # refer to constant or parametric values in dimensions".
-    self.assertIn('non_const_array_type_dimension.x:16:10-16:18', stderr)
-    self.assertIn('Expected concrete type dimension to be integral; got: x',
-                  stderr)
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn('non_const_array_type_dimension.x:16:3-16:9', stderr)
+    self.assertIn(
+        'uN[32][x] Annotated type for array literal must be constexpr', stderr
+    )
 
   def test_array_type_dimension_with_width_annotated(self):
     stderr = self._run(
@@ -481,6 +510,25 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
                   stderr)
     self.assertIn('Valid values are [0, 255]', stderr)
 
+  def test_useless_expression_statement_warning(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/useless_expression_statement.x',
+        warnings_as_errors=False,
+        want_err_retcode=False,
+    )
+    self.assertIn('useless_expression_statement.x:19:9-19:11', stderr)
+    self.assertIn(
+        'Expression statement `bar || abcd` appears useless (i.e. has no'
+        ' side-effects)',
+        stderr,
+    )
+
+    self._run(
+        'xls/dslx/tests/errors/should_not_splat_warning.x',
+        warnings_as_errors=True,
+        want_err_retcode=True,
+    )
+
   def test_should_not_splat_warning(self):
     stderr = self._run(
         'xls/dslx/tests/errors/should_not_splat_warning.x',
@@ -519,6 +567,27 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         want_err_retcode=True,
     )
 
+  def test_missing_annotation_warning(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/missing_test_annotation_warning.x',
+        warnings_as_errors=False,
+        want_err_retcode=False,
+    )
+    self.assertIn('missing_test_annotation_warning.x:19:1-27:2', stderr)
+    self.assertIn(
+        (
+            'Function `two_plus_two_test` ends with `_test` but is not marked'
+            ' as a unit test via #[test]'
+        ),
+        stderr,
+    )
+
+    self._run(
+        'xls/dslx/tests/errors/trailing_comma_warning.x',
+        warnings_as_errors=True,
+        want_err_retcode=True,
+    )
+
   def test_unterminated_proc(self):
     stderr = self._run('xls/dslx/tests/errors/unterminated_proc.x')
     self.assertIn('unterminated_proc.x:23:1-23:1', stderr)
@@ -532,7 +601,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('replicate_github_issue_263.x:22:24-22:41', stderr)
     self.assertIn('TypeInferenceError', stderr)
     self.assertIn(
-        'Recursive call to `replicate` detected during type-checking', stderr
+        'Recursion of function `replicate` detected -- recursion is currently'
+        ' unsupported.',
+        stderr,
     )
 
   def test_precise_struct_error(self):
@@ -767,6 +838,129 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn(
         'APFloat { sign: uN[1], bexp: uN[EXP_SZ], fraction: uN[FRACTION_SZ] }'
         ' Instantiated return type did not have all parametrics resolved.',
+        stderr,
+    )
+
+  def test_const_assert_never_instantiated(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/const_assert_never_instantiated.x'
+    )
+    self.assertIn(
+        'const_assert! failure: `N == u32:42` constexpr environment: {N:'
+        ' u32:64}',
+        stderr,
+    )
+
+  def test_const_assert_non_constexpr(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/const_assert_non_constexpr.x'
+    )
+    self.assertIn(
+        'const_assert! failure: `Y < u32:10` constexpr environment: {Y:'
+        ' u32:11}',
+        stderr,
+    )
+
+  def test_constexpr_rollover_warning(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/constexpr_rollover_warning.x'
+    )
+    self.assertIn(
+        'constexpr evaluation detected rollover in operation',
+        stderr,
+    )
+
+  def test_module_level_const_assert_failure(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/module_level_const_assert_failure.x'
+    )
+    self.assertIn(
+        'const_assert! failure: `TWO + TWO != FOUR` constexpr environment:'
+        ' {FOUR: u32:4, TWO: u32:2}',
+        stderr,
+    )
+
+  def test_user_defined_parametric_type(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/user_defined_parametric_given_type.x'
+    )
+    self.assertIn(
+        'Parametric function invocation `p<uN[32]>()` cannot take type `uN[32]`'
+        ' -- parametric must be an expression',
+        stderr,
+    )
+
+  def test_match_empty_range(self):
+    stderr = self._run('xls/dslx/tests/errors/match_empty_range.x')
+    self.assertIn(
+        '`u32:0..u32:0` from `u32:0` to `u32:0` is an empty range',
+        stderr,
+    )
+
+  def test_parametric_test_fn(self):
+    stderr = self._run('xls/dslx/tests/errors/parametric_test_fn.x')
+    self.assertIn(
+        'Test functions cannot be parametric.',
+        stderr,
+    )
+
+  def test_direct_recursion(self):
+    stderr = self._run('xls/dslx/tests/errors/direct_recursion.x')
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        'Recursion of function `f` detected -- recursion is currently'
+        ' unsupported.',
+        stderr,
+    )
+
+  def test_duplicate_typedef_binding_in_module(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/duplicate_typedef_binding_in_module.x'
+    )
+    self.assertIn('ParseError', stderr)
+    self.assertIn(
+        'already contains a member named `A`',
+        stderr,
+    )
+
+  def test_param_as_array_expression_type(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/param_as_array_expression_type.x'
+    )
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        'uN[32][x] Annotated type for array literal must be constexpr',
+        stderr,
+    )
+
+  def test_array_with_negative_size(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/array_with_negative_size.x'
+    )
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        "uN[32] Number -1 invalid: can't assign a negative value to an unsigned"
+        ' type',
+        stderr,
+    )
+
+  def test_array_with_overlarge_size(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/array_with_overlarge_size.x',
+    )
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        'uN[32] Dimension value is too large, high bit is set: 0x80000000',
+        stderr,
+    )
+
+  def test_struct_instantiate_s32(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/struct_instantiate_s32.x',
+    )
+    self.assertIn('ParseError:', stderr)
+    self.assertIn(
+        'Can only resolve a TypeRefTypeAnnotation to a struct; got: s32',
         stderr,
     )
 

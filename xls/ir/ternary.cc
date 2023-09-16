@@ -14,6 +14,10 @@
 
 #include "xls/ir/ternary.h"
 
+#include <algorithm>
+#include <string>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"

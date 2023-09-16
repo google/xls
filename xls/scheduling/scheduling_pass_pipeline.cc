@@ -21,7 +21,7 @@
 
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/literal_uncommoning_pass.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/scheduling/mutual_exclusion_pass.h"
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 #include "xls/scheduling/scheduling_checker.h"

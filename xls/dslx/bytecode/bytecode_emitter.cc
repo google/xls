@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
@@ -186,6 +187,16 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(ChannelDecl);
   DEFAULT_HANDLER(ChannelTypeAnnotation);
   DEFAULT_HANDLER(ColonRef);
+
+  absl::Status HandleConstAssert(const ConstAssert* n) override {
+    // We don't need to bytecode-emit constant assertions because they are
+    // constexpr conditions verified by the typechecker.
+    //
+    // Hypothetically we could also double-check they hold at runtime, but we'd
+    // want some kind of flag for that as a paranoia mode.
+    return absl::OkStatus();
+  }
+
   DEFAULT_HANDLER(ConstantArray);
   DEFAULT_HANDLER(ConstantDef);
   absl::Status HandleConstRef(const ConstRef* n) override {
@@ -221,6 +232,7 @@ class NameDefCollector : public AstNodeVisitor {
   }
   DEFAULT_HANDLER(Number);
   DEFAULT_HANDLER(Param);
+  DEFAULT_HANDLER(ProcMember);
   DEFAULT_HANDLER(ParametricBinding);
   absl::Status HandleProc(const Proc* n) override {
     return absl::InternalError(
@@ -316,6 +328,7 @@ absl::Status BytecodeEmitter::HandleArray(const Array* node) {
   // If we've got an ellipsis, then repeat the last element until we reach the
   // full array size.
   if (node->has_ellipsis()) {
+    XLS_RET_CHECK(!node->members().empty());
     XLS_ASSIGN_OR_RETURN(ArrayType * array_type,
                          type_info_->GetItemAs<ArrayType>(node));
     const ConcreteTypeDim& dim = array_type->size();
@@ -339,7 +352,7 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   XLS_ASSIGN_OR_RETURN(StructType * struct_type,
                        type_info_->GetItemAs<StructType>(node->lhs()));
   XLS_ASSIGN_OR_RETURN(int64_t member_index,
-                       struct_type->GetMemberIndex(node->attr()->identifier()));
+                       struct_type->GetMemberIndex(node->attr()));
 
   XLS_VLOG(10) << "BytecodeEmitter::HandleAttr; member_index: " << member_index;
 
@@ -350,13 +363,24 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<bool> BytecodeEmitter::IsBitsTypeNodeSigned(
+    const AstNode* node) const {
+  XLS_RET_CHECK(type_info_ != nullptr);
+  std::optional<const ConcreteType*> maybe_type = type_info_->GetItem(node);
+  XLS_RET_CHECK(maybe_type.has_value()) << "node: " << node->ToString();
+  return IsSigned(*maybe_type.value());
+}
+
 absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
   XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->rhs()->AcceptExpr(this));
   switch (node->binop_kind()) {
-    case BinopKind::kAdd:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAdd));
+    case BinopKind::kAdd: {
+      XLS_ASSIGN_OR_RETURN(bool is_signed, IsBitsTypeNodeSigned(node));
+      bytecode_.push_back(Bytecode(
+          node->span(), is_signed ? Bytecode::Op::kSAdd : Bytecode::Op::kUAdd));
       break;
+    }
     case BinopKind::kAnd:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAnd));
       break;
@@ -365,6 +389,9 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
       break;
     case BinopKind::kDiv:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kDiv));
+      break;
+    case BinopKind::kMod:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kMod));
       break;
     case BinopKind::kEq:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kEq));
@@ -387,9 +414,12 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
     case BinopKind::kLt:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLt));
       break;
-    case BinopKind::kMul:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kMul));
+    case BinopKind::kMul: {
+      XLS_ASSIGN_OR_RETURN(bool is_signed, IsBitsTypeNodeSigned(node));
+      bytecode_.push_back(Bytecode(
+          node->span(), is_signed ? Bytecode::Op::kSMul : Bytecode::Op::kUMul));
       break;
+    }
     case BinopKind::kNe:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kNe));
       break;
@@ -402,9 +432,12 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
     case BinopKind::kShr:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShr));
       break;
-    case BinopKind::kSub:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSub));
+    case BinopKind::kSub: {
+      XLS_ASSIGN_OR_RETURN(bool is_signed, IsBitsTypeNodeSigned(node));
+      bytecode_.push_back(Bytecode(
+          node->span(), is_signed ? Bytecode::Op::kSSub : Bytecode::Op::kUSub));
       break;
+    }
     case BinopKind::kXor:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kXor));
       break;
@@ -436,6 +469,12 @@ absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
                                             [&](Let* let) {
                                               last_expression = nullptr;
                                               return HandleLet(let);
+                                            },
+                                            [&](ConstAssert* n) {
+                                              // Nothing to emit, should be
+                                              // resolved via type inference.
+                                              last_expression = nullptr;
+                                              return absl::OkStatus();
                                             },
                                             [&](TypeAlias* ta) {
                                               // Nothing to emit, should be
@@ -852,7 +891,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
                 import_data_->GetRootTypeInfoForNode(array_type));
             XLS_ASSIGN_OR_RETURN(InterpValue value,
                                  type_info->GetConstExpr(array_type->dim()));
-            XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, value.GetBitValueUint64());
+            XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, value.GetBitValueUnsigned());
             return GetArrayTypeColonAttr(array_type, dim_u64, node->attr());
           },
           [&](Module* module) -> absl::StatusOr<InterpValue> {
@@ -860,6 +899,12 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
           },
       },
       resolved_subject);
+}
+
+absl::Status BytecodeEmitter::HandleConstAssert(const ConstAssert* node) {
+  // Since static assertions are checked to hold at typechecking time, we do not
+  // need to check them dynamically via the bytecode execution.
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleConstantArray(const ConstantArray* node) {
@@ -956,7 +1001,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
                                Bytecode::SlotIndex(index_slot)));
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral, InterpValue::MakeU32(1)));
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAdd));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kUAdd));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
                                Bytecode::SlotIndex(index_slot)));
   bytecode_.push_back(
@@ -1194,6 +1239,15 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
             [&](Number* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               XLS_ASSIGN_OR_RETURN(InterpValue number, HandleNumberInternal(n));
               return Bytecode::MatchArmItem::MakeInterpValue(number);
+            },
+            [&](Range* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
+              XLS_ASSIGN_OR_RETURN(
+                  InterpValue start,
+                  HandleNumberInternal(down_cast<Number*>(n->start())));
+              XLS_ASSIGN_OR_RETURN(
+                  InterpValue end,
+                  HandleNumberInternal(down_cast<Number*>(n->end())));
+              return Bytecode::MatchArmItem::MakeRange(start, end);
             },
             [&](ColonRef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               XLS_ASSIGN_OR_RETURN(InterpValue value,

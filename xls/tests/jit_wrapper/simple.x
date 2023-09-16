@@ -22,6 +22,8 @@ type F32 = float32::F32;
 
 pub fn identity(x: F32) -> F32 { x }
 
+pub fn wide_identity(x: bits[512]) -> bits[512] { x }
+
 pub fn is_inf(x: F32) -> bool { float32::is_inf(x) }
 
 pub fn fail_on_42(x: u32) -> u32 {
@@ -29,4 +31,8 @@ pub fn fail_on_42(x: u32) -> u32 {
     u32:42 => fail!("failure", x),
     _ => x
   }
+}
+
+pub fn make_tuple(x: u1, y: u8) -> (u1, u8, u16) {
+  (x, y, u16:0xabcd)
 }

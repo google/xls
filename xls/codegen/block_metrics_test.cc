@@ -27,6 +27,8 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 namespace verilog {
@@ -96,8 +98,8 @@ TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(f, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
@@ -229,8 +231,8 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(1)));
+      RunPipelineSchedule(f, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,

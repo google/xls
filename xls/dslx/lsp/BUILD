@@ -51,8 +51,10 @@ cc_library(
         "//xls/common:indent",
         "//xls/dslx:create_import_data",
         "//xls/dslx:extract_module_name",
+        "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:warning_collector",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:bindings",
@@ -65,10 +67,10 @@ cc_test(
     srcs = ["language_server_adapter_test.cc"],
     deps = [
         ":language_server_adapter",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest",
+        "//xls/dslx:default_dslx_stdlib_path",
     ],
 )
 
@@ -79,8 +81,9 @@ cc_binary(
     deps = [
         ":language_server_adapter",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/time",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
+        "//xls/dslx:default_dslx_stdlib_path",
         "@verible//common/lsp:json-rpc-dispatcher",
         "@verible//common/lsp:lsp-protocol",
         "@verible//common/lsp:lsp-text-buffer",

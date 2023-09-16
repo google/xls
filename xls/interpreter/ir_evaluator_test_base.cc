@@ -359,8 +359,8 @@ absl::Status RunSignExtendTest(const IrEvaluatorTestParam& param,
   }
   )";
 
-  std::string formatted_text = absl::Substitute(
-      ir_text, new_bit_count, input.bit_count(), input.ToString());
+  std::string formatted_text =
+      absl::Substitute(ir_text, new_bit_count, input.bit_count(), input);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_text));
   XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
   Value expected(bits_ops::SignExtend(input, new_bit_count));
@@ -740,9 +740,8 @@ TEST_P(IrEvaluatorTestBase, MixedWidthMultiplicationExhaustive) {
             XLS_ASSERT_OK_AND_ASSIGN(
                 Bits actual, RunWithBitsNoEvents(function, {x_bits, y_bits}));
             EXPECT_EQ(expected, actual)
-                << absl::StreamFormat("umul(bits[%d]: %s, bits[%d]: %s)",
-                                      x_width, x_bits.ToString(), y_width,
-                                      y_bits.ToString())
+                << absl::StreamFormat("umul(bits[%d]: %v, bits[%d]: %v)",
+                                      x_width, x_bits, y_width, y_bits)
                 << "Expected: " << expected << "Actual: " << actual;
           }
         }
@@ -804,9 +803,8 @@ TEST_P(IrEvaluatorTestBase, MixedWidthSignedMultiplicationExhaustive) {
                                 .Slice(0, result_width);
             EXPECT_THAT(RunWithBitsNoEvents(function, {x_bits, y_bits}),
                         IsOkAndHolds(expected))
-                << absl::StreamFormat("smul(bits[%d]: %s, bits[%d]: %s)",
-                                      x_width, x_bits.ToString(), y_width,
-                                      y_bits.ToString());
+                << absl::StreamFormat("smul(bits[%d]: %v, bits[%d]: %v)",
+                                      x_width, x_bits, y_width, y_bits);
           }
         }
       }
@@ -923,9 +921,8 @@ TEST_P(IrEvaluatorTestBase, SMulpMixedWidthExhaustive) {
                                 .Slice(0, result_width);
             EXPECT_THAT(RunWithBitsNoEvents(function, {x_bits, y_bits}),
                         IsOkAndHolds(expected))
-                << absl::StreamFormat("smulp(bits[%d]: %s, bits[%d]: %s)",
-                                      x_width, x_bits.ToString(), y_width,
-                                      y_bits.ToString());
+                << absl::StreamFormat("smulp(bits[%d]: %v, bits[%d]: %v)",
+                                      x_width, x_bits, y_width, y_bits);
           }
         }
       }
@@ -970,9 +967,8 @@ TEST_P(IrEvaluatorTestBase, SMulpSignExtensionNotSound) {
       XLS_ASSERT_OK_AND_ASSIGN(Bits actual,
                                RunWithBitsNoEvents(function, {x_bits, y_bits}));
       XLS_VLOG(3) << absl::StreamFormat(
-          "smulp(bits[%d]: %s, bits[%d]: %s) = bits[%d]: %s =? %s", x_width,
-          x_bits.ToString(), y_width, y_bits.ToString(), result_width,
-          actual.ToString(), product.ToString());
+          "smulp(bits[%d]: %v, bits[%d]: %v) = bits[%d]: %v =? %v", x_width,
+          x_bits, y_width, y_bits, result_width, actual, product);
       if (actual != product) {
         found_mismatch = true;
         goto after_loop;
@@ -1080,9 +1076,8 @@ TEST_P(IrEvaluatorTestBase, UMulpMixedWidthExhaustive) {
                                 .Slice(0, result_width);
             EXPECT_THAT(RunWithBitsNoEvents(function, {x_bits, y_bits}),
                         IsOkAndHolds(expected))
-                << absl::StreamFormat("umulp(bits[%d]: %s, bits[%d]: %s)",
-                                      x_width, x_bits.ToString(), y_width,
-                                      y_bits.ToString());
+                << absl::StreamFormat("umulp(bits[%d]: %v, bits[%d]: %v)",
+                                      x_width, x_bits, y_width, y_bits);
           }
         }
       }
@@ -1127,9 +1122,8 @@ TEST_P(IrEvaluatorTestBase, UMulpZeroExtensionNotSound) {
       XLS_ASSERT_OK_AND_ASSIGN(Bits actual,
                                RunWithBitsNoEvents(function, {x_bits, y_bits}));
       XLS_VLOG(3) << absl::StreamFormat(
-          "umulp(bits[%d]: %s, bits[%d]: %s) = bits[%d]: %s =? %s", x_width,
-          x_bits.ToString(), y_width, y_bits.ToString(), result_width,
-          actual.ToString(), product.ToString());
+          "umulp(bits[%d]: %v, bits[%d]: %v) = bits[%d]: %v =? %v", x_width,
+          x_bits, y_width, y_bits, result_width, actual, product);
       if (actual != product) {
         found_mismatch = true;
         goto after_loop;
@@ -1566,9 +1560,10 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHot) {
 
   for (const auto& example : examples) {
     XLS_VLOG(2) << "input: "
-                << example.input.ToString(FormatPreference::kBinary, true)
+                << BitsToString(example.input, FormatPreference::kBinary, true)
                 << " expected: "
-                << example.output.ToString(FormatPreference::kBinary, true);
+                << BitsToString(example.output, FormatPreference::kBinary,
+                                true);
     EXPECT_THAT(RunWithNoEvents(function, {Value(example.input)}),
                 IsOkAndHolds(Value(example.output)));
   }
@@ -1596,9 +1591,10 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHotMsbPrio) {
 
   for (const auto& example : examples) {
     XLS_VLOG(2) << "input: "
-                << example.input.ToString(FormatPreference::kBinary, true)
+                << BitsToString(example.input, FormatPreference::kBinary, true)
                 << " expected: "
-                << example.output.ToString(FormatPreference::kBinary, true);
+                << BitsToString(example.output, FormatPreference::kBinary,
+                                true);
     EXPECT_THAT(RunWithNoEvents(function, {Value(example.input)}),
                 IsOkAndHolds(Value(example.output)));
   }
@@ -2931,7 +2927,7 @@ TEST_P(IrEvaluatorTestBase, WideNegate) {
       {"a", Value(UBits(0x42, 128))}};
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargsNoEvents(function, args));
-  EXPECT_EQ(result.bits().ToString(FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(result.bits(), FormatPreference::kHex),
             "0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffbe");
 }
 
@@ -2955,7 +2951,7 @@ TEST_P(IrEvaluatorTestBase, WideLogicOperator) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargsNoEvents(function, args));
-  EXPECT_EQ(result.bits().ToString(FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(result.bits(), FormatPreference::kHex),
             "0xd1a2_b1e0_0e1b_2a1d_b791_f3dd_dd3f_197b");
 }
 
@@ -2974,7 +2970,7 @@ TEST_P(IrEvaluatorTestBase, OptimizedParamReturn) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargsNoEvents(function, args));
-  EXPECT_EQ(result.bits().ToString(FormatPreference::kBinary), "0b1");
+  EXPECT_EQ(BitsToString(result.bits(), FormatPreference::kBinary), "0b1");
 }
 
 TEST_P(IrEvaluatorTestBase, AfterAllWithOtherOps) {

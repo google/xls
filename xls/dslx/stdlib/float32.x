@@ -25,10 +25,20 @@ pub type FloatTag = apfloat::APFloatTag;
 pub type TaggedF32 = (FloatTag, F32);
 
 pub fn qnan() -> F32 { apfloat::qnan<u32:8, u32:23>() }
+pub fn is_nan(f: F32) -> bool { apfloat::is_nan<u32:8, u32:23>(f) }
+
+pub fn inf(sign: u1) -> F32 { apfloat::inf<u32:8, u32:23>(sign) }
+pub fn is_inf(f: F32) -> bool { apfloat::is_inf<u32:8, u32:23>(f) }
+pub fn is_pos_inf(f: F32) -> bool { apfloat::is_pos_inf<u32:8, u32:23>(f) }
+pub fn is_neg_inf(f: F32) -> bool { apfloat::is_neg_inf<u32:8, u32:23>(f) }
+
 pub fn zero(sign: u1) -> F32 { apfloat::zero<u32:8, u32:23>(sign) }
 pub fn one(sign: u1) -> F32 { apfloat::one<u32:8, u32:23>(sign) }
-pub fn inf(sign: u1) -> F32 { apfloat::inf<u32:8, u32:23>(sign) }
 
+pub fn negate(x: F32) -> F32 { apfloat::negate(x) }
+
+pub fn max_normal_exp() -> s8 { apfloat::max_normal_exp<u32:8>() }
+pub fn min_normal_exp() -> s8 { apfloat::min_normal_exp<u32:8>() }
 
 pub fn unbiased_exponent(f: F32) -> s8 {
   apfloat::unbiased_exponent<u32:8, u32:23>(f)
@@ -38,8 +48,13 @@ pub fn bias(unbiased_exponent_in: s8) -> u8 {
 }
 pub fn flatten(f: F32) -> u32 { apfloat::flatten<u32:8, u32:23>(f) }
 pub fn unflatten(f: u32) -> F32 { apfloat::unflatten<u32:8, u32:23>(f) }
-pub fn cast_from_fixed<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> F32 {
-  apfloat::cast_from_fixed<u32:8, u32:23>(s)
+pub fn ldexp(f: F32, e : s32) -> F32 {apfloat::ldexp(f, e)}
+
+pub fn cast_from_fixed_using_rne<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> F32 {
+  apfloat::cast_from_fixed_using_rne<u32:8, u32:23>(s)
+}
+pub fn cast_from_fixed_using_rz<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> F32 {
+  apfloat::cast_from_fixed_using_rz<u32:8, u32:23>(s)
 }
 pub fn cast_to_fixed<NUM_DST_BITS:u32>(to_cast: F32) -> sN[NUM_DST_BITS] {
   apfloat::cast_to_fixed<NUM_DST_BITS, u32:8, u32:23>(to_cast)
@@ -48,29 +63,27 @@ pub fn subnormals_to_zero(f: F32) -> F32 {
   apfloat::subnormals_to_zero<u32:8, u32:23>(f)
 }
 
-pub fn is_inf(f: F32) -> u1 { apfloat::is_inf<u32:8, u32:23>(f) }
-pub fn is_nan(f: F32) -> u1 { apfloat::is_nan<u32:8, u32:23>(f) }
-pub fn is_zero_or_subnormal(f: F32) -> u1 {
+pub fn is_zero_or_subnormal(f: F32) -> bool {
   apfloat::is_zero_or_subnormal<u32:8, u32:23>(f)
 }
 
-pub fn eq_2(x: F32, y: F32) -> u1 {
+pub fn eq_2(x: F32, y: F32) -> bool {
   apfloat::eq_2<u32:8, u32:23>(x, y)
 }
 
-pub fn gt_2(x: F32, y: F32) -> u1 {
+pub fn gt_2(x: F32, y: F32) -> bool {
   apfloat::gt_2<u32:8, u32:23>(x, y)
 }
 
-pub fn gte_2(x: F32, y: F32) -> u1 {
+pub fn gte_2(x: F32, y: F32) -> bool {
   apfloat::gte_2<u32:8, u32:23>(x, y)
 }
 
-pub fn lt_2(x: F32, y: F32) -> u1 {
+pub fn lt_2(x: F32, y: F32) -> bool {
   apfloat::lt_2<u32:8, u32:23>(x, y)
 }
 
-pub fn lte_2(x: F32, y: F32) -> u1 {
+pub fn lte_2(x: F32, y: F32) -> bool {
   apfloat::lte_2<u32:8, u32:23>(x, y)
 }
 
@@ -137,7 +150,6 @@ fn normalize_test() {
   let actual = normalize(
       u1:0, u8:2, u24:0b0010_0000_1000_1111_0000_0101);
   assert_eq(expected, actual);
-  ()
 }
 
 #[test]
@@ -162,7 +174,6 @@ fn tag_test() {
   assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:1 }), FloatTag::NAN);
   assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0x7f_ffff }), FloatTag::NAN);
   assert_eq(tag(qnan()), FloatTag::NAN);
-  ()
 }
 
 pub fn fixed_fraction(input_float: F32) -> u23 {
@@ -286,7 +297,6 @@ fn from_int32_test() {
   let expected = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0x0 };
   let actual = from_int32(s32:-2147483648);
   assert_eq(expected, actual);
-  ()
 }
 
 pub fn add(x: F32, y: F32) -> F32 {
@@ -393,143 +403,4 @@ fn fast_sqrt_test() {
   let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
   assert_eq(fast_rsqrt(neg_denormal),
     inf(u1:1));
-  ()
 }
-
-
-// ldexp (load exponent) computes fraction * 2^exp.
-// Note:
-//  - Input denormals are treated as/flushed to 0.
-//      (denormals-are-zero / DAZ).  Similarly,
-//      denormal results are flushed to 0.
-//  - No exception flags are raised/reported.
-//  - We emit a single, canonical representation for
-//      NaN (qnan) but accept all NaN representations
-//      as input
-
-// Returns fraction * 2^exp
-pub fn ldexp(fraction: F32, exp: s32) -> F32 {
-  // TODO(jbaileyhandle):  Remove after testing.
-
-  const max_exponent = bias(s8:0) as s33;
-  const min_exponent = s33:1 - (bias(s8:0) as s33);
-
-  // Flush subnormal input.
-  let fraction = subnormals_to_zero(fraction);
-
-  // Increase the exponent of fraction by 'exp'.
-  // If this was not a DAZ module, we'd have to deal
-  // with denormal 'fraction' here.
-  let exp = signex(exp, s33:0)
-              + signex(unbiased_exponent(fraction), s33:0);
-  let result = F32 {sign: fraction.sign,
-                    bexp: bias(exp as s8),
-                    fraction: fraction.fraction };
-
-  // Handle overflow.
-  let result = if exp > max_exponent { inf(fraction.sign) }
-               else { result };
-
-  // Hanlde underflow, taking into account the case that underflow
-  // rounds back up to a normal number.
-  // If this was not a DAZ module, we'd have to deal
-  // with denormal 'result' here.
-  let underflow_result =
-    if exp == (min_exponent - s33:1) && fraction.fraction == std::mask_bits<u32:23>() {
-      F32{sign: fraction.sign, bexp: u8:1, fraction: u23:0}
-    } else {
-      zero(fraction.sign)
-    };
-  let result = if exp < min_exponent { underflow_result }
-               else { result };
-  // Flush subnormal output.
-  let result = subnormals_to_zero(result);
-
-  // Handle special cases.
-  let result = if is_zero_or_subnormal(fraction) || is_inf(fraction) { fraction }
-               else { result };
-  let result = if is_nan(fraction) { qnan() }
-               else { result };
-  result
-}
-
-#[test]
-fn ldexp_test() {
-  // Test Special cases.
-  assert_eq(ldexp(zero(u1:0), s32:1),
-    zero(u1:0));
-  assert_eq(ldexp(zero(u1:1), s32:1),
-    zero(u1:1));
-  assert_eq(ldexp(inf(u1:0), s32:-1),
-    inf(u1:0));
-  assert_eq(ldexp(inf(u1:1), s32:-1),
-    inf(u1:1));
-  assert_eq(ldexp(qnan(), s32:1),
-    qnan());
-
-  // Subnormal input.
-  let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
-  assert_eq(ldexp(pos_denormal, s32:1),
-    zero(u1:0));
-  let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
-  assert_eq(ldexp(neg_denormal, s32:1),
-    zero(u1:1));
-
-  // Output subnormal, flush to zero.
-  let almost_denormal = F32{sign: u1:0, bexp: u8:1, fraction: u23:99};
-  assert_eq(ldexp(pos_denormal, s32:-1),
-    zero(u1:0));
-
-  // Subnormal result rounds up to normal number.
-  let frac = F32{sign: u1:0, bexp: u8:10, fraction: u23:0x7fffff};
-  let expected = F32{sign: u1:0, bexp: u8:1, fraction: u23:0};
-  assert_eq(ldexp(frac, s32:-10), expected);
-  let frac = F32{sign: u1:1, bexp: u8:10, fraction: u23:0x7fffff};
-  let expected = F32{sign: u1:1, bexp: u8:1, fraction: u23:0};
-  assert_eq(ldexp(frac, s32:-10), expected);
-
-  // Large positive input exponents.
-  let frac = F32{sign: u1:0, bexp: u8:128, fraction: u23:0x0};
-  let expected = inf(u1:0);
-  assert_eq(ldexp(frac, s32:0x7FFFFFFF - s32:1), expected);
-  let frac = F32{sign: u1:0, bexp: u8:128, fraction: u23:0x0};
-  let expected = inf(u1:0);
-  assert_eq(ldexp(frac, s32:0x7FFFFFFF), expected);
-  let frac = F32{sign: u1:1, bexp: u8:128, fraction: u23:0x0};
-  let expected = inf(u1:1);
-  assert_eq(ldexp(frac, s32:0x7FFFFFFF - s32:1), expected);
-  let frac = F32{sign: u1:1, bexp: u8:128, fraction: u23:0x0};
-  let expected = inf(u1:1);
-  assert_eq(ldexp(frac, s32:0x7FFFFFFF), expected);
-
-  // Large negative input exponents.
-  let frac = F32{sign: u1:0, bexp: u8:126, fraction: u23:0x0};
-  let expected = zero(u1:0);
-  assert_eq(ldexp(frac, s32:0x80000000 + s32:0x1), expected);
-  let frac = F32{sign: u1:0, bexp: u8:126, fraction: u23:0x0};
-  let expected = zero(u1:0);
-  assert_eq(ldexp(frac, s32:0x80000000), expected);
-  let frac = F32{sign: u1:1, bexp: u8:126, fraction: u23:0x0};
-  let expected = zero(u1:1);
-  assert_eq(ldexp(frac, s32:0x80000000 + s32:0x1), expected);
-  let frac = F32{sign: u1:1, bexp: u8:126, fraction: u23:0x0};
-  let expected = zero(u1:1);
-  assert_eq(ldexp(frac, s32:0x80000000), expected);
-
-  // Other large exponents from reported bug #462.
-  let frac = unflatten(u32:0xd3fefd2b);
-  let expected = inf(u1:1);
-  assert_eq(ldexp(frac, s32:0x7ffffffd), expected);
-  let frac = unflatten(u32:0x36eba93e);
-  let expected = zero(u1:0);
-  assert_eq(ldexp(frac, s32:0x80000010), expected);
-  let frac = unflatten(u32:0x8a87c096);
-  let expected = zero(u1:1);
-  assert_eq(ldexp(frac, s32:0x80000013), expected);
-  let frac = unflatten(u32:0x71694e37);
-  let expected = inf(u1:0);
-  assert_eq(ldexp(frac, s32:0x7fffffbe), expected);
-
-  ()
-}
-

@@ -16,6 +16,8 @@
 #define XLS_SOLVERS_Z3_NETLIST_TRANSLATOR_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"

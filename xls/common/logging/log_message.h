@@ -15,6 +15,7 @@
 #ifndef XLS_COMMON_LOGGING_LOG_MESSAGE_H_
 #define XLS_COMMON_LOGGING_LOG_MESSAGE_H_
 
+#include <ios>
 #include <memory>
 #include <ostream>
 #include <string_view>

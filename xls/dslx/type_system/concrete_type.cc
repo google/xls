@@ -32,7 +32,10 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
 
@@ -113,7 +116,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
 /* static */ absl::StatusOr<int64_t> ConcreteTypeDim::GetAs64Bits(
     const std::variant<InterpValue, OwnedParametric>& variant) {
   if (std::holds_alternative<InterpValue>(variant)) {
-    return std::get<InterpValue>(variant).GetBitValueCheckSign();
+    return std::get<InterpValue>(variant).GetBitValueViaSign();
   }
 
   return absl::InvalidArgumentError(
@@ -148,7 +151,7 @@ std::string ConcreteTypeDim::ToString() const {
   // InterpValues to be passed as parametrics, not just ones that become (used)
   // dimension data -- we need to allow for e.g. signed types which may not end
   // up in any particular dimension position.
-  return std::get<InterpValue>(value_).GetBitsOrDie().ToString();
+  return BitsToString(std::get<InterpValue>(value_).GetBitsOrDie());
 }
 
 bool ConcreteTypeDim::operator==(
@@ -223,9 +226,9 @@ absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
     }
 
     if (value.IsSigned()) {
-      return value.GetBitValueInt64();
+      return value.GetBitValueSigned();
     }
-    return value.GetBitValueUint64();
+    return value.GetBitValueUnsigned();
   }
 
   std::optional<InterpValue> maybe_value = parametric().const_value();
@@ -233,9 +236,9 @@ absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
     InterpValue value = maybe_value.value();
     if (value.IsBits()) {
       if (value.IsSigned()) {
-        return value.GetBitValueInt64();
+        return value.GetBitValueSigned();
       }
-      return value.GetBitValueUint64();
+      return value.GetBitValueUnsigned();
     }
   }
 

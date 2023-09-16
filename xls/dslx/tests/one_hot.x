@@ -32,5 +32,4 @@ fn one_hot_test() {
   assert_eq(u4:0b0100, one_hot(u3:0b101, false));
   assert_eq(u4:0b0100, one_hot(u3:0b110, false));
   assert_eq(u4:0b0100, one_hot(u3:0b111, false));
-  ()
 }

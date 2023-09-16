@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_SIGNATURE_GENERATOR_H_
 #define XLS_CODEGEN_SIGNATURE_GENERATOR_H_
 
+#include <optional>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"

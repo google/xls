@@ -14,15 +14,19 @@
 
 #include "xls/simulation/module_testbench.h"
 
+#include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/source_location.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -444,6 +448,50 @@ TEST_P(ModuleTestbenchTest, TracesOutOfOrder) {
 
   EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
                                  HasSubstr("This is the first message.")));
+}
+
+TEST_P(ModuleTestbenchTest, AssertTest) {
+  if (!UseSystemVerilog()) {
+    // Asserts are a SV only feature.
+    return;
+  }
+
+  VerilogFile f = NewVerilogFile();
+  Module* m = f.AddModule("test_module", SourceInfo());
+  LogicRef* clk = m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
+  LogicRef* a =
+      m->AddInput("a", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  LogicRef* b =
+      m->AddInput("b", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  auto is_unknown = [&](Expression* e) {
+    return f.Make<SystemFunctionCall>(SourceInfo(), "isunknown",
+                                      std::vector<Expression*>({e}));
+  };
+  m->Add<ConcurrentAssertion>(
+      SourceInfo(), f.LessThan(a, b, SourceInfo()),
+      f.Make<PosEdge>(SourceInfo(), clk),
+      /*disable_iff=*/f.LogicalOr(is_unknown(a), is_unknown(b), SourceInfo()),
+      "my_label", "`a` must be less than `b`!");
+
+  {
+    ModuleTestbench tb(m, GetSimulator(), "clk");
+    XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+    tbt->Set("a", 42);
+    tbt->Set("b", 100);
+    tbt->NextCycle();
+    tbt->Set("a", 200);
+    tbt->Set("b", 300);
+    tbt->NextCycle();
+    XLS_ASSERT_OK(tb.Run());
+  }
+  {
+    ModuleTestbench tb(m, GetSimulator(), "clk");
+    XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+    tbt->Set("a", 100);
+    tbt->Set("b", 10);
+    EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kAborted,
+                                   HasSubstr("`a` must be less than `b`")));
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestbenchTestInstantiation, ModuleTestbenchTest,

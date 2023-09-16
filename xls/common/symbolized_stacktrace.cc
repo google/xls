@@ -15,6 +15,7 @@
 #include "xls/common/symbolized_stacktrace.h"
 
 #include <array>
+#include <string>
 #include <vector>
 
 #include "absl/debugging/stacktrace.h"

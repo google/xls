@@ -1,0 +1,18 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#include <vector>
+
+#include "fake_path.h"
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+
+std::string MyEnumToString(MyEnum value) {
+  switch (value) {
+    case MyEnum::kA: return "MyEnum::kA";
+    case MyEnum::kB: return "MyEnum::kB";
+    case MyEnum::kC: return "MyEnum::kC";
+    case MyEnum::kE: return "MyEnum::kE";
+    default: return "<unknown>";
+  }
+}
+

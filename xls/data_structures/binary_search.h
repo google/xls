@@ -18,31 +18,42 @@
 #include <cstdint>
 
 #include "absl/functional/function_ref.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 namespace xls {
+
+enum class BinarySearchAssumptions {
+  kNone,
+  kStartKnownTrue,
+  kEndKnownTrue,
+};
 
 // Finds the maximum value in the inclusive range [start, end] for which the
 // given function returns true. The given function must be monotonic over the
 // range (range of zero or more true values followed by zero or more false
 // values). CHECK fails if no value such exists.
-int64_t BinarySearchMaxTrue(int64_t start, int64_t end,
-                            absl::FunctionRef<bool(int64_t i)> f);
+int64_t BinarySearchMaxTrue(
+    int64_t start, int64_t end, absl::FunctionRef<bool(int64_t i)> f,
+    BinarySearchAssumptions assumptions = BinarySearchAssumptions::kNone);
 
 // Finds the minimum value in the inclusive range [start, end] for which the
 // given function returns true. The given function must be monotonic over the
 // range (range of zero or more false values followed by zero or more true
 // values). CHECK fails if no value such exists.
-int64_t BinarySearchMinTrue(int64_t start, int64_t end,
-                            absl::FunctionRef<bool(int64_t i)> f);
+int64_t BinarySearchMinTrue(
+    int64_t start, int64_t end, absl::FunctionRef<bool(int64_t i)> f,
+    BinarySearchAssumptions assumptions = BinarySearchAssumptions::kNone);
 
 // Overloads which accept a StatusOr function.
 absl::StatusOr<int64_t> BinarySearchMaxTrueWithStatus(
     int64_t start, int64_t end,
-    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f);
+    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f,
+    BinarySearchAssumptions assumptions = BinarySearchAssumptions::kNone);
 absl::StatusOr<int64_t> BinarySearchMinTrueWithStatus(
     int64_t start, int64_t end,
-    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f);
+    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f,
+    BinarySearchAssumptions assumptions = BinarySearchAssumptions::kNone);
 
 }  // namespace xls
 

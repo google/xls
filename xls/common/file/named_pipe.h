@@ -16,6 +16,10 @@
 #define XLS_COMMON_FILE_NAMED_PIPE_H_
 
 #include <filesystem>  // NOLINT
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "xls/common/file/file_descriptor.h"

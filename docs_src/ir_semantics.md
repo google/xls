@@ -853,7 +853,6 @@ where a condition is matched against an ordered set of cases and the first match
 is chosen. It is also useful for one-hot canonicalizing, e.g. as a prelude to
 counting leading/trailing zeros.
 
-
 ### Control-oriented operations
 
 For context note that, in XLS, operations are evaluated eagerly in a very
@@ -898,11 +897,21 @@ Value      | Type
 
 Selects between operands based on a selector value.
 
+This behaves as if the `selector` indexes into the values given in `cases`,
+providing `default` if it is indexing beyond the given `cases`.
+
 **Syntax**
 
 ```
 result = sel(selector, cases=[case_{0}, ... , case_{N-1}], default=<default>)
 ```
+
+A default value must be provided **iff** the `selector` is not the correct width
+for the `cases` array. That is, if the number of cases is less than
+$2^{bitwidth(selector)}$ then a default value must be specified (because it must
+be well defined what happens when the selector takes on values outside the case
+range). If the selector is exactly the correct bitwidth a default value must not
+be provided.
 
 **Types**
 
@@ -1248,9 +1257,13 @@ reduction, and the compiler may ultimately use it to perform register-level
 load-enable gating.
 
 The operation is considered side-effecting to prevent removal of the operation
-when the gated result (condition is false) is not observable. In this case the
-gate operation is still desirable because of the operations' effects on power
-consumption.
+when the gated result (condition is false) is not observable. The 'side-effect'
+of this operation is the effect it can have on power consumption.
+
+Despite being 'side-effecting' this operation is special cased to still be
+eligible for total removal by various passes. This will only be done in cases
+where the gate is redundant, for example the condition is known to be false or
+the data is known to be zero.
 
 ```
 result = gate(condition, data)

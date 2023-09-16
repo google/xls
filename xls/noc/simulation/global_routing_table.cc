@@ -15,7 +15,13 @@
 #include "xls/noc/simulation/global_routing_table.h"
 
 #include <cstdint>
+#include <ostream>
 #include <queue>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

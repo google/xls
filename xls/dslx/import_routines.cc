@@ -36,22 +36,23 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/import_data.h"
 
 namespace xls::dslx {
 
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
-    const ImportTokens& subject, std::string_view stdlib_path,
+    const ImportTokens& subject, const std::filesystem::path& stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths,
     const Span& import_span) {
   absl::Span<std::string const> pieces = subject.pieces();
-  std::string subject_path;
   std::optional<std::string> subject_parent_path;
   const absl::flat_hash_set<std::string> builtins = {
       "std", "apfloat", "float32", "float64", "bfloat16"};
 
   // Initialize subject and parent subject path.
+  std::filesystem::path subject_path;
   if (pieces.size() == 1 && builtins.contains(pieces[0])) {
-    subject_path = absl::StrCat(stdlib_path, "/", pieces[0], ".x");
+    subject_path = stdlib_path / absl::StrCat(pieces[0], ".x");
   } else {
     subject_path = absl::StrJoin(pieces, "/") + ".x";
     subject_parent_path = absl::StrJoin(pieces.subspan(1), "/") + ".x";
@@ -60,13 +61,12 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   std::vector<std::string> attempted;
 
   // Helper that tries to see if "path" is present relative to "base".
-  auto try_path =
-      [&attempted](
-          const std::filesystem::path& base,
-          std::string_view path) -> std::optional<std::filesystem::path> {
+  auto try_path = [&attempted](const std::filesystem::path& base,
+                               const std::filesystem::path& path)
+      -> std::optional<std::filesystem::path> {
     auto full_path = std::filesystem::path(base) / path;
     XLS_VLOG(3) << "Trying path: " << full_path;
-    attempted.push_back(std::string(full_path));
+    attempted.push_back(std::string{full_path});
     if (FileExists(full_path).ok()) {
       XLS_VLOG(3) << "Found existing file for import path: " << full_path;
       return full_path;
@@ -77,12 +77,14 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   auto try_paths = [&try_path, subject_path,
                     subject_parent_path](const std::filesystem::path& base)
       -> std::optional<std::filesystem::path> {
-    if (auto result = try_path(base, subject_path)) {
-      return *result;
+    if (std::optional<std::filesystem::path> result =
+            try_path(base, subject_path)) {
+      return result;
     }
     if (subject_parent_path.has_value()) {
-      if (auto result = try_path(base, *subject_parent_path)) {
-        return *result;
+      if (std::optional<std::filesystem::path> result =
+              try_path(base, *subject_parent_path)) {
+        return result;
       }
     }
     return std::nullopt;
@@ -96,7 +98,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
 
   XLS_VLOG(3) << "Attempting runfile-based import path via " << subject_path;
   if (absl::StatusOr<std::string> runfile_path =
-          GetXlsRunfilePath(absl::StrCat(GetXLSRootDir(), subject_path));
+          GetXlsRunfilePath(GetXLSRootDir() / subject_path);
       runfile_path.ok() && FileExists(*runfile_path).ok()) {
     return *runfile_path;
   }

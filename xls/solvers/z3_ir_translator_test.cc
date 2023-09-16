@@ -15,18 +15,26 @@
 #include "xls/solvers/z3_ir_translator.h"
 
 #include <cstdint>
+#include <initializer_list>
 #include <limits>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3.h"
 #include "../z3/src/api/z3_api.h"
@@ -1810,6 +1818,7 @@ fn f() -> bits[64] {
   ret udiv.3: bits[64] = udiv(literal.1, literal.2)
 }
 )";
+
   std::vector<std::pair<uint64_t, uint64_t>> test_cases{
       {0, 0},
       {1, 0},
@@ -1847,6 +1856,7 @@ fn f() -> bits[64] {
     Z3_solver_dec_ref(ctx, solver);
   }
 }
+
 TEST_F(Z3IrTranslatorTest, HandlesSDiv) {
   constexpr std::string_view tmpl = R"(
 package p
@@ -1857,53 +1867,40 @@ fn f() -> bits[64] {
   ret sdiv.3: bits[64] = sdiv(literal.1, literal.2)
 }
 )";
-  std::vector<std::pair<int64_t, int64_t>> test_cases{
-      {0, 0},
-      {1, 0},
-      {3, 0},
-      {std::numeric_limits<int64_t>::max(), 0},
-      {-1, 0},
-      {-3, 0},
-      {std::numeric_limits<int64_t>::min(), 0},
-      {0, 1},
-      {1, 1},
-      {3, 1},
-      {-3, 1},
-      {0, -1},
-      {1, -1},
-      {3, -1},
-      {-3, -1},
-      {std::numeric_limits<int64_t>::max(), 1},
-      {std::numeric_limits<int64_t>::min(), 1},
-      {4, 2},
-      {4, 3},
-      {std::numeric_limits<int64_t>::max(), 2},
-      {std::numeric_limits<int64_t>::min(), 2},
-      {1, std::numeric_limits<int64_t>::max()},
-  };
 
-  for (auto [test_case_lhs, test_case_rhs] : test_cases) {
-    std::string program = absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
-                             Parser::ParsePackage(program));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-    XLS_ASSERT_OK_AND_ASSIGN(auto translator,
-                             IrTranslator::CreateAndTranslate(f));
-    Z3_context ctx = translator->ctx();
-    Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
-    Bits lhs = SBits(test_case_lhs, 64);
-    Bits rhs = SBits(test_case_rhs, 64);
-    Bits expected_bits = bits_ops::SDiv(lhs, rhs);
+  constexpr int64_t kMinS64 = std::numeric_limits<int64_t>::min();
+  constexpr int64_t kMaxS64 = std::numeric_limits<int64_t>::max();
+  const std::initializer_list<int64_t> values{
+      kMinS64, kMinS64 + 1, -4, -3, -1, 0, 1, 3, 4, kMaxS64 - 1, kMaxS64};
 
-    Z3_ast expected = Z3_mk_int64(ctx, expected_bits.ToInt64().value(),
-                                  Z3_mk_bv_sort(ctx, 64));
-    Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
-    Z3_solver_assert(ctx, solver, objective);
-    Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
-    EXPECT_EQ(satisfiable, Z3_L_TRUE);
-    Z3_solver_dec_ref(ctx, solver);
+  for (int64_t test_case_lhs : values) {
+    for (int64_t test_case_rhs : values) {
+      const std::string program =
+          absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
+      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                               Parser::ParsePackage(program));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+      XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                               IrTranslator::CreateAndTranslate(f));
+      Z3_context ctx = translator->ctx();
+      Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+      Bits lhs = SBits(test_case_lhs, 64);
+      Bits rhs = SBits(test_case_rhs, 64);
+      Bits expected_bits = bits_ops::SDiv(lhs, rhs);
+
+      Z3_ast expected = Z3_mk_int64(ctx, expected_bits.ToInt64().value(),
+                                    Z3_mk_bv_sort(ctx, 64));
+      Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
+      Z3_solver_assert(ctx, solver, objective);
+      Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+      EXPECT_EQ(satisfiable, Z3_L_TRUE)
+          << test_case_lhs << " sdiv " << test_case_rhs << " -> expect "
+          << BitsToRawDigits(expected_bits, FormatPreference::kSignedDecimal);
+      Z3_solver_dec_ref(ctx, solver);
+    }
   }
 }
+
 TEST_F(Z3IrTranslatorTest, HandlesSDiv1BitWide) {
   // 1-bit sdivs are a bit of a special case because z3 conversion special-cases
   // rhs=0 to return MIN_INT and MAX_INT.
@@ -1946,5 +1943,95 @@ fn f() -> bits[1] {
   }
 }
 
+TEST_F(Z3IrTranslatorTest, HandlesUMod) {
+  constexpr std::string_view tmpl = R"(
+package p
+
+fn f() -> bits[64] {
+  literal.1: bits[64] = literal(value=$0)
+  literal.2: bits[64] = literal(value=$1)
+  ret umod.3: bits[64] = umod(literal.1, literal.2)
+}
+)";
+
+  constexpr uint64_t kMaxU64 = std::numeric_limits<uint64_t>::max();
+  const std::initializer_list<uint64_t> values{0, 1, 3, kMaxU64 - 1, kMaxU64};
+  for (uint64_t test_case_lhs : values) {
+    for (uint64_t test_case_rhs : values) {
+      const std::string program =
+          absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
+      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                               Parser::ParsePackage(program));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+      XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                               IrTranslator::CreateAndTranslate(f));
+      Z3_context ctx = translator->ctx();
+      Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+
+      // Result as coming from XLS bit ops library
+      const Bits lhs = UBits(test_case_lhs, 64);
+      const Bits rhs = UBits(test_case_rhs, 64);
+      const Bits expected_bits = bits_ops::UMod(lhs, rhs);
+      Z3_ast expected = Z3_mk_int64(ctx, expected_bits.ToInt64().value(),
+                                    Z3_mk_bv_sort(ctx, 64));
+
+      // ... compare with Z3 result
+      Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
+      Z3_solver_assert(ctx, solver, objective);
+      Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+      EXPECT_EQ(satisfiable, Z3_L_TRUE)
+          << test_case_lhs << " umod " << test_case_rhs << " -> expect "
+          << BitsToRawDigits(expected_bits, FormatPreference::kUnsignedDecimal);
+      Z3_solver_dec_ref(ctx, solver);
+    }
+  }
+}
+
+TEST_F(Z3IrTranslatorTest, HandlesSMod) {
+  constexpr std::string_view tmpl = R"(
+package p
+
+fn f() -> bits[64] {
+  literal.1: bits[64] = literal(value=$0)
+  literal.2: bits[64] = literal(value=$1)
+  ret smod.3: bits[64] = smod(literal.1, literal.2)
+}
+)";
+
+  constexpr int64_t kMinS64 = std::numeric_limits<int64_t>::min();
+  constexpr int64_t kMaxS64 = std::numeric_limits<int64_t>::max();
+  const std::initializer_list<int64_t> values{
+      kMinS64, kMinS64 + 1, -4, -3, -1, 0, 1, 3, 4, kMaxS64 - 1, kMaxS64};
+
+  for (int64_t test_case_lhs : values) {
+    for (int64_t test_case_rhs : values) {
+      const std::string program =
+          absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
+      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                               Parser::ParsePackage(program));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+      XLS_ASSERT_OK_AND_ASSIGN(auto translator,
+                               IrTranslator::CreateAndTranslate(f));
+      Z3_context ctx = translator->ctx();
+      Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+
+      // Result as coming from XLS bit ops library
+      const Bits lhs = SBits(test_case_lhs, 64);
+      const Bits rhs = SBits(test_case_rhs, 64);
+      const Bits expected_bits = bits_ops::SMod(lhs, rhs);
+      Z3_ast expected = Z3_mk_int64(ctx, expected_bits.ToInt64().value(),
+                                    Z3_mk_bv_sort(ctx, 64));
+
+      // ... compare with Z3 result
+      Z3_ast objective = Z3_mk_eq(ctx, translator->GetReturnNode(), expected);
+      Z3_solver_assert(ctx, solver, objective);
+      Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+      EXPECT_EQ(satisfiable, Z3_L_TRUE)
+          << test_case_lhs << " smod " << test_case_rhs << " -> expect "
+          << BitsToRawDigits(expected_bits, FormatPreference::kSignedDecimal);
+      Z3_solver_dec_ref(ctx, solver);
+    }
+  }
+}
 }  // namespace
 }  // namespace xls

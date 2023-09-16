@@ -18,12 +18,14 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -38,11 +40,13 @@ class SparsifySelectPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(FunctionBase* f) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed, SparsifySelectPass().RunOnFunctionBase(
-                                           f, PassOptions(), &results));
-    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunctionBase(f, PassOptions(), &results)
-                            .status());
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         SparsifySelectPass().RunOnFunctionBase(
+                             f, OptimizationPassOptions(), &results));
+    XLS_RETURN_IF_ERROR(
+        DeadCodeEliminationPass()
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+            .status());
     return changed;
   }
 };

@@ -14,11 +14,13 @@
 
 #include "xls/dslx/type_system/typecheck.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -26,10 +28,14 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -45,6 +51,7 @@
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/warning_kind.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -253,36 +260,6 @@ absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
 
   if (callee_name == "fail!" || callee_name == "cover!") {
     ctx->type_info()->NoteRequiresImplicitToken(caller, true);
-
-    if (callee_nameref->identifier() == "cover!") {
-      // Make sure that the coverpoint's identifier is valid in both Verilog
-      // and DSLX - notably, we don't support Verilog escaped strings.
-      // TODO(rspringer): 2021-05-26: Ensure only one instance of an identifier
-      // in a design.
-      String* identifier_node = dynamic_cast<String*>(invocation->args()[0]);
-      XLS_RET_CHECK(identifier_node != nullptr);
-      if (identifier_node->text().empty()) {
-        return InvalidIdentifierErrorStatus(
-            invocation->span(),
-            "An identifier must be specified with a cover! op.");
-      }
-
-      std::string identifier = identifier_node->text();
-      if (identifier[0] == '\\') {
-        return InvalidIdentifierErrorStatus(
-            invocation->span(), "Verilog escaped strings are not supported.");
-      }
-
-      // We don't support Verilog "escaped strings", so we only have to worry
-      // about regular identifier matching.
-      if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z0-9$_]*")) {
-        return InvalidIdentifierErrorStatus(
-            invocation->span(),
-            "A coverpoint identifier must start with a letter or underscore, "
-            "and otherwise consist of letters, digits, underscores, and/or "
-            "dollar signs.");
-      }
-    }
   }
 
   XLS_VLOG(5) << "Instantiating builtin parametric: "
@@ -297,8 +274,9 @@ absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
     Expr* arg = invocation->args()[argno];
 
     XLS_ASSIGN_OR_RETURN(
-        auto env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), arg,
-                                   ctx->fn_stack().back().parametric_env()));
+        auto env,
+        MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
+                         arg, ctx->fn_stack().back().parametric_env()));
 
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
@@ -350,6 +328,44 @@ absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
   // Special check for additional builin type constraints.
   if (callee_nameref->identifier() == "widening_cast") {
     XLS_RETURN_IF_ERROR(CheckIsAcceptableWideningCast(ctx, invocation));
+  }
+  // array_size is always a constexpr result since it just needs the type
+  // information
+  if (callee_nameref->identifier() == "array_size") {
+    auto* array_type = down_cast<const ArrayType*>(fn_type->params()[0].get());
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
+    ctx->type_info()->NoteConstExpr(invocation,
+                                    InterpValue::MakeU32(array_size));
+  }
+
+  if (callee_nameref->identifier() == "cover!") {
+    // Make sure that the coverpoint's identifier is valid in both Verilog
+    // and DSLX - notably, we don't support Verilog escaped strings.
+    // TODO(rspringer): 2021-05-26: Ensure only one instance of an identifier
+    // in a design.
+    String* identifier_node = dynamic_cast<String*>(invocation->args()[0]);
+    XLS_RET_CHECK(identifier_node != nullptr);
+    if (identifier_node->text().empty()) {
+      return InvalidIdentifierErrorStatus(
+          invocation->span(),
+          "An identifier must be specified with a cover! op.");
+    }
+
+    std::string identifier = identifier_node->text();
+    if (identifier[0] == '\\') {
+      return InvalidIdentifierErrorStatus(
+          invocation->span(), "Verilog escaped strings are not supported.");
+    }
+
+    // We don't support Verilog "escaped strings", so we only have to worry
+    // about regular identifier matching.
+    if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z0-9$_]*")) {
+      return InvalidIdentifierErrorStatus(
+          invocation->span(),
+          "A coverpoint identifier must start with a letter or underscore, "
+          "and otherwise consist of letters, digits, underscores, and/or "
+          "dollar signs.");
+    }
   }
 
   // fsignature returns a tab w/a fn type, not the fn return type (which is
@@ -523,7 +539,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
       }
     }
 
-    XLS_VLOG(2) << "Typechecking function: " << f->ToString();
+    XLS_VLOG(2) << "Typechecking function: `" << f->ToString() << "`";
     ScopedFnStackEntry scoped_entry(
         f, ctx, within_proc ? WithinProc::kYes : WithinProc::kNo);
     XLS_RETURN_IF_ERROR(CheckFunction(f, ctx));
@@ -571,6 +587,10 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
   } else if (std::holds_alternative<TestFunction*>(member)) {
     TestFunction* tf = std::get<TestFunction*>(member);
+    if (tf->fn()->IsParametric()) {
+      return TypeInferenceErrorStatus(tf->fn()->span(), nullptr,
+                                      "Test functions cannot be parametric.");
+    }
     ScopedFnStackEntry scoped_entry(tf->fn(), ctx, WithinProc::kNo);
     XLS_RETURN_IF_ERROR(CheckFunction(tf->fn(), ctx));
     scoped_entry.Finish();
@@ -585,6 +605,12 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     scoped.Finish();
     XLS_VLOG(2) << "Finished typechecking type alias: "
                 << type_alias->ToString();
+  } else if (std::holds_alternative<ConstAssert*>(member)) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
+  } else {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Unimplemented node for module-level typechecking: ",
+                     ToAstNode(member)->GetNodeTypeName()));
   }
 
   return absl::OkStatus();
@@ -633,7 +659,17 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
   for (int64_t i = 0; i < invocation->explicit_parametrics().size(); ++i) {
     ParametricBinding* binding = parametric_bindings[i];
     ExprOrType eot = invocation->explicit_parametrics()[i];
-    XLS_RET_CHECK(std::holds_alternative<Expr*>(eot));
+
+    // We cannot currently provide types to user-defined parametric functions.
+    if (!std::holds_alternative<Expr*>(eot)) {
+      auto* type_annotation = std::get<TypeAnnotation*>(eot);
+      return TypeInferenceErrorStatus(
+          type_annotation->span(), nullptr,
+          absl::StrFormat("Parametric function invocation `%s` cannot take "
+                          "type `%s` -- parametric must be an expression",
+                          invocation->ToString(), type_annotation->ToString()));
+    }
+
     auto* value = std::get<Expr*>(eot);
 
     XLS_VLOG(5) << "Populating callee parametric `" << binding->ToString()
@@ -654,8 +690,8 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     // referencing fn_stack::back is safe.
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
         parent_ctx->import_data(), parent_ctx->type_info(),
-        parent_ctx->fn_stack().back().parametric_env(), value,
-        value_type.get()));
+        parent_ctx->warnings(), parent_ctx->fn_stack().back().parametric_env(),
+        value, value_type.get()));
 
     // The value we're instantiating the function with must be constexpr -- we
     // can't instantiate with values determined at runtime, of course.
@@ -711,10 +747,112 @@ absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
   return orig;
 }
 
+static absl::Status WarnOnDefinedButUnused(Function* f, DeduceCtx* ctx) {
+  // We say we want types in case there are references in e.g. expressions
+  // within type annotations, say dimensions.
+  XLS_ASSIGN_OR_RETURN(std::vector<AstNode*> nodes,
+                       CollectUnder(f->body(), /*want_types=*/true));
+
+  // Note: we use pointer sets instead of using a btree with Span as the
+  // comparator because we want to avoid the case where nodes have the same span
+  // (e.g. via mistakes in span formation).
+  absl::flat_hash_set<const NameDef*> all_defs;
+  absl::flat_hash_set<const NameDef*> referenced_defs;
+
+  // Helper that unwraps an AnyNameDef and adds it to the referenced_def set if
+  // it is not a BuiltInNameDef.
+  auto reference_any_name_def = [&](const AnyNameDef& any_name_def) {
+    if (std::holds_alternative<const NameDef*>(any_name_def)) {
+      referenced_defs.insert(std::get<const NameDef*>(any_name_def));
+    }
+  };
+
+  // For every node in the body, see if it's a name definition or reference of
+  // some form, and handle it appropriately.
+  for (const AstNode* node : nodes) {
+    if (const NameDef* name_def = dynamic_cast<const NameDef*>(node)) {
+      all_defs.insert(name_def);
+    } else if (const NameRef* name_ref = dynamic_cast<const NameRef*>(node)) {
+      reference_any_name_def(name_ref->name_def());
+    } else if (const TypeRef* type_ref = dynamic_cast<const TypeRef*>(node)) {
+      reference_any_name_def(
+          TypeDefinitionGetNameDef(type_ref->type_definition()));
+    } else {
+      continue;  // Not relevant.
+    }
+  }
+
+  // Figure out which of the definitions were unreferenced.
+  absl::flat_hash_set<const NameDef*> unreferenced_defs;
+  for (const NameDef* def : all_defs) {
+    if (referenced_defs.contains(def)) {
+      continue;
+    }
+    unreferenced_defs.insert(def);
+  }
+
+  // Sort them for reporting stability.
+  std::vector<const NameDef*> to_warn(unreferenced_defs.begin(),
+                                      unreferenced_defs.end());
+  std::sort(
+      to_warn.begin(), to_warn.end(), [](const NameDef* a, const NameDef* b) {
+        return a->span() < b->span() ||
+               (a->span() == b->span() && a->identifier() < b->identifier());
+      });
+
+  // Warn on all the appropriate NameDefs that went unreferenced.
+  for (const NameDef* n : to_warn) {
+    if (absl::StartsWith(n->identifier(), "_")) {
+      // Users can silence unused warnings by prefixing an identifier with an
+      // underscore to make it more well documented; e.g.
+      //  let (one, _two, three) = ...;  // _two can go unused
+      continue;
+    }
+    std::optional<const ConcreteType*> type = ctx->type_info()->GetItem(n);
+    XLS_RET_CHECK(type.has_value()) << absl::StreamFormat(
+        "NameDef `%s` %p @ %s parent kind `%v` had no associated type "
+        "information in type info %p",
+        n->ToString(), n, n->span().ToString(), n->parent()->kind(),
+        ctx->type_info());
+    // For now tokens are implicitly joined at the end of a proc `next()`, so we
+    // don't warn on these.
+    if (type.value()->IsToken()) {
+      continue;
+    }
+    // TODO(leary): 2023-08-10 Struct instantiations currently bypass type
+    // aliases, so we don't have precise information here. I believe we need to
+    // hold a TypeRef in the StructInstance AST node.
+    if (n->parent()->kind() == AstNodeKind::kTypeAlias) {
+      continue;
+    }
+    ctx->warnings()->Add(
+        n->span(), WarningKind::kUnusedDefinition,
+        absl::StrFormat(
+            "Definition of `%s` (type `%s`) is not used in function `%s`",
+            n->identifier(), type.value()->ToString(), f->identifier()));
+  }
+
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   XLS_VLOG(2) << "Typechecking fn: " << f->identifier();
+
+  // See if the function is named with a `_test` suffix but not marked with a
+  // test annotation -- this is likely to be a user mistake, so we give a
+  // warning.
+  if (absl::EndsWith(f->identifier(), "_test")) {
+    AstNode* parent = f->parent();
+    if (parent == nullptr || parent->kind() != AstNodeKind::kTestFunction) {
+      ctx->warnings()->Add(
+          f->span(), WarningKind::kMisleadingFunctionName,
+          absl::StrFormat("Function `%s` ends with `_test` but is "
+                          "not marked as a unit test via #[test]",
+                          f->identifier()));
+    }
+  }
 
   // Every top-level proc needs its own type info (that's shared between both
   // proc functions). Otherwise, the implicit channels created during top-level
@@ -767,6 +905,8 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
                                     "Types cannot be returned from functions");
   }
   if (*return_type != *body_type) {
+    XLS_VLOG(5) << "return type: " << return_type->ToString()
+                << " body type: " << body_type->ToString();
     if (f->tag() == Function::Tag::kProcInit) {
       return ctx->TypeMismatchError(
           f->body()->span(), f->body(), *body_type, f->return_type(),
@@ -789,6 +929,10 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
                         f->identifier()));
   }
 
+  // Implementation note: we have to check for defined-but-unused values before
+  // we pop derived type info below.
+  XLS_RETURN_IF_ERROR(WarnOnDefinedButUnused(f, ctx));
+
   if (f->tag() != Function::Tag::kNormal) {
     // i.e., if this is a proc function.
     XLS_RETURN_IF_ERROR(original_ti->SetTopLevelProcTypeInfo(f->proc().value(),
@@ -805,7 +949,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
     XLS_ASSIGN_OR_RETURN(InterpValue init_value,
                          ConstexprEvaluator::EvaluateToValue(
                              ctx->import_data(), ctx->type_info(),
-                             ParametricEnv(), init->body()));
+                             ctx->warnings(), ParametricEnv(), init->body()));
     ctx->type_info()->NoteConstExpr(init->body(), init_value);
   }
 
@@ -822,13 +966,15 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   FunctionType function_type(std::move(param_types), std::move(body_type));
   ctx->type_info()->SetItem(f, function_type);
   ctx->type_info()->SetItem(f->name_def(), function_type);
+
   return absl::OkStatus();
 }
 
 absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation,
-    const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env) {
-  XLS_VLOG(3) << "Typechecking invocation: " << invocation->ToString();
+    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
+                              InterpValue>& constexpr_env) {
+  XLS_VLOG(3) << "Typechecking invocation: `" << invocation->ToString() << "`";
   Expr* callee = invocation->callee();
 
   Function* caller = ctx->fn_stack().back().f();
@@ -943,11 +1089,19 @@ absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
     }
   }
 
+  auto get_name_def =
+      [](std::variant<const Param*, const ProcMember*> v) -> NameDef* {
+    return absl::visit(
+        Visitor{[](const Param* n) { return n->name_def(); },
+                [](const ProcMember* n) { return n->name_def(); }},
+        v);
+  };
+
   // Mark params (for proc config fns) or proc members (for proc next fns) as
   // constexpr.
   for (const auto& [k, v] : constexpr_env) {
-    ctx->type_info()->NoteConstExpr(k, v);
-    ctx->type_info()->NoteConstExpr(k->name_def(), v);
+    ctx->type_info()->NoteConstExpr(ToAstNode(k), v);
+    ctx->type_info()->NoteConstExpr(get_name_def(k), v);
   }
 
   // Add the new parametric bindings to the constexpr set.
@@ -987,23 +1141,24 @@ absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
   if (annotated_return_type != *resolved_body_type) {
     XLS_VLOG(5) << "annotated_return_type: " << annotated_return_type
                 << " resolved_body_type: " << resolved_body_type->ToString();
+
     if (callee_fn->tag() == Function::Tag::kProcInit) {
       return ctx->TypeMismatchError(
-          callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-          *callee_tab.type,
+          callee_fn->body()->span(), callee_fn->body(), *resolved_body_type,
+          nullptr, annotated_return_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
     if (callee_fn->tag() == Function::Tag::kProcNext) {
       return ctx->TypeMismatchError(
-          callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-          *callee_tab.type,
+          callee_fn->body()->span(), callee_fn->body(), *resolved_body_type,
+          nullptr, annotated_return_type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
     return ctx->TypeMismatchError(
-        callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-        *callee_tab.type,
+        callee_fn->body()->span(), callee_fn->body(), *resolved_body_type,
+        nullptr, annotated_return_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
                         callee_fn->identifier()));
@@ -1083,7 +1238,7 @@ absl::StatusOr<std::optional<BuiltinType>> GetAsBuiltinType(
     }
 
     XLS_ASSIGN_OR_RETURN(uint64_t array_dim,
-                         array_dim_value.GetBitValueUint64());
+                         array_dim_value.GetBitValueUnsigned());
     if (array_dim_value.IsBits() && array_dim > 0 && array_dim <= 64) {
       return GetBuiltinType(builtin_type->builtin_type() == BuiltinType::kSN,
                             array_dim);

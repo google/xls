@@ -16,6 +16,13 @@
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
+    "//xls/build_rules:xls_codegen_rules.bzl",
+    "append_xls_ir_verilog_generated_files",
+    "get_xls_ir_verilog_generated_files",
+    "xls_ir_verilog_attrs",
+    "xls_ir_verilog_impl",
+)
+load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_default_to_args",
     "args_to_string",
@@ -27,7 +34,6 @@ load(
     "CONFIG",
     "enable_generated_file_wrapper",
 )
-load("//xls/build_rules:xls_providers.bzl", "ConvIRInfo")
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
     "append_xls_ir_opt_ir_generated_files",
@@ -35,13 +41,7 @@ load(
     "xls_ir_opt_ir_attrs",
     "xls_ir_opt_ir_impl",
 )
-load(
-    "//xls/build_rules:xls_codegen_rules.bzl",
-    "append_xls_ir_verilog_generated_files",
-    "get_xls_ir_verilog_generated_files",
-    "xls_ir_verilog_attrs",
-    "xls_ir_verilog_impl",
-)
+load("//xls/build_rules:xls_providers.bzl", "ConvIRInfo")
 load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
 load(
     "//xls/build_rules:xls_type_check_helpers.bzl",
@@ -50,12 +50,10 @@ load(
     "list_type_check",
     "string_type_check",
 )
-
-XlsccInfo = provider(
-    doc = "A provider containing transitive XLScc source deps",
-    fields = {
-        "cc_headers": "XLScc headers",
-    },
+load(
+    "//xls/contrib/xlscc/build_rules:xlscc_providers.bzl",
+    "XlsccIncludeInfo",
+    "XlsccInfo",
 )
 
 _CC_FILE_EXTENSION = ".cc"
@@ -188,6 +186,7 @@ def _xls_cc_ir_impl(ctx):
         "defines",
         "include_dirs",
         "meta_out",
+        "meta_out_text",
         "block_from_class",
     )
 
@@ -196,9 +195,15 @@ def _xls_cc_ir_impl(ctx):
         _DEFAULT_XLSCC_ARGS,
     )
 
+    include_dirs = depset(transitive = [
+        dep[XlsccIncludeInfo].include_dir
+        for dep in ctx.attr.src_deps
+        if XlsccIncludeInfo in dep
+    ])
+
     # Append to user paths.
     xlscc_args["include_dirs"] = (
-        xlscc_args.get("include_dirs", "") + ",${PWD},./," +
+        xlscc_args.get("include_dirs", "") + "," + ",".join(include_dirs.to_list()) + ",${PWD},./," +
         ctx.genfiles_dir.path + "," + ctx.bin_dir.path + "," +
         "xls/contrib/xlscc/synth_only," +
         "xls/contrib/xlscc/synth_only/ac_compat," +
@@ -239,6 +244,11 @@ def _xls_cc_ir_impl(ctx):
         outputs.append(meta_pb_file)
         meta_out_flag = "--meta_out " + meta_pb_file.path
 
+    meta_out_text_flag = ""
+    metadata_out_text = getattr(ctx.attr, "meta_out_text")
+    if metadata_out_text:
+        meta_out_text_flag = "--meta_out_text"
+
     # Get runfiles
     runfiles = _get_runfiles_for_xls_cc_ir(ctx)
 
@@ -250,12 +260,13 @@ def _xls_cc_ir_impl(ctx):
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
         inputs = runfiles.files,
-        command = "{} {} --block_pb {} {} {} {} > {}".format(
+        command = "{} {} --block_pb {} {} {} {} {} > {}".format(
             ctx.executable._xlscc_tool.path,
             ctx.file.src.path,
             block_pb,
             block_from_class_flag,
             meta_out_flag,
+            meta_out_text_flag,
             my_args,
             ir_file.path,
         ),
@@ -319,6 +330,11 @@ _xls_cc_ir_attrs = {
     ),
     "metadata_out": attr.output(
         doc = "Filename of the generated metadata protobuf",
+        mandatory = False,
+    ),
+    "meta_out_text": attr.bool(
+        doc = "Whether the generated metadata protobuf should output as a text protobuf",
+        default = False,
         mandatory = False,
     ),
     "_xlscc_tool": attr.label(
@@ -568,7 +584,7 @@ def xls_cc_verilog_macro(
         **kwargs):
     """A macro that instantiates a build rule generating a Verilog file from a C/C++ source file.
 
-    The macro instantiates a build rule that generates an Verilog file from
+    The macro instantiates a build rule that generates a Verilog file from
     a DSLX source file. The build rule executes the core functionality of
     following macros:
 

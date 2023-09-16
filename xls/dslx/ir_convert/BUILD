@@ -45,13 +45,13 @@ cc_test(
         ":ir_conversion_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_expression",
         "//xls/ir",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -72,6 +72,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/type_system:parametric_env",
@@ -93,11 +94,13 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:casts",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
         "//xls/ir",
@@ -106,7 +109,6 @@ cc_test(
         "//xls/ir:channel_cc_proto",
         "//xls/ir:channel_ops",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -122,12 +124,13 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:golden_files",
         "//xls/common:init_xls",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -140,6 +143,9 @@ filegroup(
 cc_library(
     name = "convert_options",
     hdrs = ["convert_options.h"],
+    deps = [
+        "//xls/dslx:warning_kind",
+    ],
 )
 
 cc_library(
@@ -171,6 +177,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
         "//xls/dslx:mangle",
+        "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtins_metadata",
@@ -180,6 +187,7 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:foreign_function",
         "//xls/ir:format_strings",
         "//xls/ir:function_builder",
         "//xls/ir:op",
@@ -194,13 +202,13 @@ cc_test(
     srcs = ["function_converter_test.cc"],
     deps = [
         ":function_converter",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -279,11 +287,11 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -309,11 +317,13 @@ cc_binary(
         ":ir_converter",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/status:status_macros",
+        "//xls/dslx:default_dslx_stdlib_path",
+        "//xls/dslx:warning_kind",
         "//xls/ir",
     ],
 )

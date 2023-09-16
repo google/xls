@@ -28,5 +28,4 @@ fn main_test() {
   let ps: Point[2] = [p0, p1];
   assert_eq(p0, main(ps, u1:0));
   assert_eq(p1, main(ps, u1:1));
-  ()
 }

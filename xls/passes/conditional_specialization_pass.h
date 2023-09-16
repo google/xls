@@ -17,25 +17,25 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
 // Pass which specializes arms of select operations based on their selector
 // value.
-class ConditionalSpecializationPass : public FunctionBasePass {
+class ConditionalSpecializationPass : public OptimizationFunctionBasePass {
  public:
   // If `use_bdd` is true, then binary decision diagrams (BDDs) are used for
   // stronger analysis at the cost of slower transformation.
   explicit ConditionalSpecializationPass(bool use_bdd)
-      : FunctionBasePass("cond_spec", "Conditional specialization"),
+      : OptimizationFunctionBasePass("cond_spec", "Conditional specialization"),
         use_bdd_(use_bdd) {}
   ~ConditionalSpecializationPass() override = default;
 
  protected:
   bool use_bdd_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

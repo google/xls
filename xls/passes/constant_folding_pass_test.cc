@@ -19,12 +19,14 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -39,12 +41,14 @@ class ConstantFoldingPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed, ConstantFoldingPass().RunOnFunctionBase(
-                                           f, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         ConstantFoldingPass().RunOnFunctionBase(
+                             f, OptimizationPassOptions(), &results));
     // Run dce to clean things up.
-    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunctionBase(f, PassOptions(), &results)
-                            .status());
+    XLS_RETURN_IF_ERROR(
+        DeadCodeEliminationPass()
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+            .status());
     // Return whether constant folding changed anything.
     return changed;
   }
@@ -130,7 +134,22 @@ TEST_F(ConstantFoldingPassTest, EmptyTuple) {
   EXPECT_THAT(f->return_value(), m::Literal(Value::Tuple({})));
 }
 
-TEST_F(ConstantFoldingPassTest, GateOp) {
+TEST_F(ConstantFoldingPassTest, GateOpFalse) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn gate_op() -> bits[32] {
+        cond: bits[1] = literal(value=0)
+        data: bits[32] = literal(value=42)
+        ret result: bits[32] = gate(cond, data)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Gate(m::Literal(), m::Literal()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 32)));
+}
+
+TEST_F(ConstantFoldingPassTest, GateOpTrue) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn gate_op() -> bits[32] {
@@ -141,8 +160,8 @@ TEST_F(ConstantFoldingPassTest, GateOp) {
   )",
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::Gate(m::Literal(), m::Literal()));
-  EXPECT_THAT(Run(f), IsOkAndHolds(false));
-  EXPECT_THAT(f->return_value(), m::Gate(m::Literal(), m::Literal()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(42, 32)));
 }
 
 }  // namespace

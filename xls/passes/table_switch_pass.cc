@@ -13,12 +13,21 @@
 // limitations under the License.
 #include "xls/passes/table_switch_pass.h"
 
+#include <algorithm>
+#include <limits>
+#include <optional>
+#include <vector>
+
 #include "absl/status/statusor.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -248,7 +257,8 @@ static absl::StatusOr<std::optional<Value>> LinksToTable(
 }
 
 absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   absl::flat_hash_set<Node*> transformed;
   for (Node* node : ReverseTopoSort(f)) {

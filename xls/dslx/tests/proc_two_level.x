@@ -27,7 +27,6 @@ proc doubler {
   next(tok: token, state: ()) {
     let (tok, input) = recv(tok, r);
     let tok = send(tok, s, input * u32:2);
-    ()
   }
 }
 
@@ -90,6 +89,5 @@ proc test_proc {
     trace!(res);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }

@@ -16,7 +16,7 @@ import std
 
 // Rotates the nibbles in the u8.
 fn main(x: u8) -> u8 {
-  for (i, x): (u4, u8) in u4:0..u4:4 {
+  for (_, x): (u4, u8) in u4:0..u4:4 {
     std::rrot(x, u8:1)
   }(x)
 }
@@ -27,5 +27,4 @@ fn main_test() {
   assert_eq(u8:0xdc, main(u8:0xcd));
   assert_eq(u8:0x55, main(u8:0x55));
   assert_eq(u8:0xaa, main(u8:0xaa));
-  ()
 }

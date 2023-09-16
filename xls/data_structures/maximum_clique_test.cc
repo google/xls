@@ -14,7 +14,10 @@
 
 #include "xls/data_structures/maximum_clique.h"
 
+#include <functional>
 #include <random>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -14,6 +14,9 @@
 
 #include "xls/solvers/z3_lec.h"
 
+#include <string>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "google/protobuf/text_format.h"
 #include "pybind11/pybind11.h"

@@ -18,6 +18,8 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/scheduling/scheduling_options.h"

@@ -54,6 +54,4 @@ fn reductions() {
 
   let xor4 = uN[32]:0xb5a5a5a5;
   assert_eq(uN[1]:1, xor_reduce(xor4));
-
-  ()
 }

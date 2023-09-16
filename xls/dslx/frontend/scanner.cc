@@ -28,61 +28,17 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 
-absl::StatusOr<int64_t> Token::GetValueAsInt64() const {
-  std::optional<std::string> value = GetValue();
-  if (!value) {
-    return absl::InvalidArgumentError(
-        "Token does not have a (string) value; cannot convert to int64_t.");
-  }
-  int64_t result;
-  if (absl::SimpleAtoi(*value, &result)) {
-    return result;
-  }
-  return absl::InvalidArgumentError("Could not convert value to int64_t: " +
-                                    *value);
-}
-
-std::string Token::ToErrorString() const {
-  if (kind_ == TokenKind::kKeyword) {
-    return absl::StrFormat("keyword:%s", KeywordToString(GetKeyword()));
-  }
-  return TokenKindToString(kind_);
-}
-
-std::string Token::ToString() const {
-  if (kind() == TokenKind::kKeyword) {
-    return KeywordToString(GetKeyword());
-  }
-  if (kind() == TokenKind::kComment) {
-    return absl::StrCat("//", GetValue().value());
-  }
-  if (kind() == TokenKind::kCharacter) {
-    return absl::StrCat("'", GetValue().value(), "'");
-  }
-  if (GetValue().has_value()) {
-    return GetValue().value();
-  }
-  return TokenKindToString(kind_);
-}
-
-std::string Token::ToRepr() const {
-  if (kind_ == TokenKind::kKeyword) {
-    return absl::StrFormat("Token(%s, %s)", span_.ToRepr(),
-                           KeywordToString(GetKeyword()));
-  }
-  if (GetValue().has_value()) {
-    return absl::StrFormat("Token(%s, %s, \"%s\")", TokenKindToString(kind_),
-                           span_.ToRepr(), GetValue().value());
-  }
-  return absl::StrFormat("Token(%s, %s)", TokenKindToString(kind_),
-                         span_.ToRepr());
+absl::Status ScanErrorStatus(const Span& span, std::string_view message) {
+  return absl::InvalidArgumentError(
+      absl::StrFormat("ScanError: %s %s", span.ToString(), message));
 }
 
 char Scanner::PopChar() {
@@ -135,7 +91,7 @@ absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
 
 // This is too simple to need to return absl::Status. Just never call it
 // with a non-hex character.
-static int HexCharToInt(char hex_char) {
+static uint8_t HexCharToU8(char hex_char) {
   if (std::isdigit(hex_char) != 0) {
     return hex_char - '0';
   }
@@ -150,6 +106,7 @@ static int HexCharToInt(char hex_char) {
 
 // Returns the next character literal.
 absl::StatusOr<char> Scanner::ScanCharLiteral() {
+  const Pos start_pos = GetPos();
   char current = PopChar();
   if (current != '\\' || AtCharEof()) {
     return current;
@@ -178,49 +135,64 @@ absl::StatusOr<char> Scanner::ScanCharLiteral() {
   }
   if (next == '\'') {
     DropChar();
-    return '\x27';  // Single quote/apostraphe.
+    return '\x27';  // Single quote/apostrophe.
   }
   if (next == '"') {
     DropChar();
-    return '\x22';  // Double quote/apostraphe.
+    return '\x22';  // Double quote/apostrophe.
   }
   if (next == 'x') {
     // Hex character code. Now read [exactly] two more digits.
     DropChar();
+
     uint8_t code = 0;
     for (int i = 0; i < 2; i++) {
+      if (AtEof()) {
+        return ScanErrorStatus(
+            Span(start_pos, GetPos()),
+            "Unexpected EOF in escaped hexadecimal character.");
+      }
       next = PeekChar();
       if (!absl::ascii_isxdigit(next)) {
-        return absl::InvalidArgumentError(
+        return ScanErrorStatus(
+            Span(start_pos, GetPos()),
             "Only hex digits are allowed within a 7-bit character code.");
       }
-      code = (code << 4) | HexCharToInt(next);
+      code = static_cast<uint8_t>((code << 4) | HexCharToU8(next));
       DropChar();
     }
 
     return code & 255;
   }
-  return absl::InvalidArgumentError(
-      absl::StrCat("Unrecognized escape sequence: \\", std::string(1, next)));
+  return ScanErrorStatus(Span(start_pos, GetPos()),
+                         absl::StrCat("Unrecognized escape sequence: `\\",
+                                      std::string(1, next), "`"));
 }
 
 // Returns a string with the next "character" in the string. A string is
 // returned instead of a "char", since multi-byte Unicode characters are valid
 // constituents of a string.
 absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
+  const Pos start_pos = GetPos();
   if (PeekChar() == '\\' && PeekChar2OrNull() == 'u') {
     // Unicode character code.
     DropChar();
     DropChar();
+    if (AtEof()) {
+      return ScanErrorStatus(Span(start_pos, GetPos()),
+                             "Unexpected EOF in escaped unicode character.");
+    }
     if (PeekChar() != '{') {
-      return absl::InvalidArgumentError(
+      return ScanErrorStatus(
+          Span(start_pos, GetPos()),
           "Unicode character code escape sequence start (\\u) "
           "must be followed by a character code, such as \"{...}\".");
     }
     DropChar();
+
     // At most 6 hex digits allowed.
     std::string unicode;
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 6 && !AtEof(); i++) {
       char next = PeekChar();
       if (absl::ascii_isxdigit(next)) {
         absl::StrAppend(&unicode, std::string(1, next));
@@ -228,35 +200,45 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
       } else if (next == '}') {
         break;
       } else {
-        return absl::InvalidArgumentError(
+        return ScanErrorStatus(
+            Span(start_pos, GetPos()),
             "Only hex digits are allowed within a Unicode character code.");
       }
     }
-    if (PeekChar() != '}') {
-      return absl::InvalidArgumentError(
+    if (AtEof() || PeekChar() != '}') {
+      return ScanErrorStatus(
+          Span(start_pos, GetPos()),
           "Unicode character code escape sequence must terminate "
           "(after 6 digits at most) with a '}'");
     }
     DropChar();
 
     if (unicode.empty()) {
-      return absl::InvalidArgumentError(
+      return ScanErrorStatus(
+          Span(start_pos, GetPos()),
           "Unicode escape must contain at least one character.");
     }
 
     // Add padding and unicode escape characters to conform with
     // absl::CUnescape.
-    if (unicode.size() < 4) {
-      unicode.insert(0, 4 - unicode.size(), '0');
-      unicode.insert(0, R"(\u)");
-    } else if (unicode.size() < 8) {
-      unicode.insert(0, 8 - unicode.size(), '0');
-      unicode.insert(0, R"(\U)");
+    std::string to_unescape;
+    if (unicode.size() <= 4) {
+      to_unescape = "\\u";
+      to_unescape.insert(to_unescape.size(), 4 - unicode.size(), '0');
+      to_unescape += unicode;
+    } else {
+      XLS_RET_CHECK(unicode.size() <= 8);
+      to_unescape = "\\U";
+      to_unescape.insert(to_unescape.size(), 8 - unicode.size(), '0');
+      to_unescape += unicode;
     }
 
     std::string utf8;
-    if (!absl::CUnescape(unicode, &utf8)) {
-      return absl::InvalidArgumentError(
+    if (!absl::CUnescape(to_unescape, &utf8)) {
+      // Note: we report the error using the characters the user provided
+      // instead of what we created to feed CUnescape.
+      return ScanErrorStatus(
+          Span(start_pos, GetPos()),
           absl::StrFormat("Invalid unicode sequence: '%s'.",
                           absl::StrCat(R"(\u{)", unicode, "}")));
     }
@@ -267,18 +249,21 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
 }
 
 absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
+  const Pos start_pos = GetPos();
+
   std::string result;
   while (!AtCharEof() && PeekChar() != '\"') {
     XLS_ASSIGN_OR_RETURN(std::string next, ProcessNextStringChar());
     absl::StrAppend(&result, next);
   }
 
-  if (PeekChar() == '"') {
-    return result;
+  if (AtEof()) {
+    return ScanErrorStatus(
+        Span(start_pos, GetPos()),
+        "Reached end of file without finding a closing double quote.");
   }
 
-  return absl::InvalidArgumentError(
-      "Consumed all input without finding a closing double quote.");
+  return result;
 }
 
 /* static */ std::optional<Keyword> Scanner::GetKeyword(std::string_view s) {
@@ -339,25 +324,25 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
              ('A' <= c && c <= 'F') || c == '_';
     });
     if (s == "0x") {
-      return ScanError(Span(GetPos(), GetPos()),
-                       "Expected hex characters following 0x prefix.");
+      return ScanErrorStatus(Span(GetPos(), GetPos()),
+                             "Expected hex characters following 0x prefix.");
     }
   } else if (startc == '0' && TryDropChar('b')) {  // Bin prefix.
     s = ScanWhile("0b",
                   [](char c) { return ('0' <= c && c <= '1') || c == '_'; });
     if (s == "0b") {
-      return ScanError(Span(GetPos(), GetPos()),
-                       "Expected binary characters following 0b prefix");
+      return ScanErrorStatus(Span(GetPos(), GetPos()),
+                             "Expected binary characters following 0b prefix");
     }
     if (!AtEof() && '0' <= PeekChar() && PeekChar() <= '9') {
-      return ScanError(
+      return ScanErrorStatus(
           Span(GetPos(), GetPos()),
           absl::StrFormat("Invalid digit for binary number: '%c'", PeekChar()));
     }
   } else {
     s = ScanWhile(startc, [](char c) { return std::isdigit(c) != 0; });
     if (absl::StartsWith(s, "0") && s.size() != 1) {
-      return ScanError(
+      return ScanErrorStatus(
           Span(GetPos(), GetPos()),
           "Invalid radix for number, expect 0b or 0x because of leading 0.");
     }
@@ -368,49 +353,6 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
     s = "-" + s;
   }
   return Token(TokenKind::kNumber, Span(start_pos, GetPos()), s);
-}
-
-std::string KeywordToString(Keyword keyword) {
-  switch (keyword) {
-#define MAKE_CASE(__enum, unused, __str, ...) \
-  case Keyword::__enum:                       \
-    return __str;
-    XLS_DSLX_KEYWORDS(MAKE_CASE)
-#undef MAKE_CASE
-  }
-  return absl::StrFormat("<invalid Keyword(%d)>", static_cast<int>(keyword));
-}
-
-std::optional<Keyword> KeywordFromString(std::string_view s) {
-#define MAKE_CASE(__enum, unused, __str, ...) \
-  if (s == __str) {                           \
-    return Keyword::__enum;                   \
-  }
-  XLS_DSLX_KEYWORDS(MAKE_CASE)
-#undef MAKE_CASE
-  return std::nullopt;
-}
-
-std::string TokenKindToString(TokenKind kind) {
-  switch (kind) {
-#define MAKE_CASE(__enum, unused, __str, ...) \
-  case TokenKind::__enum:                     \
-    return __str;
-    XLS_DSLX_TOKEN_KINDS(MAKE_CASE)
-#undef MAKE_CASE
-  }
-  return absl::StrFormat("<invalid TokenKind(%d)>", static_cast<int>(kind));
-}
-
-absl::StatusOr<TokenKind> TokenKindFromString(std::string_view s) {
-#define MAKE_CASE(__enum, unused, __str, ...) \
-  if (s == __str) {                           \
-    return TokenKind::__enum;                 \
-  }
-  XLS_DSLX_TOKEN_KINDS(MAKE_CASE)
-#undef MAKE_CASE
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Not a token kind: \"%s\"", s));
 }
 
 bool Scanner::AtWhitespace() const {
@@ -447,15 +389,16 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
   const char open_quote = PopChar();
   XLS_CHECK_EQ(open_quote, '\'');
   if (AtCharEof()) {
-    return ScanError(Span(GetPos(), GetPos()),
-                     "Expected character after single quote, saw end of file.");
+    return ScanErrorStatus(
+        Span(GetPos(), GetPos()),
+        "Expected character after single quote, saw end of file.");
   }
   XLS_ASSIGN_OR_RETURN(char c, ScanCharLiteral());
   if (AtCharEof() || !TryDropChar('\'')) {
     std::string msg = absl::StrFormat(
         "Expected closing single quote for character literal; got %s",
         AtCharEof() ? std::string("end of file") : std::string(1, PeekChar()));
-    return ScanError(Span(GetPos(), GetPos()), msg);
+    return ScanErrorStatus(Span(GetPos(), GetPos()), msg);
   }
   return Token(TokenKind::kCharacter, Span(start_pos, GetPos()),
                std::string(1, c));
@@ -587,6 +530,7 @@ absl::StatusOr<Token> Scanner::Pop() {
     case ',': DropChar(); result = Token(TokenKind::kComma, mk_span()); break;  // NOLINT
     case ';': DropChar(); result = Token(TokenKind::kSemi, mk_span()); break;  // NOLINT
     case '*': DropChar(); result = Token(TokenKind::kStar, mk_span()); break;  // NOLINT
+    case '%': DropChar(); result = Token(TokenKind::kPercent, mk_span()); break;  // NOLINT
     case '^': DropChar(); result = Token(TokenKind::kHat, mk_span()); break;  // NOLINT
     case '/': DropChar(); result = Token(TokenKind::kSlash, mk_span()); break;  // NOLINT
     case '"': DropChar(); result = Token(TokenKind::kDoubleQuote, mk_span()); break;  // NOLINT
@@ -606,25 +550,15 @@ absl::StatusOr<Token> Scanner::Pop() {
           result = Token(TokenKind::kMinus, mk_span());
         }
       } else {
-        return ScanError(Span(GetPos(), GetPos()),
-                         absl::StrFormat("Unrecognized character: '%c' (%#x)",
-                                         startc, startc));
+        return ScanErrorStatus(
+            Span(GetPos(), GetPos()),
+            absl::StrFormat("Unrecognized character: '%c' (%#x)", startc,
+                            startc));
       }
   }
 
   XLS_CHECK(result.has_value());
   return std::move(result).value();
-}
-
-const absl::flat_hash_set<Keyword>& GetTypeKeywords() {
-  static const absl::flat_hash_set<Keyword>* singleton = ([] {
-    auto* s = new absl::flat_hash_set<Keyword>;
-#define ADD_TO_SET(__enum, ...) s->insert(Keyword::__enum);
-    XLS_DSLX_TYPE_KEYWORDS(ADD_TO_SET)
-#undef ADD_TO_SET
-    return s;
-  })();
-  return *singleton;
 }
 
 }  // namespace xls::dslx

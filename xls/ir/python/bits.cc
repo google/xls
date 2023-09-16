@@ -14,6 +14,10 @@
 
 #include "xls/ir/bits.h"
 
+#include <tuple>
+#include <utility>
+#include <vector>
+
 #include "absl/strings/str_format.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"

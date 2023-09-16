@@ -15,6 +15,9 @@
 #include "xls/noc/config_ng/network_component_utils.h"
 
 #include <queue>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

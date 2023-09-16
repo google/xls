@@ -35,9 +35,11 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/ir:bits_ops",
     ],
 )
 
@@ -48,9 +50,9 @@ cc_test(
         ":concrete_type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -83,6 +85,7 @@ cc_library(
         ":concrete_type_zero_value",
         ":deduce_ctx",
         ":parametric_constraint",
+        ":parametric_env",
         ":parametric_instantiator",
         ":type_and_parametric_env",
         ":unwrap_meta_type",
@@ -99,15 +102,22 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:casts",
         "//xls/common:visitor",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:token_utils",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
     ],
 )
 
@@ -133,13 +143,22 @@ cc_library(
         ":parametric_constraint",
         ":parametric_env",
         ":type_and_parametric_env",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
     ],
 )
@@ -154,19 +173,11 @@ cc_library(
         ":parametric_constraint",
         ":parametric_instantiator_internal",
         ":type_and_parametric_env",
-        ":type_info",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/dslx:constexpr_evaluator",
-        "//xls/dslx:errors",
-        "//xls/dslx/bytecode:bytecode_emitter",
-        "//xls/dslx/bytecode:bytecode_interpreter",
+        "//xls/common/logging",
     ],
 )
 
@@ -206,13 +217,17 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:dslx_builtins",
         "//xls/dslx:errors",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
@@ -230,7 +245,7 @@ cc_library(
     deps = [
         ":type_info_to_proto",
         ":typecheck",
-        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
@@ -241,18 +256,21 @@ cc_test(
     name = "typecheck_test",
     srcs = ["typecheck_test.cc"],
     deps = [
+        ":concrete_type",
         ":typecheck",
         ":typecheck_test_helpers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
+        "//xls/dslx:error_test_utils",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -264,13 +282,13 @@ cc_test(
         ":typecheck_test_helpers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -294,8 +312,8 @@ cc_test(
     deps = [
         ":parametric_expression",
         "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -351,6 +369,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common:proto_adaptor_utils",
         "//xls/dslx:import_data",
+        "//xls/dslx/frontend:ast_node",
     ],
 )
 
@@ -363,13 +382,13 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "//xls/common:golden_files",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -409,9 +428,9 @@ cc_test(
     deps = [
         ":type_info",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -423,7 +442,7 @@ cc_library(
         ":concrete_type",
         ":deduce_ctx",
         "//xls/common/status:ret_check",
-        "//xls/dslx:errors",
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:pos",
     ],
 )
@@ -434,9 +453,9 @@ cc_test(
     deps = [
         ":parametric_bind",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -459,18 +478,20 @@ cc_binary(
     srcs = ["typecheck_main.cc"],
     deps = [
         ":type_info_to_proto",
-        ":typecheck",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_kind",
     ],
 )
 

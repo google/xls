@@ -17,7 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -27,15 +27,16 @@ namespace xls {
 //   eq(x, 0) && ne(x, 1) => eq(x, 0)
 //   eq(x, 0) && ne(x, 0) => 0
 //   eq(x, 0) || ne(x, 0) => 1
-class ComparisonSimplificationPass : public FunctionBasePass {
+class ComparisonSimplificationPass : public OptimizationFunctionBasePass {
  public:
   ComparisonSimplificationPass()
-      : FunctionBasePass("comparison_simp", "Comparison Simplification") {}
+      : OptimizationFunctionBasePass("comparison_simp",
+                                     "Comparison Simplification") {}
   ~ComparisonSimplificationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

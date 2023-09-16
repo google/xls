@@ -20,28 +20,36 @@
 #include <vector>
 
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 
 // Type-safe wrapper around a vector for accumulating warnings during the
 // frontend processing of DSL files.
 //
-// Implementation note: this may grow filtering mechanisms a la `-Wno-X` which
-// is why we spring for a type safe wrapper around of the gate.
+// The WarningKindSet given on construction determines what errors are enabled
+// -- all non-enabled errors are dropped when they're attempted to be added to
+// the collector.
 class WarningCollector {
  public:
   struct Entry {
     Span span;
+    WarningKind kind;
     std::string message;
   };
 
-  void Add(Span span, std::string message) {
-    warnings_.push_back(Entry{std::move(span), std::move(message)});
+  explicit WarningCollector(WarningKindSet enabled) : enabled_(enabled) {}
+
+  void Add(Span span, WarningKind kind, std::string message) {
+    if (WarningIsEnabled(enabled_, kind)) {
+      warnings_.push_back(Entry{std::move(span), kind, std::move(message)});
+    }
   }
 
   const std::vector<Entry>& warnings() const { return warnings_; }
 
  private:
+  const WarningKindSet enabled_;
   std::vector<Entry> warnings_;
 };
 

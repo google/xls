@@ -30,5 +30,4 @@ fn parametric_smul() {
   assert_eq(s5:6, smul_s2_s3(s2:-2, s3:-3));
   assert_eq(s5:-6, smul_s2_s3(s2:-2, s3:3));
   assert_eq(s7:-7, smul_s3_s4(s3:-1, s4:7));
-  ()
 }

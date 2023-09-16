@@ -14,6 +14,11 @@
 
 #include "xls/jit/function_jit.h"
 
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -132,9 +137,9 @@ absl::Status FunctionJit::RunWithViews(absl::Span<uint8_t* const> args,
   return absl::OkStatus();
 }
 
-void FunctionJit::InvokeJitFunction(absl::Span<uint8_t* const> arg_buffers,
-                                    uint8_t* output_buffer,
-                                    InterpreterEvents* events) {
+void FunctionJit::InvokeJitFunction(
+    absl::Span<const uint8_t* const> arg_buffers, uint8_t* output_buffer,
+    InterpreterEvents* events) {
   uint8_t* output_buffers[1] = {output_buffer};
   jitted_function_base_.function(
       arg_buffers.data(), output_buffers, temp_buffer_.data(), events,

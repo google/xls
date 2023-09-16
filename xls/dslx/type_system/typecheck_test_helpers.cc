@@ -14,13 +14,19 @@
 
 #include "xls/dslx/type_system/typecheck_test_helpers.h"
 
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/status/statusor.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info_to_proto.h"
 
 namespace xls::dslx {
 
-absl::Status Typecheck(std::string_view text, TypecheckedModule* tm_out) {
+absl::StatusOr<TypecheckedModule> Typecheck(std::string_view text) {
   auto import_data = CreateImportDataForTest();
   auto tm_or = ParseAndTypecheck(text, "fake.x", "fake", &import_data);
   if (!tm_or.ok()) {
@@ -31,13 +37,11 @@ absl::Status Typecheck(std::string_view text, TypecheckedModule* tm_out) {
     return tm_or.status();
   }
   TypecheckedModule& tm = tm_or.value();
-  if (tm_out != nullptr) {
-    *tm_out = tm;
-  }
   // Ensure that we can convert all the type information in the unit tests into
   // its protobuf form.
   XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm.type_info).status());
-  return absl::Status();
+
+  return std::move(tm);
 }
 
 }  // namespace xls::dslx

@@ -14,13 +14,20 @@
 
 #include "xls/scheduling/pipeline_schedule.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/fdo/delay_manager.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
@@ -28,9 +35,11 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace m = ::xls::op_matchers;
@@ -55,7 +64,7 @@ TEST_F(PipelineScheduleTest, SelectsEntry) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, TestDelayEstimator(), options));
+      RunPipelineSchedule(f, TestDelayEstimator(), options));
   EXPECT_EQ(schedule.length(), 1);
   EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Param()));
 
@@ -64,7 +73,7 @@ TEST_F(PipelineScheduleTest, SelectsEntry) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f_2, fb_2.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      schedule, PipelineSchedule::Run(f_2, TestDelayEstimator(), options));
+      schedule, RunPipelineSchedule(f_2, TestDelayEstimator(), options));
   EXPECT_EQ(schedule.length(), 1);
   EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Literal()));
 }
@@ -77,7 +86,7 @@ TEST_F(PipelineScheduleTest, AsapScheduleTrivial) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(
+      RunPipelineSchedule(
           f, TestDelayEstimator(),
           SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(2)));
 
@@ -95,10 +104,10 @@ TEST_F(PipelineScheduleTest, OutrightInfeasibleSchedule) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ASSERT_THAT(
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions(SchedulingStrategy::MIN_CUT)
-                                .clock_period_ps(1)
-                                .pipeline_stages(2))
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                              .clock_period_ps(1)
+                              .pipeline_stages(2))
           .status(),
       StatusIs(
           absl::StatusCode::kResourceExhausted,
@@ -117,10 +126,10 @@ TEST_F(PipelineScheduleTest, InfeasibleScheduleWithBinPacking) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ASSERT_THAT(
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions(SchedulingStrategy::MIN_CUT)
-                                .clock_period_ps(2)
-                                .pipeline_stages(2))
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                              .clock_period_ps(2)
+                              .pipeline_stages(2))
           .status(),
       StatusIs(
           absl::StatusCode::kResourceExhausted,
@@ -139,10 +148,10 @@ TEST_F(PipelineScheduleTest, InfeasibleScheduleWithReturnValueUsers) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret_value));
 
   ASSERT_THAT(
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions(SchedulingStrategy::MIN_CUT)
-                                .clock_period_ps(1)
-                                .pipeline_stages(2))
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                              .clock_period_ps(1)
+                              .pipeline_stages(2))
           .status(),
       StatusIs(
           absl::StatusCode::kResourceExhausted,
@@ -159,7 +168,7 @@ TEST_F(PipelineScheduleTest, AsapScheduleNoParameters) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(
+      RunPipelineSchedule(
           f, TestDelayEstimator(),
           SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(1)));
 
@@ -179,7 +188,7 @@ TEST_F(PipelineScheduleTest, AsapScheduleIncrementChain) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(
+      RunPipelineSchedule(
           f, TestDelayEstimator(),
           SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(1)));
 
@@ -209,8 +218,8 @@ TEST_F(PipelineScheduleTest, MinimizeRegisterBitslices) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_THAT(schedule.nodes_in_cycle(0),
@@ -234,7 +243,7 @@ TEST_F(PipelineScheduleTest, AsapScheduleComplex) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(
+      RunPipelineSchedule(
           f, TestDelayEstimator(),
           SchedulingOptions(SchedulingStrategy::ASAP).clock_period_ps(2)));
 
@@ -260,8 +269,8 @@ TEST_F(PipelineScheduleTest, JustClockPeriodGiven) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(2)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(2)));
 
   // Returns the unique scheduled Ops in the given cycle.
   auto scheduled_ops = [&](int64_t cycle) {
@@ -294,14 +303,24 @@ TEST_F(PipelineScheduleTest, TestVerifyTiming) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(5)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(5)));
 
   EXPECT_EQ(schedule.length(), 1);
   XLS_EXPECT_OK(
       schedule.VerifyTiming(/*clock_period_ps=*/5, TestDelayEstimator()));
   EXPECT_THAT(
       schedule.VerifyTiming(/*clock_period_ps=*/1, TestDelayEstimator()),
+      status_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          ::testing::HasSubstr(
+              "Schedule does not meet timing (1ps). Longest failing path "
+              "(3ps): add.3 (1ps) -> neg.4 (1ps) -> sub.5 (1ps)")));
+
+  DelayManager delay_manager(func, TestDelayEstimator());
+  XLS_EXPECT_OK(schedule.VerifyTiming(/*clock_period_ps=*/5, delay_manager));
+  EXPECT_THAT(
+      schedule.VerifyTiming(/*clock_period_ps=*/1, delay_manager),
       status_testing::StatusIs(
           absl::StatusCode::kInternal,
           ::testing::HasSubstr(
@@ -322,7 +341,7 @@ TEST_F(PipelineScheduleTest, ClockPeriodAndPipelineLengthGiven) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(
+      RunPipelineSchedule(
           func, TestDelayEstimator(),
           SchedulingOptions().clock_period_ps(2).pipeline_stages(4)));
 
@@ -357,8 +376,8 @@ TEST_F(PipelineScheduleTest, JustPipelineLengthGiven) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(6)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(6)));
 
   // Returns the unique scheduled Ops in the given cycle.
   auto scheduled_ops = [&](int64_t cycle) {
@@ -396,8 +415,8 @@ TEST_F(PipelineScheduleTest, LongPipelineLength) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(100)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(100)));
 
   EXPECT_EQ(schedule.length(), 100);
   // Most stages should be empty.
@@ -423,14 +442,14 @@ TEST_F(PipelineScheduleTest, ClockPeriodMargin) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(3)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(3)));
   EXPECT_EQ(schedule.length(), 2);
 
   {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             func, TestDelayEstimator(),
             SchedulingOptions().clock_period_ps(3).clock_margin_percent(0)));
     EXPECT_EQ(schedule.length(), 2);
@@ -438,7 +457,7 @@ TEST_F(PipelineScheduleTest, ClockPeriodMargin) {
   {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             func, TestDelayEstimator(),
             SchedulingOptions().clock_period_ps(3).clock_margin_percent(33)));
     EXPECT_EQ(schedule.length(), 3);
@@ -446,13 +465,13 @@ TEST_F(PipelineScheduleTest, ClockPeriodMargin) {
   {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             func, TestDelayEstimator(),
             SchedulingOptions().clock_period_ps(3).clock_margin_percent(66)));
     EXPECT_EQ(schedule.length(), 6);
   }
   EXPECT_THAT(
-      PipelineSchedule::Run(
+      RunPipelineSchedule(
           func, TestDelayEstimator(),
           SchedulingOptions().clock_period_ps(3).clock_margin_percent(200))
           .status(),
@@ -488,15 +507,15 @@ TEST_F(PipelineScheduleTest, PeriodRelaxation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
   EXPECT_EQ(schedule.length(), 2);
   int64_t reg_count_default = schedule.CountFinalInteriorPipelineRegisters();
 
   for (int64_t relax_percent : std::vector{50, 100}) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             func, TestDelayEstimator(),
             SchedulingOptions().pipeline_stages(2).period_relaxation_percent(
                 relax_percent)));
@@ -517,14 +536,37 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
 
   PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule clone,
                            PipelineSchedule::FromProto(func, proto));
   for (const Node* node : func->nodes()) {
     EXPECT_EQ(schedule.cycle(node), clone.cycle(node));
+  }
+}
+
+TEST_F(PipelineScheduleTest, NodeDelayInScheduleProto) {
+  // Tests that node and path delays are serialized in the schedule proto
+  // using trivial pipeline: 3 stages of 2 x 1-bit inverters.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(1));
+  fb.Not(fb.Not(fb.Not(fb.Not(fb.Not(fb.Not(x))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
+  PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
+  for (const auto& stage : proto.stages()) {
+    int64_t path_delay = 0;
+    for (const TimedNodeProto& node : stage.timed_nodes()) {
+      path_delay += node.node_delay_ps();
+      EXPECT_EQ(node.path_delay_ps(), path_delay);
+    }
   }
 }
 
@@ -546,8 +588,8 @@ TEST_F(PipelineScheduleTest, ProcSchedule) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
 
@@ -572,8 +614,8 @@ TEST_F(PipelineScheduleTest, StatelessProcSchedule) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
 
@@ -601,8 +643,8 @@ TEST_F(PipelineScheduleTest, MultistateProcSchedule) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
 
@@ -632,8 +674,8 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 3);
 
@@ -663,8 +705,8 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveLongCondition) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
 
   EXPECT_EQ(schedule.length(), 5);
 
@@ -694,11 +736,178 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 2);
+}
+
+TEST_F(PipelineScheduleTest, SendFollowedByReceiveCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue rcv = pb.Receive(ch_in, /*token=*/send);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest, SendFollowedByReceiveIfCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue rcv_if = pb.ReceiveIf(ch_in, /*token=*/send, pb.Literal(UBits(0, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv_if, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv_if.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest,
+       SendFollowedByNonblockingReceiveCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue rcv = pb.ReceiveNonBlocking(ch_in, /*token=*/send);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest,
+       SendFollowedByNonblockingReceiveIfCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue rcv_if =
+      pb.ReceiveIfNonBlocking(ch_in, /*token=*/send, pb.Literal(UBits(0, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv_if, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv_if.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest,
+       SendFollowedIndirectlyByReceiveCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue rcv0 = pb.Receive(ch_in, pb.GetTokenParam());
+  BValue rcv1 = pb.Receive(ch_in, pb.GetTokenParam());
+  BValue send = pb.Send(ch_out, pb.TupleIndex(rcv1, 0), pb.Literal(Bits(32)));
+  BValue joined_token = pb.AfterAll({pb.TupleIndex(rcv0, 0), send});
+  BValue rcv = pb.Receive(ch_in, joined_token);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 1);
 }
 
 TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
@@ -723,8 +932,8 @@ TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
   EXPECT_EQ(schedule.cycle(send.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv.node()), 3);
@@ -755,11 +964,157 @@ TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceiveWithState) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
   EXPECT_EQ(schedule.cycle(send.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv.node()), 1);
+}
+
+TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthWhenNeeded) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue delay = pb.MinDelay(send, /*delay=*/2);
+  BValue rcv = pb.Receive(ch_in, /*token=*/delay);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, *delay_estimator,
+          SchedulingOptions().pipeline_stages(1).worst_case_throughput(3)),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("--pipeline_stages=3"),
+                     Not(HasSubstr("--worst_case_throughput")))));
+}
+
+TEST_F(PipelineScheduleTest, SuggestReducedThroughputWhenFullThroughputFails) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue delay = pb.MinDelay(send, /*delay=*/2);
+  BValue rcv = pb.Receive(ch_in, /*token=*/delay);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  EXPECT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(5)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("--worst_case_throughput=3"),
+                             Not(HasSubstr("--pipeline_stages")))));
+}
+
+TEST_F(PipelineScheduleTest,
+       SuggestIncreasedPipelineLengthAndReducedThroughputWhenNeeded) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue delay = pb.MinDelay(send, /*delay=*/2);
+  BValue rcv = pb.Receive(ch_in, /*token=*/delay);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  EXPECT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("--pipeline_stages=3"),
+                             HasSubstr("--worst_case_throughput=3"))));
+}
+
+TEST_F(PipelineScheduleTest, SuggestIncreasedClockPeriodWhenNecessary) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue add2 = pb.Add(state, pb.Literal(UBits(2, 32)));
+  BValue mul3 = pb.UMul(add2, pb.Literal(UBits(3, 32)));
+  BValue add1 = pb.Add(mul3, pb.Literal(UBits(1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {add1}));
+
+  // Each operation takes 500ps, so (with no pipeline depth restrictions), 500ps
+  // is the fastest clock we can support.
+  EXPECT_THAT(RunPipelineSchedule(proc, TestDelayEstimator(500),
+                                  SchedulingOptions().clock_period_ps(100)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+
+  // Each operation takes 500ps, but we have a chain of three operations; in two
+  // stages, the best we can do is a 1000ps clock.
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(2)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=1000")));
+
+  // Each operation takes 500ps, and our schedule fits nicely into 3 stages; we
+  // can get down to a 500ps clock at 3 or more pipeline stages.
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(3)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(20)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+
+  // But... if told not to search for the smallest possible clock period, the
+  // best we can do is signal that a longer clock period might help.
+  EXPECT_THAT(RunPipelineSchedule(proc, TestDelayEstimator(500),
+                                  SchedulingOptions()
+                                      .clock_period_ps(100)
+                                      .pipeline_stages(4)
+                                      .minimize_clock_on_failure(false)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Try increasing `--clock_period_ps`")));
 }
 
 // Proc next state does not depend on param; next state can now be scheduled in
@@ -798,8 +1153,8 @@ TEST_F(PipelineScheduleTest, ProcParamScheduledEarlyWithNextState) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(3)));
   EXPECT_EQ(schedule.length(), 3);
   // The state's param node should be scheduled ASAP (i.e., the next-state
   // node's stage), while still leaving its user in the later stage.
@@ -845,8 +1200,8 @@ TEST_F(PipelineScheduleTest, ProcParamScheduledAfterNextState) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(3)));
   EXPECT_EQ(schedule.length(), 3);
   EXPECT_GT(schedule.cycle(state.node()), schedule.cycle(nb_rcv_valid.node()));
 }
@@ -883,8 +1238,8 @@ TEST_F(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(3)));
   EXPECT_EQ(schedule.length(), 3);
   EXPECT_EQ(schedule.cycle(a.node()), 1);
   EXPECT_EQ(schedule.cycle(b.node()), 1);
@@ -914,8 +1269,8 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 1);
@@ -923,7 +1278,7 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
   for (int64_t input_delay : std::vector{2, 5, 10}) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule_with_input_delay,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             proc, TestDelayEstimator(),
             SchedulingOptions().pipeline_stages(2).additional_input_delay_ps(
                 input_delay)));
@@ -971,7 +1326,7 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithConstraints) {
   for (int64_t i = 3; i <= 9; ++i) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(
+        RunPipelineSchedule(
             proc, TestDelayEstimator(),
             SchedulingOptions().pipeline_stages(10).add_constraint(
                 IOConstraint("in", IODirection::kReceive, "out",
@@ -995,12 +1350,32 @@ TEST_F(PipelineScheduleTest, RandomSchedule) {
   for (int32_t i = 0; i < 1000; ++i) {
     // Running the scheduler will call `VerifyTiming`.
     XLS_ASSERT_OK(
-        PipelineSchedule::Run(func, TestDelayEstimator(),
-                              SchedulingOptions(SchedulingStrategy::RANDOM)
-                                  .seed(i)
-                                  .pipeline_stages(50))
+        RunPipelineSchedule(func, TestDelayEstimator(),
+                            SchedulingOptions(SchedulingStrategy::RANDOM)
+                                .seed(i)
+                                .pipeline_stages(50))
             .status());
   }
+}
+
+TEST_F(PipelineScheduleTest, SingleStageSchedule) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(32));
+  for (int64_t i = 0; i < 20; ++i) {
+    x = fb.Negate(x);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  // This simply puts all of func's nodes into a single pipeline stage.
+  XLS_ASSERT_OK_AND_ASSIGN(absl::StatusOr<PipelineSchedule> schedule,
+                           PipelineSchedule::SingleStage(func));
+
+  EXPECT_EQ(schedule.value().length(), 1);
+
+  // 20 negates plus the input param
+  EXPECT_EQ(schedule.value().nodes_in_cycle(0).size(), 21);
 }
 
 }  // namespace

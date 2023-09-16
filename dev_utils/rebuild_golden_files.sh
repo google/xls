@@ -13,6 +13,7 @@ TARGETS=(
 "//xls/codegen:module_builder_test"
 "//xls/codegen:pipeline_generator_test"
 "//xls/contrib/xlscc:translator_verilog_test"
+"//xls/dslx/cpp_transpiler:cpp_transpiler_test"
 "//xls/dslx/ir_convert:ir_converter_test"
 "//xls/dslx/type_system:type_info_to_proto_test"
 "//xls/flows:ir_wrapper_test"

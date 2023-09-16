@@ -49,7 +49,7 @@
 #include "xls/dslx/frontend/ast_node.h"  // IWYU pragma: export
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/foreign_function.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
@@ -77,6 +77,7 @@
   X(String)                        \
   X(StructInstance)                \
   X(Conditional)                   \
+  X(ConstAssert)                   \
   X(TupleIndex)                    \
   X(Unop)                          \
   X(UnrollFor)                     \
@@ -100,6 +101,7 @@
   X(Param)                        \
   X(ParametricBinding)            \
   X(Proc)                         \
+  X(ProcMember)                   \
   X(QuickCheck)                   \
   X(Slice)                        \
   X(Statement)                    \
@@ -120,7 +122,7 @@
 
 namespace xls::dslx {
 
-constexpr int64_t kRustSpacesPerIndent = 4;
+inline constexpr int64_t kRustSpacesPerIndent = 4;
 
 // Forward decls of all leaf types.
 #define FORWARD_DECL(__type) class __type;
@@ -173,7 +175,6 @@ class TypeAnnotation;
 
 using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
 Span ExprOrTypeSpan(const ExprOrType &expr_or_type);
-std::string ExprOrTypeToString(const ExprOrType &expr_or_type);
 
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
@@ -282,7 +283,7 @@ enum class BuiltinType {
 // All builtin types up to this limit have a concrete width and sign -- above
 // this point are things like "bits", "uN", "sN" which need a corresponding
 // array dimension to have a known bit count.
-constexpr int64_t kConcreteBuiltinTypeLimit =
+inline constexpr int64_t kConcreteBuiltinTypeLimit =
     static_cast<int64_t>(BuiltinType::kS64) + 1;
 
 std::string BuiltinTypeToString(BuiltinType t);
@@ -386,7 +387,6 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
-  bool HasParametrics() const { return !parametrics_.empty(); }
 
  private:
   TypeRef* type_ref_;
@@ -613,7 +613,6 @@ class Expr : public AstNode {
   ~Expr() override;
 
   const Span& span() const { return span_; }
-  void set_span(const Span& span) { span_ = span; }
   std::optional<Span> GetSpan() const override { return span_; }
 
   virtual absl::Status AcceptExpr(ExprVisitor* v) const = 0;
@@ -718,7 +717,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
 // Both of those lines are statements.
 class Statement final : public AstNode {
  public:
-  using Wrapped = std::variant<Expr*, TypeAlias*, Let*>;
+  using Wrapped = std::variant<Expr*, TypeAlias*, Let*, ConstAssert*>;
 
   static absl::StatusOr<Wrapped> NodeToWrapped(AstNode* n);
 
@@ -787,6 +786,15 @@ class Block : public Expr {
     SetParentage();
   }
 
+  // Use sparsingly! Mutation routine that disables the fact that this block
+  // has a trailing semicolon. This is used e.g. when we want to maintain the
+  // invariant that a proc config function has a tuple as its trailing
+  // expression by materializing it implicitly for the user.
+  void DisableTrailingSemi() {
+    XLS_CHECK(trailing_semi_);
+    trailing_semi_ = false;
+  }
+
  private:
   Precedence GetPrecedenceInternal() const final {
     return Precedence::kStrongest;
@@ -808,7 +816,9 @@ class NameRef : public Expr {
   NameRef(Module* owner, Span span, std::string identifier, AnyNameDef name_def)
       : Expr(owner, std::move(span)),
         name_def_(name_def),
-        identifier_(std::move(identifier)) {}
+        identifier_(std::move(identifier)) {
+    XLS_CHECK_NE(identifier_, "_");
+  }
 
   ~NameRef() override;
 
@@ -905,7 +915,15 @@ class Number : public Expr {
     type_annotation_ = type_annotation;
   }
 
+  // Warning: be careful not to iterate over signed chars of the result, as they
+  // may sign extend on platforms that compile with signed chars. Preferred
+  // pattern is:
+  //
+  //    for (const uint8_t c : n->text()) { ... }
   const std::string& text() const { return text_; }
+
+  // Determines whether the number fits in the given `bit_count`.
+  absl::StatusOr<bool> FitsInType(int64_t bit_count) const;
 
   // Turns the text for this number into a Bits object with the given bit_count.
   absl::StatusOr<Bits> GetBits(int64_t bit_count) const;
@@ -1215,8 +1233,6 @@ class ColonRef : public Expr {
   std::string attr_;
 };
 
-absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e);
-
 // Represents a function parameter.
 class Param : public AstNode {
  public:
@@ -1257,7 +1273,6 @@ enum class UnopKind {
   kNegate,  // two's complement aritmetic negation (~x+1)
 };
 
-absl::StatusOr<UnopKind> UnopKindFromString(std::string_view s);
 std::string UnopKindToString(UnopKind k);
 
 // Represents a unary operation expression; e.g. `!x`.
@@ -1316,6 +1331,7 @@ class Unop : public Expr {
   X(kOr, "OR", "|")                       \
   X(kXor, "XOR", "^")                     \
   X(kDiv, "DIV", "/")                     \
+  X(kMod, "MOD", "%")                     \
   X(kLogicalAnd, "LOGICAL_AND", "&&")     \
   X(kLogicalOr, "LOGICAL_OR", "||")       \
   X(kConcat, "CONCAT", "++")
@@ -1505,7 +1521,7 @@ class Function : public AstNode {
   static std::string_view GetDebugTypeName() { return "function"; }
 
   // Indicates if a function is normal or is part of a proc instantiation.
-  enum class Tag {
+  enum class Tag : uint8_t {
     kNormal,
     kProcConfig,
     kProcNext,
@@ -1547,10 +1563,7 @@ class Function : public AstNode {
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
   std::vector<std::string> GetFreeParametricKeys() const;
-  absl::btree_set<std::string> GetFreeParametricKeySet() const {
-    std::vector<std::string> keys = GetFreeParametricKeys();
-    return absl::btree_set<std::string>(keys.begin(), keys.end());
-  }
+  absl::btree_set<std::string> GetFreeParametricKeySet() const;
   NameDef* name_def() const { return name_def_; }
 
   TypeAnnotation* return_type() const { return return_type_; }
@@ -1584,6 +1597,46 @@ class Function : public AstNode {
   std::optional<::xls::ForeignFunctionData> extern_verilog_module_;
 };
 
+// A member held in a proc, e.g. a channel declaration initialized by a
+// configuration block.
+//
+// This is very similar to a `Param` at the moment, but we make them distinct
+// types for structural clarity in the AST. Params are really "parameters to
+// functions".
+class ProcMember : public AstNode {
+ public:
+  ProcMember(Module* owner, NameDef* name_def, TypeAnnotation* type);
+
+  ~ProcMember() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kProcMember; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleProcMember(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "ProcMember"; }
+  std::string ToString() const override {
+    return absl::StrFormat("%s: %s", name_def_->ToString(),
+                           type_annotation_->ToString());
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {name_def_, type_annotation_};
+  }
+
+  const Span& span() const { return span_; }
+  NameDef* name_def() const { return name_def_; }
+  TypeAnnotation* type_annotation() const { return type_annotation_; }
+  const std::string& identifier() const { return name_def_->identifier(); }
+  std::optional<Span> GetSpan() const override { return span_; }
+
+ private:
+  NameDef* name_def_;
+  TypeAnnotation* type_annotation_;
+  Span span_;
+};
+
 // Represents a parsed 'process' specification in the DSL.
 class Proc : public AstNode {
  public:
@@ -1592,7 +1645,7 @@ class Proc : public AstNode {
   Proc(Module* owner, Span span, NameDef* name_def, NameDef* config_name_def,
        NameDef* next_name_def,
        const std::vector<ParametricBinding*>& parametric_bindings,
-       const std::vector<Param*>& members, Function* config, Function* next,
+       std::vector<ProcMember*> members, Function* config, Function* next,
        Function* init, bool is_public);
 
   ~Proc() override;
@@ -1628,7 +1681,7 @@ class Proc : public AstNode {
   Function* config() const { return config_; }
   Function* next() const { return next_; }
   Function* init() const { return init_; }
-  const std::vector<Param*>& members() const { return members_; }
+  const std::vector<ProcMember*>& members() const { return members_; }
 
  private:
   Span span_;
@@ -1640,7 +1693,7 @@ class Proc : public AstNode {
   Function* config_;
   Function* next_;
   Function* init_;
-  std::vector<Param*> members_;
+  std::vector<ProcMember*> members_;
   bool is_public_;
 };
 
@@ -1726,8 +1779,8 @@ class Match : public Expr {
 //                       (this dot makes an attr) ---+
 class Attr : public Expr {
  public:
-  Attr(Module* owner, Span span, Expr* lhs, NameDef* attr)
-      : Expr(owner, std::move(span)), lhs_(lhs), attr_(attr) {}
+  Attr(Module* owner, Span span, Expr* lhs, std::string attr)
+      : Expr(owner, std::move(span)), lhs_(lhs), attr_(std::move(attr)) {}
 
   ~Attr() override;
 
@@ -1743,14 +1796,12 @@ class Attr : public Expr {
   std::string_view GetNodeTypeName() const override { return "Attr"; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {lhs_, attr_};
+    return {lhs_};
   }
 
   Expr* lhs() const { return lhs_; }
 
-  // TODO(leary): 2020-12-02 This probably can just be a string, because the
-  // attribute access is not really defining a name.
-  NameDef* attr() const { return attr_; }
+  std::string_view attr() const { return attr_; }
 
  private:
   Precedence GetPrecedenceInternal() const final {
@@ -1758,11 +1809,11 @@ class Attr : public Expr {
   }
 
   std::string ToStringInternal() const final {
-    return absl::StrFormat("%s.%s", lhs_->ToString(), attr_->ToString());
+    return absl::StrFormat("%s.%s", lhs_->ToString(), attr_);
   }
 
   Expr* lhs_;
-  NameDef* attr_;
+  const std::string attr_;
 };
 
 class Instantiation : public Expr {
@@ -1868,6 +1919,36 @@ class Spawn : public Instantiation {
 
   Invocation* config_;
   Invocation* next_;
+};
+
+// A static assertion that is constexpr-evaluated at compile time (more
+// precisely from an internals perspective: type-checking time); i.e.
+//
+//  const_assert!(u32:1 == u32:2);
+class ConstAssert : public AstNode {
+ public:
+  ConstAssert(Module* owner, Span span, Expr* arg);
+
+  ~ConstAssert() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kConstAssert; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleConstAssert(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "ConstAssert"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  std::string ToString() const override;
+  std::optional<Span> GetSpan() const override { return span_; }
+
+  const Span& span() const { return span_; }
+  Expr* arg() const { return arg_; }
+
+ private:
+  Span span_;
+  Expr* arg_;
 };
 
 // Represents a call to a variable-argument formatting macro;
@@ -2107,9 +2188,6 @@ class StructDef : public AstNode {
   }
   std::vector<std::string> GetMemberNames() const;
 
-  // Returns the index at which the member name is "name".
-  std::optional<int64_t> GetMemberIndex(std::string_view name) const;
-
   int64_t size() const { return members_.size(); }
 
  private:
@@ -2172,8 +2250,6 @@ class StructInstance : public Expr {
   StructRef struct_def() const { return struct_ref_; }
 
  private:
-  AstNode* GetStructNode() const { return ToAstNode(struct_ref_); }
-
   Precedence GetPrecedenceInternal() const final {
     return Precedence::kStrongest;
   }
@@ -2728,8 +2804,8 @@ class ConstantDef : public AstNode {
 class NameDefTree : public AstNode {
  public:
   using Nodes = std::vector<NameDefTree*>;
-  using Leaf =
-      std::variant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>;
+  using Leaf = std::variant<NameDef*, NameRef*, WildcardPattern*, Number*,
+                            ColonRef*, Range*>;
 
   NameDefTree(Module* owner, Span span, std::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(std::move(tree)) {}
@@ -2953,7 +3029,8 @@ class ChannelDecl : public Expr {
 
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
-                 TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*>;
+                 TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*,
+                 ConstAssert*>;
 
 std::string_view GetModuleMemberTypeName(const ModuleMember& module_member);
 
@@ -3026,7 +3103,18 @@ class Module : public AstNode {
     return it->second;
   }
 
-  absl::Status AddTop(ModuleMember member);
+  using MakeCollisionError = std::function<absl::Status(
+      std::string_view module_name, std::string_view member_name,
+      const Span& existing_span, const AstNode* existing_node,
+      const Span& new_span, const AstNode* new_node)>;
+
+  // Adds a top level "member" to the module. Invokes make_collision_error if
+  // there is a naming collision at module scope -- this is done so that errors
+  // can be layered appropriately and injected in from outside code (e.g. the
+  // parser). If nullptr is given, then a non-positional InvalidArgumentError is
+  // raised.
+  absl::Status AddTop(ModuleMember member,
+                      const MakeCollisionError& make_collision_error);
 
   // Gets the element in this module with the given target_name, or returns a
   // NotFoundError.
@@ -3079,20 +3167,11 @@ class Module : public AstNode {
   // identifier, or a NotFound error if none can be found.
   absl::StatusOr<ConstantDef*> GetConstantDef(std::string_view target);
 
-  absl::flat_hash_map<std::string, ConstantDef*> GetConstantByName() const {
-    return GetTopWithTByName<ConstantDef>();
-  }
   absl::flat_hash_map<std::string, Import*> GetImportByName() const {
     return GetTopWithTByName<Import>();
   }
   absl::flat_hash_map<std::string, Function*> GetFunctionByName() const {
     return GetTopWithTByName<Function>();
-  }
-  absl::flat_hash_map<std::string, Proc*> GetProcByName() const {
-    return GetTopWithTByName<Proc>();
-  }
-  std::vector<TypeAlias*> GetTypeAliases() const {
-    return GetTopWithT<TypeAlias>();
   }
   std::vector<QuickCheck*> GetQuickChecks() const {
     return GetTopWithT<QuickCheck>();
@@ -3101,18 +3180,6 @@ class Module : public AstNode {
     return GetTopWithT<StructDef>();
   }
   std::vector<Proc*> GetProcs() const { return GetTopWithT<Proc>(); }
-  std::vector<TestProc*> GetProcTests() const {
-    return GetTopWithT<TestProc>();
-  }
-  std::vector<Function*> GetFunctions() const {
-    return GetTopWithT<Function>();
-  }
-  std::vector<TestFunction*> GetFunctionTests() const {
-    return GetTopWithT<TestFunction>();
-  }
-  std::vector<ConstantDef*> GetConstantDefs() const {
-    return GetTopWithT<ConstantDef>();
-  }
 
   // Returns the identifiers for all functions within this module (in the order
   // in which they are defined).
@@ -3206,6 +3273,10 @@ inline Conditional* MakeTernary(Module* module, const Span& span, Expr* test,
           alternate->span(),
           std::vector<Statement*>{module->Make<Statement>(alternate)}, false));
 }
+
+// Collects all nodes under the given root.
+absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
+                                                   bool want_types);
 
 }  // namespace xls::dslx
 

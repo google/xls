@@ -14,6 +14,9 @@
 
 #include "xls/passes/useless_io_removal_pass.h"
 
+#include <memory>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
@@ -25,6 +28,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -63,7 +67,8 @@ absl::StatusOr<ChannelMaps> ComputeChannelMaps(Package* package) {
 }  // namespace
 
 absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
-    Package* p, const PassOptions& options, PassResults* results) const {
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   XLS_ASSIGN_OR_RETURN(ChannelMaps channel_maps, ComputeChannelMaps(p));
   // Remove send_if and recv_if with literal false conditions, unless they are

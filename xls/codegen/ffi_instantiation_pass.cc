@@ -29,6 +29,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"

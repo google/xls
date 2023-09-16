@@ -24,12 +24,12 @@ cc_binary(
     name = "dummy_metrics_main",
     srcs = ["dummy_metrics_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@at_clifford_yosys//:json11",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -43,7 +43,7 @@ cc_binary(
         "//xls/common/file:temp_directory",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/synthesis:server_credentials",
+        "//xls/synthesis:credentials",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
         "@at_clifford_yosys//:json11",

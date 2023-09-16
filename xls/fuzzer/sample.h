@@ -16,8 +16,10 @@
 #define XLS_FUZZER_SAMPLE_H_
 
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"

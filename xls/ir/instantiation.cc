@@ -15,6 +15,7 @@
 #include "xls/ir/instantiation.h"
 
 #include <cstdint>
+#include <ostream>
 #include <string>
 #include <string_view>
 

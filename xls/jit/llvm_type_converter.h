@@ -16,6 +16,8 @@
 #define XLS_JIT_LLVM_TYPE_CONVERTER_H_
 
 #include <cstdint>
+#include <optional>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"

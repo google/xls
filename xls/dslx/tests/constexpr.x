@@ -55,7 +55,6 @@ fn can_reference_constants_test() {
   assert_eq(u32[4]:[u32:4, u32:3, u32:2, u32:1], CONST_ARRAY2);
   assert_eq((u16:1, u32:2, u64:3), CONST_TUPLE1);
   assert_eq((u16:4, u32:5, u64:6), CONST_TUPLE2);
-  ()
 }
 
 #[test]
@@ -66,5 +65,4 @@ fn can_add_constants_test() {
   assert_eq(u32:1998, CONST_1 + CONST_3);
   assert_eq(u32:1998, CONST_2 + CONST_3);
   assert_eq(u32:2664, CONST_1 + CONST_2 + CONST_3);
-  ()
 }

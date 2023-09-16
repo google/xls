@@ -37,5 +37,4 @@ fn multiplies_test() {
   assert_eq(s6:-6, smul_3(s3:3,  s3:-2));
   assert_eq(s6:6,  smul_3(s3:3,  s3:2));
   assert_eq(s6:1,  smul_3(s3:-1, s3:-1));
-  ()
 }

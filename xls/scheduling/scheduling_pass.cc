@@ -16,7 +16,7 @@
 
 namespace xls {
 
-absl::StatusOr<bool> SchedulingFunctionBasePass::RunOnFunctionBase(
+absl::StatusOr<bool> SchedulingOptimizationFunctionBasePass::RunOnFunctionBase(
     SchedulingUnit<FunctionBase*>* s, const SchedulingPassOptions& options,
     SchedulingPassResults* results) const {
   FunctionBase* f = s->ir;
@@ -34,7 +34,7 @@ absl::StatusOr<bool> SchedulingFunctionBasePass::RunOnFunctionBase(
   return changed;
 }
 
-absl::StatusOr<bool> SchedulingFunctionBasePass::RunInternal(
+absl::StatusOr<bool> SchedulingOptimizationFunctionBasePass::RunInternal(
     SchedulingUnit<>* s, const SchedulingPassOptions& options,
     SchedulingPassResults* results) const {
   bool changed = false;

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# cc_proto_library is used in this file
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -53,6 +53,7 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:node_util",
@@ -72,10 +73,11 @@ cc_test(
     data = glob([
         "testdata/combinational_generator_test_*",
     ]),
-    shard_count = 10,
+    shard_count = 50,
     deps = [
         ":combinational_generator",
         ":vast",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
@@ -94,7 +96,6 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -107,6 +108,7 @@ cc_test(
     deps = [
         ":combinational_generator",
         ":pipeline_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimators",
@@ -118,12 +120,13 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "//xls/simulation:module_simulator",
         "//xls/simulation:module_testbench",
         "//xls/simulation:verilog_simulators",
         "//xls/simulation:verilog_test_base",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -138,7 +141,9 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
-        "//xls/ir:foreign_function",
+        "//xls/ir:bits_ops",
+        "//xls/ir:code_template",
+        "//xls/ir:format_preference",
         "//xls/ir:source_location",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
@@ -171,13 +176,13 @@ cc_test(
     srcs = ["vast_test.cc"],
     deps = [
         ":vast",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:foreign_function",
         "//xls/ir:number_parser",
         "//xls/ir:source_location",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -188,11 +193,11 @@ cc_test(
     deps = [
         ":finite_state_machine",
         ":vast",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -214,6 +219,7 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/status:statusor",
@@ -345,6 +351,7 @@ cc_library(
         ":codegen_pass",
         ":register_legalization_pass",
         ":vast",
+        "//xls/common:casts",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -360,8 +367,11 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/passes:dce_pass",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
         "//xls/passes:tuple_simplification_pass",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -434,9 +444,12 @@ cc_library(
         ":port_legalization_pass",
         ":ram_rewrite_pass",
         ":register_legalization_pass",
+        ":side_effect_condition_pass",
         ":signature_generation_pass",
+        "//xls/ir",
         "//xls/passes:dce_pass",
         "//xls/passes:identity_removal_pass",
+        "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -525,7 +538,8 @@ cc_library(
     hdrs = ["codegen_wrapper_pass.h"],
     deps = [
         ":codegen_pass",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -607,11 +621,12 @@ cc_test(
     data = glob([
         "testdata/pipeline_generator_test_*",
     ]),
-    shard_count = 10,
+    shard_count = 50,
     deps = [
         ":module_signature",
         ":module_signature_cc_proto",
         ":pipeline_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
@@ -619,6 +634,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "//xls/simulation:module_simulator",
         "//xls/simulation:module_testbench",
@@ -626,7 +642,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -635,11 +650,11 @@ cc_test(
     srcs = ["module_signature_test.cc"],
     deps = [
         ":module_signature",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -648,11 +663,11 @@ cc_test(
     srcs = ["flattening_test.cc"],
     deps = [
         ":flattening",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_test_base",
         "//xls/ir:type",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -664,6 +679,7 @@ cc_test(
     deps = [
         ":module_builder",
         ":vast",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -672,7 +688,6 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -684,10 +699,12 @@ cc_test(
         ":block_conversion",
         ":codegen_options",
         ":codegen_pass",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
@@ -699,13 +716,13 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -718,6 +735,7 @@ cc_test(
         ":codegen_pass",
         ":module_signature_cc_proto",
         ":signature_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -727,7 +745,8 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:type",
         "//xls/scheduling:pipeline_schedule",
-        "@com_google_googletest//:gtest",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
     ],
 )
 
@@ -737,12 +756,12 @@ cc_test(
     deps = [
         ":codegen_pass",
         ":port_legalization_pass",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -752,24 +771,37 @@ cc_test(
     data = glob([
         "testdata/block_generator_test_*",
     ]),
+    shard_count = 10,
     deps = [
         ":block_conversion",
         ":block_generator",
+        ":codegen_options",
         ":codegen_pass",
+        ":module_signature",
         ":op_override_impls",
         ":signature_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "//xls/ir:register",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_test_base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -779,11 +811,11 @@ cc_test(
     deps = [
         ":codegen_pass",
         ":register_legalization_pass",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -793,13 +825,13 @@ cc_test(
     deps = [
         ":codegen_pass",
         ":codegen_wrapper_pass",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/passes:dce_pass",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -841,6 +873,7 @@ cc_test(
         ":codegen_options",
         ":codegen_pass",
         ":xls_metrics_cc_proto",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimators",
@@ -849,7 +882,8 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/scheduling:pipeline_schedule",
-        "@com_google_googletest//:gtest",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
     ],
 )
 
@@ -858,12 +892,10 @@ cc_library(
     srcs = ["bdd_io_analysis.cc"],
     hdrs = ["bdd_io_analysis.h"],
     deps = [
-        "//xls/common:casts",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:node_util",
-        "//xls/passes",
         "//xls/passes:bdd_query_engine",
         "//xls/passes:query_engine",
         "@com_google_absl//absl/status:statusor",
@@ -882,6 +914,7 @@ cc_test(
     srcs = ["bdd_io_analysis_test.cc"],
     deps = [
         ":bdd_io_analysis",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -893,7 +926,6 @@ cc_test(
         "//xls/passes:bdd_cse_pass",
         "//xls/passes:dce_pass",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -954,12 +986,12 @@ cc_test(
     deps = [
         ":codegen_pass",
         ":mulp_combining_pass",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -991,6 +1023,7 @@ cc_test(
         ":codegen_pass",
         ":ffi_instantiation_pass",
         "//xls/common:casts",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -1003,7 +1036,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1063,6 +1095,7 @@ cc_test(
         ":ram_rewrite_pass",
         "//xls/common:casts",
         "//xls/common:visitor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -1070,11 +1103,69 @@ cc_test(
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
-        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "side_effect_condition_pass",
+    srcs = ["side_effect_condition_pass.cc"],
+    hdrs = ["side_effect_condition_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "side_effect_condition_pass_test",
+    srcs = ["side_effect_condition_pass_test.cc"],
+    deps = [
+        ":block_conversion",
+        ":codegen_options",
+        ":codegen_pass",
+        ":codegen_pass_pipeline",
+        ":side_effect_condition_pass",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimators",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:events",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
+        "//xls/ir:register",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+        "//xls/passes:pass_base",
+        "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:scheduling_pass",
+        "//xls/scheduling:scheduling_pass_pipeline",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )

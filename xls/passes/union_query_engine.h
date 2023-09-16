@@ -17,13 +17,20 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/ternary.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -48,6 +55,9 @@ class UnionQueryEngine : public QueryEngine {
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override;
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override;
+
+  std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
+      const absl::flat_hash_set<PredicateState>& state) const override;
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
 

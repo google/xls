@@ -14,6 +14,8 @@
 
 #include "xls/codegen/module_builder.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/codegen/vast.h"

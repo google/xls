@@ -14,6 +14,7 @@
 
 #include "xls/tools/proto_to_dslx.h"
 
+#include <optional>
 #include <string>
 
 #include "gmock/gmock.h"

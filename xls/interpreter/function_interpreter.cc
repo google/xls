@@ -14,6 +14,10 @@
 
 #include "xls/interpreter/function_interpreter.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/keyword_args.h"

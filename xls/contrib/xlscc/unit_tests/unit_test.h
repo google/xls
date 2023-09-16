@@ -17,8 +17,11 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <list>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -162,10 +165,20 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
 
   absl::StatusOr<uint64_t> GetStateBitsForProcNameContains(
       std::string_view name_cont);
+  absl::StatusOr<uint64_t> GetBitsForChannelNameContains(
+      std::string_view name_cont);
 
   absl::StatusOr<xlscc_metadata::MetadataOutput> GenerateMetadata();
 
   absl::StatusOr<xlscc::HLSBlock> GetBlockSpec();
+
+  absl::StatusOr<std::vector<xls::Node*>> GetIOOpsForChannel(
+      xls::FunctionBase* proc, int64_t channel_id);
+  static absl::Status TokensForNode(
+      xls::Node* node, absl::flat_hash_set<xls::Node*>& predecessors);
+  absl::StatusOr<bool> NodeIsAfterTokenWise(xls::Proc* proc,
+                                            xls::Node* before,
+                                            xls::Node* after);
 
   absl::StatusOr<std::vector<xls::Node*>> GetOpsForChannel(int64_t channel_id);
 

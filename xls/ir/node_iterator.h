@@ -15,6 +15,10 @@
 #ifndef XLS_IR_NODE_ITERATOR_H_
 #define XLS_IR_NODE_ITERATOR_H_
 
+#include <algorithm>
+#include <memory>
+#include <vector>
+
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 
@@ -40,8 +44,8 @@ class NodeIterator {
     return it;
   }
 
-  std::vector<Node*>::iterator begin() { return ordered_->begin(); }
-  std::vector<Node*>::iterator end() { return ordered_->end(); }
+  std::vector<Node*>::iterator begin() const { return ordered_->begin(); }
+  std::vector<Node*>::iterator end() const { return ordered_->end(); }
 
   const std::vector<Node*>& AsVector() const { return *ordered_; }
 

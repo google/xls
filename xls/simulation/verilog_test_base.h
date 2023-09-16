@@ -16,12 +16,16 @@
 #define XLS_CODEGEN_VERILOG_TEST_BASE_H_
 
 #include <filesystem>
+#include <ostream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
@@ -102,8 +106,15 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
 
   // Returns the name of the test. Include the parameterization. Example:
   // TestTheThing/FancySimulatorVerilog.
-  std::string TestName() {
+  static std::string TestName() {
     return ::testing::UnitTest::GetInstance()->current_test_info()->name();
+  }
+
+  // Returns the name of the test with slashes converted to underscores.
+  static std::string SanitizedTestName() {
+    std::string name =
+        ::testing::UnitTest::GetInstance()->current_test_info()->name();
+    return absl::StrReplaceAll(name, {{"/", "_"}});
   }
 
   // Returns the base name of the test (the string which appears in the TEST_P

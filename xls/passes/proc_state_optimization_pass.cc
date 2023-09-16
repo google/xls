@@ -14,18 +14,33 @@
 
 #include "xls/passes/proc_state_optimization_pass.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/union_find.h"
 #include "xls/ir/node_iterator.h"
-#include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dataflow_visitor.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -351,7 +366,8 @@ absl::StatusOr<bool> ConvertLiteralChainsToStateMachines(Proc* proc) {
 }  // namespace
 
 absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
-    Proc* proc, const PassOptions& options, PassResults* results) const {
+    Proc* proc, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
 
   XLS_ASSIGN_OR_RETURN(bool zero_width_changed,

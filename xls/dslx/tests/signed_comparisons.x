@@ -45,5 +45,4 @@ fn signed_comparisons() {
   assert_eq(false, std::sge(U32_NEG_3, U32_NEG_2));
   assert_eq(true, std::sge(U32_NEG_2, U32_NEG_3));
   assert_eq(true, std::sge(U32_NEG_3, U32_NEG_3));
-  ()
 }

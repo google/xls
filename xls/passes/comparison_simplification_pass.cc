@@ -14,14 +14,29 @@
 
 #include "xls/passes/comparison_simplification_pass.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -39,7 +54,8 @@ struct RangeEquivalence {
 // returning.
 std::optional<RangeEquivalence> ReduceEquivalence(
     Node* node, absl::Span<const RangeEquivalence> equivalences,
-    std::function<IntervalSet(const IntervalSet&, const IntervalSet&)> reduce,
+    const std::function<IntervalSet(const IntervalSet&, const IntervalSet&)>&
+        reduce,
     bool complement) {
   // All equivalences must concern the same node.
   if (equivalences.empty() ||
@@ -69,8 +85,7 @@ IntervalSet MakeULtRange(const Bits& limit) {
   }
   // ULt(x, C) => [0, C-1]
   result.AddInterval(
-      Interval(Bits(limit.bit_count()),
-               bits_ops::Sub(limit, UBits(1, limit.bit_count()))));
+      Interval(Bits(limit.bit_count()), bits_ops::Decrement(limit)));
   result.Normalize();
   return result;
 }
@@ -83,8 +98,8 @@ IntervalSet MakeUGtRange(const Bits& limit) {
     return result;
   }
   // ULt(x, C) => [C+1, MAX]
-  result.AddInterval(Interval(bits_ops::Add(limit, UBits(1, limit.bit_count())),
-                              Bits::AllOnes(limit.bit_count())));
+  result.AddInterval(
+      Interval(bits_ops::Increment(limit), Bits::AllOnes(limit.bit_count())));
   result.Normalize();
   return result;
 }
@@ -188,8 +203,7 @@ std::optional<Bits> GetULtInterval(const IntervalSet& range) {
   }
   const Interval& interval = range.Intervals().front();
   if (interval.LowerBound().IsZero() && !interval.UpperBound().IsAllOnes()) {
-    return bits_ops::Add(interval.UpperBound(),
-                         UBits(1, interval.UpperBound().bit_count()));
+    return bits_ops::Increment(interval.UpperBound());
   }
   return std::nullopt;
 }
@@ -202,8 +216,7 @@ std::optional<Bits> GetUGtInterval(const IntervalSet& range) {
   }
   const Interval& interval = range.Intervals().front();
   if (!interval.LowerBound().IsZero() && interval.UpperBound().IsAllOnes()) {
-    return bits_ops::Sub(interval.LowerBound(),
-                         UBits(1, interval.LowerBound().bit_count()));
+    return bits_ops::Decrement(interval.LowerBound());
   }
   return std::nullopt;
 }
@@ -211,7 +224,8 @@ std::optional<Bits> GetUGtInterval(const IntervalSet& range) {
 }  // namespace
 
 absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
 
   // Compute range equivalences for all nodes. Single-bit node X has an

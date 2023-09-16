@@ -15,12 +15,15 @@
 // Prints summary information about an IR file to the terminal.
 // Output will be added as needs warrant, so feel free to make additions!
 
+#include <iostream>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
@@ -64,6 +67,5 @@ int main(int argc, char** argv) {
   if (!absl::GetFlag(FLAGS_top).empty()) {
     restrict_fn = absl::GetFlag(FLAGS_top);
   }
-  XLS_QCHECK_OK(xls::RealMain(positional_args[0], restrict_fn));
-  return 0;
+  return xls::ExitStatus(xls::RealMain(positional_args[0], restrict_fn));
 }

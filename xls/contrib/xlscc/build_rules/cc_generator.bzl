@@ -86,7 +86,7 @@ def xls_int_fuzz_binaries(name, seed_start, seed_count):
             "//xls/ir:function_builder",
             "//xls/ir:ir_test_base",
             "//xls/ir:value",
-            "//xls/passes:standard_pipeline",
+            "//xls/passes:optimization_pass_pipeline",
             "//xls/simulation:module_simulator",
             "//xls/simulation:verilog_simulators",
         ],

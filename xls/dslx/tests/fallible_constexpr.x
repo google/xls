@@ -31,5 +31,4 @@ fn main() -> u32 {
 #[test]
 fn compute_without_fail_test() {
   assert_eq(u32:3, three);
-  ()
 }

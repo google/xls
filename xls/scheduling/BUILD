@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 # cc_proto_library is used in this file
 
 package(
@@ -23,6 +24,12 @@ package(
 proto_library(
     name = "pipeline_schedule_proto",
     srcs = ["pipeline_schedule.proto"],
+)
+
+xls_py_proto_library(
+    name = "pipeline_schedule_py_pb2",
+    srcs = ["pipeline_schedule.proto"],
+    internal_deps = [":pipeline_schedule_proto"],
 )
 
 cc_proto_library(
@@ -52,12 +59,14 @@ cc_test(
     srcs = ["extract_stage_test.cc"],
     deps = [
         ":extract_stage",
+        ":run_pipeline_schedule",
+        ":scheduling_options",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -67,6 +76,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
         "//xls/ir",
     ],
 )
@@ -98,8 +108,8 @@ cc_test(
     srcs = ["min_cut_scheduler_test.cc"],
     deps = [
         ":min_cut_scheduler",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -108,21 +118,27 @@ cc_library(
     srcs = ["sdc_scheduler.cc"],
     hdrs = ["sdc_scheduler.h"],
     deps = [
-        ":schedule_bounds",
         ":scheduling_options",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
+        "//xls/common/logging:vlog_is_on",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
+        "//xls/ir:channel",
         "//xls/ir:node_util",
-        "@com_google_ortools//ortools/linear_solver",
+        "//xls/ir:op",
+        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
+        "@com_google_ortools//ortools/math_opt/solvers:glop_solver",
     ],
 )
 
@@ -131,25 +147,53 @@ cc_library(
     srcs = ["pipeline_schedule.cc"],
     hdrs = ["pipeline_schedule.h"],
     deps = [
-        ":min_cut_scheduler",
         ":pipeline_schedule_cc_proto",
-        ":schedule_bounds",
         ":scheduling_options",
-        ":sdc_scheduler",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
+        "//xls/fdo:delay_manager",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+    ],
+)
+
+cc_library(
+    name = "run_pipeline_schedule",
+    srcs = ["run_pipeline_schedule.cc"],
+    hdrs = ["run_pipeline_schedule.h"],
+    deps = [
+        ":min_cut_scheduler",
+        ":pipeline_schedule",
+        ":schedule_bounds",
+        ":scheduling_options",
+        ":sdc_scheduler",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:binary_search",
         "//xls/delay_model:delay_estimator",
+        "//xls/fdo:delay_manager",
+        "//xls/fdo:iterative_sdc_scheduler",
+        "//xls/fdo:synthesizer",
         "//xls/ir",
-        "//xls/ir:node_util",
         "//xls/ir:op",
     ],
 )
@@ -160,13 +204,18 @@ cc_test(
     deps = [
         ":pipeline_schedule",
         ":pipeline_schedule_cc_proto",
+        ":run_pipeline_schedule",
         ":scheduling_options",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
+        "//xls/fdo:delay_manager",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel_ops",
@@ -174,9 +223,9 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -186,13 +235,13 @@ cc_test(
     deps = [
         ":schedule_bounds",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -206,13 +255,13 @@ cc_test(
     deps = [
         ":function_partition",
         "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -262,7 +311,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "//xls/passes:dce_pass",
         "//xls/passes:literal_uncommoning_pass",
-        "//xls/passes:standard_pipeline",
+        "//xls/passes:optimization_pass_pipeline",
     ],
 )
 
@@ -276,7 +325,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
     ],
 )
 
@@ -289,7 +338,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
     ],
 )
 
@@ -299,8 +348,11 @@ cc_library(
     hdrs = ["scheduling_pass.h"],
     deps = [
         ":pipeline_schedule",
+        ":scheduling_options",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/delay_model:delay_estimator",
+        "//xls/fdo:synthesizer",
         "//xls/ir",
         "//xls/passes:pass_base",
     ],
@@ -335,7 +387,7 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
         "//xls/passes:post_dominator_analysis",
         "//xls/passes:token_provenance_analysis",
         "//xls/solvers:z3_ir_translator",
@@ -350,16 +402,16 @@ cc_test(
     deps = [
         ":mutual_exclusion_pass",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "//xls/passes",
         "//xls/passes:cse_pass",
         "//xls/passes:dce_pass",
-        "@com_google_googletest//:gtest",
+        "//xls/passes:optimization_pass",
     ],
 )
 
@@ -368,9 +420,13 @@ cc_library(
     srcs = ["pipeline_scheduling_pass.cc"],
     hdrs = ["pipeline_scheduling_pass.h"],
     deps = [
+        ":run_pipeline_schedule",
+        ":scheduling_options",
         ":scheduling_pass",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/ir",
     ],
 )

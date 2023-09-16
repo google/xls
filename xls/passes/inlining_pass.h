@@ -17,16 +17,17 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
-class InliningPass : public Pass {
+class InliningPass : public OptimizationPass {
  public:
-  InliningPass() : Pass("inlining", "Inlines invocations") {}
+  InliningPass() : OptimizationPass("inlining", "Inlines invocations") {}
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
                                    PassResults* results) const override;
 };
 

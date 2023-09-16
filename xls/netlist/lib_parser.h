@@ -20,10 +20,15 @@
 #ifndef XLS_NETLIST_LIB_PARSER_H_
 #define XLS_NETLIST_LIB_PARSER_H_
 
+#include <cctype>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"

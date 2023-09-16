@@ -24,6 +24,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -38,8 +39,9 @@ class TokenDependencyPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(FunctionBase* f) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed, TokenDependencyPass().RunOnFunctionBase(
-                                           f, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         TokenDependencyPass().RunOnFunctionBase(
+                             f, OptimizationPassOptions(), &results));
     return changed;
   }
 };

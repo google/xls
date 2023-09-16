@@ -15,15 +15,21 @@
 // Takes in an IR file and produces an IR file that has been run through the
 // standard optimization pipeline.
 
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ram_rewrite.pb.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/passes.h"
 #include "xls/tools/opt.h"
 
 const char kUsage[] = R"(
@@ -111,6 +117,5 @@ int main(int argc, char **argv) {
                                           argv[0]);
   }
 
-  XLS_QCHECK_OK(xls::tools::RealMain(positional_arguments[0]));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::tools::RealMain(positional_arguments[0]));
 }

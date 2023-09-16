@@ -14,16 +14,19 @@
 
 #include "xls/passes/select_simplification_pass.h"
 
-#include "absl/status/statusor.h"
-#include "absl/strings/substitute.h"
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -38,7 +41,7 @@ class SelectSimplificationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          SelectSimplificationPass().RunOnFunctionBase(
-                             f, PassOptions(), &results));
+                             f, OptimizationPassOptions(), &results));
     return changed;
   }
 };

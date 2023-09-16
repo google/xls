@@ -14,6 +14,9 @@
 
 #include "xls/common/proto_adaptor_utils.h"
 
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

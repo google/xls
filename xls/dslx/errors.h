@@ -17,6 +17,7 @@
 #include <string_view>
 
 #include "absl/status/status.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/type_system/concrete_type.h"
@@ -45,7 +46,7 @@ absl::Status TypeInferenceErrorStatus(const Span& span,
 
 // Creates a TypeMissingError status value referencing the given node (which has
 // its type missing) and user (which found that its type was missing).
-absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user);
+absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user);
 
 // To be raised when a recursive import is detected.
 absl::Status RecursiveImportErrorStatus(const Span& nested_import,

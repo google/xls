@@ -1829,6 +1829,18 @@ TEST(IrConverterTest, ChannelDecl) {
                        HasSubstr("AST node unsupported for IR conversion:")));
 }
 
+TEST(IrConverterTest, StringWithUnsignedRangeCharacter) {
+  constexpr std::string_view kProgram = R"(fn main() -> u8[1] {
+  "\x80"  // -128 in signed char interpretation
+})";
+  ConvertOptions options;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 // TODO(google/xls#917): Remove this test when empty arrays are supported.
 TEST(IrConverterTest, EmptyArray) {
   constexpr std::string_view kProgram = R"(
@@ -1921,10 +1933,41 @@ fn main(x: u8, y: s8) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ArraySizeBuiltin) {
+  constexpr std::string_view program =
+      R"(
+fn main(x: u8[42]) -> u32 {
+  array_size(x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, InvokeFunctionWithTraceInForLoop) {
+  constexpr std::string_view program =
+      R"(
+fn foo(x: u32, y: u32) -> u32 {
+  trace_fmt!("x is {}", x);
+  trace_fmt!("y is {}", y);
+  x + y
+}
+
+fn main(x: u32[4]) -> u32[4] {
+  for (i, accum): (u32, u32[4]) in u32:0..u32:4 {
+    update(x, i, foo(accum[i], x[i]))
+  }(x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
-
-int main(int argc, char* argv[]) {
-  xls::InitXls(argv[0], argc, argv);
-  return RUN_ALL_TESTS();
-}

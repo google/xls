@@ -14,9 +14,17 @@
 
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 
+#include <cstdint>
+#include <optional>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/node.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
 
@@ -48,7 +56,8 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
 
   XLS_ASSIGN_OR_RETURN(
       unit->schedule,
-      PipelineSchedule::Run(f, *options.delay_estimator, scheduling_options));
+      RunPipelineSchedule(f, *options.delay_estimator, scheduling_options,
+                          options.synthesizer));
 
   absl::flat_hash_map<Node*, int64_t> schedule_cycle_map_after;
   for (int64_t c = 0; c < unit->schedule.value().length(); ++c) {

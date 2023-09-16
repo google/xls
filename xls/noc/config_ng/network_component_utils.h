@@ -15,6 +15,9 @@
 #ifndef XLS_NOC_CONFIG_NETWORK_COMPONENT_UTILS_H_
 #define XLS_NOC_CONFIG_NETWORK_COMPONENT_UTILS_H_
 
+#include <string>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 

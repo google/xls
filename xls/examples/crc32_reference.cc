@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <string>
 
 #include "absl/base/casts.h"
 #include "absl/flags/flag.h"

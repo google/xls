@@ -93,5 +93,4 @@ fn rng_next_test() {
     assert_eq(want, got);
     new_r
   }(r);
-  ()
 }

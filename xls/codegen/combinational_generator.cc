@@ -35,6 +35,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
@@ -48,12 +49,14 @@ namespace xls {
 namespace verilog {
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    FunctionBase* module, const CodegenOptions& options) {
+    FunctionBase* module, const CodegenOptions& options,
+    const DelayEstimator* delay_estimator) {
   XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
                        FunctionBaseToCombinationalBlock(module, options));
 
   CodegenPassOptions codegen_pass_options;
   codegen_pass_options.codegen_options = options;
+  codegen_pass_options.delay_estimator = delay_estimator;
 
   PassResults results;
   XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline()

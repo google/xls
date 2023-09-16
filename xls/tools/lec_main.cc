@@ -15,6 +15,11 @@
 // Tool to prove or disprove logical equivalence of XLS IR and a netlist.
 
 #include <csignal>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
@@ -22,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
@@ -89,8 +95,6 @@ ABSL_FLAG(int32_t, stage, -1,
 namespace xls {
 namespace {
 
-using solvers::z3::IrTranslator;
-
 constexpr const char kIrConverterPath[] =
     "xls/dslx/ir_convert/ir_converter_main";
 
@@ -104,14 +108,13 @@ absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
     netlist::CellLibraryProto cell_proto;
     XLS_RET_CHECK(cell_proto.ParseFromString(cell_proto_text));
     return netlist::CellLibrary::FromProto(cell_proto);
-  } else {
-    XLS_ASSIGN_OR_RETURN(std::string lib_text, GetFileContents(cell_lib_path));
-    XLS_ASSIGN_OR_RETURN(auto stream,
-                         netlist::cell_lib::CharStream::FromText(lib_text));
-    XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto proto,
-                         netlist::function::ExtractFunctions(&stream));
-    return netlist::CellLibrary::FromProto(proto);
   }
+  XLS_ASSIGN_OR_RETURN(std::string lib_text, GetFileContents(cell_lib_path));
+  XLS_ASSIGN_OR_RETURN(auto stream,
+                       netlist::cell_lib::CharStream::FromText(lib_text));
+  XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto proto,
+                       netlist::function::ExtractFunctions(&stream));
+  return netlist::CellLibrary::FromProto(proto);
 }
 
 // Loads and parses a netlist from a file.
@@ -331,10 +334,9 @@ int main(int argc, char* argv[]) {
   XLS_QCHECK(!(auto_stage && schedule_path.empty()))
       << "--schedule_path must be specified with --auto_stage.";
 
-  XLS_QCHECK_OK(xls::RealMain(
+  return xls::ExitStatus(xls::RealMain(
       ir_path, absl::GetFlag(FLAGS_entry_function_name),
       absl::GetFlag(FLAGS_netlist_module_name), cell_lib_path, cell_proto_path,
       netlist_path, absl::GetFlag(FLAGS_constraints_file), schedule_path, stage,
       auto_stage, absl::GetFlag(FLAGS_timeout_sec)));
-  return 0;
 }

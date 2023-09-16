@@ -18,6 +18,7 @@
 #define XLS_TOOLS_OPT_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,7 +26,7 @@
 #include "absl/status/statusor.h"
 
 // TODO(meheff): 2021-10-04 Remove this header.
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls::tools {
 

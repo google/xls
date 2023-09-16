@@ -15,28 +15,34 @@
 #ifndef XLS_PASSES_NARROWING_PASS_H_
 #define XLS_PASSES_NARROWING_PASS_H_
 
+#include <cstdint>
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
+
 // A pass which reduces the width of operations eliminating redundant or unused
 // bits.
-class NarrowingPass : public FunctionBasePass {
+class NarrowingPass : public OptimizationFunctionBasePass {
  public:
-  explicit NarrowingPass(bool use_range_analysis = true,
+  enum class AnalysisType : uint8_t {
+    kBdd,
+    kRange,
+  };
+  explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange,
                          int64_t opt_level = kMaxOptLevel)
-      : FunctionBasePass("narrow", "Narrowing"),
-        use_range_analysis_(use_range_analysis),
+      : OptimizationFunctionBasePass("narrow", "Narrowing"),
+        analysis_(analysis),
         opt_level_(opt_level) {}
   ~NarrowingPass() override = default;
 
  protected:
-  bool use_range_analysis_;
+  AnalysisType analysis_;
   int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

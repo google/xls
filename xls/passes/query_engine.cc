@@ -14,9 +14,27 @@
 
 #include "xls/passes/query_engine.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/interval_set.h"
+#include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/passes/predicate_state.h"
 
 namespace xls {
 namespace {
@@ -205,6 +223,67 @@ std::string QueryEngine::ToString(Node* node) const {
   XLS_CHECK(node->GetType()->IsBits());
   XLS_CHECK(IsTracked(node));
   return xls::ToString(GetTernary(node).Get({}));
+}
+
+// A forwarder for query engine.
+class ForwardingQueryEngine final : public QueryEngine {
+ public:
+  explicit ForwardingQueryEngine(const QueryEngine& real) : real_(real) {}
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+    return absl::UnimplementedError("Cannot populate forwarding engine!");
+  }
+
+  bool IsTracked(Node* node) const override { return real_.IsTracked(node); }
+
+  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+    return real_.GetTernary(node);
+  };
+
+  std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
+      const absl::flat_hash_set<PredicateState>& state) const override {
+    return real_.SpecializeGivenPredicate(state);
+  }
+
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
+    return real_.GetIntervals(node);
+  }
+
+  bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
+    return real_.AtMostOneTrue(bits);
+  }
+
+  bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override {
+    return real_.AtLeastOneTrue(bits);
+  }
+
+  bool Implies(const TreeBitLocation& a,
+               const TreeBitLocation& b) const override {
+    return real_.Implies(a, b);
+  }
+
+  std::optional<Bits> ImpliedNodeValue(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return real_.ImpliedNodeValue(predicate_bit_values, node);
+  }
+
+  bool KnownEquals(const TreeBitLocation& a,
+                   const TreeBitLocation& b) const override {
+    return real_.KnownEquals(a, b);
+  }
+
+  bool KnownNotEquals(const TreeBitLocation& a,
+                      const TreeBitLocation& b) const override {
+    return real_.KnownNotEquals(a, b);
+  }
+
+ private:
+  const QueryEngine& real_;
+};
+
+std::unique_ptr<QueryEngine> QueryEngine::SpecializeGivenPredicate(
+    const absl::flat_hash_set<PredicateState>& state) const {
+  return std::make_unique<ForwardingQueryEngine>(*this);
 }
 
 }  // namespace xls

@@ -15,8 +15,11 @@
 #ifndef XLS_NETLIST_CELL_LIBRARY_H_
 #define XLS_NETLIST_CELL_LIBRARY_H_
 
+#include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"

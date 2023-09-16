@@ -24,6 +24,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {

@@ -14,28 +14,41 @@
 
 #include "xls/passes/query_engine.h"
 
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ternary.h"
 #include "xls/passes/bdd_query_engine.h"
-#include "xls/passes/ternary_evaluator.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using status_testing::IsOk;
+using testing::Not;
 
 enum class QueryEngineType { kTernary, kBdd };
 
@@ -64,7 +77,8 @@ class QueryEngineTest : public IrTestBase,
   // Create a BValue with known bits equal to the given ternary vector. Created
   // using a param and AND/OR masks.
   BValue MakeValueWithKnownBits(std::string_view name,
-                                TernaryVector known_bits, FunctionBuilder* fb) {
+                                const TernaryVector& known_bits,
+                                FunctionBuilder* fb) {
     absl::InlinedVector<bool, 1> known_zeros;
     absl::InlinedVector<bool, 1> known_ones;
     for (TernaryValue value : known_bits) {
@@ -114,8 +128,7 @@ class QueryEngineTest : public IrTestBase,
     return engine->ToString(f->return_value());
   }
 
-  absl::StatusOr<std::string> GetMaxUnsignedValue(
-      std::string_view known_bits) {
+  absl::StatusOr<std::string> GetMaxUnsignedValue(std::string_view known_bits) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
     BValue n = MakeValueWithKnownBits(
@@ -123,13 +136,13 @@ class QueryEngineTest : public IrTestBase,
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
     XLS_VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-    return absl::StrCat(
-        "0b", engine->MaxUnsignedValue(n.node()).ToRawDigits(
-                  FormatPreference::kBinary, /*emit_leading_zeros=*/true));
+    return absl::StrCat("0b",
+                        BitsToRawDigits(engine->MaxUnsignedValue(n.node()),
+                                        FormatPreference::kBinary,
+                                        /*emit_leading_zeros=*/true));
   }
 
-  absl::StatusOr<std::string> GetMinUnsignedValue(
-      std::string_view known_bits) {
+  absl::StatusOr<std::string> GetMinUnsignedValue(std::string_view known_bits) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
     BValue n = MakeValueWithKnownBits(
@@ -137,9 +150,10 @@ class QueryEngineTest : public IrTestBase,
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
     XLS_VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-    return absl::StrCat(
-        "0b", engine->MinUnsignedValue(n.node()).ToRawDigits(
-                  FormatPreference::kBinary, /*emit_leading_zeros=*/true));
+    return absl::StrCat("0b",
+                        BitsToRawDigits(engine->MinUnsignedValue(n.node()),
+                                        FormatPreference::kBinary,
+                                        /*emit_leading_zeros=*/true));
   }
 
   absl::StatusOr<bool> GetNodesKnownUnsignedNotEquals(
@@ -671,6 +685,62 @@ TEST_P(QueryEngineTest, NodesKnownUnsignedEquals) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
   EXPECT_TRUE(engine->NodesKnownUnsignedEquals(a.node(), a.node()));
+}
+
+TEST_P(QueryEngineTest, DefaultSpecializeDoesNothing) {
+  if (GetParam() != QueryEngineType::kTernary &&
+      GetParam() != QueryEngineType::kBdd) {
+    // Only these two should not have any specializations.
+    return;
+  }
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // fn (x: u8, y: u8) { if (x < 4:u8) { x + 4 } else { y + 4 } }
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue x_plus_4 = fb.Add(x, fb.Literal(UBits(4, 8)));
+  BValue y_plus_4 = fb.Add(y, fb.Literal(UBits(4, 8)));
+  BValue cmp = fb.ULt(x, fb.Literal(UBits(4, 8)));
+  BValue result = fb.Select(cmp, {y_plus_4, x_plus_4});
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.BuildWithReturnValue(result));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+
+  auto consequent_engine = engine->SpecializeGivenPredicate(
+      {PredicateState(result.node()->As<Select>(), 1)});
+  auto alternate_engine = engine->SpecializeGivenPredicate(
+      {PredicateState(result.node()->As<Select>(), 0)});
+  auto secondary_consequent_engine =
+      consequent_engine->SpecializeGivenPredicate({});
+
+  EXPECT_THAT(consequent_engine->Populate(f), Not(IsOk()));
+  EXPECT_THAT(alternate_engine->Populate(f), Not(IsOk()));
+
+#define EXPECT_EQUIV(call)                                    \
+  EXPECT_EQ(consequent_engine->call, engine->call);           \
+  EXPECT_EQ(secondary_consequent_engine->call, engine->call); \
+  EXPECT_EQ(alternate_engine->call, engine->call)
+
+  EXPECT_EQUIV(IsTracked(cmp.node()));
+  EXPECT_EQUIV(AtLeastOneNodeTrue({cmp.node()}));
+  EXPECT_EQUIV(AtMostOneNodeTrue({cmp.node()}));
+  EXPECT_EQUIV(AtMostOneBitTrue(cmp.node()));
+  EXPECT_EQUIV(AtLeastOneBitTrue(cmp.node()));
+  EXPECT_EQUIV(GetTernary(x_plus_4.node()));
+  EXPECT_EQUIV(GetIntervals(x_plus_4.node()));
+  EXPECT_EQUIV(AtMostOneTrue({TreeBitLocation(x_plus_4.node(), 1),
+                              TreeBitLocation(x_plus_4.node(), 7)}));
+  EXPECT_EQUIV(AtLeastOneTrue({TreeBitLocation(x_plus_4.node(), 1),
+                               TreeBitLocation(x_plus_4.node(), 7)}));
+  EXPECT_EQUIV(Implies(TreeBitLocation(cmp.node(), 0),
+                       TreeBitLocation(x_plus_4.node(), 7)));
+  EXPECT_EQUIV(ImpliedNodeValue({{TreeBitLocation(cmp.node(), 0), true}},
+                                x_plus_4.node()));
+  EXPECT_EQUIV(KnownEquals(TreeBitLocation(x_plus_4.node(), 6),
+                           TreeBitLocation(x_plus_4.node(), 7)));
+  EXPECT_EQUIV(KnownNotEquals(TreeBitLocation(x_plus_4.node(), 6),
+                              TreeBitLocation(x_plus_4.node(), 7)));
+#undef EXPECT_EQUIV
 }
 
 INSTANTIATE_TEST_SUITE_P(

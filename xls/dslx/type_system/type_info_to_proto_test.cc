@@ -14,11 +14,9 @@
 
 #include "xls/dslx/type_system/type_info_to_proto.h"
 
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -41,7 +39,7 @@ void DoRun(std::string_view program, const std::string& test_name,
            ImportData* import_data = nullptr) {
   std::optional<ImportData> local_import_data;
   if (import_data == nullptr) {
-    local_import_data = CreateImportDataForTest();
+    local_import_data.emplace(CreateImportDataForTest());
     import_data = &local_import_data.value();
   }
   XLS_ASSERT_OK_AND_ASSIGN(
