@@ -13,10 +13,9 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 // LFSR proc
-// A parametric proc to leverage an LFSR. The only parameter is the bit width
-// of the LFSR counter.
-//
-// Two operations are supported:
+// A parametric proc to leverage a customizable LFSR.
+// It takes a single parameter: the bit width of the LFSR counter.
+// It supports two operations:
 // 1. setting the seed and tap mask (both must have the same bit width as the
 //    LFSR)
 // 2. getting the next value from the LFSR counter
