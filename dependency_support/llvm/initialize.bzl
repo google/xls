@@ -14,7 +14,7 @@
 
 """Initializes LLVM."""
 
-load("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure", "llvm_disable_optional_support_deps")
+load("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure")
 
 def initialize():
     # This macro creates a new repo containing the LLVM source code downloaded
@@ -24,4 +24,3 @@ def initialize():
         name = "llvm-project",
         targets = ["AArch64", "X86"],
     )
-    llvm_disable_optional_support_deps()
