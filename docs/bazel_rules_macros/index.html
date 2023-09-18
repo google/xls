@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.2.1">
+      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.3.1">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.0e669242.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.046329b4.min.css">
       
       
 
@@ -2395,7 +2395,7 @@ rules and xls_cc_* (e.g. xls_cc_ir_macro and xls_cc_verilog_macro) macros.</p>
 <p><a id="xls_benchmark_ir"></a></p>
 <h2 id="xls_benchmark_ir">xls_benchmark_ir</h2>
 <pre>
-xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-top">top</a>)
+xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_benchmark_ir-top">top</a>)
 </pre>
 
 <p>Executes the benchmark tool on an IR file.</p>
@@ -2456,6 +2456,13 @@ xls_benchmark_ir(
 <td style="text-align: left;"><a href="https://bazel.build/rules/lib/dict">Dictionary: String -&gt; String</a></td>
 <td style="text-align: left;">optional</td>
 <td style="text-align: left;"><code>{}</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_benchmark_ir-scheduling_options_proto"></a>scheduling_options_proto</td>
+<td style="text-align: left;">Protobuf filename of scheduling arguments to the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><a id="xls_benchmark_ir-top"></a>top</td>
@@ -2597,7 +2604,8 @@ xls_dslx_library(
 <h2 id="xls_dslx_opt_ir_test">xls_dslx_opt_ir_test</h2>
 <pre>
 xls_dslx_opt_ir_test(<a href="#xls_dslx_opt_ir_test-name">name</a>, <a href="#xls_dslx_opt_ir_test-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_dslx_opt_ir_test-dep">dep</a>, <a href="#xls_dslx_opt_ir_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_opt_ir_test-input_validator">input_validator</a>,
-                     <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>, <a href="#xls_dslx_opt_ir_test-top">top</a>)
+                     <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>,
+                     <a href="#xls_dslx_opt_ir_test-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_dslx_opt_ir_test-top">top</a>)
 </pre>
 
 <p>A build rule that tests a xls_dslx_opt_ir target.</p>
@@ -2690,6 +2698,13 @@ xls_dslx_opt_ir_test(
 <td style="text-align: left;"><a href="https://bazel.build/rules/lib/dict">Dictionary: String -&gt; String</a></td>
 <td style="text-align: left;">optional</td>
 <td style="text-align: left;"><code>{"random_inputs": "100", "optimize_ir": "true"}</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_dslx_opt_ir_test-scheduling_options_proto"></a>scheduling_options_proto</td>
+<td style="text-align: left;">Protobuf filename of scheduling arguments to the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><a id="xls_dslx_opt_ir_test-top"></a>top</td>
@@ -3552,8 +3567,9 @@ generated files are listed in the outs attribute of the rule.</p>
 <p><a id="xls_ir_verilog"></a></p>
 <h2 id="xls_ir_verilog">xls_ir_verilog</h2>
 <pre>
-xls_ir_verilog(<a href="#xls_ir_verilog-name">name</a>, <a href="#xls_ir_verilog-src">src</a>, <a href="#xls_ir_verilog-verilog_file">verilog_file</a>, <a href="#xls_ir_verilog-codegen_args">codegen_args</a>, <a href="#xls_ir_verilog-enable_generated_file">enable_generated_file</a>,
-               <a href="#xls_ir_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_ir_verilog-kwargs">kwargs</a>)
+xls_ir_verilog(<a href="#xls_ir_verilog-name">name</a>, <a href="#xls_ir_verilog-src">src</a>, <a href="#xls_ir_verilog-verilog_file">verilog_file</a>, <a href="#xls_ir_verilog-codegen_args">codegen_args</a>, <a href="#xls_ir_verilog-codegen_options_proto">codegen_options_proto</a>,
+               <a href="#xls_ir_verilog-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_ir_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_ir_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>,
+               <a href="#xls_ir_verilog-kwargs">kwargs</a>)
 </pre>
 
 <p>A macro that instantiates a build rule generating a Verilog file from an IR file and tests the build.</p>
@@ -3601,6 +3617,16 @@ xls_ir_verilog(
 <td style="text-align: left;"><a id="xls_ir_verilog-codegen_args"></a>codegen_args</td>
 <td style="text-align: left;">Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.</td>
 <td style="text-align: left;"><code>{}</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog-codegen_options_proto"></a>codegen_options_proto</td>
+<td style="text-align: left;">Filename of a protobuf with arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog-scheduling_options_proto"></a>scheduling_options_proto</td>
+<td style="text-align: left;">Filename of a protobuf with scheduling options arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.</td>
+<td style="text-align: left;"><code>None</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><a id="xls_ir_verilog-enable_generated_file"></a>enable_generated_file</td>
@@ -3704,7 +3730,7 @@ Recognized metrics from OpenSTA log:
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.dfff1995.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.78eede0e.min.js"></script>
+      <script src="../assets/javascripts/bundle.dff1b7c8.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

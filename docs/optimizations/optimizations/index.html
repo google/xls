@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.2.1">
+      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.3.1">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.0e669242.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.046329b4.min.css">
       
       
 
@@ -2434,26 +2434,26 @@ side-effect-free computations in DSLX that are disconnected from the function
 return ops. Certain optimization passes may also result in dead nodes.</p>
 <p>Let's look at the structure of the pass. The header file is straightforward, The
 <code>DeadCodeEliminationPass</code> is a function-level pass and hence derived from
-<code>FunctionBasePass</code>. Every function-level pass must implement the function
-<code>RunOnFunctionBaseInternal</code> and return a status indicating whether or not the
-pass made a change to the IR:</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DeadCodeEliminationPass</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">FunctionBasePass</span><span class="w"> </span><span class="p">{</span>
+<code>OptimizationFunctionBasePass</code>. Every function-level pass must implement the
+function <code>RunOnFunctionBaseInternal</code> and return a status indicating whether or
+not the pass made a change to the IR:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DeadCodeEliminationPass</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">OptimizationFunctionBasePass</span><span class="w"> </span><span class="p">{</span>
 <span class="w"> </span><span class="k">public</span><span class="o">:</span>
 <span class="w">  </span><span class="n">DeadCodeEliminationPass</span><span class="p">()</span>
-<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="n">FunctionBasePass</span><span class="p">(</span><span class="s">&quot;dce&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Dead Code Elimination&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="n">OptimizationFunctionBasePass</span><span class="p">(</span><span class="s">&quot;dce&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Dead Code Elimination&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
 <span class="w">  </span><span class="o">~</span><span class="n">DeadCodeEliminationPass</span><span class="p">()</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{}</span>
 
 <span class="w"> </span><span class="k">protected</span><span class="o">:</span>
 <span class="w">  </span><span class="c1">// Iterate all nodes, mark and eliminate the unvisited nodes.</span>
 <span class="w">  </span><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">RunOnFunctionBaseInternal</span><span class="p">(</span>
-<span class="w">      </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">PassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span>
+<span class="w">      </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">OptimizationPassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span>
 <span class="w">      </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="k">override</span><span class="p">;</span>
 <span class="p">};</span>
 </code></pre></div>
 <p>Now let's look at the implementation (in file <code>xls/passes/dce_pass.cc</code>). After
 the function declaration:</p>
 <div class="highlight"><pre><span></span><code><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">DeadCodeEliminationPass</span><span class="o">::</span><span class="n">RunOnFunctionBaseInternal</span><span class="p">(</span>
-<span class="w">    </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">PassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span><span class="w"> </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">OptimizationPassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span><span class="w"> </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span>
 </code></pre></div>
 <p>There is a little lambda function testing whether a node is deletable or not:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">is_deletable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[](</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -2582,16 +2582,16 @@ being dead-code eliminated):</p>
         op(C1)
 </code></pre></div>
 <p>Now let's see how this is implemented in XLS. CSE is a function-level
-transformation and accordingly the pass is derived from <code>FunctionBasePass</code>. In
-the header file:</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">CsePass</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">FunctionBasePass</span><span class="w"> </span><span class="p">{</span>
+transformation and accordingly the pass is derived from
+<code>OptimizationFunctionBasePass</code>. In the header file:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">CsePass</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">OptimizationFunctionBasePass</span><span class="w"> </span><span class="p">{</span>
 <span class="w"> </span><span class="k">public</span><span class="o">:</span>
-<span class="w">  </span><span class="n">CsePass</span><span class="p">()</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">FunctionBasePass</span><span class="p">(</span><span class="s">&quot;cse&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Common subexpression elimination&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">  </span><span class="n">CsePass</span><span class="p">()</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">OptimizationFunctionBasePass</span><span class="p">(</span><span class="s">&quot;cse&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Common subexpression elimination&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
 <span class="w">  </span><span class="o">~</span><span class="n">CsePass</span><span class="p">()</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{}</span>
 
 <span class="w"> </span><span class="k">protected</span><span class="o">:</span>
 <span class="w">  </span><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">RunOnFunctionBaseInternal</span><span class="p">(</span>
-<span class="w">      </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">PassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span>
+<span class="w">      </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">OptimizationPassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span>
 <span class="w">      </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="k">override</span><span class="p">;</span>
 <span class="p">};</span>
 </code></pre></div>
@@ -2735,7 +2735,7 @@ implementation, which is in file <code>xls/passes/constant_folding_pass.*</code>
 <p>We define the pass as usual and maintain whether or not the pass modified the IR
 in a boolean variable <code>changed</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ConstantFoldingPass</span><span class="o">::</span><span class="n">RunOnFunctionBaseInternal</span><span class="p">(</span>
-<span class="w">    </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">PassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span><span class="w"> </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">OptimizationPassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span><span class="w"> </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
 </code></pre></div>
 <p>We now iterate over all nodes in the IR and check whether the node only has
@@ -3181,7 +3181,7 @@ have to be adjusted slightly to account for this.</p>
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.dfff1995.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.78eede0e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.dff1b7c8.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

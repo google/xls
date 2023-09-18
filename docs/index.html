@@ -16,7 +16,7 @@
       
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.2.1">
+      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.3.1">
     
     
       
@@ -24,7 +24,7 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.0e669242.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.046329b4.min.css">
       
       
 
@@ -262,6 +262,13 @@
         <li class="md-nav__item">
   <a href="#what-is-xls" class="md-nav__link">
     What is XLS?
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-of-the-project" class="md-nav__link">
+    State of the Project
   </a>
   
 </li>
@@ -1902,6 +1909,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#state-of-the-project" class="md-nav__link">
+    State of the Project
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#install-using-conda" class="md-nav__link">
     Install Using Conda
   </a>
@@ -1962,35 +1976,42 @@
 <!-- GitHub banner -->
 
 <h2 id="what-is-xls">What is XLS?</h2>
-<p>XLS implements a High Level Synthesis (HLS) toolchain which produces
-synthesizable designs (Verilog and SystemVerilog) from flexible, high-level
-descriptions of functionality. It is fully Open Source: Apache 2 licensed and
-developed via GitHub.</p>
+<p>XLS implements a High Level Synthesis toolchain that produces synthesizable
+designs (Verilog and SystemVerilog) from flexible, high-level descriptions of
+functionality. It is Apache 2 licensed.</p>
 <p>XLS (Accelerated HW Synthesis) aims to be the Software Development Kit (SDK) for
 the End of Moore's Law (EoML) era. In this "age of specialization", software and
 hardware engineers must do more co-design across their domain boundaries --
 collaborate on shared artifacts, understand each other's cost models, and share
 tooling/methodology. XLS attempts to leverage automation, software engineers,
 and machine cycles to accelerate this overall process.</p>
-<p>In effect, XLS enables the rapid development of <em>hardware IP</em> that also runs as
-efficient <em>host software</em> via "software style" methodology. A single XLS source
-program runs at native speeds for use in host software or a simulator, but that
-source can also be used to generate hardware block output -- the XLS tools'
-correctness ensures (and provides tools to help formally verify) that they are
-functionally identical.</p>
-<p>XLS is used inside of Google for generating feed-forward pipelines from
-"building block" routines / libraries that can be easily retargeted, reused, and
-composed in a latency-insensitive manner.</p>
+<p>XLS enables the rapid development of <em>hardware IP</em> that also runs as efficient
+<em>host software</em> via "software style" methodology. An XLS design runs at native
+speeds for use in host software or a simulator, but that design can also
+generate hardware block output -- the XLS tools' correctness ensures (and
+provides tools to help formally verify) that they are functionally identical.</p>
 <p>XLS also supports
 <a href="https://google.github.io/xls/tutorials/intro_to_procs/"><em>concurrent processes</em></a>,
 in Communicating Sequential Processes (CSP) style, that allow pipelines to
 communicate with each other and induct over time. This feature is still under
 active development but today supports base use cases.</p>
-<p>XLS is still experimental, undergoing rapid development, and not an officially
+<h2 id="state-of-the-project">State of the Project</h2>
+<p>XLS is experimental, undergoing rapid development, and not an officially
 supported Google product. Expect bugs and sharp edges. Please help by trying it
 out, running through <a href="https://google.github.io/xls/tutorials/">some tutorials</a>,
-<a href="https://github.com/google/xls/issues">reporting bugs</a>, and letting us know
-what you think!</p>
+<a href="https://github.com/google/xls/issues">reporting bugs</a>.</p>
+<p>We are early stage and this has some practical effects:</p>
+<ul>
+<li>We do not regularly review PRs. If you want to make big changes you need to
+fork.
+    * Open an issue and engage us in conversation if you wish to upstream
+      changes. Sending a PR without back and forth with us in an issue is
+      unlikely to succeed.</li>
+<li>At the current point in its evolution, we regularly improve DSLX without
+      considering backward compatibility.
+    * If you are building a corpus of hardware with XLS, please be thoughtful
+      about your process for bringing in new versions of the compiler.</li>
+</ul>
 <h2 id="install-using-conda">Install Using Conda</h2>
 <div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-O<span class="w"> </span>https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash<span class="w"> </span>Miniconda3-latest-Linux-x86_64.sh<span class="w"> </span>-p<span class="w"> </span>conda-env/<span class="w"> </span>-b
@@ -2186,6 +2207,7 @@ project, see our
 <li><a href="https://github.com/grotival">Georges Rotival</a></li>
 <li><a href="https://github.com/hanchenye">Hanchen Ye</a></li>
 <li><a href="https://github.com/hmontero1205">Hans Montero</a></li>
+<li><a href="https://github.com/hzeller">Henner Zeller</a></li>
 <li><a href="https://github.com/malchev">Iliyan Malchev</a></li>
 <li><a href="https://github.com/proppy">Johan Euphrosine</a></li>
 <li><a href="https://github.com/jbaileyhandle">Jonathan Bailey</a></li>
@@ -2249,7 +2271,7 @@ project, see our
     <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.dfff1995.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="assets/javascripts/bundle.78eede0e.min.js"></script>
+      <script src="assets/javascripts/bundle.dff1b7c8.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
