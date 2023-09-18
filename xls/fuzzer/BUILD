@@ -67,7 +67,10 @@ py_test(
     ],
     python_version = "PY3",
     srcs_version = "PY3",
-    tags = ["optonly"],
+    tags = [
+        "manual",
+        "optonly",
+    ],
     deps = [
         ":run_fuzz",
         ":sample_runner",
@@ -481,6 +484,7 @@ py_test(
     data = [":run_fuzz_multiprocess"],
     python_version = "PY3",
     srcs_version = "PY3",
+    tags = ["manual"],
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
