@@ -19,12 +19,15 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -295,6 +298,51 @@ TEST_F(StrengthReductionPassTest, SignExtMuxNegated) {
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::SignExt(m::Not(m::Param("s"))));
+}
+
+TEST_F(StrengthReductionPassTest, GateKnownZero) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn func(s: bits[8]) -> bits[8] {
+       literal.2: bits[1] = literal(value=0)
+       ret gate.3: bits[8] = gate(literal.2, s)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_EQ(f->return_value()->op(), Op::kGate);
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
+}
+
+TEST_F(StrengthReductionPassTest, GateKnownOne) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn func(s: bits[8]) -> bits[8] {
+       literal.2: bits[1] = literal(value=1)
+       ret gate.3: bits[8] = gate(literal.2, s)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_EQ(f->return_value()->op(), Op::kGate);
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("s"));
+}
+
+TEST_F(StrengthReductionPassTest, GateKnownDataZero) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn func(s: bits[1]) -> bits[8] {
+       literal.2: bits[8] = literal(value=0)
+       ret gate.3: bits[8] = gate(s, literal.2)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_EQ(f->return_value()->op(), Op::kGate);
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
 }
 
 }  // namespace

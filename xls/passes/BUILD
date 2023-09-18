@@ -525,8 +525,10 @@ cc_library(
     ],
     deps = [
         ":optimization_pass",
+        ":pass_base",
         ":query_engine",
         ":ternary_query_engine",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
@@ -535,6 +537,9 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:ternary",
+        "//xls/ir:value",
     ],
 )
 
@@ -1604,6 +1609,7 @@ cc_test(
     deps = [
         ":dce_pass",
         ":optimization_pass",
+        ":pass_base",
         ":strength_reduction_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
@@ -1611,8 +1617,10 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
     ],
 )
 
@@ -1682,6 +1690,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
     ],
 )
