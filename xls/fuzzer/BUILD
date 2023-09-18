@@ -61,16 +61,14 @@ py_library(
 
 py_test(
     name = "run_fuzz_minimizer_test",
+    timeout = "long",
     srcs = ["run_fuzz_minimizer_test.py"],
     data = [
         "//xls/tools:parse_ir",
     ],
     python_version = "PY3",
     srcs_version = "PY3",
-    tags = [
-        "manual",
-        "optonly",
-    ],
+    tags = ["optonly"],
     deps = [
         ":run_fuzz",
         ":sample_runner",
@@ -480,11 +478,11 @@ proto_library(
 
 py_test(
     name = "run_fuzz_multiprocess_test",
+    timeout = "long",
     srcs = ["run_fuzz_multiprocess_test.py"],
     data = [":run_fuzz_multiprocess"],
     python_version = "PY3",
     srcs_version = "PY3",
-    tags = ["manual"],
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
