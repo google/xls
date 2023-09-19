@@ -771,3 +771,26 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_library(
+    name = "dmastreammanager",
+    srcs = [
+        "dmastreammanager.cc",
+    ],
+    hdrs = [
+        "dmastreammanager.h",
+    ],
+    deps = [
+        ":iactive",
+        ":ichannelmanager",
+        ":idmaendpoint",
+        ":iirq",
+        ":imasterport",
+        ":streamdmachannel",
+        "//xls/common:bits_util",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
