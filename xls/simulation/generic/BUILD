@@ -749,3 +749,25 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+cc_library(
+    name = "streamdmachannel",
+    srcs = [
+        "streamdmachannel.cc",
+    ],
+    hdrs = [
+        "streamdmachannel.h",
+    ],
+    deps = [
+        ":iactive",
+        ":idmaendpoint",
+        ":iirq",
+        ":imasterport",
+        ":common",
+        "//xls/common:bits_util",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
