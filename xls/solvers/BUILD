@@ -19,10 +19,38 @@ package(
 )
 
 cc_library(
+    name = "z3_op_translator",
+    srcs = ["z3_op_translator.cc"],
+    hdrs = ["z3_op_translator.h"],
+    deps = [
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "z3_op_translator_test",
+    srcs = ["z3_op_translator_test.cc"],
+    deps = [
+        ":z3_op_translator",
+        ":z3_utils",
+        "@com_google_absl//absl/cleanup",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "@z3//:api",
+    ],
+)
+
+cc_library(
     name = "z3_ir_translator",
     srcs = ["z3_ir_translator.cc"],
     hdrs = ["z3_ir_translator.h"],
     deps = [
+        ":z3_op_translator",
         ":z3_utils",
         "@com_google_absl//absl/debugging:leak_check",
         "@com_google_absl//absl/status",

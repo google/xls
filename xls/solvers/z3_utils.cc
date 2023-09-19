@@ -128,7 +128,8 @@ std::string SolverResultToString(Z3_context ctx, Z3_solver solver,
       absl::StrFormat("Solver result; satisfiable: %s\n", result_str);
   if (satisfiable == Z3_L_TRUE) {
     Z3_model model = Z3_solver_get_model(ctx, solver);
-    absl::StrAppend(&output, "\n  Model:\n", Z3_model_to_string(ctx, model));
+    absl::StrAppend(&output, "\n  Model:\n```", Z3_model_to_string(ctx, model),
+                    "```");
   }
 
   if (hexify) {
