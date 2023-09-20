@@ -135,6 +135,28 @@ xls_synthesis_metrics(
     tags = ["manual"],
 )
 
+xls_ir_verilog(
+    name = "idct_chen_6400ps_model_sky130_fdo",
+    src = ":idct_chen.opt.ir",
+    codegen_args = {
+        "delay_model": "sky130",
+        "clock_period_ps": "6400",
+        "module_name": "idct_chen",
+        "use_system_verilog": "false",
+        # Activate FDO
+        "use_fdo": "true",
+        # The following parameters can optionally be specified
+        "fdo_iteration_number": "5",
+        "fdo_delay_driven_path_number": "1",
+        "fdo_fanout_driven_path_number": "0",
+        "fdo_refinement_stochastic_ratio": "1.0",
+        "fdo_path_evaluate_strategy": "window",
+    },
+    # Must specify standard_cells if using FDO, if not using the default sky130
+    standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
+    verilog_file = "idct_chen_6400ps_model_sky130_fdo.v",
+)
+
 xls_dslx_test(
     name = "idct_chen_dslx_test",
     srcs = ["idct_chen.x"],

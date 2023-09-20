@@ -69,6 +69,13 @@ CodegenInfo = provider(
         "pipeline_stages": "Optional(string): The number of pipeline stages.",
         "clock_period_ps": "Optional(string): The clock period used for " +
                            "scheduling.",
+        "use_fdo": "Optional(bool): Enable FDO when true.",
+        "fdo_iteration_number": "Optional(int): How many scheduling " +
+                                "iterations to run (minimum 2).",
+        "fdo_delay_driven_path_number": "The number of delay-driven subgraphs in each FDO iteration.",
+        "fdo_fanout_driven_path_number": "The number of fanout-driven subgraphs in each FDO iteration.",
+        "fdo_refinement_stochastic_ratio": "Must be a positive float <= 1.0.",
+        "fdo_path_evaluate_strategy": "Support window, cone, and path for now.",
     },
 )
 
