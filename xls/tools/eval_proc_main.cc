@@ -14,10 +14,12 @@
 
 // Tool to evaluate the behavior of a Proc network.
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <queue>
 #include <random>
@@ -31,6 +33,7 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
@@ -42,6 +45,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
@@ -52,6 +56,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/jit_proc_runtime.h"
@@ -202,11 +207,17 @@ static absl::Status EvaluateProcs(
         for (Proc* proc : sorted_procs) {
           for (const auto& msg :
                runtime->GetInterpreterEvents(proc).trace_msgs) {
-            std::cerr << "Proc " << proc->name() << " trace: " << msg << "\n";
+            std::string unescaped_msg;
+            XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
+            std::cerr << "Proc " << proc->name()
+                      << " trace: " << unescaped_msg << "\n";
           }
           for (const auto& msg :
                runtime->GetInterpreterEvents(proc).assert_msgs) {
-            std::cerr << "Proc " << proc->name() << " assert: " << msg << "\n";
+            std::string unescaped_msg;
+            XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
+            std::cerr << "Proc " << proc->name() << " assert: " << unescaped_msg
+                      << "\n";
           }
         }
       }
