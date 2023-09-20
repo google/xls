@@ -38,7 +38,8 @@ def _scheduling_args_proto(ctx):
 pipeline_stages: $2
 worst_case_throughput: 6
 mutual_exclusion_z3_rlimit: -1
-fdo_iteration_number: 1
+use_fdo: false
+fdo_iteration_number: 2
 fdo_refinement_stochastic_ratio: 1.0
 fdo_path_evaluate_strategy: \\"window\\"" > $3;''',
     )

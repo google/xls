@@ -264,15 +264,6 @@ def xls_ir_verilog_impl(ctx, src):
         "gate_recvs",
         "array_index_bounds_checking",
         "inline_procs",
-        "fdo_iteration_number",
-        "fdo_delay_driven_path_number",
-        "fdo_fanout_driven_path_number",
-        "fdo_refinement_stochastic_ratio",
-        "fdo_path_evaluate_strategy",
-        "fdo_synthesizer_name",
-        "fdo_yosys_path",
-        "fdo_sta_path",
-        "fdo_synthesis_libraries",
     )
 
     SCHEDULING_FLAGS = (
@@ -288,6 +279,16 @@ def xls_ir_verilog_impl(ctx, src):
         "io_constraints",
         "receives_first_sends_last",
         "mutual_exclusion_z3_rlimit",
+        "use_fdo",
+        "fdo_iteration_number",
+        "fdo_delay_driven_path_number",
+        "fdo_fanout_driven_path_number",
+        "fdo_refinement_stochastic_ratio",
+        "fdo_path_evaluate_strategy",
+        "fdo_synthesizer_name",
+        "fdo_yosys_path",
+        "fdo_sta_path",
+        "fdo_synthesis_libraries",
     )
 
     is_args_valid(codegen_args, CODEGEN_FLAGS + SCHEDULING_FLAGS)

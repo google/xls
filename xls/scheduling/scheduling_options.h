@@ -193,8 +193,9 @@ class SchedulingOptions {
         minimize_clock_on_failure_(true),
         constraints_({BackedgeConstraint(),
                       SendThenRecvConstraint(/*minimum_latency=*/1)}),
-        fdo_iteration_number_(1),
-        fdo_delay_driven_path_number_(0),
+        use_fdo_(false),
+        fdo_iteration_number_(5),
+        fdo_delay_driven_path_number_(1),
         fdo_fanout_driven_path_number_(0),
         fdo_refinement_stochastic_ratio_(1.0),
         fdo_path_evaluate_strategy_(PathEvaluateStrategy::WINDOW) {}
@@ -308,6 +309,13 @@ class SchedulingOptions {
     return mutual_exclusion_z3_rlimit_;
   }
 
+  // Enable FDO
+  SchedulingOptions& use_fdo(bool value) {
+    use_fdo_ = value;
+    return *this;
+  }
+  bool use_fdo() const { return use_fdo_; }
+
   // The number of FDO iterations during the pipeline scheduling.
   SchedulingOptions& fdo_iteration_number(int64_t value) {
     fdo_iteration_number_ = value;
@@ -381,6 +389,7 @@ class SchedulingOptions {
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;
   std::optional<int64_t> mutual_exclusion_z3_rlimit_;
+  bool use_fdo_;
   int64_t fdo_iteration_number_;
   int64_t fdo_delay_driven_path_number_;
   int64_t fdo_fanout_driven_path_number_;
