@@ -284,32 +284,34 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
 
   scheduling_options.use_fdo(proto.use_fdo());
 
-  if (proto.fdo_iteration_number() < 2) {
+  if (proto.use_fdo() && proto.fdo_iteration_number() < 2) {
     return absl::InternalError("fdo_iteration_number must be >= 2");
   }
   scheduling_options.fdo_iteration_number(proto.fdo_iteration_number());
 
-  if (proto.fdo_delay_driven_path_number() < 0) {
+  if (proto.use_fdo() && proto.fdo_delay_driven_path_number() < 0) {
     return absl::InternalError("delay_driven_path_number must be >= 0");
   }
   scheduling_options.fdo_delay_driven_path_number(
       proto.fdo_delay_driven_path_number());
 
-  if (proto.fdo_fanout_driven_path_number() < 0) {
+  if (proto.use_fdo() && proto.fdo_fanout_driven_path_number() < 0) {
     return absl::InternalError("fanout_driven_path_number must be >= 0");
   }
   scheduling_options.fdo_fanout_driven_path_number(
       proto.fdo_fanout_driven_path_number());
 
-  if (proto.fdo_refinement_stochastic_ratio() > 1.0 ||
-      proto.fdo_refinement_stochastic_ratio() <= 0.0) {
+  if (proto.use_fdo() &&
+      (proto.fdo_refinement_stochastic_ratio() > 1.0 ||
+      proto.fdo_refinement_stochastic_ratio() <= 0.0)) {
     return absl::InternalError(
         "refinement_stochastic_ratio must be <= 1.0 and > 0.0");
   }
   scheduling_options.fdo_refinement_stochastic_ratio(
       proto.fdo_refinement_stochastic_ratio());
 
-  if (proto.fdo_path_evaluate_strategy() != "path" &&
+  if (proto.use_fdo() &&
+      proto.fdo_path_evaluate_strategy() != "path" &&
       proto.fdo_path_evaluate_strategy() != "cone" &&
       proto.fdo_path_evaluate_strategy() != "window") {
     return absl::InternalError(
