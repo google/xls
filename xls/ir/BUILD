@@ -290,6 +290,7 @@ cc_library(
     hdrs = ["ternary.h"],
     deps = [
         ":bits",
+        "//xls/common/logging",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

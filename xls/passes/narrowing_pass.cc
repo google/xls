@@ -20,19 +20,24 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -91,8 +96,12 @@ absl::StatusOr<Node*> MaybeNarrow(Node* node, int64_t bit_count) {
 class NarrowVisitor final : public DfsVisitorWithDefault {
  public:
   explicit NarrowVisitor(const QueryEngine& engine, AnalysisType analysis,
-                         const OptimizationPassOptions& options)
-      : query_engine_(engine), analysis_(analysis), options_(options) {}
+                         const OptimizationPassOptions& options,
+                         bool splits_enabled)
+      : query_engine_(engine),
+        analysis_(analysis),
+        options_(options),
+        splits_enabled_(splits_enabled) {}
 
   absl::StatusOr<bool> MaybeReplacePreciseWithLiteral(Node* node) {
     LeafTypeTree<IntervalSet> intervals = query_engine_.GetIntervals(node);
@@ -272,6 +281,254 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
     }
     return NoChange();
+  }
+
+  absl::Status HandleLiteral(Literal* literal) override {
+    return MaybeNarrowLiteralArray(literal);
+  }
+
+  struct NonconstantSlice {
+    int64_t start = -1;
+    int64_t width = 0;
+
+    bool empty() { return width == 0; }
+
+    void clear() {
+      start = -1;
+      width = 0;
+    }
+  };
+  using Slice = std::variant<Literal*, NonconstantSlice>;
+  struct SlicedArray {
+    std::vector<Slice> slices;
+    Literal* array_literal;
+  };
+  absl::StatusOr<SlicedArray> NarrowLiteralArrayToSlices(
+      Literal* array_literal) {
+    absl::Span<const Value> elements = array_literal->value().elements();
+    const int64_t bit_count = elements[0].bits().bit_count();
+    TernaryVector constant_bits =
+        ternary_ops::BitsToTernary(elements[0].bits());
+    for (const Value& element : elements) {
+      XLS_DCHECK(element.IsBits());
+      ternary_ops::UpdateWithIntersection(constant_bits, element.bits());
+    }
+
+    int64_t known_bits = ternary_ops::NumberOfKnownBits(constant_bits);
+    if (known_bits == bit_count) {
+      XLS_ASSIGN_OR_RETURN(
+          Literal * constant_literal,
+          array_literal->function_base()->MakeNode<Literal>(
+              array_literal->loc(),
+              Value(ternary_ops::ToKnownBitsValues(constant_bits))));
+      return SlicedArray{
+          .slices = {constant_literal},
+          .array_literal = nullptr,
+      };
+    }
+    if (known_bits == 0) {
+      return SlicedArray{
+          .slices = {NonconstantSlice{.start = 0, .width = bit_count}},
+          .array_literal = array_literal,
+      };
+    }
+
+    if (!splits_enabled_) {
+      // Cannot slice our array without creating multiple ops per ArrayIndex.
+      return SlicedArray{
+          .slices = {NonconstantSlice{.start = 0, .width = bit_count}},
+          .array_literal = array_literal,
+      };
+    }
+
+    std::vector<Slice> slices;
+    absl::InlinedVector<bool, 64> current_known_slice;
+    current_known_slice.reserve(ternary_ops::NumberOfKnownBits(constant_bits));
+    NonconstantSlice current_unknown_slice;
+    auto finish_known_slice = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(Literal * constant_slice,
+                           array_literal->function_base()->MakeNode<Literal>(
+                               array_literal->loc(),
+                               Value(Bits::FromBitmap(InlineBitmap::FromBits(
+                                   current_known_slice)))));
+      slices.push_back(constant_slice);
+      current_known_slice.clear();
+      return absl::OkStatus();
+    };
+    auto finish_unknown_slice = [&]() -> absl::Status {
+      slices.push_back(current_unknown_slice);
+      current_unknown_slice.clear();
+      return absl::OkStatus();
+    };
+    for (int64_t i = 0; i < constant_bits.size(); ++i) {
+      if (constant_bits[i] == TernaryValue::kUnknown) {
+        // We're in an unknown slice. Record the preceding known slice, if any.
+        if (!current_known_slice.empty()) {
+          XLS_RETURN_IF_ERROR(finish_known_slice());
+        }
+
+        // Extend the current slice, or start a new one if we need to.
+        if (current_unknown_slice.empty()) {
+          current_unknown_slice = {.start = i, .width = 1};
+        } else {
+          current_unknown_slice.width++;
+        }
+      } else {
+        // We're in a known slice. Record the preceding unknown slice, if any.
+        if (!current_unknown_slice.empty()) {
+          XLS_RETURN_IF_ERROR(finish_unknown_slice());
+        }
+
+        // Extend the current slice; if the vector was empty, this will be
+        // interpreted to start a new one.
+        current_known_slice.push_back(constant_bits[i] ==
+                                      TernaryValue::kKnownOne);
+        continue;
+      }
+    }
+    if (!current_known_slice.empty()) {
+      XLS_RETURN_IF_ERROR(finish_known_slice());
+    }
+    if (!current_unknown_slice.empty()) {
+      XLS_RETURN_IF_ERROR(finish_unknown_slice());
+    }
+    XLS_DCHECK_GT(slices.size(), 1);
+
+    std::vector<Value> narrowed_elements;
+    narrowed_elements.reserve(array_literal->value().elements().size());
+    for (const Value& element : elements) {
+      const Bits& bits = element.bits();
+      InlineBitmap narrowed_bits(bits.bit_count() - known_bits);
+      int64_t narrowed_idx = 0;
+      for (int64_t i = 0; i < bits.bit_count(); ++i) {
+        if (ternary_ops::IsUnknown(constant_bits[i])) {
+          narrowed_bits.Set(narrowed_idx++, bits.Get(i));
+        }
+      }
+      narrowed_elements.push_back(
+          Value(Bits::FromBitmap(std::move(narrowed_bits))));
+    }
+    XLS_ASSIGN_OR_RETURN(Value narrowed_array, Value::Array(narrowed_elements));
+    XLS_ASSIGN_OR_RETURN(Literal * narrowed_array_literal,
+                         array_literal->function_base()->MakeNode<Literal>(
+                             array_literal->loc(), narrowed_array));
+    return SlicedArray{
+        .slices = std::move(slices),
+        .array_literal = narrowed_array_literal,
+    };
+  }
+
+  // If the literal is an array of Bits with some constant bits, narrow all
+  // elements and (whenever we index into it) replace the known bits by
+  // concatenation with an appropriate constant, using appropriate slicing.
+  absl::Status MaybeNarrowLiteralArray(Literal* literal) {
+    if (literal->IsDead()) {
+      // Don't try to optimize a dead literal; among other problems, it may be
+      // the leftovers from a previous run of this optimization.
+      return NoChange();
+    }
+    if (!literal->GetType()->IsArray() ||
+        !literal->GetType()->AsArrayOrDie()->element_type()->IsBits()) {
+      return NoChange();
+    }
+    if (literal->value().elements().empty()) {
+      return NoChange();
+    }
+
+    // If there are no ArrayIndex accesses for this literal that we can improve,
+    // stop.
+    if (absl::c_none_of(literal->users(), [literal](Node* user) {
+          return user->Is<ArrayIndex>() &&
+                 user->As<ArrayIndex>()->array() == literal &&
+                 !user->As<ArrayIndex>()->indices().empty();
+        })) {
+      return NoChange();
+    }
+
+    XLS_ASSIGN_OR_RETURN(SlicedArray sliced_array,
+                         NarrowLiteralArrayToSlices(literal));
+
+    XLS_CHECK_GE(sliced_array.slices.size(), 1);
+    if (sliced_array.slices.size() == 1) {
+      if (std::holds_alternative<NonconstantSlice>(sliced_array.slices[0])) {
+        // This array can't be narrowed.
+        XLS_DCHECK_EQ(sliced_array.array_literal, literal);
+        return NoChange();
+      }
+
+      // All ArrayIndex accesses can be replaced with a single literal.
+      XLS_CHECK(std::holds_alternative<Literal*>(sliced_array.slices[0]));
+      XLS_CHECK_EQ(sliced_array.array_literal, nullptr);
+      Literal* constant_literal = std::get<Literal*>(sliced_array.slices[0]);
+      for (Node* user : literal->users()) {
+        if (!user->Is<ArrayIndex>()) {
+          continue;
+        }
+        ArrayIndex* array_index = user->As<ArrayIndex>();
+        if (array_index->indices().empty()) {
+          continue;
+        }
+        XLS_RET_CHECK(array_index->array() == literal);
+
+        // Replace the ArrayIndex with a direct reference to the common Literal.
+        XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(constant_literal));
+      }
+      return Change();
+    }
+
+    // We have more than one slice; at least one should be from the narrowed
+    // array literal.
+    XLS_CHECK_NE(sliced_array.array_literal, nullptr);
+
+    for (Node* user : literal->users()) {
+      if (!user->Is<ArrayIndex>()) {
+        continue;
+      }
+      ArrayIndex* array_index = user->As<ArrayIndex>();
+      if (array_index->indices().empty()) {
+        continue;
+      }
+      XLS_RET_CHECK(array_index->array() == literal);
+
+      // Index into the narrowed array; we'll slice this up & concat with
+      // literals to reconstruct the full value.
+      XLS_ASSIGN_OR_RETURN(ArrayIndex * new_array_index,
+                           array_index->function_base()->MakeNode<ArrayIndex>(
+                               array_index->loc(), sliced_array.array_literal,
+                               array_index->indices()));
+
+      std::vector<Node*> bit_slices;
+      bit_slices.reserve(sliced_array.slices.size());
+
+      int64_t nonconstant_bit_position = 0;
+      for (const Slice& slice : sliced_array.slices) {
+        if (std::holds_alternative<NonconstantSlice>(slice)) {
+          const NonconstantSlice& nonconstant_slice =
+              std::get<NonconstantSlice>(slice);
+          XLS_ASSIGN_OR_RETURN(
+              BitSlice * value_slice,
+              array_index->function_base()->MakeNode<BitSlice>(
+                  array_index->loc(), new_array_index, nonconstant_bit_position,
+                  nonconstant_slice.width));
+          nonconstant_bit_position += nonconstant_slice.width;
+          bit_slices.push_back(value_slice);
+        } else {
+          XLS_CHECK(std::holds_alternative<Literal*>(slice));
+          Literal* constant_slice = std::get<Literal*>(slice);
+          XLS_DCHECK(constant_slice->value().IsBits());
+          bit_slices.push_back(constant_slice);
+        }
+      }
+
+      // Reverse the slice order for correct bit ordering.
+      absl::c_reverse(bit_slices);
+      XLS_ASSIGN_OR_RETURN(Node * array_index_value,
+                           array_index->function_base()->MakeNode<Concat>(
+                               array_index->loc(), bit_slices));
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(array_index_value));
+    }
+
+    return Change();
   }
 
   absl::Status HandleShll(BinOp* shll) override {
@@ -944,6 +1201,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   const QueryEngine& query_engine_;
   const AnalysisType analysis_;
   const OptimizationPassOptions& options_;
+  const bool splits_enabled_;
   bool changed_ = false;
 };
 
@@ -1056,7 +1314,8 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
                        GetQueryEngine(f, analysis_));
 
-  NarrowVisitor narrower(*query_engine, analysis_, options);
+  NarrowVisitor narrower(*query_engine, analysis_, options,
+                         SplitsEnabled(opt_level_));
 
   for (Node* node : TopoSort(f)) {
     // We specifically want gate ops to be eligible for being reduced to a

@@ -16,6 +16,7 @@
 #define XLS_IR_TERNARY_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -24,6 +25,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 
 namespace xls {
@@ -52,7 +54,7 @@ inline std::ostream& operator<<(std::ostream& os, TernaryValue value) {
   return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os, TernaryVector vector) {
+inline std::ostream& operator<<(std::ostream& os, const TernaryVector& vector) {
   os << ToString(vector);
   return os;
 }
@@ -91,9 +93,10 @@ Bits ToKnownBitsValues(const TernaryVector& ternary_vector);
 inline std::optional<TernaryVector> Difference(const TernaryVector& lhs,
                                                const TernaryVector& rhs) {
   XLS_CHECK_EQ(lhs.size(), rhs.size());
-  int64_t size = lhs.size();
+  const int64_t size = lhs.size();
 
   TernaryVector result;
+  result.reserve(size);
   for (int64_t i = 0; i < size; ++i) {
     if (lhs[i] != TernaryValue::kUnknown) {
       if (rhs[i] == TernaryValue::kUnknown) {
@@ -110,6 +113,55 @@ inline std::optional<TernaryVector> Difference(const TernaryVector& lhs,
   }
 
   return result;
+}
+
+// Returns a vector with known positions for each bit known to have the same
+// value in both `lhs` and `rhs`. CHECK fails if `lhs` and `rhs` have different
+// lengths.
+inline TernaryVector Intersection(const TernaryVector& lhs,
+                                  const TernaryVector& rhs) {
+  XLS_CHECK_EQ(lhs.size(), rhs.size());
+  const int64_t size = lhs.size();
+
+  TernaryVector result;
+  result.reserve(size);
+  for (int64_t i = 0; i < size; ++i) {
+    if (lhs[i] != rhs[i]) {
+      result.push_back(TernaryValue::kUnknown);
+    } else {
+      result.push_back(lhs[i]);
+    }
+  }
+
+  return result;
+}
+
+// Updates `lhs`, turning it into a vector of bits known to have the same value
+// in both `lhs` and `rhs`. CHECK fails if `lhs` and `rhs` have different
+// lengths.
+inline void UpdateWithIntersection(TernaryVector& lhs,
+                                   const TernaryVector& rhs) {
+  XLS_CHECK_EQ(lhs.size(), rhs.size());
+
+  for (int64_t i = 0; i < lhs.size(); ++i) {
+    if (lhs[i] != rhs[i]) {
+      lhs[i] = TernaryValue::kUnknown;
+    }
+  }
+}
+inline void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs) {
+  XLS_CHECK_EQ(lhs.size(), rhs.bit_count());
+
+  for (int64_t i = 0; i < lhs.size(); ++i) {
+    if (lhs[i] == TernaryValue::kUnknown) {
+      continue;
+    }
+    const bool lhs_bit = lhs[i] == TernaryValue::kKnownOne;
+    const bool rhs_bit = rhs.Get(i);
+    if (lhs_bit != rhs_bit) {
+      lhs[i] = TernaryValue::kUnknown;
+    }
+  }
 }
 
 // Returns the number of known bits in the given `TernaryVector`.

@@ -289,39 +289,47 @@ inline ::testing::Matcher<const ::xls::Node*> Param() {
 class BitSliceMatcher : public NodeMatcher {
  public:
   BitSliceMatcher(::testing::Matcher<const Node*> operand,
-                  std::optional<int64_t> start, std::optional<int64_t> width)
+                  ::testing::Matcher<int64_t> start,
+                  ::testing::Matcher<int64_t> width)
       : NodeMatcher(Op::kBitSlice, {std::move(operand)}),
-        start_(start),
-        width_(width) {}
-  BitSliceMatcher(std::optional<int64_t> start, std::optional<int64_t> width)
-      : NodeMatcher(Op::kBitSlice, {}), start_(start), width_(width) {}
+        start_(std::move(start)),
+        width_(std::move(width)) {}
+  BitSliceMatcher(::testing::Matcher<int64_t> start,
+                  ::testing::Matcher<int64_t> width)
+      : NodeMatcher(Op::kBitSlice, {}),
+        start_(std::move(start)),
+        width_(std::move(width)) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(::std::ostream* os) const override;
 
  private:
-  std::optional<int64_t> start_;
-  std::optional<int64_t> width_;
+  ::testing::Matcher<int64_t> start_;
+  ::testing::Matcher<int64_t> width_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> BitSlice() {
-  return ::xls::op_matchers::BitSliceMatcher(std::nullopt, std::nullopt);
+  return ::xls::op_matchers::BitSliceMatcher(::testing::_, ::testing::_);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> BitSlice(
     ::testing::Matcher<const Node*> operand) {
-  return ::xls::op_matchers::BitSliceMatcher(std::move(operand), std::nullopt,
-                                             std::nullopt);
+  return ::xls::op_matchers::BitSliceMatcher(std::move(operand), ::testing::_,
+                                             ::testing::_);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> BitSlice(
-    ::testing::Matcher<const Node*> operand, int64_t start, int64_t width) {
-  return ::xls::op_matchers::BitSliceMatcher(std::move(operand), start, width);
+    ::testing::Matcher<const Node*> operand, ::testing::Matcher<int64_t> start,
+    ::testing::Matcher<int64_t> width) {
+  return ::xls::op_matchers::BitSliceMatcher(
+      std::move(operand), std::move(start), std::move(width));
 }
 
-inline ::testing::Matcher<const ::xls::Node*> BitSlice(int64_t start,
-                                                       int64_t width) {
-  return ::xls::op_matchers::BitSliceMatcher(start, width);
+inline ::testing::Matcher<const ::xls::Node*> BitSlice(
+    ::testing::Matcher<int64_t> start, ::testing::Matcher<int64_t> width) {
+  return ::xls::op_matchers::BitSliceMatcher(std::move(start),
+                                             std::move(width));
 }
 
 // DynamicBitSlice matcher. Supported forms:
