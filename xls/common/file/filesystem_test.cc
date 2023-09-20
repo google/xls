@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/filesystem_test.pb.h"
 #include "xls/common/file/temp_directory.h"
@@ -80,7 +81,7 @@ TEST(FilesystemTest, FileIsExecutable) {
       std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
   ASSERT_THAT(FileIsExecutable(temp_file->path()), IsOkAndHolds(false));
 
-  EXPECT_THAT(FileIsExecutable("/nonexistent/garbage"),
+  EXPECT_THAT(FileIsExecutable("/this_is_not_a_real_directory/garbage"),
               StatusIs(absl::StatusCode::kNotFound));
 }
 

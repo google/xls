@@ -71,6 +71,7 @@ cc_test(
         ":filesystem_test_cc_proto",
         ":temp_directory",
         ":temp_file",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
