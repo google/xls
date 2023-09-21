@@ -15,6 +15,7 @@
 #include "xls/ir/function_base.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <ostream>
@@ -23,20 +24,44 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
+#include "google/protobuf/text_format.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_scanner.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 
 namespace xls {
+
+std::vector<std::string> FunctionBase::AttributeIrStrings() const {
+  std::vector<std::string> attribute_strings;
+  if (ForeignFunctionData().has_value()) {
+    std::string serialized;
+    XLS_CHECK(
+        google::protobuf::TextFormat::PrintToString(*ForeignFunctionData(), &serialized));
+    // Triple-quoted attribute strings allow for newlines.
+    attribute_strings.push_back(
+        absl::StrCat("ffi_proto(\"\"\"", serialized, "\"\"\")"));
+  }
+  if (initiation_interval_.has_value()) {
+    attribute_strings.push_back(
+        absl::StrFormat("initiation_interval(%d)", *initiation_interval_));
+  }
+
+  return attribute_strings;
+}
 
 absl::StatusOr<Param*> FunctionBase::GetParamByName(
     std::string_view param_name) const {

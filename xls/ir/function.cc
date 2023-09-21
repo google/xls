@@ -14,20 +14,26 @@
 
 #include "xls/ir/function.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "google/protobuf/text_format.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 
@@ -42,13 +48,6 @@ FunctionType* Function::GetType() {
 
 std::string Function::DumpIr() const {
   std::string res;
-  if (ForeignFunctionData().has_value()) {
-    std::string serialized;
-    XLS_CHECK(
-        google::protobuf::TextFormat::PrintToString(*ForeignFunctionData(), &serialized));
-    // Triple-quoted attribute strings allow for newlines.
-    absl::StrAppend(&res, "#[ffi_proto(\"\"\"", serialized, "\"\"\")]\n");
-  }
 
   absl::StrAppend(&res, "fn " + name() + "(");
 

@@ -442,6 +442,7 @@ cc_library(
         ":channel_ops",
         ":code_template",
         ":foreign_function",
+        ":foreign_function_data_cc_proto",
         ":format_strings",
         ":ir_scanner",
         ":name_uniquer",
