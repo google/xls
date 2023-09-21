@@ -18,7 +18,6 @@
 #include <iostream>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -26,6 +25,7 @@
 // summary of modules used.
 
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -82,7 +82,7 @@ ABSL_FLAG(std::vector<std::string>, op_kind, {},
 namespace xls {
 
 static absl::Status RealMain() {
-  using MapT = std::unordered_map<std::filesystem::path, ModuleSignatureProto>;
+  using MapT = absl::flat_hash_map<std::string, ModuleSignatureProto>;
   XLS_ASSIGN_OR_RETURN(
       MapT signature_data,
       CollectSignatureProtos(absl::GetFlag(FLAGS_root_path),

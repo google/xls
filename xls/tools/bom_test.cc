@@ -18,10 +18,10 @@
 #include <filesystem>  // NOLINT
 #include <sstream>
 #include <string>
-#include <unordered_map>
 
 #include "gtest/gtest.h"
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 
@@ -33,7 +33,7 @@ TEST(BomTest, TestBomSummary) {
       std::filesystem::path testfile_path,
       GetXlsRunfilePath("xls/tools/testdata/bom.sig.textproto"));
   std::filesystem::path root_path(testfile_path.parent_path());
-  using MapT = std::unordered_map<std::filesystem::path, ModuleSignatureProto>;
+  using MapT = absl::flat_hash_map<std::string, ModuleSignatureProto>;
   XLS_ASSERT_OK_AND_ASSIGN(
       MapT signature_protos,
       CollectSignatureProtos(root_path, ".*/bom\\.sig\\.textproto"));

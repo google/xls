@@ -19,7 +19,6 @@
 #include <filesystem>  // NOLINT
 #include <ostream>
 #include <string>
-#include <unordered_map>
 
 #include "absl/container/btree_map.h"
 #include "absl/status/statusor.h"
@@ -45,7 +44,7 @@ bool operator<(const BomItem& lhs, const BomItem& rhs);
 // Calculate a BOM summary from a given list of ModuleSignatureProto files.
 // Using absl::btree_map as we *want* the items to be stored in sorted order.
 absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
-    const std::unordered_map<std::filesystem::path, ModuleSignatureProto>&
+    const absl::flat_hash_map<std::string, ModuleSignatureProto>&
         signature_data);
 
 // Finds all the ModuleSignatureProto files under a given path.
@@ -53,7 +52,7 @@ absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
 // Typical return codes (not guaranteed exhaustive):
 //  * StatusCode::kOk
 //  * StatusCode::kFailedPrecondition
-absl::StatusOr<std::unordered_map<std::filesystem::path, ModuleSignatureProto>>
+absl::StatusOr<absl::flat_hash_map<std::string, ModuleSignatureProto>>
 CollectSignatureProtos(const std::filesystem::path& root,
                        const std::string& match);
 

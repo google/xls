@@ -1234,6 +1234,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:op",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -1252,6 +1253,7 @@ cc_test(
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
 
@@ -1264,6 +1266,7 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

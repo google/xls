@@ -22,11 +22,11 @@
 #include <iostream>
 #include <ostream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -59,7 +59,7 @@ bool operator<(const BomItem& lhs, const BomItem& rhs) {
 }
 
 absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
-    const std::unordered_map<std::filesystem::path, ModuleSignatureProto>&
+    const absl::flat_hash_map<std::string, ModuleSignatureProto>&
         signature_data) {
   absl::btree_map<BomItem, int64_t> summary;
   for (const auto& [path, signature] : signature_data) {
@@ -103,11 +103,10 @@ absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
   return summary;
 }
 
-absl::StatusOr<std::unordered_map<std::filesystem::path, ModuleSignatureProto>>
+absl::StatusOr<absl::flat_hash_map<std::string, ModuleSignatureProto>>
 CollectSignatureProtos(const std::filesystem::path& root,
                        const std::string& match) {
-  std::unordered_map<std::filesystem::path, ModuleSignatureProto>
-      signature_protos;
+  absl::flat_hash_map<std::string, ModuleSignatureProto> signature_protos;
   XLS_ASSIGN_OR_RETURN(std::vector<std::filesystem::path> filenames,
                        FindFilesMatchingRegex(root, match));
   for (const std::filesystem::path& path : filenames) {
@@ -121,7 +120,7 @@ CollectSignatureProtos(const std::filesystem::path& root,
       return absl::InvalidArgumentError(
           absl::StrCat(path.c_str(), " is not a .proto or .textproto file"));
     }
-    signature_protos[path] = signature;
+    signature_protos[std::string{path}] = signature;
   }
   return signature_protos;
 }

@@ -131,10 +131,6 @@ std::string ToString(const std::pair<T1, T2>& value) {
   return absl::StrCat("{ ", content, " }");
 }
 
-// TODO(vmirian): 7-25-2022 Enable support for std::map, std::multimap,
-// std::unordered_map and std::unordered_multimap.
-// TODO(vmirian): 7-25-2022 Add support for std::array.
-
 // Returns a string representation of a container containing a type without a
 // defined ToString() method.
 template <typename T, template <class...> class Container,
