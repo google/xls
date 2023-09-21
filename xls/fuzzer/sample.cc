@@ -23,7 +23,9 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/interp_value_helpers.h"
@@ -91,7 +93,11 @@ std::vector<std::string> ParseIrChannelNames(
   return FromProto(proto);
 }
 
-std::string SampleOptions::ToPbtxt() const { return proto_.DebugString(); }
+std::string SampleOptions::ToPbtxt() const {
+  std::string pbtxt;
+  XLS_CHECK(google::protobuf::TextFormat::PrintToString(proto_, &pbtxt));
+  return pbtxt;
+}
 
 /*static*/ absl::StatusOr<SampleOptions> SampleOptions::FromProto(
     const fuzzer::SampleOptionsProto& proto) {
