@@ -18,7 +18,7 @@
 #ifndef XLS_COMMON_FILE_FILESYSTEM_H_
 #define XLS_COMMON_FILE_FILESYSTEM_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
 #include <vector>
@@ -246,6 +246,20 @@ absl::StatusOr<std::filesystem::path> GetCurrentDirectory();
 //  * StatusCode::kPermissionDenied (directory is not readable)
 absl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
     const std::filesystem::path& path);
+
+// Finds all files under a given path which match a regex pattern.
+//
+// Follows the same behaviour as `GetDirectoryEntries`, the returned paths are
+// relative to the current working directory if `path` is relative, and absolute
+// if `path` is absolute.
+//
+// Typical return codes (not guaranteed exhaustive):
+//  * StatusCode::kOk
+//  * StatusCode::kNotFound (no such directory)
+//  * StatusCode::kFailedPrecondition (`path` is not a directory)
+//  * StatusCode::kPermissionDenied (directory is not readable)
+absl::StatusOr<std::vector<std::filesystem::path>> FindFilesMatchingRegex(
+    const std::filesystem::path& path, const std::string& pattern);
 
 // Returns the path pointed to by the file, if it's a link, or the given path
 // otherwise.

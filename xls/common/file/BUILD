@@ -54,11 +54,11 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/status:error_code_to_status",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_github_google_re2//:re2",
         "@com_google_protobuf//:protobuf",
     ],
 )

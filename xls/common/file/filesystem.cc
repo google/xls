@@ -19,18 +19,20 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
+#include <cstring>
+#include <filesystem>  // NOLINT
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <system_error>
+#include <system_error>  // NOLINT
 #include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/io/tokenizer.h"
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
@@ -39,6 +41,7 @@
 #include "xls/common/status/error_code_to_status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "re2/re2.h"
 
 namespace xls {
 namespace {
@@ -315,6 +318,47 @@ absl::StatusOr<std::vector<std::filesystem::path>> GetDirectoryEntries(
     }
   }
   return std::move(result);
+}
+
+namespace {
+// Internal function which recursively walk the filesystem pushing files which
+// matches the given pattern into the output vector.
+std::error_code FindFilesInternal(std::vector<std::filesystem::path>& output,
+                                  const std::filesystem::path& path,
+                                  const std::string& pattern) {
+  std::error_code ec;
+  auto it = std::filesystem::directory_iterator(path, ec);
+  if (ec) {
+    return ec;
+  }
+  auto end = std::filesystem::directory_iterator();
+  while (it != end) {
+    if (it->is_directory()) {
+      ec = FindFilesInternal(output, it->path(), pattern);
+    } else if (it->is_regular_file()) {
+      if (RE2::FullMatch(it->path().string(), pattern)) {
+        output.push_back(it->path());
+      }
+    }
+    it.increment(ec);
+    if (ec) {
+      return ec;
+    }
+  }
+  return std::error_code();
+}
+}  // namespace
+
+absl::StatusOr<std::vector<std::filesystem::path>> FindFilesMatchingRegex(
+    const std::filesystem::path& path, const std::string& pattern) {
+  std::vector<std::filesystem::path> result;
+  std::error_code ec = FindFilesInternal(result, path, pattern);
+  // Sort the output so we don't depend on filesystem traversal order.
+  std::sort(result.begin(), result.end());
+  if (ec) {
+    return ErrorCodeToStatus(ec);
+  }
+  return result;
 }
 
 absl::StatusOr<std::filesystem::path> GetRealPath(const std::string& path) {
