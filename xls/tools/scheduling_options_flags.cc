@@ -310,15 +310,16 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   scheduling_options.fdo_refinement_stochastic_ratio(
       proto.fdo_refinement_stochastic_ratio());
 
-  if (proto.use_fdo() &&
-      proto.fdo_path_evaluate_strategy() != "path" &&
-      proto.fdo_path_evaluate_strategy() != "cone" &&
-      proto.fdo_path_evaluate_strategy() != "window") {
-    return absl::InternalError(
-        "path_evaluate_strategy must be 'path', 'cone', or 'window'");
+  if (proto.use_fdo()) {
+    if (proto.fdo_path_evaluate_strategy() != "path" &&
+        proto.fdo_path_evaluate_strategy() != "cone" &&
+        proto.fdo_path_evaluate_strategy() != "window") {
+      return absl::InternalError(
+          "path_evaluate_strategy must be 'path', 'cone', or 'window'");
+    }
+    scheduling_options.fdo_path_evaluate_strategy(
+        proto.fdo_path_evaluate_strategy());
   }
-  scheduling_options.fdo_path_evaluate_strategy(
-      proto.fdo_path_evaluate_strategy());
 
   scheduling_options.fdo_synthesizer_name(proto.fdo_synthesizer_name());
 
