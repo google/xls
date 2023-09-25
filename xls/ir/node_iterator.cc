@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/function.h"
@@ -83,15 +83,19 @@ void NodeIterator::Initialize() {
     // We want to be careful to only bump down our operands once, since we're a
     // single user, even though we may refer to them multiple times in our
     // operands sequence.
-    absl::flat_hash_set<Node*> seen_operands;
-    seen_operands.reserve(r->operand_count());
-
+    absl::InlinedVector<Node*, 16> seen_operands;
     for (auto it = r->operands().rbegin(); it != r->operands().rend(); ++it) {
       Node* o = *it;
-      if (seen_operands.insert(o).second) {
-        // When we bump down the remaining users for the operand it may enter
-        // the back of the ready queue.
+      bool found = false;
+      for (auto seen : seen_operands) {
+        if (seen == o) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
         bump_down_remaining_users(o);
+        seen_operands.push_back(o);
       }
     }
   };
