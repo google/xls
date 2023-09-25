@@ -425,3 +425,14 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+cc_library(
+    name = "idmaendpoint",
+    hdrs = [
+        "idmaendpoint.h",
+    ],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
