@@ -76,6 +76,9 @@ xls_eval_ir_test(
 xls_benchmark_ir(
     name = "adler32_benchmark_ir",
     src = ":adler32.ir",
+    benchmark_ir_args = {
+        "delay_model": "sky130",
+    },
 )
 
 cc_binary(
