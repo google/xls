@@ -104,12 +104,7 @@ fn fft(real: F32[FFT_SIZE], img: F32[FFT_SIZE], real_twid: F32[FFT_HALF_SIZE],
     let span = FFT_SIZE >> log + u32:1;
 
     for (odd, (real, img)): (u32, (F32[FFT_SIZE], F32[FFT_SIZE]))
-      in range(u32:0, u32:1024) {
-      // ^  Weirdly, this won't compile if we use FFT_SIZE instead of
-      // u32:1024. Build complains about AST node with non-const IR
-      // value, even though FFT_SIZE is a const and it is used in the
-      // range of the outer loop without issue.
-
+      in range(u32:0, FFT_SIZE) {
       // We want to loop dynamically, going from span to 1023
       // while skipping half of the numbers in the range.
       // However, dslx restricts us to simply incrementing though a

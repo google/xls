@@ -89,10 +89,13 @@ ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
           "Resource limit for solver in mutual exclusion pass");
 ABSL_FLAG(std::string, scheduling_options_proto, "",
           "Path to a protobuf containing all scheduling options args.");
-ABSL_FLAG(int64_t, fdo_iteration_number, 1,
+ABSL_FLAG(bool, use_fdo, false,
+          "Use FDO (feedback-directed optimization) for pipeline scheduling. "
+          "If 'false', then all 'fdo_*' options are ignored.");
+ABSL_FLAG(int64_t, fdo_iteration_number, 5,
           "The number of FDO iterations during the pipeline scheduling. Must "
-          "be an integer >= 1.");
-ABSL_FLAG(int64_t, fdo_delay_driven_path_number, 0,
+          "be an integer >= 2.");
+ABSL_FLAG(int64_t, fdo_delay_driven_path_number, 1,
           "The number of delay-driven subgraphs in each FDO iteration. Must be "
           "a non-negative integer.");
 ABSL_FLAG(int64_t, fdo_fanout_driven_path_number, 0,
@@ -146,6 +149,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_REPEATED_FLAG(io_constraints);
   POPULATE_FLAG(receives_first_sends_last);
   POPULATE_FLAG(mutual_exclusion_z3_rlimit);
+  POPULATE_FLAG(use_fdo);
   POPULATE_FLAG(fdo_iteration_number);
   POPULATE_FLAG(fdo_delay_driven_path_number);
   POPULATE_FLAG(fdo_fanout_driven_path_number);
@@ -278,39 +282,44 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     }
   }
 
-  if (proto.fdo_iteration_number() < 1) {
-    return absl::InternalError("fdo_iteration_number must be >= 1");
+  scheduling_options.use_fdo(proto.use_fdo());
+
+  if (proto.use_fdo() && proto.fdo_iteration_number() < 2) {
+    return absl::InternalError("fdo_iteration_number must be >= 2");
   }
   scheduling_options.fdo_iteration_number(proto.fdo_iteration_number());
 
-  if (proto.fdo_delay_driven_path_number() < 0) {
+  if (proto.use_fdo() && proto.fdo_delay_driven_path_number() < 0) {
     return absl::InternalError("delay_driven_path_number must be >= 0");
   }
   scheduling_options.fdo_delay_driven_path_number(
       proto.fdo_delay_driven_path_number());
 
-  if (proto.fdo_fanout_driven_path_number() < 0) {
+  if (proto.use_fdo() && proto.fdo_fanout_driven_path_number() < 0) {
     return absl::InternalError("fanout_driven_path_number must be >= 0");
   }
   scheduling_options.fdo_fanout_driven_path_number(
       proto.fdo_fanout_driven_path_number());
 
-  if (proto.fdo_refinement_stochastic_ratio() > 1.0 ||
-      proto.fdo_refinement_stochastic_ratio() <= 0.0) {
+  if (proto.use_fdo() &&
+      (proto.fdo_refinement_stochastic_ratio() > 1.0 ||
+      proto.fdo_refinement_stochastic_ratio() <= 0.0)) {
     return absl::InternalError(
         "refinement_stochastic_ratio must be <= 1.0 and > 0.0");
   }
   scheduling_options.fdo_refinement_stochastic_ratio(
       proto.fdo_refinement_stochastic_ratio());
 
-  if (proto.fdo_path_evaluate_strategy() != "path" &&
-      proto.fdo_path_evaluate_strategy() != "cone" &&
-      proto.fdo_path_evaluate_strategy() != "window") {
-    return absl::InternalError(
-        "path_evaluate_strategy must be 'path', 'cone', or 'window'");
+  if (proto.use_fdo()) {
+    if (proto.fdo_path_evaluate_strategy() != "path" &&
+        proto.fdo_path_evaluate_strategy() != "cone" &&
+        proto.fdo_path_evaluate_strategy() != "window") {
+      return absl::InternalError(
+          "path_evaluate_strategy must be 'path', 'cone', or 'window'");
+    }
+    scheduling_options.fdo_path_evaluate_strategy(
+        proto.fdo_path_evaluate_strategy());
   }
-  scheduling_options.fdo_path_evaluate_strategy(
-      proto.fdo_path_evaluate_strategy());
 
   scheduling_options.fdo_synthesizer_name(proto.fdo_synthesizer_name());
 

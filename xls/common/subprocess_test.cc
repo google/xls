@@ -41,9 +41,10 @@ TEST(SubprocessTest, EmptyArgvFails) {
 }
 
 TEST(SubprocessTest, NonZeroExitWorks) {
-  auto result = InvokeSubprocess(
-      {"/bin/bash", "-c", "echo -n hey && echo -n hello >&2 && exit 10"},
-      std::nullopt);
+  auto result =
+      InvokeSubprocess({"/usr/bin/env", "bash", "-c",
+                        "echo -n hey && echo -n hello >&2 && exit 10"},
+                       std::nullopt);
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
                           /*stdout=*/"hey",
@@ -54,9 +55,10 @@ TEST(SubprocessTest, NonZeroExitWorks) {
 }
 
 TEST(SubprocessTest, CrashingExitWorks) {
-  auto result = InvokeSubprocess(
-      {"/bin/bash", "-c", "echo -n hey && echo -n hello >&2 && kill -ABRT $$"},
-      std::nullopt);
+  auto result =
+      InvokeSubprocess({"/usr/bin/env", "bash", "-c",
+                        "echo -n hey && echo -n hello >&2 && kill -ABRT $$"},
+                       std::nullopt);
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
                           /*stdout=*/_,
@@ -68,8 +70,8 @@ TEST(SubprocessTest, CrashingExitWorks) {
 
 TEST(SubprocessTest, WatchdogFastExitWorks) {
   absl::Time start_time = absl::Now();
-  auto result = InvokeSubprocess({"/bin/bash", "-c", "exit 0"}, std::nullopt,
-                                 absl::Milliseconds(60000));
+  auto result = InvokeSubprocess({"/usr/bin/env", "bash", "-c", "exit 0"},
+                                 std::nullopt, absl::Milliseconds(60000));
   absl::Duration duration = absl::Now() - start_time;
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
@@ -82,8 +84,8 @@ TEST(SubprocessTest, WatchdogFastExitWorks) {
 }
 
 TEST(SubprocessTest, WatchdogWorks) {
-  auto result = InvokeSubprocess({"/bin/bash", "-c", "sleep 10"}, std::nullopt,
-                                 absl::Milliseconds(50));
+  auto result = InvokeSubprocess({"/usr/bin/env", "bash", "-c", "sleep 10"},
+                                 std::nullopt, absl::Milliseconds(50));
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
                           /*stdout=*/"",
@@ -94,9 +96,10 @@ TEST(SubprocessTest, WatchdogWorks) {
 }
 
 TEST(SubprocessTest, ErrorAsStatusFailingCommand) {
-  auto result = SubprocessErrorAsStatus(InvokeSubprocess(
-      {"/bin/bash", "-c", "echo hey && echo hello >&2 && /bin/false"},
-      std::nullopt));
+  auto result = SubprocessErrorAsStatus(
+      InvokeSubprocess({"/usr/bin/env", "bash", "-c",
+                        "echo hey && echo hello >&2 && /bin/false"},
+                       std::nullopt));
 
   ASSERT_THAT(result, StatusIs(absl::StatusCode::kInternal));
   EXPECT_THAT(result.status().ToString(), HasSubstr("hey"));
@@ -106,7 +109,8 @@ TEST(SubprocessTest, ErrorAsStatusFailingCommand) {
 TEST(SubprocessTest, WorkingCommandWorks) {
   absl::StatusOr<SubprocessResult> result_or_status =
       SubprocessErrorAsStatus(InvokeSubprocess(
-          {"/bin/bash", "-c", "echo hey && echo hello >&2"}, std::nullopt));
+          {"/usr/bin/env", "bash", "-c", "echo hey && echo hello >&2"},
+          std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);
   EXPECT_EQ(result_or_status->stdout, "hey\n");
@@ -114,10 +118,10 @@ TEST(SubprocessTest, WorkingCommandWorks) {
 }
 
 TEST(SubprocessTest, LargeOutputToStdoutFirstWorks) {
-  absl::StatusOr<SubprocessResult> result_or_status =
-      SubprocessErrorAsStatus(InvokeSubprocess(
-          {"/bin/bash", "-c", "/usr/bin/env seq 10000 && echo hello >&2"},
-          std::nullopt));
+  absl::StatusOr<SubprocessResult> result_or_status = SubprocessErrorAsStatus(
+      InvokeSubprocess({"/usr/bin/env", "bash", "-c",
+                        "/usr/bin/env seq 10000 && echo hello >&2"},
+                       std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);
   EXPECT_THAT(result_or_status->stdout, HasSubstr("\n10000\n"));
@@ -125,10 +129,10 @@ TEST(SubprocessTest, LargeOutputToStdoutFirstWorks) {
 }
 
 TEST(SubprocessTest, LargeOutputToStderrFirstWorks) {
-  absl::StatusOr<SubprocessResult> result_or_status =
-      SubprocessErrorAsStatus(InvokeSubprocess(
-          {"/bin/bash", "-c", "/usr/bin/env seq 10000 >&2 && echo hello"},
-          std::nullopt));
+  absl::StatusOr<SubprocessResult> result_or_status = SubprocessErrorAsStatus(
+      InvokeSubprocess({"/usr/bin/env", "bash", "-c",
+                        "/usr/bin/env seq 10000 >&2 && echo hello"},
+                       std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);
   EXPECT_EQ(result_or_status->stdout, "hello\n");

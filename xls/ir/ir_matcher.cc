@@ -224,15 +224,39 @@ bool BitSliceMatcher::MatchAndExplain(
   if (!NodeMatcher::MatchAndExplain(node, listener)) {
     return false;
   }
-  if (start_.has_value() && node->As<::xls::BitSlice>()->start() != *start_) {
-    *listener << " has incorrect start, expected: " << *start_;
+  if (!start_.Matches(node->As<::xls::BitSlice>()->start())) {
+    if (listener->IsInterested()) {
+      *listener << "has incorrect start, expected start ";
+      start_.DescribeTo(listener->stream());
+    }
     return false;
   }
-  if (width_.has_value() && node->As<::xls::BitSlice>()->width() != *width_) {
-    *listener << " has incorrect width, expected: " << *width_;
+  if (!width_.Matches(node->As<::xls::BitSlice>()->width())) {
+    if (listener->IsInterested()) {
+      *listener << "has incorrect width, expected width ";
+      width_.DescribeTo(listener->stream());
+    }
     return false;
   }
   return true;
+}
+
+void BitSliceMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> additional_fields;
+  additional_fields.reserve(2);
+  {
+    std::stringstream ss;
+    ss << "start ";
+    start_.DescribeTo(&ss);
+    additional_fields.push_back(ss.str());
+  }
+  {
+    std::stringstream ss;
+    ss << "width ";
+    width_.DescribeTo(&ss);
+    additional_fields.push_back(ss.str());
+  }
+  DescribeToHelper(os, additional_fields);
 }
 
 bool DynamicBitSliceMatcher::MatchAndExplain(

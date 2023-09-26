@@ -302,8 +302,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
   ScheduleCycleMap cycle_map;
   if (options.strategy() == SchedulingStrategy::SDC) {
-    // Enable iterative SDC scheduling when iteration number is larger than 1.
-    if (options.fdo_iteration_number() > 1) {
+    // Enable iterative SDC scheduling when use_fdo is true
+    if (options.use_fdo()) {
       if (!options.clock_period_ps().has_value()) {
         return absl::UnimplementedError(
             "Iterative SDC scheduling is only supported when a clock period is "

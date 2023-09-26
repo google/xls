@@ -21,7 +21,6 @@
 
 #include <atomic>
 #include <cerrno>
-#include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -71,24 +70,42 @@ struct Pipe {
   FileDescriptor entrance;
 };
 
-void PrepareAndExecInChildProcess(const std::vector<const char*>& argv_pointers,
-                                  std::optional<std::filesystem::path> cwd,
-                                  const Pipe& stdout_pipe,
-                                  const Pipe& stderr_pipe) {
+absl::StatusOr<pid_t> ExecInChildProcess(
+    const std::vector<const char*>& argv_pointers,
+    const std::optional<std::filesystem::path>& cwd, Pipe& stdout_pipe,
+    Pipe& stderr_pipe) {
+  const char* cwd_c_str = nullptr;
   if (cwd.has_value()) {
-    if (chdir(cwd->c_str()) != 0) {
-      XLS_LOG(ERROR) << "chdir failed: " << Strerror(errno);
+    cwd_c_str = cwd->c_str();
+  }
+
+  pid_t pid = fork();
+  if (pid == -1) {
+    return absl::InternalError(
+        absl::StrCat("Failed to fork: ", Strerror(errno)));
+  }
+  if (pid != 0) {
+    // This is the parent process.
+    stdout_pipe.entrance.Close();
+    stderr_pipe.entrance.Close();
+    return pid;
+  }
+
+  // This is the child process.
+  //
+  // NOTE: It is not safe to allocate from here to the `exec` invocation, so
+  // logging is also unsafe.
+  if (cwd_c_str != nullptr) {
+    if (chdir(cwd_c_str) != 0) {
       _exit(127);
     }
   }
-
   while ((dup2(stdout_pipe.entrance.get(), STDOUT_FILENO) == -1) &&
          (errno == EINTR)) {
   }
   while ((dup2(stderr_pipe.entrance.get(), STDERR_FILENO) == -1) &&
          (errno == EINTR)) {
   }
-
   execv(argv_pointers[0], const_cast<char* const*>(argv_pointers.data()));
   XLS_LOG(ERROR) << "Execv syscall failed: " << Strerror(errno);
   _exit(127);
@@ -195,17 +212,8 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   XLS_ASSIGN_OR_RETURN(auto stdout_pipe, Pipe::Open());
   XLS_ASSIGN_OR_RETURN(auto stderr_pipe, Pipe::Open());
 
-  pid_t pid = fork();
-  if (pid == -1) {
-    return absl::InternalError(
-        absl::StrCat("Failed to fork: ", Strerror(errno)));
-  }
-  if (pid == 0) {
-    PrepareAndExecInChildProcess(argv_pointers, cwd, stdout_pipe, stderr_pipe);
-  }
-  // This is the parent process.
-  stdout_pipe.entrance.Close();
-  stderr_pipe.entrance.Close();
+  XLS_ASSIGN_OR_RETURN(pid_t pid, ExecInChildProcess(argv_pointers, cwd,
+                                                     stdout_pipe, stderr_pipe));
 
   // Order is important here. The optional<Thread> must appear after the mutex
   // because the thread's destructor calls Join() and because the thread has
@@ -290,7 +298,7 @@ absl::StatusOr<SubprocessResult> SubprocessErrorAsStatus(
 std::ostream& operator<<(std::ostream& os, const SubprocessResult& other) {
   os << "exit_status:" << other.exit_status
      << " normal_termination:" << other.normal_termination
-     << "\nstdout:" << other.stdout << "\nstderr:" << other.stderr << std::endl;
+     << "\nstdout:" << other.stdout << "\nstderr:" << other.stderr << "\n";
   return os;
 }
 

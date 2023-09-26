@@ -15,6 +15,7 @@
 #ifndef XLS_IR_FUNCTION_BASE_H_
 #define XLS_IR_FUNCTION_BASE_H_
 
+#include <cstdint>
 #include <list>
 #include <memory>
 #include <optional>
@@ -26,9 +27,12 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "xls/common/iterator_range.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/foreign_function.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -49,6 +53,9 @@ class FunctionBase {
  public:
   FunctionBase(std::string_view name, Package* package)
       : name_(name), package_(package) {}
+  FunctionBase(const FunctionBase& other) = delete;
+  void operator=(const FunctionBase& other) = delete;
+
   virtual ~FunctionBase() = default;
 
   Package* package() const { return package_; }
@@ -68,6 +75,9 @@ class FunctionBase {
 
   // DumpIr emits the IR in a parsable, hierarchical text format.
   virtual std::string DumpIr() const = 0;
+
+  // Get FunctionBase attributes suitable for putting in #[...] in the IR.
+  std::vector<std::string> AttributeIrStrings() const;
 
   // Return Span of parameters.
   absl::Span<Param* const> params() const { return params_; }
@@ -176,9 +186,6 @@ class FunctionBase {
   }
 
  protected:
-  FunctionBase(const FunctionBase& other) = delete;
-  void operator=(const FunctionBase& other) = delete;
-
   // Internal virtual helper for adding a node. Returns a pointer to the newly
   // added node.
   virtual Node* AddNodeInternal(std::unique_ptr<Node> node);

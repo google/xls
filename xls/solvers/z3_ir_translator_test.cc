@@ -837,11 +837,14 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
 
   // Check that non-token logic is not affected.
-  Node* eq_node = FindNode("literal.5", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  {
+    Node* eq_node = FindNode("literal.5", p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        bool proven_eq,
+        TryProve(f, f->return_value(), Predicate::EqualTo(eq_node),
+                 absl::InfiniteDuration()));
+    EXPECT_TRUE(proven_eq);
+  }
 
   std::vector<Node*> token_nodes;
   for (Node* node : f->nodes()) {
@@ -849,7 +852,7 @@ fn f() -> bits[32] {
       token_nodes.push_back(node);
     }
   }
-  assert(token_nodes.size() == 4);
+  ASSERT_EQ(token_nodes.size(), 4);
 
   for (int l_idx = 0; l_idx < token_nodes.size(); ++l_idx) {
     for (int r_idx = l_idx + 1; r_idx < token_nodes.size(); ++r_idx) {
@@ -907,7 +910,7 @@ fn f() -> bits[32] {
       token_nodes.push_back(node);
     }
   }
-  assert(token_nodes.size() == 4);
+  ASSERT_EQ(token_nodes.size(), 4);
 
   for (int l_idx = 0; l_idx < token_nodes.size(); ++l_idx) {
     for (int r_idx = l_idx + 1; r_idx < token_nodes.size(); ++r_idx) {

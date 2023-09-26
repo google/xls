@@ -42,11 +42,11 @@
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/function.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -705,45 +705,36 @@ std::string Package::DumpIr() const {
     }
     absl::StrAppend(&out, "\n");
   }
-  std::vector<std::string> function_dumps;
   std::optional<FunctionBase*> top = GetTop();
-  // Reuse prefix's storage for each loop iteration- it gets cleared each
-  // iteration but the storage remains.
-  std::string prefix;
+  auto append_ir_with_attributes = [&top, &out](FunctionBase* fb) {
+    std::string_view attribute_prefix;
+    std::string_view attribute_suffix;
+    std::vector<std::string> attribute_strings = fb->AttributeIrStrings();
+    if (!attribute_strings.empty()) {
+      attribute_prefix = "#[";
+      attribute_suffix = "]\n";
+    }
+    std::string_view top_prefix;
+    if (top.has_value() && top.value() == fb) {
+      top_prefix = "top ";
+    }
+
+    absl::StrAppend(&out, attribute_prefix,
+                    absl::StrJoin(attribute_strings, ", "), attribute_suffix,
+                    top_prefix, fb->DumpIr(), "\n");
+  };
   for (auto& function : functions()) {
-    prefix.clear();
-    // TODO(taktoa):
-    //   Refactor this so that attribute printing happens in function.cc
-    if (function->GetInitiationInterval().has_value()) {
-      int64_t ii = function->GetInitiationInterval().value();
-      absl::StrAppend(&prefix, "#[initiation_interval(", ii, ")]\n");
-    }
-    if (top.has_value() && top.value() == function.get()) {
-      absl::StrAppend(&prefix, "top ");
-    }
-    function_dumps.push_back(absl::StrCat(prefix, function->DumpIr()));
+    append_ir_with_attributes(function.get());
   }
   for (auto& proc : procs()) {
-    // TODO(taktoa):
-    //   Refactor this so that attribute printing happens in proc.cc
-    prefix.clear();
-    if (proc->GetInitiationInterval().has_value()) {
-      int64_t ii = proc->GetInitiationInterval().value();
-      absl::StrAppend(&prefix, "#[initiation_interval(", ii, ")]\n");
-    }
-    if (top.has_value() && top.value() == proc.get()) {
-      absl::StrAppend(&prefix, "top ");
-    }
-    function_dumps.push_back(absl::StrCat(prefix, proc->DumpIr()));
+    append_ir_with_attributes(proc.get());
   }
   for (auto& block : blocks()) {
-    prefix.clear();
-    if (top.has_value() && top.value() == block.get()) {
-      prefix = "top ";
-    }
-    function_dumps.push_back(absl::StrCat(prefix, block->DumpIr()));
+    append_ir_with_attributes(block.get());
   }
-  absl::StrAppend(&out, absl::StrJoin(function_dumps, "\n"));
+  // We don't include the trailing newline, drop it here.
+  XLS_CHECK(out.back() == '\n');
+  out.pop_back();
   return out;
 }
 
@@ -825,7 +816,7 @@ absl::Status Package::RemoveChannel(Channel* channel) {
   auto it = std::find(channel_vec_.begin(), channel_vec_.end(), channel);
   XLS_RET_CHECK(it != channel_vec_.end()) << "Channel not owned by package";
 
-  // Check that no send/receive nodes are associted with the channel.
+  // Check that no send/receive nodes are associated with the channel.
   // TODO(https://github.com/google/xls/issues/411) 2012/04/24 Avoid iterating
   // through all the nodes after channels are mapped to send/receive nodes.
   for (const auto& proc : procs()) {

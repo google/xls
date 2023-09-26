@@ -14,35 +14,13 @@
 
 // Perform a (sequential) Adler-32 checksum over a single input byte.
 
-// Helper Routine: Get remainder from a 32-bit divide.
-fn mod(dividend: u32, divisor: u32) -> u32 {
-  let quotient: u32 = u32:0;
-  let remainder: u32 = dividend;
-  let term: u64 = u64:1 << u64:32;
-  let product: u64 = (divisor as u64) << u64:32;
-  let (_, remainder, _, _) =
-     for (_, (quotient, remainder, product, term)):
-             (u32, (u32, u32, u64, u64))
-     in range(u32:0, u32:32) {
-       let product = product >> u64:1;
-       let term = term >> u64:1;
-       let (new_q, new_r) : (u32, u32) =
-         match product <= (remainder as u64) {
-           true => (quotient + (term as u32), remainder - (product as u32)),
-           _ => (quotient, remainder),
-         };
-       (new_q, new_r, product, term)
-    }((quotient, remainder, product, term));
-  remainder
-}
-
 fn adler32_seq(buf: u8) -> u32 {
   let a = u32:1;
   let b = u32:0;
   // Iterate only over input of length 1, for now.
   let (a, b) = for (_, (a, b)): (u8, (u32, u32)) in range(u8:0, u8:1) {
-    let a = mod(a + (buf as u32), u32:65521);
-    let b = mod(b + a, u32:65521);
+    let a = (a + (buf as u32)) % u32:65521;
+    let b = (b + a) % u32:65521;
     (a, b)
   }((a, b));
   (b << u32:16) | a

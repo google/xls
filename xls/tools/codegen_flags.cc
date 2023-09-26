@@ -149,7 +149,8 @@ absl::StatusOr<IOKindProto> IOKindProtoFromString(std::string_view s) {
   }
   if (s == "skid") {
     return IO_KIND_SKID_BUFFER;
-  } else if (s == "zerolatency") {
+  }
+  if (s == "zerolatency") {
     return IO_KIND_ZERO_LATENCY_BUFFER;
   } else {
     return absl::InvalidArgumentError(absl::StrFormat(

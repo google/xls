@@ -94,10 +94,12 @@ The following flags control the feedback-driven optimizations in XLS. For now,
 an iterative SDC scheduling method is implemented, which can take low-level
 feedbacks (typically from downstream tools, e.g., OpenROAD) to guide the delay
 estimation refinements in XLS. For now, FDO is disabled by default
-(`--fdo_iteration_number=1`).
+(`--use_fdo=false`).
 
+-   `--use_fdo=true/false` Enable FDO.  If false, then the `--fdo_*` options are
+    ignored.
 -   `--fdo_iteration_number=...` The number of FDO iterations during the
-    pipeline scheduling. Must be an integer >= 1.
+    pipeline scheduling. Must be an integer >= 2.
 -   `--fdo_delay_driven_path_number=...` The number of delay-driven subgraphs in
     each FDO iteration. Must be a non-negative integer.
 -   `--fdo_fanout_driven_path_number=...` The number of fanout-driven subgraphs

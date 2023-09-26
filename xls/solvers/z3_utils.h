@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "xls/ir/type.h"
-#include "../z3/src/api/z3.h"
+#include "../z3/src/api/z3.h"  // IWYU pragma: keep
 
 namespace xls {
 namespace solvers {

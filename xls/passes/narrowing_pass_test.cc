@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -27,6 +28,7 @@
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
@@ -38,6 +40,8 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+
+using ::testing::_;
 using ::testing::AllOf;
 
 // The test is parameterized on whether to use range analysis or not.
@@ -530,19 +534,19 @@ TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
   BValue index = fb.Select(
       fb.Param("s", p->GetBitsType(1)),
       /*cases=*/
-      {fb.Literal(Value(UBits(3, 5))), fb.Literal(Value(UBits(7, 5)))},
+      {fb.Literal(Value(UBits(3, 4))), fb.Literal(Value(UBits(7, 4)))},
       /*default=*/std::nullopt);
   BValue array = fb.Literal(Value::ArrayOrDie({
-      Value(UBits(0, 20)),
-      Value(UBits(1, 20)),
-      Value(UBits(2, 20)),
-      Value(UBits(3, 20)),
-      Value(UBits(4, 20)),
-      Value(UBits(5, 20)),
-      Value(UBits(6, 20)),
-      Value(UBits(7, 20)),
-      Value(UBits(8, 20)),
-      Value(UBits(9, 20)),
+      Value(UBits(0, 4)),
+      Value(UBits(1, 4)),
+      Value(UBits(2, 4)),
+      Value(UBits(3, 4)),
+      Value(UBits(4, 4)),
+      Value(UBits(5, 4)),
+      Value(UBits(6, 4)),
+      Value(UBits(7, 4)),
+      Value(UBits(8, 4)),
+      Value(UBits(9, 4)),
   }));
   fb.ArrayIndex(array, /*indices=*/{index});
 
@@ -627,6 +631,47 @@ TEST_P(NarrowingPassTest, KnownZeroGateConditionRemoved) {
   } else {
     EXPECT_FALSE(changed);
   }
+}
+
+TEST_P(NarrowingPassTest, NarrowableArray) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("s", p->GetBitsType(4));
+  BValue array = fb.Literal(Value::ArrayOrDie({
+      Value(UBits(1, 32)),
+      Value(UBits(3, 32)),
+      Value(UBits(5, 32)),
+      Value(UBits(7, 32)),
+      Value(UBits(11, 32)),
+      Value(UBits(13, 32)),
+      Value(UBits(15, 32)),
+      Value(UBits((uint64_t{1U} << 20) + 1, 32)),
+  }));
+  fb.ArrayIndex(array, /*indices=*/{param});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Literal(UBits(0, 11)),
+                        m::BitSlice(m::ArrayIndex(m::Literal(), {_}), 3, 1),
+                        m::Literal(UBits(0, 16)),
+                        m::BitSlice(m::ArrayIndex(m::Literal(), {_}), 0, 3),
+                        m::Literal(UBits(1, 1))));
+}
+
+TEST_P(NarrowingPassTest, EliminableArray) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("s", p->GetBitsType(7));
+  std::vector<Value> array_elements(118, Value(UBits(0, 8)));
+  BValue array = fb.Literal(Value::ArrayOrDie(array_elements));
+  fb.ArrayIndex(array, /*indices=*/{param});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -88,6 +88,92 @@ same source) are logically equivalent.
 
 Runs XLS IR through the optimization pipeline.
 
+## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc)
+
+Tool to calculate and print a summary of the BOM (bill of materials) elements
+from `ModuleSignatureProto` protobuf files produced using the
+`--output_signature_path` codegen argument.
+
+Features include;
+
+*   Combining the data from multiple protobuf files.
+*   Output in fancy human readable table.
+*   Output machine readable CSV (common separate values) file for loading into
+    other tools (like Google Sheets).
+*   Filtering output to a single value type like `BOM_KIND_ADDER`.
+
+Running the following commands;
+
+```
+bazel build //xls/examples/protobuf:varint_encode_sv
+bazel run //xls/tools:print_bom -- --root_path $PWD/bazel-bin/xls/examples/protobuf/
+```
+
+should produce the following output;
+
+```
+Found 1 protobuf files.
+ * "bazel-bin/xls/examples/protobuf/varint_encode_u32.sig.textproto"
+
+ +------------------------+----------------+-------------+--------------+-------+
+ |                   Kind |             Op | Input Width | Output Width | Count |
+ +------------------------+----------------+-------------+--------------+-------+
+ |    BOM_KIND_COMPARISON |             ne |           4 |            1 |     1 |
+ |                        |                |           7 |            1 |     2 |
+ |                        |                |          11 |            1 |     1 |
+ |                        |                |          18 |            1 |     1 |
+ |                        |                |          25 |            1 |     1 |
+ +------------------------+----------------+-------------+--------------+-------+
+ | BOM_KIND_INSIGNIFICANT |          array |           8 |           40 |     1 |
+ |                        |      bit_slice |          32 |            4 |     1 |
+ |                        |                |          32 |            7 |     4 |
+ |                        |                |          32 |           11 |     1 |
+ |                        |                |          32 |           18 |     1 |
+ |                        |                |          32 |           25 |     1 |
+ |                        |         concat |           1 |            2 |     1 |
+ |                        |                |           2 |            3 |     1 |
+ |                        |                |           4 |            8 |     1 |
+ |                        |                |           7 |            8 |     4 |
+ |                        |        literal |           0 |            1 |     2 |
+ |                        |                |           0 |            2 |     2 |
+ |                        |                |           0 |            3 |     2 |
+ |                        |                |           0 |            4 |     2 |
+ |                        |                |           0 |            7 |     2 |
+ |                        |                |           0 |           11 |     1 |
+ |                        |                |           0 |           18 |     1 |
+ |                        |                |           0 |           25 |     1 |
+ |                        |          tuple |          40 |           43 |     1 |
+ +------------------------+----------------+-------------+--------------+-------+
+ |          BOM_KIND_MISC |     input_port |           0 |           32 |     1 |
+ |                        |    output_port |          43 |            0 |     1 |
+ |                        |  register_read |           0 |           32 |     1 |
+ |                        |                |           0 |           43 |     1 |
+ |                        | register_write |          32 |            0 |     1 |
+ |                        |                |          43 |            0 |     1 |
+ +------------------------+----------------+-------------+--------------+-------+
+ |        BOM_KIND_SELECT |            sel |           2 |            2 |     2 |
+ |                        |                |           3 |            3 |     2 |
+ +------------------------+----------------+-------------+--------------+-------+
+```
+
+To save the details about the comparison operators to a machine readable CSV
+file you can do;
+
+```
+bazel run //xls/tools:print_bom -- --root_path=$PWD/bazel-bin/xls/examples/protobuf/ --output_as=csv --op_kind=BOM_KIND_COMPARISON > my.csv
+```
+
+which will produce a CSV file which looks like the following;
+
+```csv
+Kind,Op,Input Width,Output Width,Count
+BOM_KIND_COMPARISON,ne,4,1,1
+BOM_KIND_COMPARISON,ne,7,1,2
+BOM_KIND_COMPARISON,ne,11,1,1
+BOM_KIND_COMPARISON,ne,18,1,1
+BOM_KIND_COMPARISON,ne,25,1,1
+```
+
 ## [`proto_to_dslx_main`](https://github.com/google/xls/tree/main/xls/tools/proto_to_dslx_main.cc)
 
 Takes in a proto schema and a textproto instance thereof and outputs a DSLX

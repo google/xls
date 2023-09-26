@@ -140,10 +140,6 @@ std::string Compare(std::string_view element_name,
   return comparison;
 }
 
-// TODO(vmirian): 7-25-2022 Enable support for std::map, std::multimap,
-// std::unordered_map and std::unordered_multimap.
-// TODO(vmirian): 7-25-2022 Add support for std::array.
-
 // Compares a container.
 template <typename T, template <class...> class Container,
           typename std::enable_if<has_const_iterator_v<Container<T>> &&

@@ -15,8 +15,11 @@
 #include "xls/passes/strength_reduction_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -27,7 +30,11 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/ternary.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
 
@@ -221,6 +228,33 @@ absl::StatusOr<bool> StrengthReduceNode(
     return true;
   }
 
+  // If we know a Gate op is unconditionally on or off, strength reduce to
+  // either a literal zero or the data value as appropriate.
+  if (node->Is<Gate>() &&
+      query_engine.AllBitsKnown(node->As<Gate>()->condition())) {
+    Gate* gate = node->As<Gate>();
+    if (query_engine.IsAllOnes(gate->condition())) {
+      XLS_RETURN_IF_ERROR(gate->ReplaceUsesWith(gate->data()));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          gate->ReplaceUsesWithNew<Literal>(
+                  Value(UBits(0, gate->GetType()->GetFlatBitCount())))
+              .status());
+    }
+    return true;
+  }
+
+  // If the gate results in a known zero regardless of the condition value we
+  // can remove it.
+  if (node->Is<Gate>() && query_engine.IsAllZeros(node->As<Gate>()->data())) {
+    Gate* gate = node->As<Gate>();
+    XLS_RETURN_IF_ERROR(
+        gate->ReplaceUsesWithNew<Literal>(
+                Value(UBits(0, gate->GetType()->GetFlatBitCount())))
+            .status());
+    return true;
+  }
+
   // Single bit add and ne are xor.
   //
   // Truth table for both ne and add (xor):
@@ -254,7 +288,7 @@ absl::StatusOr<bool> StrengthReduceNode(
       (node->op() == Op::kUGe || node->op() == Op::kULt) &&
       node->operand(1)->Is<Literal>()) {
     const Bits& op1_literal_bits =
-      node->operand(1)->As<Literal>()->value().bits();
+        node->operand(1)->As<Literal>()->value().bits();
     if (op1_literal_bits.IsPowerOfTwo()) {
       int64_t one_position = op1_literal_bits.bit_count() -
                              op1_literal_bits.CountLeadingZeros() - 1;

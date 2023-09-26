@@ -114,10 +114,10 @@ TEST(IrMatchersTest, BitSlice) {
 
   EXPECT_THAT(
       Explain(f->return_value(), m::BitSlice(/*start=*/7, /*width=*/42)),
-      HasSubstr("has incorrect width, expected: 42"));
+      HasSubstr("has incorrect width, expected width is equal to 42"));
   EXPECT_THAT(
       Explain(f->return_value(), m::BitSlice(/*start=*/123, /*width=*/9)),
-      HasSubstr("has incorrect start, expected: 123"));
+      HasSubstr("has incorrect start, expected start is equal to 123"));
 }
 
 TEST(IrMatchersTest, DynamicBitSlice) {

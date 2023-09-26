@@ -324,13 +324,12 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
     return module->Make<dslx::ConstantArray>(
         span, std::vector<dslx::Expr*>(real_size, member),
         /*has_ellipsis=*/false);
-  } else {
-    dslx::BuiltinTypeAnnotation* builtin_type =
-        dynamic_cast<dslx::BuiltinTypeAnnotation*>(type_annot);
-    XLS_RET_CHECK(builtin_type);
-    return module->Make<dslx::Number>(span, "0", dslx::NumberKind::kOther,
-                                      builtin_type);
   }
+  dslx::BuiltinTypeAnnotation* builtin_type =
+      dynamic_cast<dslx::BuiltinTypeAnnotation*>(type_annot);
+  XLS_RET_CHECK(builtin_type);
+  return module->Make<dslx::Number>(span, "0", dslx::NumberKind::kOther,
+                                    builtin_type);
 }
 
 // Adds enum structural information to the MessageMap.

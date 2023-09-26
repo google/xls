@@ -290,6 +290,7 @@ cc_library(
     hdrs = ["ternary.h"],
     deps = [
         ":bits",
+        "//xls/common/logging",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -441,6 +442,7 @@ cc_library(
         ":channel_ops",
         ":code_template",
         ":foreign_function",
+        ":foreign_function_data_cc_proto",
         ":format_strings",
         ":ir_scanner",
         ":name_uniquer",

@@ -379,7 +379,7 @@ class PackedArrayView {
 
   // Returns the element at the given index in the array.
   ElementT Get(int index) {
-    assert(index < kNumElements);
+    XLS_DCHECK_LT(index, kNumElements);
     int64_t bit_increment = index * ElementT::kBitCount + buffer_offset_;
     int64_t byte_offset = bit_increment / kCharBit;
     int64_t bit_offset = bit_increment % kCharBit;

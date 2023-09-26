@@ -622,6 +622,7 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:interpreter_proc_runtime",
@@ -631,6 +632,7 @@ cc_binary(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "//xls/ir:register",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/jit:jit_proc_runtime",
@@ -1218,6 +1220,57 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "bom",
+    srcs = ["bom.cc"],
+    hdrs = ["bom.h"],
+    deps = [
+        "//xls/codegen:module_signature_cc_proto",
+        "//xls/codegen:xls_metrics_cc_proto",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir:op",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "bom_test",
+    srcs = ["bom_test.cc"],
+    data = ["testdata/bom.sig.textproto"],
+    deps = [
+        ":bom",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+    ],
+)
+
+cc_binary(
+    name = "print_bom",
+    srcs = ["print_bom.cc"],
+    deps = [
+        ":bom",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
     ],
 )
 

@@ -1296,7 +1296,7 @@ class NodeChecker : public DfsVisitor {
     if (!operand->GetType()->IsBits()) {
       return absl::InternalError(StrFormat(
           "Expected operand %d of %s to have Bits type, has type %s: %s",
-          operand_no, node->GetName(), node->GetType()->ToString(),
+          operand_no, node->GetName(), operand->GetType()->ToString(),
           node->ToString()));
     }
     if (expected_bit_count != -1 &&

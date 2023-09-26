@@ -472,9 +472,25 @@ py_library(
     srcs = ["gfile.py"],
 )
 
+cc_library(
+    name = "cpp_check_simulator",
+    srcs = ["check_simulator.cc"],
+    hdrs = ["check_simulator.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "//xls/common/logging",
+    ],
+)
+
 py_library(
     name = "check_simulator",
     srcs = ["check_simulator.py"],
+)
+
+cc_library(
+    name = "cpp_revision",
+    srcs = ["revision.cc"],
+    hdrs = ["revision.h"],
 )
 
 py_library(
@@ -524,6 +540,28 @@ cc_library(
     name = "endian",
     hdrs = ["endian.h"],
     deps = ["@com_google_absl//absl/base:config"],
+)
+
+cc_library(
+    name = "stopwatch",
+    srcs = ["stopwatch.cc"],
+    hdrs = ["stopwatch.h"],
+    deps = [
+        "@com_google_absl//absl/time",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "stopwatch_test",
+    srcs = ["stopwatch_test.cc"],
+    deps = [
+        ":stopwatch",
+        ":xls_gunit_main",
+        "@com_google_absl//absl/time",
+        "//xls/common:xls_gunit",
+        "@rapidcheck",
+    ],
 )
 
 cc_library(

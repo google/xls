@@ -105,9 +105,6 @@ class TestbenchIoTest : public VerilogTestBase {
       std::string_view verilog) {
     XLS_VLOG(1) << "Starting simulator.";
     std::pair<std::string, std::string> stdout_stderr;
-    // Some simulators sporadically deadlock without this delay.
-    // TODO(b/296308742): Get to the bottom of this and remove the sleep call.
-    absl::SleepFor(absl::Milliseconds(kSimulatorDelayMs));
     return GetSimulator()->Run(verilog, GetFileType());
   }
 
