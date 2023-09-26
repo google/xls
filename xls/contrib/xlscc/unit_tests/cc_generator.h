@@ -15,6 +15,7 @@
 #ifndef XLS_CONTRIB_XLSCC_CC_GENERATOR_H_
 #define XLS_CONTRIB_XLSCC_CC_GENERATOR_H_
 
+#include <cstdint>
 #include <string>
 
 namespace xlscc {
