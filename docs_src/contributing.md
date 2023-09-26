@@ -1,9 +1,8 @@
 # How to Contribute
 
-We are currently very restrictive in the patches we review or accept due to
-limited bandwidth. We recommend filing an issue for back-and-forth discussion on
-implementation strategy before sending a PR. Also, note the community guidelines
-below.
+We'd love to accept your patches and contributions to XLS. We recommend filing
+an issue for back-and-forth discussion on implementation strategy before sending
+a PR. Also, note the community guidelines below.
 
 ## Community Guidelines
 

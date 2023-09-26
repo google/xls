@@ -44,11 +44,12 @@ out, running through [some tutorials](https://google.github.io/xls/tutorials/),
 
 We are early stage and this has some practical effects:
 
-* We do not regularly review PRs. If you want to make big changes you need to
-fork.
-    * Open an issue and engage us in conversation if you wish to upstream
-      changes. Sending a PR without back and forth with us in an issue is
-      unlikely to succeed.
+* We welcome your issues and PRs.
+    * Please try to lead with an issue. Engage us in conversation if you wish to
+      upstream changes. Sending a PR without back and forth with us in an issue
+      may be a longer road to success. If you believe your PR is ready and has
+      not received a response within two business days, please ping the issue
+      with what you think are next steps.
 * At the current point in its evolution, we regularly improve DSLX without
       considering backward compatibility.
     * If you are building a corpus of hardware with XLS, please be thoughtful
