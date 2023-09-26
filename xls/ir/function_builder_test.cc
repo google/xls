@@ -200,6 +200,20 @@ TEST(FunctionBuilderTest, MatchTrue) {
                      m::Param("default")}));
 }
 
+// Note: for API consistency we allow the definition of MatchTrue to work when
+// there are zero cases given and only a default.
+TEST(FunctionBuilderTest, MatchTrueNoCaseArmsOnlyDefault) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  BitsType* value_type = p.GetBitsType(32);
+  BValue the_default = b.Param("default", value_type);
+  b.MatchTrue({}, the_default);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(f->return_value(),
+              m::OneHotSelect(m::OneHot(),
+                              /*cases=*/{m::Param("default")}));
+}
+
 TEST(FunctionBuilderTest, PrioritySelectOp) {
   Package p("p");
   FunctionBuilder b("f", &p);

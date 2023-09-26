@@ -959,8 +959,17 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
   //   values:        [a,         b,      c]
   //   default_value: d
   XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_arm->expr()));
-  SetNodeToIr(node, function_builder_->MatchTrue(arm_selectors, arm_values,
-                                                 default_value));
+
+  if (arm_selectors.empty()) {
+    // If there are no case arms, there is only a default value, avoid emitting
+    // lots of junk operations like zero-bit concatenations via MatchTrue
+    // builder by just setting the node value to be the default value.
+    XLS_RET_CHECK(arm_values.empty());
+    SetNodeToIr(node, default_value);
+  } else {
+    SetNodeToIr(node, function_builder_->MatchTrue(arm_selectors, arm_values,
+                                                   default_value));
+  }
   return absl::OkStatus();
 }
 

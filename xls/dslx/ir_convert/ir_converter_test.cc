@@ -386,6 +386,21 @@ fn f(x: u8) -> u2 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, MatchDefaultOnly) {
+  const char* program =
+      R"(
+fn f(x: u8) -> u2 {
+  match x {
+    _ => u2:2
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, MatchDense) {
   const char* program =
       R"(

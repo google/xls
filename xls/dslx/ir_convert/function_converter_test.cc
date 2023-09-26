@@ -14,10 +14,8 @@
 
 #include "xls/dslx/ir_convert/function_converter.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/package.h"
