@@ -1,5 +1,4 @@
-
-// Copyright 2021 The XLS Authors
+// Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,22 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __OSTREAM__
-#define __OSTREAM__
+#ifndef __AC_REG_COMPAT_H__
+#define __AC_REG_COMPAT_H__
 
-#include <string>
+namespace ac {
 
-namespace std {
+template <typename Dtype>
+  inline Dtype reg(Dtype data) {
+    return data;
+  }
+}  // namespace ac
 
-class ostream {
-  public:
-    template<typename T>
-    ostream &operator << (const T& op) {
-      (void)__xlscc_unimplemented();
-      return *this;
-    }
-};
-
-}  // namespace std
-
-#endif//__OSTREAM__
+#endif  // __AC_REG_COMPAT_H__

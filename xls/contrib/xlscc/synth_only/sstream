@@ -1,5 +1,5 @@
 
-// Copyright 2021 The XLS Authors
+// Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,14 +13,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __OSTREAM__
-#define __OSTREAM__
+#ifndef __SSTREAM__
+#define __SSTREAM__
 
 #include <string>
 
 namespace std {
 
-class ostream {
+class ostringstream {
   public:
     template<typename T>
     ostream &operator << (const T& op) {
@@ -31,4 +31,4 @@ class ostream {
 
 }  // namespace std
 
-#endif//__OSTREAM__
+#endif //__SSTREAM__
