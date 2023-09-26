@@ -300,10 +300,11 @@ TEST_P(ModuleSimulatorTest, FixedLatencyBatched) {
       NewModuleSimulator(verilog_signature.first, verilog_signature.second);
 
   // Test using bits
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ModuleSimulator::BitsMap> outputs,
-                           simulator.RunBatched({{{"x", UBits(44, 8)}},
-                                                 {{"x", UBits(123, 8)}},
-                                                 {{"x", UBits(7, 8)}}}));
+  using BitsMap = ModuleSimulator::BitsMap;
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<BitsMap> outputs,
+                           simulator.RunBatched({BitsMap{{"x", UBits(44, 8)}},
+                                                 BitsMap{{"x", UBits(123, 8)}},
+                                                 BitsMap{{"x", UBits(7, 8)}}}));
 
   EXPECT_EQ(outputs.size(), 3);
   EXPECT_THAT(outputs[0], ElementsAre(Pair("out", UBits(88, 8))));
@@ -317,11 +318,13 @@ TEST_P(ModuleSimulatorTest, CombinationalBatched) {
       NewModuleSimulator(verilog_signature.first, verilog_signature.second);
 
   // Test using bits
+  using BitsMap = ModuleSimulator::BitsMap;
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<ModuleSimulator::BitsMap> outputs,
-      simulator.RunBatched({{{"x", UBits(99, 8)}, {"y", UBits(12, 8)}},
-                            {{"x", UBits(100, 8)}, {"y", UBits(25, 8)}},
-                            {{"x", UBits(255, 8)}, {"y", UBits(155, 8)}}}));
+      std::vector<BitsMap> outputs,
+      simulator.RunBatched(
+          {BitsMap{{"x", UBits(99, 8)}, {"y", UBits(12, 8)}},
+           BitsMap{{"x", UBits(100, 8)}, {"y", UBits(25, 8)}},
+           BitsMap{{"x", UBits(255, 8)}, {"y", UBits(155, 8)}}}));
 
   EXPECT_EQ(outputs.size(), 3);
   EXPECT_THAT(outputs[0], ElementsAre(Pair("out", UBits(87, 8))));
