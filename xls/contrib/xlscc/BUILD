@@ -139,6 +139,7 @@ cc_library(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_utils",
         "@z3//:api",
         "@com_github_google_re2//:re2",
         "@llvm-project//clang:ast",

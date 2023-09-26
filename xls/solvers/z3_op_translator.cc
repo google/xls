@@ -19,11 +19,22 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/macros.h"
 #include "xls/common/logging/logging.h"
 #include "../z3/src/api/z3.h"  // IWYU pragma: keep
 #include "../z3/src/api/z3_api.h"
 
 namespace xls::solvers::z3 {
+
+Z3_ast Z3OpTranslator::OrBool(Z3_ast lhs, Z3_ast rhs) {
+  Z3_ast args[] = {lhs, rhs};
+  return Z3_mk_or(z3_ctx_, /*num_args=*/ABSL_ARRAYSIZE(args), args);
+}
+
+Z3_ast Z3OpTranslator::AndBool(Z3_ast lhs, Z3_ast rhs) {
+  Z3_ast args[] = {lhs, rhs};
+  return Z3_mk_and(z3_ctx_, /*num_args=*/ABSL_ARRAYSIZE(args), args);
+}
 
 std::vector<Z3_ast> Z3OpTranslator::ExplodeBits(Z3_ast arg) {
   std::vector<Z3_ast> bits;

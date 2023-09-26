@@ -21,18 +21,23 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/solvers/z3_op_translator.h"
 #include "xls/solvers/z3_utils.h"
@@ -43,6 +48,32 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
+/* static */ Predicate Predicate::IsEqualTo(Node* other) {
+  return Predicate(PredicateKind::kEqualToNode, other);
+}
+/* static */ Predicate Predicate::EqualToZero() {
+  return Predicate(PredicateKind::kEqualToZero);
+}
+/* static */ Predicate Predicate::NotEqualToZero() {
+  return Predicate(PredicateKind::kNotEqualToZero);
+}
+/* static */ Predicate Predicate::UnsignedGreaterOrEqual(Bits lower_bound) {
+  return Predicate(PredicateKind::kUnsignedGreaterOrEqual, nullptr,
+                   std::move(lower_bound));
+}
+/* static */ Predicate Predicate::UnsignedLessOrEqual(Bits upper_bound) {
+  return Predicate(PredicateKind::kUnsignedLessOrEqual, nullptr,
+                   std::move(upper_bound));
+}
+
+Predicate::Predicate(PredicateKind kind) : kind_(kind) {}
+
+Predicate::Predicate(PredicateKind kind, Node* node)
+    : kind_(kind), node_(node) {}
+
+Predicate::Predicate(PredicateKind kind, Node* node, Bits value)
+    : kind_(kind), node_(node), value_(std::move(value)) {}
+
 std::string Predicate::ToString() const {
   switch (kind_) {
     case PredicateKind::kEqualToZero:
@@ -51,6 +82,10 @@ std::string Predicate::ToString() const {
       return "ne zero";
     case PredicateKind::kEqualToNode:
       return "eq " + node()->GetName();
+    case PredicateKind::kUnsignedGreaterOrEqual:
+      return "uge " + value_->ToDebugString();
+    case PredicateKind::kUnsignedLessOrEqual:
+      return "ule " + value_->ToDebugString();
   }
   return absl::StrFormat("<invalid predicate kind %d>",
                          static_cast<int>(kind_));
@@ -876,18 +911,22 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
   return seh.status();
 }
 
+absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralBits(const Bits& bits) {
+  std::unique_ptr<bool[]> booleans(new bool[bits.bit_count()]);
+  for (int64_t i = 0; i < bits.bit_count(); ++i) {
+    booleans[i] = bits.Get(i);
+  }
+  return Z3_mk_bv_numeral(ctx_, static_cast<unsigned int>(bits.bit_count()),
+                          &booleans[0]);
+}
+
 absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(bool has_uses,
                                                            Type* value_type,
                                                            const Value& value) {
   bool is_zero_bit_vector = value.IsBits() && value.GetFlatBitCount() == 0;
 
   if (value.IsBits() && !is_zero_bit_vector) {
-    const Bits& bits = value.bits();
-    std::unique_ptr<bool[]> booleans(new bool[bits.bit_count()]);
-    for (int64_t i = 0; i < bits.bit_count(); ++i) {
-      booleans[i] = bits.Get(i);
-    }
-    return Z3_mk_bv_numeral(ctx_, bits.bit_count(), &booleans[0]);
+    return TranslateLiteralBits(value.bits());
   }
 
   // We translate zero length bitvectors to empty tuples.
@@ -906,7 +945,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(bool has_uses,
 
   if (value.IsArray()) {
     ArrayType* array_type = value_type->AsArrayOrDie();
-    int num_elements = array_type->size();
+    int64_t num_elements = array_type->size();
     std::vector<Z3_ast> elements;
     elements.reserve(num_elements);
 
@@ -1280,72 +1319,166 @@ void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
   translations_[node] = translated;
 }
 
-static absl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
-                                                   IrTranslator* translator) {
-  ScopedErrorHandler seh(translator->ctx());
-  Z3_ast objective;
-  // Note that if the predicate we want to prove is "equal to zero" we return
-  // that "not equal to zero" is not satisfiable.
+// Converts the predicate into a boolean objective that can be fed to the
+// Z3 solver.
+//
+// Args:
+//  p: predicate that the user is attempting to prove on the subject a_node
+//  a_node: the node that is the subject of the predicate
+//  a: the Z3 AST value that a_node resolves to
+//  translator: The IR translator being used for the proof
+//
+// Implementation note: if the predicate we want to prove is "equal to zero" we
+// return that "not equal to zero" is not satisfiable. That is, this routine
+// inverts the condition we're attempting to prove, so that we can try to
+// demonstrate an example for our attempted assertion "there exists no value
+// where this (the inverse of what we're expecting to be the case, i.e.  inverse
+// of our assertion) holds".
+static absl::StatusOr<Z3_ast> PredicateToNegatedObjective(
+    const Predicate& p, Node* a_node, Z3_ast a, IrTranslator* translator) {
+  Z3_ast objective = nullptr;
   Z3OpTranslator t(translator->ctx());
+
+  auto validate_bv_sort = [&]() -> absl::Status {
+    if (translator->GetValueKind(a) != Z3_BV_SORT) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Cannot evaluate predicate %s vs non-bit-vector Z3 "
+                          "value for %s with Z3 sort: %s",
+                          p.ToString(), a_node->ToString(), t.GetSortName(a)));
+    }
+    return absl::OkStatus();
+  };
+
+  XLS_VLOG(3) << "predicate: " << p.ToString()
+              << " Z3_ast sort kind: " << t.GetSortName(a);
   switch (p.kind()) {
-    case PredicateKind::kEqualToZero:
+    case PredicateKind::kEqualToZero: {
+      XLS_RETURN_IF_ERROR(validate_bv_sort());
+      ScopedErrorHandler seh(translator->ctx());
       objective = t.NeZeroBool(a);
+      XLS_RETURN_IF_ERROR(seh.status());
       break;
-    case PredicateKind::kNotEqualToZero:
+    }
+    case PredicateKind::kNotEqualToZero: {
+      XLS_RETURN_IF_ERROR(validate_bv_sort());
+      ScopedErrorHandler seh(translator->ctx());
       objective = t.EqZeroBool(a);
+      XLS_RETURN_IF_ERROR(seh.status());
       break;
+    }
     case PredicateKind::kEqualToNode: {
+      ScopedErrorHandler seh(translator->ctx());
+      // Tokens always compare equal.
+      if (p.node()->GetType()->IsToken() && a_node->GetType()->IsToken()) {
+        XLS_RET_CHECK_EQ(t.GetSortName(a), "()");
+        objective = t.False();
+        break;
+      }
+
+      XLS_RETURN_IF_ERROR(validate_bv_sort());
+
+      // Validate that the node to compare is also bit-vector valued.
       Z3_ast value = translator->GetTranslation(p.node());
       if (translator->GetValueKind(value) != Z3_BV_SORT) {
-        return absl::InvalidArgumentError(
-            "Cannot compare to non-bits-valued node: " + p.node()->ToString());
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Cannot compare to non-bits-valued node: %s sort: %s",
+            p.node()->ToString(), t.GetSortName(value)));
       }
       Z3_ast b = value;
       objective = t.NeBool(a, b);
+      XLS_RETURN_IF_ERROR(seh.status());
+      break;
+    }
+    case PredicateKind::kUnsignedGreaterOrEqual: {
+      XLS_RETURN_IF_ERROR(validate_bv_sort());
+      ScopedErrorHandler seh(translator->ctx());
+      XLS_ASSIGN_OR_RETURN(Z3_ast b,
+                           translator->TranslateLiteralBits(p.value()));
+      objective = t.EqZeroBool(t.UGe(a, b));
+      XLS_RETURN_IF_ERROR(seh.status());
+      break;
+    }
+    case PredicateKind::kUnsignedLessOrEqual: {
+      XLS_RETURN_IF_ERROR(validate_bv_sort());
+      ScopedErrorHandler seh(translator->ctx());
+      XLS_ASSIGN_OR_RETURN(Z3_ast b,
+                           translator->TranslateLiteralBits(p.value()));
+      objective = t.EqZeroBool(t.ULe(a, b));
+      XLS_RETURN_IF_ERROR(seh.status());
       break;
     }
     default:
       return absl::UnimplementedError("Unhandled predicate.");
   }
-  XLS_RETURN_IF_ERROR(seh.status());
+
+  XLS_RET_CHECK(objective != nullptr) << p.ToString();
+  XLS_RET_CHECK_EQ(t.GetSortKind(objective), Z3_BOOL_SORT);
+
   return objective;
 }
 
-absl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
-                              absl::Duration timeout) {
-  XLS_ASSIGN_OR_RETURN(auto translator, IrTranslator::CreateAndTranslate(f));
+absl::StatusOr<bool> TryProveConjunction(
+    Function* f, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout) {
+  XLS_RET_CHECK(!terms.empty());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
+                       IrTranslator::CreateAndTranslate(f));
   translator->SetTimeout(timeout);
-  Z3_ast value = translator->GetTranslation(subject);
 
-  // All token types are equal.
-  if (subject->GetType()->IsToken() &&
-      p.kind() == PredicateKind::kEqualToNode &&
-      p.node()->GetType()->IsToken()) {
-    return true;
+  Z3OpTranslator t(translator->ctx());
+  std::optional<Z3_ast> objective;
+
+  for (const PredicateOfNode& term : terms) {
+    Z3_ast value = translator->GetTranslation(term.subject);
+    XLS_RET_CHECK(value != nullptr);
+
+    // Translate the predicate to a term we can throw into the conjunction.
+    XLS_ASSIGN_OR_RETURN(Z3_ast objective_term,
+                         PredicateToNegatedObjective(term.p, term.subject,
+                                                     value, translator.get()));
+    XLS_RET_CHECK(objective_term != nullptr);
+
+    if (objective.has_value()) {
+      XLS_RET_CHECK(objective.value() != nullptr);
+      objective = t.OrBool(objective.value(), objective_term);
+      XLS_RET_CHECK(objective != nullptr);
+    } else {
+      objective = objective_term;
+    }
   }
-  if (translator->GetValueKind(value) != Z3_BV_SORT) {
-    return absl::InvalidArgumentError(
-        "Cannot prove properties of non-bits-typed node: " +
-        subject->ToString());
-  }
-  XLS_ASSIGN_OR_RETURN(Z3_ast objective,
-                       PredicateToObjective(p, value, translator.get()));
+
+  XLS_CHECK(objective.has_value());
+  XLS_CHECK(objective.value() != nullptr);
+
   Z3_context ctx = translator->ctx();
-  XLS_VLOG(2) << "objective:\n" << Z3_ast_to_string(ctx, objective);
-  Z3_solver solver = solvers::z3::CreateSolver(ctx, 1);
-  Z3_solver_assert(ctx, solver, objective);
-  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
-  XLS_VLOG(2) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
-  Z3_solver_dec_ref(ctx, solver);
+  XLS_VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx, objective.value());
+  Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
+  auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
 
-  if (Z3_solver_check(ctx, solver) == Z3_L_FALSE) {
+  Z3_solver_assert(ctx, solver, objective.value());
+  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
+
+  // Implementation note: satisfiable can be one of:
+  // * Z3_L_FALSE: unsat -- could not find a value that contradicts the
+  //    claim
+  // * Z3_L_TRUE: sat -- found a value that contradicts the claim
+  // * Z3_L_UNDEF: timeout
+
+  if (satisfiable == Z3_L_FALSE) {
     // We posit the inverse of the predicate we want to check -- when that is
     // unsatisfiable, the predicate has been proven (there was no way found that
     // we could not satisfy its inverse).
     return true;
   }
 
+  XLS_VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
   return false;
+}
+
+absl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
+                              absl::Duration timeout) {
+  PredicateOfNode term{subject, std::move(p)};
+  return TryProveConjunction(f, absl::MakeConstSpan(&term, 1), timeout);
 }
 
 }  // namespace z3

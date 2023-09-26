@@ -19,8 +19,10 @@
 #include <string>
 #include <vector>
 
+#include "xls/common/source_location.h"
 #include "xls/ir/type.h"
 #include "../z3/src/api/z3.h"  // IWYU pragma: keep
+#include "../z3/src/api/z3_api.h"
 
 namespace xls {
 namespace solvers {
@@ -30,7 +32,9 @@ namespace z3 {
 // via RAII.
 class ScopedErrorHandler {
  public:
-  explicit ScopedErrorHandler(Z3_context ctx);
+  explicit ScopedErrorHandler(
+      Z3_context ctx,
+      xabsl::SourceLocation source_location = xabsl::SourceLocation::current());
 
   ~ScopedErrorHandler();
 
@@ -38,7 +42,9 @@ class ScopedErrorHandler {
 
  private:
   static void Handler(Z3_context c, Z3_error_code e);
+
   Z3_context ctx_;
+  const xabsl::SourceLocation source_location_;
   ScopedErrorHandler* prev_handler_;
   absl::Status status_;
 };

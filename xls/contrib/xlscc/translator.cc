@@ -85,6 +85,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/solvers/z3_utils.h"
 #include "re2/re2.h"
 
 using std::list;

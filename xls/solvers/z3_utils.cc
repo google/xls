@@ -18,14 +18,11 @@
 #include <string>
 #include <vector>
 
-#include "absl/base/internal/sysinfo.h"
-#include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/source_location.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/type.h"
@@ -41,7 +38,9 @@ namespace z3 {
 // handler.
 thread_local ScopedErrorHandler* g_handler = nullptr;
 
-ScopedErrorHandler::ScopedErrorHandler(Z3_context ctx) : ctx_(ctx) {
+ScopedErrorHandler::ScopedErrorHandler(Z3_context ctx,
+                                       xabsl::SourceLocation source_location)
+    : ctx_(ctx), source_location_(source_location) {
   Z3_set_error_handler(ctx_, Handler);
   prev_handler_ = g_handler;
   g_handler = this;
@@ -54,8 +53,9 @@ ScopedErrorHandler::~ScopedErrorHandler() {
 }
 
 /*static*/ void ScopedErrorHandler::Handler(Z3_context c, Z3_error_code e) {
-  g_handler->status_ = absl::InternalError(
-      absl::StrFormat("Z3 error: %s", Z3_get_error_msg(c, e)));
+  g_handler->status_ = absl::InternalError(absl::StrFormat(
+      "Z3 error @ %s:%d: %s", g_handler->source_location_.file_name(),
+      g_handler->source_location_.line(), Z3_get_error_msg(c, e)));
   XLS_LOG(ERROR) << g_handler->status_;
 }
 

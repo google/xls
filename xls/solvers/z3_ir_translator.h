@@ -18,6 +18,7 @@
 #ifndef XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 #define XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -28,22 +29,25 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
-#include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3.h"
+#include "../z3/src/api/z3.h"  // IWYU pragma: keep
+#include "../z3/src/api/z3_api.h"
 
 namespace xls {
 namespace solvers {
 namespace z3 {
 
 // Kinds of predicates we can compute about a subject node.
-enum class PredicateKind {
+enum class PredicateKind : uint8_t {
   kEqualToZero,
   kNotEqualToZero,
   kEqualToNode,
+  kUnsignedGreaterOrEqual,  // vs some given (constant) value
+  kUnsignedLessOrEqual,     // vs some given (constant) value
 };
 
 // Translates a function into its Z3 equivalent bit-vector circuit for use in
@@ -91,6 +95,10 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Returns the kind (bit vector, tuple, function decl, etc.) of a Z3 sort.
   Z3_sort_kind GetValueKind(Z3_ast value);
+
+  // Converts the "bits" value into a corresponding Z3 bitvector literal-valued
+  // node.
+  absl::StatusOr<Z3_ast> TranslateLiteralBits(const Bits& bits);
 
   // "Flattens" the given value to individual bits and returns the associated
   // array. For example, flattening a tuple of two 5-bit values will return a
@@ -294,19 +302,24 @@ class IrTranslator : public DfsVisitorWithDefault {
 };
 
 // Describes a predicate to compute about a subject node in an XLS IR function.
+//
+// Note: predicates currently implicitly refer to an (unreferenced) subject,
+// like a return value, so you can make fairly context-free constructs like
+// `Predicate::EqualToZero()`. (See `PredicateOfNode` for ways to explicitly
+// provide a subject node for the predicate to act upon.)
 class Predicate {
  public:
-  static Predicate EqualTo(Node* node) {
-    return Predicate(PredicateKind::kEqualToNode, node);
-  }
-  static Predicate EqualToZero() {
-    return Predicate(PredicateKind::kEqualToZero);
-  }
-  static Predicate NotEqualToZero() {
-    return Predicate(PredicateKind::kNotEqualToZero);
-  }
+  static Predicate IsEqualTo(Node* other);
+  static Predicate EqualToZero();
+  static Predicate NotEqualToZero();
+  static Predicate UnsignedGreaterOrEqual(Bits lower_bound);
+  static Predicate UnsignedLessOrEqual(Bits upper_bound);
 
   PredicateKind kind() const { return kind_; }
+
+  // For predicates that refer to another node; e.g.
+  // `Predicate::IsEqualTo(other)`, returns the node the predicate is comparing
+  // to (`other` in this example).
   Node* node() const {
     XLS_CHECK(node_.has_value());
     return node_.value();
@@ -314,16 +327,47 @@ class Predicate {
 
   std::string ToString() const;
 
+  // For predicates that have a bits value as part of the predicate payload,
+  // returns the bits value; e.g. for
+  // `Predicate::UnsignedGreaterOrEqual(my_bits)` returns the value of
+  // `my_bits`.
+  const Bits& value() const {
+    XLS_CHECK(value_.has_value());
+    return value_.value();
+  }
+
  private:
-  explicit Predicate(PredicateKind kind) : kind_(kind) {}
-  Predicate(PredicateKind kind, Node* node) : kind_(kind), node_(node) {}
+  explicit Predicate(PredicateKind kind);
+  Predicate(PredicateKind kind, Node* node);
+  Predicate(PredicateKind kind, Node* node, Bits value);
 
   PredicateKind kind_;
   std::optional<Node*> node_;
+  std::optional<Bits> value_;
 };
+
+// Predicates generally don't encode a subject, they say things like "should be
+// greater than zero" but the subject is implicit, e.g. a return value.
+//
+// This struct wraps a predicate with an explicit subject (that must be present
+// inside of the associated function).
+struct PredicateOfNode {
+  Node* subject;
+  Predicate p;
+};
+
+// Attempts to prove the conjunction of "terms". "terms" refers to predicates on
+// nodes within function "f". Returns true iff "terms" can be proven true in
+// conjunction (over all possible inputs) within the given "timeout".
+absl::StatusOr<bool> TryProveConjunction(
+    Function* f, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout);
 
 // Attempts to prove node "subject" in function "f" satisfies the given
 // predicate (over all possible inputs) within the duration "timeout".
+//
+// This offers a simpler subset of the functionality of TryProveConjunction
+// above.
 absl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
                               absl::Duration timeout);
 

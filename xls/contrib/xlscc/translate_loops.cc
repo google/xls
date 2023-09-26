@@ -36,6 +36,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/solvers/z3_utils.h"
 
 using std::shared_ptr;
 using std::string;

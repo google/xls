@@ -25,6 +25,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
@@ -36,7 +37,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3.h"
+#include "../z3/src/api/z3.h"  // IWYU pragma: keep
 #include "../z3/src/api/z3_api.h"
 
 namespace xls {
@@ -44,8 +45,11 @@ namespace {
 
 using solvers::z3::IrTranslator;
 using solvers::z3::Predicate;
+using solvers::z3::PredicateOfNode;
 using solvers::z3::TryProve;
 using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using testing::HasSubstr;
 
 class Z3IrTranslatorTest : public IrTestBase {};
 
@@ -74,6 +78,58 @@ TEST_F(Z3IrTranslatorTest, ZeroIsZero) {
                            TryProve(f, x.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
   EXPECT_TRUE(proven);
+}
+
+TEST_F(Z3IrTranslatorTest, ZeroIsZeroAndOneIsOne) {
+  auto p = CreatePackage();
+  FunctionBuilder b("f", p.get());
+  auto x = b.Literal(UBits(0, /*bit_count=*/1));
+  auto y = b.Literal(UBits(1, /*bit_count=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  std::vector<PredicateOfNode> terms = {
+      PredicateOfNode{x.node(), Predicate::EqualToZero()},
+      PredicateOfNode{y.node(), Predicate::NotEqualToZero()},
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProveConjunction(f, terms, absl::InfiniteDuration()));
+  EXPECT_TRUE(proven);
+}
+
+TEST_F(Z3IrTranslatorTest, ParamsEqualToSelfButUnequalToEachOther) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  FunctionBuilder b("f", p.get());
+  auto x = b.Param("x", u32);
+  auto y = b.Param("y", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  std::vector<PredicateOfNode> terms = {
+      PredicateOfNode{x.node(), Predicate::IsEqualTo(x.node())},
+      PredicateOfNode{y.node(), Predicate::IsEqualTo(y.node())},
+      // This term should not prove.
+      PredicateOfNode{x.node(), Predicate::IsEqualTo(y.node())},
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProveConjunction(f, terms, absl::InfiniteDuration()));
+  EXPECT_FALSE(proven);
+}
+
+TEST_F(Z3IrTranslatorTest, ParamAddOneIsGeParam) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  FunctionBuilder b("f", p.get());
+  auto x = b.Param("x", u32);
+  auto one = b.Literal(UBits(1, /*bit_count=*/32));
+  auto xp1 = b.Add(x, one);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  std::vector<PredicateOfNode> terms = {
+      PredicateOfNode{xp1.node(), Predicate::UnsignedGreaterOrEqual(
+                                      UBits(1, /*bit_count=*/32))},
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProveConjunction(f, terms, absl::InfiniteDuration()));
+  // The all-ones value will cause rollover such that the assertion `xp1 >= 1`
+  // is false.
+  EXPECT_FALSE(proven);
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroTwoBitsIsZero) {
@@ -132,9 +188,10 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(),
-                            Predicate::EqualTo(f->GetParamByName("x").value()),
-                            absl::InfiniteDuration()));
+      bool proven,
+      TryProve(f, f->return_value(),
+               Predicate::IsEqualTo(f->GetParamByName("x").value()),
+               absl::InfiniteDuration()));
   EXPECT_TRUE(proven);
 }
 
@@ -809,7 +866,7 @@ fn f() -> bits[4] {
   Node* to_compare = FindNode("literal.3", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       bool proven_eq,
-      TryProve(f, f->return_value(), Predicate::EqualTo(to_compare),
+      TryProve(f, f->return_value(), Predicate::IsEqualTo(to_compare),
                absl::InfiniteDuration()));
   EXPECT_TRUE(proven_eq);
 }
@@ -841,7 +898,7 @@ fn f() -> bits[32] {
     Node* eq_node = FindNode("literal.5", p.get());
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
-        TryProve(f, f->return_value(), Predicate::EqualTo(eq_node),
+        TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                  absl::InfiniteDuration()));
     EXPECT_TRUE(proven_eq);
   }
@@ -859,7 +916,7 @@ fn f() -> bits[32] {
       // All tokens are equal to each other.
       XLS_ASSERT_OK_AND_ASSIGN(
           bool proven_eq, TryProve(f, token_nodes.at(l_idx),
-                                   Predicate::EqualTo(token_nodes.at(r_idx)),
+                                   Predicate::IsEqualTo(token_nodes.at(r_idx)),
                                    absl::InfiniteDuration()));
       EXPECT_TRUE(proven_eq);
     }
@@ -898,11 +955,14 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
 
   // Check that non-token logic is not affected.
-  Node* eq_node = FindNode("literal.5", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  {
+    Node* eq_node = FindNode("literal.5", p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        bool proven_eq,
+        TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
+                 absl::InfiniteDuration()));
+    EXPECT_TRUE(proven_eq);
+  }
 
   std::vector<Node*> token_nodes;
   for (Node* node : f->nodes()) {
@@ -917,19 +977,21 @@ fn f() -> bits[32] {
       // All tokens are equal to each other.
       XLS_ASSERT_OK_AND_ASSIGN(
           bool proven_eq, TryProve(f, token_nodes.at(l_idx),
-                                   Predicate::EqualTo(token_nodes.at(r_idx)),
+                                   Predicate::IsEqualTo(token_nodes.at(r_idx)),
                                    absl::InfiniteDuration()));
       EXPECT_TRUE(proven_eq);
     }
     // Can't prove a token is 0 or non-zero because it is a non-bit type.
-    EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
-                          absl::InfiniteDuration())
-                     .status()
-                     .ok());
-    EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::NotEqualToZero(),
-                          absl::InfiniteDuration())
-                     .status()
-                     .ok());
+    EXPECT_THAT(
+        TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
+                 absl::InfiniteDuration()),
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 HasSubstr("predicate eq zero vs non-bit-vector Z3 value")));
+    EXPECT_THAT(
+        TryProve(f, token_nodes.at(l_idx), Predicate::NotEqualToZero(),
+                 absl::InfiniteDuration()),
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 HasSubstr("predicate ne zero vs non-bit-vector Z3 value")));
   }
 }
 
@@ -952,14 +1014,18 @@ fn f(empty_tuple: ()) -> bits[32] {
   // Even though we represent tokens as empty tuples as a convenient hack, we
   // should not evaluate tokens == empty tuples.  Evaluation should fail becaue
   // an empty tuple is not a bit type.
-  EXPECT_FALSE(TryProve(f, token_node, Predicate::EqualTo(tuple_node),
-                        absl::InfiniteDuration())
-                   .status()
-                   .ok());
-  EXPECT_FALSE(TryProve(f, tuple_node, Predicate::EqualTo(token_node),
-                        absl::InfiniteDuration())
-                   .status()
-                   .ok());
+  EXPECT_THAT(
+      TryProve(f, token_node, Predicate::IsEqualTo(tuple_node),
+               absl::InfiniteDuration()),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("predicate eq empty_tuple vs non-bit-vector Z3 value")));
+  EXPECT_THAT(
+      TryProve(f, tuple_node, Predicate::IsEqualTo(token_node),
+               absl::InfiniteDuration()),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("predicate eq after_all.10 vs non-bit-vector Z3 value")));
 }
 
 TEST_F(Z3IrTranslatorTest, TokenArgsAndReturn) {
@@ -986,7 +1052,7 @@ fn f(arr1: token, arr2: token, arr3: token) -> token {
     for (int r_idx = l_idx + 1; r_idx < token_nodes.size(); ++r_idx) {
       // All tokens are equal to each other.
       ASSERT_THAT(TryProve(f, token_nodes.at(l_idx),
-                           Predicate::EqualTo(token_nodes.at(r_idx)),
+                           Predicate::IsEqualTo(token_nodes.at(r_idx)),
                            absl::InfiniteDuration()),
                   IsOkAndHolds(true));
     }
@@ -1021,9 +1087,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.5", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_eq,
+      TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
+               absl::InfiniteDuration()));
   EXPECT_TRUE(proven_eq);
 }
 
@@ -1040,9 +1107,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("eight", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_eq,
+      TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
+               absl::InfiniteDuration()));
   EXPECT_TRUE(proven_eq);
 }
 
@@ -1070,9 +1138,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.4", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_eq,
+      TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
+               absl::InfiniteDuration()));
   EXPECT_TRUE(proven_eq);
 }
 
@@ -1100,9 +1169,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.4", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_eq,
+      TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
+               absl::InfiniteDuration()));
   EXPECT_TRUE(proven_eq);
 }
 
@@ -1131,9 +1201,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.5", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_eq,
+      TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
+               absl::InfiniteDuration()));
   EXPECT_TRUE(proven_eq);
 }
 
@@ -1167,9 +1238,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.2", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_eq,
+      TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
+               absl::InfiniteDuration()));
   EXPECT_TRUE(proven_eq);
 }
 
@@ -1191,9 +1263,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.5", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::EqualTo(eq_node),
-                                                    absl::InfiniteDuration()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_eq,
+      TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
+               absl::InfiniteDuration()));
   EXPECT_TRUE(proven_eq);
 }
 
@@ -1223,7 +1296,7 @@ fn f() -> bits[32] {
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::EqualTo(FindNode(observe[idx], p.get())),
+                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
     EXPECT_TRUE(proven_eq);
   }
@@ -1254,7 +1327,7 @@ fn f() -> bits[32] {
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::EqualTo(FindNode(observe[idx], p.get())),
+                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
     EXPECT_TRUE(proven_eq);
   }
@@ -1275,7 +1348,7 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
 
   EXPECT_THAT(TryProve(f, FindNode("result", p.get()),
-                       Predicate::EqualTo(FindNode("forty_two", p.get())),
+                       Predicate::IsEqualTo(FindNode("forty_two", p.get())),
                        absl::InfiniteDuration()),
               IsOkAndHolds(true));
 }
@@ -1313,7 +1386,7 @@ fn f() -> bits[32] {
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::EqualTo(FindNode(observe[idx], p.get())),
+                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
     EXPECT_TRUE(proven_eq);
   }
@@ -1350,7 +1423,7 @@ fn f() -> bits[32] {
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::EqualTo(FindNode(observe[idx], p.get())),
+                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
     EXPECT_TRUE(proven_eq);
   }
@@ -1389,7 +1462,7 @@ fn f() -> bits[32] {
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::EqualTo(FindNode(observe[idx], p.get())),
+                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
     EXPECT_TRUE(proven_eq);
   }
@@ -1440,7 +1513,7 @@ fn f() -> bits[32] {
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::EqualTo(FindNode(observe[idx], p.get())),
+                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
     EXPECT_TRUE(proven_eq);
   }
@@ -1472,7 +1545,7 @@ fn f() -> bits[32] {
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::EqualTo(FindNode(observe[idx], p.get())),
+                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
     EXPECT_TRUE(proven_eq);
   }
@@ -1508,7 +1581,7 @@ fn f(index: bits[32]) -> bits[32] {
     XLS_ASSERT_OK_AND_ASSIGN(
         bool proven_eq,
         TryProve(f, FindNode(in_str[idx], p.get()),
-                 Predicate::EqualTo(FindNode(out_str[idx], p.get())),
+                 Predicate::IsEqualTo(FindNode(out_str[idx], p.get())),
                  absl::InfiniteDuration()));
     EXPECT_FALSE(proven_eq);
   }
@@ -2036,5 +2109,6 @@ fn f() -> bits[64] {
     }
   }
 }
+
 }  // namespace
 }  // namespace xls

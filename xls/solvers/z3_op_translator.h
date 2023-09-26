@@ -50,14 +50,30 @@ class Z3OpTranslator {
   // Returns a boolean-kinded result that says whether lhs == rhs.
   Z3_ast EqBool(Z3_ast lhs, Z3_ast rhs) { return Z3_mk_eq(z3_ctx_, lhs, rhs); }
 
+  // Takes boolean kinds as arguments and produces a boolean kind result.
+  Z3_ast OrBool(Z3_ast lhs, Z3_ast rhs);
+
+  // Takes boolean kinds as arguments and produces a boolean kind result.
+  Z3_ast AndBool(Z3_ast lhs, Z3_ast rhs);
+
+  Z3_ast True() { return Z3_mk_true(z3_ctx_); }
+  Z3_ast False() { return Z3_mk_false(z3_ctx_); }
+
   Z3_ast ZextBy1b(Z3_ast arg) { return Z3_mk_zero_ext(z3_ctx_, 1, arg); }
   Z3_ast SextBy1b(Z3_ast arg) { return Z3_mk_sign_ext(z3_ctx_, 1, arg); }
 
-  // Extracts bit "bitno" from the given argument.
+  // Extracts bit "bitno" from the given argument, returns a single-bit
+  // bitvector result.
   //
   // Note that the most significant bit (as visible via arithmetic operations
   // and similar) is at `bitno = bit_count - 1`.
   Z3_ast Extract(Z3_ast arg, int64_t bitno);
+
+  // Returns the kind of the sort of the AST node, e.g. Z3_BOOL_SORT,
+  // Z3_BV_SORT, etc.
+  Z3_sort_kind GetSortKind(Z3_ast a) {
+    return Z3_get_sort_kind(z3_ctx_, Z3_get_sort(z3_ctx_, a));
+  }
 
   std::string GetSortName(Z3_ast a) {
     return Z3_get_symbol_string(
@@ -138,6 +154,8 @@ class Z3OpTranslator {
   Z3_ast ULt(Z3_ast lhs, Z3_ast rhs) {
     return Msb(Sub(ZextBy1b(lhs), ZextBy1b(rhs)));
   }
+  Z3_ast ULe(Z3_ast lhs, Z3_ast rhs) { return Or(ULt(lhs, rhs), Eq(lhs, rhs)); }
+  Z3_ast UGe(Z3_ast lhs, Z3_ast rhs) { return Not(ULt(lhs, rhs)); }
 
   Z3_ast SLt(Z3_ast lhs, Z3_ast rhs) {
     return Msb(Sub(SextBy1b(lhs), SextBy1b(rhs)));
