@@ -210,6 +210,95 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Ne) {
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
+TEST_F(ContextSensitiveRangeQueryEngineTest, DeadBranchEq) {
+  Bits max_bits = UBits(12, 8);
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // x: u2; if ((x as u8) == 12) { (x as u8) + 12 } else { (x as u8) }
+  BValue x = fb.Param("x", p->GetBitsType(2));
+  BValue u8_x = fb.ZeroExtend(x, 8);
+  BValue cond = fb.Eq(u8_x, fb.Literal(UBits(12, 8)));
+  BValue add_ten = fb.Add(u8_x, fb.Literal(UBits(10, 8)));
+  BValue res = fb.Select(cond, {u8_x, add_ten});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
+  IntervalSetTree cond_ist =
+      BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))});
+
+  EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()), cond_ist);
+}
+
+TEST_F(ContextSensitiveRangeQueryEngineTest, DeadBranchNe) {
+  Bits max_bits = UBits(12, 8);
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // x: u2; if ((x as u8) != 12) { (x as u8) + 12 } else { (x as u8) }
+  BValue x = fb.Param("x", p->GetBitsType(2));
+  BValue u8_x = fb.ZeroExtend(x, 8);
+  BValue cond = fb.Ne(u8_x, fb.Literal(UBits(12, 8)));
+  BValue add_ten = fb.Add(u8_x, fb.Literal(UBits(10, 8)));
+  BValue res = fb.Select(cond, {u8_x, add_ten});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
+  IntervalSetTree cond_ist =
+      BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))});
+
+  EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()), cond_ist);
+}
+
+TEST_F(ContextSensitiveRangeQueryEngineTest, DeadBranchCmp) {
+  Bits max_bits = UBits(12, 8);
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // x: u2; if ((x as u8) > 12) { (x as u8) + 12 } else { (x as u8) }
+  BValue x = fb.Param("x", p->GetBitsType(2));
+  BValue u8_x = fb.ZeroExtend(x, 8);
+  BValue cond = fb.UGt(u8_x, fb.Literal(UBits(12, 8)));
+  BValue add_ten = fb.Add(u8_x, fb.Literal(UBits(10, 8)));
+  BValue res = fb.Select(cond, {u8_x, add_ten});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
+  IntervalSetTree cond_ist =
+      BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))});
+  EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()), cond_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
+}
+
 TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableLtConstantUseInIf) {
   Bits max_bits = bits_ops::Sub(UBits(12, 8), UBits(1, 8));
   auto p = CreatePackage();

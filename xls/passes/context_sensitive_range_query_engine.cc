@@ -153,6 +153,15 @@ class BackPropagate final : public DfsVisitorWithDefault {
     }
     invert_base.Normalize();
     IntervalSet restricted_set = IntervalSet::Complement(invert_base);
+    if (restricted_set.Intervals().empty()) {
+      // This implies the condition is actually unreachable impossible (since
+      // we unify to bottom). For now just leave unconstrained.
+      // TODO(allight): 2023-09-25: We can do better and should probably try to
+      // communicate and remove the impossible cases here. This would need to be
+      // done in narrowing or strength reduction by removing the associated
+      // branches.
+      return absl::OkStatus();
+    }
     RangeData result{
         .ternary = interval_ops::ExtractTernaryVector(restricted_set),
         .interval_set = IntervalSetTree(variable->GetType(), {restricted_set}),
@@ -184,6 +193,19 @@ class BackPropagate final : public DfsVisitorWithDefault {
       // Case: (L != R) == FALSE
       IntervalSetTree unified = IntervalSetTree::Zip<IntervalSet, IntervalSet>(
           IntervalSet::Intersect, a_intervals, b_intervals);
+
+      if (absl::c_any_of(unified.elements(), [](const IntervalSet& set) {
+            return set.NumberOfIntervals() == 0;
+          })) {
+        // This implies the condition is actually unreachable impossible
+        // (since we unify to bottom on an element). For now just leave
+        // unconstrained.
+        // TODO(allight): 2023-09-25: We can do better and should probably try
+        // to communicate and remove the impossible cases here. This would
+        // need to be done in narrowing or strength reduction by removing the
+        // associated branches.
+        return absl::OkStatus();
+      }
       RangeData joined{
           .ternary =
               a->GetType()->IsBits()
@@ -234,6 +256,19 @@ class BackPropagate final : public DfsVisitorWithDefault {
         IntervalSetTree imprecise_interval =
             imprecise_complement_interval.Map<IntervalSet>(
                 &IntervalSet::Complement);
+        if (absl::c_any_of(imprecise_interval.elements(),
+                           [](const IntervalSet& set) {
+                             return set.NumberOfIntervals() == 0;
+                           })) {
+          // This implies the condition is actually unreachable
+          // (since we unify to bottom on some element). For now just leave
+          // unconstrained.
+          // TODO(allight): 2023-09-25: We can do better and should probably try
+          // to communicate and remove the impossible cases here. This would
+          // need to be done in narrowing or strength reduction by removing the
+          // associated branches.
+          return absl::OkStatus();
+        }
         result_[imprecise] = RangeData{
             .ternary =
                 is_bits ? std::make_optional(interval_ops::ExtractTernaryVector(
