@@ -134,14 +134,14 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
 
   xls::verilog::ModuleSimulator simulator(
       signature, verilog, xls::verilog::FileType::kVerilog, GetSimulator());
-
+  using BitsMap = xls::verilog::ModuleSimulator::BitsMap;
   // Output out1 selected, input valid and output ready asserted.
   EXPECT_THAT(
-      simulator.RunFunction({{"dir", xls::UBits(0, 32)},
-                             {"in", xls::UBits(123, 32)},
-                             {"in_vld", xls::UBits(1, 1)},
-                             {"out1_rdy", xls::UBits(1, 1)},
-                             {"out2_rdy", xls::UBits(1, 1)}}),
+      simulator.RunFunction(BitsMap{{"dir", xls::UBits(0, 32)},
+                                    {"in", xls::UBits(123, 32)},
+                                    {"in_vld", xls::UBits(1, 1)},
+                                    {"out1_rdy", xls::UBits(1, 1)},
+                                    {"out2_rdy", xls::UBits(1, 1)}}),
       IsOkAndHolds(UnorderedElementsAre(
           Pair("out1", xls::UBits(123, 32)), Pair("out1_vld", xls::UBits(1, 1)),
           Pair("out2", xls::UBits(123, 32)), Pair("out2_vld", xls::UBits(0, 1)),
@@ -149,11 +149,11 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
 
   // Output out2 selected, input valid and output ready asserted.
   EXPECT_THAT(
-      simulator.RunFunction({{"dir", xls::UBits(1, 32)},
-                             {"in", xls::UBits(123, 32)},
-                             {"in_vld", xls::UBits(1, 1)},
-                             {"out1_rdy", xls::UBits(1, 1)},
-                             {"out2_rdy", xls::UBits(1, 1)}}),
+      simulator.RunFunction(BitsMap{{"dir", xls::UBits(1, 32)},
+                                    {"in", xls::UBits(123, 32)},
+                                    {"in_vld", xls::UBits(1, 1)},
+                                    {"out1_rdy", xls::UBits(1, 1)},
+                                    {"out2_rdy", xls::UBits(1, 1)}}),
       IsOkAndHolds(UnorderedElementsAre(
           Pair("out1", xls::UBits(123, 32)), Pair("out1_vld", xls::UBits(0, 1)),
           Pair("out2", xls::UBits(123, 32)), Pair("out2_vld", xls::UBits(1, 1)),
@@ -161,11 +161,11 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
 
   // Output out2 selected, input valid asserted, and output ready *not*
   EXPECT_THAT(
-      simulator.RunFunction({{"dir", xls::UBits(1, 32)},
-                             {"in", xls::UBits(123, 32)},
-                             {"in_vld", xls::UBits(1, 1)},
-                             {"out1_rdy", xls::UBits(1, 1)},
-                             {"out2_rdy", xls::UBits(0, 1)}}),
+      simulator.RunFunction(BitsMap{{"dir", xls::UBits(1, 32)},
+                                    {"in", xls::UBits(123, 32)},
+                                    {"in_vld", xls::UBits(1, 1)},
+                                    {"out1_rdy", xls::UBits(1, 1)},
+                                    {"out2_rdy", xls::UBits(0, 1)}}),
       IsOkAndHolds(UnorderedElementsAre(
           Pair("out1", xls::UBits(123, 32)), Pair("out1_vld", xls::UBits(0, 1)),
           Pair("out2", xls::UBits(123, 32)), Pair("out2_vld", xls::UBits(1, 1)),
@@ -174,11 +174,11 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   // Output out2 selected, input valid *not* asserted, and output ready
   // asserted. Output valid should be zero.
   EXPECT_THAT(
-      simulator.RunFunction({{"dir", xls::UBits(1, 32)},
-                             {"in", xls::UBits(123, 32)},
-                             {"in_vld", xls::UBits(0, 1)},
-                             {"out1_rdy", xls::UBits(1, 1)},
-                             {"out2_rdy", xls::UBits(1, 1)}}),
+      simulator.RunFunction(BitsMap{{"dir", xls::UBits(1, 32)},
+                                    {"in", xls::UBits(123, 32)},
+                                    {"in_vld", xls::UBits(0, 1)},
+                                    {"out1_rdy", xls::UBits(1, 1)},
+                                    {"out2_rdy", xls::UBits(1, 1)}}),
       IsOkAndHolds(UnorderedElementsAre(
           Pair("out1", xls::UBits(123, 32)), Pair("out1_vld", xls::UBits(0, 1)),
           Pair("out2", xls::UBits(123, 32)), Pair("out2_vld", xls::UBits(0, 1)),
@@ -271,14 +271,15 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
 
   xls::verilog::ModuleSimulator simulator(
       signature, verilog, xls::verilog::FileType::kVerilog, GetSimulator());
+  using BitsMap = xls::verilog::ModuleSimulator::BitsMap;
   // Input in1 selected, input valid and output ready asserted.
   EXPECT_THAT(
-      simulator.RunFunction({{"dir", xls::UBits(0, 32)},
-                             {"in1", xls::UBits(123, 32)},
-                             {"in2", xls::UBits(42, 32)},
-                             {"in1_vld", xls::UBits(1, 1)},
-                             {"in2_vld", xls::UBits(1, 1)},
-                             {"out_rdy", xls::UBits(1, 1)}}),
+      simulator.RunFunction(BitsMap{{"dir", xls::UBits(0, 32)},
+                                    {"in1", xls::UBits(123, 32)},
+                                    {"in2", xls::UBits(42, 32)},
+                                    {"in1_vld", xls::UBits(1, 1)},
+                                    {"in2_vld", xls::UBits(1, 1)},
+                                    {"out_rdy", xls::UBits(1, 1)}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", xls::UBits(1, 1)),
                                         Pair("in1_rdy", xls::UBits(1, 1)),
                                         Pair("out", xls::UBits(123, 32)),
@@ -286,12 +287,12 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
 
   // Input in2 selected, input valid and output ready asserted.
   EXPECT_THAT(
-      simulator.RunFunction({{"dir", xls::UBits(1, 32)},
-                             {"in1", xls::UBits(123, 32)},
-                             {"in2", xls::UBits(42, 32)},
-                             {"in1_vld", xls::UBits(0, 1)},
-                             {"in2_vld", xls::UBits(1, 1)},
-                             {"out_rdy", xls::UBits(1, 1)}}),
+      simulator.RunFunction(BitsMap{{"dir", xls::UBits(1, 32)},
+                                    {"in1", xls::UBits(123, 32)},
+                                    {"in2", xls::UBits(42, 32)},
+                                    {"in1_vld", xls::UBits(0, 1)},
+                                    {"in2_vld", xls::UBits(1, 1)},
+                                    {"out_rdy", xls::UBits(1, 1)}}),
       IsOkAndHolds(UnorderedElementsAre(
           Pair("out_vld", xls::UBits(1, 1)), Pair("in1_rdy", xls::UBits(0, 1)),
           Pair("out", xls::UBits(42, 32)), Pair("in2_rdy", xls::UBits(1, 1)))));
@@ -299,12 +300,12 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   // Input in2 selected, input valid asserted, and output ready *not*
   // asserted. Input ready should be zero.
   EXPECT_THAT(
-      simulator.RunFunction({{"dir", xls::UBits(1, 32)},
-                             {"in1", xls::UBits(123, 32)},
-                             {"in2", xls::UBits(42, 32)},
-                             {"in1_vld", xls::UBits(1, 1)},
-                             {"in2_vld", xls::UBits(1, 1)},
-                             {"out_rdy", xls::UBits(0, 1)}}),
+      simulator.RunFunction(BitsMap{{"dir", xls::UBits(1, 32)},
+                                    {"in1", xls::UBits(123, 32)},
+                                    {"in2", xls::UBits(42, 32)},
+                                    {"in1_vld", xls::UBits(1, 1)},
+                                    {"in2_vld", xls::UBits(1, 1)},
+                                    {"out_rdy", xls::UBits(0, 1)}}),
       IsOkAndHolds(UnorderedElementsAre(
           Pair("out_vld", xls::UBits(1, 1)), Pair("in1_rdy", xls::UBits(0, 1)),
           Pair("out", xls::UBits(42, 32)), Pair("in2_rdy", xls::UBits(0, 1)))));
@@ -312,12 +313,12 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   // Input in2 selected, input valid *not* asserted, and output ready
   // asserted. Output valid should be zero.
   EXPECT_THAT(
-      simulator.RunFunction({{"dir", xls::UBits(1, 32)},
-                             {"in1", xls::UBits(123, 32)},
-                             {"in2", xls::UBits(42, 32)},
-                             {"in1_vld", xls::UBits(1, 1)},
-                             {"in2_vld", xls::UBits(0, 1)},
-                             {"out_rdy", xls::UBits(1, 1)}}),
+      simulator.RunFunction(BitsMap{{"dir", xls::UBits(1, 32)},
+                                    {"in1", xls::UBits(123, 32)},
+                                    {"in2", xls::UBits(42, 32)},
+                                    {"in1_vld", xls::UBits(1, 1)},
+                                    {"in2_vld", xls::UBits(0, 1)},
+                                    {"out_rdy", xls::UBits(1, 1)}}),
       IsOkAndHolds(UnorderedElementsAre(
           Pair("out_vld", xls::UBits(0, 1)), Pair("in1_rdy", xls::UBits(0, 1)),
           Pair("out", xls::UBits(42, 32)), Pair("in2_rdy", xls::UBits(1, 1)))));
