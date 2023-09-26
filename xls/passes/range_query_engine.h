@@ -94,6 +94,10 @@ class RangeQueryEngine : public QueryEngine {
  public:
   // Create a `RangeQueryEngine` that contains no data.
   RangeQueryEngine() = default;
+  RangeQueryEngine(RangeQueryEngine&&) = default;
+  RangeQueryEngine(const RangeQueryEngine&) = default;
+  RangeQueryEngine& operator=(const RangeQueryEngine&) = default;
+  RangeQueryEngine& operator=(RangeQueryEngine&&) = default;
 
   // Populate the data in this `RangeQueryEngine` using the
   // given `FunctionBase*`;

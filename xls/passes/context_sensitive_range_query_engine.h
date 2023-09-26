@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -101,12 +102,18 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
     return base_case_ranges_.ImpliedNodeValue(predicate_bit_values, node);
   }
 
+  // Specialize the query engine for the given predicate. For now only a state
+  // set with a single element is supported. This is CHECK'd internally to avoid
+  // surprising non-deterministic behavior. In the future we might relax this
+  // restriction.
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::flat_hash_set<PredicateState>& state) const override;
 
  private:
   RangeQueryEngine base_case_ranges_;
-  absl::flat_hash_map<PredicateState, RangeQueryEngine> one_hot_ranges_;
+  std::vector<std::unique_ptr<const RangeQueryEngine>> arena_;
+  absl::flat_hash_map<PredicateState, const RangeQueryEngine*>
+      one_hot_ranges_;
 };
 
 }  // namespace xls

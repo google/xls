@@ -97,7 +97,10 @@ class QueryEngine {
   virtual LeafTypeTree<TernaryVector> GetTernary(Node* node) const = 0;
 
   // Return a query engine which is specialized with the given predicates. The
-  // reference has an lifetime of the source engine.
+  // reference has an lifetime of the source engine.  For now no query-engine
+  // supports a state set with more than a single element. This is CHECK'd
+  // internally in some query engines to avoid surprising non-deterministic
+  // behavior. In the future we might relax this restriction.
   virtual std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::flat_hash_set<PredicateState>& state) const;
 

@@ -326,11 +326,15 @@ class ContextGivens final : public RangeDataProvider {
 };
 
 // Helper to perform the actual analysis and hold together all data needed.
+// This is used to fill in the fields of the actual query engine and therefore
+// does not own the arena/map that it fills in.
 class Analysis {
  public:
-  Analysis(RangeQueryEngine& base_range,
-           absl::flat_hash_map<PredicateState, RangeQueryEngine>& engines)
-      : base_range_(base_range), engines_(engines) {}
+  Analysis(
+      RangeQueryEngine& base_range,
+      std::vector<std::unique_ptr<const RangeQueryEngine>>& arena,
+      absl::flat_hash_map<PredicateState, const RangeQueryEngine*>& engines)
+      : base_range_(base_range), arena_(arena), engines_(engines) {}
 
   absl::StatusOr<ReachedFixpoint> Execute(FunctionBase* f) {
     // Get the topological sort once so we don't recalculate it each time.
@@ -341,7 +345,8 @@ class Analysis {
     XLS_RETURN_IF_ERROR(base_range_.PopulateWithGivens(base_givens).status());
 
     // Get every possible one-hot state.
-    for (Node* n : f->nodes()) {
+    // Iterate in same order we walk.
+    for (Node* n : topo_sort_) {
       if (n->Is<Select>()) {
         for (int64_t idx = 0; idx < n->As<Select>()->cases().size(); ++idx) {
           all_states_.push_back(PredicateState(n->As<Select>(), idx));
@@ -352,8 +357,32 @@ class Analysis {
         }
       }
     }
+    // Bucket states into equivalence classes. Any predicate-states where the
+    // arm and selector are identical
+    absl::flat_hash_map<std::pair<Node*, PredicateState::ArmT>,
+                        std::vector<PredicateState>>
+        equivalences;
+    equivalences.reserve(all_states_.size());
     for (PredicateState s : all_states_) {
-      XLS_ASSIGN_OR_RETURN(engines_[s], CalculateRangeGiven(s));
+      equivalences.try_emplace({s.node()->As<Select>()->selector(), s.arm()})
+          .first->second.push_back(s);
+    }
+    // NB We don't care what order we examine each equivalence (since all are
+    // disjoint).
+    for (const auto& [_, states] : equivalences) {
+      // Since the all_states_ is in topo the last equiv state is usable for
+      // everything.
+      // We don't care what order we calculate the equivalences because each is
+      // fully disjoint from one another as we consider only a single condition
+      // to be true at a time.
+      XLS_ASSIGN_OR_RETURN(auto tmp, CalculateRangeGiven(states.back()));
+      auto result =
+          arena_
+              .emplace_back(std::make_unique<RangeQueryEngine>(std::move(tmp)))
+              .get();
+      for (const PredicateState& ps : states) {
+        engines_[ps] = result;
+      }
     }
     return ReachedFixpoint::Changed;
   }
@@ -419,7 +448,8 @@ class Analysis {
   std::vector<Node*> topo_sort_;
   std::vector<PredicateState> all_states_;
   RangeQueryEngine& base_range_;
-  absl::flat_hash_map<PredicateState, RangeQueryEngine>& engines_;
+  std::vector<std::unique_ptr<const RangeQueryEngine>>& arena_;
+  absl::flat_hash_map<PredicateState, const RangeQueryEngine*>& engines_;
 };
 
 // A proxy query engine which specializes using select context.
@@ -525,18 +555,24 @@ class ProxyContextQueryEngine final : public QueryEngine {
 
 absl::StatusOr<ReachedFixpoint> ContextSensitiveRangeQueryEngine::Populate(
     FunctionBase* f) {
-  Analysis analysis(base_case_ranges_, one_hot_ranges_);
+  Analysis analysis(base_case_ranges_, arena_, one_hot_ranges_);
   return analysis.Execute(f);
 }
 
 std::unique_ptr<QueryEngine>
 ContextSensitiveRangeQueryEngine::SpecializeGivenPredicate(
     const absl::flat_hash_set<PredicateState>& state) const {
+  // Currently only single element states are supported.
+  // We do check for consistency here but really we just ignore extra state
+  // elements since something that is true for A is also true for A && B. We
+  // don't have any particular strategy for picking which one gets to be the
+  // 'real' state just using 'begin'.
+  XLS_CHECK_LE(state.size(), 1);
   if (state.empty() || !one_hot_ranges_.contains(*state.cbegin())) {
     return QueryEngine::SpecializeGivenPredicate(state);
   }
   return std::make_unique<ProxyContextQueryEngine>(
-      *this, one_hot_ranges_.at(*state.cbegin()));
+      *this, *one_hot_ranges_.at(*state.cbegin()));
 }
 
 }  // namespace xls
