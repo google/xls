@@ -730,3 +730,22 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+cc_library(
+    name = "axistreamlikedmaendpoint",
+    srcs = [
+        "axi_stream_like_dma_endpoint.cc",
+    ],
+    hdrs = [
+        "axi_stream_like_dma_endpoint.h",
+    ],
+    deps = [
+        ":iaxistreamlike",
+        ":idmaendpoint",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
