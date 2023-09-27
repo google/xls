@@ -711,3 +711,22 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "streamdmaendpoint",
+    srcs = [
+        "stream_dma_endpoint.cc",
+    ],
+    hdrs = [
+        "stream_dma_endpoint.h",
+    ],
+    deps = [
+        ":idmaendpoint",
+        ":istream",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
