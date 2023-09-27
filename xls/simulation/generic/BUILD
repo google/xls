@@ -18,6 +18,16 @@ package(
 )
 
 cc_library(
+    name = "common",
+    hdrs = [
+        "common.h",
+    ],
+    deps = [
+        "//xls/common/logging",
+    ],
+)
+
+cc_library(
     name = "iconnection",
     hdrs = [
         "iconnection.h",
@@ -113,6 +123,7 @@ cc_library(
         "ichannel.h",
     ],
     deps = [
+        ":common",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],

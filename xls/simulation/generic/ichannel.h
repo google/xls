@@ -19,6 +19,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/simulation/generic/common.h"
 
 namespace xls::simulation::generic {
 
@@ -36,6 +37,8 @@ class IChannel {
   virtual uint64_t GetChannelWidth() const = 0;
 
   virtual ~IChannel() = default;
+
+  uint64_t GetChannelWidthInBytes() { return BitsToBytes(GetChannelWidth()); }
 };
 
 }  // namespace xls::simulation::generic
