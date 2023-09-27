@@ -195,43 +195,6 @@ std::string ExprRestrictionsToString(ExprRestrictions restrictions) {
   return "{no-struct-literal}";
 }
 
-// Collects all names declared through a Let/Spawn/UnrollFor chain.
-// Note that this behaves differently than the NameDefCollector inside
-// bytecode_emitter.cc: that one walks NameRefs and ConstantRefs, whereas this
-// only extracts names from Let decls.
-class NameDefCollector : public AstNodeVisitorWithDefault {
- public:
-  absl::Status HandleBlock(const Block* n) override {
-    for (const Statement* s : n->statements()) {
-      XLS_RETURN_IF_ERROR(s->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleLet(const Let* n) override {
-    XLS_RETURN_IF_ERROR(n->name_def_tree()->Accept(this));
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleNameDefTree(const NameDefTree* n) override {
-    for (const auto& child : n->GetChildren(/*want_types=*/false)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleNameDef(const NameDef* n) override {
-    name_defs_.push_back(n);
-    return absl::OkStatus();
-  }
-
-  const std::vector<const NameDef*>& name_defs() { return name_defs_; }
-
- private:
-  std::vector<const NameDef*> name_defs_;
-};
-
 }  // namespace
 
 absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
