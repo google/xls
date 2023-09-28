@@ -244,6 +244,35 @@ inline absl::StatusOr<Op> InvertComparisonOp(Op op) {
   }
 }
 
+// Returns the op which is the reverse of the given comparison.
+//
+// That is (op L R) == ((ReverseComparisonOp op) R L).
+//
+// May only be called with ops where 'OpIsCompare(op)' is true.
+inline absl::StatusOr<Op> ReverseComparisonOp(Op op) {
+  switch (op) {
+    case Op::kULe:
+      return Op::kUGe;
+    case Op::kULt:
+      return Op::kUGt;
+    case Op::kUGe:
+      return Op::kULe;
+    case Op::kUGt:
+      return Op::kULt;
+    case Op::kSLe:
+      return Op::kSGe;
+    case Op::kSLt:
+      return Op::kSGt;
+    case Op::kSGe:
+      return Op::kSLe;
+    case Op::kSGt:
+      return Op::kSLt;
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrFormat("%v is not a comparison operation", op));
+  }
+}
+
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_

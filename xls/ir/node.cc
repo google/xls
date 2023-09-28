@@ -15,6 +15,7 @@
 #include "xls/ir/node.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,23 +23,29 @@
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -784,7 +791,7 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
   return changed;
 }
 
-bool Node::OpIn(const std::vector<Op>& choices) const {
+bool Node::OpIn(absl::Span<const Op> choices) const {
   for (auto& c : choices) {
     if (c == op()) {
       return true;

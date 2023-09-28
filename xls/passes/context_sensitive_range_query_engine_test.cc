@@ -18,7 +18,9 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -56,11 +58,25 @@ class ContextSensitiveRangeQueryEngineTest : public IrTestBase {
 const Bits ContextSensitiveRangeQueryEngineTest::kFalse = Bits(1);
 const Bits ContextSensitiveRangeQueryEngineTest::kTrue = Bits::AllOnes(1);
 
-class SignedContextSensitiveRangeQueryEngineTest
-    : public ContextSensitiveRangeQueryEngineTest,
-      public testing::WithParamInterface<bool> {
+enum class Signedness : int8_t {
+  kSigned,
+  kUnsigned,
+};
+template <typename Sink>
+void AbslStringify(Sink& sink, const Signedness& src) {
+  switch (src) {
+    case Signedness::kSigned:
+      sink.Append("kSigned");
+      break;
+    case Signedness::kUnsigned:
+      sink.Append("kUnsigned");
+      break;
+  }
+}
+class BaseSignedContextSensitiveRangeQueryEngineTest {
  public:
-  bool IsSigned() const { return GetParam(); }
+  virtual ~BaseSignedContextSensitiveRangeQueryEngineTest() = default;
+  virtual bool IsSigned() const = 0;
   Bits MinValue(int64_t bits) const {
     return IsSigned() ? Bits::MinSigned(bits) : Bits(bits);
   }
@@ -90,6 +106,157 @@ class SignedContextSensitiveRangeQueryEngineTest
       return fb.SLe(l, r);
     }
     return fb.ULe(l, r);
+  }
+};
+
+class SignedContextSensitiveRangeQueryEngineTest
+    : public ContextSensitiveRangeQueryEngineTest,
+      public BaseSignedContextSensitiveRangeQueryEngineTest,
+      public testing::WithParamInterface<Signedness> {
+ public:
+  bool IsSigned() const final { return GetParam() == Signedness::kSigned; }
+};
+
+enum class AndOrder : int8_t {
+  kLeftFirst,
+  kRightFirst,
+};
+
+enum class ComparisonType : int8_t {
+  kOpen,
+  kClosed,
+};
+template <typename Sink>
+void AbslStringify(Sink& sink, const ComparisonType& src) {
+  switch (src) {
+    case ComparisonType::kOpen:
+      sink.Append("kOpen");
+      break;
+    case ComparisonType::kClosed:
+      sink.Append("kClosed");
+      break;
+  }
+}
+
+enum class ComparisonOrder : int8_t {
+  kParamFirst,
+  kLiteralFirst,
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const ComparisonOrder& src) {
+  switch (src) {
+    case ComparisonOrder::kParamFirst:
+      sink.Append("kParamFirst");
+      break;
+    case ComparisonOrder::kLiteralFirst:
+      sink.Append("kLiteralFirst");
+      break;
+  }
+}
+
+struct SignedRangeComparison {
+  Signedness sign;
+  AndOrder order;
+  ComparisonType left_cmp_type;
+  ComparisonOrder left_cmp_order;
+  ComparisonType right_cmp_type;
+  ComparisonOrder right_cmp_order;
+
+  using Tuple = std::tuple<Signedness, AndOrder, ComparisonType,
+                           ComparisonOrder, ComparisonType, ComparisonOrder>;
+  SignedRangeComparison(Tuple vals) {  // NOLINT: explicit
+    std::tie(sign, order, left_cmp_type, left_cmp_order, right_cmp_type,
+             right_cmp_order) = vals;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const SignedRangeComparison& src) {
+    absl::Format(&sink, "%v_", src.sign);
+    if (src.order == AndOrder::kLeftFirst) {
+      absl::Format(&sink, "LEFT_%v_%v__AND__RIGHT_%v_%v", src.left_cmp_type,
+                   src.left_cmp_order, src.right_cmp_type, src.right_cmp_order);
+    } else {
+      absl::Format(&sink, "RIGHT_%v_%v__AND__LEFT_%v_%v", src.right_cmp_type,
+                   src.right_cmp_order, src.left_cmp_type, src.left_cmp_order);
+    }
+  }
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const SignedRangeComparison::Tuple& src) {
+  absl::Format(sink, "%v", SignedRangeComparison(src));
+}
+
+class SignedRangeComparisonContextSensitiveRangeQueryEngineTest
+    : public ContextSensitiveRangeQueryEngineTest,
+      public BaseSignedContextSensitiveRangeQueryEngineTest,
+      public testing::WithParamInterface<SignedRangeComparison> {
+ public:
+  bool IsSigned() const final { return GetParam().sign == Signedness::kSigned; }
+
+  BValue RangeComparison(FunctionBuilder& fb, BValue left, BValue param,
+                         BValue right) {
+    BValue left_cmp = LeftComparison(fb, left, param);
+    BValue right_cmp = RightComparison(fb, right, param);
+    if (GetParam().order == AndOrder::kLeftFirst) {
+      return fb.And({left_cmp, right_cmp});
+    }
+    return fb.And({right_cmp, left_cmp});
+  }
+
+  std::vector<Interval> ParamInterval(const Bits& left, const Bits& right) {
+    SignedRangeComparison cmp = GetParam();
+    if (cmp.left_cmp_type == ComparisonType::kOpen) {
+      if (cmp.right_cmp_type == ComparisonType::kOpen) {
+        return {Interval::Open(left, right)};
+      }
+      return {Interval::LeftOpen(left, right)};
+    }
+    if (cmp.right_cmp_type == ComparisonType::kOpen) {
+      return {Interval::RightOpen(left, right)};
+    }
+    return {Interval::Closed(left, right)};
+  }
+  std::vector<Interval> InverseParamInterval(const Bits& left,
+                                             const Bits& right) {
+    IntervalSet set(left.bit_count());
+    absl::c_for_each(ParamInterval(left, right),
+                     [&](const auto i) { set.AddInterval(i); });
+    set.Normalize();
+    auto complement = IntervalSet::Complement(set);
+    auto intervals = complement.Intervals();
+    return std::vector<Interval>(intervals.begin(), intervals.end());
+  }
+
+ private:
+  BValue LessCmp(FunctionBuilder& fb, BValue left, BValue right,
+                 ComparisonType type) {
+    if (type == ComparisonType::kOpen) {
+      return Lt(fb, left, right);
+    }
+    return Le(fb, left, right);
+  }
+  BValue GreaterCmp(FunctionBuilder& fb, BValue left, BValue right,
+                    ComparisonType type) {
+    if (type == ComparisonType::kOpen) {
+      return Gt(fb, left, right);
+    }
+    return Ge(fb, left, right);
+  }
+  BValue LeftComparison(FunctionBuilder& fb, BValue literal, BValue param) {
+    ComparisonType cmp = GetParam().left_cmp_type;
+    if (GetParam().left_cmp_order == ComparisonOrder::kParamFirst) {
+      return GreaterCmp(fb, param, literal, cmp);
+    }
+    return LessCmp(fb, literal, param, cmp);
+  }
+  BValue RightComparison(FunctionBuilder& fb, BValue literal, BValue param) {
+    ComparisonType cmp = GetParam().right_cmp_type;
+    if (GetParam().right_cmp_order == ComparisonOrder::kParamFirst) {
+      return LessCmp(fb, param, literal, cmp);
+    }
+    return GreaterCmp(fb, literal, param, cmp);
   }
 };
 
@@ -1045,6 +1212,249 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
+TEST_F(ContextSensitiveRangeQueryEngineTest, OpenOpenRangeUseInIf) {
+  Bits max_bits = UBits(12, 8);
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // if (4 < x && x < 12) { x } else { y }
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue left = fb.ULt(fb.Literal(UBits(4, 8)), x);
+  BValue right = fb.ULt(x, fb.Literal(UBits(12, 8)));
+  BValue cond = fb.And({left, right});
+  BValue res = fb.Select(cond, {x, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(5, 8), UBits(11, 8))});
+  IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
+
+  IntervalSetTree y_ist = BitsLTT(y.node(), {Interval::Maximal(8)});
+  IntervalSetTree left_ist = BitsLTT(left.node(), {Interval::Maximal(1)});
+  IntervalSetTree right_ist = BitsLTT(right.node(), {Interval::Maximal(1)});
+  IntervalSetTree cond_ist = BitsLTT(cond.node(), {Interval::Maximal(1)});
+  IntervalSetTree res_ist = BitsLTT(res.node(), {Interval::Maximal(8)});
+
+  EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
+  EXPECT_EQ(engine.GetIntervals(y.node()), y_ist);
+  EXPECT_EQ(engine.GetIntervals(left.node()), left_ist);
+  EXPECT_EQ(engine.GetIntervals(right.node()), right_ist);
+  EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(left.node()),
+            BitsLTT(left.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(right.node()),
+            BitsLTT(right.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
+
+  EXPECT_EQ(alternate_arm_range->GetIntervals(left.node()),
+            BitsLTT(left.node(), {Interval::Maximal(1)}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(right.node()),
+            BitsLTT(right.node(), {Interval::Maximal(1)}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
+  // NB There is a restricted value for res given cond == 0 but its not clear
+  // that we actually want to bother to calculate it. Instead just verify that
+  // the result is less than or equal to the unconstrained case.
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
+              AnyOf(Eq(x_ist), Eq(res_ist)));
+}
+
+TEST_F(ContextSensitiveRangeQueryEngineTest, OpenClosedRangeUseInIf) {
+  Bits max_bits = UBits(12, 8);
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // if (4 < x && x <= 12) { x } else { y }
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue left = fb.ULt(fb.Literal(UBits(4, 8)), x);
+  BValue right = fb.ULe(x, fb.Literal(UBits(12, 8)));
+  BValue cond = fb.And({left, right});
+  BValue res = fb.Select(cond, {x, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(5, 8), UBits(12, 8))});
+  IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
+
+  IntervalSetTree y_ist = BitsLTT(y.node(), {Interval::Maximal(8)});
+  IntervalSetTree left_ist = BitsLTT(left.node(), {Interval::Maximal(1)});
+  IntervalSetTree right_ist = BitsLTT(right.node(), {Interval::Maximal(1)});
+  IntervalSetTree cond_ist = BitsLTT(cond.node(), {Interval::Maximal(1)});
+  IntervalSetTree res_ist = BitsLTT(res.node(), {Interval::Maximal(8)});
+
+  EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
+  EXPECT_EQ(engine.GetIntervals(y.node()), y_ist);
+  EXPECT_EQ(engine.GetIntervals(left.node()), left_ist);
+  EXPECT_EQ(engine.GetIntervals(right.node()), right_ist);
+  EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(left.node()),
+            BitsLTT(left.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(right.node()),
+            BitsLTT(right.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
+
+  EXPECT_EQ(alternate_arm_range->GetIntervals(left.node()),
+            BitsLTT(left.node(), {Interval::Maximal(1)}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(right.node()),
+            BitsLTT(right.node(), {Interval::Maximal(1)}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
+  // NB There is a restricted value for res given cond == 0 but its not clear
+  // that we actually want to bother to calculate it. Instead just verify that
+  // the result is less than or equal to the unconstrained case.
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
+              AnyOf(Eq(x_ist), Eq(res_ist)));
+}
+
+TEST_F(ContextSensitiveRangeQueryEngineTest, ClosedOpenRangeUseInIf) {
+  Bits max_bits = UBits(12, 8);
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // if (4 <= x && x < 12) { x } else { y }
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue left = fb.ULe(fb.Literal(UBits(4, 8)), x);
+  BValue right = fb.ULt(x, fb.Literal(UBits(12, 8)));
+  BValue cond = fb.And({left, right});
+  BValue res = fb.Select(cond, {x, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(4, 8), UBits(11, 8))});
+  IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
+
+  IntervalSetTree y_ist = BitsLTT(y.node(), {Interval::Maximal(8)});
+  IntervalSetTree left_ist = BitsLTT(left.node(), {Interval::Maximal(1)});
+  IntervalSetTree right_ist = BitsLTT(right.node(), {Interval::Maximal(1)});
+  IntervalSetTree cond_ist = BitsLTT(cond.node(), {Interval::Maximal(1)});
+  IntervalSetTree res_ist = BitsLTT(res.node(), {Interval::Maximal(8)});
+
+  EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
+  EXPECT_EQ(engine.GetIntervals(y.node()), y_ist);
+  EXPECT_EQ(engine.GetIntervals(left.node()), left_ist);
+  EXPECT_EQ(engine.GetIntervals(right.node()), right_ist);
+  EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(left.node()),
+            BitsLTT(left.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(right.node()),
+            BitsLTT(right.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
+
+  EXPECT_EQ(alternate_arm_range->GetIntervals(left.node()),
+            BitsLTT(left.node(), {Interval::Maximal(1)}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(right.node()),
+            BitsLTT(right.node(), {Interval::Maximal(1)}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
+  // NB There is a restricted value for res given cond == 0 but its not clear
+  // that we actually want to bother to calculate it. Instead just verify that
+  // the result is less than or equal to the unconstrained case.
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
+              AnyOf(Eq(x_ist), Eq(res_ist)));
+}
+TEST_F(ContextSensitiveRangeQueryEngineTest, ClosedClosedRangeUseInIf) {
+  Bits max_bits = UBits(12, 8);
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // if (4 <= x && x <= 12) { x } else { y }
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue left = fb.ULe(fb.Literal(UBits(4, 8)), x);
+  BValue right = fb.ULe(x, fb.Literal(UBits(12, 8)));
+  BValue cond = fb.And({left, right});
+  BValue res = fb.Select(cond, {x, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(4, 8), UBits(12, 8))});
+  IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
+
+  IntervalSetTree y_ist = BitsLTT(y.node(), {Interval::Maximal(8)});
+  IntervalSetTree left_ist = BitsLTT(left.node(), {Interval::Maximal(1)});
+  IntervalSetTree right_ist = BitsLTT(right.node(), {Interval::Maximal(1)});
+  IntervalSetTree cond_ist = BitsLTT(cond.node(), {Interval::Maximal(1)});
+  IntervalSetTree res_ist = BitsLTT(res.node(), {Interval::Maximal(8)});
+
+  EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
+  EXPECT_EQ(engine.GetIntervals(y.node()), y_ist);
+  EXPECT_EQ(engine.GetIntervals(left.node()), left_ist);
+  EXPECT_EQ(engine.GetIntervals(right.node()), right_ist);
+  EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(left.node()),
+            BitsLTT(left.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(right.node()),
+            BitsLTT(right.node(), {Interval::Precise(UBits(1, 1))}));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
+
+  EXPECT_EQ(alternate_arm_range->GetIntervals(left.node()),
+            BitsLTT(left.node(), {Interval::Maximal(1)}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(right.node()),
+            BitsLTT(right.node(), {Interval::Maximal(1)}));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
+            BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
+  // NB There is a restricted value for res given cond == 0 but its not clear
+  // that we actually want to bother to calculate it. Instead just verify that
+  // the result is less than or equal to the unconstrained case.
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
+              AnyOf(Eq(x_ist), Eq(res_ist)));
+}
+
 TEST_F(ContextSensitiveRangeQueryEngineTest,
        UseInComplicatedExpressionBubblesDown) {
   Bits max_bits = bits_ops::Sub(UBits(12, 64), UBits(1, 64));
@@ -1248,8 +1658,92 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, EqTuple) {
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
+TEST_P(SignedRangeComparisonContextSensitiveRangeQueryEngineTest,
+       UsedInTrueRange) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // if (x in [10, 15]) { x + 10 } else { y }
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue cmp = RangeComparison(fb, fb.Literal(UBits(10, 8)), x,
+                               fb.Literal(UBits(15, 8)));
+  BValue add_ten = fb.Add(x, fb.Literal(UBits(10, 8)));
+  BValue res = fb.Select(cmp, {y, add_ten});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RecordProperty("f", f->DumpIr());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), ParamInterval(UBits(10, 8), UBits(15, 8)));
+  IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
+  IntervalSetTree add_ten_ist =
+      BitsLTT(add_ten.node(), ParamInterval(UBits(20, 8), UBits(25, 8)));
+  IntervalSetTree add_ten_ist_global =
+      BitsLTT(add_ten.node(), {Interval::Maximal(8)});
+
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+
+  EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
+  EXPECT_EQ(engine.GetIntervals(add_ten.node()), add_ten_ist_global);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
+
+  EXPECT_EQ(consequent_arm_range->GetIntervals(add_ten.node()), add_ten_ist);
+}
+
+TEST_P(SignedRangeComparisonContextSensitiveRangeQueryEngineTest,
+       UsedInFalseRange) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // if (x in [10, 15]) { y } else { x + 10 }
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue cmp = RangeComparison(fb, fb.Literal(UBits(10, 8)), x,
+                               fb.Literal(UBits(15, 8)));
+  BValue add_ten = fb.Add(x, fb.Literal(UBits(10, 8)));
+  BValue res = fb.Select(cmp, {add_ten, y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RecordProperty("f", f->DumpIr());
+  ContextSensitiveRangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), InverseParamInterval(UBits(10, 8), UBits(15, 8)));
+  IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
+  IntervalSetTree add_ten_ist =
+      BitsLTT(add_ten.node(), InverseParamInterval(UBits(20, 8), UBits(25, 8)));
+  IntervalSetTree add_ten_ist_global =
+      BitsLTT(add_ten.node(), {Interval::Maximal(8)});
+
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+  EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
+  EXPECT_EQ(engine.GetIntervals(add_ten.node()), add_ten_ist_global);
+
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
+}
+
 INSTANTIATE_TEST_SUITE_P(Signed, SignedContextSensitiveRangeQueryEngineTest,
-                         testing::Bool());
+                         testing::Values(Signedness::kSigned,
+                                         Signedness::kUnsigned),
+                         testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(
+    Range, SignedRangeComparisonContextSensitiveRangeQueryEngineTest,
+    testing::ConvertGenerator<SignedRangeComparison::Tuple>(testing::Combine(
+        testing::Values(Signedness::kSigned, Signedness::kUnsigned),
+        testing::Values(AndOrder::kLeftFirst, AndOrder::kRightFirst),
+        testing::Values(ComparisonType::kOpen, ComparisonType::kClosed),
+        testing::Values(ComparisonOrder::kLiteralFirst,
+                        ComparisonOrder::kParamFirst),
+        testing::Values(ComparisonType::kOpen, ComparisonType::kClosed),
+        testing::Values(ComparisonOrder::kLiteralFirst,
+                        ComparisonOrder::kParamFirst))),
+    testing::PrintToStringParamName());
 
 }  // namespace
 }  // namespace xls
