@@ -23,6 +23,7 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load("//xls/build_rules:dashboard.bzl", "dashboard")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -196,5 +197,27 @@ py_test(
         "//xls/simulation/cocotb:cocotb_struct",
         "//xls/simulation/cocotb:cocotb_xls",
         "//xls/tools/dashboard:utils",
+    ],
+)
+
+dashboard(
+    name = "rle_dashboard",
+    title = "RLE Dashboard",
+    tests = [
+        {
+            "name": "rle_enc_cocotb_test",
+            "output_parsers": [
+                "//xls/tools/dashboard:generic_parser",
+            ],
+            "file_parsers": {
+                "//xls/tools/dashboard:cocotb_results_xml_parser": "sim_build/results.xml",
+            },
+        },
+        {
+            "name": "rle_enc_dslx_ir_test",
+            "output_parsers": [
+                "//xls/tools/dashboard:dslx_test_parser",
+            ],
+        },
     ],
 )
