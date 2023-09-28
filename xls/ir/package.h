@@ -179,9 +179,18 @@ class Package {
   // Get the filename corresponding to the given `Fileno`.
   std::optional<std::string> GetFilename(Fileno file_number) const;
 
-  // Returns the total number of nodes in the graph. Traverses the functions and
-  // sums the node counts.
+  // Returns the total number of nodes in the graph. Traverses the functions,
+  // procs and blocks and sums the node counts.
   int64_t GetNodeCount() const;
+  // Returns the total number of nodes in the blocks in the graph. Traverses the
+  // blocks and sums the node counts.
+  int64_t GetBlockNodeCount() const;
+  // Returns the total number of nodes in the functions in the graph. Traverses
+  // the functions and sums the node counts.
+  int64_t GetFunctionNodeCount() const;
+  // Returns the total number of nodes in the procs in the graph. Traverses the
+  // procs and sums the node counts.
+  int64_t GetProcNodeCount() const;
 
   // Returns the functions in this package.
   absl::Span<std::unique_ptr<Function>> functions() {
@@ -292,8 +301,7 @@ class Package {
       return *this;
     }
 
-    CloneChannelOverrides& OverrideStrictness(
-        ChannelStrictness strictness) {
+    CloneChannelOverrides& OverrideStrictness(ChannelStrictness strictness) {
       strictness_ = strictness;
       return *this;
     }
@@ -311,9 +319,7 @@ class Package {
       return fifo_depth_;
     }
     std::optional<FlowControl> flow_control() const { return flow_control_; }
-    std::optional<ChannelStrictness> strictness() const {
-      return strictness_;
-    }
+    std::optional<ChannelStrictness> strictness() const { return strictness_; }
     std::optional<ChannelMetadataProto> metadata() const { return metadata_; }
 
    private:

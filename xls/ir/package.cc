@@ -658,12 +658,32 @@ std::optional<std::string> Package::GetFilename(Fileno file_number) const {
   return fileno_to_filename_.at(file_number);
 }
 
-int64_t Package::GetNodeCount() const {
+int64_t Package::GetFunctionNodeCount() const {
   int64_t count = 0;
   for (const auto& f : functions()) {
     count += f->node_count();
   }
   return count;
+}
+
+int64_t Package::GetProcNodeCount() const {
+  int64_t count = 0;
+  for (const auto& f : procs()) {
+    count += f->node_count();
+  }
+  return count;
+}
+
+int64_t Package::GetBlockNodeCount() const {
+  int64_t count = 0;
+  for (const auto& f : blocks()) {
+    count += f->node_count();
+  }
+  return count;
+}
+
+int64_t Package::GetNodeCount() const {
+  return GetFunctionNodeCount() + GetProcNodeCount() + GetBlockNodeCount();
 }
 
 bool Package::IsDefinitelyEqualTo(const Package* other) const {

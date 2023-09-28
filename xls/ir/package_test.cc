@@ -761,6 +761,52 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   EXPECT_EQ(pkg->GetNodeCount(), 0);
 }
 
+TEST_F(PackageTest, NodeCount) {
+  const char text[] = R"(
+package my_package
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+proc my_proc(tkn: token, st: bits[32], init={42}) {
+  literal.3: bits[32] = literal(value=1, id=3)
+  add.4: bits[32] = add(literal.3, st, id=4)
+  next (tkn, add.4)
+}
+
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
+
+fn my_function2(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.9: bits[32] = add(x, y)
+}
+
+proc my_proc2(tkn: token, st: bits[32], init={42}) {
+  literal.10: bits[32] = literal(value=1, id=10)
+  add.11: bits[32] = add(literal.10, st, id=11)
+  next (tkn, add.11)
+}
+
+block my_block2(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=12)
+  b: bits[32] = input_port(name=b, id=13)
+  add.14: bits[32] = add(a, b, id=14)
+  out: () = output_port(add.14, name=out, id=15)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
+  EXPECT_EQ(pkg->GetNodeCount(), 22);
+  EXPECT_EQ(pkg->GetFunctionNodeCount(), 6);
+  EXPECT_EQ(pkg->GetProcNodeCount(), 8);
+  EXPECT_EQ(pkg->GetBlockNodeCount(), 8);
+}
+
 TEST_F(PackageTest, FunctionAsTop) {
   const char text[] = R"(
 package my_package
