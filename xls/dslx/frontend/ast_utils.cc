@@ -467,4 +467,74 @@ int64_t DetermineIndentLevel(const AstNode& n) {
   }
 }
 
+std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
+    const TypeAnnotation* type_annotation) {
+  bool is_enum = false;
+  bool is_alias = false;
+  const TypeAnnotation* type = type_annotation;
+  while (dynamic_cast<const TypeRefTypeAnnotation*>(type) != nullptr) {
+    auto type_ref = dynamic_cast<const TypeRefTypeAnnotation*>(type);
+    if (std::holds_alternative<TypeAlias*>(
+            type_ref->type_ref()->type_definition())) {
+      is_alias = true;
+      type = std::get<TypeAlias*>(type_ref->type_ref()->type_definition())
+                 ->type_annotation();
+    } else if (std::holds_alternative<EnumDef*>(
+                   type_ref->type_ref()->type_definition())) {
+      is_enum = true;
+      type = std::get<EnumDef*>(type_ref->type_ref()->type_definition())
+                 ->type_annotation();
+    } else {
+      break;
+    }
+  }
+
+  BitVectorKind kind;
+  if (is_enum && is_alias) {
+    kind = BitVectorKind::kEnumTypeAlias;
+  } else if (is_enum && !is_alias) {
+    kind = BitVectorKind::kEnumType;
+  } else if (!is_enum && is_alias) {
+    kind = BitVectorKind::kBitTypeAlias;
+  } else {
+    kind = BitVectorKind::kBitType;
+  }
+
+  if (const BuiltinTypeAnnotation* builtin =
+          dynamic_cast<const BuiltinTypeAnnotation*>(type);
+      builtin != nullptr) {
+    switch (builtin->builtin_type()) {
+      case BuiltinType::kToken:
+      case BuiltinType::kChannelIn:
+      case BuiltinType::kChannelOut:
+        return std::nullopt;
+      default:
+        break;
+    }
+    return BitVectorMetadata{.bit_count = builtin->GetBitCount(),
+                             .is_signed = builtin->GetSignedness(),
+                             .kind = kind};
+  }
+  if (const ArrayTypeAnnotation* array_type =
+          dynamic_cast<const ArrayTypeAnnotation*>(type);
+      array_type != nullptr) {
+    // bits[..], uN[..], and sN[..] are bit-vector types but a represented with
+    // ArrayTypeAnnotations.
+    const BuiltinTypeAnnotation* builtin_element_type =
+        dynamic_cast<const BuiltinTypeAnnotation*>(array_type->element_type());
+    if (builtin_element_type == nullptr) {
+      return std::nullopt;
+    }
+    if (builtin_element_type->builtin_type() == BuiltinType::kBits ||
+        builtin_element_type->builtin_type() == BuiltinType::kUN ||
+        builtin_element_type->builtin_type() == BuiltinType::kSN) {
+      return BitVectorMetadata{
+          .bit_count = array_type->dim(),
+          .is_signed = builtin_element_type->builtin_type() == BuiltinType::kSN,
+          .kind = kind};
+    }
+  }
+  return std::nullopt;
+}
+
 }  // namespace xls::dslx

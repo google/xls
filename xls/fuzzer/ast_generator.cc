@@ -47,6 +47,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/bits.h"
@@ -109,55 +110,18 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
 }
 
 /* static */ bool AstGenerator::IsUBits(const TypeAnnotation* t) {
-  if (auto* builtin = dynamic_cast<const BuiltinTypeAnnotation*>(t)) {
-    return builtin->GetBitCount() != 0 && !builtin->GetSignedness();
-  }
-  if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(t)) {
-    if (auto* builtin =
-            dynamic_cast<BuiltinTypeAnnotation*>(array->element_type())) {
-      switch (builtin->builtin_type()) {
-        case BuiltinType::kBits:
-          return true;
-        case BuiltinType::kUN:
-          return true;
-        default:
-          return false;
-      }
-    }
-  }
-  if (auto* alias = dynamic_cast<const TypeAlias*>(t)) {
-    return IsUBits(alias->type_annotation());
-  }
-  return false;
-}
-
-// Returns whether the element type of the given array type annotation is a
-// "bits" style type; i.e. uN, sN, or bits.
-static bool ElemIsBitVectorType(const ArrayTypeAnnotation* ata) {
-  if (auto* elem =
-          dynamic_cast<const BuiltinTypeAnnotation*>(ata->element_type());
-      elem != nullptr && (elem->builtin_type() == BuiltinType::kUN ||
-                          elem->builtin_type() == BuiltinType::kSN ||
-                          elem->builtin_type() == BuiltinType::kBits)) {
-    return true;
-  }
-  return false;
+  std::optional<BitVectorMetadata> metadata = ExtractBitVectorMetadata(t);
+  return metadata.has_value() && !metadata->is_signed;
 }
 
 /* static */ absl::StatusOr<bool> AstGenerator::BitsTypeIsSigned(
     const TypeAnnotation* type) {
-  if (auto* builtin_type = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {
-    return builtin_type->GetSignedness();
-  }
-  if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(type);
-      array != nullptr && ElemIsBitVectorType(array)) {
-    auto* elem = dynamic_cast<BuiltinTypeAnnotation*>(array->element_type());
-    // This is guaranteed by ElemIsBitVectorType() call above.
-    XLS_CHECK(elem != nullptr);
-    return elem->GetSignedness();
+  std::optional<BitVectorMetadata> metadata = ExtractBitVectorMetadata(type);
+  if (metadata.has_value()) {
+    return metadata->is_signed;
   }
   return absl::InvalidArgumentError(absl::StrFormat(
-      "Type annotation %s is not a builtin bits type", type->ToString()));
+      "Type annotation %s is not a bitvector type", type->ToString()));
 }
 
 std::string AstGenerator::GenSym() {
@@ -169,20 +133,20 @@ std::string AstGenerator::GenSym() {
 
 absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
     TypeAnnotation* type) {
-  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
-    return builtin_type->GetBitCount();
+  std::optional<BitVectorMetadata> metadata = ExtractBitVectorMetadata(type);
+  if (!metadata.has_value()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Type annotation %s is not a bitvector type", type->ToString()));
+  }
+  if (std::holds_alternative<int64_t>(metadata->bit_count)) {
+    return std::get<int64_t>(metadata->bit_count);
   }
   // Implementation note: this method is not static because we want to reuse the
-  // GetArraySize() helper, which looks into the constants_ mapping. We could
+  // GetExprAsUint64() helper, which looks into the constants_ mapping. We could
   // make both of these methods static by leaning harder on AST inspection, but
   // this gives us a shortcut and we expect to typically have an AstGenerator
   // instance in hand for fuzz generation and testing.
-  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type);
-      array != nullptr && ElemIsBitVectorType(array)) {
-    return GetArraySize(array);
-  }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Type annotation %s is not a builtin bits type", type->ToString()));
+  return GetExprAsUint64(std::get<Expr*>(metadata->bit_count));
 }
 
 /* static */ bool AstGenerator::IsTypeRef(const TypeAnnotation* t) {
@@ -190,16 +154,7 @@ absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
 }
 
 /* static */ bool AstGenerator::IsBits(const TypeAnnotation* t) {
-  if (auto* builtin = dynamic_cast<const BuiltinTypeAnnotation*>(t)) {
-    return builtin->GetBitCount() != 0;
-  }
-  if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(t)) {
-    return ElemIsBitVectorType(array);
-  }
-  if (auto* alias = dynamic_cast<const TypeAlias*>(t)) {
-    return IsBits(alias->type_annotation());
-  }
-  return false;
+  return ExtractBitVectorMetadata(t).has_value();
 }
 
 /* static */ bool AstGenerator::IsArray(const TypeAnnotation* t) {
@@ -1131,16 +1086,7 @@ Number* AstGenerator::MakeNumberFromBits(const Bits& value,
 
 Number* AstGenerator::GenerateNumber(int64_t value, TypeAnnotation* type) {
   XLS_CHECK_NE(type, nullptr);
-  int64_t bit_count = 0;
-  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
-    bit_count = builtin_type->GetBitCount();
-  } else if (auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(type)) {
-    auto* builtin_type =
-        dynamic_cast<BuiltinTypeAnnotation*>(array_type->element_type());
-    XLS_CHECK_NE(builtin_type, nullptr);
-    bit_count = GetArraySize(array_type);
-  }
-  XLS_CHECK_NE(bit_count, 0);
+  int64_t bit_count = BitsTypeGetBitCount(type).value();
   Bits value_bits;
   if (BitsTypeIsSigned(type).value()) {
     value_bits = SBits(value, bit_count);
@@ -1217,16 +1163,22 @@ int64_t AstGenerator::GetTypeBitCount(const TypeAnnotation* type) {
   return type_bit_counts_.at(type_str);
 }
 
-int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
-  Expr* dim = type->dim();
-  if (auto* number = dynamic_cast<Number*>(dim)) {
-    return number->GetAsUint64().value();
+absl::StatusOr<uint64_t> AstGenerator::GetExprAsUint64(Expr* expr) {
+  if (auto* number = dynamic_cast<Number*>(expr)) {
+    return number->GetAsUint64();
   }
-  auto* const_ref = dynamic_cast<ConstRef*>(dim);
+  auto* const_ref = dynamic_cast<ConstRef*>(expr);
+  if (const_ref == nullptr) {
+    return absl::InvalidArgumentError("Expression is not a number or constant");
+  }
   ConstantDef* const_def = constants_[const_ref->identifier()];
   Number* number = dynamic_cast<Number*>(const_def->value());
-  XLS_CHECK(number != nullptr) << const_def->ToString();
-  return number->GetAsUint64().value();
+  XLS_RET_CHECK(number != nullptr) << const_def->ToString();
+  return number->GetAsUint64();
+}
+
+int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
+  return GetExprAsUint64(type->dim()).value();
 }
 
 ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value,

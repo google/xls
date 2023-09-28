@@ -632,6 +632,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
+        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:scanner",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",

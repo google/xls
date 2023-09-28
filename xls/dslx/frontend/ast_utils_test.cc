@@ -13,16 +13,19 @@
 // limitations under the License.
 #include "xls/dslx/frontend/ast_utils.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
 namespace {
@@ -149,6 +152,103 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p, ResolveProc(colon_ref, type_info));
   EXPECT_EQ(p, original_proc);
+}
+
+TEST(ProcConfigIrConverterTest, BitVectorTests) {
+  constexpr std::string_view kDslxText = R"(type MyType = u37;
+type MyTuple = (u23, u1);
+type MyArray = bits[22][33];
+enum MyEnum : u7 { kA = 0, }
+type MyEnumAlias = MyEnum;
+struct MyStruct { x: u17 }
+
+// A single struct which has many members of different types. This is an easy
+// way of gathering together many TypeAnnotations and referring to them.
+struct TheStruct {
+  a: u32,
+  b: s12,
+  c: uN[111],
+  d: sN[32],
+  e: bits[312],
+  f: bool,
+  g: MyType,
+  h: MyEnum,
+  i: MyEnumAlias,
+  j: (u23, u1),
+  k: bits[22][33],
+  l: MyStruct,
+  m: MyTuple,
+  n: MyArray,
+}
+ )";
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kDslxText, "fake_path.x", "the_module"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<AstNode*> nodes,
+                           CollectUnder(module.get(), /*want_types=*/true));
+  StructDef* the_struct_def = nullptr;
+  for (AstNode* node : nodes) {
+    if (auto* struct_def = dynamic_cast<StructDef*>(node);
+        struct_def != nullptr && struct_def->identifier() == "TheStruct") {
+      the_struct_def = struct_def;
+      break;
+    }
+  }
+  ASSERT_NE(the_struct_def, nullptr);
+  auto get_type_metadata = [&](std::string_view name) {
+    for (std::pair<NameDef*, TypeAnnotation*> member :
+         the_struct_def->members()) {
+      if (member.first->identifier() == name) {
+        return ExtractBitVectorMetadata(member.second);
+      }
+    }
+    XLS_LOG(FATAL) << "Unknown field: " << name;
+  };
+
+  EXPECT_EQ(std::get<int64_t>(get_type_metadata("a")->bit_count), 32);
+  EXPECT_FALSE(get_type_metadata("a")->is_signed);
+  EXPECT_EQ(get_type_metadata("a")->kind, BitVectorKind::kBitType);
+
+  EXPECT_EQ(std::get<int64_t>(get_type_metadata("b")->bit_count), 12);
+  EXPECT_TRUE(get_type_metadata("b")->is_signed);
+  EXPECT_EQ(get_type_metadata("b")->kind, BitVectorKind::kBitType);
+
+  EXPECT_EQ(std::get<Expr*>(get_type_metadata("c")->bit_count)->ToString(),
+            "111");
+  EXPECT_FALSE(get_type_metadata("c")->is_signed);
+  EXPECT_EQ(get_type_metadata("c")->kind, BitVectorKind::kBitType);
+
+  EXPECT_EQ(std::get<Expr*>(get_type_metadata("d")->bit_count)->ToString(),
+            "32");
+  EXPECT_TRUE(get_type_metadata("d")->is_signed);
+  EXPECT_EQ(get_type_metadata("d")->kind, BitVectorKind::kBitType);
+
+  EXPECT_EQ(std::get<Expr*>(get_type_metadata("e")->bit_count)->ToString(),
+            "312");
+  EXPECT_FALSE(get_type_metadata("e")->is_signed);
+  EXPECT_EQ(get_type_metadata("e")->kind, BitVectorKind::kBitType);
+
+  EXPECT_EQ(std::get<int64_t>(get_type_metadata("f")->bit_count), 1);
+  EXPECT_FALSE(get_type_metadata("f")->is_signed);
+  EXPECT_EQ(get_type_metadata("f")->kind, BitVectorKind::kBitType);
+
+  EXPECT_EQ(std::get<int64_t>(get_type_metadata("g")->bit_count), 37);
+  EXPECT_FALSE(get_type_metadata("g")->is_signed);
+  EXPECT_EQ(get_type_metadata("g")->kind, BitVectorKind::kBitTypeAlias);
+
+  EXPECT_EQ(std::get<int64_t>(get_type_metadata("h")->bit_count), 7);
+  EXPECT_FALSE(get_type_metadata("h")->is_signed);
+  EXPECT_EQ(get_type_metadata("h")->kind, BitVectorKind::kEnumType);
+
+  EXPECT_EQ(std::get<int64_t>(get_type_metadata("i")->bit_count), 7);
+  EXPECT_FALSE(get_type_metadata("i")->is_signed);
+  EXPECT_EQ(get_type_metadata("i")->kind, BitVectorKind::kEnumTypeAlias);
+
+  EXPECT_FALSE(get_type_metadata("j").has_value());
+  EXPECT_FALSE(get_type_metadata("k").has_value());
+  EXPECT_FALSE(get_type_metadata("l").has_value());
+  EXPECT_FALSE(get_type_metadata("m").has_value());
+  EXPECT_FALSE(get_type_metadata("n").has_value());
 }
 
 }  // namespace

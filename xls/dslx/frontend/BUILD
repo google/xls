@@ -158,11 +158,12 @@ cc_test(
     deps = [
         ":ast",
         ":ast_utils",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
     ],
 )
 

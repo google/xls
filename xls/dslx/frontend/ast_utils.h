@@ -168,6 +168,39 @@ inline T WidenVariantTo(const std::variant<FromTypes...>& v) {
   return TryWidenVariant<sizeof...(FromTypes) - 1, T>(v);
 }
 
+// Enumeration of the different kinds of DSLX types whose underlying data
+// representation is a bitvector.
+enum BitVectorKind : uint8_t {
+  // A native bit type. Examples: u32, s16, bits[3], uN[42], sN[2], bool.
+  kBitType,
+
+  // An alias of a bit type., or an alias of an alias of a bit type, etc.
+  // Example: `type Foo = u32;.
+  kBitTypeAlias,
+
+  // An enum type.
+  kEnumType,
+
+  // An alias of an enum type, or an alias of an alias of a enum type, etc.
+  // Example: `type MyEnumAlias = MyEnum;`
+  kEnumTypeAlias,
+};
+
+// Metadata about a DSLX type whose underlying data representation is a
+// bitvector.
+struct BitVectorMetadata {
+  std::variant<int64_t, Expr*> bit_count;
+  bool is_signed;
+  BitVectorKind kind;
+};
+
+// Returns metadata about the bit-vector type if `type_annotation` refers to a
+// type whose underlying representation is a bit-vector. Examples include u32,
+// s10, uN[42], bits[11], enums, etc, and aliases of these types. Returns
+// std::nullopt otherwise.
+std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
+    const TypeAnnotation* type_annotation);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

@@ -630,6 +630,10 @@ class AstGenerator {
   // Returns the (flattened) bit count of the given type.
   int64_t GetTypeBitCount(const TypeAnnotation* type);
 
+  // Returns the expression as a concrete value. Returns an error if `expr` is
+  // not a number or a known constant, or if `expr` does not fit in 64-bits.
+  absl::StatusOr<uint64_t> GetExprAsUint64(Expr* expr);
+
   // Returns the (constant) size of an array type.
   //
   // Since those are the only array types the generator currently produces, this
