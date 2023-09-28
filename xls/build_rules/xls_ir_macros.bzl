@@ -134,7 +134,7 @@ def xls_ir_opt_ir_macro(
 
     Examples:
 
-    1. A simple example.
+    1.  A simple example.
 
         ```
         xls_ir_opt_ir(
@@ -143,7 +143,7 @@ def xls_ir_opt_ir_macro(
         )
         ```
 
-    1. Optimizing an IR file with an top entity defined.
+    1.  Optimizing an IR file with a top entity defined.
 
         ```
         xls_ir_opt_ir(

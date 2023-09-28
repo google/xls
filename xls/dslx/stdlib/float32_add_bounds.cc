@@ -20,13 +20,14 @@
 // With default flags, it proves that results are _exactly_ identical when
 // subnormals are flushed to zero.
 
-#include <filesystem>
+#include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
-#include "absl/base/internal/sysinfo.h"
+#include "absl/base/casts.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -35,10 +36,10 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
@@ -69,7 +70,7 @@ constexpr const char kFunctionName[] = "__float32__add";
 
 using solvers::z3::IrTranslator;
 
-// Adds an error comparsion to the translated XLS function. To do so:
+// Adds an error comparison to the translated XLS function. To do so:
 //  - We convert the input arguments into Z3 floating-point types.
 //  - We flush any subnormals to 0 (as is done in the XLS function).
 //  - Perform Z3-internal FP addition.
@@ -174,7 +175,8 @@ static absl::Status CompareToReference(bool use_opt_ir, uint32_t error_bound,
   // Finally, print the output to the terminal in gorgeous two-color ASCII.
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   std::cout << solvers::z3::SolverResultToString(ctx, solver, satisfiable)
-            << std::endl;
+            << '\n'
+            << std::flush;
 
   Z3_solver_dec_ref(ctx, solver);
   return absl::OkStatus();
