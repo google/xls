@@ -16,7 +16,7 @@ import os
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence, Union
+from typing import Sequence
 
 import cocotb
 from cocotb.binary import BinaryValue
@@ -27,7 +27,7 @@ from cocotb.triggers import ClockCycles, Event, RisingEdge
 from cocotb_bus.scoreboard import Scoreboard
 from cocotb_xls import XLSChannel, XLSChannelDriver, XLSChannelMonitor
 
-from xls.common import runfiles
+from xls.common import runfiles, test_base
 
 
 @dataclass
@@ -114,23 +114,33 @@ async def passthrough_test(dut):
   await sim.terminate.wait()
 
 
-if __name__ == "__main__":
-  runfiles._BASE_PATH = "com_icarus_iverilog"
-  iverilog_path = Path(runfiles.get_path("iverilog"))
-  vvp_path = Path(runfiles.get_path("vvp"))
-  os.environ["PATH"] += os.pathsep + str(iverilog_path.parent)
-  os.environ["PATH"] += os.pathsep + str(vvp_path.parent)
+class PassthroughTest(test_base.TestCase):
+  def test_passthrough(self):
+    runfiles._BASE_PATH = "com_icarus_iverilog"
+    iverilog_path = Path(runfiles.get_path("iverilog"))
+    vvp_path = Path(runfiles.get_path("vvp"))
+    os.environ["PATH"] += os.pathsep + str(iverilog_path.parent)
+    os.environ["PATH"] += os.pathsep + str(vvp_path.parent)
 
-  runner = get_runner("icarus")
-  runner.build(
-    verilog_sources=["xls/examples/passthrough.v"],
-    hdl_toplevel="passthrough",
-    timescale=("1ns", "1ps"),
-    waves=True,
-  )
-  results_xml = runner.test(
-    hdl_toplevel="passthrough",
-    test_module=[Path(__file__).stem],
-    waves=True,
-  )
-  check_results_file(results_xml)
+    hdl_toplevel = "passthrough"
+    output_dir = os.path.join(os.getenv("TEST_UNDECLARED_OUTPUTS_DIR", ""), "sim_build")
+    test_module = [Path(__file__).stem]
+
+    runner = get_runner("icarus")
+    runner.build(
+      verilog_sources=["xls/examples/passthrough.v"],
+      hdl_toplevel=hdl_toplevel,
+      timescale=("1ns", "1ps"),
+      waves=True,
+      build_dir=output_dir,
+    )
+    results_xml = runner.test(
+      hdl_toplevel=hdl_toplevel,
+      test_module=test_module,
+      waves=True,
+    )
+    check_results_file(results_xml)
+
+
+if __name__ == '__main__':
+  test_base.main()

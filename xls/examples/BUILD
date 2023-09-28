@@ -33,6 +33,7 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load("//xls/build_rules:dashboard.bzl", "dashboard")
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 
 package(
@@ -822,6 +823,26 @@ py_test(
     ],
     deps = [
         "//xls/common:runfiles",
+        "//xls/common:test_base",
         "//xls/simulation/cocotb:cocotb_xls",
     ],
+)
+
+dashboard(
+    name = "passthrough_dashboard",
+    title = "Passthrough Dashboard",
+    tests = [
+        {
+            "name": "passthrough_cocotb_test",
+            "file_parsers": {
+                "//xls/tools/dashboard:cocotb_results_xml_parser": "sim_build/results.xml"
+            },
+        },
+        {
+            "name": "passthrough_test",
+            "output_parsers": [
+                "//xls/tools/dashboard:dslx_test_parser",
+            ],
+        },
+    ]
 )
