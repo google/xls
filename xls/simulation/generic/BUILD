@@ -750,6 +750,29 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "axistreamlikedmaendpoint_test",
+    srcs = [
+        "axi_stream_like_dma_endpoint_test.cc",
+    ],
+    deps = [
+        ":axistreamlikedmaendpoint",
+        ":ir_axistreamlike",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_flags",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:channel_queue",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "streamdmachannel",
     srcs = [
