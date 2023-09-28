@@ -93,6 +93,7 @@ xls_ir_verilog(
         "pipeline_stages": "2",
         "reset": "rst",
         "use_system_verilog": "false",
+        "streaming_channel_data_suffix": "_data",
     },
     verilog_file = "rle_enc.v",
 )
@@ -179,4 +180,21 @@ filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
     visibility = ["//xls:xls_internal"],
+)
+
+py_test(
+    name = "rle_enc_cocotb_test",
+    srcs = ["rle_enc_cocotb_test.py"],
+    data = [
+        ":rle_enc_verilog",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/simulation/cocotb:cocotb_struct",
+        "//xls/simulation/cocotb:cocotb_xls",
+        "//xls/tools/dashboard:utils",
+    ],
 )

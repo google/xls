@@ -28,3 +28,11 @@ py_library(
         requirement("cocotb_bus"),
     ],
 )
+
+py_library(
+    name = "cocotb_struct",
+    srcs = ["cocotb_struct.py"],
+    deps = [
+        requirement("cocotb"),
+    ],
+)
