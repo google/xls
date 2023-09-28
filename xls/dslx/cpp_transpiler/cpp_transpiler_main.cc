@@ -67,12 +67,12 @@ absl::Status RealMain(const std::filesystem::path& module_path,
                        ParseAndTypecheck(module_text, std::string(module_path),
                                          "source", &import_data));
   XLS_ASSIGN_OR_RETURN(
-      Sources sources,
+      CppSource sources,
       TranspileToCpp(module.module, &import_data, output_header_path,
                      std::string(namespaces)));
 
   XLS_RETURN_IF_ERROR(SetFileContents(output_header_path, sources.header));
-  XLS_RETURN_IF_ERROR(SetFileContents(output_source_path, sources.body));
+  XLS_RETURN_IF_ERROR(SetFileContents(output_source_path, sources.source));
   return absl::OkStatus();
 }
 

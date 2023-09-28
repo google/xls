@@ -12,22 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub enum MyEnum : u32 {
+// TODO:
+//   * add width constants for type aliases and enums
+type MyType = u37;
+type MyTypeAlias = MyType;
+type MySignedType = s20;
+type MyBitsType = bits[42];
+type MyTuple = (u35, s4, MyType, MySignedType);
+type MyTupleOfTuples = (u3, MyTuple);
+type MyTupleAlias = MyTuple;
+type MyTupleAliasAlias = MyTupleAlias;
+type MyEmptyTuple = ();
+type MyArray = u17[2];
+type MyArrayOfArrays = u5[2][3];
+type MyTupleArray = MyTuple[2];
+type OtherTupleArray = (u32, u2)[2];
+
+pub enum MyEnum : u7 {
   kA = 0,
   kB = 1,
-  kC = 42,
+  kC = u7:20 + u7:22,
 }
 
 struct InnerStruct {
-  x: u32,
+  x: u17,
   y: MyEnum
 }
 
+type InnerStructAlias = InnerStruct;
 
 struct OuterStruct {
-  a: InnerStruct,
+  a: InnerStructAlias,
   b: InnerStruct,
-  c: u37,
+  c: MyType,
   v: MyEnum,
 }
 
@@ -35,6 +52,41 @@ struct EmptyStruct {}
 
 struct OuterOuterStruct {
   q: EmptyStruct,
+  some_array: u5[u32:1 + u32:2],
   s: OuterStruct,
 }
 
+struct StructWithTuple {
+  t: MyTuple,
+  t2: MyTupleAlias,
+  t3: MyTupleAliasAlias,
+}
+
+struct StructWithArray {
+ a: MyArray,
+}
+
+type InnerStructArray = InnerStruct[1];
+
+struct StructWithStructArray {
+  x: InnerStructArray,
+}
+
+struct StructWithTuplesArray {
+  x: (),
+  y: (u2, u4)
+}
+
+struct StructWithLotsOfTypes {
+  v: bool,
+  w: bits[3],
+  x: u1,
+  y: uN[44],
+  z: sN[11],
+}
+
+type TupleOfStructs = (InnerStruct, InnerStruct);
+
+struct FatType {
+  x: u32[1000],
+}

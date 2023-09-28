@@ -28,6 +28,22 @@ cc_library(
     srcs = ["cpp_transpiler.cc"],
     hdrs = ["cpp_transpiler.h"],
     deps = [
+        ":cpp_type_generator",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
+    ],
+)
+
+cc_library(
+    name = "cpp_emitter",
+    srcs = ["cpp_emitter.cc"],
+    hdrs = ["cpp_emitter.h"],
+    deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -35,7 +51,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
         "//xls/common:case_converters",
-        "//xls/common:visitor",
+        "//xls/common:indent",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
@@ -44,7 +60,33 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
-        "//xls/dslx/type_system:typecheck",
+        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/type_system:type_info",
+    ],
+)
+
+cc_library(
+    name = "cpp_type_generator",
+    srcs = ["cpp_type_generator.cc"],
+    hdrs = ["cpp_type_generator.h"],
+    deps = [
+        ":cpp_emitter",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:indent",
+        "//xls/common:visitor",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/bytecode",
+        "//xls/dslx/bytecode:bytecode_emitter",
+        "//xls/dslx/bytecode:bytecode_interpreter",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
     ],
 )
 
@@ -56,8 +98,8 @@ cc_test(
     ]),
     deps = [
         ":cpp_transpiler",
+        ":cpp_type_generator",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:golden_files",
         "//xls/common:source_location",
@@ -101,7 +143,11 @@ cc_test(
     srcs = ["test_types_test.cc"],
     deps = [
         ":test_types_lib",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:value",
     ],
 )

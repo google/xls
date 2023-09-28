@@ -1,18 +1,25 @@
 // AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
+#include <array>
 #include <cstdint>
 #include <ostream>
+#include <string>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/public/value.h"
 
-enum class MyEnum {
+enum class MyEnum : uint32_t {
   kA = 0,
   kB = 17,
   kC = 289,
 };
 constexpr int64_t kMyEnumNumElements = 3;
-std::string MyEnumToString(MyEnum value);
+constexpr int64_t kMyEnumWidth = 32;
+std::string MyEnumToString(MyEnum value, int64_t indent = 0);
+absl::StatusOr<::xls::Value> MyEnumToValue(MyEnum input);
+absl::StatusOr<MyEnum> MyEnumFromValue(const ::xls::Value& value);
+absl::Status VerifyMyEnum(MyEnum value);
 
 #endif  // FAKE_PATH_H_

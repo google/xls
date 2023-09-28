@@ -11,15 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_CPP_TRANSPILER_H_
-#define XLS_DSLX_CPP_TRANSPILER_H_
+#ifndef XLS_DSLX_CPP_TRANSPILER_CPP_TRANSPILER_H_
+#define XLS_DSLX_CPP_TRANSPILER_CPP_TRANSPILER_H_
 
-#include <filesystem>  // NOLINT
-#include <string>
 #include <string_view>
-#include <utility>
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/cpp_transpiler/cpp_type_generator.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 
@@ -40,18 +38,11 @@ namespace xls::dslx {
 // should be infrequent, so users should feel comfortable using these
 // interfaces, but should also be aware of the potential for change in the
 // future.
-//
-// TODO(rspringer): 2021-06-09 Currently all outputs are placed in a single
-// file, the header, but this will likely be split up once structs are
-struct Sources {
-  std::string header;
-  std::string body;
-};
-
-absl::StatusOr<Sources> TranspileToCpp(Module* module, ImportData* import_data,
-                                       std::string_view output_header_path,
-                                       std::string_view namespaces = "");
+absl::StatusOr<CppSource> TranspileToCpp(Module* module,
+                                         ImportData* import_data,
+                                         std::string_view output_header_path,
+                                         std::string_view namespaces = "");
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_CPP_TRANSPILER_H_
+#endif  // XLS_DSLX_CPP_TRANSPILER_CPP_TRANSPILER_H_

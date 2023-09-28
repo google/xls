@@ -1,209 +1,268 @@
 // AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#include <array>
+#include <string>
 #include <vector>
 
 #include "fake_path.h"
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/public/status_macros.h"
+#include "xls/public/value.h"
+
+static bool FitsInNBitsSigned(int64_t value, int64_t n) {
+  // All bits from [n - 1, 64) must be all zero or all ones.
+  if (n >= 64) {
+    return true;
+  }
+  // `mask` is 1111...00000 with n zeros.
+  uint64_t mask = ~((uint64_t{1} << n) - 1);
+  uint64_t value_as_unsigned = static_cast<uint64_t>(value);
+  return (mask & value_as_unsigned) == 0 ||
+       (mask & value_as_unsigned) == mask;
+}
+
+static bool FitsInNBitsUnsigned(uint64_t value, int64_t n) {
+  if (n >= 64) {
+    return true;
+  }
+  return value < (uint64_t{1} << n);
+}
+
+static std::string __indent(int64_t amount) {
+  return std::string(amount * 2, ' ');
+}
 
 absl::StatusOr<InnerStruct> InnerStruct::FromValue(const ::xls::Value& value) {
-  if (value.size() != 2) {
-    return absl::InvalidArgumentError(
-        "InnerStruct::FromValue input must be a 2-tuple.");
+  if (!value.IsTuple() || value.size() != 2) {
+    return absl::InvalidArgumentError("Value is not a tuple of 2 elements.");
   }
-
   InnerStruct result;
+  if (!value.element(0).IsBits() || value.element(0).bits().bit_count() != 32) {
+    return absl::InvalidArgumentError("Value is not a bits type of 32 bits.");
+  }
   result.x = value.element(0).bits().ToUint64().value();
+  if (!value.element(1).IsBits() || value.element(1).bits().bit_count() != 16) {
+    return absl::InvalidArgumentError("Value is not a bits type of 16 bits.");
+  }
   result.y = value.element(1).bits().ToUint64().value();
   return result;
 }
 
-::xls::Value InnerStruct::ToValue() const {
+absl::StatusOr<::xls::Value> InnerStruct::ToValue() const {
   std::vector<::xls::Value> members;
-  members.reserve(2);
-  ::xls::Value x_value;
-  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
-  members.push_back(x_value);
-  ::xls::Value y_value;
-  y_value = ::xls::Value(::xls::UBits(y, /*bit_count=*/16));
-  members.push_back(y_value);
+  members.resize(2);
+  if (!FitsInNBitsUnsigned(x, 32)) {
+    return absl::InvalidArgumentError("Value does not fit in 32 bits");
+  }
+  members[0] = ::xls::Value(::xls::UBits(x, 32));
+  if (!FitsInNBitsUnsigned(y, 16)) {
+    return absl::InvalidArgumentError("Value does not fit in 16 bits");
+  }
+  members[1] = ::xls::Value(::xls::UBits(y, 16));
   return ::xls::Value::Tuple(members);
+}
+
+std::string InnerStruct::ToString(int indent) const {
+  std::string result = "InnerStruct {\n";
+  result += __indent(indent + 1) + "x: ";
+  result += absl::StrFormat("bits[32]:0x%x", x);
+  result += ",\n";
+  result += __indent(indent + 1) + "y: ";
+  result += absl::StrFormat("bits[16]:0x%x", y);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+absl::Status InnerStruct::Verify() const {
+  if (!FitsInNBitsUnsigned(x, 32)) {
+    return absl::InvalidArgumentError(absl::StrCat("InnerStruct.x value does not fit in 32 bits: ", absl::StrFormat("0x%x", x)));
+  }
+  if (!FitsInNBitsUnsigned(y, 16)) {
+    return absl::InvalidArgumentError(absl::StrCat("InnerStruct.y value does not fit in 16 bits: ", absl::StrFormat("0x%x", y)));
+  }
+  return absl::OkStatus();
+}
+
+bool InnerStruct::operator==(const InnerStruct& other) const {
+    return x == other.x && y == other.y;
 }
 
 std::ostream& operator<<(std::ostream& os, const InnerStruct& data) {
   os << data.ToString();
   return os;
 }
-std::string InnerStruct::ToString(int indent) const {
-  std::string indent_str(indent * 4, ' ');
-  ::xls::Value value = ToValue();
-  absl::Span<const ::xls::Value> elements = value.elements();
-  std::string result = "InnerStruct {\n";
-  result += indent_str + "  x: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
-  result += indent_str + "  y: " + elements[1].ToString(::xls::FormatPreference::kHex) + ",\n";
-  result += indent_str + "}";
-  return result;
-}
-
-bool InnerStruct::operator==(const InnerStruct& other) const {
-  return x == other.x && y == other.y;
-}
 
 absl::StatusOr<MiddleStruct> MiddleStruct::FromValue(const ::xls::Value& value) {
-  if (value.size() != 2) {
-    return absl::InvalidArgumentError(
-        "MiddleStruct::FromValue input must be a 2-tuple.");
+  if (!value.IsTuple() || value.size() != 2) {
+    return absl::InvalidArgumentError("Value is not a tuple of 2 elements.");
   }
-
   MiddleStruct result;
-  result.z = value.element(0).bits().ToUint64().value();
-  auto result_a_or = InnerStruct::FromValue(value.element(1));
-  if (!result_a_or.ok()) {
-    return result_a_or.status();
+  if (!value.element(0).IsBits() || value.element(0).bits().bit_count() != 48) {
+    return absl::InvalidArgumentError("Value is not a bits type of 48 bits.");
   }
-  result.a = result_a_or.value();
+  result.z = value.element(0).bits().ToUint64().value();
+  XLS_ASSIGN_OR_RETURN(result.a, InnerStruct::FromValue(value.element(1)));
   return result;
 }
 
-::xls::Value MiddleStruct::ToValue() const {
+absl::StatusOr<::xls::Value> MiddleStruct::ToValue() const {
   std::vector<::xls::Value> members;
-  members.reserve(2);
-  ::xls::Value z_value;
-  z_value = ::xls::Value(::xls::UBits(z, /*bit_count=*/48));
-  members.push_back(z_value);
-  ::xls::Value a_value;
-  a_value = a.ToValue();
-  members.push_back(a_value);
+  members.resize(2);
+  if (!FitsInNBitsUnsigned(z, 48)) {
+    return absl::InvalidArgumentError("Value does not fit in 48 bits");
+  }
+  members[0] = ::xls::Value(::xls::UBits(z, 48));
+  XLS_ASSIGN_OR_RETURN(members[1], a.ToValue());
   return ::xls::Value::Tuple(members);
+}
+
+std::string MiddleStruct::ToString(int indent) const {
+  std::string result = "MiddleStruct {\n";
+  result += __indent(indent + 1) + "z: ";
+  result += absl::StrFormat("bits[48]:0x%x", z);
+  result += ",\n";
+  result += __indent(indent + 1) + "a: ";
+  result += a.ToString(indent + 2);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+absl::Status MiddleStruct::Verify() const {
+  if (!FitsInNBitsUnsigned(z, 48)) {
+    return absl::InvalidArgumentError(absl::StrCat("MiddleStruct.z value does not fit in 48 bits: ", absl::StrFormat("0x%x", z)));
+  }
+  XLS_RETURN_IF_ERROR(a.Verify());
+  return absl::OkStatus();
+}
+
+bool MiddleStruct::operator==(const MiddleStruct& other) const {
+    return z == other.z && a == other.a;
 }
 
 std::ostream& operator<<(std::ostream& os, const MiddleStruct& data) {
   os << data.ToString();
   return os;
 }
-std::string MiddleStruct::ToString(int indent) const {
-  std::string indent_str(indent * 4, ' ');
-  ::xls::Value value = ToValue();
-  absl::Span<const ::xls::Value> elements = value.elements();
-  std::string result = "MiddleStruct {\n";
-  result += indent_str + "  z: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
-  result += indent_str + "  a: " + a.ToString(indent + 1) + ",\n";
-  result += indent_str + "}";
-  return result;
-}
-
-bool MiddleStruct::operator==(const MiddleStruct& other) const {
-  return z == other.z && a == other.a;
-}
 
 absl::StatusOr<OtherMiddleStruct> OtherMiddleStruct::FromValue(const ::xls::Value& value) {
-  if (value.size() != 2) {
-    return absl::InvalidArgumentError(
-        "OtherMiddleStruct::FromValue input must be a 2-tuple.");
+  if (!value.IsTuple() || value.size() != 2) {
+    return absl::InvalidArgumentError("Value is not a tuple of 2 elements.");
   }
-
   OtherMiddleStruct result;
-  auto result_b_or = InnerStruct::FromValue(value.element(0));
-  if (!result_b_or.ok()) {
-    return result_b_or.status();
+  XLS_ASSIGN_OR_RETURN(result.b, InnerStruct::FromValue(value.element(0)));
+  if (!value.element(1).IsBits() || value.element(1).bits().bit_count() != 64) {
+    return absl::InvalidArgumentError("Value is not a bits type of 64 bits.");
   }
-  result.b = result_b_or.value();
   result.w = value.element(1).bits().ToUint64().value();
   return result;
 }
 
-::xls::Value OtherMiddleStruct::ToValue() const {
+absl::StatusOr<::xls::Value> OtherMiddleStruct::ToValue() const {
   std::vector<::xls::Value> members;
-  members.reserve(2);
-  ::xls::Value b_value;
-  b_value = b.ToValue();
-  members.push_back(b_value);
-  ::xls::Value w_value;
-  w_value = ::xls::Value(::xls::UBits(w, /*bit_count=*/64));
-  members.push_back(w_value);
+  members.resize(2);
+  XLS_ASSIGN_OR_RETURN(members[0], b.ToValue());
+  if (!FitsInNBitsUnsigned(w, 64)) {
+    return absl::InvalidArgumentError("Value does not fit in 64 bits");
+  }
+  members[1] = ::xls::Value(::xls::UBits(w, 64));
   return ::xls::Value::Tuple(members);
+}
+
+std::string OtherMiddleStruct::ToString(int indent) const {
+  std::string result = "OtherMiddleStruct {\n";
+  result += __indent(indent + 1) + "b: ";
+  result += b.ToString(indent + 2);
+  result += ",\n";
+  result += __indent(indent + 1) + "w: ";
+  result += absl::StrFormat("bits[64]:0x%x", w);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+absl::Status OtherMiddleStruct::Verify() const {
+  XLS_RETURN_IF_ERROR(b.Verify());
+  if (!FitsInNBitsUnsigned(w, 64)) {
+    return absl::InvalidArgumentError(absl::StrCat("OtherMiddleStruct.w value does not fit in 64 bits: ", absl::StrFormat("0x%x", w)));
+  }
+  return absl::OkStatus();
+}
+
+bool OtherMiddleStruct::operator==(const OtherMiddleStruct& other) const {
+    return b == other.b && w == other.w;
 }
 
 std::ostream& operator<<(std::ostream& os, const OtherMiddleStruct& data) {
   os << data.ToString();
   return os;
 }
-std::string OtherMiddleStruct::ToString(int indent) const {
-  std::string indent_str(indent * 4, ' ');
-  ::xls::Value value = ToValue();
-  absl::Span<const ::xls::Value> elements = value.elements();
-  std::string result = "OtherMiddleStruct {\n";
-  result += indent_str + "  b: " + b.ToString(indent + 1) + ",\n";
-  result += indent_str + "  w: " + elements[1].ToString(::xls::FormatPreference::kHex) + ",\n";
-  result += indent_str + "}";
-  return result;
-}
-
-bool OtherMiddleStruct::operator==(const OtherMiddleStruct& other) const {
-  return b == other.b && w == other.w;
-}
 
 absl::StatusOr<OuterStruct> OuterStruct::FromValue(const ::xls::Value& value) {
-  if (value.size() != 4) {
-    return absl::InvalidArgumentError(
-        "OuterStruct::FromValue input must be a 4-tuple.");
+  if (!value.IsTuple() || value.size() != 4) {
+    return absl::InvalidArgumentError("Value is not a tuple of 4 elements.");
   }
-
   OuterStruct result;
-  auto result_a_or = InnerStruct::FromValue(value.element(0));
-  if (!result_a_or.ok()) {
-    return result_a_or.status();
+  XLS_ASSIGN_OR_RETURN(result.a, InnerStruct::FromValue(value.element(0)));
+  XLS_ASSIGN_OR_RETURN(result.b, MiddleStruct::FromValue(value.element(1)));
+  XLS_ASSIGN_OR_RETURN(result.c, OtherMiddleStruct::FromValue(value.element(2)));
+  if (!value.element(3).IsBits() || value.element(3).bits().bit_count() != 8) {
+    return absl::InvalidArgumentError("Value is not a bits type of 8 bits.");
   }
-  result.a = result_a_or.value();
-  auto result_b_or = MiddleStruct::FromValue(value.element(1));
-  if (!result_b_or.ok()) {
-    return result_b_or.status();
-  }
-  result.b = result_b_or.value();
-  auto result_c_or = OtherMiddleStruct::FromValue(value.element(2));
-  if (!result_c_or.ok()) {
-    return result_c_or.status();
-  }
-  result.c = result_c_or.value();
   result.v = value.element(3).bits().ToUint64().value();
   return result;
 }
 
-::xls::Value OuterStruct::ToValue() const {
+absl::StatusOr<::xls::Value> OuterStruct::ToValue() const {
   std::vector<::xls::Value> members;
-  members.reserve(4);
-  ::xls::Value a_value;
-  a_value = a.ToValue();
-  members.push_back(a_value);
-  ::xls::Value b_value;
-  b_value = b.ToValue();
-  members.push_back(b_value);
-  ::xls::Value c_value;
-  c_value = c.ToValue();
-  members.push_back(c_value);
-  ::xls::Value v_value;
-  v_value = ::xls::Value(::xls::UBits(v, /*bit_count=*/8));
-  members.push_back(v_value);
+  members.resize(4);
+  XLS_ASSIGN_OR_RETURN(members[0], a.ToValue());
+  XLS_ASSIGN_OR_RETURN(members[1], b.ToValue());
+  XLS_ASSIGN_OR_RETURN(members[2], c.ToValue());
+  if (!FitsInNBitsUnsigned(v, 8)) {
+    return absl::InvalidArgumentError("Value does not fit in 8 bits");
+  }
+  members[3] = ::xls::Value(::xls::UBits(v, 8));
   return ::xls::Value::Tuple(members);
+}
+
+std::string OuterStruct::ToString(int indent) const {
+  std::string result = "OuterStruct {\n";
+  result += __indent(indent + 1) + "a: ";
+  result += a.ToString(indent + 2);
+  result += ",\n";
+  result += __indent(indent + 1) + "b: ";
+  result += b.ToString(indent + 2);
+  result += ",\n";
+  result += __indent(indent + 1) + "c: ";
+  result += c.ToString(indent + 2);
+  result += ",\n";
+  result += __indent(indent + 1) + "v: ";
+  result += absl::StrFormat("bits[8]:0x%x", v);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+absl::Status OuterStruct::Verify() const {
+  XLS_RETURN_IF_ERROR(a.Verify());
+  XLS_RETURN_IF_ERROR(b.Verify());
+  XLS_RETURN_IF_ERROR(c.Verify());
+  if (!FitsInNBitsUnsigned(v, 8)) {
+    return absl::InvalidArgumentError(absl::StrCat("OuterStruct.v value does not fit in 8 bits: ", absl::StrFormat("0x%x", v)));
+  }
+  return absl::OkStatus();
+}
+
+bool OuterStruct::operator==(const OuterStruct& other) const {
+    return a == other.a && b == other.b && c == other.c && v == other.v;
 }
 
 std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
   os << data.ToString();
   return os;
-}
-std::string OuterStruct::ToString(int indent) const {
-  std::string indent_str(indent * 4, ' ');
-  ::xls::Value value = ToValue();
-  absl::Span<const ::xls::Value> elements = value.elements();
-  std::string result = "OuterStruct {\n";
-  result += indent_str + "  a: " + a.ToString(indent + 1) + ",\n";
-  result += indent_str + "  b: " + b.ToString(indent + 1) + ",\n";
-  result += indent_str + "  c: " + c.ToString(indent + 1) + ",\n";
-  result += indent_str + "  v: " + elements[3].ToString(::xls::FormatPreference::kHex) + ",\n";
-  result += indent_str + "}";
-  return result;
-}
-
-bool OuterStruct::operator==(const OuterStruct& other) const {
-  return a == other.a && b == other.b && c == other.c && v == other.v;
 }

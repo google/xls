@@ -1,13 +1,445 @@
 // AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#include <array>
+#include <string>
 #include <vector>
 
 #include "fake_path.h"
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/public/status_macros.h"
+#include "xls/public/value.h"
+
+static bool FitsInNBitsSigned(int64_t value, int64_t n) {
+  // All bits from [n - 1, 64) must be all zero or all ones.
+  if (n >= 64) {
+    return true;
+  }
+  // `mask` is 1111...00000 with n zeros.
+  uint64_t mask = ~((uint64_t{1} << n) - 1);
+  uint64_t value_as_unsigned = static_cast<uint64_t>(value);
+  return (mask & value_as_unsigned) == 0 ||
+       (mask & value_as_unsigned) == mask;
+}
+
+static bool FitsInNBitsUnsigned(uint64_t value, int64_t n) {
+  if (n >= 64) {
+    return true;
+  }
+  return value < (uint64_t{1} << n);
+}
+
+static std::string __indent(int64_t amount) {
+  return std::string(amount * 2, ' ');
+}
 
 namespace robs::secret::space {
 
+absl::Status VerifyMyType(MyType value) {
+  if (!FitsInNBitsUnsigned(value, 6)) {
+    return absl::InvalidArgumentError(absl::StrCat("MyType value does not fit in 6 bits: ", absl::StrFormat("0x%x", value)));
+  }
+  return absl::OkStatus();
+}
 
+std::string MyTypeToString(MyType value, int64_t indent) {
+  std::string result;
+  result += absl::StrFormat("bits[6]:0x%x", value);
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MyTypeToValue(MyType input) {
+  ::xls::Value value;
+  if (!FitsInNBitsUnsigned(input, 6)) {
+    return absl::InvalidArgumentError("Value does not fit in 6 bits");
+  }
+  value = ::xls::Value(::xls::UBits(input, 6));
+  return value;
+}
+
+absl::StatusOr<MyType> MyTypeFromValue(const ::xls::Value& value) {
+  MyType result;
+  if (!value.IsBits() || value.bits().bit_count() != 6) {
+    return absl::InvalidArgumentError("Value is not a bits type of 6 bits.");
+  }
+  result = value.bits().ToUint64().value();
+  return result;
+}
+
+absl::Status VerifyMySignedType(MySignedType value) {
+  if (!FitsInNBitsSigned(value, 8)) {
+    return absl::InvalidArgumentError(absl::StrCat("MySignedType value does not fit in signed 8 bits: ", absl::StrFormat("0x%x", value)));
+  }
+  return absl::OkStatus();
+}
+
+std::string MySignedTypeToString(MySignedType value, int64_t indent) {
+  std::string result;
+  result += absl::StrFormat("bits[8]:0x%x", value);
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MySignedTypeToValue(MySignedType input) {
+  ::xls::Value value;
+  if (!FitsInNBitsSigned(input, 8)) {
+    return absl::InvalidArgumentError("Value does not fit in 8 bits");
+  }
+  value = ::xls::Value(::xls::SBits(input, 8));
+  return value;
+}
+
+absl::StatusOr<MySignedType> MySignedTypeFromValue(const ::xls::Value& value) {
+  MySignedType result;
+  if (!value.IsBits() || value.bits().bit_count() != 8) {
+    return absl::InvalidArgumentError("Value is not a bits type of 8 bits.");
+  }
+  result = value.bits().ToInt64().value();
+  return result;
+}
+
+absl::Status VerifyMyThirdType(MyThirdType value) {
+  if (!FitsInNBitsSigned(value, 9)) {
+    return absl::InvalidArgumentError(absl::StrCat("MyThirdType value does not fit in signed 9 bits: ", absl::StrFormat("0x%x", value)));
+  }
+  return absl::OkStatus();
+}
+
+std::string MyThirdTypeToString(MyThirdType value, int64_t indent) {
+  std::string result;
+  result += absl::StrFormat("bits[9]:0x%x", value);
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MyThirdTypeToValue(MyThirdType input) {
+  ::xls::Value value;
+  if (!FitsInNBitsSigned(input, 9)) {
+    return absl::InvalidArgumentError("Value does not fit in 9 bits");
+  }
+  value = ::xls::Value(::xls::SBits(input, 9));
+  return value;
+}
+
+absl::StatusOr<MyThirdType> MyThirdTypeFromValue(const ::xls::Value& value) {
+  MyThirdType result;
+  if (!value.IsBits() || value.bits().bit_count() != 9) {
+    return absl::InvalidArgumentError("Value is not a bits type of 9 bits.");
+  }
+  result = value.bits().ToInt64().value();
+  return result;
+}
+
+absl::Status VerifyMyArrayType1(const MyArrayType1& value) {
+  for (int64_t i0 = 0; i0 < 8; ++i0) {
+    if (!FitsInNBitsUnsigned(value[i0], 31)) {
+      return absl::InvalidArgumentError(absl::StrCat("MyArrayType1 value does not fit in 31 bits: ", absl::StrFormat("0x%x", value[i0])));
+    }
+  }
+  return absl::OkStatus();
+}
+
+std::string MyArrayType1ToString(const MyArrayType1& value, int64_t indent) {
+  std::string result;
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 8; ++i0) {
+    result += __indent(indent + 1);
+      result += absl::StrFormat("bits[31]:0x%x", value[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent) + "]";
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MyArrayType1ToValue(const MyArrayType1& input) {
+  ::xls::Value value;
+  {
+    std::vector<::xls::Value> elements;
+    for (int64_t i0 = 0; i0 < 8; ++i0) {
+      ::xls::Value element;
+      if (!FitsInNBitsUnsigned(input[i0], 31)) {
+        return absl::InvalidArgumentError("Value does not fit in 31 bits");
+      }
+      element = ::xls::Value(::xls::UBits(input[i0], 31));
+      elements.push_back(element);
+    }
+    value = ::xls::Value::ArrayOrDie(elements);
+  }
+  return value;
+}
+
+absl::StatusOr<MyArrayType1> MyArrayType1FromValue(const ::xls::Value& value) {
+  MyArrayType1 result;
+  if (!value.IsArray() || value.size() != 8) {
+    return absl::InvalidArgumentError("Value is not a array of 8 elements.");
+  }
+  for (int64_t i0 = 0; i0 < 8; ++i0) {
+    if (!value.element(i0).IsBits() || value.element(i0).bits().bit_count() != 31) {
+      return absl::InvalidArgumentError("Value is not a bits type of 31 bits.");
+    }
+    result[i0] = value.element(i0).bits().ToUint64().value();
+  }
+  return result;
+}
+
+absl::Status VerifyMyArrayType2(const MyArrayType2& value) {
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    if (!FitsInNBitsUnsigned(value[i0], 31)) {
+      return absl::InvalidArgumentError(absl::StrCat("MyArrayType2 value does not fit in 31 bits: ", absl::StrFormat("0x%x", value[i0])));
+    }
+  }
+  return absl::OkStatus();
+}
+
+std::string MyArrayType2ToString(const MyArrayType2& value, int64_t indent) {
+  std::string result;
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    result += __indent(indent + 1);
+      result += absl::StrFormat("bits[31]:0x%x", value[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent) + "]";
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MyArrayType2ToValue(const MyArrayType2& input) {
+  ::xls::Value value;
+  {
+    std::vector<::xls::Value> elements;
+    for (int64_t i0 = 0; i0 < 4; ++i0) {
+      ::xls::Value element;
+      if (!FitsInNBitsUnsigned(input[i0], 31)) {
+        return absl::InvalidArgumentError("Value does not fit in 31 bits");
+      }
+      element = ::xls::Value(::xls::UBits(input[i0], 31));
+      elements.push_back(element);
+    }
+    value = ::xls::Value::ArrayOrDie(elements);
+  }
+  return value;
+}
+
+absl::StatusOr<MyArrayType2> MyArrayType2FromValue(const ::xls::Value& value) {
+  MyArrayType2 result;
+  if (!value.IsArray() || value.size() != 4) {
+    return absl::InvalidArgumentError("Value is not a array of 4 elements.");
+  }
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    if (!value.element(i0).IsBits() || value.element(i0).bits().bit_count() != 31) {
+      return absl::InvalidArgumentError("Value is not a bits type of 31 bits.");
+    }
+    result[i0] = value.element(i0).bits().ToUint64().value();
+  }
+  return result;
+}
+
+absl::Status VerifyMyArrayType3(const MyArrayType3& value) {
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    XLS_RETURN_IF_ERROR(VerifyMySignedType(value[i0]));
+  }
+  return absl::OkStatus();
+}
+
+std::string MyArrayType3ToString(const MyArrayType3& value, int64_t indent) {
+  std::string result;
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    result += __indent(indent + 1);
+      result += MySignedTypeToString(value[i0], indent + 1);
+  result += ",\n";
+  }
+  result += __indent(indent) + "]";
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MyArrayType3ToValue(const MyArrayType3& input) {
+  ::xls::Value value;
+  {
+    std::vector<::xls::Value> elements;
+    for (int64_t i0 = 0; i0 < 4; ++i0) {
+      ::xls::Value element;
+      XLS_ASSIGN_OR_RETURN(element, MySignedTypeToValue(input[i0]));
+      elements.push_back(element);
+    }
+    value = ::xls::Value::ArrayOrDie(elements);
+  }
+  return value;
+}
+
+absl::StatusOr<MyArrayType3> MyArrayType3FromValue(const ::xls::Value& value) {
+  MyArrayType3 result;
+  if (!value.IsArray() || value.size() != 4) {
+    return absl::InvalidArgumentError("Value is not a array of 4 elements.");
+  }
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    XLS_ASSIGN_OR_RETURN(result[i0], MySignedTypeFromValue(value.element(i0)));
+  }
+  return result;
+}
+
+absl::Status VerifyMyArrayType4(const MyArrayType4& value) {
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    if (!FitsInNBitsSigned(value[i0], 8)) {
+      return absl::InvalidArgumentError(absl::StrCat("MyArrayType4 value does not fit in signed 8 bits: ", absl::StrFormat("0x%x", value[i0])));
+    }
+  }
+  return absl::OkStatus();
+}
+
+std::string MyArrayType4ToString(const MyArrayType4& value, int64_t indent) {
+  std::string result;
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    result += __indent(indent + 1);
+      result += absl::StrFormat("bits[8]:0x%x", value[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent) + "]";
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MyArrayType4ToValue(const MyArrayType4& input) {
+  ::xls::Value value;
+  {
+    std::vector<::xls::Value> elements;
+    for (int64_t i0 = 0; i0 < 4; ++i0) {
+      ::xls::Value element;
+      if (!FitsInNBitsSigned(input[i0], 8)) {
+        return absl::InvalidArgumentError("Value does not fit in 8 bits");
+      }
+      element = ::xls::Value(::xls::SBits(input[i0], 8));
+      elements.push_back(element);
+    }
+    value = ::xls::Value::ArrayOrDie(elements);
+  }
+  return value;
+}
+
+absl::StatusOr<MyArrayType4> MyArrayType4FromValue(const ::xls::Value& value) {
+  MyArrayType4 result;
+  if (!value.IsArray() || value.size() != 4) {
+    return absl::InvalidArgumentError("Value is not a array of 4 elements.");
+  }
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    if (!value.element(i0).IsBits() || value.element(i0).bits().bit_count() != 8) {
+      return absl::InvalidArgumentError("Value is not a bits type of 8 bits.");
+    }
+    result[i0] = value.element(i0).bits().ToInt64().value();
+  }
+  return result;
+}
+
+absl::Status VerifyMyArrayType5(MyArrayType5 value) {
+  if (!FitsInNBitsUnsigned(value, 1)) {
+    return absl::InvalidArgumentError(absl::StrCat("MyArrayType5 value does not fit in 1 bits: ", absl::StrFormat("0x%x", value)));
+  }
+  return absl::OkStatus();
+}
+
+std::string MyArrayType5ToString(MyArrayType5 value, int64_t indent) {
+  std::string result;
+  result += absl::StrFormat("bits[1]:0x%x", value);
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MyArrayType5ToValue(MyArrayType5 input) {
+  ::xls::Value value;
+  if (!FitsInNBitsUnsigned(input, 1)) {
+    return absl::InvalidArgumentError("Value does not fit in 1 bits");
+  }
+  value = ::xls::Value(::xls::UBits(input, 1));
+  return value;
+}
+
+absl::StatusOr<MyArrayType5> MyArrayType5FromValue(const ::xls::Value& value) {
+  MyArrayType5 result;
+  if (!value.IsBits() || value.bits().bit_count() != 1) {
+    return absl::InvalidArgumentError("Value is not a bits type of 1 bits.");
+  }
+  result = value.bits().ToUint64().value();
+  return result;
+}
+
+absl::Status VerifyMyFirstTuple(const MyFirstTuple& value) {
+  if (!FitsInNBitsUnsigned(std::get<0>(value), 7)) {
+    return absl::InvalidArgumentError(absl::StrCat("MyFirstTuple.0 value does not fit in 7 bits: ", absl::StrFormat("0x%x", std::get<0>(value))));
+  }
+  if (!FitsInNBitsSigned(std::get<1>(value), 8)) {
+    return absl::InvalidArgumentError(absl::StrCat("MyFirstTuple.1 value does not fit in signed 8 bits: ", absl::StrFormat("0x%x", std::get<1>(value))));
+  }
+  XLS_RETURN_IF_ERROR(VerifyMyType(std::get<2>(value)));
+  XLS_RETURN_IF_ERROR(VerifyMySignedType(std::get<3>(value)));
+  XLS_RETURN_IF_ERROR(VerifyMyArrayType1(std::get<4>(value)));
+  XLS_RETURN_IF_ERROR(VerifyMyArrayType2(std::get<5>(value)));
+  return absl::OkStatus();
+}
+
+std::string MyFirstTupleToString(const MyFirstTuple& value, int64_t indent) {
+  std::string result;
+  result += "(\n";
+  result += __indent(indent + 1);
+  result += absl::StrFormat("bits[7]:0x%x", std::get<0>(value));
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += absl::StrFormat("bits[8]:0x%x", std::get<1>(value));
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += MyTypeToString(std::get<2>(value), indent + 1);
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += MySignedTypeToString(std::get<3>(value), indent + 1);
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += MyArrayType1ToString(std::get<4>(value), indent + 1);
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += MyArrayType2ToString(std::get<5>(value), indent + 1);
+  result += ",\n";
+  result += __indent(indent) + ")";
+  return result;
+}
+
+absl::StatusOr<::xls::Value> MyFirstTupleToValue(const MyFirstTuple& input) {
+  ::xls::Value value;
+  {
+    std::vector<::xls::Value> members;
+    members.resize(6);
+    if (!FitsInNBitsUnsigned(std::get<0>(input), 7)) {
+      return absl::InvalidArgumentError("Value does not fit in 7 bits");
+    }
+    members[0] = ::xls::Value(::xls::UBits(std::get<0>(input), 7));
+    if (!FitsInNBitsSigned(std::get<1>(input), 8)) {
+      return absl::InvalidArgumentError("Value does not fit in 8 bits");
+    }
+    members[1] = ::xls::Value(::xls::SBits(std::get<1>(input), 8));
+    XLS_ASSIGN_OR_RETURN(members[2], MyTypeToValue(std::get<2>(input)));
+    XLS_ASSIGN_OR_RETURN(members[3], MySignedTypeToValue(std::get<3>(input)));
+    XLS_ASSIGN_OR_RETURN(members[4], MyArrayType1ToValue(std::get<4>(input)));
+    XLS_ASSIGN_OR_RETURN(members[5], MyArrayType2ToValue(std::get<5>(input)));
+    value = ::xls::Value::Tuple(members);
+  }
+  return value;
+}
+
+absl::StatusOr<MyFirstTuple> MyFirstTupleFromValue(const ::xls::Value& value) {
+  MyFirstTuple result;
+  if (!value.IsTuple() || value.size() != 6) {
+    return absl::InvalidArgumentError("Value is not a tuple of 6 elements.");
+  }
+  if (!value.element(0).IsBits() || value.element(0).bits().bit_count() != 7) {
+    return absl::InvalidArgumentError("Value is not a bits type of 7 bits.");
+  }
+  std::get<0>(result) = value.element(0).bits().ToUint64().value();
+  if (!value.element(1).IsBits() || value.element(1).bits().bit_count() != 8) {
+    return absl::InvalidArgumentError("Value is not a bits type of 8 bits.");
+  }
+  std::get<1>(result) = value.element(1).bits().ToInt64().value();
+  XLS_ASSIGN_OR_RETURN(std::get<2>(result), MyTypeFromValue(value.element(2)));
+  XLS_ASSIGN_OR_RETURN(std::get<3>(result), MySignedTypeFromValue(value.element(3)));
+  XLS_ASSIGN_OR_RETURN(std::get<4>(result), MyArrayType1FromValue(value.element(4)));
+  XLS_ASSIGN_OR_RETURN(std::get<5>(result), MyArrayType2FromValue(value.element(5)));
+  return result;
+}
 
 }  // namespace robs::secret::space

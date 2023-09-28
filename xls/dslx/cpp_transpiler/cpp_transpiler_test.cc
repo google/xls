@@ -25,21 +25,22 @@
 #include "xls/common/golden_files.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/cpp_transpiler/cpp_type_generator.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
 
-using testing::HasSubstr;
-using xls::status_testing::StatusIs;
-
 namespace {
+
+using status_testing::StatusIs;
+using testing::HasSubstr;
 
 constexpr char kTestdataPath[] = "xls/dslx/cpp_transpiler/testdata";
 
 void ExpectEqualToGoldenFiles(
-    const Sources& sources,
+    const CppSource& sources,
     xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
   const std::filesystem::path header_path = absl::StrFormat(
       "%s/%s.htxt", kTestdataPath,
@@ -48,7 +49,7 @@ void ExpectEqualToGoldenFiles(
   const std::filesystem::path source_path = absl::StrFormat(
       "%s/%s.cctxt", kTestdataPath,
       ::testing::UnitTest::GetInstance()->current_test_info()->name());
-  ExpectEqualToGoldenFile(source_path, sources.body, loc);
+  ExpectEqualToGoldenFile(source_path, sources.source, loc);
 }
 
 // Verifies that the transpiler can convert a basic enum into C++.
@@ -254,7 +255,7 @@ struct OuterStruct {
 
 TEST(CppTranspilerTest, HandlesAbsolutePaths) {
   const std::string kModule = R"(
-pub enum MyEnum : u32 {
+pub enum MyEnum : u34 {
   A = 0,
   B = 1,
   C = 42,
@@ -272,7 +273,7 @@ pub enum MyEnum : u32 {
   ExpectEqualToGoldenFiles(result);
 }
 
-TEST(CppTranspilerTest, UnhandledTupleType) {
+TEST(CppTranspilerTest, StructWithTuples) {
   constexpr std::string_view kModule = R"(
 struct Foo {
     a: (u32, u32),
@@ -283,9 +284,10 @@ struct Foo {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
-  EXPECT_THAT(TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"),
-              StatusIs(absl::StatusCode::kUnimplemented,
-                       HasSubstr("Unknown/unsupported")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
+  ExpectEqualToGoldenFiles(result);
 }
 
 TEST(CppTranspilerTest, ArrayOfTyperefs) {
@@ -308,6 +310,51 @@ struct Bar {
       auto result,
       TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
   ExpectEqualToGoldenFiles(result);
+}
+
+TEST(CppTranspilerTest, UnsupportedS1) {
+  constexpr std::string_view kModule = R"(
+type MyUnsupportedSignedBit = s1;
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+  EXPECT_THAT(TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("Signed one-bit numbers are not supported")));
+}
+
+TEST(CppTranspilerTest, UnsupportedTypes) {
+  constexpr std::string_view kModule = R"(
+type MyUnsupportedWideAlias = sN[123];
+
+enum MyUnsupportedWideEnum : uN[555] {
+  A = 0,
+  B = 1,
+}
+
+struct MyUnsupportedWideStruct {
+  wide_field: bits[100],
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+  // The types compile, but the code is wrong.
+  // TODO(https://github.com/google/xls/issues/1135): Fix this.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
+  EXPECT_THAT(result.header,
+              HasSubstr("using MyUnsupportedWideAlias = int64_t;"));
+  EXPECT_THAT(result.header, HasSubstr("uint64_t wide_field"));
+  EXPECT_THAT(result.header, HasSubstr("uint64_t wide_field"));
+  EXPECT_THAT(result.header,
+              HasSubstr("enum class MyUnsupportedWideEnum : uint64_t"));
 }
 
 }  // namespace

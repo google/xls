@@ -11,11 +11,7 @@
 #include "xls/public/value.h"
 
 struct Foo {
-  uint32_t a;
-  uint64_t b;
-
-  static constexpr int64_t kAWidth = 32;
-  static constexpr int64_t kBWidth = 64;
+  std::tuple<uint32_t, uint32_t> a;
 
   static absl::StatusOr<Foo> FromValue(const ::xls::Value& value);
   absl::StatusOr<::xls::Value> ToValue() const;
@@ -24,18 +20,6 @@ struct Foo {
   bool operator==(const Foo& other) const;
   bool operator!=(const Foo& other) const { return !(*this == other); }
   friend std::ostream& operator<<(std::ostream& os, const Foo& data);
-};
-
-struct Bar {
-  std::array<Foo, 2> c;
-
-  static absl::StatusOr<Bar> FromValue(const ::xls::Value& value);
-  absl::StatusOr<::xls::Value> ToValue() const;
-  std::string ToString(int indent = 0) const;
-  absl::Status Verify() const;
-  bool operator==(const Bar& other) const;
-  bool operator!=(const Bar& other) const { return !(*this == other); }
-  friend std::ostream& operator<<(std::ostream& os, const Bar& data);
 };
 
 #endif  // TMP_FAKE_PATH_H_

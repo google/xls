@@ -24,12 +24,12 @@ load(
     "validate_verilog_filename",
 )
 load(
-    "//xls/build_rules:xls_config_rules.bzl",
-    "enable_generated_file_wrapper",
-)
-load(
     "//xls/build_rules:xls_common_rules.bzl",
     "split_filename",
+)
+load(
+    "//xls/build_rules:xls_config_rules.bzl",
+    "enable_generated_file_wrapper",
 )
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
@@ -395,8 +395,10 @@ def xls_dslx_cpp_type_library(
         deps = [
             "@com_google_absl//absl/base:core_headers",
             "@com_google_absl//absl/status:status",
+            "@com_google_absl//absl/strings:str_format",
             "@com_google_absl//absl/status:statusor",
             "@com_google_absl//absl/types:span",
+            "//xls/public:status_macros",
             "//xls/public:value",
         ],
     )

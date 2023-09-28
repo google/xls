@@ -1,8 +1,11 @@
 // AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
+#include <array>
 #include <cstdint>
 #include <ostream>
+#include <string>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/public/value.h"
@@ -21,12 +24,11 @@ struct MyStruct {
   static constexpr int64_t kVWidth = 1;
 
   static absl::StatusOr<MyStruct> FromValue(const ::xls::Value& value);
-  ::xls::Value ToValue() const;
+  absl::StatusOr<::xls::Value> ToValue() const;
   std::string ToString(int indent = 0) const;
+  absl::Status Verify() const;
   bool operator==(const MyStruct& other) const;
-  bool operator!=(const MyStruct& other) const {
-    return !(*this == other);
-  }
+  bool operator!=(const MyStruct& other) const { return !(*this == other); }
   friend std::ostream& operator<<(std::ostream& os, const MyStruct& data);
 };
 
