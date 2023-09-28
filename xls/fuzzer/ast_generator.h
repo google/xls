@@ -34,6 +34,7 @@
 #include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/fuzzer/ast_generator_options.pb.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/format_preference.h"
 
@@ -123,7 +124,19 @@ struct AstGeneratorOptions {
   // include an empty tuple). Its value is only meaningful when generate_proc is
   // `true`.
   bool emit_stateless_proc = false;
+
+  static absl::StatusOr<AstGeneratorOptions> FromProto(
+      const AstGeneratorOptionsProto& proto);
+  AstGeneratorOptionsProto ToProto() const;
+
+  static AstGeneratorOptionsProto DefaultOptionsProto() {
+    return AstGeneratorOptions{}.ToProto();
+  }
 };
+bool AbslParseFlag(std::string_view text,
+                   AstGeneratorOptions* ast_generator_options,
+                   std::string* error);
+std::string AbslUnparseFlag(const AstGeneratorOptions& ast_generator_options);
 
 // Type that generates a random module for use in fuzz testing; i.e.
 //

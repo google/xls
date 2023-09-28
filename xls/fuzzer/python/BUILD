@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pytype tests are present in this file
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
 package(
@@ -38,7 +39,7 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/fuzzer:ast_generator",
-        "//xls/fuzzer:cpp_sample_generator",
+        "//xls/fuzzer:sample_generator",
         "//xls/fuzzer:value_generator",
         "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
@@ -58,45 +59,20 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value_helpers",
         "//xls/fuzzer:ast_generator",
-        "//xls/fuzzer:cpp_sample",
+        "//xls/fuzzer:sample",
         "//xls/fuzzer:sample_cc_proto",
         "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 
-xls_pybind_extension(
-    name = "cpp_sample_runner",
-    srcs = [
-        "cpp_sample_runner.cc",
-    ],
+py_test(
+    name = "sample_test",
+    srcs = ["sample_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
     deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common/status:import_status_module",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx:interp_value_helpers",
-        "//xls/fuzzer:ast_generator",
-        "//xls/fuzzer:cpp_sample_runner",
-        "@pybind11_abseil//pybind11_abseil:statusor_caster",
-    ],
-)
-
-xls_pybind_extension(
-    name = "cpp_run_fuzz",
-    srcs = [
-        "cpp_run_fuzz.cc",
-    ],
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common/status:import_status_module",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx:interp_value_helpers",
-        "//xls/fuzzer:ast_generator",
-        "//xls/fuzzer:cpp_run_fuzz",
-        "//xls/fuzzer:cpp_sample",
-        "@pybind11_abseil//pybind11_abseil:statusor_caster",
+        ":cpp_sample",
+        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/dslx/python:interp_value",
     ],
 )

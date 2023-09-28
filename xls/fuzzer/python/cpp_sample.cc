@@ -156,6 +156,9 @@ PYBIND11_MODULE(cpp_sample, m) {
           },
           py::arg("input_is_dslx") = std::nullopt,
           py::arg("codegen_args") = std::nullopt)
+      .def(
+          "__repr__",
+          [](const SampleOptions& options) { return AbslUnparseFlag(options); })
       // Pickling is required by the multiprocess fuzzer which pickles options
       // to send to the separate worker process.
       .def(py::pickle(

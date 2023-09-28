@@ -1,0 +1,45 @@
+// Copyright 2020 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls.dslx;
+
+// Options that are used to configure the DSLX AST generator.
+message AstGeneratorOptionsProto {
+  // Emit signed types (currently not connected, signed types are always
+  // generated).
+  optional bool emit_signed_types = 1;
+
+  // The maximum (inclusive) width for bits types.
+  optional int64 max_width_bits_types = 2;
+
+  // The maximum (inclusive) width for aggregate types; e.g. tuples.
+  optional int64 max_width_aggregate_types = 3;
+
+  // Emit loops (currently not connected, loops are always generated).
+  optional bool emit_loops = 4;
+
+  // Whether to emit `gate!()` builtin calls.
+  optional bool emit_gate = 5;
+
+  // Whether to generate a proc.
+  optional bool generate_proc = 6;
+
+  // Whether to emit a stateless proc. When true, the state type of the proc is
+  // an empty tuple. Otherwise, a random state type is generated (which may also
+  // include an empty tuple). Its value is only meaningful when generate_proc is
+  // `true`.
+  optional bool emit_stateless_proc = 7;
+}

@@ -36,6 +36,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -49,6 +50,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/fuzzer/ast_generator_options.pb.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -93,6 +95,63 @@ LastDelayingOp ComposeDelayingOps(LastDelayingOp op1, LastDelayingOp op2,
 }
 
 }  // namespace
+
+/* static */ absl::StatusOr<AstGeneratorOptions> AstGeneratorOptions::FromProto(
+    const AstGeneratorOptionsProto& proto) {
+  return AstGeneratorOptions{
+      .emit_signed_types = proto.emit_signed_types(),
+      .max_width_bits_types = proto.max_width_bits_types(),
+      .max_width_aggregate_types = proto.max_width_aggregate_types(),
+      .emit_loops = proto.emit_loops(),
+      .emit_gate = proto.emit_gate(),
+      .generate_proc = proto.generate_proc(),
+      .emit_stateless_proc = proto.emit_stateless_proc(),
+  };
+}
+
+AstGeneratorOptionsProto AstGeneratorOptions::ToProto() const {
+  AstGeneratorOptionsProto proto;
+  proto.set_emit_signed_types(emit_signed_types);
+  proto.set_max_width_bits_types(max_width_bits_types);
+  proto.set_max_width_aggregate_types(max_width_aggregate_types);
+  proto.set_emit_loops(emit_loops);
+  proto.set_emit_gate(emit_gate);
+  proto.set_generate_proc(generate_proc);
+  proto.set_emit_stateless_proc(emit_stateless_proc);
+  return proto;
+}
+
+bool AbslParseFlag(std::string_view text,
+                   AstGeneratorOptions* ast_generator_options,
+                   std::string* error) {
+  std::string unescaped_text;
+  if (!absl::Base64Unescape(text, &unescaped_text)) {
+    *error =
+        "Could not parse as an AstGeneratorOptions; not a Base64 encoded "
+        "string?";
+    return false;
+  }
+  AstGeneratorOptionsProto proto;
+  if (!proto.ParseFromString(unescaped_text)) {
+    *error =
+        "Could not parse as an AstGeneratorOptions; not a serialized "
+        "AstGeneratorOptionsProto?";
+    return false;
+  }
+  absl::StatusOr<AstGeneratorOptions> result =
+      AstGeneratorOptions::FromProto(proto);
+  if (!result.ok()) {
+    *error = result.status().ToString();
+    return false;
+  }
+  *ast_generator_options = *std::move(result);
+  return true;
+}
+
+std::string AbslUnparseFlag(const AstGeneratorOptions& ast_generator_options) {
+  return absl::Base64Escape(
+      ast_generator_options.ToProto().SerializeAsString());
+}
 
 /* static */ std::tuple<std::vector<Expr*>, std::vector<TypeAnnotation*>,
                         std::vector<LastDelayingOp>>

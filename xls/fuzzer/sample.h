@@ -42,12 +42,14 @@ std::vector<std::string> ParseIrChannelNames(
 // Options describing how to run a code sample. See member comments for details.
 class SampleOptions {
  public:
+  SampleOptions() : proto_(DefaultOptionsProto()) {}
+
   // Convert to/from text serialized SampleOptionsProto.
   static absl::StatusOr<SampleOptions> FromPbtxt(std::string_view text);
   std::string ToPbtxt() const;
 
   static absl::StatusOr<SampleOptions> FromProto(
-      const fuzzer::SampleOptionsProto& proto);
+      fuzzer::SampleOptionsProto proto);
 
   bool input_is_dslx() const { return proto_.input_is_dslx(); }
   void set_input_is_dslx(bool value) { proto_.set_input_is_dslx(value); }
@@ -142,6 +144,9 @@ class SampleOptions {
  private:
   fuzzer::SampleOptionsProto proto_ = DefaultOptionsProto();
 };
+bool AbslParseFlag(std::string_view text, SampleOptions* sample_options,
+                   std::string* error);
+std::string AbslUnparseFlag(const SampleOptions& sample_options);
 
 // Abstraction describing a fuzzer code sample and how to run it.
 class Sample {

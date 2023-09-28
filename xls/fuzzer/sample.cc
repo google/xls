@@ -18,9 +18,12 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "google/protobuf/text_format.h"
@@ -29,6 +32,7 @@
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/interp_value_helpers.h"
+#include "xls/fuzzer/sample.pb.h"
 #include "xls/fuzzer/scrub_crasher.h"
 #include "xls/ir/ir_parser.h"
 
@@ -100,9 +104,9 @@ std::string SampleOptions::ToPbtxt() const {
 }
 
 /*static*/ absl::StatusOr<SampleOptions> SampleOptions::FromProto(
-    const fuzzer::SampleOptionsProto& proto) {
+    fuzzer::SampleOptionsProto proto) {
   SampleOptions options;
-  options.proto_ = proto;
+  options.proto_ = std::move(proto);
   return options;
 }
 
@@ -133,6 +137,34 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
   proto.set_use_system_verilog(true);
   proto.set_calls_per_sample(1);
   return proto;
+}
+
+bool AbslParseFlag(std::string_view text, SampleOptions* sample_options,
+                   std::string* error) {
+  std::string unescaped_text;
+  if (!absl::Base64Unescape(text, &unescaped_text)) {
+    *error = "Could not parse as a SampleOptions; not a Base64 encoded string?";
+    return false;
+  }
+  fuzzer::SampleOptionsProto proto;
+  if (!proto.ParseFromString(unescaped_text)) {
+    *error =
+        "Could not parse as a SampleOptions; not a serialized "
+        "SampleOptionsProto?";
+    return false;
+  }
+  absl::StatusOr<SampleOptions> result =
+      SampleOptions::FromProto(std::move(proto));
+  if (!result.ok()) {
+    *error = result.status().ToString();
+    return false;
+  }
+  *sample_options = *std::move(result);
+  return true;
+}
+
+std::string AbslUnparseFlag(const SampleOptions& sample_options) {
+  return absl::Base64Escape(sample_options.proto().SerializeAsString());
 }
 
 bool Sample::ArgsBatchEqual(const Sample& other) const {

@@ -79,6 +79,8 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
            py::arg("emit_gate") = std::nullopt,
            py::arg("generate_proc") = std::nullopt,
            py::arg("emit_stateless_proc") = std::nullopt)
+      .def("__repr__",
+           [](const AstGeneratorOptions& o) { return AbslUnparseFlag(o); })
       // Pickling is required by the multiprocess fuzzer which pickles options
       // to send to the separate worker process.
       .def(py::pickle(

@@ -36,175 +36,223 @@ py_library(
     srcs_version = "PY3ONLY",
 )
 
-py_library(
+cc_library(
     name = "run_fuzz",
-    srcs = ["run_fuzz.py"],
+    srcs = ["run_fuzz.cc"],
+    hdrs = ["run_fuzz.h"],
     data = [
-        ":find_failing_input_main",
         ":sample_runner_main",
         ":summarize_ir_main",
-        "//xls/tools:ir_minimizer_main",
     ],
-    srcs_version = "PY3ONLY",
-    tags = ["optonly"],
     deps = [
+        ":ast_generator",
+        ":cpp_run_fuzz",
+        ":sample",
+        ":sample_generator",
         ":sample_runner",
-        ":sample_summary_py_pb2",
-        "//xls/common:gfile",
-        "//xls/common:runfiles",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_run_fuzz",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/logging",
+        ":sample_summary_cc_proto",
+        ":value_generator",
+        "//xls/common:stopwatch",
+        "//xls/common:subprocess",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@boringssl//:crypto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
-py_test(
+cc_test(
     name = "run_fuzz_minimizer_test",
     timeout = "long",
-    srcs = ["run_fuzz_minimizer_test.py"],
+    srcs = ["run_fuzz_minimizer_test.cc"],
     data = [
         "//xls/tools:parse_ir",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     tags = ["optonly"],
     deps = [
+        ":cpp_run_fuzz",
+        ":cpp_sample_runner",
         ":run_fuzz",
-        ":sample_runner",
-        "//xls/common:runfiles",
-        "//xls/common:test_base",
-        "//xls/fuzzer/python:cpp_run_fuzz",
-        "//xls/fuzzer/python:cpp_sample",
+        ":sample",
+        "//xls/common:subprocess",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/dslx:interp_value_helpers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
-py_test(
+cc_test(
     name = "run_fuzz_function_test",
-    srcs = ["run_fuzz_test.py"],
-    main = "run_fuzz_test.py",
-    python_version = "PY3",
+    srcs = ["run_fuzz_test.cc"],
     shard_count = 50,
-    srcs_version = "PY3",
     tags = ["optonly"],
     deps = [
+        ":ast_generator",
         ":run_fuzz",
-        "//xls/common:test_base",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:parameterized",
+        ":sample",
+        ":value_generator",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
-py_test(
+cc_test(
     name = "run_fuzz_function_wide_test",
-    srcs = ["run_fuzz_test.py"],
+    srcs = ["run_fuzz_test.cc"],
     args = ["--wide=true"],
-    main = "run_fuzz_test.py",
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3",
     tags = ["optonly"],
     deps = [
+        ":ast_generator",
         ":run_fuzz",
-        "//xls/common:test_base",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:parameterized",
+        ":sample",
+        ":value_generator",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
-py_test(
+cc_test(
     name = "run_fuzz_proc_test",
-    srcs = ["run_fuzz_test.py"],
+    srcs = ["run_fuzz_test.cc"],
     args = ["--generate_proc=true"],
-    main = "run_fuzz_test.py",
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3",
     tags = ["optonly"],
     deps = [
+        ":ast_generator",
         ":run_fuzz",
-        "//xls/common:test_base",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:parameterized",
+        ":sample",
+        ":value_generator",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
-py_test(
+cc_test(
     name = "run_fuzz_function_codegen_test",
-    srcs = ["run_fuzz_codegen_test.py"],
-    main = "run_fuzz_codegen_test.py",
-    python_version = "PY3",
+    srcs = ["run_fuzz_codegen_test.cc"],
     shard_count = 50,
-    srcs_version = "PY3",
-    tags = ["optonly"],  # Times out in fastbuild TAP 2020-10-20.
+    tags = ["optonly"],
     deps = [
+        ":ast_generator",
         ":run_fuzz",
-        "//xls/common:test_base",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:parameterized",
+        ":sample",
+        ":value_generator",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
-py_test(
+cc_test(
     name = "run_fuzz_proc_codegen_test",
-    srcs = ["run_fuzz_codegen_test.py"],
+    srcs = ["run_fuzz_codegen_test.cc"],
     args = ["--generate_proc=true"],
-    main = "run_fuzz_codegen_test.py",
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3",
-    # Based on run_fuzz_function_codegen_test, times out in fastbuild TAP 2020-10-20.
     tags = ["optonly"],
     deps = [
+        ":ast_generator",
         ":run_fuzz",
-        "//xls/common:test_base",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:parameterized",
+        ":sample",
+        ":value_generator",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
-py_test(
+cc_test(
     name = "run_fuzz_function_wide_codegen_test",
-    srcs = ["run_fuzz_codegen_test.py"],
+    srcs = ["run_fuzz_codegen_test.cc"],
     args = ["--wide=true"],
-    main = "run_fuzz_codegen_test.py",
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3",
-    # Based on run_fuzz_function_codegen_test, times out in fastbuild TAP 2020-10-20.
     tags = ["optonly"],
     deps = [
+        ":ast_generator",
         ":run_fuzz",
-        "//xls/common:test_base",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:parameterized",
+        ":sample",
+        ":value_generator",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
-py_binary(
+cc_binary(
     name = "run_crasher",
-    srcs = ["run_crasher.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
+    srcs = ["run_crasher.cc"],
     deps = [
         ":run_fuzz",
-        ":sample_runner",
-        "//xls/common:gfile",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        ":sample",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -214,7 +262,7 @@ filegroup(
 )
 
 cc_library(
-    name = "native_sample_runner",
+    name = "sample_runner",
     srcs = ["sample_runner.cc"],
     hdrs = ["sample_runner.h"],
     data = [
@@ -226,12 +274,12 @@ cc_library(
         "//xls/tools:simulate_module_main",
     ],
     deps = [
-        ":cpp_sample",
         ":cpp_sample_runner",
+        ":sample",
         ":sample_cc_proto",
         ":sample_summary_cc_proto",
-        "//xls/common:cpp_check_simulator",
-        "//xls/common:cpp_revision",
+        "//xls/common:check_simulator",
+        "//xls/common:revision",
         "//xls/common:stopwatch",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
@@ -272,14 +320,14 @@ cc_library(
 )
 
 cc_test(
-    name = "native_sample_runner_test",
+    name = "sample_runner_test",
     srcs = ["sample_runner_test.cc"],
     deps = [
-        ":cpp_sample",
         ":cpp_sample_runner",
-        ":native_sample_runner",
+        ":sample",
         ":sample_cc_proto",
-        "//xls/common:cpp_check_simulator",
+        ":sample_runner",
+        "//xls/common:check_simulator",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
@@ -297,54 +345,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-    ],
-)
-
-py_library(
-    name = "sample_runner",
-    srcs = ["sample_runner.py"],
-    data = [
-        "//xls/dslx/ir_convert:ir_converter_main",
-        "//xls/tools:codegen_main",
-        "//xls/tools:eval_ir_main",
-        "//xls/tools:eval_proc_main",
-        "//xls/tools:opt_main",
-        "//xls/tools:simulate_module_main",
-    ],
-    srcs_version = "PY3ONLY",
-    deps = [
-        ":sample_summary_py_pb2",
-        "//xls/common:check_simulator",
-        "//xls/common:revision",
-        "//xls/common:runfiles",
-        "//xls/common:xls_error",
-        "//xls/dslx/python:create_import_data",
-        "//xls/dslx/python:interp_value",
-        "//xls/dslx/python:interpreter",
-        "//xls/dslx/python:parse_and_typecheck",
-        "//xls/fuzzer/python:cpp_sample",
-        "//xls/fuzzer/python:cpp_sample_runner",
-        "//xls/ir/python:value",
-        "//xls/public/python:runtime_build_actions",
-        "//xls/tools/python:eval_helpers",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_test(
-    name = "sample_runner_test",
-    srcs = ["sample_runner_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":sample_runner",
-        "//xls/common:check_simulator",
-        "//xls/common:test_base",
-        "//xls/dslx/python:interp_value",
-        "//xls/fuzzer/python:cpp_sample",
-        "//xls/ir/python:bits",
-        "//xls/ir/python:value",
-        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -399,23 +399,45 @@ generate_crasher_regression_tests(
     },
 )
 
+cc_binary(
+    name = "run_fuzz_multiprocess_worker",
+    srcs = ["run_fuzz_multiprocess_worker.cc"],
+    deps = [
+        ":ast_generator",
+        ":run_fuzz",
+        ":sample",
+        ":value_generator",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common:stopwatch",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/file:temp_file",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+    ],
+)
+
 py_library(
     name = "run_fuzz_multiprocess_lib",
     srcs = ["run_fuzz_multiprocess.py"],
+    data = [":run_fuzz_multiprocess_worker"],
     srcs_version = "PY3ONLY",
     deps = [
-        ":run_fuzz",
-        ":sample_runner",
-        requirement("termcolor"),
-        "//xls/common:gfile",
-        "//xls/common:multiprocess",
+        "//xls/common:runfiles",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
     ],
 )
 
 cc_library(
-    name = "cpp_sample",
+    name = "sample",
     srcs = ["sample.cc"],
     hdrs = ["sample.h"],
     deps = [
@@ -453,24 +475,11 @@ py_binary(
     ],
 )
 
-py_binary(
-    name = "py_sample_runner_main",
-    srcs = ["sample_runner_main.py"],
-    main = "sample_runner_main.py",
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":sample_runner",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-    ],
-)
-
 cc_binary(
     name = "sample_runner_main",
     srcs = ["sample_runner_main.cc"],
     deps = [
-        ":native_sample_runner",
+        ":sample_runner",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:temp_directory",
@@ -478,18 +487,6 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-    ],
-)
-
-py_test(
-    name = "sample_test",
-    srcs = ["sample_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:interp_value",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -616,11 +613,28 @@ py_test(
     ],
 )
 
+cc_proto_library(
+    name = "ast_generator_options_cc_proto",
+    deps = [":ast_generator_options_proto"],
+)
+
+xls_py_proto_library(
+    name = "ast_generator_options_py_pb2",
+    srcs = ["ast_generator_options.proto"],
+    internal_deps = [":ast_generator_options_proto"],
+)
+
+proto_library(
+    name = "ast_generator_options_proto",
+    srcs = ["ast_generator_options.proto"],
+)
+
 cc_library(
     name = "ast_generator",
     srcs = ["ast_generator.cc"],
     hdrs = ["ast_generator.h"],
     deps = [
+        ":ast_generator_options_cc_proto",
         ":value_generator",
         "//xls/common:casts",
         "//xls/common:symbolized_stacktrace",
@@ -671,12 +685,12 @@ cc_test(
 )
 
 cc_library(
-    name = "cpp_sample_generator",
+    name = "sample_generator",
     srcs = ["sample_generator.cc"],
     hdrs = ["sample_generator.h"],
     deps = [
         ":ast_generator",
-        ":cpp_sample",
+        ":sample",
         ":sample_cc_proto",
         ":value_generator",
         "//xls/common/logging",
@@ -742,7 +756,7 @@ cc_test(
     name = "sample_generator_test",
     srcs = ["sample_generator_test.cc"],
     deps = [
-        ":cpp_sample_generator",
+        ":sample_generator",
         ":value_generator",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -753,40 +767,51 @@ cc_test(
 
 # By default (no flags) the integration test generates only 10 function samples which
 # serves as a smoke test for the health of the test itself.
-py_test(
+cc_test(
     name = "fuzz_integration_test",
-    srcs = ["fuzz_integration_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
+    srcs = ["fuzz_integration_test.cc"],
     deps = [
-        ":cli_helpers",
+        ":ast_generator",
         ":run_fuzz",
-        ":sample_runner",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
-        "@com_google_absl_py//absl/testing:absltest",
+        ":sample",
+        ":value_generator",
+        "//xls/common:stopwatch",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
     ],
 )
 
 # Integration test generates 10 proc samples.
-py_test(
+cc_test(
     name = "fuzz_integration_proc_test",
-    srcs = ["fuzz_integration_test.py"],
+    srcs = ["fuzz_integration_test.cc"],
     args = ["--generate_proc=true"],
-    main = "fuzz_integration_test.py",
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
-        ":cli_helpers",
+        ":ast_generator",
         ":run_fuzz",
-        ":sample_runner",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
-        "@com_google_absl_py//absl/testing:absltest",
+        ":sample",
+        ":value_generator",
+        "//xls/common:stopwatch",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -826,7 +851,7 @@ cc_test(
     name = "sample_cc_test",
     srcs = ["sample_cc_test.cc"],
     deps = [
-        ":cpp_sample",
+        ":sample",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -838,8 +863,13 @@ cc_library(
     name = "cpp_run_fuzz",
     srcs = ["cpp_run_fuzz.cc"],
     hdrs = ["cpp_run_fuzz.h"],
+    data = [
+        ":find_failing_input_main",
+        ":sample_runner_main",
+        "//xls/tools:ir_minimizer_main",
+    ],
     deps = [
-        ":cpp_sample",
+        ":sample",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",

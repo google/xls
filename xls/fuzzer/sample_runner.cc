@@ -991,7 +991,7 @@ absl::Status SampleRunner::RunProc(
   absl::flat_hash_map<std::string,
                       absl::flat_hash_map<std::string, std::vector<Value>>>
       results;
-  absl::flat_hash_map<std::string, std::vector<Value>> reference;
+  std::optional<absl::flat_hash_map<std::string, std::vector<Value>>> reference;
 
   std::filesystem::path ir_path;
   if (options.input_is_dslx()) {
@@ -1028,7 +1028,7 @@ absl::Status SampleRunner::RunProc(
         results["evaluated unopt IR (interpreter)"],
         EvaluateIrProc(ir_path, tick_count, ir_channel_values_path, false,
                        options, run_dir_, commands_));
-    if (reference.empty()) {
+    if (!reference.has_value()) {
       reference = results["evaluated unopt IR (interpreter)"];
     }
     timing_.set_unoptimized_interpret_ir_ns(
@@ -1080,9 +1080,9 @@ absl::Status SampleRunner::RunProc(
 
         if (options.simulate()) {
           t.Reset();
-          XLS_RET_CHECK(!reference.empty());
+          XLS_RET_CHECK(reference.has_value());
           absl::flat_hash_map<std::string, int64_t> output_channel_counts =
-              GetOutputChannelCounts(reference);
+              GetOutputChannelCounts(*reference);
           std::string output_channel_counts_str =
               GetOutputChannelToString(output_channel_counts);
           XLS_ASSIGN_OR_RETURN(

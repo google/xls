@@ -67,10 +67,11 @@ message SampleOptionsProto {
   // value for the entire sample run.
   optional int64 timeout_seconds = 12;
 
-  // Number of times to invoke the generated function. Only set for functions.
+  // Number of times to invoke the generated function. Only meaningful for
+  // functions.
   optional int64 calls_per_sample = 13;
 
-  // Number ticks to execute the generated proc. Only set for procs.
+  // Number ticks to execute the generated proc. Only meaningful for procs.
   optional int64 proc_ticks = 14;
 }
 

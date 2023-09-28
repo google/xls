@@ -42,8 +42,8 @@ namespace xls {
 //   minimization was not possible.
 absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
     const Sample& smp, std::filesystem::path run_dir,
-    std::optional<std::string> inject_jit_result,
-    std::optional<absl::Duration> timeout);
+    std::optional<std::string> inject_jit_result = std::nullopt,
+    std::optional<absl::Duration> timeout = std::nullopt);
 
 }  // namespace xls
 

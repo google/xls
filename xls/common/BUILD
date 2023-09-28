@@ -473,7 +473,7 @@ py_library(
 )
 
 cc_library(
-    name = "cpp_check_simulator",
+    name = "check_simulator",
     srcs = ["check_simulator.cc"],
     hdrs = ["check_simulator.h"],
     deps = [
@@ -482,20 +482,10 @@ cc_library(
     ],
 )
 
-py_library(
-    name = "check_simulator",
-    srcs = ["check_simulator.py"],
-)
-
 cc_library(
-    name = "cpp_revision",
+    name = "revision",
     srcs = ["revision.cc"],
     hdrs = ["revision.h"],
-)
-
-py_library(
-    name = "revision",
-    srcs = ["revision.py"],
 )
 
 cc_library(

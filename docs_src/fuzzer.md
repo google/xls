@@ -34,7 +34,7 @@ which may be disabled/enabled via flags (run with `--help` for more details):
     causes an issue to occur.
 
 The above actions are coordinated and run by the
-[SampleRunner](https://github.com/google/xls/tree/main/xls/fuzzer/sample_runner.py) class.
+[SampleRunner](https://github.com/google/xls/tree/main/xls/fuzzer/sample_runner.h) class.
 Many actions are performed by invoking a separate binary which isolates any
 crashes.
 
