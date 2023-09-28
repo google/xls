@@ -10,6 +10,10 @@ portpicker==1.3.1
 pyyaml==6.0.1
 cocotb @ https://github.com/cocotb/cocotb/archive/a853db95b0019db6796a6803aa94304bde743e4e.zip
 cocotb_bus==0.2.1
+jsonschema==4.18.4
+mdutils==1.6.0
+mkdocs==1.5.2
+mkdocs-material==9.2.8
 
 # Note: numpy and scipy version availability seems to differ between Ubuntu
 # versions that we want to support (e.g. 18.04 vs 20.04), so we accept a
