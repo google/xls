@@ -32,6 +32,8 @@ load(
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("//xls/build_rules:dashboard.bzl", "dashboard")
+
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -682,6 +684,26 @@ py_test(
     ],
     deps = [
         "//xls/common:runfiles",
+        "//xls/common:test_base",
         "//xls/simulation/cocotb:cocotb_xls",
     ],
+)
+
+dashboard(
+    name = "passthrough_dashboard",
+    title = "Passthrough Dashboard",
+    tests = [
+        {
+            "name": "passthrough_cocotb_test",
+            "file_parsers": {
+                "//xls/tools/dashboard:cocotb_results_xml_parser": "sim_build/results.xml"
+            },
+        },
+        {
+            "name": "passthrough_test",
+            "output_parsers": [
+                "//xls/tools/dashboard:dslx_test_parser",
+            ],
+        },
+    ]
 )
