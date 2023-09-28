@@ -59,3 +59,32 @@ py_binary(
         ":run_and_parse",
     ],
 )
+
+py_library(
+    name = "utils",
+    srcs = ["utils.py"],
+    deps = [
+        ":validate_dashboard_json",
+    ],
+)
+
+py_binary(
+    name = "cocotb_results_xml_parser",
+    srcs = ["cocotb_results_xml_parser.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+)
+
+py_binary(
+    name = "dslx_test_parser",
+    srcs = ["dslx_test_parser.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+)
+
+py_binary(
+    name = "generic_parser",
+    srcs = ["generic_parser.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+)
