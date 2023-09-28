@@ -1728,6 +1728,19 @@ std::string Binop::ToStringInternal() const {
                  << " op_precedence: " << op_precedence;
     if (WeakerThan(lhs_precedence, op_precedence)) {
       Parenthesize(&lhs);
+    } else if (binop_kind_ == BinopKind::kLt &&
+               lhs_->kind() == AstNodeKind::kCast && !lhs_->in_parens()) {
+      // If there is an open angle bracket, and the LHS is suffixed with a type,
+      // we parenthesize it to avoid ambiguity; e.g.
+      //
+      //    foo as bar < baz
+      //           ^~~~~~~~^
+      //
+      // We don't know whether `bar<baz` is the start of a parametric type
+      // instantiation, so we force conservative parenthesization:
+      //
+      //    (foo as bar) < baz
+      Parenthesize(&lhs);
     }
   }
 

@@ -1336,7 +1336,7 @@ class Unop : public Expr {
   X(kLogicalOr, "LOGICAL_OR", "||")       \
   X(kConcat, "CONCAT", "++")
 
-enum class BinopKind {
+enum class BinopKind : uint8_t {
 #define FIRST_COMMA(A, ...) A,
   XLS_DSLX_BINOP_KIND_EACH(FIRST_COMMA)
 #undef FIRST_COMMA

@@ -1223,6 +1223,15 @@ fn f(x: u32) -> u128 {
 })");
 }
 
+// Note: parens around the left hand side are required or we attempt to parse
+// the `u128<` as the start of a parameterized type for purposes of the cast.
+TEST_F(ParserTest, CastToTypeAliasLtIdentifier) {
+  RoundTrip(R"(type u128 = bits[128];
+fn f(x: u32, y: u128) -> u128 {
+    (x as u128) < y
+})");
+}
+
 TEST_F(ParserTest, Enum) {
   RoundTrip(R"(enum MyEnum : u2 {
     A = 0,
