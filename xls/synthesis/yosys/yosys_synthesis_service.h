@@ -62,7 +62,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
       absl::Span<const std::string> args) const;
 
   // Build yosys synthesis script contents for stdcell backend
-  std::string BuildYosysCmds(const CompileRequest* request,
+  std::string BuildYosysTcl(const CompileRequest* request,
                              const std::filesystem::path& verilog_path,
                              const std::filesystem::path& json_path,
                              const std::filesystem::path& netlist_path) const;

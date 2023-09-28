@@ -92,12 +92,12 @@ YosysSynthesisServiceImpl::RunSubprocess(
 }
 
 // Build yosys synthesis script contents for stdcell backend
-std::string YosysSynthesisServiceImpl::BuildYosysCmds(
+std::string YosysSynthesisServiceImpl::BuildYosysTcl(
     const CompileRequest* request, const std::filesystem::path& verilog_path,
     const std::filesystem::path& json_path,
     const std::filesystem::path& netlist_path) const {
-  std::vector<std::string> yosys_cmd_vec;
-  std::string yosys_cmd;
+  std::vector<std::string> yosys_tcl_vec;
+  std::string yosys_tcl;
 
   // Input in hz, adjust for scale ps
   double clock_period_ps =
@@ -105,47 +105,48 @@ std::string YosysSynthesisServiceImpl::BuildYosysCmds(
   std::string delay_target = absl::StrCat(clock_period_ps);
 
   // Define yosys commands
+  const std::string yosys_import = "yosys -import";
   const std::string read_verilog_rtl =
-      absl::StrFormat("read_verilog %s ;", verilog_path.string());
+      absl::StrFormat("read_verilog %s", verilog_path.string());
 
   const std::string perform_generic_synthesis =
-      absl::StrFormat("synth -top %s ;", request->top_module_name());
-
+      absl::StrFormat("synth -top %s", request->top_module_name());
   const std::string perform_ff_mapping =
       absl::StrFormat("dfflibmap -liberty %s; opt ;", synthesis_libraries_);
   const std::string perform_abc_mapping = absl::StrFormat(
-      "abc -D %s -liberty %s -script "
-      "+strash;fraig;scorr;retime,%s;strash;dch,-f;map,-M,1,%s;"
+      "abc -D %s -liberty %s -showtmp -script "
+      "\"+strash;fraig;scorr;retime,%s;strash;dch,-f;map,-M,1,%s;"
       "topo;stime;buffer;topo;stime;minsize;"
-      "stime;upsize;stime;dnsize;stime -showtmp ;",
+      "stime;upsize;stime;dnsize;stime\"",
       delay_target, synthesis_libraries_, delay_target, delay_target);
   const std::string perform_cleanup =
-      absl::StrFormat("setundef -zero ; splitnets ;");
+      "setundef -zero\n" "splitnets";
   const std::string perform_optimizations =
-      absl::StrFormat("opt ;clean ; rename -enumerate ;");
-  const std::string write_json_netlist =
-      absl::StrFormat("write_json %s ;", json_path.string());
+      "opt\n" "clean\n" "yosys rename -enumerate";
 
+  const std::string write_json_netlist =
+      absl::StrFormat("write_json %s", json_path.string());
   const std::string write_verilog_netlist =
-      absl::StrFormat("write_verilog -noattr -noexpr -nohex -nodec %s ;",
+      absl::StrFormat("write_verilog -noattr -noexpr -nohex -nodec %s",
                       netlist_path.string());
 
   // Build yosys commandfile
-  yosys_cmd_vec.push_back(read_verilog_rtl);
+  yosys_tcl_vec.push_back(yosys_import);
+  yosys_tcl_vec.push_back(read_verilog_rtl);
 
-  yosys_cmd_vec.push_back(perform_generic_synthesis);
-  yosys_cmd_vec.push_back(perform_ff_mapping);
-  yosys_cmd_vec.push_back(perform_abc_mapping);
-  yosys_cmd_vec.push_back(perform_cleanup);
-  yosys_cmd_vec.push_back(perform_optimizations);
+  yosys_tcl_vec.push_back(perform_generic_synthesis);
+  yosys_tcl_vec.push_back(perform_ff_mapping);
+  yosys_tcl_vec.push_back(perform_abc_mapping);
+  yosys_tcl_vec.push_back(perform_cleanup);
+  yosys_tcl_vec.push_back(perform_optimizations);
 
-  yosys_cmd_vec.push_back(write_json_netlist);
-  yosys_cmd_vec.push_back(write_verilog_netlist);
+  yosys_tcl_vec.push_back(write_json_netlist);
+  yosys_tcl_vec.push_back(write_verilog_netlist);
 
-  yosys_cmd = absl::StrJoin(yosys_cmd_vec, "\n");
+  yosys_tcl = absl::StrJoin(yosys_tcl_vec, "\n");
 
-  XLS_VLOG(1) << "about to start, yosys cmd: " << yosys_cmd;
-  return yosys_cmd;
+  XLS_VLOG(1) << "about to start, yosys tcl: " << yosys_tcl;
+  return yosys_tcl;
 }
 
 // Invokes yosys and nextpnr to synthesis the verilog given in the
@@ -173,7 +174,6 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
   // Invoke yosys to generate netlist.
   std::filesystem::path synth_json_path = temp_dir_path / "netlist.json";
   std::filesystem::path synth_verilog_path = temp_dir_path / "output.v";
-  std::filesystem::path yosys_cmd_path = temp_dir_path / "yosys.cmd";
   std::pair<std::string, std::string> string_pair;
 
   if (!synthesis_target_.empty()) {
@@ -187,12 +187,13 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
         RunSubprocess({yosys_path_, "-p", yosys_cmd, verilog_path.string()}));
   } else {
     // Yosys for stdcell backend
-    std::string yosys_cmd = BuildYosysCmds(request, verilog_path,
+    std::filesystem::path yosys_tcl_path = temp_dir_path / "yosys.tcl";
+    std::string yosys_tcl = BuildYosysTcl(request, verilog_path,
                                            synth_json_path, synth_verilog_path);
-    XLS_RETURN_IF_ERROR(SetFileContents(yosys_cmd_path, yosys_cmd));
-    XLS_LOG(INFO) << "Running Yosys:  command file: " << yosys_cmd_path;
+    XLS_RETURN_IF_ERROR(SetFileContents(yosys_tcl_path, yosys_tcl));
+    XLS_LOG(INFO) << "Running Yosys:  command file: " << yosys_tcl_path;
     XLS_ASSIGN_OR_RETURN(string_pair,
-                         RunSubprocess({yosys_path_, "-s", yosys_cmd_path}));
+                         RunSubprocess({yosys_path_, "-c", yosys_tcl_path}));
   }
 
   auto [yosys_stdout, yosys_stderr] = string_pair;
