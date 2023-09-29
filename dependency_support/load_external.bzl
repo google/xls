@@ -45,19 +45,20 @@ def load_external_repositories():
         strip_prefix = "rules_cc-0.0.5",
     )
 
+    # V 1.14.0 (released 2023-08-02)
     http_archive(
         name = "com_google_googletest",
-        urls = ["https://github.com/google/googletest/archive/0e6aac2571eb1753b8855d8d1f592df64d1a4828.zip"],  # 2022-11-14
-        strip_prefix = "googletest-0e6aac2571eb1753b8855d8d1f592df64d1a4828",
-        sha256 = "77bfecb8d930cbd97e24e7570a3dee9b09bad483aab47c96b7b7efb7d54332ff",
+        urls = ["https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip"],
+        strip_prefix = "googletest-1.14.0",
+        sha256 = "1f357c27ca988c3f7c6b4bf68a9395005ac6761f034046e9dde0896e3aba00e4",
     )
 
-    # LTS 20230125.3 (released 04 May 2023)
+    # LTS 20230802.1 (released 2023-09-18)
     http_archive(
         name = "com_google_absl",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20230125.3.zip"],
-        strip_prefix = "abseil-cpp-20230125.3",
-        sha256 = "51d676b6846440210da48899e4df618a357e6e44ecde7106f1e44ea16ae8adc7",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip"],
+        strip_prefix = "abseil-cpp-20230802.1",
+        sha256 = "497ebdc3a4885d9209b9bd416e8c3f71e7a1fb8af249f6c2a80b7cbeefcd7e21",
     )
 
     # Protobuf depends on Skylib

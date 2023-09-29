@@ -15,16 +15,16 @@
 #include "xls/passes/context_sensitive_range_query_engine.h"
 
 #include <cstdint>
-#include <functional>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <tuple>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -72,6 +72,10 @@ void AbslStringify(Sink& sink, const Signedness& src) {
       sink.Append("kUnsigned");
       break;
   }
+}
+// Workaround some gtest bug where it won't see AbslStringify
+std::ostream& operator<<(std::ostream& os, const Signedness& s) {
+  return os << absl::StrFormat("%v", s);
 }
 class BaseSignedContextSensitiveRangeQueryEngineTest {
  public:
@@ -185,7 +189,18 @@ struct SignedRangeComparison {
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const SignedRangeComparison::Tuple& src) {
-  absl::Format(sink, "%v", SignedRangeComparison(src));
+  absl::Format(&sink, "%v", SignedRangeComparison(src));
+}
+
+// Workaround some gtest bug where it won't see AbslStringify
+std::ostream& operator<<(std::ostream& os,
+                         const SignedRangeComparison& s) {
+  return os << absl::StrFormat("%v", s);
+}
+// Workaround some gtest bug where it won't see AbslStringify
+std::ostream& operator<<(std::ostream& os,
+                         const SignedRangeComparison::Tuple& s) {
+  return os << absl::StrFormat("%v", s);
 }
 
 class SignedRangeComparisonContextSensitiveRangeQueryEngineTest

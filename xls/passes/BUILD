@@ -1964,6 +1964,7 @@ cc_test(
         ":predicate_state",
         ":range_query_engine",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
