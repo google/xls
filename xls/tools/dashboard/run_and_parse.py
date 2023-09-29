@@ -19,7 +19,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Sequence, Union
+from typing import Dict, List, Sequence, Union, Optional
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 from xls.tools.dashboard.validate_dashboard_json import validate_dashboard_json
@@ -59,7 +59,7 @@ def run_test_and_capture_output(
     )
 
 
-def parse_file(parser: SystemPath, file_to_parse: SystemPath, cwd: SystemPath) -> str:
+def parse_file(parser: SystemPath, file_to_parse: SystemPath, cwd: Optional[SystemPath]) -> str:
   cmd = f"cat {file_to_parse} | {parser}"
   try:
     return subprocess.check_output(cmd, shell=True, cwd=cwd).decode("utf-8")
@@ -109,5 +109,15 @@ def run_and_parse(
         json_obj_fragment = json.loads(json_fragment)
         validate_dashboard_json(json_obj_fragment)
         jsons += json_obj_fragment
+
+  return jsons
+
+def parse_files(data: Sequence[FileParserData]) -> DashboardJSONs:
+  jsons = []
+  for item in data:
+    json_fragment = parse_file(item.parser, Path(item.file), cwd=None)
+    json_obj_fragment = json.loads(json_fragment)
+    validate_dashboard_json(json_obj_fragment)
+    jsons += json_obj_fragment
 
   return jsons

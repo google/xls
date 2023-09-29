@@ -311,6 +311,15 @@ py_test(
 dashboard(
     name = "rle_dashboard",
     title = "RLE Dashboard",
+    files = [
+        {
+            "name": "//xls/modules/rle:rle_enc_place_and_route_sky130",
+            "file_parsers": {
+                "//xls/tools/dashboard:chip_area_results_textproto_parser": "xls/modules/rle/rle_enc_place_and_route_sky130_general_routing_area_results.textproto",
+                "//xls/tools/dashboard:chip_power_results_textproto_parser": "xls/modules/rle/rle_enc_place_and_route_sky130_general_routing_power_results.textproto",
+            },
+        },
+    ],
     tests = [
         {
             "name": "rle_enc_cocotb_test",
