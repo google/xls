@@ -27,7 +27,6 @@ from absl import logging
 
 from google.protobuf import text_format
 from xls.common import gfile
-from xls.common.file.python import filesystem
 from xls.delay_model import delay_model_pb2
 from xls.delay_model import op_module_generator
 from xls.ir.op_specification import OPS
@@ -274,7 +273,8 @@ def init_data(
   data_points = {}
   results = delay_model_pb2.DataPoints()
   if checkpoint_path:
-    filesystem.parse_text_proto_file(checkpoint_path, results)
+    with gfile.open(checkpoint_path, 'r') as f:
+      results = text_format.Parse(f.read(), results)
     for data_point in results.data_points:
       op = data_point.operation
       if op.op not in data_points:
@@ -294,7 +294,8 @@ def run_characterization(
   data_points, data_points_proto = init_data(_CHECKPOINT_PATH.value)
   samples_file = _SAMPLES_PATH.value
   op_samples_list = delay_model_pb2.OpSamplesList()
-  filesystem.parse_text_proto_file(samples_file, op_samples_list)
+  with gfile.open(samples_file, 'r') as f:
+    op_samples_list = text_format.Parse(f.read(), op_samples_list)
   for op_samples in op_samples_list.op_samples:
     for point in op_samples.samples:
       _run_point(op_samples,

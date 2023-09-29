@@ -33,7 +33,6 @@ from absl import flags
 
 from google.protobuf import text_format
 from xls.common import gfile
-from xls.common.file.python import filesystem
 from xls.delay_model import delay_model_pb2
 
 
@@ -89,10 +88,12 @@ def main(argv):
     raise app.UsageError('Too many command-line arguments.')
 
   oms = delay_model_pb2.OpModels()
-  filesystem.parse_text_proto_file(_OP_MODELS.value, oms)
+  with gfile.open(_OP_MODELS.value, 'r') as f:
+    oms = text_format.Parse(f.read(), oms)
 
   dps = delay_model_pb2.DataPoints()
-  filesystem.parse_text_proto_file(_DATA_POINTS.value, dps)
+  with gfile.open(_DATA_POINTS.value, 'r') as f:
+    dps = text_format.Parse(f.read(), dps)
 
   dm = delay_model_pb2.DelayModel()
 

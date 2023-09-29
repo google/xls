@@ -191,7 +191,6 @@ py_library(
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
         "//xls/common:gfile",
-        "//xls/common/file/python:filesystem",
         "//xls/delay_model:delay_model_py_pb2",
         "//xls/delay_model:op_module_generator",
         "//xls/ir:op_specification_typechecked",

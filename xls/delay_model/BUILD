@@ -265,9 +265,8 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        ":delay_model_py_pb2",
         "//xls/common:gfile",
-        "//xls/common/file/python:filesystem",
-        "//xls/delay_model:delay_model_py_pb2",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
@@ -295,9 +294,8 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        ":delay_model_py_pb2",
         "//xls/common:gfile",
-        "//xls/common/file/python:filesystem",
-        "//xls/delay_model:delay_model_py_pb2",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
