@@ -26,10 +26,10 @@ import psutil
 
 from xls.common import gfile
 from xls.common import multiprocess
+from xls.fuzzer import ast_generator_options_pb2 as ast_pb2
 from xls.fuzzer import cli_helpers
 from xls.fuzzer import run_fuzz_multiprocess
-from xls.fuzzer.python import cpp_ast_generator as ast_generator
-from xls.fuzzer.python import cpp_sample as sample
+from xls.fuzzer import sample_pb2
 
 _DURATION = flags.DEFINE_string('duration', None,
                                 'Duration to run the sample generator for.')
@@ -112,29 +112,37 @@ def main(argv):
   worker_count = max(worker_count, 1)  # Need at least one worker.
 
   duration_str = _DURATION.value
-  duration = None if duration_str is None else cli_helpers.parse_duration(
-      duration_str)
+  duration = (
+      None if duration_str is None else cli_helpers.parse_duration(duration_str)
+  )
 
-  generator_options = ast_generator.AstGeneratorOptions(
+  generator_options = ast_pb2.AstGeneratorOptionsProto(
       emit_gate=not _CODEGEN.value,
       emit_loops=_EMIT_LOOPS.value,
       max_width_bits_types=_MAX_WIDTH_BITS_TYPES.value,
       max_width_aggregate_types=_MAX_WIDTH_AGGREGATE_TYPES.value,
-      generate_proc=_GENERATE_PROC.value)
+      generate_proc=_GENERATE_PROC.value,
+  )
 
-  sample_options = sample.SampleOptions(
-      calls_per_sample=0 if _GENERATE_PROC.value else _CALLS_PER_SAMPLE.value,
+  sample_options = sample_pb2.SampleOptionsProto(
+      calls_per_sample=(0 if _GENERATE_PROC.value else _CALLS_PER_SAMPLE.value),
       codegen=_CODEGEN.value,
       convert_to_ir=True,
       input_is_dslx=True,
       ir_converter_args=['--top=main'],
       optimize_ir=True,
       proc_ticks=_PROC_TICKS.value if _GENERATE_PROC.value else 0,
+      sample_type=(
+          sample_pb2.SAMPLE_TYPE_PROC
+          if _GENERATE_PROC.value
+          else sample_pb2.SAMPLE_TYPE_FUNCTION
+      ),
       simulate=_SIMULATE.value,
       simulator=_SIMULATOR.value,
       timeout_seconds=_TIMEOUT_SECONDS.value,
       use_jit=_USE_LLVM_JIT.value,
-      use_system_verilog=_USE_SYSTEM_VERILOG.value)
+      use_system_verilog=_USE_SYSTEM_VERILOG.value,
+  )
 
   run_fuzz_multiprocess.parallel_generate_and_run_samples(
       worker_count,

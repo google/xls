@@ -430,9 +430,9 @@ py_library(
     data = [":run_fuzz_multiprocess_worker"],
     srcs_version = "PY3ONLY",
     deps = [
+        ":ast_generator_options_py_pb2",
+        ":sample_py_pb2",
         "//xls/common:runfiles",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
     ],
 )
 
@@ -463,13 +463,13 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        ":ast_generator_options_py_pb2",
         ":cli_helpers",
         ":run_fuzz_multiprocess_lib",
+        ":sample_py_pb2",
         requirement("psutil"),
         "//xls/common:gfile",
         "//xls/common:multiprocess",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
