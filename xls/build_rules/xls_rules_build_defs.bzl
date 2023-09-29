@@ -24,14 +24,14 @@ load(
     _xls_ir_verilog = "xls_ir_verilog",
 )
 load(
-    "//xls/build_rules:xls_jit_wrapper_rules.bzl",
-    _xls_ir_jit_wrapper = "xls_ir_jit_wrapper",
-    _xls_ir_jit_wrapper_macro = "xls_ir_jit_wrapper_macro",
-)
-load(
     "//xls/build_rules:xls_ir_rules.bzl",
     _xls_dslx_ir = "xls_dslx_ir",
     _xls_ir_opt_ir = "xls_ir_opt_ir",
+)
+load(
+    "//xls/build_rules:xls_jit_wrapper_rules.bzl",
+    _xls_ir_jit_wrapper = "xls_ir_jit_wrapper",
+    _xls_ir_jit_wrapper_macro = "xls_ir_jit_wrapper_macro",
 )
 load(
     "//xls/build_rules:xls_rules.bzl",

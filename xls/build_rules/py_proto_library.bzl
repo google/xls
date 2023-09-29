@@ -16,7 +16,11 @@
 
 load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
 
-def xls_py_proto_library(name, internal_deps, srcs, deps = []):
+def xls_py_proto_library(
+        name,
+        internal_deps,  # @unused
+        srcs,
+        deps = []):
     py_proto_library(
         name = name,
         srcs = srcs,

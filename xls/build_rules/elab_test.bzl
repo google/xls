@@ -14,6 +14,10 @@
 
 """Build rules for elaboration tests."""
 
-def elab_test(name, src, hdrs, top):
+def elab_test(
+        name,  # @unused
+        src,  # @unused
+        hdrs,  # @unused
+        top):  # @unused
     """No elaboration / lint checking yet in OSS builds."""
     pass

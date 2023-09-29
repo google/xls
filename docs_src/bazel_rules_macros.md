@@ -594,7 +594,7 @@ currently produced should be considered INCOMPLETE.
 | :------------- | :------------- | :------------- |
 | <a id="xls_delay_model_generation-name"></a>name |  Used as basename for both the script and the output textproto.   |  none |
 | <a id="xls_delay_model_generation-standard_cells"></a>standard_cells |  Label for the PDK (possibly specifying a non-default corner), with the assumption that $location will return the timing (Liberty) library for the PDK corner.   |  none |
-| <a id="xls_delay_model_generation-samples_file"></a>samples_file |  <p align="center"> - </p>   |  none |
+| <a id="xls_delay_model_generation-samples_file"></a>samples_file |  Path to proto providing sample points.   |  none |
 | <a id="xls_delay_model_generation-kwargs"></a>kwargs |  Accepts add'l keyword arguments. Passed to native.genrule().   |  none |
 
 

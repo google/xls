@@ -469,6 +469,7 @@ def xls_delay_model_generation(
         standard_cells: Label for the PDK (possibly specifying a
           non-default corner), with the assumption that $location will
           return the timing (Liberty) library for the PDK corner.
+        samples_file: Path to proto providing sample points.
         **kwargs: Accepts add'l keyword arguments. Passed to native.genrule().
     """
     native.genrule(

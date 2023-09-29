@@ -22,7 +22,7 @@ CONFIG = {
     },
 }
 
-def enable_generated_file_wrapper(**kwargs):
+def enable_generated_file_wrapper(**kwargs):  # @unused
     """The function is a placeholder for enable_generated_file_wrapper.
 
     The function is intended to be empty.
