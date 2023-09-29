@@ -248,15 +248,6 @@ cc_library(
 )
 
 xls_pybind_extension(
-    name = "op",
-    srcs = ["op.cc"],
-    deps = [
-        "@com_google_absl//absl/strings",
-        "//xls/ir:op",
-    ],
-)
-
-xls_pybind_extension(
     name = "value",
     srcs = ["value.cc"],
     py_deps = [
@@ -267,43 +258,5 @@ xls_pybind_extension(
         "//xls/ir:value",
         "@pybind11_abseil//pybind11_abseil:absl_casters",
         "@pybind11_abseil//pybind11_abseil:statusor_caster",
-    ],
-)
-
-xls_pybind_extension(
-    name = "verifier",
-    srcs = ["verifier.cc"],
-    py_deps = [
-        ":function",  # build_cleaner: keep
-        ":package",  # build_cleaner: keep
-    ],
-    deps = [
-        ":wrapper_types",
-        "//xls/common/status:import_status_module",
-        "//xls/ir",
-        "@pybind11_abseil//pybind11_abseil:status_caster",
-    ],
-)
-
-py_test(
-    name = "verifier_test",
-    srcs = ["verifier_test.py"],
-    python_version = "PY3",
-    deps = [
-        ":bits",
-        ":function_builder",
-        ":package",
-        ":value",
-        ":verifier",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-py_test(
-    name = "op_test",
-    srcs = ["op_test.py"],
-    deps = [
-        ":op",
-        "//xls/common:test_base",
     ],
 )
