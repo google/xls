@@ -705,5 +705,6 @@ dashboard(
                 "//xls/tools/dashboard:dslx_test_parser",
             ],
         },
-    ]
+    ],
+    files = []
 )

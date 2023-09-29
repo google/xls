@@ -23,7 +23,7 @@ from xls.tools.dashboard.json_to_markdown import json_to_markdown
 from xls.tools.dashboard.mkdocs_creator import DefaultDashboardCreator
 from xls.tools.dashboard.run_and_parse import (FileParserData,
                                                OutputParserData, TestData,
-                                               run_and_parse)
+                                               run_and_parse, parse_files)
 
 
 def tuple_of_two(string: str) -> Tuple[str, str]:
@@ -47,7 +47,11 @@ def parse_args_to_dict(args) -> Sequence[TestData]:
       args_dict[test] = TestData(test)
     args_dict[test].file_parsers += [FileParserData(parser, file)]
 
-  return args_dict.values()
+  data_parsers = []
+  for file, parser in args.data:
+    data_parsers += [FileParserData(parser, file)]
+
+  return args_dict.values(), data_parsers
 
 
 def check_args(args) -> None:
@@ -81,6 +85,14 @@ def check_args(args) -> None:
     if not parser_path.exists():
       raise FileNotFoundError(f"File parser {str(parser_path)} does not exist")
 
+  for file, parser in args.data:
+    parser_path = Path(parser)
+    if not parser_path.exists():
+      raise FileNotFoundError(f"Data file parser {str(parser_path)} does not exist")
+    file_path = Path(parser)
+    if not file_path.exists():
+      raise FileNotFoundError(f"Data file {str(file_path)} does not exist")
+
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Run tests and parse results")
@@ -89,6 +101,7 @@ if __name__ == "__main__":
   parser.add_argument("-o", "--output-directory", help="Directory for generated dashboard", required=True)
   parser.add_argument("-p", "--parser", type=tuple_of_two, action="append", help="Output parser")
   parser.add_argument("-f", "--file", type=tuple_of_three, action="append", help="Test and parser pair")
+  parser.add_argument("-d", "--data", type=tuple_of_two, action="append", help="File and parser pair")
   parser.add_argument("-t", "--title", default="Dashboard", help="Test and parser pair")
   args = parser.parse_args()
 
@@ -102,9 +115,11 @@ if __name__ == "__main__":
   if not output_dir.is_absolute():
     output_dir = Path(working_dir, args.output_directory)
 
-  tests = parse_args_to_dict(args)
+  tests, data = parse_args_to_dict(args)
+  json_objs_from_data = parse_files(data)
+  json_objs_from_tests = run_and_parse(tests, root_dir, runfiles_dir)
+  json_objs = json_objs_from_data + json_objs_from_tests
 
-  json_objs = run_and_parse(tests, root_dir, runfiles_dir)
   page = json_to_markdown(json_objs, title=title)
 
   mk = DefaultDashboardCreator(title, page)
