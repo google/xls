@@ -49,6 +49,7 @@ py_binary(
         "templates/splash.tmpl",
         "third_party_js.txt",
         ":ir_examples",
+        ":ir_to_json_main",
         ":js_compiled",
         "//xls/tools:opt_main",
     ],
@@ -63,7 +64,6 @@ py_binary(
         requirement("Werkzeug"),
         "//xls/common:runfiles",
         "//xls/common/python:init_xls",
-        "//xls/visualization/ir_viz/python:ir_to_json",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
@@ -127,6 +127,31 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/memory",
+    ],
+)
+
+cc_binary(
+    name = "ir_to_json_main",
+    srcs = ["ir_to_json_main.cc"],
+    deps = [
+        ":ir_to_json",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

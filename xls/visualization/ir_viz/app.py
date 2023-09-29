@@ -34,7 +34,6 @@ import werkzeug.security
 
 from xls.common import runfiles
 from xls.common.python import init_xls
-from xls.visualization.ir_viz.python import ir_to_json
 
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('use_ipv6', False, 'Whether to use IPv6.')
@@ -71,6 +70,9 @@ webapp.debug = True
 examples = []
 
 OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
+IR_TO_JSON_MAIN_PATH = runfiles.get_path(
+    'xls/visualization/ir_viz/ir_to_json_main'
+)
 
 
 def load_precanned_examples() -> List[Tuple[str, str]]:
@@ -231,12 +233,30 @@ def example_handler(filename: str):
 def graph_handler():
   """Parses the posted text and returns a parse status."""
   text = flask.request.form['text']
-  try:
-    json_text = ir_to_json.ir_to_json(text, FLAGS.delay_model,
-                                      FLAGS.pipeline_stages, FLAGS.top)
-  except Exception as e:  # pylint: disable=broad-except
-    # TODO(meheff): Switch to new pybind11 more-specific exception.
-    return flask.jsonify({'error_code': 'error', 'message': str(e)})
+  with tempfile.NamedTemporaryFile(
+      mode='w', encoding='utf-8', prefix='ir_viz.', suffix='.ir'
+  ) as tmp_ir:
+    tmp_ir.write(text)
+    tmp_ir.seek(0)
+    argv = [
+        IR_TO_JSON_MAIN_PATH,
+        '--delay_model={}'.format(FLAGS.delay_model),
+        tmp_ir.name,
+    ]
+    if FLAGS.pipeline_stages is not None:
+      argv.append('--pipeline_stages={}'.format(FLAGS.pipeline_stages))
+    if FLAGS.top is not None:
+      argv.append('--entry_name={}'.format(FLAGS.top))
+    try:
+      json_text = subprocess.check_output(
+          argv,
+          stdin=None,
+          stderr=subprocess.PIPE,
+          encoding='utf-8',
+      )
+    except Exception as e:  # pylint: disable=broad-except
+      # TODO(meheff): Switch to more-specific exception.
+      return flask.jsonify({'error_code': 'error', 'message': str(e)})
 
   graph = json.loads(json_text)
   jsonified = flask.jsonify({'error_code': 'ok', 'graph': graph})
