@@ -349,11 +349,32 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         "test_llvm_jit",
         "llvm_opt_level",
         "test_only_inject_jit_result",
+        "dslx_path",
     )
+
+    # With runs outside a monorepo, the execution root for the workspace of
+    # the binary can be different with the execroot, requiring to change
+    # the dslx stdlib search path accordingly.
+    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
+    wsroot = get_xls_toolchain_info(ctx).ir_converter_tool.label.workspace_root
+    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
+
+    # Get workspaces for the source as well.
+    # TODO(tedhong): 2023-06-07 - Grab the workspace from each dependency as well
+    # to support dslx sources from different workspaces.
+    dslx_srcs = [src]
+    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs])
+    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     ir_eval_args = append_default_to_args(
         ctx.attr.ir_eval_args,
         _DEFAULT_IR_EVAL_TEST_ARGS,
+    )
+
+    ir_eval_args["dslx_path"] = (
+        ir_eval_args.get("dslx_path", "") + ":${PWD}:" +
+        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
+        dslx_srcs_wsroot_path + wsroot_dslx_path
     )
 
     my_runfiles = []
