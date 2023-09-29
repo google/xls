@@ -414,7 +414,7 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
     runfiles = get_runfiles_for_xls(
         ctx,
         [ir_eval_tool_runfiles],
-        my_runfiles + [src],
+        my_runfiles + [src] + [ir_eval_tool],
     )
 
     return runfiles, cmd
