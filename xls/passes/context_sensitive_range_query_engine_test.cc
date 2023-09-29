@@ -1238,7 +1238,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, OpenOpenRangeUseInIf) {
   BValue left = fb.ULt(fb.Literal(UBits(4, 8)), x);
   BValue right = fb.ULt(x, fb.Literal(UBits(12, 8)));
   BValue cond = fb.And({left, right});
-  BValue res = fb.Select(cond, {x, y});
+  BValue res = fb.Select(cond, {y, x});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ContextSensitiveRangeQueryEngine engine;
@@ -1299,7 +1299,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, OpenClosedRangeUseInIf) {
   BValue left = fb.ULt(fb.Literal(UBits(4, 8)), x);
   BValue right = fb.ULe(x, fb.Literal(UBits(12, 8)));
   BValue cond = fb.And({left, right});
-  BValue res = fb.Select(cond, {x, y});
+  BValue res = fb.Select(cond, {y, x});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ContextSensitiveRangeQueryEngine engine;
@@ -1360,7 +1360,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, ClosedOpenRangeUseInIf) {
   BValue left = fb.ULe(fb.Literal(UBits(4, 8)), x);
   BValue right = fb.ULt(x, fb.Literal(UBits(12, 8)));
   BValue cond = fb.And({left, right});
-  BValue res = fb.Select(cond, {x, y});
+  BValue res = fb.Select(cond, {y, x});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ContextSensitiveRangeQueryEngine engine;
@@ -1420,7 +1420,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, ClosedClosedRangeUseInIf) {
   BValue left = fb.ULe(fb.Literal(UBits(4, 8)), x);
   BValue right = fb.ULe(x, fb.Literal(UBits(12, 8)));
   BValue cond = fb.And({left, right});
-  BValue res = fb.Select(cond, {x, y});
+  BValue res = fb.Select(cond, {y, x});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ContextSensitiveRangeQueryEngine engine;
