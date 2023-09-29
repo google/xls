@@ -174,6 +174,12 @@ BOM_KIND_COMPARISON,ne,18,1,1
 BOM_KIND_COMPARISON,ne,25,1,1
 ```
 
+## [`dslx_fmt`](https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc)
+
+**WIP / EXPERIMENTAL** auto-formatter for DSLX code (i.e. `.x` files). Not yet
+recommended for use / in development, but being built up with analogous
+capability to rustfmt / clang-format.
+
 ## [`proto_to_dslx_main`](https://github.com/google/xls/tree/main/xls/tools/proto_to_dslx_main.cc)
 
 Takes in a proto schema and a textproto instance thereof and outputs a DSLX

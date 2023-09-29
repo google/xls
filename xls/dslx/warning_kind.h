@@ -57,6 +57,7 @@ inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
 // Flag set datatype.
 XLS_DEFINE_STRONG_INT_TYPE(WarningKindSet, WarningKindInt);
 
+inline constexpr WarningKindSet kNoWarningsSet = WarningKindSet{0};
 inline constexpr WarningKindSet kAllWarningsSet =
     WarningKindSet{(WarningKindInt{1} << kWarningKindCount) - 1};
 

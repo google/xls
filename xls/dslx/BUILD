@@ -700,3 +700,40 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_binary(
+    name = "dslx_fmt",
+    srcs = ["dslx_fmt.cc"],
+    deps = [
+        ":command_line_utils",
+        ":create_import_data",
+        ":default_dslx_stdlib_path",
+        ":import_data",
+        ":parse_and_typecheck",
+        ":warning_kind",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+py_test(
+    name = "dslx_fmt_test",
+    srcs = ["dslx_fmt_test.py"],
+    data = [
+        ":dslx_fmt",
+        "//xls/examples:sha256.x",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
