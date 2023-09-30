@@ -16,20 +16,17 @@
 #define XLS_DSLX_FRONTEND_CPP_SCANNER_H_
 
 #include <cstdint>
-#include <cstdio>
 #include <functional>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <string_view>
-#include <unordered_set>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/pos.h"
@@ -47,6 +44,13 @@ namespace xls::dslx {
 // (we no longer have our own project-specific Status) -- we should not need to
 // encode conditional data in the string and parse it out.
 absl::Status ScanErrorStatus(const Span& span, std::string_view message);
+
+// As we encounter comments in the source text we keep sideband notes about them
+// outside of the token stream.
+struct CommentData {
+  Span span;
+  std::string text;
+};
 
 // Converts the conceptual character stream in a string of text into a stream of
 // tokens according to the DSLX syntax.
@@ -106,6 +110,8 @@ class Scanner {
 
   std::string_view filename() const { return filename_; }
 
+  absl::Span<const CommentData> comments() const { return comments_; }
+
  private:
   // Determines whether string "s" matches a keyword -- if so, returns the
   // keyword enum that it corresponds to. Otherwise, typically the caller will
@@ -155,6 +161,10 @@ class Scanner {
   // Drops comments/whitespace from the current scan position in the character
   // stream.
   void DropCommentsAndLeadingWhitespace();
+
+  // Drops leading whitespace from the current scan position in the character
+  // stream.
+  void DropLeadingWhitespace();
 
   // Returns whether the current character stream cursor is positioned at a
   // whitespace character.
@@ -208,7 +218,7 @@ class Scanner {
   // Pops all the characters from the current character cursor to the end of
   // line (or end of file) and returns that. (This is useful presuming a leading
   // EOL-comment-delimiter was observed.)
-  absl::StatusOr<Token> PopComment(const Pos& start_pos);
+  Token PopComment(const Pos& start_pos);
 
   // Pops all the whitespace characters and returns them as a token. This is
   // useful e.g. in syntax-highlighting mode where we want whitespace and
@@ -217,6 +227,9 @@ class Scanner {
   // Precondition: the character stream cursor must be positioned over
   // whitespace.
   absl::StatusOr<Token> PopWhitespace(const Pos& start_pos);
+
+  // Attempts to pop a comment and, if successful, returns the comment data.
+  std::optional<CommentData> TryPopComment();
 
   // Attempts to pop either whitespace (as a token) or a comment (as a token) at
   // the current character stream position. If the character stream is
@@ -240,6 +253,7 @@ class Scanner {
   int64_t lineno_ = 0;
   int64_t colno_ = 0;
   bool double_c_angle_enabled_ = true;
+  std::vector<CommentData> comments_;
 };
 
 }  // namespace xls::dslx

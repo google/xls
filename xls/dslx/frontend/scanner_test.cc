@@ -389,5 +389,64 @@ TEST(ScannerTest, StringCharUnicodeBadStartChar) {
                     "be followed by a character code, such as \"{...}\"")));
 }
 
+TEST(ScannerTest, SimpleCommentData) {
+  std::string text = R"(// I haz comments!)";
+  Scanner s("fake_file.x", text);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, s.PopAll());
+
+  ASSERT_EQ(tokens.size(), 1);
+  EXPECT_EQ(tokens[0].kind(), TokenKind::kEof);
+
+  ASSERT_EQ(s.comments().size(), 1);
+  const CommentData& comment = s.comments()[0];
+  const Span want_span{Pos("fake_file.x", 0, 0), Pos("fake_file.x", 0, 18)};
+  EXPECT_EQ(comment.span, want_span);
+  EXPECT_EQ(comment.text, " I haz comments!");
+}
+
+TEST(ScannerTest, CommentTokenSandwich) {
+  std::string text = R"(+ // I haz comments!
+*)";
+  Scanner s("fake_file.x", text);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, s.PopAll());
+  ASSERT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0].kind(), TokenKind::kPlus);
+  EXPECT_EQ(tokens[1].kind(), TokenKind::kStar);
+
+  ASSERT_EQ(s.comments().size(), 1);
+  const CommentData& comment = s.comments()[0];
+  const Span want_span{Pos("fake_file.x", 0, 2), Pos("fake_file.x", 1, 0)};
+  EXPECT_EQ(comment.span, want_span);
+  EXPECT_EQ(comment.text, " I haz comments!\n");
+}
+
+TEST(ScannerTest, TwoInlineStyleComments) {
+  std::string text = R"(foo // one thing
+bar  // another thing
+)";
+  Scanner s("fake_file.x", text);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, s.PopAll());
+  ASSERT_EQ(tokens.size(), 3);
+  EXPECT_EQ(tokens[0].kind(), TokenKind::kIdentifier);
+  EXPECT_EQ(tokens[1].kind(), TokenKind::kIdentifier);
+  EXPECT_EQ(tokens[2].kind(), TokenKind::kEof);
+
+  ASSERT_EQ(s.comments().size(), 2);
+
+  {
+    const CommentData& comment = s.comments()[0];
+    const Span want_span{Pos("fake_file.x", 0, 4), Pos("fake_file.x", 1, 0)};
+    EXPECT_EQ(comment.span, want_span);
+    EXPECT_EQ(comment.text, " one thing\n");
+  }
+
+  {
+    const CommentData& comment = s.comments()[1];
+    const Span want_span{Pos("fake_file.x", 1, 5), Pos("fake_file.x", 2, 0)};
+    EXPECT_EQ(comment.span, want_span);
+    EXPECT_EQ(comment.text, " another thing\n");
+  }
+}
+
 }  // namespace
 }  // namespace xls::dslx

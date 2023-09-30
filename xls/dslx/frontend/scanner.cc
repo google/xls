@@ -33,6 +33,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
 
@@ -68,7 +69,7 @@ bool Scanner::TryDropChar(char target) {
   return false;
 }
 
-absl::StatusOr<Token> Scanner::PopComment(const Pos& start_pos) {
+Token Scanner::PopComment(const Pos& start_pos) {
   std::string chars;
   while (!AtCharEof()) {
     char c = PopChar();
@@ -294,6 +295,17 @@ absl::StatusOr<Token> Scanner::ScanIdentifierOrKeyword(char startc,
   return Token(TokenKind::kIdentifier, span, std::move(s));
 }
 
+std::optional<CommentData> Scanner::TryPopComment() {
+  const Pos start_pos = GetPos();
+  if (!AtEof() && PeekChar() == '/' && PeekChar2OrNull() == '/') {
+    DropChar(2);
+    Token token = PopComment(start_pos);
+    XLS_CHECK(token.GetValue().has_value());
+    return CommentData{token.span(), token.GetValue().value()};
+  }
+  return std::nullopt;
+}
+
 absl::StatusOr<std::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
   const Pos start_pos = GetPos();
   if (AtCharEof()) {
@@ -305,7 +317,7 @@ absl::StatusOr<std::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
   }
   if (PeekChar() == '/' && PeekChar2OrNull() == '/') {
     DropChar(2);
-    XLS_ASSIGN_OR_RETURN(Token token, PopComment(start_pos));
+    Token token = PopComment(start_pos);
     return token;
   }
   return std::nullopt;
@@ -368,6 +380,16 @@ bool Scanner::AtWhitespace() const {
   }
 }
 
+void Scanner::DropLeadingWhitespace() {
+  while (!AtCharEof()) {
+    if (AtWhitespace()) {
+      DropChar();
+    } else {
+      break;
+    }
+  }
+}
+
 void Scanner::DropCommentsAndLeadingWhitespace() {
   while (!AtCharEof()) {
     if (AtWhitespace()) {
@@ -412,7 +434,16 @@ absl::StatusOr<Token> Scanner::Pop() {
       return *tok;
     }
   } else {
-    DropCommentsAndLeadingWhitespace();
+    while (true) {
+      DropLeadingWhitespace();
+
+      if (std::optional<CommentData> comment = TryPopComment()) {
+        comments_.push_back(std::move(comment).value());
+      } else {
+        // Dropped whitespace and not seeing a comment, good to go scan a token.
+        break;
+      }
+    }
   }
 
   // Record the position the token starts at.
