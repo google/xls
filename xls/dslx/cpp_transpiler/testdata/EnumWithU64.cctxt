@@ -44,6 +44,15 @@ std::string MyEnumToString(MyEnum value, int64_t indent) {
   }
 }
 
+std::string MyEnumToDslxString(MyEnum value, int64_t indent) {
+  switch (value) {
+    case MyEnum::kMIN: return "MyEnum::kMIN";
+    case MyEnum::kMID: return "MyEnum::kMID";
+    case MyEnum::kMAX: return "MyEnum::kMAX";
+    default: return "<unknown>";
+  }
+}
+
 absl::StatusOr<::xls::Value> MyEnumToValue(MyEnum input) {
   XLS_RETURN_IF_ERROR(VerifyMyEnum(input));
   ::xls::Value result;

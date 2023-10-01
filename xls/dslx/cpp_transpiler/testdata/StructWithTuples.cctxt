@@ -78,10 +78,26 @@ std::string Foo::ToString(int indent) const {
   result += __indent(indent + 1) + "a: ";
   result += "(\n";
   result += __indent(indent + 2 + 1);
-  result += absl::StrFormat("bits[32]:0x%x", std::get<0>(a));
+  result += "bits[32]:" + absl::StrFormat("0x%x", std::get<0>(a));
   result += ",\n";
   result += __indent(indent + 2 + 1);
-  result += absl::StrFormat("bits[32]:0x%x", std::get<1>(a));
+  result += "bits[32]:" + absl::StrFormat("0x%x", std::get<1>(a));
+  result += ",\n";
+  result += __indent(indent + 2) + ")";
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string Foo::ToDslxString(int indent) const {
+  std::string result = "Foo {\n";
+  result += __indent(indent + 1) + "a: ";
+  result += "(\n";
+  result += __indent(indent + 2 + 1);
+  result += "u32:" + absl::StrFormat("0x%x", std::get<0>(a));
+  result += ",\n";
+  result += __indent(indent + 2 + 1);
+  result += "u32:" + absl::StrFormat("0x%x", std::get<1>(a));
   result += ",\n";
   result += __indent(indent + 2) + ")";
   result += ",\n";

@@ -68,10 +68,22 @@ absl::StatusOr<::xls::Value> InnerStruct::ToValue() const {
 std::string InnerStruct::ToString(int indent) const {
   std::string result = "InnerStruct {\n";
   result += __indent(indent + 1) + "x: ";
-  result += absl::StrFormat("bits[32]:0x%x", x);
+  result += "bits[32]:" + absl::StrFormat("0x%x", x);
   result += ",\n";
   result += __indent(indent + 1) + "y: ";
-  result += absl::StrFormat("bits[16]:0x%x", y);
+  result += "bits[16]:" + absl::StrFormat("0x%x", y);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string InnerStruct::ToDslxString(int indent) const {
+  std::string result = "InnerStruct {\n";
+  result += __indent(indent + 1) + "x: ";
+  result += "u32:" + absl::StrFormat("0x%x", x);
+  result += ",\n";
+  result += __indent(indent + 1) + "y: ";
+  result += "u16:" + absl::StrFormat("0x%x", y);
   result += ",\n";
   result += __indent(indent) + "}";
   return result;
@@ -123,10 +135,22 @@ absl::StatusOr<::xls::Value> MiddleStruct::ToValue() const {
 std::string MiddleStruct::ToString(int indent) const {
   std::string result = "MiddleStruct {\n";
   result += __indent(indent + 1) + "z: ";
-  result += absl::StrFormat("bits[48]:0x%x", z);
+  result += "bits[48]:" + absl::StrFormat("0x%x", z);
   result += ",\n";
   result += __indent(indent + 1) + "a: ";
   result += a.ToString(indent + 2);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string MiddleStruct::ToDslxString(int indent) const {
+  std::string result = "MiddleStruct {\n";
+  result += __indent(indent + 1) + "z: ";
+  result += "u48:" + absl::StrFormat("0x%x", z);
+  result += ",\n";
+  result += __indent(indent + 1) + "a: ";
+  result += a.ToDslxString(indent + 2);
   result += ",\n";
   result += __indent(indent) + "}";
   return result;
@@ -179,7 +203,19 @@ std::string OtherMiddleStruct::ToString(int indent) const {
   result += b.ToString(indent + 2);
   result += ",\n";
   result += __indent(indent + 1) + "w: ";
-  result += absl::StrFormat("bits[64]:0x%x", w);
+  result += "bits[64]:" + absl::StrFormat("0x%x", w);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string OtherMiddleStruct::ToDslxString(int indent) const {
+  std::string result = "OtherMiddleStruct {\n";
+  result += __indent(indent + 1) + "b: ";
+  result += b.ToDslxString(indent + 2);
+  result += ",\n";
+  result += __indent(indent + 1) + "w: ";
+  result += "u64:" + absl::StrFormat("0x%x", w);
   result += ",\n";
   result += __indent(indent) + "}";
   return result;
@@ -242,7 +278,25 @@ std::string OuterStruct::ToString(int indent) const {
   result += c.ToString(indent + 2);
   result += ",\n";
   result += __indent(indent + 1) + "v: ";
-  result += absl::StrFormat("bits[8]:0x%x", v);
+  result += "bits[8]:" + absl::StrFormat("0x%x", v);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string OuterStruct::ToDslxString(int indent) const {
+  std::string result = "OuterStruct {\n";
+  result += __indent(indent + 1) + "a: ";
+  result += a.ToDslxString(indent + 2);
+  result += ",\n";
+  result += __indent(indent + 1) + "b: ";
+  result += b.ToDslxString(indent + 2);
+  result += ",\n";
+  result += __indent(indent + 1) + "c: ";
+  result += c.ToDslxString(indent + 2);
+  result += ",\n";
+  result += __indent(indent + 1) + "v: ";
+  result += "u8:" + absl::StrFormat("0x%x", v);
   result += ",\n";
   result += __indent(indent) + "}";
   return result;

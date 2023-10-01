@@ -26,6 +26,7 @@ struct MyStruct {
   static absl::StatusOr<MyStruct> FromValue(const ::xls::Value& value);
   absl::StatusOr<::xls::Value> ToValue() const;
   std::string ToString(int indent = 0) const;
+  std::string ToDslxString(int indent = 0) const;
   absl::Status Verify() const;
   bool operator==(const MyStruct& other) const;
   bool operator!=(const MyStruct& other) const { return !(*this == other); }

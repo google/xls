@@ -32,6 +32,11 @@ TEST(TestTypesTest, EnumToString) {
   EXPECT_EQ(MyEnumToString(test::MyEnum::kB), "MyEnum::kB");
   EXPECT_EQ(MyEnumToString(test::MyEnum::kC), "MyEnum::kC");
   EXPECT_EQ(MyEnumToString(test::MyEnum(1234)), "<unknown>");
+
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kA), "MyEnum::kA");
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kB), "MyEnum::kB");
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kC), "MyEnum::kC");
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum(1234)), "<unknown>");
 }
 
 TEST(TestTypesTest, VerifyEnum) {
@@ -80,12 +85,14 @@ TEST(TestTypesTest, MyTypeToString) {
   test::MyType s = 1000;
   EXPECT_EQ(test::MyTypeToString(s), "bits[37]:0x3e8");
   EXPECT_EQ(test::kMyTypeWidth, 37);
+  EXPECT_EQ(test::MyTypeToDslxString(s), "MyType:0x3e8");
 }
 
 TEST(TestTypesTest, MyTypeAliasToString) {
   test::MyType s = 1000;
   EXPECT_EQ(test::MyTypeAliasToString(s), "bits[37]:0x3e8");
   EXPECT_EQ(test::kMyTypeAliasWidth, 37);
+  EXPECT_EQ(test::MyTypeAliasToDslxString(s), "MyType:0x3e8");
 }
 
 TEST(TestTypesTest, VerifyMyType) {
@@ -102,6 +109,11 @@ TEST(TestTypesTest, MySignedTypeToString) {
             "bits[20]:0xfffffc18");
   EXPECT_EQ(test::MySignedTypeToString(test::MySignedType{0xabcd}),
             "bits[20]:0xabcd");
+
+  EXPECT_EQ(test::MySignedTypeToDslxString(test::MySignedType{-1000}),
+            "MySignedType:-1000");
+  EXPECT_EQ(test::MySignedTypeToDslxString(test::MySignedType{0xabcd}),
+            "MySignedType:43981");
 }
 
 TEST(TestTypesTest, VerifyMySignedType) {
@@ -142,6 +154,10 @@ TEST(TestTypesTest, SimpleStructToString) {
   test::InnerStruct s{.x = 42, .y = test::MyEnum::kB};
   EXPECT_EQ(s.ToString(), R"(InnerStruct {
   x: bits[17]:0x2a,
+  y: MyEnum::kB,
+})");
+  EXPECT_EQ(s.ToDslxString(), R"(InnerStruct {
+  x: u17:0x2a,
   y: MyEnum::kB,
 })");
 }
@@ -209,6 +225,12 @@ TEST(TestTypesTest, TupleToString) {
   bits[37]:0x7b,
   bits[20]:0xffffffff,
 ))");
+  EXPECT_EQ(test::MyTupleToDslxString(s), R"((
+  u35:0x2a,
+  s4:-3,
+  MyType:0x7b,
+  MySignedType:-1,
+))");
 
   // Round trip through a value.
   XLS_ASSERT_OK_AND_ASSIGN(Value value, test::MyTupleToValue(s));
@@ -230,6 +252,12 @@ TEST(TestTypesTest, TupleAliasToString) {
   bits[4]:0xfd,
   bits[37]:0x7b,
   bits[20]:0xffffffff,
+))");
+  EXPECT_EQ(test::MyTupleAliasToDslxString(s), R"((
+  u35:0x2a,
+  s4:-3,
+  MyType:0x7b,
+  MySignedType:-1,
 ))");
 
   // Round trip through a value.
@@ -288,6 +316,8 @@ TEST(TestTypesTest, EmptyTupleToString) {
   test::MyEmptyTuple s;
   EXPECT_EQ(test::MyEmptyTupleToString(s), R"((
 ))");
+  EXPECT_EQ(test::MyEmptyTupleToDslxString(s), R"((
+))");
 
   // Round trip through a value.
   XLS_ASSERT_OK_AND_ASSIGN(Value value, test::MyEmptyTupleToValue(s));
@@ -321,6 +351,10 @@ TEST(TestTypesTest, ArrayToString) {
   bits[17]:0x2,
   bits[17]:0x16,
 ])");
+  EXPECT_EQ(test::MyArrayToDslxString(s), R"([
+  u17:0x2,
+  u17:0x16,
+])");
 
   // Round trip through a value.
   XLS_ASSERT_OK_AND_ASSIGN(Value value, test::MyArrayToValue(s));
@@ -352,6 +386,20 @@ TEST(TestTypesTest, ArrayOfArraysToString) {
     bits[5]:0x18,
   ],
 ])");
+  EXPECT_EQ(test::MyArrayOfArraysToDslxString(s), R"([
+  [
+    MyU5:0x2,
+    MyU5:0x16,
+  ],
+  [
+    MyU5:0x17,
+    MyU5:0x1,
+  ],
+  [
+    MyU5:0xc,
+    MyU5:0x18,
+  ],
+])");
 
   // Round trip through a value.
   XLS_ASSERT_OK_AND_ASSIGN(Value value, test::MyArrayOfArraysToValue(s));
@@ -380,11 +428,9 @@ TEST(TestTypesTest, VerifyArrayOfArrays) {
   s[0] = {2, 22};
   s[1] = {23, 82};
   s[2] = {12, 24};
-  EXPECT_THAT(
-      test::VerifyMyArrayOfArrays(s),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("MyArrayOfArrays value does not fit in 5 bits: 0x52")));
+  EXPECT_THAT(test::VerifyMyArrayOfArrays(s),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("MyU5 value does not fit in 5 bits: 0x52")));
 }
 
 TEST(TestTypesTest, StructWithLotsOfTypes) {
@@ -396,6 +442,14 @@ TEST(TestTypesTest, StructWithLotsOfTypes) {
   x: bits[1]:0x0,
   y: bits[44]:0x1234,
   z: bits[11]:0xfffd,
+})");
+
+  EXPECT_EQ(s.ToDslxString(), R"(StructWithLotsOfTypes {
+  v: bool:false,
+  w: bits[3]:0x1,
+  x: u1:0x0,
+  y: uN[44]:0x1234,
+  z: sN[11]:-3,
 })");
 }
 
@@ -511,6 +565,27 @@ TEST(TestTypesTest, DoublyNestedStructToString) {
       v: MyEnum::kA,
     },
 })");
+  EXPECT_EQ(s.ToDslxString(), R"(OuterOuterStruct {
+  q: EmptyStruct {
+    },
+  some_array: [
+      u5:0x1,
+      u5:0x2,
+      u5:0x3,
+    ],
+  s: OuterStruct {
+      a: InnerStruct {
+          x: u17:0x2a,
+          y: MyEnum::kB,
+        },
+      b: InnerStruct {
+          x: u17:0x7b,
+          y: MyEnum::kC,
+        },
+      c: MyType:0xdead,
+      v: MyEnum::kA,
+    },
+})");
 }
 
 TEST(TestTypesTest, VerifyDoublyNestedStruct) {
@@ -524,6 +599,19 @@ TEST(TestTypesTest, VerifyDoublyNestedStruct) {
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("InnerStruct.x value does not fit in 17 bits: 0x12d687")));
+}
+
+TEST(TestTypesTest, SnakeCaseToString) {
+  test::SnakeCaseStructT s{.some_field = 0x42,
+                           .some_other_field = test::SnakeCaseEnumT::kA};
+  EXPECT_EQ(s.ToString(), R"(SnakeCaseStructT {
+  some_field: bits[13]:0x42,
+  some_other_field: SnakeCaseEnumT::kA,
+})");
+  EXPECT_EQ(s.ToDslxString(), R"(snake_case_struct_t {
+  some_field: snake_case_type_t:0x42,
+  some_other_field: snake_case_enum_t::kA,
+})");
 }
 
 }  // namespace

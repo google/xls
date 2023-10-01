@@ -16,6 +16,7 @@ using MyType = uint8_t;
 constexpr int64_t kMyTypeWidth = 6;
 absl::Status VerifyMyType(MyType value);
 std::string MyTypeToString(MyType value, int64_t indent = 0);
+std::string MyTypeToDslxString(MyType value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyTypeToValue(MyType input);
 absl::StatusOr<MyType> MyTypeFromValue(const ::xls::Value& value);
 
@@ -23,6 +24,7 @@ using MySignedType = int8_t;
 constexpr int64_t kMySignedTypeWidth = 8;
 absl::Status VerifyMySignedType(MySignedType value);
 std::string MySignedTypeToString(MySignedType value, int64_t indent = 0);
+std::string MySignedTypeToDslxString(MySignedType value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MySignedTypeToValue(MySignedType input);
 absl::StatusOr<MySignedType> MySignedTypeFromValue(const ::xls::Value& value);
 
@@ -30,30 +32,35 @@ using MyThirdType = int16_t;
 constexpr int64_t kMyThirdTypeWidth = 9;
 absl::Status VerifyMyThirdType(MyThirdType value);
 std::string MyThirdTypeToString(MyThirdType value, int64_t indent = 0);
+std::string MyThirdTypeToDslxString(MyThirdType value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyThirdTypeToValue(MyThirdType input);
 absl::StatusOr<MyThirdType> MyThirdTypeFromValue(const ::xls::Value& value);
 
 using MyArrayType1 = std::array<uint32_t, 8>;
 absl::Status VerifyMyArrayType1(const MyArrayType1& value);
 std::string MyArrayType1ToString(const MyArrayType1& value, int64_t indent = 0);
+std::string MyArrayType1ToDslxString(const MyArrayType1& value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyArrayType1ToValue(const MyArrayType1& input);
 absl::StatusOr<MyArrayType1> MyArrayType1FromValue(const ::xls::Value& value);
 
 using MyArrayType2 = std::array<uint32_t, 4>;
 absl::Status VerifyMyArrayType2(const MyArrayType2& value);
 std::string MyArrayType2ToString(const MyArrayType2& value, int64_t indent = 0);
+std::string MyArrayType2ToDslxString(const MyArrayType2& value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyArrayType2ToValue(const MyArrayType2& input);
 absl::StatusOr<MyArrayType2> MyArrayType2FromValue(const ::xls::Value& value);
 
 using MyArrayType3 = std::array<MySignedType, 4>;
 absl::Status VerifyMyArrayType3(const MyArrayType3& value);
 std::string MyArrayType3ToString(const MyArrayType3& value, int64_t indent = 0);
+std::string MyArrayType3ToDslxString(const MyArrayType3& value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyArrayType3ToValue(const MyArrayType3& input);
 absl::StatusOr<MyArrayType3> MyArrayType3FromValue(const ::xls::Value& value);
 
 using MyArrayType4 = std::array<int8_t, 4>;
 absl::Status VerifyMyArrayType4(const MyArrayType4& value);
 std::string MyArrayType4ToString(const MyArrayType4& value, int64_t indent = 0);
+std::string MyArrayType4ToDslxString(const MyArrayType4& value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyArrayType4ToValue(const MyArrayType4& input);
 absl::StatusOr<MyArrayType4> MyArrayType4FromValue(const ::xls::Value& value);
 
@@ -61,12 +68,14 @@ using MyArrayType5 = bool;
 constexpr int64_t kMyArrayType5Width = 1;
 absl::Status VerifyMyArrayType5(MyArrayType5 value);
 std::string MyArrayType5ToString(MyArrayType5 value, int64_t indent = 0);
+std::string MyArrayType5ToDslxString(MyArrayType5 value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyArrayType5ToValue(MyArrayType5 input);
 absl::StatusOr<MyArrayType5> MyArrayType5FromValue(const ::xls::Value& value);
 
 using MyFirstTuple = std::tuple<uint8_t, int8_t, MyType, MySignedType, MyArrayType1, MyArrayType2>;
 absl::Status VerifyMyFirstTuple(const MyFirstTuple& value);
 std::string MyFirstTupleToString(const MyFirstTuple& value, int64_t indent = 0);
+std::string MyFirstTupleToDslxString(const MyFirstTuple& value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyFirstTupleToValue(const MyFirstTuple& input);
 absl::StatusOr<MyFirstTuple> MyFirstTupleFromValue(const ::xls::Value& value);
 

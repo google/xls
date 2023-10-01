@@ -33,18 +33,24 @@ struct CppSource {
 
 // Class for generating a C++ type and associated support code which mirrors a
 // particular DSLX type. The C++ types may be enums, structs, or type
-// aliases. There is a CppTypeGenerator defined for each supported
-// dslx::TypeDefinition kind.
+// aliases. There is a CppTypeGenerator defined for the following
+// dslx::TypeDefinition kinds: type aliases, structs, enums.
 class CppTypeGenerator {
  public:
-  explicit CppTypeGenerator(std::string_view cpp_type_name)
-      : cpp_type_name_(cpp_type_name) {}
+  explicit CppTypeGenerator(std::string_view cpp_type,
+                            std::string_view dslx_type)
+      : cpp_type_(cpp_type), dslx_type_(dslx_type) {}
   virtual ~CppTypeGenerator() = default;
 
   // Generates the C++ source code (header and source) defining the type.
   virtual absl::StatusOr<CppSource> GetCppSource() const = 0;
 
-  std::string_view cpp_type_name() const { return cpp_type_name_; }
+  // Returns the C++ type used to represent the underlying DSLX type.
+  std::string_view cpp_type() const { return cpp_type_; }
+
+  // Returns the name of the underlying DSLX type if it is a named type (e.g.,
+  // not a tuple or array).
+  std::string dslx_type() const { return dslx_type_; }
 
   // Returns a type generator for the given TypeDefinition.
   static absl::StatusOr<std::unique_ptr<CppTypeGenerator>> Create(
@@ -52,7 +58,8 @@ class CppTypeGenerator {
       ImportData* import_data);
 
  protected:
-  std::string cpp_type_name_;
+  std::string cpp_type_;
+  std::string dslx_type_;
 };
 
 }  // namespace xls::dslx

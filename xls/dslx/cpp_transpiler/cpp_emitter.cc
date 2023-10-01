@@ -15,6 +15,7 @@
 #include "xls/dslx/cpp_transpiler/cpp_emitter.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -123,18 +124,19 @@ absl::StatusOr<int64_t> ArraySize(const ArrayTypeAnnotation* type_annotation,
 class BitVectorCppEmitter : public CppEmitter {
  public:
   explicit BitVectorCppEmitter(std::string_view cpp_type,
+                               std::string_view dslx_type,
                                int64_t dslx_bit_count, bool is_signed)
-      : CppEmitter(cpp_type),
+      : CppEmitter(cpp_type, dslx_type),
         dslx_bit_count_(dslx_bit_count),
         is_signed_(is_signed) {}
   ~BitVectorCppEmitter() override = default;
 
   static absl::StatusOr<std::unique_ptr<BitVectorCppEmitter>> Create(
-      TypeAnnotation* type_annotation, int64_t dslx_bit_count, bool is_signed) {
+      std::string_view dslx_type, int64_t dslx_bit_count, bool is_signed) {
     XLS_ASSIGN_OR_RETURN(std::string cpp_type,
                          GetBitVectorCppType(dslx_bit_count, is_signed));
-    return std::make_unique<BitVectorCppEmitter>(cpp_type, dslx_bit_count,
-                                                 is_signed);
+    return std::make_unique<BitVectorCppEmitter>(cpp_type, dslx_type,
+                                                 dslx_bit_count, is_signed);
   }
 
   std::string AssignToValue(std::string_view lhs, std::string_view rhs,
@@ -200,8 +202,7 @@ class BitVectorCppEmitter : public CppEmitter {
     pieces.push_back(absl::StrCat(
         "  return absl::InvalidArgumentError(", "absl::StrCat(\"", name,
         " value does not fit in ", is_signed() ? "signed " : "",
-        dslx_bit_count(), " bits: \", ",
-        ValueAsString(identifier, /*with_type=*/false), "));"));
+        dslx_bit_count(), " bits: \", ", ValueAsString(identifier), "));"));
     pieces.push_back("}");
     return absl::StrJoin(pieces, "\n");
   }
@@ -210,9 +211,16 @@ class BitVectorCppEmitter : public CppEmitter {
                        std::string_view indent_amount,
                        std::string_view identifier,
                        int64_t nesting) const override {
-    return absl::StrCat(str_to_append,
-                        " += ", ValueAsString(identifier, /*with_type=*/true),
-                        ";");
+    return absl::StrCat(str_to_append, " += \"bits[", dslx_bit_count(),
+                        "]:\" + ", ValueAsString(identifier), ";");
+  }
+
+  std::string ToDslxString(std::string_view str_to_append,
+                           std::string_view indent_amount,
+                           std::string_view identifier,
+                           int64_t nesting) const override {
+    return absl::StrCat(str_to_append, " += \"", dslx_type(), ":\" + ",
+                        ValueAsDslxString(identifier), ";");
   }
 
   std::optional<int64_t> GetBitCountIfBitVector() const override {
@@ -222,12 +230,19 @@ class BitVectorCppEmitter : public CppEmitter {
   bool is_signed() const { return is_signed_; }
 
  protected:
-  std::string ValueAsString(std::string_view identifier, bool with_type) const {
-    if (with_type) {
-      return absl::StrCat("absl::StrFormat(\"bits[", dslx_bit_count(),
-                          "]:0x%x\", ", identifier, ")");
-    }
+  std::string ValueAsString(std::string_view identifier) const {
     return absl::StrCat("absl::StrFormat(\"0x%x\", ", identifier, ")");
+  }
+
+  std::string ValueAsDslxString(std::string_view identifier) const {
+    if (dslx_type() == "bool") {
+      return absl::StrFormat("std::string{%s ? \"true\" : \"false\"}",
+                             identifier);
+    }
+    if (is_signed()) {
+      return absl::StrCat("absl::StrFormat(\"%d\", ", identifier, ")");
+    }
+    return ValueAsString(identifier);
   }
 
   // Bit-count of the underlying DSLX type.
@@ -243,15 +258,16 @@ class TypeRefCppEmitter : public CppEmitter {
   // is a bit-vector or std::nullopt otherwise.
   explicit TypeRefCppEmitter(const TypeRefTypeAnnotation* type_annotation,
                              std::string_view cpp_type,
+                             std::string_view dslx_type,
                              std::optional<int64_t> dslx_bit_count)
-      : CppEmitter(cpp_type),
+      : CppEmitter(cpp_type, dslx_type),
         typeref_type_annotation_(type_annotation),
         dslx_bit_count_(dslx_bit_count) {}
   ~TypeRefCppEmitter() override = default;
 
   static absl::StatusOr<std::unique_ptr<TypeRefCppEmitter>> Create(
-      const TypeRefTypeAnnotation* type_annotation, TypeInfo* type_info,
-      ImportData* import_data) {
+      const TypeRefTypeAnnotation* type_annotation, std::string_view dslx_type,
+      TypeInfo* type_info, ImportData* import_data) {
     std::string cpp_type =
         DslxTypeNameToCpp(type_annotation->type_ref()->ToString());
     std::optional<BitVectorMetadata> bit_vector_metadata =
@@ -263,7 +279,7 @@ class TypeRefCppEmitter : public CppEmitter {
                                *bit_vector_metadata, type_info, import_data));
     }
     return std::make_unique<TypeRefCppEmitter>(type_annotation, cpp_type,
-                                               dslx_bit_count);
+                                               dslx_type, dslx_bit_count);
   }
 
   std::string AssignToValue(std::string_view lhs, std::string_view rhs,
@@ -303,6 +319,18 @@ class TypeRefCppEmitter : public CppEmitter {
                               indent_amount));
   }
 
+  std::string ToDslxString(std::string_view str_to_append,
+                           std::string_view indent_amount,
+                           std::string_view identifier,
+                           int64_t nesting) const override {
+    return absl::StrFormat(
+        "%s += %s;", str_to_append,
+        TypeHasMethods()
+            ? absl::StrFormat("%s.ToDslxString(%s)", identifier, indent_amount)
+            : absl::StrFormat("%sToDslxString(%s, %s)", cpp_type(), identifier,
+                              indent_amount));
+  }
+
   bool TypeHasMethods() const {
     return std::holds_alternative<StructDef*>(
         typeref_type_annotation_->type_ref()->type_definition());
@@ -322,12 +350,10 @@ class TypeRefCppEmitter : public CppEmitter {
 // std::array.
 class ArrayCppEmitter : public CppEmitter {
  public:
-  explicit ArrayCppEmitter(const ArrayTypeAnnotation* type_annotation,
-                           int64_t array_size,
-                           std::unique_ptr<CppEmitter> element_emitter,
-                           std::string_view cpp_type)
-      : CppEmitter(cpp_type),
-        array_type_annotation_(type_annotation),
+  explicit ArrayCppEmitter(std::string_view cpp_type,
+                           std::string_view dslx_type, int64_t array_size,
+                           std::unique_ptr<CppEmitter> element_emitter)
+      : CppEmitter(cpp_type, dslx_type),
         array_size_(array_size),
         element_emitter_(std::move(element_emitter)) {}
   ~ArrayCppEmitter() override = default;
@@ -344,14 +370,17 @@ class ArrayCppEmitter : public CppEmitter {
 
     XLS_ASSIGN_OR_RETURN(int64_t dim,
                          ArraySize(type_annotation, type_info, import_data));
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppEmitter> element_emitter,
-                         CppEmitter::Create(type_annotation->element_type(),
-                                            type_info, import_data));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<CppEmitter> element_emitter,
+        CppEmitter::Create(type_annotation->element_type(),
+                           type_annotation->element_type()->ToString(),
+                           type_info, import_data));
     std::string cpp_type =
         absl::StrFormat("std::array<%s, %d>", element_emitter->cpp_type(), dim);
 
     return std::make_unique<ArrayCppEmitter>(
-        type_annotation, array_size, std::move(element_emitter), cpp_type);
+        cpp_type, type_annotation->ToString(), array_size,
+        std::move(element_emitter));
   }
 
   std::string AssignToValue(std::string_view lhs, std::string_view rhs,
@@ -416,6 +445,37 @@ class ArrayCppEmitter : public CppEmitter {
                        std::string_view indent_amount,
                        std::string_view identifier,
                        int64_t nesting) const override {
+    return EmitToString(str_to_append, indent_amount, identifier, nesting,
+                        [&](std::string_view str, std::string_view indent,
+                            std::string_view id, int64_t nest) {
+                          return element_emitter_->ToString(str, indent, id,
+                                                            nest);
+                        });
+  }
+
+  std::string ToDslxString(std::string_view str_to_append,
+                           std::string_view indent_amount,
+                           std::string_view identifier,
+                           int64_t nesting) const override {
+    return EmitToString(str_to_append, indent_amount, identifier, nesting,
+                        [&](std::string_view str, std::string_view indent,
+                            std::string_view id, int64_t nest) {
+                          return element_emitter_->ToDslxString(str, indent, id,
+                                                                nest);
+                        });
+  }
+
+  int64_t array_size() const { return array_size_; }
+
+ protected:
+  // Emits the C++ code for printing the array using the specified emitter
+  // function.
+  std::string EmitToString(
+      std::string_view str_to_append, std::string_view indent_amount,
+      std::string_view identifier, int64_t nesting,
+      const std::function<std::string(std::string_view, std::string_view,
+                                      std::string_view, int64_t)>&
+          emitter_function) const {
     std::string ind_var = absl::StrCat("i", nesting);
     std::vector<std::string> pieces;
     pieces.push_back(absl::StrFormat("%s += \"[\\n\";", str_to_append));
@@ -424,12 +484,12 @@ class ArrayCppEmitter : public CppEmitter {
     std::vector<std::string> loop_body;
     loop_body.push_back(absl::StrFormat("%s += __indent(%s + 1);",
                                         str_to_append, indent_amount));
-    std::string to_string = element_emitter_->ToString(
+    std::string to_string = emitter_function(
         str_to_append, absl::StrCat(indent_amount, " + 1"),
         absl::StrFormat("%s[%s]", identifier, ind_var), nesting + 1);
     loop_body.push_back(Indent(to_string, 2));
 
-    pieces.push_back(Indent(absl::StrJoin(loop_body, "\n"), 2));
+    pieces.push_back(Indent(absl::StrJoin(loop_body, "\n")));
     pieces.push_back(absl::StrFormat("%s += \",\\n\";", str_to_append));
     pieces.push_back("}");
     pieces.push_back(absl::StrFormat("%s += __indent(%s) + \"]\";",
@@ -437,10 +497,6 @@ class ArrayCppEmitter : public CppEmitter {
     return absl::StrJoin(pieces, "\n");
   }
 
-  int64_t array_size() const { return array_size_; }
-
- protected:
-  const ArrayTypeAnnotation* array_type_annotation_;
   int64_t array_size_;
   std::unique_ptr<CppEmitter> element_emitter_;
 };
@@ -450,11 +506,9 @@ class ArrayCppEmitter : public CppEmitter {
 class TupleCppEmitter : public CppEmitter {
  public:
   explicit TupleCppEmitter(
-      const TupleTypeAnnotation* type_annotation,
-      std::vector<std::unique_ptr<CppEmitter>> element_emitters,
-      std::string_view cpp_type)
-      : CppEmitter(cpp_type),
-        tuple_type_annotation_(type_annotation),
+      std::string_view cpp_type, std::string_view dslx_type,
+      std::vector<std::unique_ptr<CppEmitter>> element_emitters)
+      : CppEmitter(cpp_type, dslx_type),
         element_emitters_(std::move(element_emitters)) {}
   ~TupleCppEmitter() override = default;
 
@@ -466,14 +520,15 @@ class TupleCppEmitter : public CppEmitter {
     for (TypeAnnotation* element_type : type_annotation->members()) {
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<CppEmitter> element_emitter,
-          CppEmitter::Create(element_type, type_info, import_data));
+          CppEmitter::Create(element_type, element_type->ToString(), type_info,
+                             import_data));
       element_cpp_types.push_back(std::string{element_emitter->cpp_type()});
       element_emitters.push_back(std::move(element_emitter));
     }
     std::string cpp_type = absl::StrFormat(
         "std::tuple<%s>", absl::StrJoin(element_cpp_types, ", "));
     return std::make_unique<TupleCppEmitter>(
-        type_annotation, std::move(element_emitters), cpp_type);
+        cpp_type, type_annotation->ToString(), std::move(element_emitters));
   }
 
   std::string AssignToValue(std::string_view lhs, std::string_view rhs,
@@ -543,23 +598,42 @@ class TupleCppEmitter : public CppEmitter {
     return absl::StrJoin(pieces, "\n");
   }
 
-  int64_t size() const { return tuple_type_annotation_->size(); }
+  std::string ToDslxString(std::string_view str_to_append,
+                           std::string_view indent_amount,
+                           std::string_view identifier,
+                           int64_t nesting) const override {
+    std::vector<std::string> pieces;
+    pieces.push_back(absl::StrFormat("%s += \"(\\n\";", str_to_append));
+    for (int64_t i = 0; i < size(); ++i) {
+      pieces.push_back(absl::StrFormat("%s += __indent(%s + 1);", str_to_append,
+                                       indent_amount));
+      std::string to_string = element_emitters_[i]->ToDslxString(
+          str_to_append, absl::StrCat(indent_amount, " + 1"),
+          absl::StrFormat("std::get<%d>(%s)", i, identifier), nesting + 1);
+      pieces.push_back(to_string);
+      pieces.push_back(absl::StrFormat("%s += \",\\n\";", str_to_append));
+    }
+    pieces.push_back(absl::StrFormat("%s += __indent(%s) + \")\";",
+                                     str_to_append, indent_amount));
+    return absl::StrJoin(pieces, "\n");
+  }
+
+  int64_t size() const { return element_emitters_.size(); }
 
  protected:
-  const TupleTypeAnnotation* tuple_type_annotation_;
   std::vector<std::unique_ptr<CppEmitter>> element_emitters_;
 };
 
 }  // namespace
 
-std::string DslxTypeNameToCpp(std::string_view dslx_type_name) {
-  return Camelize(dslx_type_name);
+std::string DslxTypeNameToCpp(std::string_view dslx_type) {
+  return Camelize(dslx_type);
 }
 
 /*static*/
 absl::StatusOr<std::unique_ptr<CppEmitter>> CppEmitter::Create(
-    TypeAnnotation* type_annotation, TypeInfo* type_info,
-    ImportData* import_data) {
+    const TypeAnnotation* type_annotation, std::string_view dslx_type,
+    TypeInfo* type_info, ImportData* import_data) {
   // Both builtin (e.g., `u32`) and array types (e.g, `sU[22]`) can represent
   // bit-vector types so call IsBitVectorType to identify them.
   std::optional<BitVectorMetadata> bit_vector_metadata =
@@ -570,7 +644,7 @@ absl::StatusOr<std::unique_ptr<CppEmitter>> CppEmitter::Create(
     XLS_ASSIGN_OR_RETURN(int64_t bit_count,
                          GetBitCountFromBitVectorMetadata(
                              *bit_vector_metadata, type_info, import_data));
-    return BitVectorCppEmitter::Create(type_annotation, bit_count,
+    return BitVectorCppEmitter::Create(dslx_type, bit_count,
                                        bit_vector_metadata->is_signed);
   }
   if (const ArrayTypeAnnotation* array_type =
@@ -586,7 +660,8 @@ absl::StatusOr<std::unique_ptr<CppEmitter>> CppEmitter::Create(
   if (const TypeRefTypeAnnotation* type_ref =
           dynamic_cast<const TypeRefTypeAnnotation*>(type_annotation);
       type_ref != nullptr) {
-    return TypeRefCppEmitter::Create(type_ref, type_info, import_data);
+    return TypeRefCppEmitter::Create(type_ref, dslx_type, type_info,
+                                     import_data);
   }
 
   return absl::InvalidArgumentError(absl::StrCat(

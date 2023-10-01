@@ -29,8 +29,7 @@
 namespace xls::dslx {
 
 // Returns the C++ type name used to represent the given DSLX type name.
-// code.
-std::string DslxTypeNameToCpp(std::string_view dslx_type_name);
+std::string DslxTypeNameToCpp(std::string_view dslx_type);
 
 // A class which handles generation of snippets of C++ code for a particular
 // type which may be represented with a TypeAnnotation (e.g., array, tuple,
@@ -41,7 +40,8 @@ std::string DslxTypeNameToCpp(std::string_view dslx_type_name);
 // non-conflicting variable names.
 class CppEmitter {
  public:
-  explicit CppEmitter(std::string_view cpp_type) : cpp_type_(cpp_type) {}
+  explicit CppEmitter(std::string_view cpp_type, std::string_view dslx_type)
+      : cpp_type_(cpp_type), dslx_type_(dslx_type) {}
   virtual ~CppEmitter() = default;
 
   // Emits c++ code which assigns `rhs` of xls::Value type to `lhs` of
@@ -66,11 +66,43 @@ class CppEmitter {
   // Emits and returns c++ code which appends a string representation of
   // `identifier` of type `cpp_type()` to the std::string with the name
   // `str_to_append`. `indent_amount` is the name of a int variable holding the
-  // indentation level.
+  // indentation level.  Bit-vector values (leaves) are emitted as unsigned hex
+  // numbers. For example, an emitter for DSLX type `u42` will emit c++ code
+  // which generates strings like:
+  //
+  //   bits[42]:0x1234
+  //
+  // An emitter for a tuple type might emit C++ which generate strings like:
+  //
+  //   (bits[1]:, bits[32]:0x12, MyEnum::kSomething)
+  //
+  // TODO(meheff): Make this emit a form which is parsable as a C++ designated
+  // initializer. For example:
+  //
+  //   Foo {
+  //     .Bar = 0x42,
+  //     .Baz = 0x123,
+  //   }
   virtual std::string ToString(std::string_view str_to_append,
                                std::string_view indent_amount,
                                std::string_view identifier,
                                int64_t nesting) const = 0;
+
+  // Emits and returns c++ code which appends a valid DSLX representation of
+  // `identifier` of type `cpp_type()` to the std::string with the name
+  // `str_to_append`. `indent_amount` is the name of a int variable holding the
+  // indentation level. For example, an emitter for DSLX type `u42` will emit
+  // c++ code which generates strings like:
+  //
+  //   u42:0x1234
+  //
+  // An emitter for a tuple type might emit C++ which generate strings like:
+  //
+  //   (bool: false, u32:0x12, MyEnum::kSomething)
+  virtual std::string ToDslxString(std::string_view str_to_append,
+                                   std::string_view indent_amount,
+                                   std::string_view identifier,
+                                   int64_t nesting) const = 0;
 
   // If the underlying DSLX type is a bit vector then return its bit
   // count. Otherwise return std::nullopt.
@@ -78,7 +110,7 @@ class CppEmitter {
     return std::nullopt;
   }
 
-  // If the underlying DSLX type is a bit vector then return its signedness..
+  // If the underlying DSLX type is a bit vector then return its signedness.
   // Otherwise return std::nullopt.
   virtual std::optional<bool> GetSignednessIfBitVector() const {
     return std::nullopt;
@@ -92,14 +124,18 @@ class CppEmitter {
     return GetBitCountIfBitVector().has_value();
   }
 
+  // Returns the name of the underlying DSLX type.
+  std::string dslx_type() const { return dslx_type_; }
+
   // Factory which creates and returns a CppEmitter for the DSLX type given by
   // `type_annotation`.
   static absl::StatusOr<std::unique_ptr<CppEmitter>> Create(
-      TypeAnnotation* type_annotation, TypeInfo* type_info,
-      ImportData* import_data);
+      const TypeAnnotation* type_annotation, std::string_view dslx_type,
+      TypeInfo* type_info, ImportData* import_data);
 
  private:
   std::string cpp_type_;
+  std::string dslx_type_;
 };
 
 }  // namespace xls::dslx

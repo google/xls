@@ -24,11 +24,12 @@ type MyTupleAlias = MyTuple;
 type MyTupleAliasAlias = MyTupleAlias;
 type MyEmptyTuple = ();
 type MyArray = u17[2];
-type MyArrayOfArrays = u5[2][3];
+type MyU5 = u5;
+type MyArrayOfArrays = MyU5[2][3];
 type MyTupleArray = MyTuple[2];
 type OtherTupleArray = (u32, u2)[2];
 
-pub enum MyEnum : u7 {
+enum MyEnum : u7 {
   kA = 0,
   kB = 1,
   kC = u7:20 + u7:22,
@@ -89,4 +90,16 @@ type TupleOfStructs = (InnerStruct, InnerStruct);
 
 struct FatType {
   x: u32[1000],
+}
+
+type snake_case_type_t = u13;
+
+enum snake_case_enum_t : u7 {
+  kA = 0,
+  kB = 1,
+}
+
+struct snake_case_struct_t {
+  some_field: snake_case_type_t,
+  some_other_field: snake_case_enum_t,
 }

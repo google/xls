@@ -92,19 +92,40 @@ absl::StatusOr<::xls::Value> MyStruct::ToValue() const {
 std::string MyStruct::ToString(int indent) const {
   std::string result = "MyStruct {\n";
   result += __indent(indent + 1) + "x: ";
-  result += absl::StrFormat("bits[32]:0x%x", x);
+  result += "bits[32]:" + absl::StrFormat("0x%x", x);
   result += ",\n";
   result += __indent(indent + 1) + "y: ";
-  result += absl::StrFormat("bits[15]:0x%x", y);
+  result += "bits[15]:" + absl::StrFormat("0x%x", y);
   result += ",\n";
   result += __indent(indent + 1) + "z: ";
-  result += absl::StrFormat("bits[8]:0x%x", z);
+  result += "bits[8]:" + absl::StrFormat("0x%x", z);
   result += ",\n";
   result += __indent(indent + 1) + "w: ";
-  result += absl::StrFormat("bits[63]:0x%x", w);
+  result += "bits[63]:" + absl::StrFormat("0x%x", w);
   result += ",\n";
   result += __indent(indent + 1) + "v: ";
-  result += absl::StrFormat("bits[1]:0x%x", v);
+  result += "bits[1]:" + absl::StrFormat("0x%x", v);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string MyStruct::ToDslxString(int indent) const {
+  std::string result = "MyStruct {\n";
+  result += __indent(indent + 1) + "x: ";
+  result += "u32:" + absl::StrFormat("0x%x", x);
+  result += ",\n";
+  result += __indent(indent + 1) + "y: ";
+  result += "u15:" + absl::StrFormat("0x%x", y);
+  result += ",\n";
+  result += __indent(indent + 1) + "z: ";
+  result += "u8:" + absl::StrFormat("0x%x", z);
+  result += ",\n";
+  result += __indent(indent + 1) + "w: ";
+  result += "s63:" + absl::StrFormat("%d", w);
+  result += ",\n";
+  result += __indent(indent + 1) + "v: ";
+  result += "u1:" + absl::StrFormat("0x%x", v);
   result += ",\n";
   result += __indent(indent) + "}";
   return result;

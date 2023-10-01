@@ -57,53 +57,54 @@ absl::StatusOr<InterpValue> InterpretExpr(
 // A type generator for emitting a C++ enum representing a dslx::EnumDef.
 class EnumCppTypeGenerator : public CppTypeGenerator {
  public:
-  explicit EnumCppTypeGenerator(std::string_view name, const EnumDef* enum_def,
+  explicit EnumCppTypeGenerator(std::string_view cpp_type,
+                                std::string_view dslx_type,
                                 std::unique_ptr<CppEmitter> emitter)
-      : CppTypeGenerator(name),
-        enum_def_(enum_def),
-        emitter_(std::move(emitter)) {}
+      : CppTypeGenerator(cpp_type, dslx_type), emitter_(std::move(emitter)) {}
   ~EnumCppTypeGenerator() override = default;
 
   static absl::StatusOr<std::unique_ptr<EnumCppTypeGenerator>> Create(
       const EnumDef* enum_def, TypeInfo* type_info, ImportData* import_data) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppEmitter> emitter,
-                         CppEmitter::Create(enum_def->type_annotation(),
-                                            type_info, import_data));
-    auto generator = std::make_unique<EnumCppTypeGenerator>(
-        DslxTypeNameToCpp(enum_def->identifier()), enum_def,
-        std::move(emitter));
     XLS_ASSIGN_OR_RETURN(
-        generator->enum_values_,
-        BuildEnumValues(generator->enum_def_, type_info, import_data));
+        std::unique_ptr<CppEmitter> emitter,
+        CppEmitter::Create(enum_def->type_annotation(), enum_def->identifier(),
+                           type_info, import_data));
+    auto generator = std::make_unique<EnumCppTypeGenerator>(
+        DslxTypeNameToCpp(enum_def->identifier()), enum_def->identifier(),
+        std::move(emitter));
+    XLS_ASSIGN_OR_RETURN(generator->enum_values_,
+                         BuildEnumValues(enum_def, type_info, import_data));
     return std::move(generator);
   }
 
   absl::StatusOr<CppSource> GetCppSource() const override {
     std::string enum_decl = absl::StrFormat(
-        "enum class %s : %s {\n%s\n};", cpp_type_name(), emitter_->cpp_type(),
+        "enum class %s : %s {\n%s\n};", cpp_type(), emitter_->cpp_type(),
         absl::StrJoin(
             enum_values_, "\n", [](std::string* out, const EnumValue& ev) {
               absl::StrAppendFormat(out, "  %s = %s,", ev.name, ev.value_str);
             }));
     std::string num_elements_def =
-        absl::StrFormat("constexpr int64_t k%sNumElements = %d;",
-                        cpp_type_name(), enum_values_.size());
+        absl::StrFormat("constexpr int64_t k%sNumElements = %d;", cpp_type(),
+                        enum_values_.size());
     std::string width_def = absl::StrFormat("constexpr int64_t k%sWidth = %d;",
-                                            cpp_type_name(), dslx_bit_count());
+                                            cpp_type(), dslx_bit_count());
 
     CppSource to_string = ToStringFunction();
+    CppSource to_dslx_string = ToDslxStringFunction();
     CppSource to_value = ToValueFunction();
     CppSource from_value = FromValueFunction();
     CppSource verify = VerifyFunction();
 
-    return CppSource{
-        .header = absl::StrJoin(
-            {enum_decl, num_elements_def, width_def, to_string.header,
-             to_value.header, from_value.header, verify.header},
-            "\n"),
-        .source = absl::StrJoin({to_string.source, to_value.source,
-                                 from_value.source, verify.source},
-                                "\n\n")};
+    return CppSource{.header = absl::StrJoin(
+                         {enum_decl, num_elements_def, width_def,
+                          to_string.header, to_dslx_string.header,
+                          to_value.header, from_value.header, verify.header},
+                         "\n"),
+                     .source = absl::StrJoin(
+                         {to_string.source, to_dslx_string.source,
+                          to_value.source, from_value.source, verify.source},
+                         "\n\n")};
   }
 
   int64_t dslx_bit_count() const {
@@ -152,7 +153,7 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
     return members;
   }
 
-  CppSource ToStringFunction() const {
+  std::string EmitToStringBody(std::string_view type_name) const {
     std::vector<std::string> pieces;
     pieces.push_back("switch (value) {");
     for (const EnumValue& ev : enum_values_) {
@@ -160,44 +161,56 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
       // value along with the enum name. For example: `MyEnum::kFoo (42)`,
       // `<unknown> (3)`.
       pieces.push_back(absl::StrFormat("  case %s::%s: return \"%s::%s\";",
-                                       cpp_type_name(), ev.name,
-                                       cpp_type_name(), ev.name));
+                                       cpp_type(), ev.name, type_name,
+                                       ev.name));
     }
     pieces.push_back("  default: return \"<unknown>\";");
     pieces.push_back("}");
-    std::string body = absl::StrJoin(pieces, "\n");
+    return absl::StrJoin(pieces, "\n");
+  }
+
+  CppSource ToStringFunction() const {
     return CppSource{
         .header = absl::StrFormat(
-            "std::string %sToString(%s value, int64_t indent = 0);",
-            cpp_type_name(), cpp_type_name()),
+            "std::string %sToString(%s value, int64_t indent = 0);", cpp_type(),
+            cpp_type()),
         .source = absl::StrFormat(
             "std::string %sToString(%s value, int64_t indent) {\n%s\n}",
-            cpp_type_name(), cpp_type_name(), Indent(body, 2))};
+            cpp_type(), cpp_type(), Indent(EmitToStringBody(cpp_type()), 2))};
+  }
+
+  CppSource ToDslxStringFunction() const {
+    return CppSource{
+        .header = absl::StrFormat(
+            "std::string %sToDslxString(%s value, int64_t indent = 0);",
+            cpp_type(), cpp_type()),
+        .source = absl::StrFormat(
+            "std::string %sToDslxString(%s value, int64_t indent) {\n%s\n}",
+            cpp_type(), cpp_type(), Indent(EmitToStringBody(dslx_type()), 2))};
   }
 
   CppSource VerifyFunction() const {
     std::string signature = absl::StrFormat("absl::Status Verify%s(%s value)",
-                                            cpp_type_name(), cpp_type_name());
+                                            cpp_type(), cpp_type());
     std::vector<std::string> pieces;
 
     // Verify the value fits in the width of the DSLX type.
     std::string bitvector_verification =
-        emitter_->Verify(CastToCppBaseType("value"), cpp_type_name(),
+        emitter_->Verify(CastToCppBaseType("value"), cpp_type(),
                          /*nesting=*/0);
     pieces.push_back(bitvector_verification);
 
     // Verify the value is one of the defined enum values.
     pieces.push_back("switch (value) {");
     for (const EnumValue& ev : enum_values_) {
-      pieces.push_back(
-          absl::StrFormat("  case %s::%s:", cpp_type_name(), ev.name));
+      pieces.push_back(absl::StrFormat("  case %s::%s:", cpp_type(), ev.name));
     }
     pieces.push_back("    break;");
     pieces.push_back("  default:");
     pieces.push_back(absl::StrFormat(
         "    return absl::InvalidArgumentError(absl::StrCat(\"Invalid value "
         "for %s enum: \", value));",
-        cpp_type_name()));
+        cpp_type()));
     pieces.push_back("}");
     pieces.push_back("return absl::OkStatus();");
     std::string body = absl::StrJoin(pieces, "\n");
@@ -209,10 +222,10 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
   CppSource ToValueFunction() const {
     std::string signature =
         absl::StrFormat("absl::StatusOr<::xls::Value> %sToValue(%s input)",
-                        cpp_type_name(), cpp_type_name());
+                        cpp_type(), cpp_type());
     std::vector<std::string> pieces;
-    pieces.push_back(absl::StrFormat("XLS_RETURN_IF_ERROR(Verify%s(input));",
-                                     cpp_type_name()));
+    pieces.push_back(
+        absl::StrFormat("XLS_RETURN_IF_ERROR(Verify%s(input));", cpp_type()));
     pieces.push_back("::xls::Value result;");
     pieces.push_back(emitter_->AssignToValue(
         "result", CastToCppBaseType("input"), /*nesting=*/0));
@@ -225,17 +238,16 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
 
   CppSource FromValueFunction() const {
     std::string signature = absl::StrFormat(
-        "absl::StatusOr<%s> %sFromValue(const ::xls::Value& value)",
-        cpp_type_name(), cpp_type_name());
+        "absl::StatusOr<%s> %sFromValue(const ::xls::Value& value)", cpp_type(),
+        cpp_type());
     std::vector<std::string> pieces;
     pieces.push_back(absl::StrFormat("%s result_base;", emitter_->cpp_type()));
     pieces.push_back(
         emitter_->AssignFromValue("result_base", "value", /*nesting=*/0));
+    pieces.push_back(absl::StrFormat(
+        "%s result = static_cast<%s>(result_base);", cpp_type(), cpp_type()));
     pieces.push_back(
-        absl::StrFormat("%s result = static_cast<%s>(result_base);",
-                        cpp_type_name(), cpp_type_name()));
-    pieces.push_back(absl::StrFormat("XLS_RETURN_IF_ERROR(Verify%s(result));",
-                                     cpp_type_name()));
+        absl::StrFormat("XLS_RETURN_IF_ERROR(Verify%s(result));", cpp_type()));
     pieces.push_back("return result;");
     std::string body = absl::StrJoin(pieces, "\n");
     return CppSource{
@@ -243,7 +255,6 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
         .source = absl::StrFormat("%s {\n%s\n}", signature, Indent(body, 2))};
   }
 
-  const EnumDef* enum_def_;
   std::vector<EnumValue> enum_values_;
   std::unique_ptr<CppEmitter> emitter_;
 };
@@ -252,48 +263,50 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
 // functions for representing a dslx::TypeAlias (e.g., `type Foo = u32`).
 class TypeAliasCppTypeGenerator : public CppTypeGenerator {
  public:
-  explicit TypeAliasCppTypeGenerator(std::string_view name,
-                                     const TypeAlias* type_alias,
+  explicit TypeAliasCppTypeGenerator(std::string_view cpp_type,
+                                     std::string_view dslx_type,
                                      std::unique_ptr<CppEmitter> emitter)
-      : CppTypeGenerator(name),
-        type_alias_(type_alias),
-        emitter_(std::move(emitter)) {}
+      : CppTypeGenerator(cpp_type, dslx_type), emitter_(std::move(emitter)) {}
   ~TypeAliasCppTypeGenerator() override = default;
 
   static absl::StatusOr<std::unique_ptr<TypeAliasCppTypeGenerator>> Create(
       const TypeAlias* type_alias, TypeInfo* type_info,
       ImportData* import_data) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppEmitter> emitter,
-                         CppEmitter::Create(type_alias->type_annotation(),
-                                            type_info, import_data));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<CppEmitter> emitter,
+        CppEmitter::Create(type_alias->type_annotation(),
+                           type_alias->identifier(), type_info, import_data));
     return std::make_unique<TypeAliasCppTypeGenerator>(
-        DslxTypeNameToCpp(type_alias->identifier()), type_alias,
+        DslxTypeNameToCpp(type_alias->identifier()), type_alias->identifier(),
         std::move(emitter));
   }
 
   absl::StatusOr<CppSource> GetCppSource() const override {
     CppSource verify_src = VerifyFunction();
     CppSource to_string_src = ToStringFunction();
+    CppSource to_dslx_string_src = ToDslxStringFunction();
     CppSource to_value_src = ToValueFunction();
     CppSource from_value_src = FromValueFunction();
 
     std::vector<std::string> hdr_pieces;
-    hdr_pieces.push_back(absl::StrFormat("using %s = %s;", cpp_type_name(),
-                                         emitter_->cpp_type()));
+    hdr_pieces.push_back(
+        absl::StrFormat("using %s = %s;", cpp_type(), emitter_->cpp_type()));
     std::optional<int64_t> width = emitter_->GetBitCountIfBitVector();
     if (width.has_value()) {
       hdr_pieces.push_back(absl::StrFormat("constexpr int64_t k%sWidth = %d;",
-                                           cpp_type_name(), width.value()));
+                                           cpp_type(), width.value()));
     }
     hdr_pieces.push_back(verify_src.header);
     hdr_pieces.push_back(to_string_src.header);
+    hdr_pieces.push_back(to_dslx_string_src.header);
     hdr_pieces.push_back(to_value_src.header);
     hdr_pieces.push_back(from_value_src.header);
     return CppSource{
         .header = absl::StrJoin(hdr_pieces, "\n"),
-        .source = absl::StrJoin({verify_src.source, to_string_src.source,
-                                 to_value_src.source, from_value_src.source},
-                                "\n\n")};
+        .source = absl::StrJoin(
+            {verify_src.source, to_string_src.source, to_dslx_string_src.source,
+             to_value_src.source, from_value_src.source},
+            "\n\n")};
   }
 
  protected:
@@ -305,17 +318,16 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
     // Primitive types are passed by value. All others (structs, arrays, tuples)
     // are passed by reference.
     if (emitter_->IsCppPrimitiveType()) {
-      return absl::StrFormat("%s %s", cpp_type_name(), name);
+      return absl::StrFormat("%s %s", cpp_type(), name);
     }
-    return absl::StrFormat("const %s& %s", cpp_type_name(), name);
+    return absl::StrFormat("const %s& %s", cpp_type(), name);
   }
 
   CppSource VerifyFunction() const {
-    std::string signature =
-        absl::StrFormat("absl::Status Verify%s(%s)", cpp_type_name(),
-                        GetValueParameter("value"));
+    std::string signature = absl::StrFormat(
+        "absl::Status Verify%s(%s)", cpp_type(), GetValueParameter("value"));
     std::vector<std::string> pieces;
-    std::string verification = emitter_->Verify("value", cpp_type_name(),
+    std::string verification = emitter_->Verify("value", cpp_type(),
                                                 /*nesting=*/0);
     pieces.push_back(verification);
     pieces.push_back("return absl::OkStatus();");
@@ -328,7 +340,7 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
   CppSource ToValueFunction() const {
     std::string signature =
         absl::StrFormat("absl::StatusOr<::xls::Value> %sToValue(%s)",
-                        cpp_type_name(), GetValueParameter("input"));
+                        cpp_type(), GetValueParameter("input"));
     std::vector<std::string> pieces;
     pieces.push_back("::xls::Value value;");
     std::string assignment =
@@ -353,18 +365,35 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
     return CppSource{
         .header =
             absl::StrFormat("std::string %sToString(%s, int64_t indent = 0);",
-                            cpp_type_name(), GetValueParameter("value")),
+                            cpp_type(), GetValueParameter("value")),
         .source = absl::StrFormat(
-            "std::string %sToString(%s, int64_t indent) {\n%s\n}",
-            cpp_type_name(), GetValueParameter("value"), Indent(body, 2))};
+            "std::string %sToString(%s, int64_t indent) {\n%s\n}", cpp_type(),
+            GetValueParameter("value"), Indent(body, 2))};
+  }
+
+  CppSource ToDslxStringFunction() const {
+    std::vector<std::string> pieces;
+    pieces.push_back("std::string result;");
+    std::string to_string =
+        emitter_->ToDslxString("result", "indent", "value", /*nesting=*/0);
+    pieces.push_back(to_string);
+    pieces.push_back("return result;");
+    std::string body = absl::StrJoin(pieces, "\n");
+    return CppSource{
+        .header = absl::StrFormat(
+            "std::string %sToDslxString(%s, int64_t indent = 0);", cpp_type(),
+            GetValueParameter("value")),
+        .source = absl::StrFormat(
+            "std::string %sToDslxString(%s, int64_t indent) {\n%s\n}",
+            cpp_type(), GetValueParameter("value"), Indent(body, 2))};
   }
 
   CppSource FromValueFunction() const {
     std::string signature = absl::StrFormat(
-        "absl::StatusOr<%s> %sFromValue(const ::xls::Value& value)",
-        cpp_type_name(), cpp_type_name());
+        "absl::StatusOr<%s> %sFromValue(const ::xls::Value& value)", cpp_type(),
+        cpp_type());
     std::vector<std::string> pieces;
-    pieces.push_back(absl::StrFormat("%s result;", cpp_type_name()));
+    pieces.push_back(absl::StrFormat("%s result;", cpp_type()));
 
     std::string assignment =
         emitter_->AssignFromValue("result", "value", /*nesting=*/0);
@@ -377,7 +406,6 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
         .source = absl::StrFormat("%s {\n%s\n}", signature, Indent(body, 2))};
   }
 
-  const TypeAlias* type_alias_;
   std::unique_ptr<CppEmitter> emitter_;
 };
 
@@ -385,9 +413,10 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
 class StructCppTypeGenerator : public CppTypeGenerator {
  public:
   explicit StructCppTypeGenerator(
-      std::string_view name, const StructDef* struct_def,
+      std::string_view cpp_type, std::string_view dslx_type,
+      const StructDef* struct_def,
       std::vector<std::unique_ptr<CppEmitter>> member_emitters)
-      : CppTypeGenerator(name),
+      : CppTypeGenerator(cpp_type, dslx_type),
         struct_def_(struct_def),
         member_emitters_(std::move(member_emitters)) {}
   ~StructCppTypeGenerator() override = default;
@@ -397,14 +426,14 @@ class StructCppTypeGenerator : public CppTypeGenerator {
       ImportData* import_data) {
     std::vector<std::unique_ptr<CppEmitter>> member_emitters;
     for (const auto& i : struct_def->members()) {
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<CppEmitter> emitter,
-          CppEmitter::Create(i.second, type_info, import_data));
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppEmitter> emitter,
+                           CppEmitter::Create(i.second, i.second->ToString(),
+                                              type_info, import_data));
       member_emitters.push_back(std::move(emitter));
     }
     return std::make_unique<StructCppTypeGenerator>(
-        DslxTypeNameToCpp(struct_def->identifier()), struct_def,
-        std::move(member_emitters));
+        DslxTypeNameToCpp(struct_def->identifier()), struct_def->identifier(),
+        struct_def, std::move(member_emitters));
   }
 
   absl::StatusOr<CppSource> GetCppSource() const override {
@@ -426,6 +455,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     CppSource from_value_method = FromValueMethod();
     CppSource to_value_method = ToValueMethod();
     CppSource to_string_method = ToStringMethod();
+    CppSource to_dslx_string_method = ToDslxStringMethod();
     CppSource verify_method = VerifyMethod();
     CppSource operator_eq_method = OperatorEqMethod();
     CppSource operator_stream_method = OperatorStreamMethod();
@@ -442,22 +472,24 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     hdr_pieces.push_back(from_value_method.header);
     hdr_pieces.push_back(to_value_method.header);
     hdr_pieces.push_back(to_string_method.header);
+    hdr_pieces.push_back(to_dslx_string_method.header);
     hdr_pieces.push_back(verify_method.header);
     hdr_pieces.push_back(operator_eq_method.header);
     hdr_pieces.push_back(absl::StrFormat(
         "bool operator!=(const %s& other) const { return !(*this == other); }",
-        cpp_type_name()));
+        cpp_type()));
     hdr_pieces.push_back(operator_stream_method.header);
 
     std::string members = absl::StrJoin(hdr_pieces, "\n");
 
-    std::string header = absl::StrFormat("struct %s {\n%s\n};", cpp_type_name(),
-                                         Indent(members, 2));
-    std::string source = absl::StrJoin(
-        {from_value_method.source, to_value_method.source,
-         to_string_method.source, verify_method.source,
-         operator_eq_method.source, operator_stream_method.source},
-        "\n\n");
+    std::string header =
+        absl::StrFormat("struct %s {\n%s\n};", cpp_type(), Indent(members, 2));
+    std::string source =
+        absl::StrJoin({from_value_method.source, to_value_method.source,
+                       to_string_method.source, to_dslx_string_method.source,
+                       verify_method.source, operator_eq_method.source,
+                       operator_stream_method.source},
+                      "\n\n");
     return CppSource{.header = header, .source = source};
   }
 
@@ -471,7 +503,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
                         "tuple of %d elements.\");",
                         struct_def_->size()));
     pieces.push_back("}");
-    pieces.push_back(absl::StrFormat("%s result;", cpp_type_name()));
+    pieces.push_back(absl::StrFormat("%s result;", cpp_type()));
     for (int i = 0; i < struct_def_->members().size(); i++) {
       std::string assignment = member_emitters_[i]->AssignFromValue(
           /*lhs=*/absl::StrFormat("result.%s", struct_def_->GetMemberName(i)),
@@ -484,11 +516,11 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     return CppSource{
         .header = absl::StrFormat(
             "static absl::StatusOr<%s> FromValue(const ::xls::Value& value);",
-            cpp_type_name()),
+            cpp_type()),
         .source = absl::StrFormat(
             "absl::StatusOr<%s> %s::FromValue(const ::xls::Value& value) "
             "{\n%s\n}",
-            cpp_type_name(), cpp_type_name(), Indent(body, 2))};
+            cpp_type(), cpp_type(), Indent(body, 2))};
   }
 
   CppSource ToValueMethod() const {
@@ -509,7 +541,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
         .header = "absl::StatusOr<::xls::Value> ToValue() const;",
         .source = absl::StrFormat(
             "absl::StatusOr<::xls::Value> %s::ToValue() const {\n%s\n}",
-            cpp_type_name(), Indent(body, 2))};
+            cpp_type(), Indent(body, 2))};
   }
 
   CppSource VerifyMethod() const {
@@ -517,8 +549,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     for (int i = 0; i < struct_def_->members().size(); i++) {
       std::string verification = member_emitters_[i]->Verify(
           struct_def_->GetMemberName(i),
-          absl::StrFormat("%s.%s", cpp_type_name(),
-                          struct_def_->GetMemberName(i)),
+          absl::StrFormat("%s.%s", cpp_type(), struct_def_->GetMemberName(i)),
           /*nesting=*/0);
       pieces.push_back(verification);
     }
@@ -528,13 +559,13 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     return CppSource{
         .header = "absl::Status Verify() const;",
         .source = absl::StrFormat("absl::Status %s::Verify() const {\n%s\n}",
-                                  cpp_type_name(), Indent(body, 2))};
+                                  cpp_type(), Indent(body, 2))};
   }
 
   CppSource ToStringMethod() const {
     std::vector<std::string> pieces;
     pieces.push_back(
-        absl::StrFormat("std::string result = \"%s {\\n\";", cpp_type_name()));
+        absl::StrFormat("std::string result = \"%s {\\n\";", cpp_type()));
     for (int i = 0; i < struct_def_->members().size(); i++) {
       pieces.push_back(
           absl::StrFormat("result += __indent(indent + 1) + \"%s: \";",
@@ -551,7 +582,31 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     return CppSource{.header = "std::string ToString(int indent = 0) const;",
                      .source = absl::StrFormat(
                          "std::string %s::ToString(int indent) const {\n%s\n}",
-                         cpp_type_name(), Indent(body, 2))};
+                         cpp_type(), Indent(body, 2))};
+  }
+
+  CppSource ToDslxStringMethod() const {
+    std::vector<std::string> pieces;
+    pieces.push_back(
+        absl::StrFormat("std::string result = \"%s {\\n\";", dslx_type()));
+    for (int i = 0; i < struct_def_->members().size(); i++) {
+      pieces.push_back(
+          absl::StrFormat("result += __indent(indent + 1) + \"%s: \";",
+                          struct_def_->GetMemberName(i)));
+      std::string to_string = member_emitters_[i]->ToDslxString(
+          "result", "indent + 2", struct_def_->GetMemberName(i), /*nesting=*/0);
+      pieces.push_back(to_string);
+      pieces.push_back("result += \",\\n\";");
+    }
+    pieces.push_back("result += __indent(indent) + \"}\";");
+    pieces.push_back("return result;");
+    std::string body = absl::StrJoin(pieces, "\n");
+
+    return CppSource{
+        .header = "std::string ToDslxString(int indent = 0) const;",
+        .source = absl::StrFormat(
+            "std::string %s::ToDslxString(int indent) const {\n%s\n}",
+            cpp_type(), Indent(body, 2))};
   }
 
   CppSource OperatorEqMethod() const {
@@ -571,18 +626,17 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     }
     std::string body = absl::StrJoin(pieces, "\n");
 
-    return CppSource{
-        .header = absl::StrFormat("bool operator==(const %s& other) const;",
-                                  cpp_type_name()),
-        .source = absl::StrFormat(
-            "bool %s::operator==(const %s& other) const {\n%s\n}",
-            cpp_type_name(), cpp_type_name(), Indent(body, 2))};
+    return CppSource{.header = absl::StrFormat(
+                         "bool operator==(const %s& other) const;", cpp_type()),
+                     .source = absl::StrFormat(
+                         "bool %s::operator==(const %s& other) const {\n%s\n}",
+                         cpp_type(), cpp_type(), Indent(body, 2))};
   }
 
   CppSource OperatorStreamMethod() const {
     std::string signature = absl::StrFormat(
         "std::ostream& operator<<(std::ostream& os, const %s& data)",
-        cpp_type_name());
+        cpp_type());
     std::vector<std::string> pieces;
     pieces.push_back("os << data.ToString();");
     pieces.push_back("return os;");

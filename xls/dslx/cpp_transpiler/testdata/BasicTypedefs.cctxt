@@ -46,7 +46,13 @@ absl::Status VerifyMyType(MyType value) {
 
 std::string MyTypeToString(MyType value, int64_t indent) {
   std::string result;
-  result += absl::StrFormat("bits[6]:0x%x", value);
+  result += "bits[6]:" + absl::StrFormat("0x%x", value);
+  return result;
+}
+
+std::string MyTypeToDslxString(MyType value, int64_t indent) {
+  std::string result;
+  result += "MyType:" + absl::StrFormat("0x%x", value);
   return result;
 }
 
@@ -77,7 +83,13 @@ absl::Status VerifyMySignedType(MySignedType value) {
 
 std::string MySignedTypeToString(MySignedType value, int64_t indent) {
   std::string result;
-  result += absl::StrFormat("bits[8]:0x%x", value);
+  result += "bits[8]:" + absl::StrFormat("0x%x", value);
+  return result;
+}
+
+std::string MySignedTypeToDslxString(MySignedType value, int64_t indent) {
+  std::string result;
+  result += "MySignedType:" + absl::StrFormat("%d", value);
   return result;
 }
 
@@ -108,7 +120,13 @@ absl::Status VerifyMyThirdType(MyThirdType value) {
 
 std::string MyThirdTypeToString(MyThirdType value, int64_t indent) {
   std::string result;
-  result += absl::StrFormat("bits[9]:0x%x", value);
+  result += "bits[9]:" + absl::StrFormat("0x%x", value);
+  return result;
+}
+
+std::string MyThirdTypeToDslxString(MyThirdType value, int64_t indent) {
+  std::string result;
+  result += "MyThirdType:" + absl::StrFormat("%d", value);
   return result;
 }
 
@@ -144,7 +162,19 @@ std::string MyArrayType1ToString(const MyArrayType1& value, int64_t indent) {
   result += "[\n";
   for (int64_t i0 = 0; i0 < 8; ++i0) {
     result += __indent(indent + 1);
-      result += absl::StrFormat("bits[31]:0x%x", value[i0]);
+      result += "bits[31]:" + absl::StrFormat("0x%x", value[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent) + "]";
+  return result;
+}
+
+std::string MyArrayType1ToDslxString(const MyArrayType1& value, int64_t indent) {
+  std::string result;
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 8; ++i0) {
+    result += __indent(indent + 1);
+      result += "u31:" + absl::StrFormat("0x%x", value[i0]);
   result += ",\n";
   }
   result += __indent(indent) + "]";
@@ -196,7 +226,19 @@ std::string MyArrayType2ToString(const MyArrayType2& value, int64_t indent) {
   result += "[\n";
   for (int64_t i0 = 0; i0 < 4; ++i0) {
     result += __indent(indent + 1);
-      result += absl::StrFormat("bits[31]:0x%x", value[i0]);
+      result += "bits[31]:" + absl::StrFormat("0x%x", value[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent) + "]";
+  return result;
+}
+
+std::string MyArrayType2ToDslxString(const MyArrayType2& value, int64_t indent) {
+  std::string result;
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    result += __indent(indent + 1);
+      result += "u31:" + absl::StrFormat("0x%x", value[i0]);
   result += ",\n";
   }
   result += __indent(indent) + "]";
@@ -253,6 +295,18 @@ std::string MyArrayType3ToString(const MyArrayType3& value, int64_t indent) {
   return result;
 }
 
+std::string MyArrayType3ToDslxString(const MyArrayType3& value, int64_t indent) {
+  std::string result;
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    result += __indent(indent + 1);
+      result += MySignedTypeToDslxString(value[i0], indent + 1);
+  result += ",\n";
+  }
+  result += __indent(indent) + "]";
+  return result;
+}
+
 absl::StatusOr<::xls::Value> MyArrayType3ToValue(const MyArrayType3& input) {
   ::xls::Value value;
   {
@@ -292,7 +346,19 @@ std::string MyArrayType4ToString(const MyArrayType4& value, int64_t indent) {
   result += "[\n";
   for (int64_t i0 = 0; i0 < 4; ++i0) {
     result += __indent(indent + 1);
-      result += absl::StrFormat("bits[8]:0x%x", value[i0]);
+      result += "bits[8]:" + absl::StrFormat("0x%x", value[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent) + "]";
+  return result;
+}
+
+std::string MyArrayType4ToDslxString(const MyArrayType4& value, int64_t indent) {
+  std::string result;
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 4; ++i0) {
+    result += __indent(indent + 1);
+      result += "s8:" + absl::StrFormat("%d", value[i0]);
   result += ",\n";
   }
   result += __indent(indent) + "]";
@@ -339,7 +405,13 @@ absl::Status VerifyMyArrayType5(MyArrayType5 value) {
 
 std::string MyArrayType5ToString(MyArrayType5 value, int64_t indent) {
   std::string result;
-  result += absl::StrFormat("bits[1]:0x%x", value);
+  result += "bits[1]:" + absl::StrFormat("0x%x", value);
+  return result;
+}
+
+std::string MyArrayType5ToDslxString(MyArrayType5 value, int64_t indent) {
+  std::string result;
+  result += "MyArrayType5:" + absl::StrFormat("0x%x", value);
   return result;
 }
 
@@ -379,10 +451,10 @@ std::string MyFirstTupleToString(const MyFirstTuple& value, int64_t indent) {
   std::string result;
   result += "(\n";
   result += __indent(indent + 1);
-  result += absl::StrFormat("bits[7]:0x%x", std::get<0>(value));
+  result += "bits[7]:" + absl::StrFormat("0x%x", std::get<0>(value));
   result += ",\n";
   result += __indent(indent + 1);
-  result += absl::StrFormat("bits[8]:0x%x", std::get<1>(value));
+  result += "bits[8]:" + absl::StrFormat("0x%x", std::get<1>(value));
   result += ",\n";
   result += __indent(indent + 1);
   result += MyTypeToString(std::get<2>(value), indent + 1);
@@ -395,6 +467,31 @@ std::string MyFirstTupleToString(const MyFirstTuple& value, int64_t indent) {
   result += ",\n";
   result += __indent(indent + 1);
   result += MyArrayType2ToString(std::get<5>(value), indent + 1);
+  result += ",\n";
+  result += __indent(indent) + ")";
+  return result;
+}
+
+std::string MyFirstTupleToDslxString(const MyFirstTuple& value, int64_t indent) {
+  std::string result;
+  result += "(\n";
+  result += __indent(indent + 1);
+  result += "u7:" + absl::StrFormat("0x%x", std::get<0>(value));
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += "s8:" + absl::StrFormat("%d", std::get<1>(value));
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += MyTypeToDslxString(std::get<2>(value), indent + 1);
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += MySignedTypeToDslxString(std::get<3>(value), indent + 1);
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += MyArrayType1ToDslxString(std::get<4>(value), indent + 1);
+  result += ",\n";
+  result += __indent(indent + 1);
+  result += MyArrayType2ToDslxString(std::get<5>(value), indent + 1);
   result += ",\n";
   result += __indent(indent) + ")";
   return result;

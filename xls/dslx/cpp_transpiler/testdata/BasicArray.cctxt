@@ -118,7 +118,7 @@ std::string MyStruct::ToString(int indent) const {
   result += "[\n";
   for (int64_t i0 = 0; i0 < 32; ++i0) {
     result += __indent(indent + 2 + 1);
-      result += absl::StrFormat("bits[32]:0x%x", x[i0]);
+      result += "bits[32]:" + absl::StrFormat("0x%x", x[i0]);
   result += ",\n";
   }
   result += __indent(indent + 2) + "]";
@@ -127,7 +127,7 @@ std::string MyStruct::ToString(int indent) const {
   result += "[\n";
   for (int64_t i0 = 0; i0 < 8; ++i0) {
     result += __indent(indent + 2 + 1);
-      result += absl::StrFormat("bits[7]:0x%x", y[i0]);
+      result += "bits[7]:" + absl::StrFormat("0x%x", y[i0]);
   result += ",\n";
   }
   result += __indent(indent + 2) + "]";
@@ -136,7 +136,40 @@ std::string MyStruct::ToString(int indent) const {
   result += "[\n";
   for (int64_t i0 = 0; i0 < 7; ++i0) {
     result += __indent(indent + 2 + 1);
-      result += absl::StrFormat("bits[8]:0x%x", z[i0]);
+      result += "bits[8]:" + absl::StrFormat("0x%x", z[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent + 2) + "]";
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string MyStruct::ToDslxString(int indent) const {
+  std::string result = "MyStruct {\n";
+  result += __indent(indent + 1) + "x: ";
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 32; ++i0) {
+    result += __indent(indent + 2 + 1);
+      result += "u32:" + absl::StrFormat("0x%x", x[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent + 2) + "]";
+  result += ",\n";
+  result += __indent(indent + 1) + "y: ";
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 8; ++i0) {
+    result += __indent(indent + 2 + 1);
+      result += "s7:" + absl::StrFormat("%d", y[i0]);
+  result += ",\n";
+  }
+  result += __indent(indent + 2) + "]";
+  result += ",\n";
+  result += __indent(indent + 1) + "z: ";
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 7; ++i0) {
+    result += __indent(indent + 2 + 1);
+      result += "u8:" + absl::StrFormat("0x%x", z[i0]);
   result += ",\n";
   }
   result += __indent(indent + 2) + "]";

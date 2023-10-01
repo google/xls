@@ -19,6 +19,7 @@ enum class MyEnum : uint64_t {
 constexpr int64_t kMyEnumNumElements = 4;
 constexpr int64_t kMyEnumWidth = 34;
 std::string MyEnumToString(MyEnum value, int64_t indent = 0);
+std::string MyEnumToDslxString(MyEnum value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyEnumToValue(MyEnum input);
 absl::StatusOr<MyEnum> MyEnumFromValue(const ::xls::Value& value);
 absl::Status VerifyMyEnum(MyEnum value);

@@ -20,6 +20,7 @@ struct InnerStruct {
   static absl::StatusOr<InnerStruct> FromValue(const ::xls::Value& value);
   absl::StatusOr<::xls::Value> ToValue() const;
   std::string ToString(int indent = 0) const;
+  std::string ToDslxString(int indent = 0) const;
   absl::Status Verify() const;
   bool operator==(const InnerStruct& other) const;
   bool operator!=(const InnerStruct& other) const { return !(*this == other); }
@@ -35,6 +36,7 @@ struct MiddleStruct {
   static absl::StatusOr<MiddleStruct> FromValue(const ::xls::Value& value);
   absl::StatusOr<::xls::Value> ToValue() const;
   std::string ToString(int indent = 0) const;
+  std::string ToDslxString(int indent = 0) const;
   absl::Status Verify() const;
   bool operator==(const MiddleStruct& other) const;
   bool operator!=(const MiddleStruct& other) const { return !(*this == other); }
@@ -50,6 +52,7 @@ struct OtherMiddleStruct {
   static absl::StatusOr<OtherMiddleStruct> FromValue(const ::xls::Value& value);
   absl::StatusOr<::xls::Value> ToValue() const;
   std::string ToString(int indent = 0) const;
+  std::string ToDslxString(int indent = 0) const;
   absl::Status Verify() const;
   bool operator==(const OtherMiddleStruct& other) const;
   bool operator!=(const OtherMiddleStruct& other) const { return !(*this == other); }
@@ -67,6 +70,7 @@ struct OuterStruct {
   static absl::StatusOr<OuterStruct> FromValue(const ::xls::Value& value);
   absl::StatusOr<::xls::Value> ToValue() const;
   std::string ToString(int indent = 0) const;
+  std::string ToDslxString(int indent = 0) const;
   absl::Status Verify() const;
   bool operator==(const OuterStruct& other) const;
   bool operator!=(const OuterStruct& other) const { return !(*this == other); }

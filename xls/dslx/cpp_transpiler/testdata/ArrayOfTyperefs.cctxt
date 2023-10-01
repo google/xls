@@ -68,10 +68,22 @@ absl::StatusOr<::xls::Value> Foo::ToValue() const {
 std::string Foo::ToString(int indent) const {
   std::string result = "Foo {\n";
   result += __indent(indent + 1) + "a: ";
-  result += absl::StrFormat("bits[32]:0x%x", a);
+  result += "bits[32]:" + absl::StrFormat("0x%x", a);
   result += ",\n";
   result += __indent(indent + 1) + "b: ";
-  result += absl::StrFormat("bits[64]:0x%x", b);
+  result += "bits[64]:" + absl::StrFormat("0x%x", b);
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string Foo::ToDslxString(int indent) const {
+  std::string result = "Foo {\n";
+  result += __indent(indent + 1) + "a: ";
+  result += "u32:" + absl::StrFormat("0x%x", a);
+  result += ",\n";
+  result += __indent(indent + 1) + "b: ";
+  result += "u64:" + absl::StrFormat("0x%x", b);
   result += ",\n";
   result += __indent(indent) + "}";
   return result;
@@ -132,6 +144,21 @@ std::string Bar::ToString(int indent) const {
   for (int64_t i0 = 0; i0 < 2; ++i0) {
     result += __indent(indent + 2 + 1);
       result += c[i0].ToString(indent + 2 + 1);
+  result += ",\n";
+  }
+  result += __indent(indent + 2) + "]";
+  result += ",\n";
+  result += __indent(indent) + "}";
+  return result;
+}
+
+std::string Bar::ToDslxString(int indent) const {
+  std::string result = "Bar {\n";
+  result += __indent(indent + 1) + "c: ";
+  result += "[\n";
+  for (int64_t i0 = 0; i0 < 2; ++i0) {
+    result += __indent(indent + 2 + 1);
+      result += c[i0].ToDslxString(indent + 2 + 1);
   result += ",\n";
   }
   result += __indent(indent + 2) + "]";
