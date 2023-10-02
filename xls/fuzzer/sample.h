@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.pb.h"
@@ -124,6 +125,26 @@ class SampleOptions {
 
   int64_t proc_ticks() const { return proto_.proc_ticks(); }
   void set_proc_ticks(int64_t value) { proto_.set_proc_ticks(value); }
+
+  std::vector<fuzzer::KnownFailure> known_failures() const {
+    return std::vector<fuzzer::KnownFailure>(
+        proto_.known_failure().begin(),
+        proto_.known_failure().end());
+  }
+  void clear_known_failures() { proto_.clear_known_failure(); }
+  void add_known_failure(std::string_view re) {
+    *proto_.mutable_known_failure()->Add()->mutable_stderr_regex() = re;
+  }
+  void add_known_failure(std::string_view tool, std::string_view re) {
+    auto* fail = proto_.add_known_failure();
+    *fail->mutable_tool() = tool;
+    *fail->mutable_stderr_regex() = re;
+  }
+  void set_known_failures(absl::Span<const fuzzer::KnownFailure> fails) {
+    for (const auto& arg : fails) {
+      *proto_.add_known_failure() = arg;
+    }
+  }
 
   bool operator==(const SampleOptions& other) const;
   bool operator!=(const SampleOptions& other) const {

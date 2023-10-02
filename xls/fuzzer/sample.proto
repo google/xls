@@ -22,6 +22,13 @@ enum SampleType {
   SAMPLE_TYPE_PROC = 2;
 }
 
+message KnownFailure {
+  // Regex to match on tool base name.
+  optional string tool = 1;
+  // Regex to match stderr of the tool against.
+  optional string stderr_regex = 2;
+}
+
 message SampleOptionsProto {
   // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
   optional bool input_is_dslx = 1;
@@ -73,6 +80,14 @@ message SampleOptionsProto {
 
   // Number ticks to execute the generated proc. Only meaningful for procs.
   optional int64 proc_ticks = 14;
+
+  // Regex of error messages which are known to be domain-errors in fuzzing.
+  //
+  // Any crasher which has a match the regular-expressions in the correct tool
+  // will not be considered a fuzzing failure and fuzzing will continue.
+  //
+  // We should try to reduce these to nothing if possible over time.
+  repeated KnownFailure known_failure = 15;
 }
 
 // Inputs fed to a single input channel of the sample proc.

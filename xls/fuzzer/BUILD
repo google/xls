@@ -307,6 +307,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/public:runtime_build_actions",
         "//xls/tools:eval_helpers",
+        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
@@ -452,6 +453,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:protobuf",
     ],
 )

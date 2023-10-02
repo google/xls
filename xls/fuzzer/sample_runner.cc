@@ -72,6 +72,7 @@
 #include "xls/ir/value.h"
 #include "xls/public/runtime_build_actions.h"
 #include "xls/tools/eval_helpers.h"
+#include "re2/re2.h"
 
 namespace xls {
 
@@ -171,6 +172,13 @@ absl::StatusOr<std::string> RunCommand(
   std::filesystem::path executable = std::get<std::filesystem::path>(command);
   std::string basename = executable.filename();
 
+  std::vector<std::string> filters;
+  for (const auto& filter : options.known_failures()) {
+    if (!filter.has_tool() || RE2::FullMatch(basename, filter.tool())) {
+      filters.emplace_back(filter.stderr_regex());
+    }
+  }
+
   std::vector<std::string> argv = {executable.string()};
   absl::c_move(std::move(args), std::back_inserter(argv));
   argv.push_back("--logtostderr");
@@ -219,6 +227,14 @@ absl::StatusOr<std::string> RunCommand(
         absl::StrCat("Subprocess call failed: ", command_string));
   }
   if (result.exit_status != EXIT_SUCCESS) {
+    if (absl::c_any_of(filters, [&](const RE2& re) {
+          return RE2::PartialMatch(result.stderr, re);
+        })) {
+      return absl::FailedPreconditionError(
+          absl::StrFormat("%s returned a non-zero exit status (%d) but failure "
+                          "was suppressed due to stderr regexp",
+                          executable.string(), result.exit_status));
+    }
     return absl::InternalError(
         absl::StrCat(executable.string(), " returned non-zero exit status (",
                      result.exit_status, "): ", command_string));
@@ -820,6 +836,12 @@ absl::Status SampleRunner::RunFromFiles(
     XLS_LOG(ERROR) << "Exception when running sample: " << status.ToString();
     XLS_RETURN_IF_ERROR(
         SetFileContents(run_dir_ / "exception.txt", status.ToString()));
+  }
+  if (status.code() == absl::StatusCode::kFailedPrecondition) {
+    XLS_LOG(ERROR)
+        << "Precondition failed, sample is not valid in the fuzz domain due to "
+        << status;
+    status = absl::OkStatus();
   }
   return status;
 }

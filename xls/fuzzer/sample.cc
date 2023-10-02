@@ -27,6 +27,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "google/protobuf/text_format.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/proto_adaptor_utils.h"
@@ -111,18 +112,8 @@ std::string SampleOptions::ToPbtxt() const {
 }
 
 bool SampleOptions::operator==(const SampleOptions& other) const {
-  return (input_is_dslx() == other.input_is_dslx() &&
-          sample_type() == other.sample_type() &&
-          ir_converter_args() == other.ir_converter_args() &&
-          convert_to_ir() == other.convert_to_ir() &&
-          optimize_ir() == other.optimize_ir() &&
-          use_jit() == other.use_jit() && codegen() == other.codegen() &&
-          codegen_args() == other.codegen_args() &&
-          simulate() == other.simulate() && simulator() == other.simulator() &&
-          use_system_verilog() == other.use_system_verilog() &&
-          timeout_seconds() == other.timeout_seconds() &&
-          calls_per_sample() == other.calls_per_sample() &&
-          proc_ticks() == other.proc_ticks());
+  google::protobuf::util::MessageDifferencer df;
+  return df.Compare(proto_, other.proto_);
 }
 
 /*static*/ fuzzer::SampleOptionsProto SampleOptions::DefaultOptionsProto() {
@@ -136,6 +127,18 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
   proto.set_simulate(false);
   proto.set_use_system_verilog(true);
   proto.set_calls_per_sample(1);
+  // TODO(https://github.com/google/xls/issues/1140): Remove when fixed.
+  auto* pipeline = proto.add_known_failure();
+  pipeline->set_tool(".*codegen_main");
+  pipeline->set_stderr_regex(
+      ".*Impossible to schedule proc .* as specified; cannot achieve the "
+      "specified pipeline length.*");
+  // TODO(https://github.com/google/xls/issues/1141): Remove when fixed.
+  auto* throughput = proto.add_known_failure();
+  throughput->set_tool(".*codegen_main");
+  throughput->set_stderr_regex(
+      ".*Impossible to schedule proc .* as specified; cannot achieve full "
+      "throughput.*");
   return proto;
 }
 
