@@ -192,13 +192,15 @@ absl::StatusOr<std::string> RunCommand(
   Stopwatch timer;
   XLS_ASSIGN_OR_RETURN(SubprocessResult result,
                        InvokeSubprocess(argv, run_dir, timeout));
+  std::string command_string = absl::StrJoin(argv, " ");
   if (result.timeout_expired) {
     if (!options.timeout_seconds().has_value()) {
-      return absl::DeadlineExceededError("Subprocess call timed out.");
+      return absl::DeadlineExceededError(
+          absl::StrCat("Subprocess call timed out: ", command_string));
     }
     return absl::DeadlineExceededError(
         absl::StrCat("Subprocess call timed out after ",
-                     *options.timeout_seconds(), " seconds."));
+                     *options.timeout_seconds(), " seconds: ", command_string));
   }
   absl::Duration elapsed = timer.GetElapsedTime();
   XLS_RETURN_IF_ERROR(SetFileContents(
@@ -213,12 +215,13 @@ absl::StatusOr<std::string> RunCommand(
   }
   XLS_VLOG(1) << desc << " complete, elapsed " << elapsed;
   if (!result.normal_termination) {
-    return absl::InternalError("Subprocess call failed.");
+    return absl::InternalError(
+        absl::StrCat("Subprocess call failed: ", command_string));
   }
   if (result.exit_status != EXIT_SUCCESS) {
     return absl::InternalError(
-        absl::StrCat(executable.string(),
-                     " returned non-zero exit status: ", result.exit_status));
+        absl::StrCat(executable.string(), " returned non-zero exit status (",
+                     result.exit_status, "): ", command_string));
   }
   return result.stdout;
 }
