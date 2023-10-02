@@ -30,12 +30,13 @@ absl::StatusOr<SchedulingOptionsFlagsProto> GetSchedulingOptionsFlagsProto();
 
 absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
     const SchedulingOptionsFlagsProto& flags, Package* p);
+
 absl::StatusOr<DelayEstimator*> SetUpDelayEstimator(
     const SchedulingOptionsFlagsProto& flags);
 absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag(
     const SchedulingOptionsFlagsProto& flags);
 absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer(
-    const SchedulingOptionsFlagsProto& flags);
+    const SchedulingOptions& flags);
 
 }  // namespace xls
 

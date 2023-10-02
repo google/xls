@@ -225,9 +225,10 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
                                              {base_estimator, &ffi_estimator});
 
     synthesis::Synthesizer* synthesizer = nullptr;
-    if (!scheduling_options.fdo_synthesizer_name().empty()) {
+    if (scheduling_options.use_fdo() &&
+        !scheduling_options.fdo_synthesizer_name().empty()) {
       XLS_ASSIGN_OR_RETURN(synthesizer,
-                           SetUpSynthesizer(scheduling_options_flags_proto));
+                           SetUpSynthesizer(scheduling_options));
     }
 
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,

@@ -198,10 +198,19 @@ class SchedulingOptions {
         fdo_delay_driven_path_number_(1),
         fdo_fanout_driven_path_number_(0),
         fdo_refinement_stochastic_ratio_(1.0),
-        fdo_path_evaluate_strategy_(PathEvaluateStrategy::WINDOW) {}
+        fdo_path_evaluate_strategy_(PathEvaluateStrategy::WINDOW),
+        fdo_synthesizer_name_("yosys")
+        {}
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
+
+  // Sets/gets the target delay model
+  SchedulingOptions& delay_model(std::string& value) {
+    delay_model_ = value;
+    return *this;
+  }
+  std::optional<std::string> delay_model() const { return delay_model_; }
 
   // Sets/gets the target clock period in picoseconds.
   SchedulingOptions& clock_period_ps(int64_t value) {
@@ -376,9 +385,34 @@ class SchedulingOptions {
   }
   std::string fdo_synthesizer_name() const { return fdo_synthesizer_name_; }
 
+  // Yosys path
+  SchedulingOptions& fdo_yosys_path(std::string_view value) {
+    fdo_yosys_path_ = value;
+    return *this;
+  }
+  std::string fdo_yosys_path() const { return fdo_yosys_path_; }
+
+  // STA path
+  SchedulingOptions& fdo_sta_path(std::string_view value) {
+    fdo_sta_path_ = value;
+    return *this;
+  }
+  std::string fdo_sta_path() const { return fdo_sta_path_; }
+
+  // Path to synth library (Liberty file)
+  SchedulingOptions& fdo_synthesis_libraries(std::string_view value) {
+    fdo_synthesis_libraries_ = value;
+    return *this;
+  }
+  std::string fdo_synthesis_libraries() const {
+    return fdo_synthesis_libraries_;
+  }
+
+
  private:
   SchedulingStrategy strategy_;
   std::optional<int64_t> clock_period_ps_;
+  std::optional<std::string> delay_model_;
   std::optional<int64_t> pipeline_stages_;
   std::optional<int64_t> clock_margin_percent_;
   std::optional<int64_t> period_relaxation_percent_;
@@ -396,6 +430,9 @@ class SchedulingOptions {
   float fdo_refinement_stochastic_ratio_;
   PathEvaluateStrategy fdo_path_evaluate_strategy_;
   std::string fdo_synthesizer_name_;
+  std::string fdo_yosys_path_;
+  std::string fdo_sta_path_;
+  std::string fdo_synthesis_libraries_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.

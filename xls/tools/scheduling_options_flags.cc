@@ -108,7 +108,8 @@ ABSL_FLAG(
     "FDO iteration. Must be a positive float <= 1.0.");
 ABSL_FLAG(std::string, fdo_path_evaluate_strategy, "window",
           "Support path, cone, and window for now");
-ABSL_FLAG(std::string, fdo_synthesizer_name, "", "Only support yosys for now");
+ABSL_FLAG(std::string, fdo_synthesizer_name, "yosys",
+          "Only support yosys for now");
 ABSL_FLAG(std::string, fdo_yosys_path, "", "Absolute path of Yosys");
 ABSL_FLAG(std::string, fdo_sta_path, "", "Absolute path of OpenSTA");
 ABSL_FLAG(std::string, fdo_synthesis_libraries, "",
@@ -183,7 +184,10 @@ absl::StatusOr<SchedulingOptionsFlagsProto> GetSchedulingOptionsFlagsProto() {
 
 static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     Package* p, const SchedulingOptionsFlagsProto& proto) {
+
+  // Some fields are pre-initialized with defaults
   SchedulingOptions scheduling_options;
+
   if (proto.pipeline_stages() != 0) {
     scheduling_options.pipeline_stages(proto.pipeline_stages());
   }
@@ -282,35 +286,57 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     }
   }
 
-  scheduling_options.use_fdo(proto.use_fdo());
+  // The following fdo_* have valid default value init in scheduling_options.
+  // Only copy proto->scheduling_options if the option is present in the proto.
+  // If we copy obliviously, we could overwrite the valid default with
+  // an invalid 0 or "" (the proto global defaults for unspecified fields).
 
-  if (proto.use_fdo() && proto.fdo_iteration_number() < 2) {
-    return absl::InternalError("fdo_iteration_number must be >= 2");
+  // When options are specified individually, unspecified FDO options
+  //   will have their default value from absl flags copied to the proto.
+  // When options are provided via proto, unspecified FDO options
+  //   will get their default value from 'scheduling_options' initialization.
+
+  // The value of FDO options should only be read from scheduling_options,
+  // not the proto!
+
+  if (proto.has_use_fdo()) {
+    scheduling_options.use_fdo(proto.use_fdo());
   }
-  scheduling_options.fdo_iteration_number(proto.fdo_iteration_number());
 
-  if (proto.use_fdo() && proto.fdo_delay_driven_path_number() < 0) {
-    return absl::InternalError("delay_driven_path_number must be >= 0");
+  if (proto.has_fdo_iteration_number()) {
+    if (proto.fdo_iteration_number() < 2) {
+      return absl::InternalError("fdo_iteration_number must be >= 2");
+    }
+    scheduling_options.fdo_iteration_number(proto.fdo_iteration_number());
   }
-  scheduling_options.fdo_delay_driven_path_number(
-      proto.fdo_delay_driven_path_number());
 
-  if (proto.use_fdo() && proto.fdo_fanout_driven_path_number() < 0) {
-    return absl::InternalError("fanout_driven_path_number must be >= 0");
+  if (proto.has_fdo_delay_driven_path_number()) {
+    if (proto.fdo_delay_driven_path_number() < 0) {
+      return absl::InternalError("delay_driven_path_number must be >= 0");
+    }
+    scheduling_options.fdo_delay_driven_path_number(
+        proto.fdo_delay_driven_path_number());
   }
-  scheduling_options.fdo_fanout_driven_path_number(
-      proto.fdo_fanout_driven_path_number());
 
-  if (proto.use_fdo() &&
-      (proto.fdo_refinement_stochastic_ratio() > 1.0 ||
-      proto.fdo_refinement_stochastic_ratio() <= 0.0)) {
-    return absl::InternalError(
+  if (proto.has_fdo_fanout_driven_path_number()) {
+    if (proto.fdo_fanout_driven_path_number() < 0) {
+      return absl::InternalError("fanout_driven_path_number must be >= 0");
+    }
+    scheduling_options.fdo_fanout_driven_path_number(
+        proto.fdo_fanout_driven_path_number());
+  }
+
+  if (proto.has_fdo_refinement_stochastic_ratio()) {
+    if (proto.fdo_refinement_stochastic_ratio() > 1.0 ||
+      proto.fdo_refinement_stochastic_ratio() <= 0.0) {
+      return absl::InternalError(
         "refinement_stochastic_ratio must be <= 1.0 and > 0.0");
+    }
+    scheduling_options.fdo_refinement_stochastic_ratio(
+        proto.fdo_refinement_stochastic_ratio());
   }
-  scheduling_options.fdo_refinement_stochastic_ratio(
-      proto.fdo_refinement_stochastic_ratio());
 
-  if (proto.use_fdo()) {
+  if (proto.has_fdo_path_evaluate_strategy()) {
     if (proto.fdo_path_evaluate_strategy() != "path" &&
         proto.fdo_path_evaluate_strategy() != "cone" &&
         proto.fdo_path_evaluate_strategy() != "window") {
@@ -321,7 +347,14 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
         proto.fdo_path_evaluate_strategy());
   }
 
-  scheduling_options.fdo_synthesizer_name(proto.fdo_synthesizer_name());
+  if (proto.has_fdo_synthesizer_name()) {
+    scheduling_options.fdo_synthesizer_name(proto.fdo_synthesizer_name());
+  }
+
+  // These have no default values
+  scheduling_options.fdo_yosys_path(proto.fdo_yosys_path());
+  scheduling_options.fdo_sta_path(proto.fdo_sta_path());
+  scheduling_options.fdo_synthesis_libraries(proto.fdo_synthesis_libraries());
 
   return scheduling_options;
 }
@@ -342,7 +375,7 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
 }
 
 absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer(
-    const SchedulingOptionsFlagsProto& flags) {
+    const SchedulingOptions& flags) {
   if (flags.fdo_synthesizer_name() == "yosys") {
     if (flags.fdo_yosys_path().empty() || flags.fdo_sta_path().empty() ||
         flags.fdo_synthesis_libraries().empty()) {
@@ -356,7 +389,8 @@ absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer(
     return yosys_synthesizer;
   }
 
-  return absl::InternalError("Synthesis service is invalid");
+  return absl::InternalError("Synthesis service is invalid: " +
+                             flags.fdo_synthesizer_name());
 }
 
 }  // namespace xls

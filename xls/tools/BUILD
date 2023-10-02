@@ -916,6 +916,13 @@ proto_library(
     srcs = ["scheduling_options_flags.proto"],
 )
 
+xls_py_proto_library(
+    name = "scheduling_options_flags_py_pb2",
+    srcs = ["scheduling_options_flags.proto"],
+    internal_deps = [":scheduling_options_flags_proto"],
+    deps = [],
+)
+
 cc_proto_library(
     name = "scheduling_options_flags_cc_proto",
     deps = [":scheduling_options_flags_proto"],
