@@ -4033,5 +4033,16 @@ TEST_P(IrEvaluatorTestBase, ThreeStringTraceTest) {
               ElementsAre("hello world!"));
 }
 
+TEST_P(IrEvaluatorTestBase, ConcatWithZeroWidth) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto x = b.Param("x", p->GetBitsType(32));
+  b.Concat({b.Literal(UBits(0, 0)), x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(RunWithUint64sNoEvents(f, {42}), 42);
+  EXPECT_THAT(RunWithUint64sNoEvents(f, {0}), 0);
+  EXPECT_THAT(RunWithUint64sNoEvents(f, {0x12345678}), 0x12345678);
+}
+
 }  // namespace
 }  // namespace xls

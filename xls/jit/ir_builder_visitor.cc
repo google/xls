@@ -44,6 +44,7 @@
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -1578,6 +1579,9 @@ absl::Status IrBuilderVisitor::HandleConcat(Concat* concat) {
     // Widen each operand to the full size, shift to the right location, and
     // bitwise or into the result value.
     int64_t operand_width = xls_operand->BitCountOrDie();
+    if (operand_width == 0) {
+      continue;
+    }
     operand = b.CreateZExt(operand, dest_type);
     llvm::Value* shifted_operand =
         b.CreateShl(operand, current_shift - operand_width);
