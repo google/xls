@@ -133,7 +133,6 @@ bzl_library(
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
-        "@rules_hdl//pdk:build_defs.bzl",
     ],
 )
 
