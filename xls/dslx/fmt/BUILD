@@ -44,3 +44,37 @@ cc_test(
         "//xls/common:xls_gunit_main",
     ],
 )
+
+cc_library(
+    name = "ast_fmt",
+    srcs = ["ast_fmt.cc"],
+    hdrs = ["ast_fmt.h"],
+    deps = [
+        ":pretty_print",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
+        "//xls/common/logging",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:comment_data",
+        "//xls/dslx/frontend:pos",
+    ],
+)
+
+cc_test(
+    name = "ast_fmt_test",
+    srcs = ["ast_fmt_test.cc"],
+    deps = [
+        ":ast_fmt",
+        ":pretty_print",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:bindings",
+        "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:scanner",
+    ],
+)

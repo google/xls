@@ -123,9 +123,12 @@ class DocArena {
   // or if they can't be, the document emitter switches to "break" mode (i.e.
   // line break emission mode) for the scope of emitting "arg_ref".
   //
+  // That is, making a group evaluates whether the things within the group can
+  // be emitted in flat mode or whether we should switch to break mode.
+  //
   // Combining "Group" and "FlatChoice" allows us to say "I'd like to emit this
-  // inline if in flat mode" and give an alternative for when we're not in flat
-  // mode.
+  // inline if in flat mode" and give an alternative option for how to emit it
+  // when we're not in flat mode.
   DocRef MakeGroup(DocRef arg_ref);
 
   // Creates a "nest" doc that nests "arg_ref" by "delta" spaces.
@@ -133,6 +136,11 @@ class DocArena {
 
   // Creates a "concat" doc that concatenates lhs and rhs.
   DocRef MakeConcat(DocRef lhs, DocRef rhs);
+
+  // Creates a "flat choice" doc that provides different possibilities (based on
+  // whether it appears we'll fit into one line with the on_flat choice, which
+  // is preferred).
+  DocRef MakeFlatChoice(DocRef on_flat, DocRef on_break);
 
   // Empty string.
   DocRef empty() const { return empty_; }
@@ -151,6 +159,16 @@ class DocArena {
   // flat mode.
   DocRef break1() const { return break1_; }
 
+  // Some helpful text to have pre-defined and common.
+  DocRef oparen() const { return oparen_; }
+  DocRef cparen() const { return cparen_; }
+  DocRef comma() const { return comma_; }
+  DocRef colon() const { return colon_; }
+  DocRef equals() const { return equals_; }
+  DocRef dotdot() const { return dotdot_; }
+  DocRef underscore() const { return underscore_; }
+  DocRef slash_slash() const { return slash_slash_; }
+
   // Note: the returned reference should not be held across an allocation.
   const pprint_internal::Doc& Deref(DocRef ref) const {
     return items_[uint16_t{ref}];
@@ -166,10 +184,25 @@ class DocArena {
   DocRef hard_line_;
   DocRef break0_;
   DocRef break1_;
+
+  // Some convenient often-used text fragments.
+  DocRef oparen_;
+  DocRef cparen_;
+  DocRef comma_;
+  DocRef colon_;
+  DocRef equals_;
+  DocRef dotdot_;
+  DocRef underscore_;
+  DocRef slash_slash_;
 };
 
 // Helper for concatenating several docs together in left-to-right sequence.
 DocRef ConcatN(DocArena& arena, DocRef lhs, absl::Span<DocRef const> rest);
+
+// Concatenates the docs as in ConcatN and then makes a group around them.
+//
+// See MakeGroup() for the implications of putting something in a group.
+DocRef ConcatNGroup(DocArena& arena, DocRef lhs, absl::Span<DocRef const> rest);
 
 // The pretty printing routine itself that reflows lines in "doc" to attempt to
 // fit them within "text_width".

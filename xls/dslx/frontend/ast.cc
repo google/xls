@@ -2309,7 +2309,7 @@ std::vector<NameDef*> NameDefTree::GetNameDefs() const {
 }
 
 std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>>
-NameDefTree::Flatten1() {
+NameDefTree::Flatten1() const {
   if (is_leaf()) {
     return {leaf()};
   }

@@ -163,12 +163,8 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
 }  // namespace
 
 DocArena::DocArena() {
-  // empty string
-  empty_ = DocRef{items_.size()};
-  items_.emplace_back(Doc{0, ""});
-  // space string
-  space_ = DocRef{items_.size()};
-  items_.emplace_back(Doc{1, " "});
+  empty_ = MakeText("");
+  space_ = MakeText(" ");
   // a hardline
   hard_line_ = DocRef{items_.size()};
   items_.emplace_back(Doc{InfinityRequirement(), HardLine{}});
@@ -178,6 +174,15 @@ DocArena::DocArena() {
   // a space-break
   break1_ = DocRef{items_.size()};
   items_.emplace_back(Doc{1, FlatChoice{space_, hard_line_}});
+
+  oparen_ = MakeText("(");
+  cparen_ = MakeText(")");
+  comma_ = MakeText(",");
+  colon_ = MakeText(":");
+  equals_ = MakeText("=");
+  dotdot_ = MakeText("..");
+  underscore_ = MakeText("_");
+  slash_slash_ = MakeText("//");
 }
 
 DocRef DocArena::MakeText(std::string s) {
@@ -208,6 +213,13 @@ DocRef DocArena::MakeConcat(DocRef lhs, DocRef rhs) {
   return DocRef{size};
 }
 
+DocRef DocArena::MakeFlatChoice(DocRef on_flat, DocRef on_break) {
+  Requirement flat_requirement = Deref(on_flat).flat_requirement;
+  int64_t size = items_.size();
+  items_.push_back(Doc{flat_requirement, FlatChoice{on_flat, on_break}});
+  return DocRef{size};
+}
+
 std::string PrettyPrint(const DocArena& arena, DocRef ref, int64_t text_width) {
   std::vector<std::string> pieces;
   PrettyPrintInternal(arena, arena.Deref(ref), text_width, pieces);
@@ -220,6 +232,11 @@ DocRef ConcatN(DocArena& arena, DocRef lhs, absl::Span<const DocRef> rest) {
     accum = arena.MakeConcat(accum, rhs);
   }
   return accum;
+}
+
+DocRef ConcatNGroup(DocArena& arena, DocRef lhs,
+                    absl::Span<DocRef const> rest) {
+  return arena.MakeGroup(ConcatN(arena, lhs, rest));
 }
 
 }  // namespace xls::dslx

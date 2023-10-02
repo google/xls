@@ -274,7 +274,7 @@ class TypeAnnotation : public AstNode {
 #include "xls/dslx/frontend/ast_builtin_types.inc"
 
 // Enumeration of types that are built-in keywords; e.g. `u32`, `bool`, etc.
-enum class BuiltinType {
+enum class BuiltinType : uint8_t {
 #define FIRST_COMMA(A, ...) A,
   XLS_DSLX_BUILTIN_TYPE_EACH(FIRST_COMMA)
 #undef FIRST_COMMA
@@ -874,7 +874,7 @@ class NameRef : public Expr {
   std::string identifier_;
 };
 
-enum class NumberKind {
+enum class NumberKind : uint8_t {
   kBool,
   kCharacter,
   kOther,
@@ -2837,7 +2837,7 @@ class NameDefTree : public AstNode {
   // This is useful for flattening a tuple a single level; e.g. where a
   // NameDefTree is going to be used as variadic args in for-loop to function
   // conversion.
-  std::vector<std::variant<Leaf, NameDefTree*>> Flatten1();
+  std::vector<std::variant<Leaf, NameDefTree*>> Flatten1() const;
 
   // Flattens the (recursive) NameDefTree into a list of leaves.
   std::vector<Leaf> Flatten() const;

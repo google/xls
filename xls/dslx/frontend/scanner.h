@@ -29,6 +29,7 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
 
@@ -44,13 +45,6 @@ namespace xls::dslx {
 // (we no longer have our own project-specific Status) -- we should not need to
 // encode conditional data in the string and parse it out.
 absl::Status ScanErrorStatus(const Span& span, std::string_view message);
-
-// As we encounter comments in the source text we keep sideband notes about them
-// outside of the token stream.
-struct CommentData {
-  Span span;
-  std::string text;
-};
 
 // Converts the conceptual character stream in a string of text into a stream of
 // tokens according to the DSLX syntax.

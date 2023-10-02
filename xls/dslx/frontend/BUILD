@@ -226,6 +226,7 @@ cc_library(
     srcs = ["scanner.cc"],
     hdrs = ["scanner.h"],
     deps = [
+        ":comment_data",
         ":pos",
         ":token",
         "@com_google_absl//absl/base:core_headers",
@@ -385,5 +386,13 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+    ],
+)
+
+cc_library(
+    name = "comment_data",
+    hdrs = ["comment_data.h"],
+    deps = [
+        ":pos",
     ],
 )
