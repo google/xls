@@ -16,6 +16,7 @@
 This module contains codegen-related build rules for XLS.
 """
 
+load("@rules_hdl//pdk:build_defs.bzl", "StandardCellInfo")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
@@ -121,7 +122,7 @@ xls_ir_verilog_attrs = {
         cfg = "exec",
     ),
     "standard_cells": attr.label(
-        providers = [DefaultInfo],
+        providers = [StandardCellInfo],
         default = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
     ),
 }
@@ -384,8 +385,7 @@ def xls_ir_verilog_impl(ctx, src):
     if uses_fdo:
         yosys_tool = ctx.executable.yosys_tool
         sta_tool = ctx.executable.sta_tool
-        synth_libs = ctx.attr.standard_cells[DefaultInfo].files.to_list()
-        synth_lib = synth_libs[0]
+        synth_lib = ctx.attr.standard_cells[StandardCellInfo].default_corner.liberty
         final_args += " --fdo_synthesizer_name=yosys"
         final_args += " --fdo_yosys_path={}".format(yosys_tool.path)
         final_args += " --fdo_sta_path={}".format(sta_tool.path)
@@ -410,11 +410,18 @@ def xls_ir_verilog_impl(ctx, src):
         runfiles_list.append(ctx.file.scheduling_options_proto)
 
     if uses_fdo:
+        dont_use_args = ""
+        or_config = ctx.attr.standard_cells[StandardCellInfo].open_road_configuration
+        if or_config:
+            for dont_use_pattern in or_config.do_not_use_cell_list:
+                dont_use_args += " -dont_use {} ".format(dont_use_pattern)
+
         runfiles_list.append(synth_lib)
         yosys_runfiles_dir = ctx.executable.yosys_tool.path + ".runfiles"
         env = {
             "ABC": yosys_runfiles_dir + "/edu_berkeley_abc/abc",
-            "YOSYS_DATDIR": yosys_runfiles_dir + "/" + "at_clifford_yosys/techlibs/"
+            "DONT_USE_ARGS": dont_use_args,
+            "YOSYS_DATDIR": yosys_runfiles_dir + "/" + "at_clifford_yosys/techlibs/",
         }
     else:
         env = {}
