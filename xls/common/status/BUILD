@@ -138,26 +138,6 @@ cc_test(
 )
 
 cc_library(
-    name = "import_status_module",
-    hdrs = [
-        "import_status_module.h",
-        "import_status_module.inc",
-    ],
-    copts = [
-        "-fexceptions",
-    ],
-    features = ["-use_header_modules"],
-    deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@pybind11",
-        "@pybind11_abseil//pybind11_abseil:import_status_module",
-        "@pybind11_abseil//pybind11_abseil:status.so",
-        "@pybind11_abseil//pybind11_abseil:status_casters",
-    ],
-)
-
-cc_library(
     name = "matchers",
     testonly = True,
     srcs = ["matchers.cc"],
