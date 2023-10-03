@@ -1168,7 +1168,6 @@ fn sel_wrapper(p: bits[3], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   ParsePackageAndCheckDump(input);
 }
 
-
 TEST(IrParserTest, ParseParamReturn) {
   std::string input = R"(
 package ParseParamReturn
@@ -2297,13 +2296,12 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
 
 TEST(IrParserTest, ParseStreamingChannelWithStrictness) {
   Package p("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch,
-      Parser::ParseChannel(
-          R"(chan foo(bits[32], id=42, kind=streaming,
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
+                           Parser::ParseChannel(
+                               R"(chan foo(bits[32], id=42, kind=streaming,
                          flow_control=none, ops=send_receive,
                          strictness=arbitrary_static_order, metadata=""""""))",
-          &p));
+                               &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
@@ -3158,9 +3156,22 @@ block example(in: bits[32], out: bits[32]) {
   out: () = output_port(in, name=out, id=5)
 }
 )";
-  EXPECT_THAT(Parser::ParsePackage(input),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Attributes are not supported on blocks.")));
+  EXPECT_THAT(
+      Parser::ParsePackage(input),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Attribute foobar is not supported on blocks.")));
+}
+
+TEST(IrParserTest, ParseBlockAttributeInitiationInterval) {
+  std::string input = R"(package test
+
+#[initiation_interval(12)]
+block example(in: bits[32], out: bits[32]) {
+  in: bits[32] = input_port(name=in, id=2)
+  out: () = output_port(in, name=out, id=5)
+}
+)";
+  XLS_EXPECT_OK(Parser::ParsePackage(input));
 }
 
 TEST(IrParserTest, ParseChannelAttribute) {

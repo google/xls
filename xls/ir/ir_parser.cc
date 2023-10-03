@@ -1798,9 +1798,12 @@ absl::StatusOr<Proc*> Parser::ParseProc(Package* package,
 
 absl::StatusOr<Block*> Parser::ParseBlock(Package* package,
                                           const DeclAttributes& attributes) {
-  if (!attributes.empty()) {
+  for (const auto& [attribute, token] : attributes) {
+    if (attribute == "initiation_interval") {
+      continue;
+    }
     return absl::InvalidArgumentError(
-        "Attributes are not supported on blocks.");
+        absl::StrFormat("Attribute %s is not supported on blocks.", attribute));
   }
 
   if (AtEof()) {
@@ -2196,8 +2199,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
 
 /* static */
 absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
-    std::string_view input_string,
-    std::optional<std::string_view> filename) {
+    std::string_view input_string, std::optional<std::string_view> filename) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        ParsePackageNoVerify(input_string, filename));
   XLS_RETURN_IF_ERROR(VerifyAndSwapError(package.get()));
