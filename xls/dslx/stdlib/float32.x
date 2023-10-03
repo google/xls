@@ -16,166 +16,176 @@
 import apfloat
 import std
 
-// TODO(rspringer): Make u32:8 and u32:23 symbolic constants. Currently, such
-// constants don't propagate correctly and fail to resolve when in parametric
-// specifications.
-pub type F32 = apfloat::APFloat<8, 23>;
+const F32_EXP_SZ = u32:8;        // Exponent bits
+const F32_FRACTION_SZ = u32:23;  // Fraction bits
+const F32_TOTAL_SZ = u32:1 + F32_EXP_SZ + F32_FRACTION_SZ;
+
+pub type F32 = apfloat::APFloat<F32_EXP_SZ, F32_FRACTION_SZ>;
 pub type FloatTag = apfloat::APFloatTag;
 
 pub type TaggedF32 = (FloatTag, F32);
 
-pub fn qnan() -> F32 { apfloat::qnan<u32:8, u32:23>() }
-pub fn is_nan(f: F32) -> bool { apfloat::is_nan<u32:8, u32:23>(f) }
+pub fn qnan() -> F32 { apfloat::qnan<F32_EXP_SZ, F32_FRACTION_SZ>() }
+pub fn is_nan(f: F32) -> bool { apfloat::is_nan<F32_EXP_SZ, F32_FRACTION_SZ>(f) }
 
-pub fn inf(sign: u1) -> F32 { apfloat::inf<u32:8, u32:23>(sign) }
-pub fn is_inf(f: F32) -> bool { apfloat::is_inf<u32:8, u32:23>(f) }
-pub fn is_pos_inf(f: F32) -> bool { apfloat::is_pos_inf<u32:8, u32:23>(f) }
-pub fn is_neg_inf(f: F32) -> bool { apfloat::is_neg_inf<u32:8, u32:23>(f) }
+pub fn inf(sign: u1) -> F32 { apfloat::inf<F32_EXP_SZ, F32_FRACTION_SZ>(sign) }
+pub fn is_inf(f: F32) -> bool { apfloat::is_inf<F32_EXP_SZ, F32_FRACTION_SZ>(f) }
+pub fn is_pos_inf(f: F32) -> bool { apfloat::is_pos_inf<F32_EXP_SZ, F32_FRACTION_SZ>(f) }
+pub fn is_neg_inf(f: F32) -> bool { apfloat::is_neg_inf<F32_EXP_SZ, F32_FRACTION_SZ>(f) }
 
-pub fn zero(sign: u1) -> F32 { apfloat::zero<u32:8, u32:23>(sign) }
-pub fn one(sign: u1) -> F32 { apfloat::one<u32:8, u32:23>(sign) }
+pub fn zero(sign: u1) -> F32 { apfloat::zero<F32_EXP_SZ, F32_FRACTION_SZ>(sign) }
+pub fn one(sign: u1) -> F32 { apfloat::one<F32_EXP_SZ, F32_FRACTION_SZ>(sign) }
 
 pub fn negate(x: F32) -> F32 { apfloat::negate(x) }
 
-pub fn max_normal_exp() -> s8 { apfloat::max_normal_exp<u32:8>() }
-pub fn min_normal_exp() -> s8 { apfloat::min_normal_exp<u32:8>() }
+pub fn max_normal_exp() -> sN[F32_EXP_SZ] { apfloat::max_normal_exp<F32_EXP_SZ>() }
+pub fn min_normal_exp() -> sN[F32_EXP_SZ] { apfloat::min_normal_exp<F32_EXP_SZ>() }
 
-pub fn unbiased_exponent(f: F32) -> s8 {
-  apfloat::unbiased_exponent<u32:8, u32:23>(f)
+pub fn unbiased_exponent(f: F32) -> sN[F32_EXP_SZ] {
+  apfloat::unbiased_exponent<F32_EXP_SZ, F32_FRACTION_SZ>(f)
 }
-pub fn bias(unbiased_exponent_in: s8) -> u8 {
-  apfloat::bias<u32:8, u32:23>(unbiased_exponent_in)
+pub fn bias(unbiased_exponent_in: sN[F32_EXP_SZ]) -> uN[F32_EXP_SZ] {
+  apfloat::bias<F32_EXP_SZ, F32_FRACTION_SZ>(unbiased_exponent_in)
 }
-pub fn flatten(f: F32) -> u32 { apfloat::flatten<u32:8, u32:23>(f) }
-pub fn unflatten(f: u32) -> F32 { apfloat::unflatten<u32:8, u32:23>(f) }
+pub fn flatten(f: F32) -> uN[F32_TOTAL_SZ] { apfloat::flatten<F32_EXP_SZ, F32_FRACTION_SZ>(f) }
+pub fn unflatten(f: uN[F32_TOTAL_SZ]) -> F32 { apfloat::unflatten<F32_EXP_SZ, F32_FRACTION_SZ>(f) }
 pub fn ldexp(f: F32, e : s32) -> F32 {apfloat::ldexp(f, e)}
 
 pub fn cast_from_fixed_using_rne<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> F32 {
-  apfloat::cast_from_fixed_using_rne<u32:8, u32:23>(s)
+  apfloat::cast_from_fixed_using_rne<F32_EXP_SZ, F32_FRACTION_SZ>(s)
 }
 pub fn cast_from_fixed_using_rz<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> F32 {
-  apfloat::cast_from_fixed_using_rz<u32:8, u32:23>(s)
+  apfloat::cast_from_fixed_using_rz<F32_EXP_SZ, F32_FRACTION_SZ>(s)
 }
 pub fn cast_to_fixed<NUM_DST_BITS:u32>(to_cast: F32) -> sN[NUM_DST_BITS] {
-  apfloat::cast_to_fixed<NUM_DST_BITS, u32:8, u32:23>(to_cast)
+  apfloat::cast_to_fixed<NUM_DST_BITS, F32_EXP_SZ, F32_FRACTION_SZ>(to_cast)
 }
 pub fn subnormals_to_zero(f: F32) -> F32 {
-  apfloat::subnormals_to_zero<u32:8, u32:23>(f)
+  apfloat::subnormals_to_zero<F32_EXP_SZ, F32_FRACTION_SZ>(f)
 }
 
 pub fn is_zero_or_subnormal(f: F32) -> bool {
-  apfloat::is_zero_or_subnormal<u32:8, u32:23>(f)
+  apfloat::is_zero_or_subnormal<F32_EXP_SZ, F32_FRACTION_SZ>(f)
 }
 
 pub fn eq_2(x: F32, y: F32) -> bool {
-  apfloat::eq_2<u32:8, u32:23>(x, y)
+  apfloat::eq_2<F32_EXP_SZ, F32_FRACTION_SZ>(x, y)
 }
 
 pub fn gt_2(x: F32, y: F32) -> bool {
-  apfloat::gt_2<u32:8, u32:23>(x, y)
+  apfloat::gt_2<F32_EXP_SZ, F32_FRACTION_SZ>(x, y)
 }
 
 pub fn gte_2(x: F32, y: F32) -> bool {
-  apfloat::gte_2<u32:8, u32:23>(x, y)
+  apfloat::gte_2<F32_EXP_SZ, F32_FRACTION_SZ>(x, y)
 }
 
 pub fn lt_2(x: F32, y: F32) -> bool {
-  apfloat::lt_2<u32:8, u32:23>(x, y)
+  apfloat::lt_2<F32_EXP_SZ, F32_FRACTION_SZ>(x, y)
 }
 
 pub fn lte_2(x: F32, y: F32) -> bool {
-  apfloat::lte_2<u32:8, u32:23>(x, y)
+  apfloat::lte_2<F32_EXP_SZ, F32_FRACTION_SZ>(x, y)
 }
 
-pub fn normalize(sign:u1, exp: u8, fraction_with_hidden: u24) -> F32 {
-  apfloat::normalize<u32:8, u32:23>(sign, exp, fraction_with_hidden)
+pub fn normalize(sign:u1, exp: uN[F32_EXP_SZ], fraction_with_hidden: uN[u32:1 + F32_FRACTION_SZ]) -> F32 {
+  apfloat::normalize<F32_EXP_SZ, F32_FRACTION_SZ>(sign, exp, fraction_with_hidden)
 }
 
 pub fn to_int<RESULT_SZ: u32>(x: F32) -> sN[RESULT_SZ] {
-  apfloat::to_int<u32:8, u32:23, RESULT_SZ>(x)
+  apfloat::to_int<F32_EXP_SZ, F32_FRACTION_SZ, RESULT_SZ>(x)
 }
 
 // Just a convenience for the most common case.
 pub fn to_int32(x: F32) -> s32 {
-  apfloat::to_int<u32:8, u32:23, u32:32>(x)
+  apfloat::to_int<F32_EXP_SZ, F32_FRACTION_SZ, u32:32>(x)
 }
 
 pub const F32_ONE_FLAT = u32:0x3f800000;
 
 pub fn tag(f: F32) -> FloatTag {
-  apfloat::tag<u32:8, u32:23>(f)
+  apfloat::tag<F32_EXP_SZ, F32_FRACTION_SZ>(f)
 }
 
 #[test]
 fn normalize_test() {
+  type ExpBits = uN[F32_EXP_SZ];
+  type FractionBits = uN[F32_FRACTION_SZ];
+  type WideFractionBits = uN[u32:1 + F32_FRACTION_SZ];
+
   let expected = F32 {
-      sign: u1:0, bexp: u8:0x12, fraction: u23:0x7e_dcba };
-  let actual = normalize(u1:0, u8:0x12, u24:0xfe_dcba);
+      sign: u1:0, bexp: ExpBits:0x12, fraction: FractionBits:0x7e_dcba };
+  let actual = normalize(u1:0, ExpBits:0x12, WideFractionBits:0xfe_dcba);
   assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:0, bexp: u8:0x0, fraction: u23:0x0 };
-  let actual = normalize(u1:0, u8:0x1, u24:0x0);
+      sign: u1:0, bexp: ExpBits:0x0, fraction: FractionBits:0x0 };
+  let actual = normalize(u1:0, ExpBits:0x1, WideFractionBits:0x0);
   assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:0, bexp: u8:0x0, fraction: u23:0x0 };
-  let actual = normalize(u1:0, u8:0xfe, u24:0x0);
+      sign: u1:0, bexp: ExpBits:0x0, fraction: FractionBits:0x0 };
+  let actual = normalize(u1:0, ExpBits:0xfe, WideFractionBits:0x0);
   assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:1, bexp: u8:77, fraction: u23:0x0 };
-  let actual = normalize(u1:1, u8:100, u24:1);
+      sign: u1:1, bexp: ExpBits:77, fraction: FractionBits:0x0 };
+  let actual = normalize(u1:1, ExpBits:100, WideFractionBits:1);
   assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:1, bexp: u8:2, fraction: u23:0b000_1111_0000_0101_0000_0000 };
+      sign: u1:1, bexp: ExpBits:2, fraction: FractionBits:0b000_1111_0000_0101_0000_0000 };
   let actual = normalize(
-      u1:1, u8:10, u24:0b0000_0000_1000_1111_0000_0101);
+      u1:1, ExpBits:10, WideFractionBits:0b0000_0000_1000_1111_0000_0101);
   assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:1, bexp: u8:10, fraction: u23:0b000_0000_1000_1111_0000_0101};
+      sign: u1:1, bexp: ExpBits:10, fraction: FractionBits:0b000_0000_1000_1111_0000_0101};
   let actual = normalize(
-      u1:1, u8:10, u24:0b1000_0000_1000_1111_0000_0101);
+      u1:1, ExpBits:10, WideFractionBits:0b1000_0000_1000_1111_0000_0101);
   assert_eq(expected, actual);
 
   // Denormals should be flushed to zero.
   let expected = zero(u1:1);
   let actual = normalize(
-      u1:1, u8:5, u24:0b0000_0000_1000_1111_0000_0101);
+      u1:1, ExpBits:5, WideFractionBits:0b0000_0000_1000_1111_0000_0101);
   assert_eq(expected, actual);
 
   let expected = zero(u1:0);
   let actual = normalize(
-      u1:0, u8:2, u24:0b0010_0000_1000_1111_0000_0101);
+      u1:0, ExpBits:2, WideFractionBits:0b0010_0000_1000_1111_0000_0101);
   assert_eq(expected, actual);
 }
 
 #[test]
 fn tag_test() {
-  assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
-  assert_eq(tag(F32 { sign: u1:1, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
+  type ExpBits = uN[F32_EXP_SZ];
+  type FractionBits = uN[F32_FRACTION_SZ];
+
+  assert_eq(tag(F32 { sign: u1:0, bexp: ExpBits:0, fraction: FractionBits:0 }), FloatTag::ZERO);
+  assert_eq(tag(F32 { sign: u1:1, bexp: ExpBits:0, fraction: FractionBits:0 }), FloatTag::ZERO);
   assert_eq(tag(zero(u1:0)), FloatTag::ZERO);
   assert_eq(tag(zero(u1:1)), FloatTag::ZERO);
 
-  assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:1 }), FloatTag::SUBNORMAL);
-  assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0x7f_ffff }), FloatTag::SUBNORMAL);
+  assert_eq(tag(F32 { sign: u1:0, bexp: ExpBits:0, fraction: FractionBits:1 }), FloatTag::SUBNORMAL);
+  assert_eq(tag(F32 { sign: u1:0, bexp: ExpBits:0, fraction: FractionBits:0x7f_ffff }), FloatTag::SUBNORMAL);
 
-  assert_eq(tag(F32 { sign: u1:0, bexp: u8:12, fraction: u23:0 }), FloatTag::NORMAL);
-  assert_eq(tag(F32 { sign: u1:1, bexp: u8:254, fraction: u23:0x7f_ffff }), FloatTag::NORMAL);
-  assert_eq(tag(F32 { sign: u1:1, bexp: u8:1, fraction: u23:1 }), FloatTag::NORMAL);
+  assert_eq(tag(F32 { sign: u1:0, bexp: ExpBits:12, fraction: FractionBits:0 }), FloatTag::NORMAL);
+  assert_eq(tag(F32 { sign: u1:1, bexp: ExpBits:254, fraction: FractionBits:0x7f_ffff }), FloatTag::NORMAL);
+  assert_eq(tag(F32 { sign: u1:1, bexp: ExpBits:1, fraction: FractionBits:1 }), FloatTag::NORMAL);
 
-  assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:0 }), FloatTag::INFINITY);
-  assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0 }), FloatTag::INFINITY);
+  assert_eq(tag(F32 { sign: u1:0, bexp: ExpBits:255, fraction: FractionBits:0 }), FloatTag::INFINITY);
+  assert_eq(tag(F32 { sign: u1:1, bexp: ExpBits:255, fraction: FractionBits:0 }), FloatTag::INFINITY);
   assert_eq(tag(inf(u1:0)), FloatTag::INFINITY);
   assert_eq(tag(inf(u1:1)), FloatTag::INFINITY);
 
-  assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:1 }), FloatTag::NAN);
-  assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0x7f_ffff }), FloatTag::NAN);
+  assert_eq(tag(F32 { sign: u1:0, bexp: ExpBits:255, fraction: FractionBits:1 }), FloatTag::NAN);
+  assert_eq(tag(F32 { sign: u1:1, bexp: ExpBits:255, fraction: FractionBits:0x7f_ffff }), FloatTag::NAN);
   assert_eq(tag(qnan()), FloatTag::NAN);
 }
 
+// TODO(hzeller): 2023-10-03 Use types derived from F32_{EXP,FRACTION}_SZ
+// TODO(hzeller): 2023-10-03 Write a unit test.
 pub fn fixed_fraction(input_float: F32) -> u23 {
   let input_fraction_magnitude: u25 = u2:0b01 ++ input_float.fraction;
   let unbiased_input_float_exponent: s8 = unbiased_exponent(input_float);
@@ -194,7 +204,7 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
   let input_fraction_part_magnitude: u24 = input_fixed_magnitude as u23 as u24;
   let fixed_fraction: u24 =
     if input_float.sign && input_fraction_part_magnitude != u24:0 {
-      (u24:1<<u24:23) - input_fraction_part_magnitude
+      (u24:1 << F32_FRACTION_SZ) - input_fraction_part_magnitude
     } else {
       input_fraction_part_magnitude
     }
@@ -250,51 +260,54 @@ pub fn from_int32(x: s32) -> F32 {
 
 #[test]
 fn from_int32_test() {
-  let expected = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
+  type ExpBits = uN[F32_EXP_SZ];
+  type FractionBits = uN[F32_FRACTION_SZ];
+
+  let expected = F32 { sign: u1:0, bexp: ExpBits:0, fraction: FractionBits:0 };
   let actual = from_int32(s32:0);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
+  let expected = F32 { sign: u1:0, bexp: ExpBits:0, fraction: FractionBits:0 };
   let actual = from_int32(s32:0);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:0, bexp: u8:127, fraction: u23:0 };
+  let expected = F32 { sign: u1:0, bexp: ExpBits:127, fraction: FractionBits:0 };
   let actual = from_int32(s32:1);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:1, bexp: u8:127, fraction: u23:0 };
+  let expected = F32 { sign: u1:1, bexp: ExpBits:127, fraction: FractionBits:0 };
   let actual = from_int32(s32:-1);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:0, bexp: u8:128, fraction: u23:0 };
+  let expected = F32 { sign: u1:0, bexp: ExpBits:128, fraction: FractionBits:0 };
   let actual = from_int32(s32:2);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:1, bexp: u8:128, fraction: u23:0 };
+  let expected = F32 { sign: u1:1, bexp: ExpBits:128, fraction: FractionBits:0 };
   let actual = from_int32(s32:-2);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:0, bexp: u8:156, fraction: u23:0x7fffff };
+  let expected = F32 { sign: u1:0, bexp: ExpBits:156, fraction: FractionBits:0x7fffff };
   let actual = from_int32(s32:1073741760);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:0, bexp: u8:156, fraction: u23:0x3fffff };
+  let expected = F32 { sign: u1:0, bexp: ExpBits:156, fraction: FractionBits:0x3fffff };
   let actual = from_int32(s32:805306304);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:0, bexp: u8:157, fraction: u23:0x7fffff };
+  let expected = F32 { sign: u1:0, bexp: ExpBits:157, fraction: FractionBits:0x7fffff };
   let actual = from_int32(s32:2147483583);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:0, bexp: u8:158, fraction: u23:0x0 };
+  let expected = F32 { sign: u1:0, bexp: ExpBits:158, fraction: FractionBits:0x0 };
   let actual = from_int32(s32:2147483647);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0x0 };
+  let expected = F32 { sign: u1:1, bexp: ExpBits:158, fraction: FractionBits:0x0 };
   let actual = from_int32(s32:-2147483647);
   assert_eq(expected, actual);
 
-  let expected = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0x0 };
+  let expected = F32 { sign: u1:1, bexp: ExpBits:158, fraction: FractionBits:0x0 };
   let actual = from_int32(s32:-2147483648);
   assert_eq(expected, actual);
 }
@@ -396,11 +409,14 @@ fn fast_sqrt_test() {
   assert_eq(fast_rsqrt(qnan()),
     qnan());
   assert_eq(fast_rsqrt(one(u1:1)),
-    qnan());
-  let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
+            qnan());
+  type ExpBits = uN[F32_EXP_SZ];
+  type FractionBits = uN[F32_FRACTION_SZ];
+
+  let pos_denormal = F32{sign: u1:0, bexp: ExpBits:0, fraction: FractionBits:99};
   assert_eq(fast_rsqrt(pos_denormal),
     inf(u1:0));
-  let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
+  let neg_denormal = F32{sign: u1:1, bexp: ExpBits:0, fraction: FractionBits:99};
   assert_eq(fast_rsqrt(neg_denormal),
     inf(u1:1));
 }
