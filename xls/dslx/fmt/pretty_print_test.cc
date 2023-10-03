@@ -30,6 +30,13 @@ TEST(PrettyPrintTest, OneTextDoc) {
   EXPECT_EQ(PrettyPrint(arena, ref, 3), "hi");
 }
 
+TEST(PrettyPrintTest, EmptyConcatIsEmptyString) {
+  DocArena arena;
+  DocRef ref = ConcatN(arena, {});
+  EXPECT_EQ(PrettyPrint(arena, ref, 0), "");
+  EXPECT_EQ(PrettyPrint(arena, ref, 1), "");
+}
+
 TEST(PrettyPrintTest, OneHardLineDoc) {
   DocArena arena;
   DocRef ref = arena.hard_line();
@@ -57,9 +64,9 @@ TEST(PrettyPrintTest, LetExample) {
   DocRef equals = arena.MakeText("=");
   DocRef u32_42 = arena.MakeText("u32:42");
 
-  DocRef doc = arena.MakeGroup(
-      ConcatN(arena, let,
-              {break1, x_colon, break1, u32, break1, equals, break1, u32_42}));
+  DocRef doc =
+      arena.MakeGroup(ConcatN(arena, {let, break1, x_colon, break1, u32, break1,
+                                      equals, break1, u32_42}));
   const std::string_view kWantBreak = R"(let
 x:
 u32
@@ -78,10 +85,10 @@ u32:42)";
 TEST(PrettyPrintTest, CallExample) {
   DocArena arena;
   DocRef call_with_args = ConcatN(
-      arena, arena.MakeText("foo("),
-      {arena.MakeNest(ConcatN(
-           arena, arena.break0(),
-           {arena.MakeText("bar,"), arena.break1(), arena.MakeText("bat")})),
+      arena,
+      {arena.MakeText("foo("),
+       arena.MakeNest(ConcatN(arena, {arena.break0(), arena.MakeText("bar,"),
+                                      arena.break1(), arena.MakeText("bat")})),
        arena.break0(), arena.MakeText(")")});
 
   DocRef doc = arena.MakeGroup(call_with_args);

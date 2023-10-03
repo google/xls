@@ -14,6 +14,7 @@
 
 #include "xls/dslx/fmt/ast_fmt.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -32,13 +33,33 @@
 namespace xls::dslx {
 namespace {
 
+// Forward decl.
+DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena);
+
 DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   return arena.MakeText(BuiltinTypeToString(n.builtin_type()));
 }
 
+DocRef Fmt(const TupleTypeAnnotation& n, const Comments& comments,
+           DocArena& arena) {
+  std::vector<DocRef> pieces = {arena.oparen()};
+  for (size_t i = 0; i < n.size(); ++i) {
+    pieces.push_back(Fmt(*n.members()[i], comments, arena));
+    if (i + 1 != n.size()) {
+      pieces.push_back(arena.comma());
+      pieces.push_back(arena.break1());
+    }
+  }
+  pieces.push_back(arena.cparen());
+  return ConcatNGroup(arena, pieces);
+}
+
 DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
   if (auto* t = dynamic_cast<const BuiltinTypeAnnotation*>(&n)) {
+    return Fmt(*t, comments, arena);
+  }
+  if (auto* t = dynamic_cast<const TupleTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
   }
 
@@ -60,8 +81,8 @@ DocRef Fmt(const NameRef& n, const Comments& comments, DocArena& arena) {
 DocRef Fmt(const Number& n, const Comments& comments, DocArena& arena) {
   DocRef num_text = arena.MakeText(n.text());
   if (const TypeAnnotation* type = n.type_annotation()) {
-    return ConcatNGroup(arena, Fmt(*type, comments, arena),
-                        {arena.colon(), arena.break0(), num_text});
+    return ConcatNGroup(arena, {Fmt(*type, comments, arena), arena.colon(),
+                                arena.break0(), num_text});
   }
   return num_text;
 }
@@ -84,7 +105,47 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Block& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle block: " << n.ToString();
+  if (n.statements().empty()) {
+    return ConcatNGroup(arena, {arena.ocurl(), arena.break0(), arena.ccurl()});
+  }
+
+  // We only want to flatten single-statement blocks -- multi-statement blocks
+  // we always make line breaks between the statements.
+  if (n.statements().size() == 1) {
+    std::vector<DocRef> pieces = {arena.ocurl(), arena.break1(),
+                                  Fmt(*n.statements()[0], comments, arena)};
+    if (n.trailing_semi()) {
+      pieces.push_back(arena.semi());
+    }
+    pieces.push_back(arena.break1());
+    pieces.push_back(arena.ccurl());
+    return ConcatNGroup(arena, pieces);
+  }
+
+  // Emit a '{' then nest to emit statements with semis, then emit a '}' outside
+  // the nesting.
+  std::vector<DocRef> top = {
+      arena.ocurl(),
+  };
+
+  std::vector<DocRef> nested = {arena.hard_line()};
+  for (size_t i = 0; i < n.statements().size(); ++i) {
+    const Statement* stmt = n.statements()[i];
+    nested.push_back(Fmt(*stmt, comments, arena));
+    bool last_stmt = i + 1 == n.statements().size();
+    if (!last_stmt || n.trailing_semi()) {
+      nested.push_back(arena.semi());
+    }
+    if (!last_stmt) {
+      nested.push_back(arena.hard_line());
+    }
+  }
+
+  top.push_back(arena.MakeNest(ConcatN(arena, nested)));
+  top.push_back(arena.hard_line());
+  top.push_back(arena.ccurl());
+
+  return ConcatNGroup(arena, top);
 }
 
 DocRef Fmt(const Cast& n, const Comments& comments, DocArena& arena) {
@@ -200,9 +261,9 @@ DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Range& n, const Comments& comments, DocArena& arena) {
-  return ConcatNGroup(arena, Fmt(*n.start(), comments, arena),
-                      {arena.break0(), arena.dotdot(), arena.break0(),
-                       Fmt(*n.end(), comments, arena)});
+  return ConcatNGroup(
+      arena, {Fmt(*n.start(), comments, arena), arena.break0(), arena.dotdot(),
+              arena.break0(), Fmt(*n.end(), comments, arena)});
 }
 
 DocRef Fmt(const NameDefTree::Leaf& n, const Comments& comments,
@@ -223,8 +284,11 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena) {
   if (n.is_leaf()) {
     return Fmt(n.leaf(), comments, arena);
   }
-  std::vector<DocRef> pieces;
-  for (const auto& item : n.Flatten1()) {
+  std::vector<DocRef> pieces = {arena.oparen()};
+  std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>> flattened =
+      n.Flatten1();
+  for (size_t i = 0; i < flattened.size(); ++i) {
+    const auto& item = flattened[i];
     absl::visit(Visitor{
                     [&](const NameDefTree::Leaf& leaf) {
                       pieces.push_back(Fmt(leaf, comments, arena));
@@ -234,15 +298,20 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena) {
                     },
                 },
                 item);
+    if (i + 1 != flattened.size()) {
+      pieces.push_back(arena.comma());
+      pieces.push_back(arena.break1());
+    }
   }
   pieces.push_back(arena.cparen());
-  return ConcatNGroup(arena, arena.oparen(), pieces);
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
   DocRef break1 = arena.break1();
 
-  std::vector<DocRef> guts = {break1, Fmt(*n.name_def_tree(), comments, arena)};
+  std::vector<DocRef> guts = {arena.MakeText(n.is_const() ? "const" : "let"),
+                              break1, Fmt(*n.name_def_tree(), comments, arena)};
   if (const TypeAnnotation* t = n.type_annotation()) {
     guts.push_back(arena.colon());
     guts.push_back(break1);
@@ -254,8 +323,7 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
   guts.push_back(break1);
   guts.push_back(Fmt(*n.rhs(), comments, arena));
 
-  DocRef syntax =
-      ConcatNGroup(arena, arena.MakeText(n.is_const() ? "const" : "let"), guts);
+  DocRef syntax = ConcatNGroup(arena, guts);
 
   std::vector<const CommentData*> comment_data = comments.GetComments(n.span());
   if (comment_data.size() == 1) {
@@ -274,13 +342,13 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
     //    // comment text reflowed with // prefix
     //    let ...
     DocRef flat = ConcatN(
-        arena, syntax, {arena.space(), arena.slash_slash(), comment_text_ref});
+        arena, {syntax, arena.space(), arena.slash_slash(), comment_text_ref});
 
     // TODO(leary): 2023-09-30 Make this so it reflows overlong lines in the
     // comment text with the // prefix inserted at the indentation level.
-    DocRef line_prefixed =
-        ConcatN(arena, arena.slash_slash(),
-                {comment_text_ref, arena.hard_line(), syntax});
+    DocRef line_prefixed = ConcatN(
+        arena,
+        {arena.slash_slash(), comment_text_ref, arena.hard_line(), syntax});
     return arena.MakeGroup(arena.MakeFlatChoice(flat, line_prefixed));
   }
 
@@ -329,6 +397,40 @@ DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena) {
           [&](const ConstAssert* n) { return Fmt(*n, comments, arena); },
       },
       n.wrapped());
+}
+
+static DocRef FmtParams(absl::Span<const Param* const> params,
+                        const Comments& comments, DocArena& arena) {
+  std::vector<DocRef> pieces = {arena.oparen()};
+  for (const Param* param : params) {
+    DocRef type = Fmt(*param->type_annotation(), comments, arena);
+    pieces.push_back(ConcatNGroup(
+        arena, {arena.MakeText(param->identifier()), arena.break0(),
+                arena.colon(), arena.break1(), type}));
+  }
+  pieces.push_back(arena.cparen());
+  return ConcatNGroup(arena, pieces);
+}
+
+DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
+  DocRef fn = arena.MakeText("fn");
+  DocRef name = arena.MakeText(n.identifier());
+
+  DocRef params = FmtParams(n.params(), comments, arena);
+
+  std::vector<DocRef> pieces = {fn,     arena.break1(), name, arena.break0(),
+                                params, arena.break1()};
+  if (n.return_type() != nullptr) {
+    pieces.push_back(arena.arrow());
+    pieces.push_back(arena.break1());
+    pieces.push_back(Fmt(*n.return_type(), comments, arena));
+    pieces.push_back(arena.break1());
+  }
+
+  return ConcatNGroup(arena, {
+                                 ConcatNGroup(arena, pieces),
+                                 Fmt(*n.body(), comments, arena),
+                             });
 }
 
 }  // namespace xls::dslx

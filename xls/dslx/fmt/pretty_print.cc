@@ -183,6 +183,10 @@ DocArena::DocArena() {
   dotdot_ = MakeText("..");
   underscore_ = MakeText("_");
   slash_slash_ = MakeText("//");
+  ocurl_ = MakeText("{");
+  ccurl_ = MakeText("}");
+  semi_ = MakeText(";");
+  arrow_ = MakeText("->");
 }
 
 DocRef DocArena::MakeText(std::string s) {
@@ -226,17 +230,20 @@ std::string PrettyPrint(const DocArena& arena, DocRef ref, int64_t text_width) {
   return absl::StrJoin(pieces, "");
 }
 
-DocRef ConcatN(DocArena& arena, DocRef lhs, absl::Span<const DocRef> rest) {
-  DocRef accum = lhs;
-  for (const DocRef& rhs : rest) {
+DocRef ConcatN(DocArena& arena, absl::Span<DocRef const> docs) {
+  if (docs.empty()) {
+    return arena.empty();
+  }
+
+  DocRef accum = docs[0];
+  for (const DocRef& rhs : docs.subspan(1)) {
     accum = arena.MakeConcat(accum, rhs);
   }
   return accum;
 }
 
-DocRef ConcatNGroup(DocArena& arena, DocRef lhs,
-                    absl::Span<DocRef const> rest) {
-  return arena.MakeGroup(ConcatN(arena, lhs, rest));
+DocRef ConcatNGroup(DocArena& arena, absl::Span<DocRef const> docs) {
+  return arena.MakeGroup(ConcatN(arena, docs));
 }
 
 }  // namespace xls::dslx

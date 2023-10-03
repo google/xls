@@ -168,6 +168,10 @@ class DocArena {
   DocRef dotdot() const { return dotdot_; }
   DocRef underscore() const { return underscore_; }
   DocRef slash_slash() const { return slash_slash_; }
+  DocRef ocurl() const { return ocurl_; }
+  DocRef ccurl() const { return ccurl_; }
+  DocRef semi() const { return semi_; }
+  DocRef arrow() const { return arrow_; }
 
   // Note: the returned reference should not be held across an allocation.
   const pprint_internal::Doc& Deref(DocRef ref) const {
@@ -194,15 +198,19 @@ class DocArena {
   DocRef dotdot_;
   DocRef underscore_;
   DocRef slash_slash_;
+  DocRef ocurl_;
+  DocRef ccurl_;
+  DocRef semi_;
+  DocRef arrow_;
 };
 
 // Helper for concatenating several docs together in left-to-right sequence.
-DocRef ConcatN(DocArena& arena, DocRef lhs, absl::Span<DocRef const> rest);
+DocRef ConcatN(DocArena& arena, absl::Span<DocRef const> docs);
 
 // Concatenates the docs as in ConcatN and then makes a group around them.
 //
 // See MakeGroup() for the implications of putting something in a group.
-DocRef ConcatNGroup(DocArena& arena, DocRef lhs, absl::Span<DocRef const> rest);
+DocRef ConcatNGroup(DocArena& arena, absl::Span<DocRef const> docs);
 
 // The pretty printing routine itself that reflows lines in "doc" to attempt to
 // fit them within "text_width".

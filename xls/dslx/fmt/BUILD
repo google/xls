@@ -69,9 +69,12 @@ cc_test(
     deps = [
         ":ast_fmt",
         ":pretty_print",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:bindings",
         "//xls/dslx/frontend:parser",

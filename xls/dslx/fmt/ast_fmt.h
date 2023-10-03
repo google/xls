@@ -52,6 +52,8 @@ class Comments {
 
 DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena);
 
+DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FMT_AST_FMT_H_
