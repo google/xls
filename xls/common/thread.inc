@@ -40,4 +40,6 @@ class Thread {
   bool joined_;
 };
 
+inline int AvailableCPUs() { return std::thread::hardware_concurrency(); }
+
 }  // namespace xls

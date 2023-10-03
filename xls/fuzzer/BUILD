@@ -14,7 +14,7 @@
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
-# pytype binary, test, library
+# pytype test and library
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
@@ -404,40 +404,26 @@ generate_crasher_regression_tests(
     },
 )
 
-cc_binary(
-    name = "run_fuzz_multiprocess_worker",
-    srcs = ["run_fuzz_multiprocess_worker.cc"],
+cc_library(
+    name = "run_fuzz_multiprocess_lib",
+    srcs = ["run_fuzz_multiprocess.cc"],
+    hdrs = ["run_fuzz_multiprocess.h"],
     deps = [
         ":ast_generator",
         ":run_fuzz",
         ":sample",
         ":value_generator",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
         "//xls/common:stopwatch",
+        "//xls/common:thread",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
-        "//xls/common/file:temp_file",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
-    ],
-)
-
-py_library(
-    name = "run_fuzz_multiprocess_lib",
-    srcs = ["run_fuzz_multiprocess.py"],
-    data = [":run_fuzz_multiprocess_worker"],
-    srcs_version = "PY3ONLY",
-    deps = [
-        ":ast_generator_options_py_pb2",
-        ":sample_py_pb2",
-        "//xls/common:runfiles",
     ],
 )
 
@@ -462,22 +448,23 @@ cc_library(
     ],
 )
 
-py_binary(
+cc_binary(
     name = "run_fuzz_multiprocess",
-    srcs = ["run_fuzz_multiprocess_main.py"],
-    main = "run_fuzz_multiprocess_main.py",
-    python_version = "PY3",
-    srcs_version = "PY3",
+    srcs = ["run_fuzz_multiprocess_main.cc"],
     deps = [
-        ":ast_generator_options_py_pb2",
-        ":cli_helpers",
+        ":ast_generator",
         ":run_fuzz_multiprocess_lib",
-        ":sample_py_pb2",
-        requirement("psutil"),
-        "//xls/common:gfile",
-        "//xls/common:multiprocess",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        ":sample",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common:thread",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
     ],
 )
 

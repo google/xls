@@ -14,6 +14,14 @@
 #ifndef XLS_COMMON_THREAD_H_
 #define XLS_COMMON_THREAD_H_
 
+namespace xls {
+
+class Thread;
+
+int AvailableCPUs();
+
+}  // namespace xls
+
 #include "xls/common/thread.inc"
 
 #endif  // XLS_COMMON_THREAD_H_
