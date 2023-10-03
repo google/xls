@@ -31,7 +31,11 @@ RUN_FUZZ_MULTIPROCESS_PATH = runfiles.get_path(
 
 
 def _op_to_string(op: ir_op_pb2.OpProto) -> str:
-  return ir_op_pb2.OpProto.Name(op).removeprefix('OP_').lower()
+  name = ir_op_pb2.OpProto.Name(op)
+  if name.startswith('OP_'):
+    return name[len('OP_'):].lower()
+  else:
+    return name.lower()
 
 
 class FuzzSummary:

@@ -34,7 +34,6 @@ import grpc
 from xls.delay_model import delay_model
 from xls.delay_model import delay_model_pb2
 from xls.delay_model import op_module_generator
-from xls.ir.python import bits
 from xls.synthesis import client_credentials
 from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
@@ -492,7 +491,7 @@ def _run_select_op_and_add(
     for bit_count in _bitwidth_sweep(0):
 
       # Handle differently if num_cases is a power of 2.
-      select_bits = bits.min_bit_count_unsigned(num_cases - 1)
+      select_bits = (num_cases - 1).bit_length()
       if math.pow(2, select_bits) == num_cases:
         model.data_points.append(
             _build_data_point_bit_types(op, kop, bit_count, [select_bits] +
@@ -545,7 +544,7 @@ def _run_encode_op_and_add(
 
   # input_bits should be at least 2 bits.
   for input_bits in _bitwidth_sweep(0):
-    node_bits = bits.min_bit_count_unsigned(input_bits - 1)
+    node_bits = (input_bits - 1).bit_length()
     model.data_points.append(
         _build_data_point_bit_types(op, kop, node_bits, [input_bits], stub))
     logging.info('# encode_op: %s, %s input bits --> %s', op, str(input_bits),
@@ -563,7 +562,7 @@ def _run_decode_op_and_add(
 
   # node_bits should be at least 2 bits.
   for node_bits in _bitwidth_sweep(0):
-    input_bits = bits.min_bit_count_unsigned(node_bits - 1)
+    input_bits = (node_bits - 1).bit_length()
     model.data_points.append(
         _build_data_point_bit_types(
             op,
@@ -597,7 +596,7 @@ def _run_dynamic_bit_slice_op_and_add(
   # input_bits should be at least 2 bits
   idx = 0
   for input_bits in _bitwidth_sweep(2):
-    for start_bits in range(3, bits.min_bit_count_unsigned(input_bits - 1) + 1):
+    for start_bits in range(3, (input_bits - 1).bit_length() + 1):
       for node_bits in range(1, input_bits, BITWIDTH_STRIDE_DEGREES[2]):
         model.data_points.append(
             _build_data_point_bit_types(
@@ -952,7 +951,7 @@ def _run_array_index_op_and_add(
         # Format dimension args
         operand_dimensions = [array_and_element_dimensions]
         for dim in reversed(array_dimension_sizes):
-          operand_dimensions.append([bits.min_bit_count_unsigned(dim - 1)])
+          operand_dimensions.append([(dim - 1).bit_length()])
 
         # Record data point
         result = _build_data_point(op, kop, [element_bit_count],
@@ -1014,7 +1013,7 @@ def _run_array_update_op_and_add(
         operand_dimensions = [array_and_element_dimensions]
         operand_dimensions.append([element_bit_count])
         for dim in reversed(array_dimension_sizes):
-          operand_dimensions.append([bits.min_bit_count_unsigned(dim - 1)])
+          operand_dimensions.append([(dim - 1).bit_length()])
 
         # Record data point
         result = _build_data_point(op, kop, array_and_element_dimensions,

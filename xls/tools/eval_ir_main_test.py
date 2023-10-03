@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ctypes
 import subprocess
 
+from absl.testing import absltest
 from xls.common import runfiles
 from xls.common import test_base
-from xls.ir.python import ir_parser
-from absl.testing import absltest
 
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
 
@@ -241,10 +241,10 @@ class EvalMainTest(absltest.TestCase):
     ])
     products = result.decode('utf-8').split()
     for product in products:
-      value = ir_parser.Parser.parse_typed_value(product)
-      bits = value.get_bits()
-      self.assertEqual(bits.slice(0, 1).to_uint(), 1)
-      self.assertTrue(bits.get_msb())
+      self.assertStartsWith(product, 'bits[64]:0x')
+      value = ctypes.c_longlong(int(product[len('bits[64]:'):], 16)).value
+      self.assertLess(value, 0, f'value should be negative: {product}')
+      self.assertTrue(value % 2, f'value should be odd: {product}')
 
   def test_validator_fails(self):
     input_validator = """fn validator(x: s32, y:s32) -> bool { false }"""

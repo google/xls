@@ -63,7 +63,6 @@ py_binary(
         requirement("MarkupSafe"),
         requirement("Werkzeug"),
         "//xls/common:runfiles",
-        "//xls/common/python:init_xls",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],

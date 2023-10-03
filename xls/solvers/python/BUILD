@@ -49,18 +49,14 @@ py_library(
     deps = [
         ":lec_characterizer_py_pb2",
         ":z3_lec",
-        "//xls/common:gfile",
         "//xls/delay_model:op_module_generator",
         "//xls/ir:op_py_pb2",
-        "//xls/ir/python:ir_parser",
-        "//xls/ir/python:package",
-        "//xls/ir/python:type",
+        "//xls/ir:xls_type_py_pb2",
         "//xls/synthesis:client_credentials",
         "//xls/synthesis:synthesis_py_pb2",
         "//xls/synthesis:synthesis_service_py_pb2_grpc",
         "@com_github_grpc_grpc//src/python/grpcio/grpc:grpcio",
         "@com_google_absl_py//absl/logging",
-        "@com_google_protobuf//:protobuf_python",
     ],
 )
 
@@ -100,10 +96,7 @@ py_test(
         "//xls/common:runfiles",
         "//xls/ir:op_py_pb2",
         "//xls/ir:xls_type_py_pb2",
-        "//xls/ir/python:package",
-        "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_protobuf//:protobuf_python",
     ],
 )
 

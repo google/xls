@@ -19,10 +19,8 @@ This is an adapter that helps paper over differences between Google-internal and
 OSS/external testing facilities.
 """
 
-import sys
 import tempfile
 
-from xls.common.python import init_xls
 from absl.testing import absltest
 
 TestCase = absltest.TestCase
@@ -36,5 +34,4 @@ def create_named_output_text_file(name: str) -> str:
 
 
 def main() -> None:
-  init_xls.init_xls(sys.argv)
   absltest.main()

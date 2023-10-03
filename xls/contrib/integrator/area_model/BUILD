@@ -35,7 +35,6 @@ py_binary(
         "//xls/delay_model",
         "//xls/delay_model:delay_model_py_pb2",
         "//xls/delay_model:op_module_generator",
-        "//xls/ir/python:bits",
         "//xls/synthesis:client_credentials",
         "//xls/synthesis:synthesis_py_pb2",
         "//xls/synthesis:synthesis_service_py_pb2_grpc",

@@ -33,7 +33,6 @@ import werkzeug.exceptions
 import werkzeug.security
 
 from xls.common import runfiles
-from xls.common.python import init_xls
 
 FLAGS = flags.FLAGS
 flags.DEFINE_bool('use_ipv6', False, 'Whether to use IPv6.')
@@ -267,9 +266,6 @@ def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  # This is required so that module initializers are called including those
-  # which register delay models.
-  init_xls.init_xls(sys.argv)
   global examples
   if FLAGS.example_ir_dir is not None:
     examples = load_examples_from_dir(FLAGS.example_ir_dir)

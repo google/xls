@@ -1172,7 +1172,6 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "//xls/ir/python:ir_parser",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )

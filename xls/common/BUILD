@@ -455,10 +455,7 @@ py_library(
     name = "test_base",
     srcs = ["test_base.py"],
     srcs_version = "PY2AND3",
-    deps = [
-        "@com_google_absl_py//absl/testing:absltest",
-        "//xls/common/python:init_xls",
-    ],
+    deps = ["@com_google_absl_py//absl/testing:absltest"],
 )
 
 cc_library(
