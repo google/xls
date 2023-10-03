@@ -13,17 +13,22 @@
 # limitations under the License.
 """Generates single-op modules for delay characterization."""
 
+import dataclasses
 import random
 import re
+import subprocess
+import tempfile
 import textwrap
 
 from typing import Sequence, Optional, Tuple
 
 from google.protobuf import text_format
 from xls.codegen import module_signature_pb2
-from xls.codegen.python import module_signature as module_signature_mod
-from xls.codegen.python import pipeline_generator as pipeline_generator_mod
-from xls.ir.python import ir_parser as ir_parser_mod
+from xls.common import runfiles
+
+
+CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
+PARSE_IR_PATH = runfiles.get_path('xls/tools/parse_ir')
 
 
 def _random_bits_value(width: int) -> str:
@@ -171,17 +176,30 @@ def generate_ir_package(op: str,
         args=', '.join(args))
 
   # Verify the IR parses and verifies.
-  ir_parser_mod.Parser.parse_package(ir_text)
+  with tempfile.NamedTemporaryFile(suffix='.ir', mode='w') as ir_file:
+    ir_file.write(ir_text)
+    ir_file.flush()
+    parse_ir = subprocess.Popen(
+        [PARSE_IR_PATH, ir_file.name],
+        stderr=subprocess.PIPE,
+    )
+    _, stderr = parse_ir.communicate()
+    if parse_ir.returncode != 0:
+      raise ValueError(stderr)
   return ir_text
+
+
+@dataclasses.dataclass(frozen=True)
+class ModuleGeneratorResult:
+  signature: module_signature_pb2.ModuleSignatureProto
+  verilog_text: str
 
 
 def generate_verilog_module(
     module_name: str,
     ir_text: str,
-) -> module_signature_mod.ModuleGeneratorResult:
-  """Generates a verilog module with the given properties.
-
-  Most arguments are passed directly to generate_ir_package.
+) -> ModuleGeneratorResult:
+  """Generates a verilog module for the given IR.
 
   Arguments:
     module_name: The name of the generated Verilog module.
@@ -190,16 +208,39 @@ def generate_verilog_module(
   Returns:
     The module signature and Verilog text (as ModuleGeneratorResult).
   """
-  package = ir_parser_mod.Parser.parse_package(ir_text)
-  module_generator_result = (
-      pipeline_generator_mod.generate_pipelined_module_with_n_stages(
-          package, 1, module_name)
-  )
-  return module_generator_result
+  with tempfile.NamedTemporaryFile(
+      prefix=f'{module_name}', suffix='.ir', mode='w'
+  ) as ir_file, tempfile.NamedTemporaryFile(
+      prefix=f'{module_name}', suffix='.txtpb', mode='r'
+  ) as module_signature_file, tempfile.NamedTemporaryFile(
+      prefix=f'{module_name}', suffix='.v', mode='r'
+  ) as verilog_file:
+    ir_file.write(ir_text)
+    ir_file.flush()
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH,
+        '--generator=pipeline',
+        '--pipeline_stages=1',
+        '--delay_model=unit',
+        '--nouse_system_verilog',
+        f'--module_name={module_name}',
+        f'--output_signature_path={module_signature_file.name}',
+        f'--output_verilog_path={verilog_file.name}',
+        ir_file.name,
+    ])
+    module_signature = module_signature_file.read()
+    verilog_text = verilog_file.read()
+    return ModuleGeneratorResult(
+        text_format.Parse(
+            module_signature, module_signature_pb2.ModuleSignatureProto()
+        ),
+        verilog_text,
+    )
 
 
-def generate_parallel_module(modules: Sequence[
-    module_signature_mod.ModuleGeneratorResult], module_name: str) -> str:
+def generate_parallel_module(
+    modules: Sequence[ModuleGeneratorResult], module_name: str
+) -> str:
   """Generates a module composed of instantiated instances of the given modules.
 
   Each module in 'modules' is instantiated exactly once in a enclosing,
@@ -256,11 +297,7 @@ def generate_parallel_module(modules: Sequence[
   Returns:
     Verilog text containing the composite module and component modules.
   """
-  module_protos = [
-      text_format.Parse(m.signature.as_text_proto(),
-                        module_signature_pb2.ModuleSignatureProto())
-      for m in modules
-  ]
+  module_protos = [m.signature for m in modules]
   ports = ['input wire clk']
   for module in module_protos:
     for data_port in module.data_ports:

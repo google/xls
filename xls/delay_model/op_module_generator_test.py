@@ -13,18 +13,9 @@
 # limitations under the License.
 """Tests for op module generation."""
 
-import sys
-
 from absl.testing import absltest
 from xls.common import runfiles
-from xls.common.python import init_xls
 from xls.delay_model import op_module_generator as opgen
-
-
-def setUpModule():
-  # This is required so that module initializers are called including those
-  # which register delay models.
-  init_xls.init_xls(sys.argv)
 
 
 class OpModuleGeneratorTest(absltest.TestCase):
