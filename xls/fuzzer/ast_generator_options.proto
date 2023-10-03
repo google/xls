@@ -42,4 +42,7 @@ message AstGeneratorOptionsProto {
   // include an empty tuple). Its value is only meaningful when generate_proc is
   // `true`.
   optional bool emit_stateless_proc = 7;
+
+  // Whether to emit zero-width bits types.
+  optional bool emit_zero_width_bits_types = 8;
 }

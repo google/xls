@@ -673,6 +673,7 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -815,6 +816,8 @@ cc_library(
     deps = [
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
         "//xls/dslx:interp_value",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:unwrap_meta_type",

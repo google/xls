@@ -115,7 +115,9 @@ std::string TagToString(InterpValueTag tag) {
     return InterpValue{InterpValueTag::kUBits, std::move(bits)};
   }
   // Unset the highest bit to get the maximum value in two's complement form.
-  bits = bits.UpdateWithSet(bit_count - 1, false);
+  if (bit_count > 0) {
+    bits = bits.UpdateWithSet(bit_count - 1, false);
+  }
   return InterpValue{InterpValueTag::kSBits, std::move(bits)};
 }
 

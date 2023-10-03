@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -193,6 +194,31 @@ static void TestRepeatable(uint64_t seed) {
       XLS_ASSERT_OK(ParseAndTypecheck<Function>(text, "test"));
     }
   }
+}
+
+TEST(AstGeneratorTest, GeneratesZeroWidthValues) {
+  ValueGenerator value_gen(std::mt19937_64{0});
+  AstGeneratorOptions options;
+  options.emit_zero_width_bits_types = true;
+  bool saw_zero_width = false;
+  // Every couple samples seems to produce a zero-width value somewhere, but set
+  // to a high number to catch invalid handling of zero-width values in the
+  // generator.
+  constexpr int64_t kNumSamples = 5000;
+  for (int64_t i = 0; i < kNumSamples; ++i) {
+    AstGenerator g(options, &value_gen);
+    XLS_VLOG(1) << "Generating sample: " << i;
+    std::string module_name = absl::StrFormat("sample_%d", i);
+    XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
+                             g.Generate("main", module_name));
+    std::string text = module.module->ToString();
+    if (absl::StrContains(text, "uN[0]") || absl::StrContains(text, "sN[0]")) {
+      XLS_VLOG(1) << absl::StrFormat("Saw zero-width type after %d samples", i);
+      saw_zero_width = true;
+    }
+  }
+  EXPECT_TRUE(saw_zero_width) << absl::StrFormat(
+      "Generated %d samples and did not see a zero-width type", kNumSamples);
 }
 
 class AstGeneratorRepeatableTest : public testing::TestWithParam<uint64_t> {};

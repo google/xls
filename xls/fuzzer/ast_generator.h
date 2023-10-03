@@ -100,30 +100,17 @@ struct BitsAndSignedness {
 
 // Options that are used to configure the AST generator.
 struct AstGeneratorOptions {
-  // Emit signed types (currently not connected, signed types are always
-  // generated).
+  // See ast_generator_options.proto for fields descriptions.
   bool emit_signed_types = true;
-
-  // The maximum (inclusive) width for bits types.
   int64_t max_width_bits_types = 64;
-
-  // The maximum (inclusive) width for aggregate types; e.g. tuples.
   int64_t max_width_aggregate_types = 1024;
-
-  // Emit loops (currently not connected, loops are always generated).
   bool emit_loops = true;
-
-  // Whether to emit `gate!()` builtin calls.
   bool emit_gate = true;
-
-  // Whether to generate a proc.
   bool generate_proc = false;
-
-  // Whether to emit a stateless proc. When true, the state type of the proc is
-  // an empty tuple. Otherwise, a random state type is generated (which may also
-  // include an empty tuple). Its value is only meaningful when generate_proc is
-  // `true`.
   bool emit_stateless_proc = false;
+  // TODO(https://github.com/google/xls/issues/1138): Switch this to default
+  // true.
+  bool emit_zero_width_bits_types = false;
 
   static absl::StatusOr<AstGeneratorOptions> FromProto(
       const AstGeneratorOptionsProto& proto);

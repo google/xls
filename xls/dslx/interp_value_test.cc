@@ -244,5 +244,24 @@ TEST(InterpValueTest, FormatNestedStructViaDescriptor) {
 })");
 }
 
+TEST(InterpValueTest, MakeMaxValue) {
+  EXPECT_EQ(InterpValue::MakeMaxValue(/*is_signed=*/false, 0).ToString(),
+            "u0:0");
+  EXPECT_EQ(InterpValue::MakeMaxValue(/*is_signed=*/true, 0).ToString(),
+            "s0:0");
+  EXPECT_EQ(InterpValue::MakeMaxValue(/*is_signed=*/false, 1).ToString(),
+            "u1:1");
+  EXPECT_EQ(InterpValue::MakeMaxValue(/*is_signed=*/true, 1).ToString(),
+            "s1:0");
+  EXPECT_EQ(InterpValue::MakeMaxValue(/*is_signed=*/false, 2).ToString(),
+            "u2:3");
+  EXPECT_EQ(InterpValue::MakeMaxValue(/*is_signed=*/true, 2).ToString(),
+            "s2:1");
+  EXPECT_EQ(InterpValue::MakeMaxValue(/*is_signed=*/false, 16).ToString(),
+            "u16:65535");
+  EXPECT_EQ(InterpValue::MakeMaxValue(/*is_signed=*/true, 16).ToString(),
+            "s16:32767");
+}
+
 }  // namespace
 }  // namespace xls::dslx

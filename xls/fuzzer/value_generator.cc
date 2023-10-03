@@ -15,6 +15,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <random>
 #include <string>
@@ -23,7 +24,9 @@
 
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -224,14 +227,14 @@ absl::StatusOr<InterpValue> ValueGenerator::GenerateInterpValue(
 
   InlineBitmap bitmap = to_mutate.bitmap();
   XLS_RET_CHECK_EQ(bitmap.bit_count(), target_bit_count);
-  int64_t mutation_count = RandRangeBiasedTowardsZero(target_bit_count);
-
-  for (int64_t i = 0; i < mutation_count; ++i) {
-    // Pick a random bit and flip it.
-    int64_t bitno = RandRange(target_bit_count);
-    bitmap.Set(bitno, !bitmap.Get(bitno));
+  if (target_bit_count > 0) {
+    int64_t mutation_count = RandRangeBiasedTowardsZero(target_bit_count);
+    for (int64_t i = 0; i < mutation_count; ++i) {
+      // Pick a random bit and flip it.
+      int64_t bitno = RandRange(target_bit_count);
+      bitmap.Set(bitno, !bitmap.Get(bitno));
+    }
   }
-
   bool is_signed = bits_type->is_signed();
   auto tag = is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
   return InterpValue::MakeBits(tag, Bits::FromBitmap(std::move(bitmap)));

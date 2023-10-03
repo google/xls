@@ -21,6 +21,7 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <random>
@@ -106,6 +107,7 @@ LastDelayingOp ComposeDelayingOps(LastDelayingOp op1, LastDelayingOp op2,
       .emit_gate = proto.emit_gate(),
       .generate_proc = proto.generate_proc(),
       .emit_stateless_proc = proto.emit_stateless_proc(),
+      .emit_zero_width_bits_types = proto.emit_zero_width_bits_types(),
   };
 }
 
@@ -118,6 +120,7 @@ AstGeneratorOptionsProto AstGeneratorOptions::ToProto() const {
   proto.set_emit_gate(emit_gate);
   proto.set_generate_proc(generate_proc);
   proto.set_emit_stateless_proc(emit_stateless_proc);
+  proto.set_emit_zero_width_bits_types(emit_zero_width_bits_types);
   return proto;
 }
 
@@ -316,8 +319,8 @@ BuiltinTypeAnnotation* AstGenerator::MakeTokenType() {
 
 TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
                                                  int64_t width) {
-  XLS_CHECK_GT(width, 0);
-  if (width <= 64) {
+  XLS_CHECK_GE(width, 0);
+  if (width > 0 && width <= 64) {
     BuiltinType type = GetBuiltinType(is_signed, width).value();
     return module_->Make<BuiltinTypeAnnotation>(
         fake_span_, type,
@@ -1000,17 +1003,29 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
   BinopKind op = RandomSetChoice<BinopKind>(GetBinopShifts());
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueUBits(&ctx->env));
-  if (RandomFloat() < 0.8) {
-    // Clamp the shift rhs to be in range most of the time.
-    int64_t bit_count = GetTypeBitCount(rhs.type);
-    int64_t new_upper = RandRange(bit_count);
-    XLS_ASSIGN_OR_RETURN(rhs.expr, GenerateUmin(rhs, new_upper));
-  } else if (RandomBool()) {
-    // Generate a numerical value (Number) as an untyped literal instead of the
-    // value we chose above.
-    int64_t shift_amount = RandRange(0, GetTypeBitCount(lhs.type));
-    rhs = TypedExpr();
-    rhs.expr = MakeNumber(shift_amount);
+  int64_t lhs_bit_count = GetTypeBitCount(lhs.type);
+  int64_t rhs_bit_count = GetTypeBitCount(rhs.type);
+  if (lhs_bit_count > 0 && rhs_bit_count > 0) {
+    if (RandomFloat() < 0.8) {
+      // Clamp the shift rhs to be in range most of the time.  First find the
+      // maximum value representable in the RHS type as this imposes a different
+      // limit on the magnitude of the shift amount. If the RHS type is 63 bits
+      // or wider then just use int max (it's 63 instead of 64 because we're
+      // using an signed 64-bit type to hold the limit).
+      int64_t max_rhs_value = rhs_bit_count < 63
+                                  ? ((int64_t{1} << rhs_bit_count) - 1)
+                                  : std::numeric_limits<int64_t>::max();
+
+      int64_t shift_limit = std::min(lhs_bit_count, max_rhs_value);
+      int64_t new_upper = RandRange(shift_limit);
+      XLS_ASSIGN_OR_RETURN(rhs.expr, GenerateUmin(rhs, new_upper));
+    } else if (RandomBool()) {
+      // Generate a numerical value (Number) as an untyped literal instead of
+      // the value we chose above.
+      int64_t shift_amount = RandRange(0, lhs_bit_count);
+      rhs = TypedExpr();
+      rhs.expr = MakeNumber(shift_amount);
+    }
   }
   return TypedExpr{
       .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
@@ -1885,6 +1900,10 @@ TypeAnnotation* AstGenerator::GenerateBitsType(
     max_width = max_width_bits_types.value();
   }
   if (max_width <= 64 || RandRange(1, 10) != 1) {
+    // Once in a while generate a zero-width bits type.
+    if (options_.emit_zero_width_bits_types && RandRange(1, 64) == 1) {
+      return MakeTypeAnnotation(/*is_signed=*/RandomBool(), 0);
+    }
     return GeneratePrimitiveType(max_width_bits_types);
   }
   // Generate a type wider than 64-bits. With smallish probability choose a
@@ -2064,11 +2083,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
                 ? std::make_optional(RandRange(-bit_count - 1, bit_count + 1))
                 : std::nullopt;
     width = ResolveBitSliceIndices(bit_count, start, limit).second;
-    if (width > 0) {  // Make sure we produce non-zero-width things.
+    // Make sure we produce non-zero-width things.
+    if (options_.emit_zero_width_bits_types || width > 0) {
       break;
     }
   }
-  XLS_RET_CHECK_GT(width, 0);
 
   LastDelayingOp last_delaying_op = arg.last_delaying_op;
   int64_t min_stage = arg.min_stage;
@@ -2128,6 +2147,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Context* ctx) {
 
   // Next, find factors of the bit count and select one pair.
   int64_t bit_count = GetTypeBitCount(arg.type);
+
+  if (bit_count == 0) {
+    return RecoverableError("Cannot cast to array from zero-width bits type.");
+  }
+
   std::vector<std::pair<int64_t, int64_t>> factors;
   for (int64_t i = 1; i < bit_count + 1; ++i) {
     if (bit_count % i == 0 && bit_count / i <= kMaxArraySize) {
