@@ -687,3 +687,27 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_test(
+    name = "streammanager_test",
+    srcs = [
+        "streammanager_test.cc",
+    ],
+    deps = [
+        ":common",
+        ":ichannel",
+        ":ichannelmanager",
+        ":istream",
+        ":istream_mock",
+        ":streammanager",
+        "//xls/common:bits_util",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_flags",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
