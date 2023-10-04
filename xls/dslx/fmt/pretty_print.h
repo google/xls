@@ -194,6 +194,8 @@ class DocArena {
   DocRef semi() const { return semi_; }
   DocRef arrow() const { return arrow_; }
   DocRef dot() const { return dot_; }
+  DocRef pub_kw() const { return pub_kw_; }
+  DocRef const_kw() const { return const_kw_; }
 
   // Note: the returned reference should not be held across an allocation.
   const pprint_internal::Doc& Deref(DocRef ref) const {
@@ -225,6 +227,8 @@ class DocArena {
   DocRef semi_;
   DocRef arrow_;
   DocRef dot_;
+  DocRef pub_kw_;
+  DocRef const_kw_;
 };
 
 // Helper for concatenating several docs together in left-to-right sequence.

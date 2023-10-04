@@ -530,7 +530,20 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
 
 static DocRef Fmt(const ConstantDef& n, const Comments& comments,
                   DocArena& arena) {
-  XLS_LOG(FATAL) << "constant def: " << n.ToString();
+  std::vector<DocRef> pieces;
+  if (n.is_public()) {
+    pieces.push_back(arena.pub_kw());
+    pieces.push_back(arena.break1());
+  }
+  pieces.push_back(arena.const_kw());
+  pieces.push_back(arena.break1());
+  pieces.push_back(arena.MakeText(n.identifier()));
+  pieces.push_back(arena.break1());
+  pieces.push_back(arena.equals());
+  pieces.push_back(arena.break1());
+  pieces.push_back(Fmt(*n.value(), comments, arena));
+  pieces.push_back(arena.semi());
+  return ConcatNGroup(arena, pieces);
 }
 
 static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
