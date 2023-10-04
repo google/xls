@@ -39,17 +39,15 @@ class DslxFmtTest(absltest.TestCase):
   def test_small_no_spaces_example(self):
     contents = 'fn f()->u32{u32:42}'
     want = textwrap.dedent("""\
-    fn f() -> u32 {
-        u32:42
-    }""")
+    fn f() -> u32 { u32:42 }
+    """)
     self.assertEqual(self._run(contents), want)
 
   def test_small_no_spaces_example_in_place(self):
     contents = 'fn f()->u32{u32:42}'
     want = textwrap.dedent("""\
-    fn f() -> u32 {
-        u32:42
-    }""")
+    fn f() -> u32 { u32:42 }
+    """)
     self.assertEqual(self._run(contents, in_place=True), want)
 
 

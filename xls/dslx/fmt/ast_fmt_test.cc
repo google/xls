@@ -14,8 +14,10 @@
 
 #include "xls/dslx/fmt/ast_fmt.h"
 
+#include <memory>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
@@ -25,8 +27,10 @@
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
 namespace {
@@ -117,6 +121,27 @@ TEST_F(FunctionFmtTest, FormatTupleDestructure) {
     x
 })";
   EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, FormatMultiParameter) {
+  const std::string_view original = "fn f(x:u32,y:u64)->(u32,u64){(x,y)}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(x: u32, y: u64) -> (u32, u64) { (x, y) })";
+  EXPECT_EQ(got, want);
+}
+
+TEST(ModuleFmtTest, TwoSimpleFunctions) {
+  const std::string_view kProgram =
+      "fn double(x:u32)->u32{u32:2*x}fn triple(x: u32)->u32{u32:3*x}";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, R"(fn double(x: u32) -> u32 { u32:2 * x }
+
+fn triple(x: u32) -> u32 { u32:3 * x }
+)");
 }
 
 }  // namespace

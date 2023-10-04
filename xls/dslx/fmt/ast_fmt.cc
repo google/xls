@@ -35,6 +35,7 @@ namespace {
 
 // Forward decl.
 DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena);
+DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
 
 DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
@@ -101,7 +102,54 @@ DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle binop: " << n.ToString();
+  Precedence op_precedence = n.GetPrecedence();
+  const Expr& lhs = *n.lhs();
+  const Expr& rhs = *n.rhs();
+  Precedence lhs_precedence = lhs.GetPrecedence();
+
+  std::vector<DocRef> pieces;
+
+  auto emit = [&](const Expr& e, bool parens) {
+    if (parens) {
+      pieces.push_back(arena.oparen());
+      pieces.push_back(Fmt(e, comments, arena));
+      pieces.push_back(arena.cparen());
+    } else {
+      pieces.push_back(Fmt(e, comments, arena));
+    }
+  };
+
+  if (WeakerThan(lhs_precedence, op_precedence)) {
+    // We have to parenthesize the LHS.
+    emit(lhs, /*parens=*/true);
+  } else if (n.binop_kind() == BinopKind::kLt &&
+             lhs.kind() == AstNodeKind::kCast && !lhs.in_parens()) {
+    // If there is an open angle bracket, and the LHS is suffixed with a type,
+    // we parenthesize it to avoid ambiguity; e.g.
+    //
+    //    foo as bar < baz
+    //           ^~~~~~~~^
+    //
+    // We don't know whether `bar<baz` is the start of a parametric type
+    // instantiation, so we force conservative parenthesization:
+    //
+    //    (foo as bar) < baz
+    emit(lhs, /*parens=*/true);
+  } else {
+    emit(lhs, /*parens=*/false);
+  }
+
+  pieces.push_back(arena.break1());
+  pieces.push_back(arena.MakeText(BinopKindFormat(n.binop_kind())));
+  pieces.push_back(arena.break1());
+
+  if (WeakerThan(rhs.GetPrecedence(), op_precedence)) {
+    emit(rhs, /*parens=*/true);
+  } else {
+    emit(rhs, /*parens=*/false);
+  }
+
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const Block& n, const Comments& comments, DocArena& arena) {
@@ -185,7 +233,24 @@ DocRef Fmt(const Spawn& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle tuple: " << n.ToString();
+  std::vector<DocRef> pieces;
+
+  for (size_t i = 0; i < n.members().size(); ++i) {
+    const Expr* member = n.members()[i];
+    DocRef member_doc = Fmt(*member, comments, arena);
+    if (i + 1 == n.members().size()) {
+      pieces.push_back(arena.MakeGroup(member_doc));
+      pieces.push_back(arena.break0());
+    } else {
+      pieces.push_back(ConcatNGroup(arena, {member_doc, arena.comma()}));
+      pieces.push_back(arena.break1());
+    }
+  }
+
+  std::vector<DocRef> top = {arena.oparen()};
+  top.push_back(arena.MakeAlign(ConcatNGroup(arena, pieces)));
+  top.push_back(arena.cparen());
+  return ConcatNGroup(arena, top);
 }
 
 DocRef Fmt(const SplatStructInstance& n, const Comments& comments,
@@ -402,11 +467,17 @@ DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena) {
 static DocRef FmtParams(absl::Span<const Param* const> params,
                         const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces = {arena.oparen()};
-  for (const Param* param : params) {
+  for (size_t i = 0; i < params.size(); ++i) {
+    const Param* param = params[i];
     DocRef type = Fmt(*param->type_annotation(), comments, arena);
-    pieces.push_back(ConcatNGroup(
-        arena, {arena.MakeText(param->identifier()), arena.break0(),
-                arena.colon(), arena.break1(), type}));
+    std::vector<DocRef> param_pieces = {arena.MakeText(param->identifier()),
+                                        arena.break0(), arena.colon(),
+                                        arena.break1(), type};
+    if (i + 1 != params.size()) {
+      param_pieces.push_back(arena.comma());
+      param_pieces.push_back(arena.break1());
+    }
+    pieces.push_back(ConcatNGroup(arena, param_pieces));
   }
   pieces.push_back(arena.cparen());
   return ConcatNGroup(arena, pieces);
@@ -431,6 +502,82 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
                                  ConcatNGroup(arena, pieces),
                                  Fmt(*n.body(), comments, arena),
                              });
+}
+
+static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
+  XLS_LOG(FATAL) << "proc: " << n.ToString();
+}
+
+static DocRef Fmt(const TestFunction& n, const Comments& comments,
+                  DocArena& arena) {
+  XLS_LOG(FATAL) << "test function: " << n.ToString();
+}
+
+static DocRef Fmt(const TestProc& n, const Comments& comments,
+                  DocArena& arena) {
+  XLS_LOG(FATAL) << "test proc: " << n.ToString();
+}
+
+static DocRef Fmt(const QuickCheck& n, const Comments& comments,
+                  DocArena& arena) {
+  XLS_LOG(FATAL) << "quickcheck: " << n.ToString();
+}
+
+static DocRef Fmt(const StructDef& n, const Comments& comments,
+                  DocArena& arena) {
+  XLS_LOG(FATAL) << "struct def: " << n.ToString();
+}
+
+static DocRef Fmt(const ConstantDef& n, const Comments& comments,
+                  DocArena& arena) {
+  XLS_LOG(FATAL) << "constant def: " << n.ToString();
+}
+
+static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
+  XLS_LOG(FATAL) << "enum def: " << n.ToString();
+}
+
+static DocRef Fmt(const Import& n, const Comments& comments, DocArena& arena) {
+  XLS_LOG(FATAL) << "import: " << n.ToString();
+}
+
+static DocRef Fmt(const ModuleMember& n, const Comments& comments,
+                  DocArena& arena) {
+  return absl::visit(
+      Visitor{[&](const Function* n) { return Fmt(*n, comments, arena); },
+              [&](const Proc* n) { return Fmt(*n, comments, arena); },
+              [&](const TestFunction* n) { return Fmt(*n, comments, arena); },
+              [&](const TestProc* n) { return Fmt(*n, comments, arena); },
+              [&](const QuickCheck* n) { return Fmt(*n, comments, arena); },
+              [&](const TypeAlias* n) { return Fmt(*n, comments, arena); },
+              [&](const StructDef* n) { return Fmt(*n, comments, arena); },
+              [&](const ConstantDef* n) { return Fmt(*n, comments, arena); },
+              [&](const EnumDef* n) { return Fmt(*n, comments, arena); },
+              [&](const Import* n) { return Fmt(*n, comments, arena); },
+              [&](const ConstAssert* n) { return Fmt(*n, comments, arena); }},
+      n);
+}
+
+DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
+  std::vector<DocRef> pieces;
+  for (size_t i = 0; i < n.top().size(); ++i) {
+    const auto& member = n.top()[i];
+    pieces.push_back(Fmt(member, comments, arena));
+    if (i + 1 == n.top().size()) {
+      pieces.push_back(arena.hard_line());
+    } else {
+      pieces.push_back(arena.hard_line());
+      pieces.push_back(arena.hard_line());
+    }
+  }
+
+  return ConcatN(arena, pieces);
+}
+
+std::string AutoFmt(const Module& m, const Comments& comments) {
+  DocArena arena;
+  DocRef ref = Fmt(m, comments, arena);
+  return PrettyPrint(arena, ref, /*text_width=*/100);
 }
 
 }  // namespace xls::dslx

@@ -16,6 +16,7 @@
 #define XLS_DSLX_FMT_AST_FMT_H_
 
 #include <cstdint>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -53,6 +54,13 @@ class Comments {
 DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena);
 
 DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);
+
+DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena);
+
+// Auto-formatting entry point.
+//
+// Performs a reflow-capable formatting of module "m" with standard line width.
+std::string AutoFmt(const Module& m, const Comments& comments);
 
 }  // namespace xls::dslx
 

@@ -17,9 +17,11 @@
 
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
@@ -48,8 +50,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 // "path" is used for error reporting (`Span`s) and module_name is the name
 // given to the returned `TypecheckedModule::module`.
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
-    std::string_view text, std::string_view path,
-    std::string_view module_name);
+    std::string_view text, std::string_view path, std::string_view module_name,
+    std::vector<CommentData>* comments = nullptr);
 
 // Helper that parses and created a new Module from the given DSLX file path.
 //   path - path to the file to read and parse.

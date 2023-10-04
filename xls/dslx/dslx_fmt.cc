@@ -20,6 +20,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
@@ -31,6 +32,9 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/fmt/ast_fmt.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/warning_kind.h"
@@ -40,7 +44,8 @@ ABSL_FLAG(bool, i, false, "whether to modify the given path argument in-place");
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
-ABSL_FLAG(bool, typecheck, false, "whether to use a parse-and-typecheck path");
+ABSL_FLAG(std::string, mode, "autofmt",
+          "whether to use reflowing auto-formatter");
 
 namespace xls::dslx {
 namespace {
@@ -51,12 +56,18 @@ Formats the DSLX source code present inside of a `.x` file.
 
 absl::Status RealMain(const std::filesystem::path& path,
                       absl::Span<const std::filesystem::path> dslx_paths,
-                      bool in_place, bool do_typecheck) {
+                      bool in_place, const std::string& mode) {
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path.c_str()));
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
 
   std::string formatted;
-  if (do_typecheck) {
+  if (mode == "autofmt") {
+    std::vector<CommentData> comments;
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<Module> module,
+        ParseModule(contents, path.c_str(), module_name, &comments));
+    formatted = AutoFmt(*module, Comments::Create(comments));
+  } else if (mode == "typecheck") {
     // Note: we don't flag any warnings in this binary as we're just formatting
     // the text.
     ImportData import_data =
@@ -66,11 +77,12 @@ absl::Status RealMain(const std::filesystem::path& path,
         TypecheckedModule tm,
         ParseAndTypecheck(contents, path.c_str(), module_name, &import_data));
     formatted = tm.module->ToString();
-
-  } else {
+  } else if (mode == "parse") {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                          ParseModule(contents, path.c_str(), module_name));
     formatted = module->ToString();
+  } else {
+    return absl::InvalidArgumentError(absl::StrCat("Invalid mode: ", mode));
   }
 
   if (in_place) {
@@ -101,8 +113,8 @@ int main(int argc, char* argv[]) {
     dslx_paths.push_back(std::filesystem::path(path));
   }
 
-  absl::Status status = xls::dslx::RealMain(
-      args[0], dslx_paths, /*in_place=*/absl::GetFlag(FLAGS_i),
-      /*do_typecheck=*/absl::GetFlag(FLAGS_typecheck));
+  absl::Status status = xls::dslx::RealMain(args[0], dslx_paths,
+                                            /*in_place=*/absl::GetFlag(FLAGS_i),
+                                            /*mode=*/absl::GetFlag(FLAGS_mode));
   return xls::ExitStatus(status);
 }

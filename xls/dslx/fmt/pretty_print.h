@@ -142,6 +142,10 @@ class DocArena {
   // is preferred).
   DocRef MakeFlatChoice(DocRef on_flat, DocRef on_break);
 
+  // Creates an "align" doc that aligns at the current indentation level for
+  // "arg_ref" doc emission.
+  DocRef MakeAlign(DocRef arg_ref);
+
   // Empty string.
   DocRef empty() const { return empty_; }
 

@@ -202,6 +202,13 @@ DocRef DocArena::MakeGroup(DocRef arg_ref) {
   return DocRef{size};
 }
 
+DocRef DocArena::MakeAlign(DocRef arg_ref) {
+  const Doc& arg = Deref(arg_ref);
+  int64_t size = items_.size();
+  items_.push_back(Doc{arg.flat_requirement, Align{arg_ref}});
+  return DocRef{size};
+}
+
 DocRef DocArena::MakeNest(DocRef arg_ref, int64_t delta) {
   const Doc& arg = Deref(arg_ref);
   int64_t size = items_.size();

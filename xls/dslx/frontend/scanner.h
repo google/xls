@@ -106,6 +106,13 @@ class Scanner {
 
   absl::Span<const CommentData> comments() const { return comments_; }
 
+  // Destructively pops out comment data from this object.
+  std::vector<CommentData> PopComments() {
+    std::vector<CommentData> result = std::move(comments_);
+    comments_.clear();
+    return result;
+  }
+
  private:
   // Determines whether string "s" matches a keyword -- if so, returns the
   // keyword enum that it corresponds to. Otherwise, typically the caller will

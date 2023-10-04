@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/status/statusor.h"
@@ -26,6 +27,7 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/type_system/typecheck.h"
@@ -43,9 +45,9 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
   const Span fake_import_span =
       Span(Pos(std::string(path), 0, 0), Pos(std::string(path), 0, 0));
   XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(fake_import_span, path));
-  auto cleanup = absl::MakeCleanup([&] {
+  absl::Cleanup cleanup = [&] {
     XLS_CHECK_OK(import_data->PopFromImporterStack(fake_import_span));
-  });
+  };
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                        ParseModule(text, path, module_name));
@@ -53,11 +55,15 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
-    std::string_view text, std::string_view path,
-    std::string_view module_name) {
+    std::string_view text, std::string_view path, std::string_view module_name,
+    std::vector<CommentData>* comments) {
   Scanner scanner{std::string{path}, std::string{text}};
   Parser parser(std::string{module_name}, &scanner);
-  return parser.ParseModule();
+  XLS_ASSIGN_OR_RETURN(auto module, parser.ParseModule());
+  if (comments != nullptr) {
+    *comments = scanner.PopComments();
+  }
+  return module;
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
