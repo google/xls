@@ -193,6 +193,7 @@ class DocArena {
   DocRef ccurl() const { return ccurl_; }
   DocRef semi() const { return semi_; }
   DocRef arrow() const { return arrow_; }
+  DocRef dot() const { return dot_; }
 
   // Note: the returned reference should not be held across an allocation.
   const pprint_internal::Doc& Deref(DocRef ref) const {
@@ -223,6 +224,7 @@ class DocArena {
   DocRef ccurl_;
   DocRef semi_;
   DocRef arrow_;
+  DocRef dot_;
 };
 
 // Helper for concatenating several docs together in left-to-right sequence.

@@ -144,5 +144,19 @@ fn triple(x: u32) -> u32 { u32:3 * x }
 )");
 }
 
+TEST(ModuleFmtTest, OverLongImport) {
+  const std::string_view kProgram =
+      "import very_long.name_here.made_of.dotted_components";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments), 14);
+  EXPECT_EQ(got,
+            "import very_long.\n"
+            "       name_here.\n"
+            "       made_of.\n"
+            "       dotted_components\n");
+}
+
 }  // namespace
 }  // namespace xls::dslx

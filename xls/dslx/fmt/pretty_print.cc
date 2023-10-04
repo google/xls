@@ -122,10 +122,11 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               }
             },
             [&](const Align& align) {
+              XLS_VLOG(3) << "Align; outcol: " << outcol;
               // Align sets the alignment for the nested doc to the current
               // line's output column and then emits the nested doc.
-              stack.push_back(
-                  StackEntry{&arena.Deref(align.arg), entry.mode, outcol});
+              stack.push_back(StackEntry{&arena.Deref(align.arg), entry.mode,
+                                         /*indent=*/outcol});
             },
             [&](const PrefixedReflow& prefixed) {
               XLS_VLOG(3) << "PrefixedReflow; prefix: " << prefixed.prefix
@@ -253,6 +254,7 @@ DocArena::DocArena() {
   ccurl_ = MakeText("}");
   semi_ = MakeText(";");
   arrow_ = MakeText("->");
+  dot_ = MakeText(".");
 }
 
 DocRef DocArena::MakeText(std::string s) {
@@ -277,7 +279,8 @@ DocRef DocArena::MakeAlign(DocRef arg_ref) {
 
 DocRef DocArena::MakePrefixedReflow(std::string prefix, std::string text) {
   int64_t size = items_.size();
-  Requirement requirement = prefix.size() + text.size();
+  const Requirement requirement =
+      static_cast<int64_t>(prefix.size() + text.size());
   items_.push_back(
       Doc{requirement, PrefixedReflow{std::move(prefix), std::move(text)}});
   return DocRef{size};

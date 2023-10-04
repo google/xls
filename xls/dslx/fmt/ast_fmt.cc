@@ -538,7 +538,21 @@ static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
 }
 
 static DocRef Fmt(const Import& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "import: " << n.ToString();
+  std::vector<DocRef> dotted_pieces;
+  for (size_t i = 0; i < n.subject().size(); ++i) {
+    const std::string& subject_part = n.subject()[i];
+    DocRef this_doc_ref;
+    if (i + 1 == n.subject().size()) {
+      this_doc_ref = ConcatNGroup(arena, {arena.MakeText(subject_part)});
+    } else {
+      this_doc_ref = ConcatNGroup(
+          arena, {arena.MakeText(subject_part), arena.dot(), arena.break0()});
+    }
+    dotted_pieces.push_back(this_doc_ref);
+  }
+  return ConcatNGroup(arena,
+                      {arena.MakeText("import "),
+                       arena.MakeAlign(ConcatNGroup(arena, dotted_pieces))});
 }
 
 static DocRef Fmt(const ModuleMember& n, const Comments& comments,
