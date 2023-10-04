@@ -60,7 +60,8 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena);
 // Auto-formatting entry point.
 //
 // Performs a reflow-capable formatting of module "m" with standard line width.
-std::string AutoFmt(const Module& m, const Comments& comments);
+std::string AutoFmt(const Module& m, const Comments& comments,
+                    int64_t text_width = 100);
 
 }  // namespace xls::dslx
 

@@ -99,5 +99,37 @@ TEST(PrettyPrintTest, CallExample) {
   EXPECT_EQ(PrettyPrint(arena, doc, 0), kWantBreak);
 }
 
+TEST(PrettyPrintTest, PrefixedReflow) {
+  DocArena arena;
+  DocRef ref = arena.MakePrefixedReflow(
+      "// ", "this is overly long for our liking, gladly");
+  EXPECT_EQ(PrettyPrint(arena, ref, 18), R"(// this is overly
+// long for our
+// liking, gladly)");
+}
+
+TEST(PrettyPrintTest, PrefixedReflowAfterIndent) {
+  DocArena arena;
+  DocRef ref0 = arena.MakePrefixedReflow(
+      "// ", "this is overly long for our liking, gladly");
+  DocRef ref1 = arena.MakeNest(arena.MakePrefixedReflow(
+      "// ", "yet another pleasingly long line, indented"));
+
+  DocRef ref = ConcatN(arena, {ref0, arena.hard_line(), ref1});
+
+  EXPECT_EQ(PrettyPrint(arena, ref, 18), R"(// this is overly
+// long for our
+// liking, gladly
+    // yet another
+    // pleasingly
+    // long line,
+    // indented)");
+
+  EXPECT_EQ(PrettyPrint(arena, ref, 40),
+            R"(// this is overly long for our liking, gladly
+    // yet another pleasingly long line,
+    // indented)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

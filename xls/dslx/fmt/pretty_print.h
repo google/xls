@@ -89,6 +89,19 @@ struct Align {
   DocRef arg;
 };
 
+// Command for the pretty printer that says we should emit the (potentially
+// multi-line) "text", reflowing it at line length using "prefix" as the leader
+// on each new line.
+//
+// Note that at least one (space delimited) token from "text" will be emitted on
+// each line, even if we are at length.
+//
+// (Note: as with all doc entities no extra newline is emitted at the end.)
+struct PrefixedReflow {
+  std::string prefix;
+  std::string text;
+};
+
 // The basic entity used for pretty printing -- a "doc" has a requirement for
 // how many chars it needs to be emitted in flat mode (determined at
 // construction time) and a payload (e.g. for things like sub-documents, see
@@ -100,7 +113,8 @@ struct Doc {
 
   // The value can carry more information on what to do in flat/break
   // situations, or nested documents within commands.
-  std::variant<std::string, HardLine, FlatChoice, Group, Concat, Nest, Align>
+  std::variant<std::string, HardLine, FlatChoice, Group, Concat, Nest, Align,
+               PrefixedReflow>
       value;
 };
 
@@ -145,6 +159,9 @@ class DocArena {
   // Creates an "align" doc that aligns at the current indentation level for
   // "arg_ref" doc emission.
   DocRef MakeAlign(DocRef arg_ref);
+
+  // Creates a "prefixed reflow" doc, see `PrefixedReflow` for details.
+  DocRef MakePrefixedReflow(std::string prefix, std::string text);
 
   // Empty string.
   DocRef empty() const { return empty_; }

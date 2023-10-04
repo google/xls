@@ -16,11 +16,14 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -37,6 +40,7 @@ using pprint_internal::Group;
 using pprint_internal::HardLine;
 using pprint_internal::InfinityRequirement;
 using pprint_internal::Nest;
+using pprint_internal::PrefixedReflow;
 using pprint_internal::Requirement;
 
 Requirement operator+(Requirement lhs, Requirement rhs) {
@@ -111,12 +115,74 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               // doc.
               stack.push_back(StackEntry{&arena.Deref(nest.arg), entry.mode,
                                          entry.indent + nest.delta});
+              int64_t new_indent = entry.indent + nest.delta;
+              if (outcol < new_indent) {
+                pieces.push_back(std::string(new_indent - outcol, ' '));
+                outcol = new_indent;
+              }
             },
             [&](const Align& align) {
               // Align sets the alignment for the nested doc to the current
               // line's output column and then emits the nested doc.
               stack.push_back(
                   StackEntry{&arena.Deref(align.arg), entry.mode, outcol});
+            },
+            [&](const PrefixedReflow& prefixed) {
+              XLS_VLOG(3) << "PrefixedReflow; prefix: " << prefixed.prefix
+                          << " text: " << prefixed.text;
+              std::vector<std::string_view> lines =
+                  absl::StrSplit(prefixed.text, '\n');
+              const std::string& prefix = prefixed.prefix;
+
+              // Remaining columns at this indentation level.
+              const int64_t remaining_cols = text_width - outcol;
+              const std::string carriage_return =
+                  absl::StrCat("\n", std::string(entry.indent, ' '));
+
+              for (std::string_view line : lines) {
+                if (prefix.size() + line.size() < remaining_cols) {
+                  // If it all fits in available cols, place it there in its
+                  // entirety.
+                  pieces.push_back(absl::StrCat(prefix, line, carriage_return));
+                } else {
+                  // Otherwise, place tokens until we encounter EOL and then
+                  // wrap. We make sure we put at least one token on each line
+                  // to ensure forward progress.
+                  std::vector<std::string_view> toks =
+                      absl::StrSplit(line, ' ');
+                  auto remaining = absl::MakeConstSpan(toks);
+
+                  while (!remaining.empty()) {
+                    outcol = entry.indent;
+                    pieces.push_back(prefix);
+                    outcol += prefix.size();
+                    while (!remaining.empty()) {
+                      std::string_view tok = remaining.front();
+                      remaining.remove_prefix(1);
+
+                      pieces.push_back(std::string{tok});
+                      outcol += pieces.back().size();
+
+                      if (!remaining.empty()) {
+                        // If the next token isn't going to fit we make a
+                        // carriage return and go to the next prefix insertion.
+                        if (outcol + remaining.front().size() > text_width) {
+                          pieces.push_back(carriage_return);
+                          break;
+                        }
+
+                        // If the next token is going to fit we just put a
+                        // space char.
+                        pieces.push_back(" ");
+                      }
+                    }
+                  }
+                  // Note: we do not make a trailing newline, because "docs" are
+                  // supposed to be self contained (i.e. emitting only their own
+                  // contents), so user should put a hardline afterwards.
+                }
+              }
+              outcol = entry.indent;
             },
             [&](const struct Concat& concat) {
               stack.push_back(StackEntry{&arena.Deref(concat.rhs), entry.mode,
@@ -206,6 +272,14 @@ DocRef DocArena::MakeAlign(DocRef arg_ref) {
   const Doc& arg = Deref(arg_ref);
   int64_t size = items_.size();
   items_.push_back(Doc{arg.flat_requirement, Align{arg_ref}});
+  return DocRef{size};
+}
+
+DocRef DocArena::MakePrefixedReflow(std::string prefix, std::string text) {
+  int64_t size = items_.size();
+  Requirement requirement = prefix.size() + text.size();
+  items_.push_back(
+      Doc{requirement, PrefixedReflow{std::move(prefix), std::move(text)}});
   return DocRef{size};
 }
 

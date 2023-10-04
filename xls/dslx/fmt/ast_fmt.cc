@@ -574,10 +574,11 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   return ConcatN(arena, pieces);
 }
 
-std::string AutoFmt(const Module& m, const Comments& comments) {
+std::string AutoFmt(const Module& m, const Comments& comments,
+                    int64_t text_width) {
   DocArena arena;
   DocRef ref = Fmt(m, comments, arena);
-  return PrettyPrint(arena, ref, /*text_width=*/100);
+  return PrettyPrint(arena, ref, text_width);
 }
 
 }  // namespace xls::dslx
