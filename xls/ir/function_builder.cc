@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -44,6 +45,9 @@
 
 namespace xls {
 
+std::ostream& operator<<(std::ostream& os, const BValue& bv) {
+  return os << bv.ToString();
+}
 Type* BValue::GetType() const { return node()->GetType(); }
 
 int64_t BValue::BitCountOrDie() const { return node()->BitCountOrDie(); }

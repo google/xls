@@ -104,6 +104,8 @@ class BValue {
   BuilderBase* builder_;
 };
 
+std::ostream& operator<<(std::ostream& os, const BValue& bv);
+
 // Base class for function and proc. Provides interface for adding nodes to a
 // function proc. Example usage (for derived FunctionBuilder class):
 //

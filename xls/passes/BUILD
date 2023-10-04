@@ -793,6 +793,42 @@ cc_library(
 )
 
 cc_library(
+    name = "node_dependency_analysis",
+    srcs = ["node_dependency_analysis.cc"],
+    hdrs = ["node_dependency_analysis.h"],
+    deps = [
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "node_dependency_analysis_test",
+    srcs = ["node_dependency_analysis_test.cc"],
+    deps = [
+        ":node_dependency_analysis",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:benchmark_support",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+    ],
+)
+
+cc_library(
     name = "query_engine",
     srcs = ["query_engine.cc"],
     hdrs = ["query_engine.h"],
