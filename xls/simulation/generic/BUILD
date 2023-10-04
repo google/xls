@@ -669,3 +669,21 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "streammanager",
+    srcs = [
+        "streammanager.cc",
+    ],
+    hdrs = [
+        "streammanager.h",
+    ],
+    deps = [
+        ":ichannel",
+        ":ichannelmanager",
+        ":istream",
+        "//xls/common:bits_util",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
