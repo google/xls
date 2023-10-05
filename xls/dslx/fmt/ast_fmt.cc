@@ -42,6 +42,13 @@ DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
   return arena.MakeText(BuiltinTypeToString(n.builtin_type()));
 }
 
+DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,
+           DocArena& arena) {
+  DocRef elem = Fmt(*n.element_type(), comments, arena);
+  DocRef dim = Fmt(*n.dim(), comments, arena);
+  return ConcatNGroup(arena, {elem, arena.obracket(), dim, arena.cbracket()});
+}
+
 DocRef Fmt(const TupleTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   std::vector<DocRef> pieces = {arena.oparen()};
@@ -61,6 +68,9 @@ DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
     return Fmt(*t, comments, arena);
   }
   if (auto* t = dynamic_cast<const TupleTypeAnnotation*>(&n)) {
+    return Fmt(*t, comments, arena);
+  }
+  if (auto* t = dynamic_cast<const ArrayTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
   }
 
@@ -94,7 +104,26 @@ DocRef Fmt(const WildcardPattern& n, const Comments& comments,
 }
 
 DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle array: " << n.ToString();
+  std::vector<DocRef> pieces;
+  if (TypeAnnotation* t = n.type_annotation()) {
+    pieces.push_back(Fmt(*t, comments, arena));
+    pieces.push_back(arena.colon());
+  }
+  pieces.push_back(arena.obracket());
+  pieces.push_back(arena.break0());
+  for (const Expr* member : n.members()) {
+    pieces.push_back(Fmt(*member, comments, arena));
+    pieces.push_back(arena.comma());
+    pieces.push_back(arena.break1());
+  }
+  if (n.has_ellipsis()) {
+    pieces.push_back(arena.MakeText("..."));
+  } else {
+    pieces.pop_back();
+    pieces.pop_back();
+  }
+  pieces.push_back(arena.cbracket());
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {

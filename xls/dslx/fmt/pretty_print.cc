@@ -255,6 +255,8 @@ DocArena::DocArena() {
   semi_ = MakeText(";");
   arrow_ = MakeText("->");
   dot_ = MakeText(".");
+  obracket_ = MakeText("[");
+  cbracket_ = MakeText("]");
   pub_kw_ = MakeText("pub");
   const_kw_ = MakeText("const");
 }

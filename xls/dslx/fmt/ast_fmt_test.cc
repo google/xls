@@ -167,5 +167,23 @@ TEST(ModuleFmtTest, ConstantDef) {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, ConstantDefArray) {
+  const std::string_view kProgram = "pub const VALS = u32[2]:[32, 64];\n";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, ConstantDefArrayEllipsis) {
+  const std::string_view kProgram = "pub const VALS = u32[2]:[32, ...];\n";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx
