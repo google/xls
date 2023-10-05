@@ -22,6 +22,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 
@@ -66,6 +67,35 @@ class PredicateState {
   // The select this predicate represents as a node.
   Node* node() const {
     return absl::visit([](auto v) -> Node* { return v; }, node_);
+  }
+
+  // The value which controls the select
+  Node* selector() const {
+    XLS_CHECK(!IsBasePredicate());
+    // All have selector as op(0)
+    return node()->operand(0);
+  }
+
+  Node* value() const {
+    XLS_CHECK(!IsBasePredicate());
+    return absl::visit(xls::Visitor{[&](Select* s) -> Node* {
+                                      return IsDefaultArm()
+                                                 ? s->default_value().value()
+                                                 : s->get_case(arm_index());
+                                    },
+                                    [&](OneHotSelect* s) -> Node* {
+                                      XLS_CHECK(!IsDefaultArm());
+                                      return s->get_case(arm_index());
+                                    },
+                                    [&](PrioritySelect* s) -> Node* {
+                                      XLS_CHECK(!IsDefaultArm());
+                                      return s->get_case(arm_index());
+                                    },
+                                    [](std::nullptr_t) -> Node* {
+                                      XLS_LOG(FATAL) << "Unreachable";
+                                      return nullptr;
+                                    }},
+                       node_);
   }
 
   // The arm index this predicate protects

@@ -415,6 +415,91 @@ TEST(InlineBitmapTest, Union) {
   }
 }
 
+TEST(InlineBitmapTest, Intersect) {
+  {
+    InlineBitmap b(0);
+    b.Intersect(InlineBitmap(0));
+  }
+
+  {
+    InlineBitmap b(1);
+    EXPECT_FALSE(b.Get(0));
+    b.Intersect(InlineBitmap(1));
+    EXPECT_FALSE(b.Get(0));
+    b.Intersect(InlineBitmap::FromWord(1, 1));
+    EXPECT_FALSE(b.Get(0));
+
+    InlineBitmap b2(InlineBitmap::FromWord(1, 1));
+    EXPECT_TRUE(b2.Get(0));
+    b2.Intersect(InlineBitmap(1));
+    EXPECT_FALSE(b2.Get(0));
+
+    InlineBitmap b3(InlineBitmap::FromWord(1, 1));
+    b3.Intersect(InlineBitmap::FromWord(1, 1));
+    EXPECT_TRUE(b3.Get(0));
+  }
+
+  {
+    InlineBitmap b(2);
+    EXPECT_FALSE(b.Get(0));
+    EXPECT_FALSE(b.Get(1));
+    b.Intersect(InlineBitmap(2));
+    EXPECT_FALSE(b.Get(0));
+    EXPECT_FALSE(b.Get(1));
+    b.Intersect(InlineBitmap::FromWord(2, 2));
+    EXPECT_FALSE(b.Get(0));
+    EXPECT_FALSE(b.Get(1));
+
+    InlineBitmap b2(InlineBitmap::FromWord(0b11, 2));
+    EXPECT_TRUE(b2.Get(0));
+    EXPECT_TRUE(b2.Get(1));
+    b2.Intersect(InlineBitmap(2));
+    EXPECT_FALSE(b2.Get(0));
+    EXPECT_FALSE(b2.Get(1));
+
+    InlineBitmap b3(InlineBitmap::FromWord(0b11, 2));
+    b3.Intersect(InlineBitmap::FromWord(0b10, 2));
+    EXPECT_FALSE(b3.Get(0));
+    EXPECT_TRUE(b3.Get(1));
+  }
+
+  {
+    InlineBitmap b = InlineBitmap::FromWord(0b00001100, 8);
+    b.Intersect((InlineBitmap::FromWord(0b10001001, 8)));
+    EXPECT_EQ(b.GetWord(0), 0b00001000);
+
+    InlineBitmap b2 = InlineBitmap::FromWord(0b00001111, 8);
+    b2.Intersect((InlineBitmap::FromWord(0b11001100, 8)));
+    EXPECT_EQ(b2.GetWord(0), 0b00001100);
+  }
+
+  {
+    InlineBitmap b1(80);
+    b1.SetByte(0, 0xab);
+    b1.SetByte(1, 0xcd);
+    b1.SetByte(2, 0xa5);
+    b1.SetByte(9, 0x84);
+
+    InlineBitmap b2(80);
+    b2.SetByte(0, 0xfb);
+    b2.SetByte(1, 0xee);
+    b2.SetByte(5, 0x42);
+    b2.SetByte(9, 0x31);
+
+    b1.Intersect(b2);
+    EXPECT_EQ(b1.GetByte(0), 0xab & 0xfb);
+    EXPECT_EQ(b1.GetByte(1), 0xcd & 0xee);
+    EXPECT_EQ(b1.GetByte(2), 0);
+    EXPECT_EQ(b1.GetByte(3), 0);
+    EXPECT_EQ(b1.GetByte(4), 0);
+    EXPECT_EQ(b1.GetByte(5), 0);
+    EXPECT_EQ(b1.GetByte(6), 0);
+    EXPECT_EQ(b1.GetByte(7), 0);
+    EXPECT_EQ(b1.GetByte(8), 0);
+    EXPECT_EQ(b1.GetByte(9), 0x84 & 0x31);
+  }
+}
+
 }  // namespace
 
 // Note: tests below this point are friended, so cannot live in the anonymous

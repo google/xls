@@ -578,6 +578,7 @@ cc_library(
     srcs = ["context_sensitive_range_query_engine.cc"],
     hdrs = ["context_sensitive_range_query_engine.h"],
     deps = [
+        ":node_dependency_analysis",
         ":predicate_state",
         ":query_engine",
         ":range_query_engine",
@@ -726,6 +727,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/ir",
     ],

@@ -253,11 +253,20 @@ class InlineBitmap {
     return 0;
   }
 
-  // Sets this bitmap to the union of this bitmap and `other`.
+
+  // Sets this bitmap to the union (bitwise 'or') of this bitmap and `other`.
   void Union(const InlineBitmap& other) {
     XLS_CHECK_EQ(bit_count(), other.bit_count());
     for (int64_t i = 0; i < data_.size(); ++i) {
       data_[i] |= other.data_[i];
+    }
+  }
+
+  // Sets this bitmap to the bitwise 'and' of this bitmap and `other`.
+  void Intersect(const InlineBitmap& other) {
+    XLS_CHECK_EQ(bit_count(), other.bit_count());
+    for (int64_t i = 0; i < data_.size(); ++i) {
+      data_[i] &= other.data_[i];
     }
   }
 
