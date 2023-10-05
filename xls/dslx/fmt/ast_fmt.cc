@@ -250,8 +250,42 @@ DocRef Fmt(const Index& n, const Comments& comments, DocArena& arena) {
   XLS_LOG(FATAL) << "handle index: " << n.ToString();
 }
 
+DocRef Fmt(const ExprOrType& n, const Comments& comments, DocArena& arena) {
+  return absl::visit(
+      Visitor{
+          [&](const Expr* n) { return Fmt(*n, comments, arena); },
+          [&](const TypeAnnotation* n) { return Fmt(*n, comments, arena); },
+      },
+      n);
+}
+
 DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle invocation: " << n.ToString();
+  std::vector<DocRef> pieces = {
+      Fmt(*n.callee(), comments, arena),
+  };
+  if (!n.explicit_parametrics().empty()) {
+    pieces.push_back(arena.oangle());
+    for (size_t i = 0; i < n.explicit_parametrics().size(); ++i) {
+      const ExprOrType& e = n.explicit_parametrics()[i];
+      pieces.push_back(Fmt(e, comments, arena));
+      if (i + 1 != n.explicit_parametrics().size()) {
+        pieces.push_back(arena.comma());
+        pieces.push_back(arena.break1());
+      }
+    }
+    pieces.push_back(arena.cangle());
+  }
+  pieces.push_back(arena.oparen());
+  for (size_t i = 0; i < n.args().size(); ++i) {
+    const Expr* arg = n.args()[i];
+    pieces.push_back(Fmt(*arg, comments, arena));
+    if (i + 1 != n.args().size()) {
+      pieces.push_back(arena.comma());
+      pieces.push_back(arena.break1());
+    }
+  }
+  pieces.push_back(arena.cparen());
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
@@ -513,14 +547,38 @@ static DocRef FmtParams(absl::Span<const Param* const> params,
   return ConcatNGroup(arena, pieces);
 }
 
+static DocRef Fmt(const ParametricBinding& n, const Comments& comments,
+                  DocArena& arena) {
+  return ConcatNGroup(
+      arena, {arena.MakeText(n.identifier()), arena.colon(), arena.break1(),
+              Fmt(*n.type_annotation(), comments, arena)});
+}
+
 DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
   DocRef fn = arena.MakeText("fn");
   DocRef name = arena.MakeText(n.identifier());
 
   DocRef params = FmtParams(n.params(), comments, arena);
 
-  std::vector<DocRef> pieces = {fn,     arena.break1(), name, arena.break0(),
-                                params, arena.break1()};
+  std::vector<DocRef> pieces = {fn, arena.break1(), name};
+
+  if (n.IsParametric()) {
+    pieces.push_back(arena.oangle());
+    for (size_t i = 0; i < n.parametric_bindings().size(); ++i) {
+      const ParametricBinding* pb = n.parametric_bindings()[i];
+      pieces.push_back(Fmt(*pb, comments, arena));
+      if (i + 1 != n.parametric_bindings().size()) {
+        pieces.push_back(arena.comma());
+        pieces.push_back(arena.space());
+      }
+    }
+    pieces.push_back(arena.cangle());
+  }
+
+  pieces.push_back(arena.break0());
+  pieces.push_back(params);
+  pieces.push_back(arena.break1());
+
   if (n.return_type() != nullptr) {
     pieces.push_back(arena.arrow());
     pieces.push_back(arena.break1());
@@ -540,7 +598,11 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
 
 static DocRef Fmt(const TestFunction& n, const Comments& comments,
                   DocArena& arena) {
-  XLS_LOG(FATAL) << "test function: " << n.ToString();
+  std::vector<DocRef> pieces;
+  pieces.push_back(arena.MakeText("#[test]"));
+  pieces.push_back(arena.hard_line());
+  pieces.push_back(Fmt(*n.fn(), comments, arena));
+  return ConcatN(arena, pieces);
 }
 
 static DocRef Fmt(const TestProc& n, const Comments& comments,
@@ -551,13 +613,6 @@ static DocRef Fmt(const TestProc& n, const Comments& comments,
 static DocRef Fmt(const QuickCheck& n, const Comments& comments,
                   DocArena& arena) {
   XLS_LOG(FATAL) << "quickcheck: " << n.ToString();
-}
-
-static DocRef Fmt(const ParametricBinding& n, const Comments& comments,
-                  DocArena& arena) {
-  return ConcatNGroup(
-      arena, {arena.MakeText(n.identifier()), arena.colon(), arena.break1(),
-              Fmt(*n.type_annotation(), comments, arena)});
 }
 
 static DocRef Fmt(const StructDef& n, const Comments& comments,
