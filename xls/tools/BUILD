@@ -1511,3 +1511,15 @@ py_binary(
         "@com_google_protobuf//:protobuf_python",
     ],
 )
+
+py_binary(
+    name = "vizier_runner",
+    srcs = ["vizier_runner.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        requirement("google-vizier"),
+        "//xls/tools/dashboard:run_and_parse"
+    ],
+)
+
