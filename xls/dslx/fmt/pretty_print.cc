@@ -257,8 +257,11 @@ DocArena::DocArena() {
   dot_ = MakeText(".");
   obracket_ = MakeText("[");
   cbracket_ = MakeText("]");
+  oangle_ = MakeText("<");
+  cangle_ = MakeText(">");
   pub_kw_ = MakeText("pub");
   const_kw_ = MakeText("const");
+  struct_kw_ = MakeText("struct");
 }
 
 DocRef DocArena::MakeText(std::string s) {

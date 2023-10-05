@@ -196,8 +196,14 @@ class DocArena {
   DocRef dot() const { return dot_; }
   DocRef obracket() const { return obracket_; }
   DocRef cbracket() const { return cbracket_; }
+  DocRef oangle() const { return oangle_; }
+  DocRef cangle() const { return cangle_; }
+
+  // TODO(leary): 2023-10-05 Make a generic arena helper for keywords; e.g.
+  // `arena.Make(Keyword::kPub)` and similar.
   DocRef pub_kw() const { return pub_kw_; }
   DocRef const_kw() const { return const_kw_; }
+  DocRef struct_kw() const { return struct_kw_; }
 
   // Note: the returned reference should not be held across an allocation.
   const pprint_internal::Doc& Deref(DocRef ref) const {
@@ -231,9 +237,12 @@ class DocArena {
   DocRef dot_;
   DocRef obracket_;
   DocRef cbracket_;
+  DocRef oangle_;
+  DocRef cangle_;
 
   DocRef pub_kw_;
   DocRef const_kw_;
+  DocRef struct_kw_;
 };
 
 // Helper for concatenating several docs together in left-to-right sequence.

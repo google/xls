@@ -185,5 +185,51 @@ TEST(ModuleFmtTest, ConstantDefArrayEllipsis) {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, StructDefTwoFields) {
+  const std::string_view kProgram =
+      "pub struct Point<N: u32> { x: bits[N], y: u64 }\n";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  // At normal 100 char width it can be in single line form.
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+
+  const std::string_view kWantMultiline = R"(pub struct Point<N: u32> {
+    x: bits[N],
+    y: u64,
+}
+)";
+  std::string got_multiline =
+      AutoFmt(*m, Comments::Create(comments), /*text_width=*/32);
+  EXPECT_EQ(got_multiline, kWantMultiline);
+}
+
+TEST(ModuleFmtTest, StructDefTwoParametrics) {
+  const std::string_view kProgram =
+      "pub struct Point<M: u32, N: u32> { x: bits[M], y: bits[N] }\n";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  // At normal 100 char width it can be in single line form.
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+
+  const std::string_view kWantMultiline = R"(pub struct Point<M: u32, N: u32> {
+    x: bits[M],
+    y: bits[N],
+}
+)";
+  std::string got_multiline =
+      AutoFmt(*m, Comments::Create(comments), /*text_width=*/35);
+  EXPECT_EQ(got_multiline, kWantMultiline);
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -552,9 +552,61 @@ static DocRef Fmt(const QuickCheck& n, const Comments& comments,
   XLS_LOG(FATAL) << "quickcheck: " << n.ToString();
 }
 
+static DocRef Fmt(const ParametricBinding& n, const Comments& comments,
+                  DocArena& arena) {
+  return ConcatNGroup(
+      arena, {arena.MakeText(n.identifier()), arena.colon(), arena.break1(),
+              Fmt(*n.type_annotation(), comments, arena)});
+}
+
 static DocRef Fmt(const StructDef& n, const Comments& comments,
                   DocArena& arena) {
-  XLS_LOG(FATAL) << "struct def: " << n.ToString();
+  std::vector<DocRef> pieces;
+  if (n.is_public()) {
+    pieces.push_back(arena.pub_kw());
+    pieces.push_back(arena.space());
+  }
+  pieces.push_back(arena.struct_kw());
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.MakeText(n.identifier()));
+
+  if (!n.parametric_bindings().empty()) {
+    pieces.push_back(arena.oangle());
+    for (size_t i = 0; i < n.parametric_bindings().size(); ++i) {
+      const ParametricBinding* pb = n.parametric_bindings()[i];
+      pieces.push_back(Fmt(*pb, comments, arena));
+      if (i + 1 != n.parametric_bindings().size()) {
+        pieces.push_back(arena.comma());
+        pieces.push_back(arena.space());
+      }
+    }
+    pieces.push_back(arena.cangle());
+  }
+
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.ocurl());
+  pieces.push_back(arena.break1());
+
+  std::vector<DocRef> body_pieces;
+  for (size_t i = 0; i < n.members().size(); ++i) {
+    const auto& [name_def, type] = n.members()[i];
+    body_pieces.push_back(arena.MakeText(name_def->identifier()));
+    body_pieces.push_back(arena.colon());
+    body_pieces.push_back(arena.space());
+    body_pieces.push_back(Fmt(*type, comments, arena));
+    if (i + 1 == n.members().size()) {
+      body_pieces.push_back(arena.MakeFlatChoice(/*on_flat=*/arena.empty(),
+                                                 /*on_break=*/arena.comma()));
+    } else {
+      body_pieces.push_back(arena.comma());
+      body_pieces.push_back(arena.break1());
+    }
+  }
+
+  pieces.push_back(arena.MakeNest(ConcatN(arena, body_pieces)));
+  pieces.push_back(arena.break1());
+  pieces.push_back(arena.ccurl());
+  return ConcatNGroup(arena, pieces);
 }
 
 static DocRef Fmt(const ConstantDef& n, const Comments& comments,
