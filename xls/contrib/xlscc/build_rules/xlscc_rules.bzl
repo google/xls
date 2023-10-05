@@ -254,13 +254,21 @@ def _xls_cc_ir_impl(ctx):
 
     cc_headers = _get_headers_for_xls_cc_ir(ctx)
 
+    xlscc_log_filename = get_output_filename_value(
+        ctx,
+        "xlscc_log_file",
+        ctx.attr.name + ".xlscc.log",
+    )
+    log_file = ctx.actions.declare_file(xlscc_log_filename)
+    outputs.append(log_file)
+
     ctx.actions.run_shell(
         outputs = outputs,
         # The IR converter executable is a tool needed by the action.
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
         inputs = runfiles.files,
-        command = "{} {} --block_pb {} {} {} {} {} > {}".format(
+        command = "{} {} --block_pb {} {} {} {} {} 1>{} 2>{}".format(
             ctx.executable._xlscc_tool.path,
             ctx.file.src.path,
             block_pb,
@@ -269,6 +277,7 @@ def _xls_cc_ir_impl(ctx):
             meta_out_text_flag,
             my_args,
             ir_file.path,
+            log_file.path,
         ),
         mnemonic = "ConvertXLSCC",
         progress_message = "Converting XLSCC file: %s" % (ctx.file.src.path),
@@ -353,6 +362,9 @@ _xls_cc_ir_attrs = {
         doc = "Default synthesis header files for xlscc.",
         default = Label("//xls/contrib/xlscc:synth_only_headers"),
         cfg = "target",
+    ),
+    "xlscc_log_file": attr.output(
+        doc = "The filename to log stderr to. If not specified, 'xlscc.log' is used.",
     ),
 }
 

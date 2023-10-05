@@ -52,6 +52,7 @@ _SCHEDULE_TEXTPROTO_FILE_EXTENSION = ".schedule.textproto"
 _VERILOG_LINE_MAP_TEXTPROTO_FILE_EXTENSION = ".verilog_line_map.textproto"
 _BLOCK_IR_FILE_EXTENSION = ".block.ir"
 _SCHEDULE_IR_FILE_EXTENSION = ".schedule.opt.ir"
+_CODEGEN_LOG_FILE_EXTENSION = ".codegen.log"
 
 xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
@@ -124,6 +125,11 @@ xls_ir_verilog_attrs = {
         providers = [DefaultInfo],
         default = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
     ),
+    "codegen_log_file": attr.output(
+        doc = "The filename to log stderr to. " +
+              "If not specified, the basename of the Verilog file followed " +
+              "by a " + _CODEGEN_LOG_FILE_EXTENSION + " extension is used.",
+    ),
 }
 
 def _is_combinational_generator(arguments):
@@ -177,6 +183,10 @@ def append_xls_ir_verilog_generated_files(args, basename, arguments):
     args.setdefault(
         "verilog_line_map_file",
         basename + _VERILOG_LINE_MAP_TEXTPROTO_FILE_EXTENSION,
+    )
+    args.setdefault(
+        "codegen_log_file",
+        basename + _CODEGEN_LOG_FILE_EXTENSION,
     )
     return args
 
@@ -426,14 +436,23 @@ def xls_ir_verilog_impl(ctx, src):
     else:
         tools = [codegen_tool]
 
+    codegen_log_filename = get_output_filename_value(
+        ctx,
+        "codegen_log_file",
+        verilog_basename + _CODEGEN_LOG_FILE_EXTENSION,
+    )
+    log_file = ctx.actions.declare_file(codegen_log_filename)
+    my_generated_files.append(log_file)
+
     ctx.actions.run_shell(
         outputs = my_generated_files,
         tools = tools,
         inputs = runfiles.files,
-        command = "{} {} {}".format(
+        command = "{} {} {} 2>{}".format(
             codegen_tool.path,
             src.path,
             final_args,
+            log_file.path,
         ),
         env = env,
         mnemonic = "Codegen",
@@ -515,6 +534,13 @@ Example:
         xls_ir_verilog_attrs,
         CONFIG["xls_outs_attrs"],
         xls_toolchain_attr,
+        {
+            "log_file": attr.label(
+                doc = "The file to log the output to.",
+                mandatory = False,
+                allow_single_file = True,
+            ),
+        },
     ),
 )
 
