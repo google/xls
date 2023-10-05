@@ -28,6 +28,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
 namespace {
@@ -259,9 +260,6 @@ DocArena::DocArena() {
   cbracket_ = MakeText("]");
   oangle_ = MakeText("<");
   cangle_ = MakeText(">");
-  pub_kw_ = MakeText("pub");
-  const_kw_ = MakeText("const");
-  struct_kw_ = MakeText("struct");
 }
 
 DocRef DocArena::MakeText(std::string s) {
@@ -313,6 +311,14 @@ DocRef DocArena::MakeFlatChoice(DocRef on_flat, DocRef on_break) {
   int64_t size = items_.size();
   items_.push_back(Doc{flat_requirement, FlatChoice{on_flat, on_break}});
   return DocRef{size};
+}
+
+DocRef DocArena::Make(Keyword kw) {
+  auto it = keyword_to_ref_.find(kw);
+  if (it == keyword_to_ref_.end()) {
+    it = keyword_to_ref_.emplace_hint(it, kw, MakeText(KeywordToString(kw)));
+  }
+  return it->second;
 }
 
 std::string PrettyPrint(const DocArena& arena, DocRef ref, int64_t text_width) {

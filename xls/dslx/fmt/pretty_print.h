@@ -24,8 +24,10 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "xls/common/strong_int.h"
+#include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
 
@@ -199,11 +201,8 @@ class DocArena {
   DocRef oangle() const { return oangle_; }
   DocRef cangle() const { return cangle_; }
 
-  // TODO(leary): 2023-10-05 Make a generic arena helper for keywords; e.g.
-  // `arena.Make(Keyword::kPub)` and similar.
-  DocRef pub_kw() const { return pub_kw_; }
-  DocRef const_kw() const { return const_kw_; }
-  DocRef struct_kw() const { return struct_kw_; }
+  // Gets-or-creates a doc with the text of the given keyword.
+  DocRef Make(Keyword kw);
 
   // Note: the returned reference should not be held across an allocation.
   const pprint_internal::Doc& Deref(DocRef ref) const {
@@ -240,9 +239,7 @@ class DocArena {
   DocRef oangle_;
   DocRef cangle_;
 
-  DocRef pub_kw_;
-  DocRef const_kw_;
-  DocRef struct_kw_;
+  absl::flat_hash_map<Keyword, DocRef> keyword_to_ref_;
 };
 
 // Helper for concatenating several docs together in left-to-right sequence.

@@ -25,6 +25,7 @@ cc_library(
     srcs = ["pretty_print.cc"],
     hdrs = ["pretty_print.h"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -32,6 +33,7 @@ cc_library(
         "//xls/common:strong_int",
         "//xls/common:visitor",
         "//xls/common/logging",
+        "//xls/dslx/frontend:token",
     ],
 )
 
@@ -60,6 +62,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:token",
     ],
 )
 

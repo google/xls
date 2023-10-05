@@ -29,6 +29,7 @@
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
+#include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
 namespace {
@@ -563,10 +564,10 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
                   DocArena& arena) {
   std::vector<DocRef> pieces;
   if (n.is_public()) {
-    pieces.push_back(arena.pub_kw());
+    pieces.push_back(arena.Make(Keyword::kPub));
     pieces.push_back(arena.space());
   }
-  pieces.push_back(arena.struct_kw());
+  pieces.push_back(arena.Make(Keyword::kStruct));
   pieces.push_back(arena.space());
   pieces.push_back(arena.MakeText(n.identifier()));
 
@@ -613,10 +614,10 @@ static DocRef Fmt(const ConstantDef& n, const Comments& comments,
                   DocArena& arena) {
   std::vector<DocRef> pieces;
   if (n.is_public()) {
-    pieces.push_back(arena.pub_kw());
+    pieces.push_back(arena.Make(Keyword::kPub));
     pieces.push_back(arena.break1());
   }
-  pieces.push_back(arena.const_kw());
+  pieces.push_back(arena.Make(Keyword::kConst));
   pieces.push_back(arena.break1());
   pieces.push_back(arena.MakeText(n.identifier()));
   pieces.push_back(arena.break1());
