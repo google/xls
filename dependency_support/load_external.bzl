@@ -113,8 +113,12 @@ def load_external_repositories():
         sha256 = "0fb3a4916a157eb48124ef309231cecdfdd96ff54adf1660b39c0d4a9790a2c0",
     )
 
+    # Note - use @com_github_google_re2 instead of more canonical
+    #        @com_google_re2 for consistency with dependency grpc
+    #        which uses @com_github_google_re2.
+    #          (see https://github.com/google/xls/issues/234)
     http_archive(
-        name = "com_googlesource_code_re2",
+        name = "com_github_google_re2",
         sha256 = "8b4a8175da7205df2ad02e405a950a02eaa3e3e0840947cd598e92dca453199b",
         strip_prefix = "re2-2023-06-01",
         urls = [
@@ -192,6 +196,11 @@ def load_external_repositories():
         urls = ["https://github.com/grpc/grpc/archive/v1.55.1.tar.gz"],
         sha256 = "9c3c0a0ad986ee4fc0a9b58fd71255010068df7d1437c425b525d68c30c85ac7",
         strip_prefix = "grpc-1.55.1",
+        # Note: repo mapping doesn't seem to work for gRPC because it
+        # explicitly binds the re2 name to the com_googlesource_code_re2 repo.
+        # Instead we patch it.
+        #repo_mapping = {"@com_googlesource_code_re2": "@com_github_google_re2"},
+        patches = ["@com_google_xls//dependency_support/com_github_grpc_grpc:grpc_patch.diff"],
     )
 
     # Used by xlscc.

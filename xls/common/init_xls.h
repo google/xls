@@ -28,7 +28,7 @@ namespace xls {
 // Is typically called early on in main().
 //
 // `usage` provides a short usage message passed to
-// absl::SetProgramUsageMessage().
+// absl::SetProgramUsageMessage(). It can be nullptr, then it's ignored.
 //
 // `argc` and `argv` are the command line flags to parse. This function does not
 // modify `argc`.
@@ -37,15 +37,9 @@ namespace xls {
 // command-line flag (or arguments to a flag), not including the program
 // invocation name. (This includes positional arguments after the
 // flag-terminating delimiter '--'.)
-std::vector<std::string_view> InitXls(std::string_view usage,
-                                      int argc, char* argv[]);
+std::vector<std::string_view> InitXls(std::string_view usage, int argc,
+                                       char* argv[]);
 
-namespace internal {
-// Internal function which sets up post-absl common components shared by both
-// testing and non-testing inits. Should only be called by InitXls or
-// InitXlsForTest.
-void InitXlsPostAbslFlagParse();
-}  // namespace internal
 }  // namespace xls
 
 #endif  // XLS_COMMON_INIT_XLS_H_

@@ -4,9 +4,6 @@ build --copt "-Wno-sign-compare"
 build --copt "-Wno-comment"
 build --host_copt "-Wno-sign-compare"
 build --host_copt "-Wno-comment"
-# use absl in googletest to work around
-# https://github.com/google/googletest/issues/4383
-build --define absl=1
 
 # TODO(leary): 2020-09-09 Make it possible to enable this option.
 # Currently m4 doesn't seem to work as a dependency.

@@ -194,7 +194,7 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:type",
         "@z3//:api",
-        "@com_googlesource_code_re2//:re2",
+        "@com_github_google_re2//:re2",
     ],
 )
 

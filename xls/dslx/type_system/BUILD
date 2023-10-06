@@ -233,7 +233,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtins_metadata",
-        "@com_googlesource_code_re2//:re2",
+        "@com_github_google_re2//:re2",
     ],
 )
 
