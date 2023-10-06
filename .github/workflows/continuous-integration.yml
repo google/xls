@@ -45,6 +45,10 @@ jobs:
       - name: Install dependencies via apt
         run: sudo apt-get install python3-dev python3-distutils python3-dev python-is-python3 libtinfo5
 
+      - name: Bazel update PIP requirements lock
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" run //dependency_support:pip_requirements.update
+
       - name: Bazel fetch
         # Let's fetch all WORKSPACE artifacts to see if they can resolve fully
         run: |
