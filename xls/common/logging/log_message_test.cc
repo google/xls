@@ -14,13 +14,20 @@
 
 #include "xls/common/logging/log_message.h"
 
+#include <cerrno>
+#include <csignal>
+#include <ostream>
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
-#include "absl/strings/str_format.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/log_flags.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/logging/logging_test_base.h"
 #include "xls/common/logging/scoped_mock_log.h"
 #include "xls/common/source_location.h"
@@ -256,10 +263,17 @@ TEST_F(LogMessageTest, StreamOperatorAcceptsValueWithOstreamOverload) {
 }
 
 TEST_F(LogMessageTest, FailAborts) {
+  constexpr static std::string_view kNeedle =
+#ifdef MAIN_IS_MAYBE_STRIPPED
+      "";
+#else
+      "main";
+#endif
+  RecordProperty("stack-needle", std::string(kNeedle));
   // The output of abort() isn't standardized, so just make sure we have "main"
   // in the unwound stack (and saw SIGABRT).
-  EXPECT_EXIT({ XLS_LOG(INFO).Fail(); },
-              ::testing::KilledBySignal(SIGABRT), "main");
+  EXPECT_EXIT({ XLS_LOG(INFO).Fail(); }, ::testing::KilledBySignal(SIGABRT),
+              kNeedle);
 }
 
 TEST_F(LogMessageTest, FailWithoutStackTraceAborts) {

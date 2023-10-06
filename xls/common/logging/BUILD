@@ -188,12 +188,22 @@ cc_library(
     ],
 )
 
+config_setting(
+    name = "opt",
+    values = {"compilation_mode": "opt"},
+)
+
 cc_test(
     name = "log_message_test",
     srcs = ["log_message_test.cc"],
+    defines = select({
+        ":opt": ["MAIN_IS_MAYBE_STRIPPED"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":log_flags",
         ":log_message",
+        ":logging",
         ":logging_test_base",
         ":scoped_mock_log",
         "@com_google_absl//absl/base:log_severity",
