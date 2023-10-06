@@ -37,6 +37,8 @@ namespace {
 // Forward decl.
 DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena);
 DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
+DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena);
+DocRef Fmt(const ExprOrType& n, const Comments& comments, DocArena& arena);
 
 DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
@@ -64,6 +66,36 @@ DocRef Fmt(const TupleTypeAnnotation& n, const Comments& comments,
   return ConcatNGroup(arena, pieces);
 }
 
+DocRef Fmt(const TypeRef& n, const Comments& comments, DocArena& arena) {
+  return absl::visit(
+      Visitor{
+          [&](const TypeAlias* n) { return arena.MakeText(n->identifier()); },
+          [&](const StructDef* n) { return arena.MakeText(n->identifier()); },
+          [&](const EnumDef* n) { return arena.MakeText(n->identifier()); },
+          [&](const ColonRef* n) { return Fmt(*n, comments, arena); },
+      },
+      n.type_definition());
+}
+
+DocRef Fmt(const TypeRefTypeAnnotation& n, const Comments& comments,
+           DocArena& arena) {
+  std::vector<DocRef> pieces = {Fmt(*n.type_ref(), comments, arena)};
+  if (!n.parametrics().empty()) {
+    pieces.push_back(arena.oangle());
+    for (size_t i = 0; i < n.parametrics().size(); ++i) {
+      const ExprOrType& eot = n.parametrics()[i];
+      pieces.push_back(Fmt(eot, comments, arena));
+      if (i + 1 != n.parametrics().size()) {
+        pieces.push_back(arena.comma());
+        pieces.push_back(arena.space());
+      }
+    }
+    pieces.push_back(arena.cangle());
+  }
+
+  return ConcatNGroup(arena, pieces);
+}
+
 DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
   if (auto* t = dynamic_cast<const BuiltinTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
@@ -74,12 +106,29 @@ DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
   if (auto* t = dynamic_cast<const ArrayTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
   }
+  if (auto* t = dynamic_cast<const TypeRefTypeAnnotation*>(&n)) {
+    return Fmt(*t, comments, arena);
+  }
 
-  XLS_LOG(FATAL) << "handle type annotation: " << n.ToString();
+  XLS_LOG(FATAL) << "handle type annotation: " << n.ToString()
+                 << " type: " << n.GetNodeTypeName();
 }
 
 DocRef Fmt(const TypeAlias& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle type alias: " << n.ToString();
+  std::vector<DocRef> pieces;
+  if (n.is_public()) {
+    pieces.push_back(arena.Make(Keyword::kPub));
+    pieces.push_back(arena.space());
+  }
+  pieces.push_back(arena.Make(Keyword::kType));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.MakeText(n.identifier()));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.equals());
+  pieces.push_back(arena.break1());
+  pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
+  pieces.push_back(arena.semi());
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const NameDef& n, const Comments& comments, DocArena& arena) {

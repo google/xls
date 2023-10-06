@@ -267,5 +267,21 @@ fn f() -> u8 { p<8>(u8:42) }
   }
 }
 
+TEST(ModuleFmtTest, TypeRefTypeAnnotation) {
+  const std::string_view kProgram =
+      R"(type MyU32 = u32;
+
+fn f() -> MyU32 { MyU32:42 }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
 }  // namespace
 }  // namespace xls::dslx
