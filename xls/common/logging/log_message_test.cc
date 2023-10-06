@@ -273,7 +273,7 @@ TEST_F(LogMessageTest, FailAborts) {
   // The output of abort() isn't standardized, so just make sure we have "main"
   // in the unwound stack (and saw SIGABRT).
   EXPECT_EXIT({ XLS_LOG(INFO).Fail(); }, ::testing::KilledBySignal(SIGABRT),
-              kNeedle);
+              std::string(kNeedle));
 }
 
 TEST_F(LogMessageTest, FailWithoutStackTraceAborts) {
