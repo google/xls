@@ -43,7 +43,7 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:format_strings",
         "//xls/ir:number_parser",
-        "@com_github_google_re2//:re2",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -124,7 +124,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
-        "@com_github_google_re2//:re2",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 

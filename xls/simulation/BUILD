@@ -45,7 +45,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "//xls/tools:verilog_include",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
@@ -53,6 +52,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -120,13 +120,13 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:number_parser",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -177,6 +177,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -102,12 +102,34 @@ cc_library(
 )
 
 cc_library(
+    name = "gunit_init_xls",
+    srcs = ["gunit_init_xls.cc"],
+    hdrs = ["gunit_init_xls.h"],
+    deps = [
+        ":init_xls",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "benchmark_support",
+    srcs = ["benchmark_support.cc"],
+    hdrs = ["benchmark_support.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "init_xls",
     srcs = ["init_xls.cc"],
     hdrs = ["init_xls.h"],
     deps = [
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings",
-        "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/logging:vlog_is_on",
         "@com_google_absl//absl/flags:parse",
@@ -501,8 +523,11 @@ cc_library(
     srcs = ["xls_gunit_main.cc"],
     visibility = ["//xls:xls_utility_users"],
     deps = [
+        ":benchmark_support",
+        ":gunit_init_xls",
         ":init_xls",
-        ":xls_gunit",
+        "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
     ],
 )
 

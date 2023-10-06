@@ -74,10 +74,7 @@ void AbslStringify(Sink& sink, const Signedness& src) {
       break;
   }
 }
-// Workaround some gtest bug where it won't see AbslStringify
-std::ostream& operator<<(std::ostream& os, const Signedness& s) {
-  return os << absl::StrFormat("%v", s);
-}
+
 class BaseSignedContextSensitiveRangeQueryEngineTest {
  public:
   virtual ~BaseSignedContextSensitiveRangeQueryEngineTest() = default;
@@ -191,16 +188,6 @@ struct SignedRangeComparison {
 template <typename Sink>
 void AbslStringify(Sink& sink, const SignedRangeComparison::Tuple& src) {
   absl::Format(&sink, "%v", SignedRangeComparison(src));
-}
-
-// Workaround some gtest bug where it won't see AbslStringify
-std::ostream& operator<<(std::ostream& os, const SignedRangeComparison& s) {
-  return os << absl::StrFormat("%v", s);
-}
-// Workaround some gtest bug where it won't see AbslStringify
-std::ostream& operator<<(std::ostream& os,
-                         const SignedRangeComparison::Tuple& s) {
-  return os << absl::StrFormat("%v", s);
 }
 
 class SignedRangeComparisonContextSensitiveRangeQueryEngineTest

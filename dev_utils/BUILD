@@ -22,6 +22,6 @@ cc_binary(
         "//xls/common:subprocess",
         "//xls/common:thread",
         "//xls/common/file:filesystem",
-        "@com_github_google_re2//:re2",
+        "@com_googlesource_code_re2//:re2",
     ],
 )

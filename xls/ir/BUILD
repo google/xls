@@ -139,11 +139,11 @@ cc_library(
     deps = [
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -461,7 +461,6 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:btree",
@@ -477,6 +476,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
         "@com_google_protobuf//:protobuf",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -720,6 +720,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -921,6 +922,7 @@ cc_library(
     hdrs = ["value_test_util.h"],
     deps = [
         ":value",
+        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -1245,6 +1247,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )

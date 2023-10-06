@@ -281,6 +281,7 @@ cc_library(
         ":log_entry",
         ":log_sink",
         ":logging",
+        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -334,6 +335,7 @@ cc_library(
         ":log_entry",
         ":logging",
         "@com_google_absl//absl/base:log_severity",
+        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
