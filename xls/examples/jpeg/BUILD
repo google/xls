@@ -20,6 +20,7 @@ load(
     "xls_dslx_test",
     "xls_eval_ir_test",
     "xls_ir_verilog",
+    "xls_ir_verilog_fdo",
     "xls_synthesis_metrics",
 )
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
@@ -135,7 +136,7 @@ xls_synthesis_metrics(
     tags = ["manual"],
 )
 
-xls_ir_verilog(
+xls_ir_verilog_fdo(
     name = "idct_chen_6400ps_model_sky130_fdo",
     src = ":idct_chen.opt.ir",
     codegen_args = {

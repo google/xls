@@ -20,6 +20,10 @@ exposed to the user. This module is created for convenience.
 """
 
 load(
+    "//xls/build_rules:xls_codegen_fdo_rules.bzl",
+    _xls_ir_verilog_fdo = "xls_ir_verilog_fdo",
+)
+load(
     "//xls/build_rules:xls_codegen_macros.bzl",
     _xls_ir_verilog_build_and_test = "xls_ir_verilog_build_and_test",
 )
@@ -99,3 +103,7 @@ xls_dslx_verilog = _xls_dslx_verilog_build_and_test
 xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library
 xls_synthesis_metrics = _xls_synthesis_metrics
 xls_delay_model_generation = _xls_delay_model_generation
+
+# TODO(tcal): 2023-10-02 if this does not get reabsorbed into xls_ir_verilog,
+#             enhance it to be "...build_and_test".
+xls_ir_verilog_fdo = _xls_ir_verilog_fdo

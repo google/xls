@@ -30,6 +30,7 @@ exports_files(
     [
         "xls_codegen_macros.bzl",
         "xls_codegen_rules.bzl",
+        "xls_codegen_fdo_rules.bzl",
         "xls_common_rules.bzl",
         "xls_config_rules.bzl",
         "xls_dslx_rules.bzl",
@@ -125,7 +126,10 @@ bzl_library(
 
 bzl_library(
     name = "xls_codegen_rules_bzl",
-    srcs = ["xls_codegen_rules.bzl"],
+    srcs = [
+        "xls_codegen_fdo_rules.bzl",
+        "xls_codegen_rules.bzl",
+    ],
     deps = [
         ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",
@@ -133,6 +137,7 @@ bzl_library(
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
+        "@rules_hdl//pdk:build_defs.bzl",
     ],
 )
 

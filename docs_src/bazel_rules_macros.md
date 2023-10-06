@@ -498,6 +498,60 @@ Examples:
 | <a id="xls_ir_equivalence_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional |  `""`  |
 
 
+<a id="xls_ir_verilog_fdo"></a>
+
+## xls_ir_verilog_fdo
+
+<pre>
+xls_ir_verilog_fdo(<a href="#xls_ir_verilog_fdo-name">name</a>, <a href="#xls_ir_verilog_fdo-src">src</a>, <a href="#xls_ir_verilog_fdo-outs">outs</a>, <a href="#xls_ir_verilog_fdo-block_ir_file">block_ir_file</a>, <a href="#xls_ir_verilog_fdo-codegen_args">codegen_args</a>, <a href="#xls_ir_verilog_fdo-codegen_options_proto">codegen_options_proto</a>,
+                   <a href="#xls_ir_verilog_fdo-module_sig_file">module_sig_file</a>, <a href="#xls_ir_verilog_fdo-schedule_file">schedule_file</a>, <a href="#xls_ir_verilog_fdo-schedule_ir_file">schedule_ir_file</a>, <a href="#xls_ir_verilog_fdo-scheduling_options_proto">scheduling_options_proto</a>,
+                   <a href="#xls_ir_verilog_fdo-sta_tool">sta_tool</a>, <a href="#xls_ir_verilog_fdo-standard_cells">standard_cells</a>, <a href="#xls_ir_verilog_fdo-verilog_file">verilog_file</a>, <a href="#xls_ir_verilog_fdo-verilog_line_map_file">verilog_line_map_file</a>, <a href="#xls_ir_verilog_fdo-yosys_tool">yosys_tool</a>)
+</pre>
+
+A build rule that generates a Verilog file from an IR file using
+FDO (feedback-directed optimization).  Codegen args to activate FDO
+and provide required dependencies are automatically provided.  Default
+values for FDO parameters are provided but can be overridden in
+"codegen_args {...}".
+
+In FDO mode, the codegen_arg "clock_period_ps" MUST be provided.
+
+Example:
+
+    ```
+    xls_ir_verilog_fdo(
+        name = "a_verilog",
+        src = "a.ir",
+        codegen_args = {
+            "clock_period_ps": "750",
+            "fdo_iteration_number": "5",
+            ...
+        },
+    )
+    ```
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="xls_ir_verilog_fdo-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="xls_ir_verilog_fdo-src"></a>src |  The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="xls_ir_verilog_fdo-outs"></a>outs |  The list of generated files.   | List of strings | optional |  `[]`  |
+| <a id="xls_ir_verilog_fdo-block_ir_file"></a>block_ir_file |  The filename of block-level IR file generated during codegen. If not specified, the basename of the Verilog file followed by a .block.ir extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_ir_verilog_fdo-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_ir_verilog_fdo-codegen_options_proto"></a>codegen_options_proto |  Filename of a protobuf with arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_ir_verilog_fdo-module_sig_file"></a>module_sig_file |  The filename of module signature of the generated Verilog file. If not specified, the basename of the Verilog file followed by a .sig.textproto extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_ir_verilog_fdo-schedule_file"></a>schedule_file |  The filename of schedule of the generated Verilog file.If not specified, the basename of the Verilog file followed by a .schedule.textproto extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_ir_verilog_fdo-schedule_ir_file"></a>schedule_ir_file |  The filename of scheduled IR file generated during scheduled. If not specified, the basename of the Verilog file followed by a .schedule.opt.ir extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_ir_verilog_fdo-scheduling_options_proto"></a>scheduling_options_proto |  Filename of a protobuf with scheduling options arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_ir_verilog_fdo-sta_tool"></a>sta_tool |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `"@org_theopenroadproject//:opensta"`  |
+| <a id="xls_ir_verilog_fdo-standard_cells"></a>standard_cells |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `"@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"`  |
+| <a id="xls_ir_verilog_fdo-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a v extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="xls_ir_verilog_fdo-verilog_line_map_file"></a>verilog_line_map_file |  The filename of line map for the generated Verilog file.If not specified, the basename of the Verilog file followed by a .verilog_line_map.textproto extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_ir_verilog_fdo-yosys_tool"></a>yosys_tool |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `"//third_party/yosys"`  |
+
+
 <a id="cc_xls_ir_jit_wrapper"></a>
 
 ## cc_xls_ir_jit_wrapper
