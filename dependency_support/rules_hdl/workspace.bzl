@@ -29,14 +29,14 @@ def repo():
         ],
     )
 
-    # Commit on 2023-09-28, current as of 2023-09-28.
-    git_hash = "b3d3a2a727f8950eaacddf2b02390a93e8df9ffa"
-    git_sha256 = "99158b6434427285d76ed6a4f629c838601d94f7b331430603306d55af816e58"
+    # Commit on 2023-10-04 -- Merge pull request #196 from mithro/openroad-upgrade
+    git_hash = "64688e60b06b5e3bcf277468d9afdc1fa0a7b98c"
+    archive_sha256 = "2643614fa0625500284937012af7df74579ccd2298559231f7e78328dce15d6d"
 
     maybe(
         http_archive,
         name = "rules_hdl",
-        sha256 = git_sha256,
+        sha256 = archive_sha256,
         strip_prefix = "bazel_rules_hdl-%s" % git_hash,
         urls = [
             "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,

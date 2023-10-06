@@ -15,7 +15,7 @@
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype binary, test, library
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_delay_model_generation")
 
 package(
@@ -184,10 +184,9 @@ proto_library(
     srcs = ["delay_model.proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "delay_model_py_pb2",
-    srcs = ["delay_model.proto"],
-    internal_deps = [":delay_model_proto"],
+    deps = [":delay_model_proto"],
 )
 
 py_binary(

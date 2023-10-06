@@ -15,7 +15,7 @@
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype binary and test
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
 
 package(
@@ -916,11 +916,9 @@ proto_library(
     srcs = ["scheduling_options_flags.proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "scheduling_options_flags_py_pb2",
-    srcs = ["scheduling_options_flags.proto"],
-    internal_deps = [":scheduling_options_flags_proto"],
-    deps = [],
+    deps = [":scheduling_options_flags_proto"],
 )
 
 cc_proto_library(
@@ -1454,11 +1452,9 @@ proto_library(
     srcs = ["design_stats.proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "design_stats_py_pb2",
-    srcs = ["design_stats.proto"],
-    internal_deps = [":design_stats_proto"],
-    deps = [],
+    deps = [":design_stats_proto"],
 )
 
 py_binary(

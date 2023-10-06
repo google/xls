@@ -19,8 +19,8 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_binary")
 
 # pytype library only
+load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 # cc_proto_library is used in this file
 
 package(
@@ -374,10 +374,9 @@ proto_library(
     srcs = ["op.proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "op_py_pb2",
-    srcs = ["op.proto"],
-    internal_deps = [":op_proto"],
+    deps = [":op_proto"],
 )
 
 cc_library(
@@ -1187,10 +1186,9 @@ cc_proto_library(
     deps = [":xls_type_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "xls_type_py_pb2",
-    srcs = ["xls_type.proto"],
-    internal_deps = [":xls_type_proto"],
+    deps = [":xls_type_proto"],
 )
 
 proto_library(
@@ -1203,12 +1201,9 @@ cc_proto_library(
     deps = [":channel_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "channel_py_pb2",
-    srcs = ["channel.proto"],
-    internal_deps = [
-        ":channel_proto",
-    ],
+    deps = [":channel_proto"],
 )
 
 cc_library(

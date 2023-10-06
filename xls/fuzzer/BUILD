@@ -15,7 +15,7 @@
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype test and library
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
 
@@ -560,10 +560,9 @@ cc_proto_library(
     deps = [":sample_summary_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "sample_summary_py_pb2",
-    srcs = ["sample_summary.proto"],
-    internal_deps = [":sample_summary_proto"],
+    deps = [":sample_summary_proto"],
 )
 
 proto_library(
@@ -611,10 +610,9 @@ cc_proto_library(
     deps = [":ast_generator_options_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "ast_generator_options_py_pb2",
-    srcs = ["ast_generator_options.proto"],
-    internal_deps = [":ast_generator_options_proto"],
+    deps = [":ast_generator_options_proto"],
 )
 
 proto_library(
@@ -892,10 +890,9 @@ cc_proto_library(
     deps = [":sample_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "sample_py_pb2",
-    srcs = ["sample.proto"],
-    internal_deps = [":sample_proto"],
+    deps = [":sample_proto"],
 )
 
 proto_library(

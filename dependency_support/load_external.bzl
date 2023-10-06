@@ -127,13 +127,24 @@ def load_external_repositories():
         ],
     )
 
-    # Released on 2022-04-22, current as of 2022-05-27
-    # https://github.com/bazelbuild/rules_python/releases/tag/0.8.1
+    # Released on 2022-12-27, current as of 2023-09-27
+    # https://github.com/bazelbuild/rules_proto/releases/tag/5.3.0-21.7
+    http_archive(
+        name = "rules_proto",
+        sha256 = "dc3fb206a2cb3441b485eb1e423165b231235a1ea9b031b4433cf7bc1fa460dd",
+        strip_prefix = "rules_proto-5.3.0-21.7",
+        urls = [
+            "https://github.com/bazelbuild/rules_proto/archive/refs/tags/5.3.0-21.7.tar.gz",
+        ],
+    )
+
+    # Released on 2023-08-22, current as of 2023-09-26
+    # https://github.com/bazelbuild/rules_python/releases/tag/0.25.0
     http_archive(
         name = "rules_python",
-        sha256 = "cdf6b84084aad8f10bf20b46b77cb48d83c319ebe6458a18e9d2cebf57807cdd",
-        strip_prefix = "rules_python-0.8.1",
-        url = "https://github.com/bazelbuild/rules_python/archive/refs/tags/0.8.1.tar.gz",
+        sha256 = "5868e73107a8e85d8f323806e60cad7283f34b32163ea6ff1020cf27abef6036",
+        strip_prefix = "rules_python-0.25.0",
+        url = "https://github.com/bazelbuild/rules_python/releases/download/0.25.0/rules_python-0.25.0.tar.gz",
     )
 
     http_archive(

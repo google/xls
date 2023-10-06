@@ -18,8 +18,8 @@
 # Email xls-team@ or seanhaskell@ if a dependency is desired.
 
 # pytype binary only
+load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 # cc_proto_library is used in this file
 
 package(
@@ -44,10 +44,9 @@ cc_proto_library(
     deps = [":hls_block_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "hls_block_py_pb2",
-    srcs = ["hls_block.proto"],
-    internal_deps = [":hls_block_proto"],
+    deps = [":hls_block_proto"],
 )
 
 proto_library(
@@ -62,10 +61,9 @@ cc_proto_library(
     deps = [":metadata_output_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "metadata_output_py_pb2",
-    srcs = ["metadata_output.proto"],
-    internal_deps = [":metadata_output_proto"],
+    deps = [":metadata_output_proto"],
 )
 
 build_test(

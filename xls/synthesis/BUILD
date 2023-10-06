@@ -18,7 +18,7 @@ load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 
 # cc_proto_library is used in this file
 # pytype binary, test, library
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -44,18 +44,14 @@ proto_library(
     ],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "synthesis_service_py_pb2",
-    srcs = ["synthesis_service.proto"],
-    internal_deps = [":synthesis_service_proto"],
-    deps = [":synthesis_py_pb2"],
+    deps = [":synthesis_service_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "synthesis_py_pb2",
-    srcs = ["synthesis.proto"],
-    internal_deps = [":synthesis_proto"],
-    deps = ["//xls/codegen:module_signature_py_pb2"],
+    deps = [":synthesis_proto"],
 )
 
 cc_proto_library(

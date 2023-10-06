@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
 
 package(
@@ -558,18 +558,9 @@ cc_proto_library(
     deps = [":module_signature_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "module_signature_py_pb2",
-    srcs = ["module_signature.proto"],
-    internal_deps = [
-        ":module_signature_proto",
-        ":xls_metrics_proto",
-        "//xls/ir:xls_type_proto",
-    ],
-    deps = [
-        ":xls_metrics_py_pb2",
-        "//xls/ir:xls_type_py_pb2",
-    ],
+    deps = [":module_signature_proto"],
 )
 
 proto_library(
@@ -585,16 +576,9 @@ cc_proto_library(
     ],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "xls_metrics_py_pb2",
-    srcs = ["xls_metrics.proto"],
-    internal_deps = [
-        ":xls_metrics_proto",
-        "//xls/ir:op_proto",
-    ],
-    deps = [
-        "//xls/ir:op_py_pb2",
-    ],
+    deps = [":xls_metrics_proto"],
 )
 
 proto_library(
@@ -607,12 +591,9 @@ cc_proto_library(
     deps = [":verilog_line_map_proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "verilog_line_map_py_pb2",
-    srcs = ["verilog_line_map.proto"],
-    internal_deps = [
-        ":verilog_line_map_proto",
-    ],
+    deps = [":verilog_line_map_proto"],
 )
 
 cc_test(

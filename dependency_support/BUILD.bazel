@@ -12,4 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Needed to make this a package.
+load("@rules_python//python:pip.bzl", "compile_pip_requirements")
+
+compile_pip_requirements(
+    name = "pip_requirements",
+    requirements_in = "pip_requirements.in",
+    requirements_txt = "pip_requirements_lock.txt",
+)

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
 
 package(
@@ -26,10 +26,9 @@ proto_library(
     srcs = ["pipeline_schedule.proto"],
 )
 
-xls_py_proto_library(
+py_proto_library(
     name = "pipeline_schedule_py_pb2",
-    srcs = ["pipeline_schedule.proto"],
-    internal_deps = [":pipeline_schedule_proto"],
+    deps = [":pipeline_schedule_proto"],
 )
 
 cc_proto_library(
