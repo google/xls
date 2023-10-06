@@ -208,7 +208,6 @@ proc ConsumeMultipleSymbolRepetitionsAtOnce {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -273,7 +272,6 @@ proc ConsumeMultipleSymbolsAtOnce {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -344,7 +342,6 @@ proc ConsumePacketWithInvalidSymbols {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -411,7 +408,6 @@ proc ConsumePacketWithAllDiffSymbols {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -480,6 +476,5 @@ proc ConsumePacketsWhereLastSymbolRepeats {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }

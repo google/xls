@@ -285,7 +285,6 @@ proc RunLengthDecoderZeroCountTest {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 

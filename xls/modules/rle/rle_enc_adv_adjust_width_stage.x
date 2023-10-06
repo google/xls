@@ -210,7 +210,6 @@ proc PacketContainsOnlyLast {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -275,7 +274,6 @@ proc InputPairCountLessOrEqualOutputWidth {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -342,7 +340,6 @@ proc InputFullyFilled {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -412,7 +409,6 @@ proc CombineStateWithNextInputPairs {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -486,7 +482,6 @@ proc PairStateCombineWithStateUpdate {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -558,6 +553,5 @@ proc NoStateSipllAfterLast {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }

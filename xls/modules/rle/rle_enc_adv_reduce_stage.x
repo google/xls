@@ -63,7 +63,6 @@ pub proc RunLengthEncoderAdvancedReduceStage<
     let not_empty = input.last ||
       or_reduce(std::convert_to_bits_msb0(input.symbol_valids));
     send_if(tok, output_s, not_empty, output);
-    ()
   }
 }
 
@@ -172,7 +171,6 @@ proc RunLengthEncoderAdvancedReduceStageNoSymbols {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -239,7 +237,6 @@ proc RunLengthEncoderAdvancedReduceStageNonRepeatingSymbols {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -306,7 +303,6 @@ proc RunLengthEncoderAdvancedReduceStageRepeatingSymbolsNoOverflow {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -373,6 +369,5 @@ proc RunLengthEncoderAdvancedReduceStageRepeatingSymbolsOverflow {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }

@@ -62,7 +62,6 @@ pub proc RunLengthEncoderAdvancedRealignStage<
         }
     } ((u32:0, symbols[u32:0], counts[u32:0] != bits[COUNT_WIDTH]:0));
     send(tok, output_s, (output, prop_count, end));
-    ()
   }
 }
 
@@ -175,7 +174,6 @@ proc RunLengthEncoderAdvancedRealignStageNoPairs {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -250,7 +248,6 @@ proc RunLengthEncoderAdvancedRealignStageAllPairsFilled {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -325,7 +322,6 @@ proc RunLengthEncoderAdvancedRealignStageFarAwayPair {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -400,6 +396,5 @@ proc RunLengthEncoderAdvancedRealignStagePropagataion {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }

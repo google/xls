@@ -281,7 +281,6 @@ proc PacketOnlyWithLastSet {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -358,7 +357,6 @@ proc CombineWithoutOverflow {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -437,7 +435,6 @@ proc CombineWithOverflow {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -518,7 +515,6 @@ proc CombineAfterStateChange {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -593,7 +589,6 @@ proc CombineStateWithLastPacket {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -664,6 +659,5 @@ proc NoStateSipllAfterLast {
     }(tok);
 
     send(tok, terminator, true);
-    ()
   }
 }

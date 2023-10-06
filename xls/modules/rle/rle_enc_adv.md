@@ -22,8 +22,9 @@ the last packet the encoder dumps all the data to the output stream.
 - symbol counter is 2 bits wide.
 
 ### Process
-1. Reduce step - this process takes incoming symbols and symbol_valid
-and reduces them into symbol count pairs. This step is stateless.
+1. Reduce step - this process takes incoming symbols, symbol_valid,
+last signal and reduces them into symbol count pairs. Last value is
+passed through, so it's omitted from the example IO. This step is stateless.
 
 Example:
 
@@ -38,7 +39,8 @@ Example:
 
 2. Realign step - this process moves pairs emitted from the reduce step
 so that they are aligned to the left, it also calculates propagation
-distance for the first pair.
+distance for the first pair. This stage doesn't modify last signal value,
+so it's omitted in the example.
 
 Example:
 
@@ -54,9 +56,13 @@ the realign step, and combines them with its state to create multiple
 symbol/count pairs output. State is represented by following tuple
 `<symbol, count, last>`. It contains symbol and count from last pair
 received from the realign step, or current sum of repeating symbol spanning
-multiple input widths. 
+multiple input widths.
 
-Example:
+First set of examples assumes that state doesn't have last set nor
+was last received. Second set of examples will indicate value of last
+signal in the proc state or input data and how it's emitted to output.
+
+Example set 1:
 
 |||||
 |------|-----|-------|----------|
@@ -66,6 +72,17 @@ Example:
 |(A, 1)| [(A, 1), (B, 2), .., ..]|[(A, 2), .., .., ..]| (B, 2)|
 |state |input|output |next state|
 |(A, 1)| [(A, 1), .., .., ..]|[.., .., .., ..]| (A, 2)|
+
+Example set 2:
+
+|||||
+|------|-----|-------|----------|
+|state: pair, last |input|output |next state|
+|(A, 2), false| [(A, 2), (B, 2), .., ..], true |[(A, 3), (A, 1), (B, 2), ..], true| (), false|
+|state: pair, last |input|output |next state|
+|(A, 1), false| [(B, 1), (C, 1), (D, 1), (A, 1)], true|[(A, 1), (B, 1), (C, 1), (D, 1)]| (A, 1), true|
+|state |input|output |next state|
+|(A, 1), true| no data taken from input |[(A, 1), .., .. , ..], true| (), false|
 
 4. Adjust Width step - this step takes output from the core step.
 If output can handle more or equal number of pairs as
