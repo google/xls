@@ -18,9 +18,18 @@ on:
 
 jobs:
   build:
-    name: Bazel Test All (opt)
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-20.04-64core
+            bazelisk-platform: linux-amd64
+            bazelisk-version: v1.18.0
+          - runner: macos-latest-xlarge
+            bazelisk-platform: darwin-arm64
+            bazelisk-version: v1.18.0
+    name: Bazel Build (opt) [${{ matrix.runner }}]
     runs-on:
-      labels: ubuntu-20.04-64core
+      labels: ${{ matrix.runner }}
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
@@ -32,26 +41,27 @@ jobs:
           # Create/use a cache called bazel-cache-20_04-<commit hash>
           # and read the latest cache with prefix bazel-cache-20_04-
           # if it doesn't already exist.
-          key: bazel-cache-20_04-${{ github.sha }}
-          restore-keys: bazel-cache-20_04-
+          key: bazel-cache-20_04-${{ matrix.runner }}-${{ github.sha }}
+          restore-keys: bazel-cache-20_04-${{ matrix.runner }}-
 
       - name: Install bazelisk
         run: |
-          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/${{ matrix.bazelisk-version }}/bazelisk-${{ matrix.bazelisk-platform }}"
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
-          mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
+          mv bazelisk-${{ matrix.bazelisk-platform }} "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
-
-      - name: Install dependencies via apt
-        run: sudo apt-get install python3-dev python3-distutils python3-dev python-is-python3 libtinfo5
 
       - name: Bazel fetch
         # Let's fetch all WORKSPACE artifacts to see if they can resolve fully
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" fetch //...
+        if: matrix.runner == 'ubuntu-20.04-64core'
+
+      - name: Bazel Build Tools  (opt)
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
 
       - name: Bazel Test All (opt)
-        # Note: xlscc is excluded because it builds Clang, and that pushes us
-        # over 6 hours of build time.
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=errors -- //xls/...
+        if: matrix.runner == 'ubuntu-20.04-64core'
