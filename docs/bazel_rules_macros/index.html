@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.2">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.4">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.d451bc0e.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.bd3936ea.min.css">
       
       
 
@@ -1377,6 +1377,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#xls_ir_verilog_fdo" class="md-nav__link">
+    xls_ir_verilog_fdo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cc_xls_ir_jit_wrapper" class="md-nav__link">
     cc_xls_ir_jit_wrapper
   </a>
@@ -2095,6 +2102,13 @@
         <li class="md-nav__item">
   <a href="#xls_ir_equivalence_test" class="md-nav__link">
     xls_ir_equivalence_test
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_ir_verilog_fdo" class="md-nav__link">
+    xls_ir_verilog_fdo
   </a>
   
 </li>
@@ -2997,6 +3011,152 @@ xls_ir_equivalence_test(
 </tr>
 </tbody>
 </table>
+<p><a id="xls_ir_verilog_fdo"></a></p>
+<h2 id="xls_ir_verilog_fdo">xls_ir_verilog_fdo</h2>
+<pre>
+xls_ir_verilog_fdo(<a href="#xls_ir_verilog_fdo-name">name</a>, <a href="#xls_ir_verilog_fdo-src">src</a>, <a href="#xls_ir_verilog_fdo-outs">outs</a>, <a href="#xls_ir_verilog_fdo-block_ir_file">block_ir_file</a>, <a href="#xls_ir_verilog_fdo-codegen_args">codegen_args</a>, <a href="#xls_ir_verilog_fdo-codegen_options_proto">codegen_options_proto</a>,
+                   <a href="#xls_ir_verilog_fdo-module_sig_file">module_sig_file</a>, <a href="#xls_ir_verilog_fdo-schedule_file">schedule_file</a>, <a href="#xls_ir_verilog_fdo-schedule_ir_file">schedule_ir_file</a>, <a href="#xls_ir_verilog_fdo-scheduling_options_proto">scheduling_options_proto</a>,
+                   <a href="#xls_ir_verilog_fdo-sta_tool">sta_tool</a>, <a href="#xls_ir_verilog_fdo-standard_cells">standard_cells</a>, <a href="#xls_ir_verilog_fdo-verilog_file">verilog_file</a>, <a href="#xls_ir_verilog_fdo-verilog_line_map_file">verilog_line_map_file</a>, <a href="#xls_ir_verilog_fdo-yosys_tool">yosys_tool</a>)
+</pre>
+
+<p>A build rule that generates a Verilog file from an IR file using
+FDO (feedback-directed optimization).  Codegen args to activate FDO
+and provide required dependencies are automatically provided.  Default
+values for FDO parameters are provided but can be overridden in
+"codegen_args {...}".</p>
+<p>In FDO mode, the codegen_arg "clock_period_ps" MUST be provided.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code>```
+xls_ir_verilog_fdo(
+    name = &quot;a_verilog&quot;,
+    src = &quot;a.ir&quot;,
+    codegen_args = {
+        &quot;clock_period_ps&quot;: &quot;750&quot;,
+        &quot;fdo_iteration_number&quot;: &quot;5&quot;,
+        ...
+    },
+)
+```
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Name</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Mandatory</th>
+<th style="text-align: left;">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-name"></a>name</td>
+<td style="text-align: left;">A unique name for this target.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels#target-names">Name</a></td>
+<td style="text-align: left;">required</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-src"></a>src</td>
+<td style="text-align: left;">The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">required</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-outs"></a>outs</td>
+<td style="text-align: left;">The list of generated files.</td>
+<td style="text-align: left;">List of strings</td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>[]</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-block_ir_file"></a>block_ir_file</td>
+<td style="text-align: left;">The filename of block-level IR file generated during codegen. If not specified, the basename of the Verilog file followed by a .block.ir extension is used.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-codegen_args"></a>codegen_args</td>
+<td style="text-align: left;">Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.</td>
+<td style="text-align: left;"><a href="https://bazel.build/rules/lib/dict">Dictionary: String -&gt; String</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>{}</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-codegen_options_proto"></a>codegen_options_proto</td>
+<td style="text-align: left;">Filename of a protobuf with arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-module_sig_file"></a>module_sig_file</td>
+<td style="text-align: left;">The filename of module signature of the generated Verilog file. If not specified, the basename of the Verilog file followed by a .sig.textproto extension is used.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-schedule_file"></a>schedule_file</td>
+<td style="text-align: left;">The filename of schedule of the generated Verilog file.If not specified, the basename of the Verilog file followed by a .schedule.textproto extension is used.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-schedule_ir_file"></a>schedule_ir_file</td>
+<td style="text-align: left;">The filename of scheduled IR file generated during scheduled. If not specified, the basename of the Verilog file followed by a .schedule.opt.ir extension is used.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-scheduling_options_proto"></a>scheduling_options_proto</td>
+<td style="text-align: left;">Filename of a protobuf with scheduling options arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-sta_tool"></a>sta_tool</td>
+<td style="text-align: left;">-</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>"@org_theopenroadproject//:opensta"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-standard_cells"></a>standard_cells</td>
+<td style="text-align: left;">-</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>"@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-verilog_file"></a>verilog_file</td>
+<td style="text-align: left;">The filename of Verilog file generated. The filename must have a v extension.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">required</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-verilog_line_map_file"></a>verilog_line_map_file</td>
+<td style="text-align: left;">The filename of line map for the generated Verilog file.If not specified, the basename of the Verilog file followed by a .verilog_line_map.textproto extension is used.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_ir_verilog_fdo-yosys_tool"></a>yosys_tool</td>
+<td style="text-align: left;">-</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>"//third_party/yosys"</code></td>
+</tr>
+</tbody>
+</table>
 <p><a id="cc_xls_ir_jit_wrapper"></a></p>
 <h2 id="cc_xls_ir_jit_wrapper">cc_xls_ir_jit_wrapper</h2>
 <pre>
@@ -3134,7 +3294,7 @@ currently produced should be considered INCOMPLETE.</p>
 </tr>
 <tr>
 <td style="text-align: left;"><a id="xls_delay_model_generation-samples_file"></a>samples_file</td>
-<td style="text-align: left;"><p align="center"> - </p></td>
+<td style="text-align: left;">Path to proto providing sample points.</td>
 <td style="text-align: left;">none</td>
 </tr>
 <tr>
@@ -3532,7 +3692,7 @@ generated files are listed in the outs attribute of the rule.</p>
 </code></pre></div>
 </li>
 <li>
-<p>Optimizing an IR file with an top entity defined.</p>
+<p>Optimizing an IR file with a top entity defined.</p>
 <div class="highlight"><pre><span></span><code>xls_ir_opt_ir(
     name = &quot;a_opt_ir&quot;,
     src = &quot;a.ir&quot;,
@@ -3753,10 +3913,11 @@ Recognized metrics from OpenSTA log:
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.a264c092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.726fbb30.min.js"></script>
+      <script src="../assets/javascripts/bundle.94c44541.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
