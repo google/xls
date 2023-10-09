@@ -125,6 +125,33 @@ Reference build/test environment setups are also provided via `Dockerfile`s:
 ~/xls$ docker build . -f Dockerfile-ubuntu-22.04
 ```
 
+### Adding Additional Build Caching
+
+Many programmers are used to using programs like `ccache` to improve caching for
+a build, but Bazel actually ships with very-high quality caching layers.
+In particular, incremental builds are more safe.
+
+However, there are circumstances where Bazel might decide to recompile files
+where the results could have been cached locally - or where it might be safe to
+reuse certain intermediate results, even after a `bazel clean`. To improve this,
+you can tell Bazel to use a shared "disk cache", storing files persistently
+elsewhere on disk; just create a directory somewhere (e.g.,
+`~/.bazel_disk_cache/`), and then run:
+
+```bash
+echo "build --disk_cache=$(realpath ~/.bazel_disk_cache)" >> ~/.bazelrc
+echo "test --disk_cache=$(realpath ~/.bazel_disk_cache)" >> ~/.bazelrc
+```
+
+WARNING: Bazel does not automate garbage collection of this directory, so it
+will grow over time without bounds. You will need to clean it up periodically,
+either manually or with an automated script.
+
+Alternatively, you can add a [remote cache](https://bazel.build/remote/caching)
+that takes care of garbage collection for you. This can be hosted on a personal
+server or even on the local machine. We've personally had good results with
+localhost instances of [bazel-remote](https://github.com/buchgr/bazel-remote/).
+
 ## Stack Diagram and Project Layout
 
 Navigating a new code base can be daunting; the following description provides a
