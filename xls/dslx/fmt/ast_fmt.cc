@@ -307,7 +307,13 @@ DocRef Fmt(const ChannelDecl& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle colon ref: " << n.ToString();
+  DocRef subject = absl::visit(
+      Visitor{[&](const NameRef* n) { return Fmt(*n, comments, arena); },
+              [&](const ColonRef* n) { return Fmt(*n, comments, arena); }},
+      n.subject());
+
+  return ConcatNGroup(arena,
+                      {subject, arena.colon_colon(), arena.MakeText(n.attr())});
 }
 
 DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
@@ -497,7 +503,7 @@ class FmtExprVisitor : public ExprVisitor {
 
 DocRef Fmt(const Range& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(
-      arena, {Fmt(*n.start(), comments, arena), arena.break0(), arena.dotdot(),
+      arena, {Fmt(*n.start(), comments, arena), arena.break0(), arena.dot_dot(),
               arena.break0(), Fmt(*n.end(), comments, arena)});
 }
 

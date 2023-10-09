@@ -248,7 +248,7 @@ DocArena::DocArena() {
   comma_ = MakeText(",");
   colon_ = MakeText(":");
   equals_ = MakeText("=");
-  dotdot_ = MakeText("..");
+  dot_dot_ = MakeText("..");
   underscore_ = MakeText("_");
   slash_slash_ = MakeText("//");
   ocurl_ = MakeText("{");
@@ -261,6 +261,7 @@ DocArena::DocArena() {
   oangle_ = MakeText("<");
   cangle_ = MakeText(">");
   plus_colon_ = MakeText("+:");
+  colon_colon_ = MakeText("::");
 }
 
 DocRef DocArena::MakeText(std::string s) {
