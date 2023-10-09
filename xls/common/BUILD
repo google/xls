@@ -470,16 +470,6 @@ py_library(
 )
 
 cc_library(
-    name = "check_simulator",
-    srcs = ["check_simulator.cc"],
-    hdrs = ["check_simulator.h"],
-    deps = [
-        "@com_google_absl//absl/status",
-        "//xls/common/logging",
-    ],
-)
-
-cc_library(
     name = "revision",
     srcs = ["revision.cc"],
     hdrs = ["revision.h"],

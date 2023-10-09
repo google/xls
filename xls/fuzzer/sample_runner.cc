@@ -40,7 +40,6 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "xls/common/check_simulator.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
@@ -71,6 +70,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/public/runtime_build_actions.h"
+#include "xls/simulation/check_simulator.h"
 #include "xls/tools/eval_helpers.h"
 #include "re2/re2.h"
 

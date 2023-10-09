@@ -262,3 +262,13 @@ cc_test(
         "@com_google_absl//absl/time",
     ],
 )
+
+cc_library(
+    name = "check_simulator",
+    srcs = ["check_simulator.cc"],
+    hdrs = ["check_simulator.h"],
+    deps = [
+        "//xls/common/logging",
+        "@com_google_absl//absl/status",
+    ],
+)

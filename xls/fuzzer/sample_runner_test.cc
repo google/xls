@@ -30,7 +30,6 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
-#include "xls/common/check_simulator.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/logging.h"
@@ -44,6 +43,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
+#include "xls/simulation/check_simulator.h"
 #include "xls/tools/eval_helpers.h"
 
 namespace xls {

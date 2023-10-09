@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/common/check_simulator.h"
+#include "xls/simulation/check_simulator.h"
 
 #include <cstdlib>
 #include <string_view>
