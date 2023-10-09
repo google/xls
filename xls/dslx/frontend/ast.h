@@ -551,7 +551,7 @@ class ExprVisitorWithDefault : public ExprVisitor {
 //
 // This is organized from strong to weak, so any time an expression has >
 // precedence than its child nodes, we need to use parentheses.
-enum class Precedence {
+enum class Precedence : uint8_t {
   kStrongest = 0,
 
   kPaths = 1,

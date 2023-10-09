@@ -131,6 +131,42 @@ TEST_F(FunctionFmtTest, FormatMultiParameter) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, SimpleCast) {
+  const std::string_view original = "fn f(x:u32)->u64{x as u64}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u64 { x as u64 })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, NestedCast) {
+  const std::string_view original = "fn f(x:u32)->u64{x as u48 as u64}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u64 { x as u48 as u64 })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, CastOfConcatAndSlice) {
+  const std::string_view original = "fn f(x:u32)->u64{x++(x[:16]) as u64}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(x: u32) -> u64 { x ++ (x[:16]) as u64 })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, SliceStartAndLimitValues) {
+  const std::string_view original = "fn f(x:u32)->u16{x[16:32]}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u16 { x[16:32] })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, WidthSlice) {
+  const std::string_view original = "fn f(x:u32)->u16{x[16+:u16]}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u16 { x[16+:u16] })";
+  EXPECT_EQ(got, want);
+}
+
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
   const std::string_view kProgram =
       "fn double(x:u32)->u32{u32:2*x}fn triple(x: u32)->u32{u32:3*x}";

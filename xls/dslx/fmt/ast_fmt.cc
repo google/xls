@@ -291,7 +291,16 @@ DocRef Fmt(const Block& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Cast& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle cast: " << n.ToString();
+  DocRef lhs = Fmt(*n.expr(), comments, arena);
+
+  Precedence arg_precedence = n.expr()->GetPrecedence();
+  if (WeakerThan(arg_precedence, Precedence::kAs)) {
+    lhs = ConcatN(arena, {arena.oparen(), lhs, arena.cparen()});
+  }
+
+  return ConcatNGroup(
+      arena, {lhs, arena.space(), arena.Make(Keyword::kAs), arena.break1(),
+              Fmt(*n.type_annotation(), comments, arena)});
 }
 
 DocRef Fmt(const ChannelDecl& n, const Comments& comments, DocArena& arena) {
@@ -310,8 +319,54 @@ DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
   XLS_LOG(FATAL) << "handle format macro: " << n.ToString();
 }
 
+DocRef Fmt(const Slice& n, const Comments& comments, DocArena& arena) {
+  std::vector<DocRef> pieces = {arena.obracket()};
+
+  if (n.start() != nullptr) {
+    pieces.push_back(Fmt(*n.start(), comments, arena));
+  }
+  pieces.push_back(arena.colon());
+  if (n.limit() != nullptr) {
+    pieces.push_back(Fmt(*n.limit(), comments, arena));
+  }
+  pieces.push_back(arena.cbracket());
+  return ConcatNGroup(arena, pieces);
+}
+
+DocRef Fmt(const WidthSlice& n, const Comments& comments, DocArena& arena) {
+  return ConcatNGroup(arena, {
+                                 arena.obracket(),
+                                 Fmt(*n.start(), comments, arena),
+                                 arena.break0(),
+                                 arena.plus_colon(),
+                                 arena.break0(),
+                                 Fmt(*n.width(), comments, arena),
+                                 arena.cbracket(),
+                             });
+}
+
+static DocRef Fmt(const IndexRhs& n, const Comments& comments,
+                  DocArena& arena) {
+  return absl::visit(
+      Visitor{
+          [&](const Expr* n) { return Fmt(*n, comments, arena); },
+          [&](const Slice* n) { return Fmt(*n, comments, arena); },
+          [&](const WidthSlice* n) { return Fmt(*n, comments, arena); },
+      },
+      n);
+}
+
 DocRef Fmt(const Index& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle index: " << n.ToString();
+  std::vector<DocRef> pieces;
+  if (WeakerThan(n.lhs()->GetPrecedence(), n.GetPrecedence())) {
+    pieces.push_back(arena.oparen());
+    pieces.push_back(Fmt(*n.lhs(), comments, arena));
+    pieces.push_back(arena.cparen());
+  } else {
+    pieces.push_back(Fmt(*n.lhs(), comments, arena));
+  }
+  pieces.push_back(Fmt(n.rhs(), comments, arena));
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
@@ -445,7 +500,11 @@ class FmtExprVisitor : public ExprVisitor {
 DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
   FmtExprVisitor v(arena, comments);
   XLS_CHECK_OK(n.AcceptExpr(&v));
-  return v.result();
+  DocRef result = v.result();
+  if (n.in_parens()) {
+    return ConcatNGroup(arena, {arena.oparen(), result, arena.cparen()});
+  }
+  return result;
 }
 
 DocRef Fmt(const Range& n, const Comments& comments, DocArena& arena) {

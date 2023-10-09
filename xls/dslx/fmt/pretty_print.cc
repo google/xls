@@ -260,6 +260,7 @@ DocArena::DocArena() {
   cbracket_ = MakeText("]");
   oangle_ = MakeText("<");
   cangle_ = MakeText(">");
+  plus_colon_ = MakeText("+:");
 }
 
 DocRef DocArena::MakeText(std::string s) {
