@@ -20,6 +20,7 @@ load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 load("@com_grail_bazel_compdb//:deps.bzl", "bazel_compdb_deps")
 load("@io_bazel_rules_closure//closure:repositories.bzl", "rules_closure_dependencies", "rules_closure_toolchains")
+load("@python39//:defs.bzl", python_interpreter_target = "interpreter")
 load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
 load("@rules_hdl//dependency_support:dependency_support.bzl", rules_hdl_dependency_support = "dependency_support")
 load("@rules_hdl//toolchains/cpython:cpython_toolchain.bzl", rules_hdl_register_cpython_repository = "register_cpython_repository")
@@ -32,7 +33,7 @@ def initialize_external_repositories():
     bazel_skylib_workspace()
     protobuf_deps()
     rules_hdl_register_cpython_repository()
-    rules_hdl_init()
+    rules_hdl_init(python_interpreter_target = python_interpreter_target)
     rules_hdl_dependency_support()
     rules_closure_dependencies()
     rules_closure_toolchains()
@@ -42,7 +43,7 @@ def initialize_external_repositories():
     pip_parse(
         name = "xls_pip_deps",
         requirements_lock = "@com_google_xls//dependency_support:pip_requirements_lock.txt",
-        python_interpreter = "python3",
+        python_interpreter_target = python_interpreter_target,
         timeout = 600000,
     )
     initialize_boost()

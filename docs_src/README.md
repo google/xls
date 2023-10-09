@@ -96,11 +96,6 @@ bazel 5.2.0
 ~/xls$ # This is important. Without this step, you may experience cryptic error messages:
 ~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3
 
-~/xls$ # We're also going to update the Python/pip dependency lock file for your Python
-~/xls$ # version, since it's locked to one version by default. Without this, you may
-~/xls$ # also experience cryptic error messages.
-~/xls$ bazel run -c opt -- //xls/dependency_support:pip_requirements.update
-
 ~/xls$ # Now build/test in optimized build mode.
 ~/xls$ # If you don't plan on using the C++ frontend, which is not needed to get started,
 ~/xls$ # use this command line:

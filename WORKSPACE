@@ -49,6 +49,23 @@ load("//dependency_support:load_external.bzl", "load_external_repositories")
 
 load_external_repositories()
 
+load(
+  "@rules_python//python:repositories.bzl",
+  "py_repositories",
+  "python_register_toolchains",
+)
+
+py_repositories()
+
+python_register_toolchains(
+    name = "python39",
+    python_version = "3.9",
+
+    # Required for our containerized CI environments; we do not recommend
+    # building XLS as root normally.
+    ignore_root_user_error = True,
+)
+
 # gRPC deps should be loaded before initializing other repos. Otherwise, various
 # errors occur during repo loading and initialization.
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")

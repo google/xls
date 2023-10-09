@@ -44,9 +44,6 @@ jobs:
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
-      - name: Bazel update PIP requirements lock
-        run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" run //dependency_support:pip_requirements.update
       - name: Bazel Test Target (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=all --runs_per_test=$BAZEL_RUNS_PER_TEST -- $BAZEL_TARGET

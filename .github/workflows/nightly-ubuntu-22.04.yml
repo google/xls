@@ -32,9 +32,6 @@ jobs:
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
           mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
-      - name: Bazel update PIP requirements lock
-        run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" run //dependency_support:pip_requirements.update
       # Note: xlscc is excluded because it builds Clang, and that can make
       # builds time out.
       - name: Bazel Test All (opt)

@@ -41,4 +41,7 @@ def repo():
         urls = [
             "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
         ],
+        repo_mapping = {
+            "@rules_hdl_cpython": "@python39",
+        },
     )

@@ -31,9 +31,6 @@ USER xls-developer
 ADD --chown=xls-developer . /home/xls-developer/xls/
 WORKDIR /home/xls-developer/xls/
 
-# Update pip dependencies
-RUN bazel run -c opt //dependency_support:pip_requirements.update
-
 
 # Test everything (opt), exclude xlscc for now due to increased build time when
 # we add Clang.

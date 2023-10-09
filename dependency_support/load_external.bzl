@@ -201,6 +201,10 @@ def load_external_repositories():
         # Instead we patch it.
         #repo_mapping = {"@com_googlesource_code_re2": "@com_github_google_re2"},
         patches = ["@com_google_xls//dependency_support/com_github_grpc_grpc:grpc_patch.diff"],
+        repo_mapping = {
+            "@local_config_python": "@python39",
+            "@system_python": "@python39",
+        },
     )
 
     # Used by xlscc.
