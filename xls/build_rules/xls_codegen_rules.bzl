@@ -387,6 +387,8 @@ def xls_ir_verilog_impl(ctx, src):
         final_args += " --scheduling_options_proto={}".format(ctx.file.scheduling_options_proto.path)
         runfiles_list.append(ctx.file.scheduling_options_proto)
 
+    env = ctx.configuration.default_shell_env
+
     runfiles = get_runfiles_for_xls(ctx, [codegen_tool_runfiles], runfiles_list)
 
     tools = [codegen_tool]
@@ -409,6 +411,7 @@ def xls_ir_verilog_impl(ctx, src):
             final_args,
             log_file.path,
         ),
+        env = env,
         mnemonic = "Codegen",
         progress_message = "Building Verilog file: %s" % (verilog_file.path),
         toolchain = None,
