@@ -37,7 +37,6 @@ namespace {
 
 // Forward decls.
 DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena);
-DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
 DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena);
 DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
                      DocArena& arena);
@@ -320,7 +319,7 @@ DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Slice& n, const Comments& comments, DocArena& arena) {
-  std::vector<DocRef> pieces = {arena.obracket()};
+  std::vector<DocRef> pieces;
 
   if (n.start() != nullptr) {
     pieces.push_back(Fmt(*n.start(), comments, arena));
@@ -329,19 +328,16 @@ DocRef Fmt(const Slice& n, const Comments& comments, DocArena& arena) {
   if (n.limit() != nullptr) {
     pieces.push_back(Fmt(*n.limit(), comments, arena));
   }
-  pieces.push_back(arena.cbracket());
   return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const WidthSlice& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, {
-                                 arena.obracket(),
                                  Fmt(*n.start(), comments, arena),
                                  arena.break0(),
                                  arena.plus_colon(),
                                  arena.break0(),
                                  Fmt(*n.width(), comments, arena),
-                                 arena.cbracket(),
                              });
 }
 
@@ -365,7 +361,9 @@ DocRef Fmt(const Index& n, const Comments& comments, DocArena& arena) {
   } else {
     pieces.push_back(Fmt(*n.lhs(), comments, arena));
   }
+  pieces.push_back(arena.obracket());
   pieces.push_back(Fmt(n.rhs(), comments, arena));
+  pieces.push_back(arena.cbracket());
   return ConcatNGroup(arena, pieces);
 }
 
@@ -496,16 +494,6 @@ class FmtExprVisitor : public ExprVisitor {
   const Comments& comments_;
   std::optional<DocRef> result_;
 };
-
-DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
-  FmtExprVisitor v(arena, comments);
-  XLS_CHECK_OK(n.AcceptExpr(&v));
-  DocRef result = v.result();
-  if (n.in_parens()) {
-    return ConcatNGroup(arena, {arena.oparen(), result, arena.cparen()});
-  }
-  return result;
-}
 
 DocRef Fmt(const Range& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(
@@ -833,6 +821,16 @@ static DocRef Fmt(const ModuleMember& n, const Comments& comments,
               [&](const Import* n) { return Fmt(*n, comments, arena); },
               [&](const ConstAssert* n) { return Fmt(*n, comments, arena); }},
       n);
+}
+
+DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
+  FmtExprVisitor v(arena, comments);
+  XLS_CHECK_OK(n.AcceptExpr(&v));
+  DocRef result = v.result();
+  if (n.in_parens()) {
+    return ConcatNGroup(arena, {arena.oparen(), result, arena.cparen()});
+  }
+  return result;
 }
 
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {

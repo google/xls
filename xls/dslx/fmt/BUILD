@@ -80,6 +80,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_test_utils",
         "//xls/dslx/frontend:bindings",
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:parser",

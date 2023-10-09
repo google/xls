@@ -3059,6 +3059,9 @@ class Module : public AstNode {
 
   ~Module() override;
 
+  Module(Module&& other) = default;
+  Module& operator=(Module&& other) = default;
+
   AstNodeKind kind() const override { return AstNodeKind::kModule; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -3238,11 +3241,11 @@ class Module : public AstNode {
     return result;
   }
 
-  const std::string name_;  // Name of this module.
+  std::string name_;  // Name of this module.
 
   // Optional filesystem path (may not be present for e.g. DSLX files created in
   // memory).
-  const std::optional<std::filesystem::path> fs_path_;
+  std::optional<std::filesystem::path> fs_path_;
 
   std::vector<ModuleMember> top_;  // Top-level members of this module.
   std::vector<std::unique_ptr<AstNode>> nodes_;  // Lifetime-owned AST nodes.

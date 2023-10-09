@@ -51,6 +51,8 @@ class Comments {
 // Functions with this signature create a pretty printable document from the AST
 // node "n".
 
+DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
+
 DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena);
 
 DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);

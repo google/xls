@@ -26,6 +26,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_test_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/parser.h"
@@ -34,6 +35,24 @@
 
 namespace xls::dslx {
 namespace {
+
+TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
+  auto [module, lt] = MakeCastWithinLtComparison();
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*lt, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as t) < x");
+}
+
+TEST(BuiltAstFmtTest, FormatIndexThatNeedsParens) {
+  auto [module, lt] = MakeCastWithinIndexExpression();
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*lt, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as u32[42])[i]");
+}
 
 TEST(AstFmtTest, FormatLet) {
   Scanner s{"fake.x", "{ let x: u32 = u32:42; }"};
@@ -69,6 +88,12 @@ TEST(AstFmtTest, FormatLetWithInlineComment) {
 let x: u32 = u32:42)");
 }
 
+// Fixture for test that format entire (single) functions -- expected usage:
+//
+//  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt("fn ..."));
+//  EXPECT_EQ(got, ...);
+//
+// Use `ModuleFmtTest` for formatting of entire modules.
 class FunctionFmtTest : public testing::Test {
  public:
   absl::StatusOr<std::string> DoFmt(std::string_view original) {
@@ -138,6 +163,21 @@ TEST_F(FunctionFmtTest, SimpleCast) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, DoubleParensLhsOfCast) {
+  const std::string_view original = "fn f(x:u32)->u64{((x++x)) as u64}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u64 { (x ++ x) as u64 })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, DoubleParensLhsOfIndex) {
+  const std::string_view original = "fn f(x:u32[2],i:u32)->u32{((x++x))[i]}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(x: u32[2], i: u32) -> u32 { (x ++ x)[i] })";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, NestedCast) {
   const std::string_view original = "fn f(x:u32)->u64{x as u48 as u64}";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
@@ -166,6 +206,8 @@ TEST_F(FunctionFmtTest, WidthSlice) {
   const std::string_view want = R"(fn f(x: u32) -> u16 { x[16+:u16] })";
   EXPECT_EQ(got, want);
 }
+
+// -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
   const std::string_view kProgram =

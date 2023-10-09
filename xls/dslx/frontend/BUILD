@@ -376,11 +376,23 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "ast_test_utils",
+    testonly = True,
+    srcs = ["ast_test_utils.cc"],
+    hdrs = ["ast_test_utils.h"],
+    deps = [
+        ":ast",
+        ":pos",
+    ],
+)
+
 cc_test(
     name = "ast_test",
     srcs = ["ast_test.cc"],
     deps = [
         ":ast",
+        ":ast_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
