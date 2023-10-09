@@ -457,7 +457,18 @@ DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle tuple index: " << n.ToString();
+  std::vector<DocRef> pieces;
+  if (WeakerThan(n.lhs()->GetPrecedence(), n.GetPrecedence())) {
+    pieces.push_back(arena.oparen());
+    pieces.push_back(Fmt(*n.lhs(), comments, arena));
+    pieces.push_back(arena.cparen());
+  } else {
+    pieces.push_back(Fmt(*n.lhs(), comments, arena));
+  }
+
+  pieces.push_back(arena.dot());
+  pieces.push_back(Fmt(*n.index(), comments, arena));
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const UnrollFor& n, const Comments& comments, DocArena& arena) {

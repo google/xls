@@ -37,6 +37,14 @@ std::pair<Module, Binop*> MakeCastWithinLtComparison();
 // above example.
 std::pair<Module, Index*> MakeCastWithinIndexExpression();
 
+// Returns an AST node with the following structure:
+//
+//  (x[i]).2  // without parens noted in the AST.
+//
+// This is an interesting test case for parenthesization purposes similar to the
+// above example.
+std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression();
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_TEST_UTILS_H_

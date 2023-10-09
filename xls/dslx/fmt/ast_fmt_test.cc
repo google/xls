@@ -46,12 +46,21 @@ TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
 }
 
 TEST(BuiltAstFmtTest, FormatIndexThatNeedsParens) {
-  auto [module, lt] = MakeCastWithinIndexExpression();
+  auto [module, index] = MakeCastWithinIndexExpression();
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena;
-  DocRef doc = Fmt(*lt, empty_comments, arena);
+  DocRef doc = Fmt(*index, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as u32[42])[i]");
+}
+
+TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
+  auto [module, tuple_index] = MakeIndexWithinTupleIndexExpression();
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*tuple_index, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x[i]).2");
 }
 
 TEST(AstFmtTest, FormatLet) {
@@ -204,6 +213,13 @@ TEST_F(FunctionFmtTest, WidthSlice) {
   const std::string_view original = "fn f(x:u32)->u16{x[16+:u16]}";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
   const std::string_view want = R"(fn f(x: u32) -> u16 { x[16+:u16] })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, TupleIndex) {
+  const std::string_view original = "fn f(t:(u1,u2,u3))->u3{t.2}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(t: (u1, u2, u3)) -> u3 { t.2 })";
   EXPECT_EQ(got, want);
 }
 

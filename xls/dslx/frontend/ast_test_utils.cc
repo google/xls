@@ -70,4 +70,20 @@ std::pair<Module, Index*> MakeCastWithinIndexExpression() {
   return std::make_pair(std::move(m), index);
 }
 
+std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression() {
+  Module m("test", /*fs_path=*/std::nullopt);
+  const Span fake_span;
+  BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef("x");
+  NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
+
+  BuiltinNameDef* i_def = m.GetOrCreateBuiltinNameDef("i");
+  NameRef* i_ref = m.Make<NameRef>(fake_span, "i", i_def);
+
+  Index* index = m.Make<Index>(fake_span, x_ref, i_ref);
+  Number* two =
+      m.Make<Number>(fake_span, "2", NumberKind::kOther, /*type=*/nullptr);
+  TupleIndex* tuple_index = m.Make<TupleIndex>(fake_span, index, two);
+  return std::make_pair(std::move(m), tuple_index);
+}
+
 }  // namespace xls::dslx
