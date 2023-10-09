@@ -1,10 +1,18 @@
 build --action_env=BAZEL_CXXOPTS=-std=c++17
 build --cxxopt "-std=c++17"
+# Enable default C++ extensions (required in switching to our packaged LLVM)
+build --copt "-D_DEFAULT_SOURCE=1"
+# Signal that we're using a compliant C++17 implementation with features removed
+# (Required for (e.g.) Boost compatibility)
+build --copt "-D_HAS_AUTO_PTR_ETC=0"
 build --copt "-Wno-sign-compare"
 build --copt "-Wno-comment"
+build --host_cxxopt "-std=c++17"
+# Enable default C++ extensions (required in switching to our packaged LLVM)
+build --host_copt "-D_DEFAULT_SOURCE=1"
+# Signal that we're using a compliant C++17 implementation with features removed
+# (Required for (e.g.) Boost compatibility)
+build --host_copt "-D_HAS_AUTO_PTR_ETC=0"
 build --host_copt "-Wno-sign-compare"
 build --host_copt "-Wno-comment"
-
-# TODO(leary): 2020-09-09 Make it possible to enable this option.
-# Currently m4 doesn't seem to work as a dependency.
-# build --crosstool_top=@llvm_toolchain_llvm//:toolchain
+build --incompatible_enable_cc_toolchain_resolution
