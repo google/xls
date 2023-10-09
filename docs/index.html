@@ -285,6 +285,19 @@
     Building From Source
   </a>
   
+    <nav class="md-nav" aria-label="Building From Source">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-additional-build-caching" class="md-nav__link">
+    Adding Additional Build Caching
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1953,6 +1966,19 @@
     Building From Source
   </a>
   
+    <nav class="md-nav" aria-label="Building From Source">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-additional-build-caching" class="md-nav__link">
+    Adding Additional Build Caching
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2095,6 +2121,26 @@ unusual location, you can tell <code>bazel</code> by providing a command line fl
 <span class="go">~/xls$ docker build . -f Dockerfile-ubuntu-20.10</span>
 <span class="go">~/xls$ docker build . -f Dockerfile-ubuntu-22.04</span>
 </code></pre></div>
+<h3 id="adding-additional-build-caching">Adding Additional Build Caching</h3>
+<p>Many programmers are used to using programs like <code>ccache</code> to improve caching for
+a build, but Bazel actually ships with very-high quality caching layers.
+In particular, incremental builds are more safe.</p>
+<p>However, there are circumstances where Bazel might decide to recompile files
+where the results could have been cached locally - or where it might be safe to
+reuse certain intermediate results, even after a <code>bazel clean</code>. To improve this,
+you can tell Bazel to use a shared "disk cache", storing files persistently
+elsewhere on disk; just create a directory somewhere (e.g.,
+<code>~/.bazel_disk_cache/</code>), and then run:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;build --disk_cache=</span><span class="k">$(</span>realpath<span class="w"> </span>~/.bazel_disk_cache<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.bazelrc
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;test --disk_cache=</span><span class="k">$(</span>realpath<span class="w"> </span>~/.bazel_disk_cache<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.bazelrc
+</code></pre></div>
+<p>WARNING: Bazel does not automate garbage collection of this directory, so it
+will grow over time without bounds. You will need to clean it up periodically,
+either manually or with an automated script.</p>
+<p>Alternatively, you can add a <a href="https://bazel.build/remote/caching">remote cache</a>
+that takes care of garbage collection for you. This can be hosted on a personal
+server or even on the local machine. We've personally had good results with
+localhost instances of <a href="https://github.com/buchgr/bazel-remote/">bazel-remote</a>.</p>
 <h2 id="stack-diagram-and-project-layout">Stack Diagram and Project Layout</h2>
 <p>Navigating a new code base can be daunting; the following description provides a
 high-level view of the important directories and their intended organization /
