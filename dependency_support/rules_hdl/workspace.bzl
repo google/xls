@@ -29,9 +29,9 @@ def repo():
         ],
     )
 
-    # Commit on 2023-10-04 -- Merge pull request #196 from mithro/openroad-upgrade
-    git_hash = "64688e60b06b5e3bcf277468d9afdc1fa0a7b98c"
-    archive_sha256 = "2643614fa0625500284937012af7df74579ccd2298559231f7e78328dce15d6d"
+    # Commit on 2023-10-23 -- temporary link to fork: place_and_route: openroad: append env vars to default_shell_env
+    git_hash = "66f3155d09e725bdf277b3437bdb94c7330dc08e"
+    archive_sha256 = "ab83e25ca5466faa686ddc4690cf55a8e7e3894ba75d8ea6d09c9e2d9f670bc1"
 
     maybe(
         http_archive,
@@ -39,7 +39,7 @@ def repo():
         sha256 = archive_sha256,
         strip_prefix = "bazel_rules_hdl-%s" % git_hash,
         urls = [
-            "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
+            "https://github.com/antmicro/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
         ],
         repo_mapping = {
             "@rules_hdl_cpython": "@python39",
