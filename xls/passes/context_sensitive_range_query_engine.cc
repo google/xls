@@ -546,14 +546,18 @@ class BackPropagate final : public BackPropagateBase {
 class ContextGivens final : public RangeDataProvider {
  public:
   ContextGivens(const std::vector<Node*>& topo_sort, const Node* finish,
-                const absl::flat_hash_map<Node*, RangeData>& data)
-      : topo_sort_(topo_sort), finish_(finish), data_(data) {}
+                const absl::flat_hash_map<Node*, RangeData>& data,
+                std::function<std::optional<RangeData>(Node*)> memoized_data)
+      : topo_sort_(topo_sort),
+        finish_(finish),
+        data_(data),
+        memoized_data_(std::move(memoized_data)) {}
 
   std::optional<RangeData> GetKnownIntervals(Node* node) final {
     if (data_.contains(node)) {
       return data_.at(node);
     }
-    return std::nullopt;
+    return memoized_data_(node);
   }
 
   absl::Status IterateFunction(DfsVisitor* visitor) final {
@@ -569,7 +573,30 @@ class ContextGivens final : public RangeDataProvider {
  private:
   const std::vector<Node*>& topo_sort_;
   const Node* finish_;
-  const absl::flat_hash_map<Node*, RangeData>& data_;
+  const absl::flat_hash_map<Node*, RangeData> data_;
+  std::function<std::optional<RangeData>(Node*)> memoized_data_;
+};
+
+// A pair of selector values and selected arms.
+struct SelectorAndArm {
+  // The node which is the selector in some selects.
+  Node* selector;
+  // The arm value we assign the selector.
+  PredicateState::ArmT arm;
+
+  friend bool operator==(const SelectorAndArm& x, const SelectorAndArm& y) {
+    return (x.selector == y.selector) && (x.arm == y.arm);
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const SelectorAndArm& s) {
+    return H::combine(std::move(h), s.selector, s.arm);
+  }
+};
+
+struct EquivalenceSet {
+  std::vector<PredicateState> equivalent_states;
+  InlineBitmap interesting_nodes;
 };
 
 // Helper to perform the actual analysis and hold together all data needed.
@@ -577,6 +604,10 @@ class ContextGivens final : public RangeDataProvider {
 // does not own the arena/map that it fills in.
 class Analysis {
  public:
+  struct InterestingStatesAndNodeList {
+    absl::flat_hash_map<Node*, int64_t> node_indices;
+    std::vector<std::pair<PredicateState, InlineBitmap>> state_and_nodes;
+  };
   Analysis(
       RangeQueryEngine& base_range,
       std::vector<std::unique_ptr<const RangeQueryEngine>>& arena,
@@ -588,7 +619,10 @@ class Analysis {
     topo_sort_ = TopoSort(f).AsVector();
     // Get the base case.
     absl::flat_hash_map<Node*, RangeData> empty;
-    ContextGivens base_givens(topo_sort_, /*finish=*/nullptr, /* data=*/empty);
+    ContextGivens base_givens(
+        topo_sort_, /*finish=*/nullptr,
+        /* data=*/empty,
+        [](auto n) -> std::optional<RangeData> { return std::nullopt; });
     XLS_RETURN_IF_ERROR(base_range_.PopulateWithGivens(base_givens).status());
 
     // Get every possible one-hot state.
@@ -606,16 +640,25 @@ class Analysis {
         }
       }
     }
-    XLS_ASSIGN_OR_RETURN(all_states, FilterUninterestingStates(f, all_states));
+    XLS_ASSIGN_OR_RETURN(auto interesting,
+                         FilterUninterestingStates(f, all_states));
     // Bucket states into equivalence classes. Any predicate-states where the
     // arm and selector are identical
-    absl::flat_hash_map<std::pair<Node*, PredicateState::ArmT>,
-                        std::vector<PredicateState>>
-        equivalences;
-    equivalences.reserve(all_states.size());
-    for (PredicateState s : all_states) {
-      equivalences.try_emplace({s.node()->As<Select>()->selector(), s.arm()})
-          .first->second.push_back(s);
+    absl::flat_hash_map<SelectorAndArm, EquivalenceSet> equivalences;
+    equivalences.reserve(interesting.state_and_nodes.size());
+    for (auto [state, interesting_nodes] : interesting.state_and_nodes) {
+      EquivalenceSet& cur =
+          equivalences
+              .try_emplace(
+                  SelectorAndArm{
+                      .selector = state.node()->As<Select>()->selector(),
+                      .arm = state.arm()},
+                  EquivalenceSet{
+                      .equivalent_states = {},
+                      .interesting_nodes = InlineBitmap(f->node_count())})
+              .first->second;
+      cur.equivalent_states.push_back(state);
+      cur.interesting_nodes.Union(interesting_nodes);
     }
     // NB We don't care what order we examine each equivalence (since all are
     // disjoint).
@@ -625,12 +668,15 @@ class Analysis {
       // We don't care what order we calculate the equivalences because each is
       // fully disjoint from one another as we consider only a single condition
       // to be true at a time.
-      XLS_ASSIGN_OR_RETURN(auto tmp, CalculateRangeGiven(states.back()));
+      XLS_ASSIGN_OR_RETURN(auto tmp,
+                           CalculateRangeGiven(states.equivalent_states.back(),
+                                               states.interesting_nodes,
+                                               interesting.node_indices));
       auto result =
           arena_
               .emplace_back(std::make_unique<RangeQueryEngine>(std::move(tmp)))
               .get();
-      for (const PredicateState& ps : states) {
+      for (const PredicateState& ps : states.equivalent_states) {
         engines_[ps] = result;
       }
     }
@@ -642,7 +688,7 @@ class Analysis {
   // anything. A predicate state where the values that impact the selector don't
   // impact the selected value in any meaningful way will not show any
   // differences in the calculated ranges so no need to calculate them at all.
-  absl::StatusOr<std::vector<PredicateState>> FilterUninterestingStates(
+  absl::StatusOr<InterestingStatesAndNodeList> FilterUninterestingStates(
       FunctionBase* f, const std::vector<PredicateState>& states) {
     std::vector<Node*> select_nodes;
     std::vector<Node*> selectee_nodes;
@@ -661,7 +707,7 @@ class Analysis {
         NodeDependencyAnalysis::ForwardDependents(f, select_nodes));
     NodeDependencyAnalysis backwards_interesting(
         NodeDependencyAnalysis::BackwardDependents(f, selectee_nodes));
-    std::vector<PredicateState> interesting_states;
+    std::vector<std::pair<PredicateState, InlineBitmap>> interesting_states;
     interesting_states.reserve(states.size());
     for (const PredicateState& ps : states) {
       // If there's any node which is both an input into the select value and
@@ -681,19 +727,39 @@ class Analysis {
                            backwards_interesting.GetDependents(ps.value()));
       // Nodes that the selector affects & nodes the selected value is affected
       // by is the set of nodes with potentially changed conditional ranges.
-      InlineBitmap& final_bm = forward_bm;
+      InlineBitmap final_bm = forward_bm;
       final_bm.Intersect(backwards_bm.bitmap());
       if (!final_bm.IsAllZeroes()) {
-        interesting_states.push_back(ps);
+        // nodes affected by the known data are the ones we need to recalculate.
+        interesting_states.push_back({ps, std::move(forward_bm)});
       }
     }
-    return interesting_states;
+    return InterestingStatesAndNodeList{
+        .node_indices = backwards_interesting.node_indices(),
+        .state_and_nodes = interesting_states};
   }
-  absl::StatusOr<RangeQueryEngine> CalculateRangeGiven(PredicateState s) const {
+  absl::StatusOr<RangeQueryEngine> CalculateRangeGiven(
+      PredicateState s, const InlineBitmap& interesting_nodes,
+      const absl::flat_hash_map<Node*, int64_t>& node_ids) const {
     RangeQueryEngine result;
     absl::flat_hash_map<Node*, RangeData> known_data;
     XLS_ASSIGN_OR_RETURN(known_data, ExtractKnownData(s));
-    ContextGivens givens(topo_sort_, s.node(), known_data);
+    ContextGivens givens(
+        topo_sort_, s.node(), known_data,
+        [&](Node* n) -> std::optional<RangeData> {
+          if (interesting_nodes.Get(node_ids.at(n))) {
+            // Affected by known data.
+            return std::nullopt;
+          }
+          // return memoized value from base
+          return RangeData{
+              .ternary =
+                  n->GetType()->IsBits()
+                      ? std::make_optional(base_range_.GetTernary(n).Get({}))
+                      : std::nullopt,
+              .interval_set = base_range_.GetIntervals(n),
+          };
+        });
     XLS_RETURN_IF_ERROR(result.PopulateWithGivens(givens).status());
     return result;
   }
