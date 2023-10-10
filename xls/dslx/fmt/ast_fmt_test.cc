@@ -223,6 +223,15 @@ TEST_F(FunctionFmtTest, TupleIndex) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, ConstAssert) {
+  const std::string_view original =
+      "fn f(){const_assert!(u32:2+u32:3 == u32:5);}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f() { const_assert!(u32:2 + u32:3 == u32:5); })";
+  EXPECT_EQ(got, want);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
@@ -398,6 +407,22 @@ TEST(ModuleFmtTest, NestedColonRefWithImportSubject) {
       R"(import foo
 
 fn f() -> u32 { foo::bar::baz::bat }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
+TEST(ModuleFmtTest, ModuleLevelConstAssert) {
+  const std::string_view kProgram =
+      R"(import foo
+
+const_assert!(foo::bar == u32:42);
 )";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,

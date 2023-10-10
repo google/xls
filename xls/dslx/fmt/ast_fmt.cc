@@ -453,7 +453,11 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle const assert: " << n.ToString();
+  return ConcatNGroup(arena, {
+                                 arena.MakeText("const_assert!("),
+                                 Fmt(*n.arg(), comments, arena),
+                                 arena.cparen(),
+                             });
 }
 
 DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
@@ -836,7 +840,9 @@ static DocRef Fmt(const ModuleMember& n, const Comments& comments,
               [&](const ConstantDef* n) { return Fmt(*n, comments, arena); },
               [&](const EnumDef* n) { return Fmt(*n, comments, arena); },
               [&](const Import* n) { return Fmt(*n, comments, arena); },
-              [&](const ConstAssert* n) { return Fmt(*n, comments, arena); }},
+              [&](const ConstAssert* n) {
+                return arena.MakeConcat(Fmt(*n, comments, arena), arena.semi());
+              }},
       n);
 }
 
