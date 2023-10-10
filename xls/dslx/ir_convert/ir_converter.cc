@@ -43,6 +43,8 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/create_import_data.h"
@@ -59,8 +61,10 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/typecheck.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_scanner.h"
 
 namespace xls::dslx {
 namespace {
@@ -331,8 +335,8 @@ absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
 absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
     Module* module, ImportData* import_data, const ConvertOptions& options) {
   auto package = std::make_unique<Package>(module->name());
-  XLS_RETURN_IF_ERROR(ConvertModuleIntoPackage(module, import_data, options,
-                                               package.get()));
+  XLS_RETURN_IF_ERROR(
+      ConvertModuleIntoPackage(module, import_data, options, package.get()));
   return package;
 }
 
@@ -407,6 +411,16 @@ absl::StatusOr<std::unique_ptr<Module>> ParseText(std::string_view text,
   return module_or;
 }
 
+absl::Status CheckPackageName(std::string_view name) {
+  XLS_ASSIGN_OR_RETURN(std::vector<xls::Token> tokens, TokenizeString(name));
+  if (tokens.size() != 1) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "package name '%s' (len: %d) is not a valid package name and would "
+        "fail to parse from text-ir. Avoid use of infix or special characters.",
+        name, name.size()));
+  }
+  return absl::OkStatus();
+}
 
 // Adds IR-converted symbols from the module specified by "path" to the given
 // "package".
@@ -416,11 +430,13 @@ absl::StatusOr<std::unique_ptr<Module>> ParseText(std::string_view text,
 // now we throw it away for each file and re-derive it (we need to refactor to
 // make the modules outlive any given AddPathToPackage() if we want to
 // appropriately reuse things in ImportData).
-absl::Status AddContentsToPackage(
-    std::string_view file_contents, std::string_view module_name,
-    std::optional<std::string_view> path, std::optional<std::string_view> entry,
-    const ConvertOptions& convert_options, ImportData* import_data,
-    Package* package, bool* printed_error) {
+absl::Status AddContentsToPackage(std::string_view file_contents,
+                                  std::string_view module_name,
+                                  std::optional<std::string_view> path,
+                                  std::optional<std::string_view> entry,
+                                  const ConvertOptions& convert_options,
+                                  ImportData* import_data, Package* package,
+                                  bool* printed_error) {
   // Parse the module text.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> module,
@@ -448,9 +464,8 @@ absl::Status AddContentsToPackage(
         module.get(), entry.value(), /*import_data=*/import_data,
         /*parametric_env=*/nullptr, convert_options, package));
   } else {
-    XLS_RETURN_IF_ERROR(
-        ConvertModuleIntoPackage(module.get(), import_data, convert_options,
-                                 package));
+    XLS_RETURN_IF_ERROR(ConvertModuleIntoPackage(module.get(), import_data,
+                                                 convert_options, package));
   }
   return absl::OkStatus();
 }
@@ -474,6 +489,7 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
     // just have one path).
     XLS_ASSIGN_OR_RETURN(resolved_package_name, PathToName(paths[0]));
   }
+  XLS_RETURN_IF_ERROR(CheckPackageName(resolved_package_name));
   auto package =
       std::make_unique<xls::Package>(std::move(resolved_package_name));
 
