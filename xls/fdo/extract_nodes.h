@@ -26,7 +26,7 @@ namespace xls {
 
 // Extract the given set of nodes from a function and return the verilog text of
 // them. Flip-flops can be inserted to the live-ins and live-outs optionally.
-absl::StatusOr<std::string> ExtractNodesAndGetVerilog(
+absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
     const absl::flat_hash_set<Node*>& nodes, std::string_view top_module_name,
     bool flop_inputs_outputs = false, bool return_all_liveouts = false);
 

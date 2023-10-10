@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -41,9 +42,11 @@
 
 namespace xls {
 
-absl::StatusOr<std::string> ExtractNodesAndGetVerilog(
-    const absl::flat_hash_set<Node*>& nodes, std::string_view top_module_name,
+absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
+    const absl::flat_hash_set<Node*>& nodes,
+    std::string_view top_module_name,
     bool flop_inputs_outputs, bool return_all_liveouts) {
+
   XLS_RET_CHECK(!nodes.empty());
   FunctionBase* f = (*nodes.begin())->function_base();
   XLS_RET_CHECK(std::all_of(nodes.begin(), nodes.end(), [&](Node* node) {
@@ -51,17 +54,38 @@ absl::StatusOr<std::string> ExtractNodesAndGetVerilog(
   }));
 
   std::vector<Node*> topo_sorted_nodes;
+  absl::flat_hash_set<Node*> filtered_nodes;
   topo_sorted_nodes.reserve(nodes.size());
-  if (nodes.size() == 1) {
-    // If there is only one node to be packaged, no need to topo sort them.
-    topo_sorted_nodes.emplace_back(*nodes.begin());
-  } else {
-    // Otherwise, topo sort the given set of nodes.
-    for (Node* node : TopoSort(f)) {
-      if (nodes.contains(node)) {
+
+  for (Node* node : TopoSort(f)) {
+    if (nodes.contains(node)) {
+      Type* ntype = node->GetType();
+      if (ntype->GetFlatBitCount() > 0) {
+        // Unexpected case (it seems tuples w/ tokens have been dissolved).
+        // It probably *would* work correctly, but if this is encountered,
+        // verify that handling is correct (that data paths are timed correctly)
+        XLS_RET_CHECK(!TypeHasToken(ntype)) <<
+            "Unexpected node with a type that contains a token" <<
+            node->ToString();
+
         topo_sorted_nodes.emplace_back(node);
+        filtered_nodes.insert(node);
+      } else {
+        // Currently support FDO only post-opt;
+        // only tokens should have zero bitwidth
+        XLS_RET_CHECK(ntype->IsToken()) <<
+            "Not expecting non-token type with zero bits" <<
+            node->ToString();
+        // skip (don't include token-producing nodes)
       }
     }
+  }
+
+  // If the list is empty now, that's because the fragment had
+  //   nothing except token ops; just return no value
+  if (topo_sorted_nodes.empty()) {
+    std::optional<std::string> no_value;
+    return no_value;
   }
 
   // Here, we create a temporary package for holding the temporary function. The
@@ -109,7 +133,7 @@ absl::StatusOr<std::string> ExtractNodesAndGetVerilog(
       live_out.push_back(new_node);
     } else if (return_all_liveouts) {
       if (std::any_of(node->users().begin(), node->users().end(), [&](Node* u) {
-            return !nodes.contains(u) || u->Is<Send>();
+            return !filtered_nodes.contains(u) || u->Is<Send>();
           })) {
         live_out.push_back(new_node);
       }
@@ -117,7 +141,7 @@ absl::StatusOr<std::string> ExtractNodesAndGetVerilog(
       // Return live-outs that only have external users if return_all_liveouts
       // is not set.
       if (std::all_of(node->users().begin(), node->users().end(), [&](Node* u) {
-            return !nodes.contains(u) || u->Is<Send>();
+            return !filtered_nodes.contains(u) || u->Is<Send>();
           })) {
         live_out.push_back(new_node);
       }

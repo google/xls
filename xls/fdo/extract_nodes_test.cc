@@ -14,6 +14,7 @@
 
 #include "xls/fdo/extract_nodes.h"
 
+#include <optional>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -46,7 +47,7 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
                                     FindNode("add.1", function)});
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::string verilog_text,
+      std::optional<std::string> verilog_text,
       ExtractNodesAndGetVerilog(nodes, "test", /*flop_inputs_outputs=*/false));
   std::string expected_verilog_text = R"(module test(
   input wire [2:0] i0,
@@ -58,9 +59,10 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   assign out = add_6;
 endmodule
 )";
-  EXPECT_EQ(verilog_text, expected_verilog_text);
+  EXPECT_EQ(verilog_text.has_value(), true);
+  EXPECT_EQ(verilog_text.value(), expected_verilog_text);
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ff_verilog_text,
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<std::string> ff_verilog_text,
                            ExtractNodesAndGetVerilog(
                                nodes, "ff_test", /*flop_inputs_outputs=*/true));
   std::string expected_ff_verilog_text = R"(module ff_test(
@@ -82,7 +84,8 @@ endmodule
   assign out = p1_add_10;
 endmodule
 )";
-  EXPECT_EQ(ff_verilog_text, expected_ff_verilog_text);
+  EXPECT_EQ(ff_verilog_text.has_value(), true);
+  EXPECT_EQ(ff_verilog_text.value(), expected_ff_verilog_text);
 }
 
 TEST_F(ExtractNodesTest, ExtractionWithLivein) {
@@ -101,7 +104,7 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   absl::flat_hash_set<Node*> nodes({FindNode("sub.2", function)});
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::string verilog_text,
+      std::optional<std::string> verilog_text,
       ExtractNodesAndGetVerilog(nodes, "test", /*flop_inputs_outputs=*/false));
   std::string expected_verilog_text = R"(module test(
   input wire [2:0] add_1,
@@ -113,7 +116,8 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   assign out = sub_6;
 endmodule
 )";
-  EXPECT_EQ(verilog_text, expected_verilog_text);
+  EXPECT_EQ(verilog_text.has_value(), true);
+  EXPECT_EQ(verilog_text.value(), expected_verilog_text);
 }
 
 TEST_F(ExtractNodesTest, ExtractionWithLiveout) {
@@ -134,7 +138,7 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
       {FindNode("add.1", function), FindNode("sub.2", function)});
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::string verilog_text,
+      std::optional<std::string> verilog_text,
       ExtractNodesAndGetVerilog(nodes, "test", /*flop_inputs_outputs=*/false));
   std::string expected_verilog_text = R"(module test(
   input wire [2:0] i0,
@@ -148,10 +152,11 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   assign out = sub_8;
 endmodule
 )";
-  EXPECT_EQ(verilog_text, expected_verilog_text);
+  EXPECT_EQ(verilog_text.has_value(), true);
+  EXPECT_EQ(verilog_text.value(), expected_verilog_text);
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::string all_liveouts_verilog_text,
+      std::optional<std::string> all_liveouts_verilog_text,
       ExtractNodesAndGetVerilog(nodes, "test", /*flop_inputs_outputs=*/false,
                                 /*return_all_liveouts=*/true));
   std::string expected_all_liveouts_verilog_text = R"(module test(
@@ -166,7 +171,9 @@ endmodule
   assign out = {add_8, sub_9};
 endmodule
 )";
-  EXPECT_EQ(all_liveouts_verilog_text, expected_all_liveouts_verilog_text);
+  EXPECT_EQ(all_liveouts_verilog_text.has_value(), true);
+  EXPECT_EQ(all_liveouts_verilog_text.value(),
+            expected_all_liveouts_verilog_text);
 }
 
 }  // namespace

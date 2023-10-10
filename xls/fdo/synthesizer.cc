@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -78,10 +79,14 @@ absl::StatusOr<int64_t> YosysSynthesizer::SynthesizeNodesAndGetDelay(
     const absl::flat_hash_set<Node *> &nodes) const {
   std::string top_name = "tmp_module";
   XLS_ASSIGN_OR_RETURN(
-      std::string verilog_text,
+      std::optional<std::string> verilog_text,
       ExtractNodesAndGetVerilog(nodes, top_name, /*flop_inputs_outputs=*/true));
+  if (!verilog_text.has_value()) {
+    return 0;
+  }
   XLS_ASSIGN_OR_RETURN(int64_t nodes_delay,
-                       SynthesizeVerilogAndGetDelay(verilog_text, top_name));
+                       SynthesizeVerilogAndGetDelay(
+                           verilog_text.value(), top_name));
   return nodes_delay;
 }
 
