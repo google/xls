@@ -19,6 +19,7 @@
 #include <functional>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -245,31 +246,47 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const Block& n, const Comments& comments, DocArena& arena) {
+// Note: we only add leading/trailing spaces in the block if add_curls is true.
+static DocRef FmtBlock(const Block& n, const Comments& comments,
+                       DocArena& arena, bool add_curls) {
   if (n.statements().empty()) {
-    return ConcatNGroup(arena, {arena.ocurl(), arena.break0(), arena.ccurl()});
+    if (add_curls) {
+      return ConcatNGroup(arena,
+                          {arena.ocurl(), arena.break0(), arena.ccurl()});
+    }
+    return arena.break0();
   }
 
   // We only want to flatten single-statement blocks -- multi-statement blocks
   // we always make line breaks between the statements.
   if (n.statements().size() == 1) {
-    std::vector<DocRef> pieces = {arena.ocurl(), arena.break1(),
-                                  Fmt(*n.statements()[0], comments, arena)};
+    std::vector<DocRef> pieces;
+    if (add_curls) {
+      pieces = {arena.ocurl(), arena.break1()};
+    }
+
+    pieces.push_back(Fmt(*n.statements()[0], comments, arena));
+
     if (n.trailing_semi()) {
       pieces.push_back(arena.semi());
     }
-    pieces.push_back(arena.break1());
-    pieces.push_back(arena.ccurl());
-    return ConcatNGroup(arena, pieces);
+    if (add_curls) {
+      pieces.push_back(arena.break1());
+      pieces.push_back(arena.ccurl());
+    }
+    return arena.MakeNest(ConcatNGroup(arena, pieces));
   }
 
   // Emit a '{' then nest to emit statements with semis, then emit a '}' outside
   // the nesting.
-  std::vector<DocRef> top = {
-      arena.ocurl(),
-  };
+  std::vector<DocRef> top;
 
-  std::vector<DocRef> nested = {arena.hard_line()};
+  if (add_curls) {
+    top.push_back(arena.ocurl());
+    top.push_back(arena.hard_line());
+  }
+
+  std::vector<DocRef> nested;
   for (size_t i = 0; i < n.statements().size(); ++i) {
     const Statement* stmt = n.statements()[i];
     nested.push_back(Fmt(*stmt, comments, arena));
@@ -283,10 +300,16 @@ DocRef Fmt(const Block& n, const Comments& comments, DocArena& arena) {
   }
 
   top.push_back(arena.MakeNest(ConcatN(arena, nested)));
-  top.push_back(arena.hard_line());
-  top.push_back(arena.ccurl());
+  if (add_curls) {
+    top.push_back(arena.hard_line());
+    top.push_back(arena.ccurl());
+  }
 
   return ConcatNGroup(arena, top);
+}
+
+DocRef Fmt(const Block& n, const Comments& comments, DocArena& arena) {
+  return FmtBlock(n, comments, arena, /*add_curls=*/true);
 }
 
 DocRef Fmt(const Cast& n, const Comments& comments, DocArena& arena) {
@@ -448,8 +471,85 @@ DocRef Fmt(const String& n, const Comments& comments, DocArena& arena) {
   return arena.MakeText(n.ToString());
 }
 
+// Creates a group that has the "test portion" of the conditional; i.e.
+//
+//  if <break1> $test_expr <break1> {
+static DocRef MakeConditionalTestGroup(const Conditional& n,
+                                       const Comments& comments,
+                                       DocArena& arena) {
+  return ConcatNGroup(arena, {
+                                 arena.Make(Keyword::kIf),
+                                 arena.break1(),
+                                 Fmt(*n.test(), comments, arena),
+                                 arena.break1(),
+                                 arena.ocurl(),
+                             });
+}
+
+// When there's an else-if, or multiple statements inside of the blocks, we
+// force the formatting to be multi-line.
+static DocRef FmtConditionalMultiline(const Conditional& n,
+                                      const Comments& comments,
+                                      DocArena& arena) {
+  std::vector<DocRef> pieces = {
+      MakeConditionalTestGroup(n, comments, arena), arena.hard_line(),
+      FmtBlock(*n.consequent(), comments, arena, /*add_curls=*/false),
+      arena.hard_line()};
+
+  std::variant<Block*, Conditional*> alternate = n.alternate();
+  while (std::holds_alternative<Conditional*>(alternate)) {
+    Conditional* elseif = std::get<Conditional*>(alternate);
+    alternate = elseif->alternate();
+    pieces.push_back(arena.ccurl());
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.Make(Keyword::kElse));
+    pieces.push_back(arena.space());
+    pieces.push_back(MakeConditionalTestGroup(*elseif, comments, arena));
+    pieces.push_back(arena.hard_line());
+    pieces.push_back(
+        FmtBlock(*elseif->consequent(), comments, arena, /*add_curls=*/false));
+    pieces.push_back(arena.hard_line());
+  }
+
+  XLS_CHECK(std::holds_alternative<Block*>(alternate));
+
+  Block* else_block = std::get<Block*>(alternate);
+  pieces.push_back(arena.ccurl());
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.Make(Keyword::kElse));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.ocurl());
+  pieces.push_back(arena.hard_line());
+  pieces.push_back(FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
+  pieces.push_back(arena.hard_line());
+  pieces.push_back(arena.ccurl());
+
+  return ConcatN(arena, pieces);
+}
+
 DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle conditional: " << n.ToString();
+  // If there's an else-if clause or multi-statement blocks we force it to be
+  // multi-line.
+  if (n.HasElseIf() || n.HasMultiStatementBlocks()) {
+    return FmtConditionalMultiline(n, comments, arena);
+  }
+
+  std::vector<DocRef> pieces = {
+      MakeConditionalTestGroup(n, comments, arena),
+      arena.break1(),
+      FmtBlock(*n.consequent(), comments, arena, /*add_curls=*/false),
+      arena.break1(),
+  };
+
+  XLS_CHECK(std::holds_alternative<Block*>(n.alternate()));
+  const Block* else_block = std::get<Block*>(n.alternate());
+  pieces.push_back(ConcatNGroup(
+      arena, {arena.ccurl(), arena.break1(), arena.Make(Keyword::kElse),
+              arena.break1(), arena.ocurl(), arena.break1()}));
+  pieces.push_back(FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
+  pieces.push_back(arena.break1());
+  pieces.push_back(arena.ccurl());
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
@@ -694,30 +794,50 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
 
   DocRef params = FmtParams(n.params(), comments, arena);
 
-  std::vector<DocRef> pieces = {fn, arena.break1(), name};
+  std::vector<DocRef> signature_pieces = {fn, arena.break1(), name};
 
   if (n.IsParametric()) {
-    pieces.push_back(arena.oangle());
-    pieces.push_back(FmtJoin<const ParametricBinding*>(
-        n.parametric_bindings(), FmtParametricBindingPtr, comments, arena));
-    pieces.push_back(arena.cangle());
+    signature_pieces.push_back(ConcatNGroup(
+        arena,
+        {arena.oangle(),
+         FmtJoin<const ParametricBinding*>(
+             n.parametric_bindings(), FmtParametricBindingPtr, comments, arena),
+         arena.cangle()}));
   }
 
-  pieces.push_back(arena.break0());
-  pieces.push_back(params);
-  pieces.push_back(arena.break1());
+  signature_pieces.push_back(arena.break0());
+  signature_pieces.push_back(params);
+  signature_pieces.push_back(arena.break1());
 
   if (n.return_type() != nullptr) {
-    pieces.push_back(arena.arrow());
-    pieces.push_back(arena.break1());
-    pieces.push_back(Fmt(*n.return_type(), comments, arena));
-    pieces.push_back(arena.break1());
+    signature_pieces.push_back(arena.arrow());
+    signature_pieces.push_back(arena.break1());
+    signature_pieces.push_back(Fmt(*n.return_type(), comments, arena));
+    signature_pieces.push_back(arena.break1());
   }
 
-  return ConcatNGroup(arena, {
-                                 ConcatNGroup(arena, pieces),
-                                 Fmt(*n.body(), comments, arena),
-                             });
+  signature_pieces.push_back(arena.ocurl());
+
+  // For empty function we don't put spaces between the curls.
+  if (n.body()->empty()) {
+    std::vector<DocRef> fn_pieces = {
+        ConcatNGroup(arena, signature_pieces),
+        FmtBlock(*n.body(), comments, arena, /*add_curls=*/false),
+        arena.ccurl(),
+    };
+
+    return ConcatNGroup(arena, fn_pieces);
+  }
+
+  std::vector<DocRef> fn_pieces = {
+      ConcatNGroup(arena, signature_pieces),
+      arena.break1(),
+      FmtBlock(*n.body(), comments, arena, /*add_curls=*/false),
+      arena.break1(),
+      arena.ccurl(),
+  };
+
+  return ConcatNGroup(arena, fn_pieces);
 }
 
 static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {

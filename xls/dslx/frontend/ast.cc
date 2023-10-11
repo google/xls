@@ -550,6 +550,19 @@ std::string Conditional::ToStringInternal() const {
                          ToAstNode(alternate_)->ToString());
 }
 
+bool Conditional::HasMultiStatementBlocks() const {
+  if (consequent_->size() > 1) {
+    return true;
+  }
+  return absl::visit(Visitor{
+                         [](const Block* block) { return block->size() > 1; },
+                         [](const Conditional* elseif) {
+                           return elseif->HasMultiStatementBlocks();
+                         },
+                     },
+                     alternate_);
+}
+
 // -- class Attr
 
 Attr::~Attr() = default;

@@ -232,6 +232,50 @@ TEST_F(FunctionFmtTest, ConstAssert) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, ConditionalInTernaryStyle) {
+  const std::string_view original =
+      "fn f(x:bool,y:u32,z:u32)->u32{if x{y}else{z}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(x: bool, y: u32, z: u32) -> u32 { if x { y } else { z } })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, ConditionalMultiStatementCausesHardBreaks) {
+  const std::string_view original =
+      "fn f(x:bool,y:u32,z:u32)->u32{if x{y;z}else{z;y}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(x: bool, y: u32, z: u32) -> u32 {
+    if x {
+        y;
+        z
+    } else {
+        z;
+        y
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, ConditionalWithElseIf) {
+  const std::string_view original =
+      "fn f(a:bool[2],x:u32[3])->u32{if a[0]{x[0]}else if "
+      "a[1]{x[1]}else{x[2]}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(a: bool[2], x: u32[3]) -> u32 {
+    if a[0] {
+        x[0]
+    } else if a[1] {
+        x[1]
+    } else {
+        x[2]
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {

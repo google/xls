@@ -29,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/error_test_utils.h"
@@ -1396,7 +1397,10 @@ TEST_F(ParserTest, ForFreevars) {
 TEST_F(ParserTest, EmptyTernary) { RoundTripExpr("if true {} else {}"); }
 
 TEST_F(ParserTest, TernaryConditional) {
-  RoundTripExpr("if true { u32:42 } else { u32:24 }", {});
+  Expr* e = RoundTripExpr("if true { u32:42 } else { u32:24 }", {});
+
+  EXPECT_FALSE(down_cast<Conditional*>(e)->HasElseIf());
+  EXPECT_FALSE(down_cast<Conditional*>(e)->HasMultiStatementBlocks());
 
   RoundTripExpr(R"(if really_long_identifier_so_that_this_is_too_many_chars {
     u32:42
@@ -1407,7 +1411,11 @@ TEST_F(ParserTest, TernaryConditional) {
 }
 
 TEST_F(ParserTest, LadderedConditional) {
-  RoundTripExpr("if true { u32:42 } else if false { u32:33 } else { u32:24 }");
+  Expr* e = RoundTripExpr(
+      "if true { u32:42 } else if false { u32:33 } else { u32:24 }");
+
+  EXPECT_TRUE(down_cast<Conditional*>(e)->HasElseIf());
+  EXPECT_FALSE(down_cast<Conditional*>(e)->HasMultiStatementBlocks());
 
   RoundTripExpr(
       R"(if really_long_identifier_so_that_this_is_too_many_chars {

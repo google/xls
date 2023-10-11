@@ -795,6 +795,8 @@ class Block : public Expr {
     trailing_semi_ = false;
   }
 
+  int64_t size() const { return statements_.size(); }
+
  private:
   Precedence GetPrecedenceInternal() const final {
     return Precedence::kStrongest;
@@ -1441,6 +1443,14 @@ class Conditional : public Expr {
   Expr* test() const { return test_; }
   Block* consequent() const { return consequent_; }
   std::variant<Block*, Conditional*> alternate() const { return alternate_; }
+
+  bool HasElseIf() const {
+    return std::holds_alternative<Conditional*>(alternate());
+  }
+
+  // Returns whether the blocks inside of this (potentially laddered)
+  // conditional have multiple statements.
+  bool HasMultiStatementBlocks() const;
 
  private:
   Precedence GetPrecedenceInternal() const final {
