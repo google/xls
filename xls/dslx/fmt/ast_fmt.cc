@@ -45,6 +45,7 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
 
 enum class Joiner : uint8_t {
   kCommaSpace,
+  kSpaceBarBreak,
   kHardLine,
 };
 
@@ -65,6 +66,11 @@ DocRef FmtJoin(
         case Joiner::kCommaSpace:
           pieces.push_back(arena.comma());
           pieces.push_back(arena.space());
+          break;
+        case Joiner::kSpaceBarBreak:
+          pieces.push_back(arena.space());
+          pieces.push_back(arena.bar());
+          pieces.push_back(arena.break1());
           break;
         case Joiner::kHardLine:
           pieces.push_back(arena.hard_line());
@@ -478,8 +484,41 @@ DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
+static DocRef FmtNameDefTreePtr(const NameDefTree* n, const Comments& comments,
+                                DocArena& arena) {
+  return Fmt(*n, comments, arena);
+}
+
+static DocRef Fmt(const MatchArm& n, const Comments& comments,
+                  DocArena& arena) {
+  std::vector<DocRef> pieces;
+  pieces.push_back(
+      FmtJoin<const NameDefTree*>(n.patterns(), Joiner::kSpaceBarBreak,
+                                  FmtNameDefTreePtr, comments, arena));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.fat_arrow());
+  pieces.push_back(arena.break1());
+  pieces.push_back(Fmt(*n.expr(), comments, arena));
+  return ConcatNGroup(arena, pieces);
+}
+
 DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle match: " << n.ToString();
+  std::vector<DocRef> pieces;
+  pieces.push_back(ConcatNGroup(
+      arena,
+      {arena.Make(Keyword::kMatch), arena.space(),
+       Fmt(n.matched(), comments, arena), arena.space(), arena.ocurl()}));
+
+  pieces.push_back(arena.hard_line());
+
+  for (const MatchArm* arm : n.arms()) {
+    pieces.push_back(arena.MakeNest(Fmt(*arm, comments, arena)));
+    pieces.push_back(arena.comma());
+    pieces.push_back(arena.hard_line());
+  }
+
+  pieces.push_back(arena.ccurl());
+  return ConcatN(arena, pieces);
 }
 
 DocRef Fmt(const Spawn& n, const Comments& comments, DocArena& arena) {

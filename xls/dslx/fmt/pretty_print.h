@@ -195,6 +195,7 @@ class DocArena {
   DocRef ccurl() const { return ccurl_; }
   DocRef semi() const { return semi_; }
   DocRef arrow() const { return arrow_; }
+  DocRef fat_arrow() const { return fat_arrow_; }
   DocRef dot() const { return dot_; }
   DocRef obracket() const { return obracket_; }
   DocRef cbracket() const { return cbracket_; }
@@ -202,6 +203,7 @@ class DocArena {
   DocRef cangle() const { return cangle_; }
   DocRef plus_colon() const { return plus_colon_; }
   DocRef colon_colon() const { return colon_colon_; }
+  DocRef bar() const { return bar_; }
 
   // Gets-or-creates a doc with the text of the given keyword.
   DocRef Make(Keyword kw);
@@ -235,6 +237,7 @@ class DocArena {
   DocRef ccurl_;
   DocRef semi_;
   DocRef arrow_;
+  DocRef fat_arrow_;
   DocRef dot_;
   DocRef obracket_;
   DocRef cbracket_;
@@ -242,6 +245,7 @@ class DocArena {
   DocRef cangle_;
   DocRef plus_colon_;
   DocRef colon_colon_;
+  DocRef bar_;
 
   absl::flat_hash_map<Keyword, DocRef> keyword_to_ref_;
 };

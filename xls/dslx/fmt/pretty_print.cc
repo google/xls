@@ -255,6 +255,7 @@ DocArena::DocArena() {
   ccurl_ = MakeText("}");
   semi_ = MakeText(";");
   arrow_ = MakeText("->");
+  fat_arrow_ = MakeText("=>");
   dot_ = MakeText(".");
   obracket_ = MakeText("[");
   cbracket_ = MakeText("]");
@@ -262,6 +263,7 @@ DocArena::DocArena() {
   cangle_ = MakeText(">");
   plus_colon_ = MakeText("+:");
   colon_colon_ = MakeText("::");
+  bar_ = MakeText("|");
 }
 
 DocRef DocArena::MakeText(std::string s) {

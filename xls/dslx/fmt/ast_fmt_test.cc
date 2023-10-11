@@ -340,6 +340,34 @@ TEST_F(FunctionFmtTest, SimpleForLetBinding) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, SimpleMatchOnBool) {
+  const std::string_view original =
+      "fn f(b:bool)->u32{match b{true=>u32:42,_=>u32:64}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(b: bool) -> u32 {
+    match b {
+        true => u32:42,
+        _ => u32:64,
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, MatchMultiPattern) {
+  const std::string_view original =
+      "fn f(b:bool)->u32{match b{true|false=>u32:42,_=>u32:64}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(b: bool) -> u32 {
+    match b {
+        true | false => u32:42,
+        _ => u32:64,
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
