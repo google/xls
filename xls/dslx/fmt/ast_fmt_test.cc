@@ -63,6 +63,15 @@ TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x[i]).2");
 }
 
+TEST(BuiltAstFmtTest, FormatUnopThatNeedsParensOnOperand) {
+  auto [module, unop] = MakeCastWithinNegateExpression();
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*unop, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "-(x as u32)");
+}
+
 TEST(AstFmtTest, FormatLet) {
   Scanner s{"fake.x", "{ let x: u32 = u32:42; }"};
   Parser p("fake", &s);
@@ -162,6 +171,20 @@ TEST_F(FunctionFmtTest, FormatMultiParameter) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
   const std::string_view want =
       R"(fn f(x: u32, y: u64) -> (u32, u64) { (x, y) })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, SimpleUnopNegate) {
+  const std::string_view original = "fn f(x:u32)->u32{-x}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u32 { -x })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, SimpleUnopInvert) {
+  const std::string_view original = "fn f(x:u32)->u32{!x}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u32 { !x })";
   EXPECT_EQ(got, want);
 }
 

@@ -86,4 +86,19 @@ std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression() {
   return std::make_pair(std::move(m), tuple_index);
 }
 
+std::pair<Module, Unop*> MakeCastWithinNegateExpression() {
+  Module m("test", /*fs_path=*/std::nullopt);
+  const Span fake_span;
+  BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef("x");
+  NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
+
+  BuiltinTypeAnnotation* builtin_u32 = m.Make<BuiltinTypeAnnotation>(
+      fake_span, BuiltinType::kU32, m.GetOrCreateBuiltinNameDef("u32"));
+
+  // x as u32
+  Cast* cast = m.Make<Cast>(fake_span, x_ref, builtin_u32);
+  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, cast);
+  return std::make_pair(std::move(m), unop);
+}
+
 }  // namespace xls::dslx

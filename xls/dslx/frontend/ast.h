@@ -1270,7 +1270,7 @@ class Param : public AstNode {
   Span span_;
 };
 
-enum class UnopKind {
+enum class UnopKind : uint8_t {
   kInvert,  // one's complement inversion (bit flip)
   kNegate,  // two's complement aritmetic negation (~x+1)
 };

@@ -600,7 +600,16 @@ DocRef Fmt(const ZeroMacro& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Unop& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle unop: " << n.ToString();
+  std::vector<DocRef> pieces = {
+      arena.MakeText(UnopKindToString(n.unop_kind()))};
+  if (WeakerThan(n.operand()->GetPrecedence(), n.GetPrecedence())) {
+    pieces.push_back(arena.oparen());
+    pieces.push_back(Fmt(*n.operand(), comments, arena));
+    pieces.push_back(arena.cparen());
+  } else {
+    pieces.push_back(Fmt(n.operand(), comments, arena));
+  }
+  return ConcatNGroup(arena, pieces);
 }
 
 // Forward decl.
