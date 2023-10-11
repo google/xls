@@ -660,5 +660,41 @@ fn get_x(p: Point) -> u32 { p.x }
   }
 }
 
+TEST(ModuleFmtTest, ConstStructInstanceWithSplatVariantOneUpdate) {
+  const std::string_view kProgram =
+      R"(struct Point { x: u32, y: u32 }
+
+const P = Point { x: u32:42, y: u32:64 };
+
+const Q = Point { x: u32:32, ..P };
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
+TEST(ModuleFmtTest, ConstStructInstanceWithSplatVariantNoUpdate) {
+  const std::string_view kProgram =
+      R"(struct Point { x: u32, y: u32 }
+
+const P = Point { x: u32:42, y: u32:64 };
+
+const Q = Point { ..P };
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
 }  // namespace
 }  // namespace xls::dslx

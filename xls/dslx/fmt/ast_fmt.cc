@@ -564,11 +564,6 @@ DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, top);
 }
 
-DocRef Fmt(const SplatStructInstance& n, const Comments& comments,
-           DocArena& arena) {
-  XLS_LOG(FATAL) << "handle splat struct instance: " << n.ToString();
-}
-
 static DocRef Fmt(const StructRef& n, const Comments& comments,
                   DocArena& arena) {
   return absl::visit(
@@ -579,18 +574,23 @@ static DocRef Fmt(const StructRef& n, const Comments& comments,
       n);
 }
 
-DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
-  DocRef leader = ConcatNGroup(arena, {
-                                          Fmt(n.struct_def(), comments, arena),
-                                          arena.break1(),
-                                          arena.ocurl(),
-                                      });
-  if (n.GetUnorderedMembers().empty()) {  // empty struct instance
-    return arena.MakeConcat(leader, arena.ccurl());
-  }
+// Note: this does not put any spacing characters after the '{' so we can
+// appropriately handle the case of an empty struct having no spacing in its
+// `S {}` style construct.
+static DocRef FmtStructLeader(const StructRef& struct_ref,
+                              const Comments& comments, DocArena& arena) {
+  return ConcatNGroup(arena, {
+                                 Fmt(struct_ref, comments, arena),
+                                 arena.break1(),
+                                 arena.ocurl(),
+                             });
+}
 
-  DocRef body_pieces = FmtJoin<std::pair<std::string, Expr*>>(
-      n.GetUnorderedMembers(), Joiner::kCommaBreak1,
+static DocRef FmtStructMembers(
+    absl::Span<const std::pair<std::string, Expr*>> members,
+    const Comments& comments, DocArena& arena) {
+  return FmtJoin<std::pair<std::string, Expr*>>(
+      members, Joiner::kCommaBreak1,
       [](const auto& member, const Comments& comments, DocArena& arena) {
         const auto& [name, expr] = member;
         return ConcatNGroup(
@@ -598,10 +598,41 @@ DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
                     Fmt(*expr, comments, arena)});
       },
       comments, arena);
+}
+
+DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
+  DocRef leader = FmtStructLeader(n.struct_def(), comments, arena);
+
+  if (n.GetUnorderedMembers().empty()) {  // empty struct instance
+    return arena.MakeConcat(leader, arena.ccurl());
+  }
+
+  DocRef body_pieces =
+      FmtStructMembers(n.GetUnorderedMembers(), comments, arena);
 
   return ConcatNGroup(arena,
                       {leader, arena.break1(), arena.MakeNest(body_pieces),
                        arena.break1(), arena.ccurl()});
+}
+
+DocRef Fmt(const SplatStructInstance& n, const Comments& comments,
+           DocArena& arena) {
+  DocRef leader = FmtStructLeader(n.struct_ref(), comments, arena);
+  if (n.members().empty()) {
+    return ConcatNGroup(arena, {leader, arena.break1(), arena.dot_dot(),
+                                Fmt(*n.splatted(), comments, arena),
+                                arena.break1(), arena.ccurl()});
+  }
+
+  DocRef body_pieces = FmtStructMembers(n.members(), comments, arena);
+
+  return ConcatNGroup(
+      arena,
+      {leader, arena.break1(), arena.MakeNest(body_pieces), arena.comma(),
+       arena.break1(), arena.dot_dot(), Fmt(*n.splatted(), comments, arena),
+       arena.break1(), arena.ccurl()});
+
+  XLS_LOG(FATAL) << "handle splat struct instance: " << n.ToString();
 }
 
 DocRef Fmt(const String& n, const Comments& comments, DocArena& arena) {
