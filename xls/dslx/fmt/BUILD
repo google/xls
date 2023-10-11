@@ -72,6 +72,7 @@ cc_test(
     deps = [
         ":ast_fmt",
         ":pretty_print",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

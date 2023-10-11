@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -123,10 +124,20 @@ let x: u32 = u32:42)");
 // Use `ModuleFmtTest` for formatting of entire modules.
 class FunctionFmtTest : public testing::Test {
  public:
-  absl::StatusOr<std::string> DoFmt(std::string_view original) {
+  // Args:
+  //  original: The text to parse-then-auto-format.
+  //  builtin_name_defs: Names to initialize in the bindings as built-in.
+  absl::StatusOr<std::string> DoFmt(
+      std::string_view original,
+      const absl::flat_hash_set<std::string>& builtin_name_defs = {}) {
     XLS_CHECK(!scanner_.has_value());
     scanner_.emplace("fake.x", std::string{original});
     parser_.emplace("fake", &scanner_.value());
+
+    for (const std::string& name : builtin_name_defs) {
+      bindings_.Add(name, parser_->module().GetOrCreateBuiltinNameDef(name));
+    }
+
     XLS_ASSIGN_OR_RETURN(
         f_, parser_->ParseFunction(/*is_public=*/false, bindings_));
     Comments comments = Comments::Create(scanner_->comments());
@@ -134,6 +145,8 @@ class FunctionFmtTest : public testing::Test {
     DocRef doc = Fmt(*f_, comments, arena_);
     return PrettyPrint(arena_, doc, /*text_width=*/100);
   }
+
+  Bindings& bindings() { return bindings_; }
 
  private:
   DocArena arena_;
@@ -374,6 +387,13 @@ TEST_F(FunctionFmtTest, MatchMultiPattern) {
         _ => u32:64,
     }
 })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, ZeroMacro) {
+  const std::string_view original = "fn f()->u32{zero!<u32>()}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"zero!"}));
+  const std::string_view want = R"(fn f() -> u32 { zero!<u32>() })";
   EXPECT_EQ(got, want);
 }
 

@@ -717,7 +717,14 @@ DocRef Fmt(const UnrollFor& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const ZeroMacro& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle zero macro: " << n.ToString();
+  return ConcatNGroup(arena, {
+                                 arena.MakeText("zero!"),
+                                 arena.oangle(),
+                                 FmtExprOrType(n.type(), comments, arena),
+                                 arena.cangle(),
+                                 arena.oparen(),
+                                 arena.cparen(),
+                             });
 }
 
 DocRef Fmt(const Unop& n, const Comments& comments, DocArena& arena) {
