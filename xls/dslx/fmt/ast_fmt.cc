@@ -45,6 +45,7 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
 
 enum class Joiner : uint8_t {
   kCommaSpace,
+  kCommaBreak1,
   kSpaceBarBreak,
   kHardLine,
 };
@@ -66,6 +67,10 @@ DocRef FmtJoin(
         case Joiner::kCommaSpace:
           pieces.push_back(arena.comma());
           pieces.push_back(arena.space());
+          break;
+        case Joiner::kCommaBreak1:
+          pieces.push_back(arena.comma());
+          pieces.push_back(arena.break1());
           break;
         case Joiner::kSpaceBarBreak:
           pieces.push_back(arena.space());
@@ -551,8 +556,39 @@ DocRef Fmt(const SplatStructInstance& n, const Comments& comments,
   XLS_LOG(FATAL) << "handle splat struct instance: " << n.ToString();
 }
 
+static DocRef Fmt(const StructRef& n, const Comments& comments,
+                  DocArena& arena) {
+  return absl::visit(
+      Visitor{
+          [&](const StructDef* n) { return arena.MakeText(n->identifier()); },
+          [&](const ColonRef* n) { return Fmt(*n, comments, arena); },
+      },
+      n);
+}
+
 DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle struct instance: " << n.ToString();
+  DocRef leader = ConcatNGroup(arena, {
+                                          Fmt(n.struct_def(), comments, arena),
+                                          arena.break1(),
+                                          arena.ocurl(),
+                                      });
+  if (n.GetUnorderedMembers().empty()) {  // empty struct instance
+    return arena.MakeConcat(leader, arena.ccurl());
+  }
+
+  DocRef body_pieces = FmtJoin<std::pair<std::string, Expr*>>(
+      n.GetUnorderedMembers(), Joiner::kCommaBreak1,
+      [](const auto& member, const Comments& comments, DocArena& arena) {
+        const auto& [name, expr] = member;
+        return ConcatNGroup(
+            arena, {arena.MakeText(name), arena.colon(), arena.break1(),
+                    Fmt(*expr, comments, arena)});
+      },
+      comments, arena);
+
+  return ConcatNGroup(arena,
+                      {leader, arena.break1(), arena.MakeNest(body_pieces),
+                       arena.break1(), arena.ccurl()});
 }
 
 DocRef Fmt(const String& n, const Comments& comments, DocArena& arena) {
@@ -984,26 +1020,30 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
 
   pieces.push_back(arena.space());
   pieces.push_back(arena.ocurl());
-  pieces.push_back(arena.break1());
 
-  std::vector<DocRef> body_pieces;
-  for (size_t i = 0; i < n.members().size(); ++i) {
-    const auto& [name_def, type] = n.members()[i];
-    body_pieces.push_back(arena.MakeText(name_def->identifier()));
-    body_pieces.push_back(arena.colon());
-    body_pieces.push_back(arena.space());
-    body_pieces.push_back(Fmt(*type, comments, arena));
-    if (i + 1 == n.members().size()) {
-      body_pieces.push_back(arena.MakeFlatChoice(/*on_flat=*/arena.empty(),
-                                                 /*on_break=*/arena.comma()));
-    } else {
-      body_pieces.push_back(arena.comma());
-      body_pieces.push_back(arena.break1());
+  if (!n.members().empty()) {
+    pieces.push_back(arena.break1());
+
+    std::vector<DocRef> body_pieces;
+    for (size_t i = 0; i < n.members().size(); ++i) {
+      const auto& [name_def, type] = n.members()[i];
+      body_pieces.push_back(arena.MakeText(name_def->identifier()));
+      body_pieces.push_back(arena.colon());
+      body_pieces.push_back(arena.space());
+      body_pieces.push_back(Fmt(*type, comments, arena));
+      if (i + 1 == n.members().size()) {
+        body_pieces.push_back(arena.MakeFlatChoice(/*on_flat=*/arena.empty(),
+                                                   /*on_break=*/arena.comma()));
+      } else {
+        body_pieces.push_back(arena.comma());
+        body_pieces.push_back(arena.break1());
+      }
     }
+
+    pieces.push_back(arena.MakeNest(ConcatN(arena, body_pieces)));
+    pieces.push_back(arena.break1());
   }
 
-  pieces.push_back(arena.MakeNest(ConcatN(arena, body_pieces)));
-  pieces.push_back(arena.break1());
   pieces.push_back(arena.ccurl());
   return ConcatNGroup(arena, pieces);
 }
