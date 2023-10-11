@@ -42,10 +42,17 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena);
 DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
                      DocArena& arena);
 
+enum class Joiner : uint8_t {
+  kCommaSpace,
+  kHardLine,
+};
+
 // Helper for doing a "join via comma space" pattern with doc refs.
+//
+// This elides the "joiner" being present after the last item.
 template <typename T>
 DocRef FmtJoin(
-    absl::Span<const T> items,
+    absl::Span<const T> items, Joiner joiner,
     const std::function<DocRef(const T&, const Comments&, DocArena&)>& fmt,
     const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
@@ -53,8 +60,15 @@ DocRef FmtJoin(
     const T& item = items[i];
     pieces.push_back(fmt(item, comments, arena));
     if (i + 1 != items.size()) {
-      pieces.push_back(arena.comma());
-      pieces.push_back(arena.space());
+      switch (joiner) {
+        case Joiner::kCommaSpace:
+          pieces.push_back(arena.comma());
+          pieces.push_back(arena.space());
+          break;
+        case Joiner::kHardLine:
+          pieces.push_back(arena.hard_line());
+          break;
+      }
     }
   }
   return ConcatN(arena, pieces);
@@ -82,7 +96,7 @@ DocRef Fmt(const TupleTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   std::vector<DocRef> pieces = {arena.oparen()};
   pieces.push_back(FmtJoin<const TypeAnnotation*>(
-      n.members(), FmtTypeAnnotationPtr, comments, arena));
+      n.members(), Joiner::kCommaSpace, FmtTypeAnnotationPtr, comments, arena));
   pieces.push_back(arena.cparen());
   return ConcatNGroup(arena, pieces);
 }
@@ -104,7 +118,8 @@ DocRef Fmt(const TypeRefTypeAnnotation& n, const Comments& comments,
   if (!n.parametrics().empty()) {
     pieces.push_back(arena.oangle());
     pieces.push_back(FmtJoin<ExprOrType>(absl::MakeConstSpan(n.parametrics()),
-                                         FmtExprOrType, comments, arena));
+                                         Joiner::kCommaSpace, FmtExprOrType,
+                                         comments, arena));
     pieces.push_back(arena.cangle());
   }
 
@@ -418,13 +433,14 @@ DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
   };
   if (!n.explicit_parametrics().empty()) {
     pieces.push_back(arena.oangle());
-    pieces.push_back(
-        FmtJoin<ExprOrType>(absl::MakeConstSpan(n.explicit_parametrics()),
-                            FmtExprOrType, comments, arena));
+    pieces.push_back(FmtJoin<ExprOrType>(
+        absl::MakeConstSpan(n.explicit_parametrics()), Joiner::kCommaSpace,
+        FmtExprOrType, comments, arena));
     pieces.push_back(arena.cangle());
   }
   pieces.push_back(arena.oparen());
-  pieces.push_back(FmtJoin<const Expr*>(n.args(), FmtExprPtr, comments, arena));
+  pieces.push_back(FmtJoin<const Expr*>(n.args(), Joiner::kCommaSpace,
+                                        FmtExprPtr, comments, arena));
   pieces.push_back(arena.cparen());
   return ConcatNGroup(arena, pieces);
 }
@@ -797,12 +813,12 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> signature_pieces = {fn, arena.break1(), name};
 
   if (n.IsParametric()) {
-    signature_pieces.push_back(ConcatNGroup(
-        arena,
-        {arena.oangle(),
-         FmtJoin<const ParametricBinding*>(
-             n.parametric_bindings(), FmtParametricBindingPtr, comments, arena),
-         arena.cangle()}));
+    signature_pieces.push_back(
+        ConcatNGroup(arena, {arena.oangle(),
+                             FmtJoin<const ParametricBinding*>(
+                                 n.parametric_bindings(), Joiner::kCommaSpace,
+                                 FmtParametricBindingPtr, comments, arena),
+                             arena.cangle()}));
   }
 
   signature_pieces.push_back(arena.break0());
@@ -877,7 +893,8 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
   if (!n.parametric_bindings().empty()) {
     pieces.push_back(arena.oangle());
     pieces.push_back(FmtJoin<const ParametricBinding*>(
-        n.parametric_bindings(), FmtParametricBindingPtr, comments, arena));
+        n.parametric_bindings(), Joiner::kCommaSpace, FmtParametricBindingPtr,
+        comments, arena));
     pieces.push_back(arena.cangle());
   }
 
@@ -925,8 +942,41 @@ static DocRef Fmt(const ConstantDef& n, const Comments& comments,
   return ConcatNGroup(arena, pieces);
 }
 
+static DocRef FmtEnumMember(const EnumMember& n, const Comments& comments,
+                            DocArena& arena) {
+  return ConcatNGroup(
+      arena, {Fmt(*n.name_def, comments, arena), arena.space(), arena.equals(),
+              arena.break1(), Fmt(*n.value, comments, arena), arena.comma()});
+}
+
 static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "enum def: " << n.ToString();
+  std::vector<DocRef> pieces;
+  if (n.is_public()) {
+    pieces.push_back(arena.Make(Keyword::kPub));
+    pieces.push_back(arena.space());
+  }
+  pieces.push_back(arena.Make(Keyword::kEnum));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.MakeText(n.identifier()));
+
+  pieces.push_back(arena.space());
+  if (n.type_annotation() != nullptr) {
+    pieces.push_back(arena.colon());
+    pieces.push_back(arena.space());
+    pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
+    pieces.push_back(arena.space());
+  }
+
+  pieces.push_back(arena.ocurl());
+  pieces.push_back(arena.hard_line());
+
+  DocRef nested = FmtJoin<EnumMember>(n.values(), Joiner::kHardLine,
+                                      FmtEnumMember, comments, arena);
+
+  pieces.push_back(arena.MakeNest(nested));
+  pieces.push_back(arena.hard_line());
+  pieces.push_back(arena.ccurl());
+  return ConcatN(arena, pieces);
 }
 
 static DocRef Fmt(const Import& n, const Comments& comments, DocArena& arena) {

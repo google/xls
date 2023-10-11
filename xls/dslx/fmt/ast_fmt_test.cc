@@ -332,6 +332,22 @@ TEST(ModuleFmtTest, ConstantDefArrayEllipsis) {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, EnumDefTwoValues) {
+  const std::string_view kInputProgram = "pub enum MyEnum:u32{A=1,B=2}\n";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> m,
+      ParseModule(kInputProgram, "fake.x", "fake", &comments));
+
+  const std::string_view kWant = R"(pub enum MyEnum : u32 {
+    A = 1,
+    B = 2,
+}
+)";
+  std::string got_multiline = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got_multiline, kWant);
+}
+
 TEST(ModuleFmtTest, StructDefTwoFields) {
   const std::string_view kProgram =
       "pub struct Point<N: u32> { x: bits[N], y: u64 }\n";
