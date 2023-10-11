@@ -155,12 +155,18 @@ block test_block(clk: clock, in_ch_data: bits[64], in_ch_2_data: bits[64], out_c
   p0_load_en: bits[1] = or(p0_data_enable, not.127, id=128)
   register_write.129: () = register_write(add.49, register=p0_add_49, load_enable=p0_load_en, id=129)
   register_write.125: () = register_write(and.77, register=p0_valid, load_enable=p0_enable, reset=rst_n, id=125)
+
   out_ch_data: () = output_port(p3_add_49, name=out_ch_data, id=71)
   out_ch_2_data: () = output_port(literal.72, name=out_ch_2_data, id=73)
   out_ch_vld: () = output_port(and.88, name=out_ch_vld, id=89)
   out_ch_2_vld: () = output_port(and.90, name=out_ch_2_vld, id=91)
   in_ch_rdy: () = output_port(p0_enable, name=in_ch_rdy, id=134)
   in_ch_2_rdy: () = output_port(p0_enable, name=in_ch_2_rdy, id=135)
+
+  in_pred: bits[1] = literal(value=1, id=576)
+  after_all.563: token = after_all(id=563)
+  trace.581: token = trace(after_all.563, in_pred, format="rst_n {:x}", data_operands=[rst_n], id=581)
+
 }
 """
 
@@ -399,6 +405,46 @@ class EvalProcTest(absltest.TestCase):
     output = run_command(shared_args + ["--backend", "serial_jit"])
     self.assertIn("Proc test_proc", output.stderr)
 
+  def test_basic_run_until_completed(self):
+    ir_file = self.create_tempfile(content=PROC_IR)
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:42
+          bits[64]:101
+        """))
+    input_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:10
+          bits[64]:6
+        """))
+    output_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:62
+          bits[64]:127
+        """))
+    output_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:55
+          bits[64]:55
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "-1", "-v=3",
+        "--show_trace",
+        "--logtostderr", "--inputs_for_channels",
+        "in_ch={infile1},in_ch_2={infile2}".format(
+            infile1=input_file.full_path,
+            infile2=input_file_2.full_path), "--expected_outputs_for_channels",
+        "out_ch={outfile},out_ch_2={outfile2}".format(
+            outfile=output_file.full_path, outfile2=output_file_2.full_path)
+    ]
+
+    output = run_command(shared_args + ["--backend", "ir_interpreter"])
+    self.assertIn("Proc test_proc", output.stderr)
+
+    output = run_command(shared_args + ["--backend", "serial_jit"])
+    self.assertIn("Proc test_proc", output.stderr)
+
   def test_reset_static(self):
     ir_file = self.create_tempfile(content=PROC_IR)
     input_file = self.create_tempfile(
@@ -471,11 +517,59 @@ class EvalProcTest(absltest.TestCase):
             infile1=input_file.full_path,
             infile2=input_file_2.full_path), "--expected_outputs_for_channels",
         "out_ch={outfile},out_ch_2={outfile2}".format(
-            outfile=output_file.full_path, outfile2=output_file_2.full_path)
+            outfile=output_file.full_path, outfile2=output_file_2.full_path),
+        "--show_trace"
     ]
 
     output = run_command(shared_args)
     self.assertIn("Cycle[6]: resetting? false", output.stderr)
+
+    self.assertIn("trace: rst_n 0", output.stderr)
+    self.assertIn("trace: rst_n 1", output.stderr)
+
+  def test_block_run_until_consumed(self):
+    ir_file = self.create_tempfile(content=BLOCK_IR)
+    signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
+    stats_file = self.create_tempfile(content="")
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:42
+          bits[64]:101
+        """))
+    input_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:10
+          bits[64]:6
+        """))
+    output_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:62
+          bits[64]:127
+        """))
+    output_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:55
+          bits[64]:55
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "-1", "--show_trace",
+        "--logtostderr", "--block_signature_proto", signature_file.full_path,
+        "--backend", "block_interpreter", "--inputs_for_channels",
+        "in_ch={infile1},in_ch_2={infile2}".format(
+            infile1=input_file.full_path,
+            infile2=input_file_2.full_path), "--expected_outputs_for_channels",
+        "out_ch={outfile},out_ch_2={outfile2}".format(
+            outfile=output_file.full_path, outfile2=output_file_2.full_path),
+        "--output_stats_path", stats_file.full_path
+    ]
+
+    output = run_command(shared_args)
+    self.assertIn("Cycle[6]: resetting? false", output.stderr)
+
+    with open(stats_file.full_path, "r") as f:
+      stats_content = f.read()
+      self.assertIn("6", stats_content)
 
   def test_block_no_output(self):
     ir_file = self.create_tempfile(content=BLOCK_IR_BROKEN)

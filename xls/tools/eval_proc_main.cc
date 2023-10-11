@@ -52,6 +52,7 @@
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
@@ -74,7 +75,7 @@ Initial states are set according to their declarations inside the IR itself.
 ABSL_FLAG(std::vector<std::string>, ticks, {},
           "Can be a comma-separated list of runs. "
           "Number of clock ticks to execute for each, with proc state "
-          "resetting per run.");
+          "resetting per run. <0 runs until all outputs are verified.");
 ABSL_FLAG(std::string, backend, "serial_jit",
           "Backend to use for evaluation. Valid options are:\n"
           " * serial_jit: JIT-backed single-stepping runtime.\n"
@@ -148,12 +149,32 @@ ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
 ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
+ABSL_FLAG(std::string, output_stats_path, "", "File to output statistics to.");
 ABSL_FLAG(std::vector<std::string>, model_memories, {},
           "Comma separated list of memory=depth/element_type:initial_value "
           "pairs, for example: "
           "mem=32/bits[32]:0");
 
 namespace xls {
+
+static absl::Status LogInterpreterEvents(std::string_view entity_name,
+                                         const InterpreterEvents& events) {
+  if (absl::GetFlag(FLAGS_show_trace)) {
+    for (const auto& msg : events.trace_msgs) {
+      std::string unescaped_msg;
+      XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
+      std::cerr << "Proc " << entity_name << " trace: " << unescaped_msg
+                << "\n";
+    }
+    for (const auto& msg : events.assert_msgs) {
+      std::string unescaped_msg;
+      XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
+      std::cerr << "Proc " << entity_name << " assert: " << unescaped_msg
+                << "\n";
+    }
+  }
+  return absl::OkStatus();
+}
 
 static absl::Status EvaluateProcs(
     Package* package, bool use_jit, const std::vector<int64_t>& ticks,
@@ -183,8 +204,7 @@ static absl::Status EvaluateProcs(
     }
     runtime->ResetState();
 
-    XLS_CHECK_GT(this_ticks, 0);
-    for (int i = 0; i < this_ticks; i++) {
+    for (int i = 0; this_ticks < 0 || i < this_ticks; i++) {
       if (absl::GetFlag(FLAGS_show_trace)) {
         XLS_LOG(INFO) << "Tick " << i;
       }
@@ -203,23 +223,9 @@ static absl::Status EvaluateProcs(
       std::sort(sorted_procs.begin(), sorted_procs.end(),
                 [](Proc* a, Proc* b) { return a->name() < b->name(); });
 
-      if (absl::GetFlag(FLAGS_show_trace)) {
-        for (Proc* proc : sorted_procs) {
-          for (const auto& msg :
-               runtime->GetInterpreterEvents(proc).trace_msgs) {
-            std::string unescaped_msg;
-            XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
-            std::cerr << "Proc " << proc->name()
-                      << " trace: " << unescaped_msg << "\n";
-          }
-          for (const auto& msg :
-               runtime->GetInterpreterEvents(proc).assert_msgs) {
-            std::string unescaped_msg;
-            XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
-            std::cerr << "Proc " << proc->name() << " assert: " << unescaped_msg
-                      << "\n";
-          }
-        }
+      for (Proc* proc : sorted_procs) {
+        XLS_RETURN_IF_ERROR(LogInterpreterEvents(
+            proc->name(), runtime->GetInterpreterEvents(proc)));
       }
 
       for (const auto& proc : package->procs()) {
@@ -227,6 +233,22 @@ static absl::Status EvaluateProcs(
         XLS_VLOG(1) << "Proc " << proc->name() << " : "
                     << absl::StrFormat(
                            "{%s}", absl::StrJoin(state, ", ", ValueFormatter));
+      }
+
+      // --ticks 0 stops when all outputs are verified
+      if (this_ticks < 0) {
+        bool all_outputs_verified = true;
+        for (const auto& [channel_name, values] :
+             expected_outputs_for_channels) {
+          XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
+                               queue_manager.GetQueueByName(channel_name));
+          if (out_queue->GetSize() < values.size()) {
+            all_outputs_verified = false;
+          }
+        }
+        if (all_outputs_verified) {
+          break;
+        }
       }
     }
   }
@@ -239,9 +261,9 @@ static absl::Status EvaluateProcs(
     for (const Value& value : values) {
       std::optional<Value> out_val = out_queue->Read();
       if (!out_val.has_value()) {
-        return absl::UnknownError(
-            absl::StrFormat("Channel %s didn't consume %d expected values",
-                            channel_name, values.size() - processed_count));
+        return absl::UnknownError(absl::StrFormat(
+            "Channel %s didn't consume %d expected values (processed %d)",
+            channel_name, values.size() - processed_count, processed_count));
       }
       if (value != *out_val) {
         XLS_RET_CHECK_EQ(value, *out_val) << absl::StreamFormat(
@@ -538,7 +560,8 @@ static absl::Status RunBlockInterpreter(
     std::string_view memory_write_address_suffix,
     std::string_view memory_write_data_suffix,
     std::string_view idle_channel_name, const int random_seed,
-    const double prob_input_valid_assert, bool show_trace) {
+    const double prob_input_valid_assert, bool show_trace,
+    std::string_view output_stats_path) {
   if (package->blocks().size() != 1) {
     return absl::InvalidArgumentError(
         "Input IR should contain exactly one block");
@@ -614,8 +637,13 @@ static absl::Status RunBlockInterpreter(
 
     absl::flat_hash_set<std::string> asserted_valids;
     absl::flat_hash_map<std::string, Value> input_set;
-    input_set[signature.reset().name()] = Value(
-        xls::UBits((resetting ^ signature.reset().active_low()) ? 1 : 0, 1));
+
+    if (!signature.reset().name().empty()) {
+      input_set[signature.reset().name()] = Value(
+          xls::UBits((resetting ^ signature.reset().active_low()) ? 1 : 0, 1));
+    } else {
+      XLS_LOG(WARNING) << "No reset found in signature!";
+    }
 
     for (const auto& [name, _] : inputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
@@ -632,7 +660,6 @@ static absl::Status RunBlockInterpreter(
         }
         input_set[info.channel_valid] =
             Value(xls::UBits(this_valid ? 1 : 0, 1));
-
         // Channels without data port will return nullptr
         xls::Type* port_type = GetPortTypeOrNull(
             block, name + streaming_channel_data_suffix.data());
@@ -656,10 +683,13 @@ static absl::Status RunBlockInterpreter(
       XLS_CHECK(info.ready_valid);
       input_set[info.channel_ready] = Value(xls::UBits(1, 1));
     }
-
     XLS_ASSIGN_OR_RETURN(xls::BlockRunResult result,
                          xls::BlockRun(input_set, reg_state, block));
     reg_state = std::move(result.reg_state);
+
+    // Output trace messages
+    XLS_RETURN_IF_ERROR(
+        LogInterpreterEvents(block->name(), result.interpreter_events));
 
     if (resetting) {
       last_output_cycle = cycle;
@@ -710,7 +740,7 @@ static absl::Status RunBlockInterpreter(
         const Value& match_value = queue.front();
         if (show_trace) {
           XLS_LOG(INFO) << "Channel Model: Consuming output for " << name
-                        << ": " << data_value;
+                        << ": " << data_value << ", remaining " << queue.size();
         }
         if (match_value != data_value) {
           return absl::UnknownError(absl::StrFormat(
@@ -790,6 +820,11 @@ static absl::Status RunBlockInterpreter(
     }
   }
 
+  if (!output_stats_path.empty()) {
+    XLS_RETURN_IF_ERROR(xls::SetFileContents(
+        output_stats_path, absl::StrFormat("%i", last_output_cycle)));
+  }
+
   return absl::OkStatus();
 }
 
@@ -828,8 +863,11 @@ ParseChannelFilenames(absl::Span<const std::string> files_raw) {
   return ret;
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, std::pair<int64_t, Value>>>
-static ParseMemoryModels(absl::Span<const std::string> models_raw) {
+absl::StatusOr<absl::flat_hash_map<
+    std::string,
+    std::pair<int64_t,
+              Value>>> static ParseMemoryModels(absl::Span<const std::string>
+                                                    models_raw) {
   absl::flat_hash_map<std::string, std::pair<int64_t, Value>> ret;
   for (const std::string& model_str : models_raw) {
     std::vector<std::string> split = absl::StrSplit(model_str, '=');
@@ -889,7 +927,8 @@ static absl::Status RealMain(
     std::string_view memory_write_address_suffix,
     std::string_view memory_write_data_suffix,
     std::string_view idle_channel_name, const int random_seed,
-    const double prob_input_valid_assert, bool show_trace) {
+    const double prob_input_valid_assert, bool show_trace,
+    std::string_view output_stats_path) {
   // Don't waste time and memory parsing more input than can possibly be
   // consumed.
   const int64_t total_ticks =
@@ -952,7 +991,7 @@ static absl::Status RealMain(
         memory_read_address_suffix, memory_read_data_suffix,
         memory_write_enable_suffix, memory_write_address_suffix,
         memory_write_data_suffix, idle_channel_name, random_seed,
-        prob_input_valid_assert, show_trace);
+        prob_input_valid_assert, show_trace, output_stats_path);
   }
   XLS_LOG(QFATAL) << "Unknown backend type";
 }
@@ -987,7 +1026,7 @@ int main(int argc, char* argv[]) {
     ticks.push_back(ticks_int);
   }
   if (ticks.empty()) {
-    XLS_LOG(QFATAL) << "--ticks must be specified (and > 0).";
+    XLS_LOG(QFATAL) << "--ticks must be specified.";
   }
 
   if (!absl::GetFlag(FLAGS_inputs_for_channels).empty() &&
@@ -1021,5 +1060,5 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_memory_write_data_suffix),
       absl::GetFlag(FLAGS_idle_channel_name), absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert),
-      absl::GetFlag(FLAGS_show_trace)));
+      absl::GetFlag(FLAGS_show_trace), absl::GetFlag(FLAGS_output_stats_path)));
 }
