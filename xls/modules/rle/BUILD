@@ -24,6 +24,7 @@ load(
     "xls_ir_verilog",
 )
 load("//xls/build_rules:dashboard.bzl", "dashboard")
+load("//xls/build_rules:vizier.bzl", "generate_compression_block_parameter_optimization")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
@@ -256,4 +257,10 @@ dashboard(
             ],
         },
     ],
+)
+
+generate_compression_block_parameter_optimization(
+    name = "rle_enc",
+    cocotb_test = "rle_enc_compression_block_cocotb_test.py",
+    optimized_ir = ":rle_enc_opt_ir.opt.ir",
 )
