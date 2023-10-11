@@ -299,6 +299,47 @@ TEST_F(FunctionFmtTest, ConditionalWithElseIf) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, SimpleForOneStatementNoTypeAnnotation) {
+  const std::string_view original =
+      "fn f(x:u32)->u32{for(i,accum)in u32:0..u32:4{accum+i}(x)}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(x: u32) -> u32 {
+    for (i, accum) in u32:0..u32:4 {
+        accum + i
+    }(x)
+})";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, SimpleForOneStatementTypeAnnotated) {
+  const std::string_view original =
+      "fn f(x:u32)->u32{for(i,accum):(u32,u32)in u32:0..u32:4{accum+i}(x)}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(x: u32) -> u32 {
+    for (i, accum): (u32, u32) in u32:0..u32:4 {
+        accum + i
+    }(x)
+})";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, SimpleForLetBinding) {
+  const std::string_view original =
+      "fn f(x:u32)->u32{let y=for(i,accum):(u32,u32)in "
+      "u32:0..u32:4{accum+i}(x);y}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(x: u32) -> u32 {
+    let y = for (i, accum): (u32, u32) in u32:0..u32:4 {
+        accum + i
+    }(x);
+    y
+})";
+  EXPECT_EQ(got, want);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {

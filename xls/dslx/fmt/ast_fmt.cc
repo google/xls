@@ -41,6 +41,7 @@ DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena);
 DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena);
 DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
                      DocArena& arena);
+DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
 
 enum class Joiner : uint8_t {
   kCommaSpace,
@@ -263,7 +264,8 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
 
 // Note: we only add leading/trailing spaces in the block if add_curls is true.
 static DocRef FmtBlock(const Block& n, const Comments& comments,
-                       DocArena& arena, bool add_curls) {
+                       DocArena& arena, bool add_curls,
+                       bool force_multiline = false) {
   if (n.statements().empty()) {
     if (add_curls) {
       return ConcatNGroup(arena,
@@ -274,7 +276,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
 
   // We only want to flatten single-statement blocks -- multi-statement blocks
   // we always make line breaks between the statements.
-  if (n.statements().size() == 1) {
+  if (n.statements().size() == 1 && !force_multiline) {
     std::vector<DocRef> pieces;
     if (add_curls) {
       pieces = {arena.ocurl(), arena.break1()};
@@ -355,7 +357,38 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle for: " << n.ToString();
+  std::vector<DocRef> pieces = {
+      arena.Make(Keyword::kFor),
+      arena.space(),
+      Fmt(*n.names(), comments, arena),
+  };
+
+  if (n.type_annotation() != nullptr) {
+    pieces.push_back(arena.colon());
+    pieces.push_back(arena.space());
+    pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
+  }
+
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.Make(Keyword::kIn));
+  pieces.push_back(arena.space());
+  pieces.push_back(Fmt(*n.iterable(), comments, arena));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.ocurl());
+
+  std::vector<DocRef> body_pieces;
+  body_pieces.push_back(arena.hard_line());
+  body_pieces.push_back(FmtBlock(*n.body(), comments, arena,
+                                 /*add_curls=*/false,
+                                 /*force_multiline=*/true));
+  body_pieces.push_back(arena.hard_line());
+  body_pieces.push_back(arena.ccurl());
+  body_pieces.push_back(arena.oparen());
+  body_pieces.push_back(Fmt(*n.init(), comments, arena));
+  body_pieces.push_back(arena.cparen());
+
+  return arena.MakeConcat(ConcatNGroup(arena, pieces),
+                          ConcatN(arena, body_pieces));
 }
 
 DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
@@ -691,20 +724,23 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena) {
 DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
   DocRef break1 = arena.break1();
 
-  std::vector<DocRef> guts = {arena.MakeText(n.is_const() ? "const" : "let"),
-                              break1, Fmt(*n.name_def_tree(), comments, arena)};
+  std::vector<DocRef> leader_pieces = {
+      arena.MakeText(n.is_const() ? "const" : "let"), break1,
+      Fmt(*n.name_def_tree(), comments, arena)};
   if (const TypeAnnotation* t = n.type_annotation()) {
-    guts.push_back(arena.colon());
-    guts.push_back(break1);
-    guts.push_back(Fmt(*t, comments, arena));
+    leader_pieces.push_back(arena.colon());
+    leader_pieces.push_back(break1);
+    leader_pieces.push_back(Fmt(*t, comments, arena));
   }
 
-  guts.push_back(break1);
-  guts.push_back(arena.equals());
-  guts.push_back(break1);
-  guts.push_back(Fmt(*n.rhs(), comments, arena));
+  leader_pieces.push_back(break1);
+  leader_pieces.push_back(arena.equals());
+  leader_pieces.push_back(break1);
 
-  DocRef syntax = ConcatNGroup(arena, guts);
+  DocRef leader = ConcatNGroup(arena, leader_pieces);
+  DocRef body = Fmt(*n.rhs(), comments, arena);
+
+  DocRef syntax = arena.MakeConcat(leader, body);
 
   std::vector<const CommentData*> comment_data = comments.GetComments(n.span());
   if (comment_data.size() == 1) {
