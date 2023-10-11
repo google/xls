@@ -275,7 +275,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "@com_github_google_re2//:re2",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -311,7 +311,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
-        "@com_github_google_re2//:re2",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 

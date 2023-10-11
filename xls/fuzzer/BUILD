@@ -307,7 +307,6 @@ cc_library(
         "//xls/public:runtime_build_actions",
         "//xls/simulation:check_simulator",
         "//xls/tools:eval_helpers",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
@@ -317,6 +316,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -743,8 +743,8 @@ cc_library(
     srcs = ["scrub_crasher.cc"],
     hdrs = ["scrub_crasher.h"],
     deps = [
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/strings",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 

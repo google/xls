@@ -607,10 +607,10 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 

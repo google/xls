@@ -99,11 +99,11 @@ cc_library(
         "//xls/ir:op",
         "//xls/passes:bdd_query_engine",
         "//xls/scheduling:pipeline_schedule",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_protobuf//:protobuf",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 

@@ -683,6 +683,7 @@ cc_library(
         "//xls/dslx/frontend:bindings",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )

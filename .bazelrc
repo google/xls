@@ -15,4 +15,7 @@ build --host_copt "-D_DEFAULT_SOURCE=1"
 build --host_copt "-D_HAS_AUTO_PTR_ETC=0"
 build --host_copt "-Wno-sign-compare"
 build --host_copt "-Wno-comment"
+# use absl in googletest to work around
+# https://github.com/google/googletest/issues/4383
+build --define absl=1
 build --incompatible_enable_cc_toolchain_resolution
