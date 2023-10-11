@@ -19,3 +19,12 @@ build --host_copt "-Wno-comment"
 # https://github.com/google/googletest/issues/4383
 build --define absl=1
 build --incompatible_enable_cc_toolchain_resolution
+
+# Settings for --config=asan address sanitizer build
+build:asan --strip=never
+build:asan --copt -fsanitize=address
+build:asan --copt -DADDRESS_SANITIZER
+build:asan --copt -O1
+build:asan --copt -g
+build:asan --copt -fno-omit-frame-pointer
+build:asan --linkopt -fsanitize=address
