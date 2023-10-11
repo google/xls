@@ -53,6 +53,14 @@ std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression();
 // above example.
 std::pair<Module, Unop*> MakeCastWithinNegateExpression();
 
+// Returns an AST node with the following structure:
+//
+//  (x*y).my_attr  // without parens noted in the AST.
+//
+// This is an interesting test case for parenthesization purposes similar to the
+// above example.
+std::pair<Module, Attr*> MakeArithWithinAttrExpression();
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_TEST_UTILS_H_

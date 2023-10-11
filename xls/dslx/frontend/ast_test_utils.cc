@@ -101,4 +101,17 @@ std::pair<Module, Unop*> MakeCastWithinNegateExpression() {
   return std::make_pair(std::move(m), unop);
 }
 
+std::pair<Module, Attr*> MakeArithWithinAttrExpression() {
+  Module m("test", /*fs_path=*/std::nullopt);
+  const Span fake_span;
+  BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef("x");
+  NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
+  BuiltinNameDef* y_def = m.GetOrCreateBuiltinNameDef("y");
+  NameRef* y_ref = m.Make<NameRef>(fake_span, "y", y_def);
+
+  Binop* binop = m.Make<Binop>(fake_span, BinopKind::kMul, x_ref, y_ref);
+  Attr* attr = m.Make<Attr>(fake_span, binop, "my_attr");
+  return std::make_pair(std::move(m), attr);
+}
+
 }  // namespace xls::dslx

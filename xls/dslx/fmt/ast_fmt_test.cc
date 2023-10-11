@@ -72,6 +72,15 @@ TEST(BuiltAstFmtTest, FormatUnopThatNeedsParensOnOperand) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "-(x as u32)");
 }
 
+TEST(BuiltAstFmtTest, FormatAttrThatNeedsParensOnOperand) {
+  auto [module, attr] = MakeArithWithinAttrExpression();
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*attr, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x * y).my_attr");
+}
+
 TEST(AstFmtTest, FormatLet) {
   Scanner s{"fake.x", "{ let x: u32 = u32:42; }"};
   Parser p("fake", &s);
@@ -613,6 +622,22 @@ const NOTHING = Nothing {};
                            ParseModule(kProgram, "fake.x", "fake", &comments));
   std::string got = AutoFmt(*m, Comments::Create(comments));
   EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, StructAttr) {
+  const std::string_view kProgram =
+      R"(struct Point { x: u32, y: u32 }
+
+fn get_x(p: Point) -> u32 { p.x }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
 }
 
 }  // namespace

@@ -219,7 +219,20 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle attr: " << n.ToString();
+  Precedence op_precedence = n.GetPrecedence();
+  const Expr& lhs = *n.lhs();
+  Precedence lhs_precedence = lhs.GetPrecedence();
+  std::vector<DocRef> pieces;
+  if (WeakerThan(lhs_precedence, op_precedence)) {
+    pieces.push_back(arena.oparen());
+    pieces.push_back(Fmt(lhs, comments, arena));
+    pieces.push_back(arena.cparen());
+  } else {
+    pieces.push_back(Fmt(lhs, comments, arena));
+  }
+  pieces.push_back(arena.dot());
+  pieces.push_back(arena.MakeText(std::string{n.attr()}));
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
