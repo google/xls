@@ -29,6 +29,7 @@
 #include "llvm/include/llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
+#include "xls/jit/observer.h"
 
 namespace xls {
 
@@ -39,9 +40,15 @@ class OrcJit {
   ~OrcJit();
   // Create an LLVM ORC JIT instance which compiles at the given optimization
   // level. If `emit_object_code` is true then `GetObjectCode` can be called
-  // after compilation to get the object code.
+  // after compilation to get the object code. Calls functions on the given
+  // observer as compilation proceeds.
   static absl::StatusOr<std::unique_ptr<OrcJit>> Create(
-      int64_t opt_level = 3, bool emit_object_code = false);
+      int64_t opt_level = 3, bool emit_object_code = false,
+      JitObserver* observer = nullptr);
+
+  void SetJitObserver(JitObserver* o) { jit_observer_ = o; }
+
+  JitObserver* jit_observer() const { return jit_observer_; }
 
   // Creates and returns a new LLVM module of the given name.
   std::unique_ptr<llvm::Module> NewModule(std::string_view name);
@@ -95,6 +102,8 @@ class OrcJit {
   // When `CompileModule` is called and `emit_object_code` is true, this vector
   // will be allocated and filled with the object code of the compiled module.
   std::vector<uint8_t> object_code_;
+
+  JitObserver* jit_observer_ = nullptr;
 };
 
 // Calls the dump method on the given LLVM object and returns the string.

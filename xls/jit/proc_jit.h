@@ -30,6 +30,7 @@
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -99,7 +100,8 @@ class ProcJit : public ProcEvaluator {
   // Returns an object containing a host-compiled version of the specified XLS
   // proc.
   static absl::StatusOr<std::unique_ptr<ProcJit>> Create(
-      Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr);
+      Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
+      JitObserver* observer = nullptr);
 
   ~ProcJit() override = default;
 

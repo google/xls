@@ -29,6 +29,17 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+cc_library(
+    name = "observer",
+    srcs = ["observer.cc"],
+    hdrs = ["observer.h"],
+    deps = [
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/types:span",
+        "@llvm-project//llvm:Core",
+    ],
+)
+
 cc_binary(
     name = "aot_compiler",
     srcs = ["aot_compiler.cc"],
@@ -159,7 +170,9 @@ cc_library(
     deps = [
         ":function_base_jit",
         ":jit_runtime",
+        ":observer",
         ":orc_jit",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -174,7 +187,7 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
-        "//xls/ir:value_view",
+        "@llvm-project//llvm:ir_headers",
     ],
 )
 
@@ -284,6 +297,7 @@ cc_library(
     hdrs = ["orc_jit.h"],
     deps = [
         ":llvm_type_converter",
+        ":observer",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -318,6 +332,7 @@ cc_library(
         ":function_base_jit",
         ":jit_channel_queue",
         ":jit_runtime",
+        ":observer",
         ":orc_jit",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",

@@ -19,6 +19,7 @@
 #include <random>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -28,6 +29,8 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/IR/Module.h"
+#include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -47,6 +50,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/observer.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 
@@ -153,6 +157,13 @@ ABSL_FLAG(
     "force mismatches between JIT and interpreter for testing purposed.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
+ABSL_FLAG(std::optional<std::string>, llvm_jit_ir_output, std::nullopt,
+          "Path to write the (unoptimized) LLVM IR which the JIT generates.");
+ABSL_FLAG(std::optional<std::string>, llvm_jit_opt_ir_output, std::nullopt,
+          "Path to write the (optimized) LLVM IR which the JIT generates.");
+ABSL_FLAG(std::optional<std::string>, llvm_jit_asm_output, std::nullopt,
+          "Path to write the assembly code which the JIT generates.");
+
 namespace xls {
 namespace {
 
@@ -171,6 +182,51 @@ std::string ArgsToString(absl::Span<const Value> args) {
   return absl::StrJoin(args, "; ", ValueFormatterHex);
 }
 
+class EvalIrJitObserver final : public JitObserver {
+ public:
+  EvalIrJitObserver(std::optional<std::string> ir,
+                    std::optional<std::string> opt_ir,
+                    std::optional<std::string> assembly)
+      : ir_(std::move(ir)),
+        opt_ir_(std::move(opt_ir)),
+        assembly_(std::move(assembly)) {}
+  JitObserverRequests GetNotificationOptions() const final {
+    return JitObserverRequests{.unoptimized_module = ir_.has_value(),
+                               .optimized_module = opt_ir_.has_value(),
+                               .assembly_code_str = assembly_.has_value()};
+  }
+
+  void UnoptimizedModule(const llvm::Module* module) final {
+    if (ir_) {
+      std::string buffer;
+      llvm::raw_string_ostream ostream(buffer);
+      module->print(ostream, nullptr);
+      ostream.flush();
+      XLS_CHECK_OK(SetFileContents(*ir_, buffer));
+    }
+  }
+  void OptimizedModule(const llvm::Module* module) final {
+    if (opt_ir_) {
+      std::string buffer;
+      llvm::raw_string_ostream ostream(buffer);
+      module->print(ostream, nullptr);
+      ostream.flush();
+      XLS_CHECK_OK(SetFileContents(*opt_ir_, buffer));
+    }
+  }
+  void AssemblyCodeString(const llvm::Module* module,
+                          std::string_view asm_code) final {
+    if (assembly_) {
+      XLS_CHECK_OK(SetFileContents(*assembly_, asm_code));
+    }
+  }
+
+ private:
+  std::optional<std::filesystem::path> ir_;
+  std::optional<std::filesystem::path> opt_ir_;
+  std::optional<std::filesystem::path> assembly_;
+};
+
 // Evaluates the function with the given ArgSets. Returns an error if the result
 // does not match expectations (if any). 'actual_src' and 'expected_src' are
 // string descriptions of the sources of the actual results and expected
@@ -179,11 +235,15 @@ absl::StatusOr<std::vector<Value>> Eval(
     Function* f, absl::Span<const ArgSet> arg_sets, bool use_jit,
     std::string_view actual_src = "actual",
     std::string_view expected_src = "expected") {
+  EvalIrJitObserver observer(absl::GetFlag(FLAGS_llvm_jit_ir_output),
+                             absl::GetFlag(FLAGS_llvm_jit_opt_ir_output),
+                             absl::GetFlag(FLAGS_llvm_jit_asm_output));
   std::unique_ptr<FunctionJit> jit;
   if (use_jit) {
     // No support for procs yet.
     XLS_ASSIGN_OR_RETURN(
-        jit, FunctionJit::Create(f, absl::GetFlag(FLAGS_llvm_opt_level)));
+        jit,
+        FunctionJit::Create(f, absl::GetFlag(FLAGS_llvm_opt_level), &observer));
   }
 
   std::vector<Value> results;

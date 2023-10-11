@@ -30,6 +30,8 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/observer.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls {
 
@@ -78,8 +80,10 @@ void ProcJitContinuation::NextTick() {
 }
 
 absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
-    Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr) {
+    Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
+    JitObserver* observer) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+  orc_jit->SetJitObserver(observer);
   auto jit =
       absl::WrapUnique(new ProcJit(proc, jit_runtime, std::move(orc_jit)));
   XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,

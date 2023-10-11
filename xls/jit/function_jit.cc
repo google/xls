@@ -14,37 +14,47 @@
 
 #include "xls/jit/function_jit.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/function.h"
 #include "xls/ir/keyword_args.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/observer.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
-    Function* xls_function, int64_t opt_level) {
-  return CreateInternal(xls_function, opt_level, /*emit_object_code=*/false);
+    Function* xls_function, int64_t opt_level, JitObserver* observer) {
+  return CreateInternal(xls_function, opt_level, /*emit_object_code=*/false,
+                        observer);
 }
 
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
-    Function* xls_function, int64_t opt_level) {
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<FunctionJit> jit,
-      CreateInternal(xls_function, opt_level, /*emit_object_code=*/true));
+    Function* xls_function, int64_t opt_level, JitObserver* observer) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
+                       CreateInternal(xls_function, opt_level,
+                                      /*emit_object_code=*/true, observer));
   return JitObjectCode{
       .function_name = std::string{jit->GetJittedFunctionName()},
       .object_code = jit->orc_jit_->GetObjectCode(),
@@ -55,10 +65,11 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
-    Function* xls_function, int64_t opt_level, bool emit_object_code) {
+    Function* xls_function, int64_t opt_level, bool emit_object_code,
+    JitObserver* observer) {
   auto jit = absl::WrapUnique(new FunctionJit(xls_function));
   XLS_ASSIGN_OR_RETURN(jit->orc_jit_,
-                       OrcJit::Create(opt_level, emit_object_code));
+                       OrcJit::Create(opt_level, emit_object_code, observer));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
                        OrcJit::CreateDataLayout());
   jit->jit_runtime_ = std::make_unique<JitRuntime>(data_layout);

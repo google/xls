@@ -48,6 +48,7 @@
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/jit/observer.h"
 
 namespace xls {
 namespace {
@@ -115,6 +116,10 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
 
   XLS_VLOG(2) << "Unoptimized module IR:";
   XLS_VLOG_LINES(2, DumpLlvmModuleToString(bare_module));
+  if (jit_observer_ != nullptr &&
+      jit_observer_->GetNotificationOptions().unoptimized_module) {
+    jit_observer_->UnoptimizedModule(bare_module);
+  }
 
   llvm::CGSCCAnalysisManager cgam;
   llvm::FunctionAnalysisManager fam;
@@ -156,8 +161,15 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
 
   XLS_VLOG(2) << "Optimized module IR:";
   XLS_VLOG_LINES(2, DumpLlvmModuleToString(bare_module));
+  if (jit_observer_ != nullptr &&
+      jit_observer_->GetNotificationOptions().optimized_module) {
+    jit_observer_->OptimizedModule(bare_module);
+  }
 
-  if (XLS_VLOG_IS_ON(3)) {
+  bool observe_asm_code =
+      (jit_observer_ != nullptr &&
+       jit_observer_->GetNotificationOptions().assembly_code_str);
+  if (XLS_VLOG_IS_ON(3) || observe_asm_code) {
     // The ostream and its buffer must be declared before the
     // module_pass_manager because the destrutor of the pass manager calls flush
     // on the ostream so these must be destructed *after* the pass manager. C++
@@ -172,17 +184,23 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
     }
     mpm.run(*bare_module);
     XLS_VLOG(3) << "Generated ASM:";
-    XLS_VLOG_LINES(3, std::string(stream_buffer.begin(), stream_buffer.end()));
+    std::string asm_code(stream_buffer.begin(), stream_buffer.end());
+    XLS_VLOG_LINES(3, asm_code);
+    if (observe_asm_code) {
+      jit_observer_->AssemblyCodeString(bare_module, asm_code);
+    }
   }
 
   return module;
 }
 
 absl::StatusOr<std::unique_ptr<OrcJit>> OrcJit::Create(int64_t opt_level,
-                                                       bool emit_object_code) {
+                                                       bool emit_object_code,
+                                                       JitObserver* observer) {
   absl::call_once(once, OnceInit);
   std::unique_ptr<OrcJit> jit =
       absl::WrapUnique(new OrcJit(opt_level, emit_object_code));
+  jit->SetJitObserver(observer);
   XLS_RETURN_IF_ERROR(jit->Init());
   return std::move(jit);
 }

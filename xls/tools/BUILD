@@ -583,6 +583,7 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:value_helpers",
         "//xls/jit:function_jit",
+        "//xls/jit:observer",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "@com_google_absl//absl/flags:flag",
@@ -591,6 +592,8 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:ir_headers",
     ],
 )
 

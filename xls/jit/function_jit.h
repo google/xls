@@ -28,6 +28,7 @@
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -56,11 +57,13 @@ class FunctionJit {
   // Returns an object containing a host-compiled version of the specified XLS
   // function.
   static absl::StatusOr<std::unique_ptr<FunctionJit>> Create(
-      Function* xls_function, int64_t opt_level = 3);
+      Function* xls_function, int64_t opt_level = 3,
+      JitObserver* observer = nullptr);
 
   // Returns the bytes of an object file containing the compiled XLS function.
-  static absl::StatusOr<JitObjectCode> CreateObjectCode(Function* xls_function,
-                                                        int64_t opt_level = 3);
+  static absl::StatusOr<JitObjectCode> CreateObjectCode(
+      Function* xls_function, int64_t opt_level = 3,
+      JitObserver* observer = nullptr);
 
   // Executes the compiled function with the specified arguments.
   absl::StatusOr<InterpreterResult<Value>> Run(absl::Span<const Value> args);
@@ -174,7 +177,8 @@ class FunctionJit {
   explicit FunctionJit(Function* xls_function) : xls_function_(xls_function) {}
 
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateInternal(
-      Function* xls_function, int64_t opt_level, bool emit_object_code);
+      Function* xls_function, int64_t opt_level, bool emit_object_code,
+      JitObserver* observer);
 
   // Builds a function which wraps the natively compiled XLS function `callee`
   // (as built by xls::BuildFunction) with another function which accepts the
