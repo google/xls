@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -32,6 +33,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/token.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 namespace {
@@ -42,6 +44,12 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena);
 DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
                      DocArena& arena);
 DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
+
+static DocRef FmtExprPtr(const Expr* n, const Comments& comments,
+                         DocArena& arena) {
+  XLS_CHECK(n != nullptr);
+  return Fmt(*n, comments, arena);
+}
 
 enum class Joiner : uint8_t {
   kCommaSpace,
@@ -416,7 +424,18 @@ DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle format macro: " << n.ToString();
+  std::vector<DocRef> pieces = {
+      arena.MakeText(n.macro()),
+      arena.oparen(),
+      arena.MakeText(
+          absl::StrCat("\"", StepsToXlsFormatString(n.format()), "\"")),
+      arena.comma(),
+      arena.break1(),
+  };
+  pieces.push_back(FmtJoin<const Expr*>(n.args(), Joiner::kCommaSpace,
+                                        FmtExprPtr, comments, arena));
+  pieces.push_back(arena.cparen());
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const Slice& n, const Comments& comments, DocArena& arena) {
@@ -476,12 +495,6 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
           [&](const TypeAnnotation* n) { return Fmt(*n, comments, arena); },
       },
       n);
-}
-
-static DocRef FmtExprPtr(const Expr* n, const Comments& comments,
-                         DocArena& arena) {
-  XLS_CHECK(n != nullptr);
-  return Fmt(*n, comments, arena);
 }
 
 DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {

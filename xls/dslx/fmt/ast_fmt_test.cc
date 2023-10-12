@@ -397,6 +397,15 @@ TEST_F(FunctionFmtTest, ZeroMacro) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, TraceFormatMacro) {
+  const std::string_view original =
+      R"(fn f(x:u32,y:u32){trace_fmt!("x is {} y is {}",x,y)})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"trace_fmt!"}));
+  const std::string_view want =
+      R"(fn f(x: u32, y: u32) { trace_fmt!("x is {} y is {}", x, y) })";
+  EXPECT_EQ(got, want);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
