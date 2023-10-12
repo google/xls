@@ -180,8 +180,21 @@ bool TypeMatcher::MatchAndExplain(
             << " has incorrect type, expected: " << type_str_;
   return false;
 }
+bool TypeMatcher::MatchAndExplain(
+    const ::xls::Type* type, ::testing::MatchResultListener* listener) const {
+  if (type_str_ == type->ToString()) {
+    return true;
+  }
+  *listener << type->ToString()
+            << " has incorrect type, expected: " << type_str_;
+  return false;
+}
 
 void TypeMatcher::DescribeTo(std::ostream* os) const { *os << type_str_; }
+
+void TypeMatcher::DescribeNegationTo(std::ostream* os) const {
+  *os << "is not " << type_str_;
+}
 
 bool NameMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {

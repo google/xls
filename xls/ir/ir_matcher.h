@@ -27,6 +27,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/meta/type_traits.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
@@ -127,25 +128,32 @@ class NodeMatcher {
 //
 //   EXPECT_THAT(foo, m::Type("bits[32]"));
 //   EXPECT_THAT(foo, m::Type(package->GetBitsType(32)));
-class TypeMatcher : public ::testing::MatcherInterface<const Node*> {
+class TypeMatcher {
  public:
+  using is_gtest_matcher = void;
+
   explicit TypeMatcher(std::string_view type_str) : type_str_(type_str) {}
 
-  bool MatchAndExplain(const Node* node,
-                       ::testing::MatchResultListener* listener) const override;
-  void DescribeTo(std::ostream* os) const override;
+  // Match against Node*.
+  bool MatchAndExplain(const ::xls::Node* node,
+                       ::testing::MatchResultListener* listener) const;
+  // Match against Type*.
+  bool MatchAndExplain(const ::xls::Type* type,
+                       ::testing::MatchResultListener* listener) const;
+
+  void DescribeTo(std::ostream* os) const;
+  void DescribeNegationTo(std::ostream* os) const;
 
  private:
   std::string type_str_;
 };
 
-inline ::testing::Matcher<const ::xls::Node*> Type(const Type* type) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::TypeMatcher(type->ToString()));
+inline TypeMatcher Type(const Type* type) {
+  return ::xls::op_matchers::TypeMatcher(type->ToString());
 }
 
-inline ::testing::Matcher<const ::xls::Node*> Type(const char* type_str) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::TypeMatcher(type_str));
+inline TypeMatcher Type(const char* type_str) {
+  return ::xls::op_matchers::TypeMatcher(type_str);
 }
 
 // Class for matching node names. Example usage:
