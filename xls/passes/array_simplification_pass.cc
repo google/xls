@@ -920,7 +920,7 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   TernaryQueryEngine query_engine;
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
-  for (Node* node : TopoSort(func)) {
+  for (Node* node : ReverseTopoSort(func)) {
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
       XLS_ASSIGN_OR_RETURN(bool node_changed,
