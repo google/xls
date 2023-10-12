@@ -59,19 +59,16 @@ yosys proc -nomux
 yosys proc_mux
 yosys flatten
 
-# Remove internal only aliases for public nets and then give created instances
-# useful names. At this stage it is mainly flipflops created by the `proc`
-# pass.
-yosys opt_clean -purge
+# Give created instances useful names.
+# At this stage it is mainly flipflops created by the `proc` # pass.
 yosys autoname
 
 yosys synth -top $top
 
-# Remove internal only aliases for public nets and then give created instances
-# useful names. At this stage it is all the other synthesizable constructs.
+# Give created instances useful names.
+# At this stage it is all the other synthesizable constructs.
 # This should be done before techmapping where things can be converted
 # dramatically and having useful names is helpful for debugging.
-yosys opt_clean -purge
 yosys autoname
 
 # create module for each XLS stage
