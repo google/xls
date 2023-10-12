@@ -705,5 +705,17 @@ const Q = Point { ..P };
   }
 }
 
+TEST(ModuleFmtTest, SimpleQuickCheck) {
+  const std::string_view kProgram =
+      R"(#[quickcheck]
+fn f() -> bool { true }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx
