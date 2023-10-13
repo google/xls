@@ -308,7 +308,7 @@ class BufferAllocator {
         offset, node_size, current_offset_);
   }
   // The minimum alignment of any temp allocation.
-  static constexpr int64_t kMinAlignment = 8;
+  static constexpr int64_t kMinAlignment = 16;
 
   const LlvmTypeConverter* type_converter_;
   absl::flat_hash_map<Node*, int64_t> temp_block_offsets_;
