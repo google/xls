@@ -16,6 +16,7 @@
 #define XLS_DSLX_FMT_AST_FMT_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -41,11 +42,16 @@ class Comments {
   // This is a convenient way for nodes to query for all their related comments.
   std::vector<const CommentData*> GetComments(const Span& node_span) const;
 
+  const std::optional<Pos>& last_data_limit() const { return last_data_limit_; }
+
  private:
-  explicit Comments(absl::flat_hash_map<int64_t, CommentData> line_to_comment)
-      : line_to_comment_(std::move(line_to_comment)) {}
+  Comments(absl::flat_hash_map<int64_t, CommentData> line_to_comment,
+           std::optional<Pos> last_data_limit)
+      : line_to_comment_(std::move(line_to_comment)),
+        last_data_limit_(std::move(last_data_limit)) {}
 
   absl::flat_hash_map<int64_t, CommentData> line_to_comment_;
+  std::optional<Pos> last_data_limit_;
 };
 
 // Functions with this signature create a pretty printable document from the AST

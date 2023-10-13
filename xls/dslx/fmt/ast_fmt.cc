@@ -14,6 +14,7 @@
 
 #include "xls/dslx/fmt/ast_fmt.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -24,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
@@ -32,6 +34,7 @@
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
 #include "xls/ir/format_strings.h"
 
@@ -959,14 +962,20 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
 }  // namespace
 
 /* static */ Comments Comments::Create(absl::Span<const CommentData> comments) {
+  std::optional<Pos> last_data_limit;
   absl::flat_hash_map<int64_t, CommentData> line_to_comment;
   for (const CommentData& cd : comments) {
     XLS_VLOG(3) << "comment on line: " << cd.span.start().lineno();
     // Note: we don't have multi-line comments for now, so we just note the
     // start line number for the comment.
     line_to_comment[cd.span.start().lineno()] = cd;
+    if (last_data_limit.has_value()) {
+      last_data_limit = std::max(cd.span.limit(), last_data_limit.value());
+    } else {
+      last_data_limit = cd.span.limit();
+    }
   }
-  return Comments{std::move(line_to_comment)};
+  return Comments{std::move(line_to_comment), last_data_limit};
 }
 
 std::vector<const CommentData*> Comments::GetComments(
@@ -1266,16 +1275,95 @@ DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
   return result;
 }
 
+static std::optional<DocRef> EmitCommentsBetween(
+    std::optional<Pos> start_pos, const Pos& limit_pos,
+    const Comments& comments, DocArena& arena,
+    std::optional<Span>* last_comment_span) {
+  if (!start_pos.has_value()) {
+    start_pos = Pos(limit_pos.filename(), 0, 0);
+  }
+  const Span span(start_pos.value(), limit_pos);
+  XLS_VLOG(3) << "Looking for comments in span: " << span;
+
+  std::vector<DocRef> pieces;
+
+  std::vector<const CommentData*> items = comments.GetComments(span);
+  XLS_VLOG(3) << "Found " << items.size() << " comment data items";
+  std::optional<Span> previous_comment_span;
+  for (size_t i = 0; i < items.size(); ++i) {
+    const CommentData* comment_data = items[i];
+
+    // If the previous comment line and this comment line are abutted (i.e.
+    // contiguous lines with comments), we don't put a newline between them.
+    if (previous_comment_span.has_value() &&
+        previous_comment_span->start().lineno() + 1 !=
+            comment_data->span.start().lineno()) {
+      XLS_VLOG(3) << "previous comment span: " << previous_comment_span.value()
+                  << " this comment span: " << comment_data->span
+                  << " -- inserting hard line";
+      pieces.push_back(arena.hard_line());
+    }
+
+    pieces.push_back(arena.MakePrefixedReflow(
+        "//",
+        std::string{absl::StripTrailingAsciiWhitespace(comment_data->text)}));
+
+    previous_comment_span = comment_data->span;
+    *last_comment_span = comment_data->span;
+  }
+
+  if (pieces.empty()) {
+    return std::nullopt;
+  }
+
+  return ConcatN(arena, pieces);
+}
+
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
+  std::optional<Pos> last_member_pos;
   for (size_t i = 0; i < n.top().size(); ++i) {
     const auto& member = n.top()[i];
+
+    // If there are comment blocks between the last member position and the
+    // member we're about the process, we need to emit them.
+    std::optional<Span> member_span = ToAstNode(member)->GetSpan();
+    XLS_CHECK(member_span.has_value()) << ToAstNode(member)->GetNodeTypeName();
+    Pos member_start = member_span->start();
+
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc =
+            EmitCommentsBetween(last_member_pos, member_start, comments, arena,
+                                &last_comment_span)) {
+      pieces.push_back(comments_doc.value());
+
+      XLS_VLOG(3) << "last_comment_span: " << last_comment_span.value()
+                  << " this member start: " << member_start;
+
+      // If the comment abuts the module member we don't put a newline in
+      // between, we assume the comment is associated with the member.
+      if (last_comment_span->limit().lineno() != member_start.lineno()) {
+        pieces.push_back(arena.hard_line());
+      }
+    }
+    last_member_pos = member_span->limit();
+
     pieces.push_back(Fmt(member, comments, arena));
     if (i + 1 == n.top().size()) {
       pieces.push_back(arena.hard_line());
     } else {
       pieces.push_back(arena.hard_line());
       pieces.push_back(arena.hard_line());
+    }
+  }
+
+  if (std::optional<Pos> last_data_limit = comments.last_data_limit();
+      last_data_limit.has_value() && last_member_pos < last_data_limit) {
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc =
+            EmitCommentsBetween(last_member_pos, last_data_limit.value(),
+                                comments, arena, &last_comment_span)) {
+      pieces.push_back(comments_doc.value());
     }
   }
 

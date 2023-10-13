@@ -757,5 +757,103 @@ TEST(ModuleFmtTest, SimplePublicFunction) {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, OneModuleLevelCommentNoReflow) {
+  const std::string_view kProgram =
+      R"(// This is a module level comment at the top of the file.
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, TwoModuleLevelCommentsNoReflow) {
+  const std::string_view kProgram =
+      R"(// This is a module level comment at the top of the file.
+
+// This is another one slightly farther down in the file.
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, OneMultiLineCommentNoReflow) {
+  const std::string_view kProgram =
+      R"(// This is a module level comment at the top of the file.
+// It spans multiple lines in a single block of comment text.
+// Three, to be precise. And then the file ends.
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, OneMultiLineCommentWithAnEmptyLineNoReflow) {
+  const std::string_view kProgram =
+      R"(// This is a module level comment at the top of the file.
+//
+// There's a blank on the second line. And then the file ends after the third.
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+// TODO(leary): 2023-10-12 This is not working because of a quirk in the
+// PrefixedReflow command in the pretty printer -- fix and re-enable.
+TEST(ModuleFmtTest, DISABLED_OneOverlongCommentLineWithOneToken) {
+  const std::string_view kProgram =
+      R"(// abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, ModuleAndFunctionLevelComments) {
+  const std::string_view kProgram =
+      R"(// This is a module level comment at the top of the file.
+
+// This is a function level comment.
+fn f(x: u32) -> u32 { x }
+
+// This is another function level comment.
+fn g(x: u32) -> u32 {
+    let y = x + u32:1;
+    y
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, TwoModuleLevelCommentBlocksBeforeFunction) {
+  const std::string_view kProgram =
+      R"(// Module comment one.
+
+// Module comment two.
+
+fn uncommented_fn(x: u32) -> u32 { x }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx
