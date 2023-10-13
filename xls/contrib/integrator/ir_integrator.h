@@ -262,7 +262,8 @@ class IntegrationFunction {
 
   // Track mapping of original function nodes to integrated function nodes.
   absl::flat_hash_map<const Node*, Node*> original_node_to_integrated_node_map_;
-  absl::flat_hash_map<const Node*, absl::flat_hash_set<const Node*>>
+  // Use node_hash_map because we rely on pointer stability in SetNodeMapping.
+  absl::node_hash_map<const Node*, absl::flat_hash_set<const Node*>>
       integrated_node_to_original_nodes_map_;
 
   // Track which node-pairs have an associated mux.

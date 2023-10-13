@@ -122,7 +122,7 @@ absl::Status IntegrationFunction::SetNodeMapping(const Node* source,
   // 'original' is itself a member of the integrated function.
   if (IntegrationFunctionOwnsNode(source)) {
     absl::flat_hash_set<const Node*>& nodes_that_map_to_source =
-        integrated_node_to_original_nodes_map_.at(source);
+        integrated_node_to_original_nodes_map_[source];
 
     // Nodes that previously mapped to original now map to map_target.
     for (const Node* original_node : nodes_that_map_to_source) {
