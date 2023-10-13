@@ -101,7 +101,7 @@ class ModuleSignatureBuilder {
   // Add a streaming channel to the interface.
   ModuleSignatureBuilder& AddStreamingChannel(
       std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
-      std::optional<int64_t> fifo_depth, std::string_view port_name,
+      Type* type, std::optional<int64_t> fifo_depth, std::string_view port_name,
       std::optional<std::string_view> valid_port_name =
           std::optional<std::string_view>(),
       std::optional<std::string_view> ready_port_name =

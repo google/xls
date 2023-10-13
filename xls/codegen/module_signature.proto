@@ -61,6 +61,7 @@ message ChannelProto {
   optional ChannelKindProto kind = 2;
   optional ChannelOpsProto supported_ops = 3;
   optional ChannelFlowControlProto flow_control = 4;
+  optional TypeProto type = 9;
   optional string data_port_name = 5;
   optional string ready_port_name = 6;
   optional string valid_port_name = 7;

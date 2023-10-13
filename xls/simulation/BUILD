@@ -91,6 +91,7 @@ cc_test(
     shard_count = 10,
     deps = [
         ":module_simulator",
+        ":module_testbench",
         ":verilog_test_base",
         "//xls/codegen:module_signature",
         "//xls/common:xls_gunit",
@@ -99,6 +100,13 @@ cc_test(
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
 )

@@ -14,6 +14,7 @@
 
 #include "xls/simulation/module_simulator.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <utility>
@@ -21,12 +22,20 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
+#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -49,6 +58,10 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
   XLS_ASSIGN_OR_RETURN(std::string runfile_path,
                        GetXlsRunfilePath(kModulePath));
   XLS_ASSIGN_OR_RETURN(std::string verilog_text, GetFileContents(runfile_path));
+  const testing::TestInfo* const test_info =
+      testing::UnitTest::GetInstance()->current_test_info();
+  Package p(test_info->name());
+
   ModuleSignatureBuilder b("input_channel_monitor");
   b.WithReset("rst", /*asynchronous=*/false, /*active_low=*/false);
   b.WithCombinationalInterface();
@@ -56,15 +69,17 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
   b.AddDataOutputAsBits("input_ready", 1);
   b.AddDataInputAsBits("input_valid", 1);
   b.AddStreamingChannel("input", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/std::nullopt,
-                        "input_data", "input_valid", "input_ready");
+                        FlowControl::kReadyValid, p.GetBitsType(8),
+                        /*fifo_depth=*/std::nullopt, "input_data",
+                        "input_valid", "input_ready");
 
   b.AddDataOutputAsBits("monitor_data", 9);
   b.AddDataInputAsBits("monitor_ready", 1);
   b.AddDataOutputAsBits("monitor_valid", 1);
   b.AddStreamingChannel("monitor", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/std::nullopt,
-                        "monitor_data", "monitor_valid", "monitor_ready");
+                        FlowControl::kReadyValid, p.GetBitsType(9),
+                        /*fifo_depth=*/std::nullopt, "monitor_data",
+                        "monitor_valid", "monitor_ready");
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return ModuleGeneratorResult{.verilog_text = verilog_text,
                                .verilog_line_map = VerilogLineMap(),
@@ -159,6 +174,9 @@ module proc_adder_pipeline(
 endmodule
 
 )";
+  const testing::TestInfo* const test_info =
+      testing::UnitTest::GetInstance()->current_test_info();
+  Package p(test_info->name());
   ModuleSignatureBuilder b("proc_adder_pipeline");
   b.WithClock("clk");
   b.WithReset("rst", /*asynchronous=*/false, /*active_low=*/false);
@@ -173,14 +191,17 @@ endmodule
   b.AddDataOutputAsBits("operand_0_rdy", 1);
   b.AddDataOutputAsBits("operand_1_rdy", 1);
   b.AddStreamingChannel("operand_0", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "operand_0", "operand_0_vld", "operand_0_rdy");
+                        FlowControl::kReadyValid, p.GetBitsType(32),
+                        /*fifo_depth=*/42, "operand_0", "operand_0_vld",
+                        "operand_0_rdy");
   b.AddStreamingChannel("operand_1", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "operand_1", "operand_1_vld", "operand_1_rdy");
+                        FlowControl::kReadyValid, p.GetBitsType(32),
+                        /*fifo_depth=*/42, "operand_1", "operand_1_vld",
+                        "operand_1_rdy");
   b.AddStreamingChannel("result", ChannelOps::kSendOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42, "result",
-                        "result_vld", "result_rdy");
+                        FlowControl::kReadyValid, p.GetBitsType(32),
+                        /*fifo_depth=*/42, "result", "result_vld",
+                        "result_rdy");
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return ModuleGeneratorResult{.verilog_text = text,
                                .verilog_line_map = VerilogLineMap(),
@@ -443,6 +464,9 @@ endmodule
 
 )";
 
+  const testing::TestInfo* const test_info =
+      testing::UnitTest::GetInstance()->current_test_info();
+  Package p(test_info->name());
   ModuleSignatureBuilder b("proc_adder");
   b.WithCombinationalInterface();
   b.AddDataInputAsBits("operand_0", 32);
@@ -455,14 +479,17 @@ endmodule
   b.AddDataOutputAsBits("operand_0_rdy", 1);
   b.AddDataOutputAsBits("operand_1_rdy", 1);
   b.AddStreamingChannel("operand_0", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "operand_0", "operand_0_vld", "operand_0_rdy");
+                        FlowControl::kReadyValid, p.GetBitsType(32),
+                        /*fifo_depth=*/42, "operand_0", "operand_0_vld",
+                        "operand_0_rdy");
   b.AddStreamingChannel("operand_1", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "operand_1", "operand_1_vld", "operand_1_rdy");
+                        FlowControl::kReadyValid, p.GetBitsType(32),
+                        /*fifo_depth=*/42, "operand_1", "operand_1_vld",
+                        "operand_1_rdy");
   b.AddStreamingChannel("result", ChannelOps::kSendOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42, "result",
-                        "result_vld", "result_rdy");
+                        FlowControl::kReadyValid, p.GetBitsType(32),
+                        /*fifo_depth=*/42, "result", "result_vld",
+                        "result_rdy");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
   ModuleSimulator simulator = NewModuleSimulator(text, signature);

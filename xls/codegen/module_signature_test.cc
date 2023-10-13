@@ -166,6 +166,7 @@ TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
 }
 
 TEST(ModuleSignatureTest, StreamingChannelsInterface) {
+  Package p(TestName());
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
@@ -175,14 +176,14 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
 
   b.AddDataOutputAsBits("streaming_out_data", 16);
 
-  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+  b.AddStreamingChannel(
+      "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
+      p.GetTupleType({p.GetBitsType(32)}), /*fifo_depth=*/42,
+      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
 
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
-                        FlowControl::kNone, /*fifo_depth=*/std::nullopt,
-                        "streaming_out_data");
+                        FlowControl::kNone, p.GetBitsType(32),
+                        /*fifo_config=*/std::nullopt, "streaming_out_data");
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -196,6 +197,8 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
             CHANNEL_OPS_RECEIVE_ONLY);
   EXPECT_EQ(signature.streaming_channels().at(0).flow_control(),
             CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_THAT(p.GetTypeFromProto(signature.streaming_channels().at(0).type()),
+              IsOkAndHolds(p.GetTupleType({p.GetBitsType(32)})));
   EXPECT_EQ(signature.streaming_channels().at(0).fifo_depth(), 42);
   EXPECT_EQ(signature.streaming_channels().at(0).data_port_name(),
             "streaming_in_data");
@@ -211,6 +214,8 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
             CHANNEL_OPS_SEND_ONLY);
   EXPECT_EQ(signature.streaming_channels().at(1).flow_control(),
             CHANNEL_FLOW_CONTROL_NONE);
+  EXPECT_THAT(p.GetTypeFromProto(signature.streaming_channels().at(1).type()),
+              IsOkAndHolds(p.GetBitsType(32)));
   EXPECT_FALSE(signature.streaming_channels().at(1).has_fifo_depth());
   EXPECT_EQ(signature.streaming_channels().at(1).data_port_name(),
             "streaming_out_data");
@@ -219,6 +224,7 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
 }
 
 TEST(ModuleSignatureTest, GetByName) {
+  Package p(TestName());
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
@@ -227,9 +233,9 @@ TEST(ModuleSignatureTest, GetByName) {
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
   b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+                        FlowControl::kReadyValid, p.GetBitsType(24),
+                        /*fifo_depth=*/42, "streaming_in_data",
+                        "streaming_in_valid", "streaming_in_ready");
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
@@ -271,6 +277,7 @@ TEST(ModuleSignatureTest, GetByName) {
 }
 
 TEST(ModuleSignatureTest, GetChannels) {
+  Package p(TestName());
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
@@ -279,9 +286,9 @@ TEST(ModuleSignatureTest, GetChannels) {
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
   b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+                        FlowControl::kReadyValid, p.GetBitsType(24),
+                        /*fifo_depth=*/42, "streaming_in_data",
+                        "streaming_in_valid", "streaming_in_ready");
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
@@ -301,6 +308,7 @@ TEST(ModuleSignatureTest, GetChannels) {
 }
 
 TEST(ModuleSignatureTest, GetChannelNameWith) {
+  Package p(TestName());
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
@@ -309,9 +317,9 @@ TEST(ModuleSignatureTest, GetChannelNameWith) {
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
   b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+                        FlowControl::kReadyValid, p.GetBitsType(24),
+                        /*fifo_depth=*/42, "streaming_in_data",
+                        "streaming_in_valid", "streaming_in_ready");
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
@@ -336,6 +344,7 @@ TEST(ModuleSignatureTest, GetChannelNameWith) {
 }
 
 TEST(ModuleSignatureTest, RemoveStreamingChannel) {
+  Package p(TestName());
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
@@ -346,13 +355,13 @@ TEST(ModuleSignatureTest, RemoveStreamingChannel) {
   b.AddDataOutputAsBits("streaming_out_data", 16);
 
   b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, /*fifo_depth=*/42,
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+                        FlowControl::kReadyValid, p.GetBitsType(24),
+                        /*fifo_depth=*/42, "streaming_in_data",
+                        "streaming_in_valid", "streaming_in_ready");
 
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
-                        FlowControl::kNone, /*fifo_depth=*/std::nullopt,
-                        "streaming_out_data");
+                        FlowControl::kNone, p.GetBitsType(24),
+                        /*fifo_depth=*/std::nullopt, "streaming_out_data");
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 

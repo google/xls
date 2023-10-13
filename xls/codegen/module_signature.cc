@@ -167,7 +167,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
-    std::optional<int64_t> fifo_depth, std::string_view port_name,
+    Type* type, std::optional<int64_t> fifo_depth, std::string_view port_name,
     std::optional<std::string_view> valid_port_name,
     std::optional<std::string_view> ready_port_name) {
   ChannelProto* channel = proto_.add_data_channels();
@@ -181,6 +181,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
   } else {
     channel->set_supported_ops(CHANNEL_OPS_SEND_RECEIVE);
   }
+  *channel->mutable_type() = type->ToProto();
 
   if (flow_control == FlowControl::kReadyValid) {
     channel->set_flow_control(CHANNEL_FLOW_CONTROL_READY_VALID);

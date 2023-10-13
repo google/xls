@@ -14,12 +14,28 @@
 
 #include "xls/codegen/signature_generator.h"
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/status/status_macros.h"
+#include "xls/codegen/codegen_options.h"
+#include "xls/codegen/module_signature.h"
+#include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
-#include "xls/ir/node_util.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
 
@@ -111,7 +127,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
         b.AddStreamingChannel(
             ch->name(), ch->supported_ops(),
             down_cast<const StreamingChannel*>(ch)->GetFlowControl(),
-            down_cast<const StreamingChannel*>(ch)->GetFifoDepth(),
+            ch->type(), down_cast<const StreamingChannel*>(ch)->GetFifoDepth(),
             ch->GetDataPortName().value(), ch->GetValidPortName(),
             ch->GetReadyPortName());
       } else {
