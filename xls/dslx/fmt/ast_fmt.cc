@@ -1030,12 +1030,16 @@ static DocRef FmtParametricBindingPtr(const ParametricBinding* n,
 }
 
 DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
-  DocRef fn = arena.MakeText("fn");
-  DocRef name = arena.MakeText(n.identifier());
+  std::vector<DocRef> signature_pieces;
+  if (n.is_public()) {
+    signature_pieces.push_back(arena.Make(Keyword::kPub));
+    signature_pieces.push_back(arena.space());
+  }
+  signature_pieces.push_back(arena.Make(Keyword::kFn));
+  signature_pieces.push_back(arena.space());
+  signature_pieces.push_back(arena.MakeText(n.identifier()));
 
   DocRef params = FmtParams(n.params(), comments, arena);
-
-  std::vector<DocRef> signature_pieces = {fn, arena.break1(), name};
 
   if (n.IsParametric()) {
     signature_pieces.push_back(
