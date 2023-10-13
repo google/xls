@@ -106,6 +106,10 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
 
   // Define yosys commands
   const std::string yosys_import = "yosys -import";
+  const std::string show_dont_use =
+      "yosys log\n"
+      "yosys log -n {DONT_USE_ARGS: }\n"
+      "yosys log {*}$::env(DONT_USE_ARGS)";
   const std::string read_verilog_rtl =
       absl::StrFormat("read_verilog %s", verilog_path.string());
 
@@ -117,7 +121,8 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
       "abc -D %s -liberty %s -showtmp -script "
       "\"+strash;fraig;scorr;retime,%s;strash;dch,-f;map,-M,1,%s;"
       "topo;stime;buffer;topo;stime;minsize;"
-      "stime;upsize;stime;dnsize;stime\"",
+      "stime;upsize;stime;dnsize;stime\""
+      " {*}$::env(DONT_USE_ARGS)",
       delay_target, synthesis_libraries_, delay_target, delay_target);
   const std::string perform_cleanup =
       "setundef -zero\n" "splitnets";
@@ -132,6 +137,7 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
 
   // Build yosys commandfile
   yosys_tcl_vec.push_back(yosys_import);
+  yosys_tcl_vec.push_back(show_dont_use);
   yosys_tcl_vec.push_back(read_verilog_rtl);
 
   yosys_tcl_vec.push_back(perform_generic_synthesis);
