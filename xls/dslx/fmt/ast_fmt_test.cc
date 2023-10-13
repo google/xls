@@ -807,9 +807,7 @@ TEST(ModuleFmtTest, OneMultiLineCommentWithAnEmptyLineNoReflow) {
   EXPECT_EQ(got, kProgram);
 }
 
-// TODO(leary): 2023-10-12 This is not working because of a quirk in the
-// PrefixedReflow command in the pretty printer -- fix and re-enable.
-TEST(ModuleFmtTest, DISABLED_OneOverlongCommentLineWithOneToken) {
+TEST(ModuleFmtTest, OneOverlongCommentLineWithOneToken) {
   const std::string_view kProgram =
       R"(// abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
 )";

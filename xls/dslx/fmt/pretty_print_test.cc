@@ -131,5 +131,22 @@ TEST(PrettyPrintTest, PrefixedReflowAfterIndent) {
     // indented)");
 }
 
+TEST(PrettyPrintTest, PrefixedReflowOneOverflongToken) {
+  DocArena arena;
+  DocRef ref = arena.MakePrefixedReflow(
+      "//",
+      " abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrs"
+      "tuvwxyzabcdefghijklmnopqrstuvwxyz");
+  EXPECT_EQ(
+      PrettyPrint(arena, ref, 40),
+      R"(// abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz)");
+}
+
+TEST(PrettyPrintTest, PrefixedReflowCustomSpacingBeforeToken) {
+  DocArena arena;
+  DocRef ref = arena.MakePrefixedReflow("//", "     I like this many spaces");
+  EXPECT_EQ(PrettyPrint(arena, ref, 40), R"(//     I like this many spaces)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

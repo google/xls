@@ -14,12 +14,14 @@
 
 #include "xls/dslx/fmt/pretty_print.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -134,7 +136,7 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
             },
             [&](const PrefixedReflow& prefixed) {
               XLS_VLOG(3) << "PrefixedReflow; prefix: " << prefixed.prefix
-                          << " text: " << prefixed.text;
+                          << " text: `" << prefixed.text << "`";
               std::vector<std::string_view> lines =
                   absl::StrSplit(prefixed.text, '\n');
               const std::string& prefix = prefixed.prefix;
@@ -144,17 +146,39 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               const std::string carriage_return =
                   absl::StrCat("\n", std::string(entry.indent, ' '));
 
-              for (std::string_view line : lines) {
+              for (size_t i = 0; i < lines.size(); ++i) {
+                std::string_view line = lines[i];
+                XLS_VLOG(5)
+                    << "PrefixedReflow; handling line: `" << line << "`";
                 if (prefix.size() + line.size() < remaining_cols) {
                   // If it all fits in available cols, place it there in its
                   // entirety.
-                  pieces.push_back(absl::StrCat(prefix, line, carriage_return));
+                  pieces.push_back(absl::StrCat(prefix, line));
+                  if (i + 1 != lines.size()) {
+                    pieces.push_back(carriage_return);
+                  }
                 } else {
                   // Otherwise, place tokens until we encounter EOL and then
                   // wrap. We make sure we put at least one token on each line
                   // to ensure forward progress.
-                  std::vector<std::string_view> toks =
-                      absl::StrSplit(line, ' ');
+
+                  // We keep the leading whitespace on the side because we want
+                  // to preserve that, so that folks can put custom spacing at
+                  // the start of their line (e.g. think of a markdown quote
+                  // block).
+                  std::string_view line_no_leading_whitespace =
+                      absl::StripLeadingAsciiWhitespace(line);
+                  size_t leading_whitespace_size =
+                      line.size() - line_no_leading_whitespace.size();
+                  std::string_view leading_whitespace =
+                      std::string_view(line).substr(0, leading_whitespace_size);
+
+                  std::vector<std::string> toks =
+                      absl::StrSplit(line_no_leading_whitespace, ' ');
+                  if (!leading_whitespace.empty()) {
+                    toks[0] = absl::StrCat(leading_whitespace, toks[0]);
+                  }
+
                   auto remaining = absl::MakeConstSpan(toks);
 
                   while (!remaining.empty()) {
@@ -172,6 +196,9 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                         // If the next token isn't going to fit we make a
                         // carriage return and go to the next prefix insertion.
                         if (outcol + remaining.front().size() > text_width) {
+                          XLS_VLOG(5) << "PrefixedReflow; adding carriage "
+                                         "return in advance of: `"
+                                      << remaining.front() << "`";
                           pieces.push_back(carriage_return);
                           break;
                         }

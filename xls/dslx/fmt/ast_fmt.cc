@@ -1307,6 +1307,7 @@ static std::optional<DocRef> EmitCommentsBetween(
     pieces.push_back(arena.MakePrefixedReflow(
         "//",
         std::string{absl::StripTrailingAsciiWhitespace(comment_data->text)}));
+    pieces.push_back(arena.hard_line());
 
     previous_comment_span = comment_data->span;
     *last_comment_span = comment_data->span;
