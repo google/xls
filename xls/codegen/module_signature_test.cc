@@ -19,8 +19,15 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/ir_matcher.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -30,6 +37,7 @@ namespace {
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
+namespace m = ::xls::op_matchers;
 
 std::string TestName() {
   return ::testing::UnitTest::GetInstance()->current_test_info()->name();
@@ -392,6 +400,7 @@ TEST(ModuleSignatureTest, FromProtoAndAddOutputPort) {
 }
 
 TEST(ModuleSignatureTest, RamPortInterface1RW) {
+  Package p(TestName());
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
@@ -402,11 +411,12 @@ TEST(ModuleSignatureTest, RamPortInterface1RW) {
   b.AddDataOutputAsBits("ram_req_we", 1);
 
   b.AddRam1RW({
+      .package = &p,
+      .data_type = p.GetTupleType({p.GetBitsType(32)}),
       .ram_name = "ram",
       .req_name = "ram_req",
       .resp_name = "ram_resp",
       .address_width = 24,
-      .data_width = 32,
       .address_name = "ram_req_addr",
       .read_enable_name = "ram_req_re",
       .write_enable_name = "ram_req_we",
@@ -420,99 +430,49 @@ TEST(ModuleSignatureTest, RamPortInterface1RW) {
   EXPECT_EQ(signature.rams().at(0).name(), "ram");
   EXPECT_EQ(signature.rams().at(0).ram_oneof_case(),
             RamProto::RamOneofCase::kRam1Rw);
-  EXPECT_EQ(signature.rams().at(0).ram_1rw().rw_port().request().name(),
-            "ram_req");
-  EXPECT_EQ(signature.rams().at(0).ram_1rw().rw_port().response().name(),
-            "ram_resp");
+  const Ram1RWProto& ram_1rw = signature.rams().at(0).ram_1rw();
+  EXPECT_EQ(ram_1rw.rw_port().request().name(), "ram_req");
+  EXPECT_EQ(ram_1rw.rw_port().response().name(), "ram_resp");
 
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1rw().rw_port().request().address().name(),
-      "ram_req_addr");
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1rw().rw_port().request().address().width(),
-      24);
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1rw()
-                .rw_port()
-                .request()
-                .address()
-                .direction(),
+  EXPECT_EQ(ram_1rw.rw_port().request().address().name(), "ram_req_addr");
+  EXPECT_EQ(ram_1rw.rw_port().request().address().width(), 24);
+  EXPECT_THAT(p.GetTypeFromProto(ram_1rw.rw_port().request().address().type()),
+              IsOkAndHolds(m::Type("bits[24]")));
+  EXPECT_EQ(ram_1rw.rw_port().request().address().direction(),
             DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1rw().rw_port().request().read_enable().name(),
-      "ram_req_re");
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1rw()
-                .rw_port()
-                .request()
-                .read_enable()
-                .width(),
-            1);
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1rw()
-                .rw_port()
-                .request()
-                .read_enable()
-                .direction(),
+  EXPECT_EQ(ram_1rw.rw_port().request().read_enable().name(), "ram_req_re");
+  EXPECT_EQ(ram_1rw.rw_port().request().read_enable().width(), 1);
+  EXPECT_THAT(
+      p.GetTypeFromProto(ram_1rw.rw_port().request().read_enable().type()),
+      IsOkAndHolds(m::Type("bits[1]")));
+  EXPECT_EQ(ram_1rw.rw_port().request().read_enable().direction(),
             DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1rw()
-                .rw_port()
-                .request()
-                .write_enable()
-                .name(),
-            "ram_req_we");
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1rw()
-                .rw_port()
-                .request()
-                .write_enable()
-                .width(),
-            1);
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1rw()
-                .rw_port()
-                .request()
-                .write_enable()
-                .direction(),
+  EXPECT_EQ(ram_1rw.rw_port().request().write_enable().name(), "ram_req_we");
+  EXPECT_EQ(ram_1rw.rw_port().request().write_enable().width(), 1);
+  EXPECT_THAT(
+      p.GetTypeFromProto(ram_1rw.rw_port().request().write_enable().type()),
+      IsOkAndHolds(m::Type("bits[1]")));
+  EXPECT_EQ(ram_1rw.rw_port().request().write_enable().direction(),
             DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1rw().rw_port().response().read_data().name(),
-      "ram_resp_rd_data");
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1rw().rw_port().response().read_data().width(),
-      32);
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1rw()
-                .rw_port()
-                .response()
-                .read_data()
-                .direction(),
+  EXPECT_EQ(ram_1rw.rw_port().response().read_data().name(),
+            "ram_resp_rd_data");
+  EXPECT_EQ(ram_1rw.rw_port().response().read_data().width(), 32);
+  EXPECT_THAT(
+      p.GetTypeFromProto(ram_1rw.rw_port().response().read_data().type()),
+      IsOkAndHolds(m::Type("(bits[32])")));
+  EXPECT_EQ(ram_1rw.rw_port().response().read_data().direction(),
             DirectionProto::DIRECTION_INPUT);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1rw().rw_port().request().write_data().name(),
-      "ram_req_wr_data");
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1rw().rw_port().request().write_data().width(),
-      32);
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1rw()
-                .rw_port()
-                .request()
-                .write_data()
-                .direction(),
+  EXPECT_EQ(ram_1rw.rw_port().request().write_data().name(), "ram_req_wr_data");
+  EXPECT_EQ(ram_1rw.rw_port().request().write_data().width(), 32);
+  EXPECT_THAT(
+      p.GetTypeFromProto(ram_1rw.rw_port().request().write_data().type()),
+      IsOkAndHolds(m::Type("(bits[32])")));
+  EXPECT_EQ(ram_1rw.rw_port().request().write_data().direction(),
             DirectionProto::DIRECTION_OUTPUT);
 }
 
 TEST(ModuleSignatureTest, RamPortInterface1R1W) {
+  Package p(TestName());
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
@@ -524,12 +484,13 @@ TEST(ModuleSignatureTest, RamPortInterface1R1W) {
   b.AddDataOutputAsBits("ram_req_wr_en", 1);
 
   b.AddRam1R1W({
+      .package = &p,
+      .data_type = p.GetTupleType({p.GetBitsType(32)}),
       .ram_name = "ram",
       .rd_req_name = "ram_rd_req",
       .rd_resp_name = "ram_rd_resp",
       .wr_req_name = "ram_wr_req",
       .address_width = 24,
-      .data_width = 32,
       .read_address_name = "ram_rd_addr",
       .read_data_name = "ram_rd_data",
       .read_enable_name = "ram_rd_en",
@@ -544,72 +505,48 @@ TEST(ModuleSignatureTest, RamPortInterface1R1W) {
   EXPECT_EQ(signature.rams().at(0).name(), "ram");
   EXPECT_EQ(signature.rams().at(0).ram_oneof_case(),
             RamProto::RamOneofCase::kRam1R1W);
-  EXPECT_EQ(signature.rams().at(0).ram_1r1w().r_port().request().name(),
-            "ram_rd_req");
-  EXPECT_EQ(signature.rams().at(0).ram_1r1w().r_port().response().name(),
-            "ram_rd_resp");
-  EXPECT_EQ(signature.rams().at(0).ram_1r1w().w_port().request().name(),
-            "ram_wr_req");
+  const Ram1R1WProto& ram_1r1w = signature.rams().at(0).ram_1r1w();
+  EXPECT_EQ(ram_1r1w.r_port().request().name(), "ram_rd_req");
+  EXPECT_EQ(ram_1r1w.r_port().response().name(), "ram_rd_resp");
+  EXPECT_EQ(ram_1r1w.w_port().request().name(), "ram_wr_req");
 
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().r_port().request().address().name(),
-      "ram_rd_addr");
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().r_port().request().address().width(),
-      24);
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1r1w()
-                .r_port()
-                .request()
-                .address()
-                .direction(),
+  EXPECT_EQ(ram_1r1w.r_port().request().address().name(), "ram_rd_addr");
+  EXPECT_EQ(ram_1r1w.r_port().request().address().width(), 24);
+  EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.r_port().request().address().type()),
+              IsOkAndHolds(m::Type("bits[24]")));
+  EXPECT_EQ(ram_1r1w.r_port().request().address().direction(),
             DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().r_port().request().enable().name(),
-      "ram_rd_en");
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().r_port().request().enable().width(), 1);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().r_port().request().enable().direction(),
-      DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().w_port().request().enable().name(),
-      "ram_wr_en");
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().w_port().request().enable().width(), 1);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().w_port().request().enable().direction(),
-      DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(signature.rams().at(0).ram_1r1w().r_port().response().data().name(),
-            "ram_rd_data");
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().r_port().response().data().width(), 32);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().r_port().response().data().direction(),
-      DirectionProto::DIRECTION_INPUT);
+  EXPECT_EQ(ram_1r1w.r_port().request().enable().name(), "ram_rd_en");
+  EXPECT_EQ(ram_1r1w.r_port().request().enable().width(), 1);
+  EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.r_port().request().enable().type()),
+              IsOkAndHolds(m::Type("bits[1]")));
+  EXPECT_EQ(ram_1r1w.r_port().request().enable().direction(),
+            DirectionProto::DIRECTION_OUTPUT);
+  EXPECT_EQ(ram_1r1w.w_port().request().enable().name(), "ram_wr_en");
+  EXPECT_EQ(ram_1r1w.w_port().request().enable().width(), 1);
+  EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.w_port().request().enable().type()),
+              IsOkAndHolds(m::Type("bits[1]")));
+  EXPECT_EQ(ram_1r1w.w_port().request().enable().direction(),
+            DirectionProto::DIRECTION_OUTPUT);
+  EXPECT_EQ(ram_1r1w.r_port().response().data().name(), "ram_rd_data");
+  EXPECT_EQ(ram_1r1w.r_port().response().data().width(), 32);
+  EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.r_port().response().data().type()),
+              IsOkAndHolds(m::Type("(bits[32])")));
+  EXPECT_EQ(ram_1r1w.r_port().response().data().direction(),
+            DirectionProto::DIRECTION_INPUT);
 
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().w_port().request().address().name(),
-      "ram_wr_addr");
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().w_port().request().address().width(),
-      24);
-  EXPECT_EQ(signature.rams()
-                .at(0)
-                .ram_1r1w()
-                .w_port()
-                .request()
-                .address()
-                .direction(),
+  EXPECT_EQ(ram_1r1w.w_port().request().address().name(), "ram_wr_addr");
+  EXPECT_EQ(ram_1r1w.w_port().request().address().width(), 24);
+  EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.w_port().request().address().type()),
+              IsOkAndHolds(m::Type("bits[24]")));
+  EXPECT_EQ(ram_1r1w.w_port().request().address().direction(),
             DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(signature.rams().at(0).ram_1r1w().w_port().request().data().name(),
-            "ram_wr_data");
-  EXPECT_EQ(signature.rams().at(0).ram_1r1w().w_port().request().data().width(),
-            32);
-  EXPECT_EQ(
-      signature.rams().at(0).ram_1r1w().w_port().request().data().direction(),
-      DirectionProto::DIRECTION_OUTPUT);
+  EXPECT_EQ(ram_1r1w.w_port().request().data().name(), "ram_wr_data");
+  EXPECT_EQ(ram_1r1w.w_port().request().data().width(), 32);
+  EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.w_port().request().data().type()),
+              IsOkAndHolds(m::Type("(bits[32])")));
+  EXPECT_EQ(ram_1r1w.w_port().request().data().direction(),
+            DirectionProto::DIRECTION_OUTPUT);
 }
 
 }  // namespace

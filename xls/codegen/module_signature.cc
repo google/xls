@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -29,11 +28,17 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace verilog {
@@ -219,6 +224,8 @@ absl::Status ModuleSignatureBuilder::RemoveStreamingChannel(
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
     const Ram1RWArgs& args) {
   RamProto* ram = proto_.add_rams();
+  int64_t data_width = args.data_type->GetFlatBitCount();
+
   ram->set_name(ToProtoString(args.ram_name));
 
   Ram1RWProto* ram_1rw = ram->mutable_ram_1rw();
@@ -234,32 +241,40 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
   address_proto->set_name(ToProtoString(args.address_name));
   address_proto->set_direction(DIRECTION_OUTPUT);
   address_proto->set_width(args.address_width);
+  *address_proto->mutable_type() =
+      args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* read_enable_proto = req->mutable_read_enable();
   read_enable_proto->set_name(ToProtoString(args.read_enable_name));
   read_enable_proto->set_direction(DIRECTION_OUTPUT);
   read_enable_proto->set_width(1);
+  *read_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* write_enable_proto = req->mutable_write_enable();
   write_enable_proto->set_name(ToProtoString(args.write_enable_name));
   write_enable_proto->set_direction(DIRECTION_OUTPUT);
   write_enable_proto->set_width(1);
+  *write_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* write_data_proto = req->mutable_write_data();
   write_data_proto->set_name(ToProtoString(args.write_data_name));
   write_data_proto->set_direction(DIRECTION_OUTPUT);
-  write_data_proto->set_width(args.data_width);
+  write_data_proto->set_width(data_width);
+  *write_data_proto->mutable_type() = args.data_type->ToProto();
 
   auto* read_data_proto = resp->mutable_read_data();
   read_data_proto->set_name(ToProtoString(args.read_data_name));
   read_data_proto->set_direction(DIRECTION_INPUT);
-  read_data_proto->set_width(args.data_width);
+  read_data_proto->set_width(data_width);
+  *read_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.write_mask_width > 0) {
     auto* write_mask_proto = req->mutable_write_mask();
     write_mask_proto->set_name(ToProtoString(args.write_mask_name));
     write_mask_proto->set_direction(DIRECTION_OUTPUT);
     write_mask_proto->set_width(args.write_mask_width);
+    *write_mask_proto->mutable_type() =
+        args.package->GetBitsType(args.write_mask_width)->ToProto();
   }
 
   if (args.read_mask_width > 0) {
@@ -267,6 +282,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
     read_mask_proto->set_name(ToProtoString(args.read_mask_name));
     read_mask_proto->set_direction(DIRECTION_OUTPUT);
     read_mask_proto->set_width(args.read_mask_width);
+    *read_mask_proto->mutable_type() =
+        args.package->GetBitsType(args.read_mask_width)->ToProto();
   }
 
   return *this;
@@ -274,6 +291,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
     const Ram1R1WArgs& args) {
+  int64_t data_width = args.data_type->GetFlatBitCount();
   RamProto* ram = proto_.add_rams();
   ram->set_name(ToProtoString(args.ram_name));
 
@@ -294,45 +312,57 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
   rd_address_proto->set_name(ToProtoString(args.read_address_name));
   rd_address_proto->set_direction(DIRECTION_OUTPUT);
   rd_address_proto->set_width(args.address_width);
+  *rd_address_proto->mutable_type() =
+      args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* rd_enable_proto = r_req->mutable_enable();
   rd_enable_proto->set_name(ToProtoString(args.read_enable_name));
   rd_enable_proto->set_direction(DIRECTION_OUTPUT);
   rd_enable_proto->set_width(1);
+  *rd_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* rd_data_proto = r_resp->mutable_data();
   rd_data_proto->set_name(ToProtoString(args.read_data_name));
   rd_data_proto->set_direction(DIRECTION_INPUT);
-  rd_data_proto->set_width(args.data_width);
+  rd_data_proto->set_width(data_width);
+  *rd_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.read_mask_width > 0) {
     auto* read_mask_proto = w_req->mutable_mask();
     read_mask_proto->set_name(ToProtoString(args.read_mask_name));
     read_mask_proto->set_direction(DIRECTION_OUTPUT);
     read_mask_proto->set_width(args.read_mask_width);
+    *read_mask_proto->mutable_type() =
+        args.package->GetBitsType(args.read_mask_width)->ToProto();
   }
 
   auto* wr_address_proto = w_req->mutable_address();
   wr_address_proto->set_name(ToProtoString(args.write_address_name));
   wr_address_proto->set_direction(DIRECTION_OUTPUT);
   wr_address_proto->set_width(args.address_width);
+  *wr_address_proto->mutable_type() =
+      args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* wr_data_proto = w_req->mutable_data();
   wr_data_proto->set_name(ToProtoString(args.write_data_name));
   wr_data_proto->set_direction(DIRECTION_OUTPUT);
-  wr_data_proto->set_width(args.data_width);
+  wr_data_proto->set_width(data_width);
+  *wr_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.write_mask_width > 0) {
     auto* write_mask_proto = w_req->mutable_mask();
     write_mask_proto->set_name(ToProtoString(args.write_mask_name));
     write_mask_proto->set_direction(DIRECTION_OUTPUT);
     write_mask_proto->set_width(args.write_mask_width);
+    *write_mask_proto->mutable_type() =
+        args.package->GetBitsType(args.write_mask_width)->ToProto();
   }
 
   auto* wr_enable_proto = w_req->mutable_enable();
   wr_enable_proto->set_name(ToProtoString(args.write_enable_name));
   wr_enable_proto->set_direction(DIRECTION_OUTPUT);
   wr_enable_proto->set_width(1);
+  *wr_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   return *this;
 }

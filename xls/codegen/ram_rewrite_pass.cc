@@ -478,11 +478,12 @@ absl::StatusOr<bool> Ram1RWRewrite(
     }
 
     builder.AddRam1RW({
+        .package = unit->package,
+        .data_type = req_wr_data_port->GetType(),
         .ram_name = ram_name,
         .req_name = ram_config.rw_port_configuration().request_channel_name,
         .resp_name = ram_config.rw_port_configuration().response_channel_name,
         .address_width = req_addr_port->GetType()->GetFlatBitCount(),
-        .data_width = req_wr_data_port->GetType()->GetFlatBitCount(),
         .read_mask_width = req_rd_mask_port->GetType()->GetFlatBitCount(),
         .write_mask_width = req_wr_mask_port->GetType()->GetFlatBitCount(),
         .address_name = req_addr_port->GetName(),
@@ -721,12 +722,13 @@ absl::StatusOr<bool> Ram1R1WRewrite(
     }
 
     builder.AddRam1R1W({
+        .package = unit->package,
+        .data_type = rd_data->GetType(),
         .ram_name = ram_name,
         .rd_req_name = ram_config.r_port_configuration().request_channel_name,
         .rd_resp_name = ram_config.r_port_configuration().response_channel_name,
         .wr_req_name = ram_config.w_port_configuration().request_channel_name,
         .address_width = rd_addr_port->GetType()->GetFlatBitCount(),
-        .data_width = wr_data_port->GetType()->GetFlatBitCount(),
         .read_mask_width = rd_mask_port->GetType()->GetFlatBitCount(),
         .write_mask_width = wr_mask_port->GetType()->GetFlatBitCount(),
         .read_address_name = rd_addr_port->GetName(),

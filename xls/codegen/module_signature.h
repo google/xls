@@ -15,7 +15,7 @@
 #ifndef XLS_CODEGEN_MODULE_SIGNATURE_H_
 #define XLS_CODEGEN_MODULE_SIGNATURE_H_
 
-#include <memory>
+#include <cstdint>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -24,14 +24,17 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
-#include "xls/codegen/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/proto_adaptor_utils.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -110,11 +113,12 @@ class ModuleSignatureBuilder {
   // Struct to emulate named arguments for AddRam1RW as there are a lot of
   // arguments with the same type.
   struct Ram1RWArgs {
+    Package* package;
+    Type* data_type;
     std::string_view ram_name;
     std::string_view req_name;
     std::string_view resp_name;
     int64_t address_width;
-    int64_t data_width;
     int64_t read_mask_width;
     int64_t write_mask_width;
     std::string_view address_name;
@@ -130,12 +134,13 @@ class ModuleSignatureBuilder {
   // Struct to emulate named arguments for AddRam1R1W as there are a lot of
   // arguments with the same type.
   struct Ram1R1WArgs {
+    Package* package;
+    Type* data_type;
     std::string_view ram_name;
     std::string_view rd_req_name;
     std::string_view rd_resp_name;
     std::string_view wr_req_name;
     int64_t address_width;
-    int64_t data_width;
     int64_t read_mask_width;
     int64_t write_mask_width;
     std::string_view read_address_name;

@@ -233,13 +233,13 @@ cc_library(
     hdrs = ["module_signature.h"],
     deps = [
         ":module_signature_cc_proto",
-        ":vast",
         ":verilog_line_map_cc_proto",
         ":xls_metrics_cc_proto",
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:type",
@@ -249,6 +249,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -549,6 +550,7 @@ proto_library(
     srcs = ["module_signature.proto"],
     deps = [
         ":xls_metrics_proto",
+        "//xls/ir:foreign_function_data_proto",
         "//xls/ir:xls_type_proto",
     ],
 )
@@ -634,8 +636,15 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:ir_matcher",
         "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
