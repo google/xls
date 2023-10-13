@@ -54,6 +54,15 @@ static DocRef FmtExprPtr(const Expr* n, const Comments& comments,
 enum class Joiner : uint8_t {
   kCommaSpace,
   kCommaBreak1,
+
+  // Separates via a comma and break1, but groups the element with its
+  // delimiter. This is useful when we're packing member elements that we want
+  // to be reflowed across lines.
+  //
+  // Note that, in this mode, if we span multiple lines, we'll put a trailing
+  // comma as well.
+  kCommaBreak1AsGroup,
+
   kSpaceBarBreak,
   kHardLine,
 };
@@ -80,6 +89,18 @@ DocRef FmtJoin(
           pieces.push_back(arena.comma());
           pieces.push_back(arena.break1());
           break;
+        case Joiner::kCommaBreak1AsGroup: {
+          DocRef member = pieces.back();
+          pieces.pop_back();
+          std::vector<DocRef> this_pieces;
+          if (i != 0) {
+            this_pieces.push_back(arena.break1());
+          }
+          this_pieces.push_back(member);
+          this_pieces.push_back(arena.comma());
+          pieces.push_back(ConcatNGroup(arena, this_pieces));
+          break;
+        }
         case Joiner::kSpaceBarBreak:
           pieces.push_back(arena.space());
           pieces.push_back(arena.bar());
@@ -88,6 +109,16 @@ DocRef FmtJoin(
         case Joiner::kHardLine:
           pieces.push_back(arena.hard_line());
           break;
+      }
+    } else {  // last member, no trailing delimiter
+      if (joiner == Joiner::kCommaBreak1AsGroup && i != 0) {
+        // Note: we only want to put a leading space in front of the last
+        // element if the last element is not also the first element.
+        pieces.back() = ConcatNGroup(arena, {arena.break1(), pieces.back()});
+
+        // With this pattern if we're in break mode (implying we spanned
+        // multiple lines), we allow a trailing comma.
+        pieces.push_back(arena.MakeFlatChoice(arena.empty(), arena.comma()));
       }
     }
   }
@@ -204,25 +235,35 @@ DocRef Fmt(const WildcardPattern& n, const Comments& comments,
 }
 
 DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
-  std::vector<DocRef> pieces;
+  std::vector<DocRef> leader_pieces;
   if (TypeAnnotation* t = n.type_annotation()) {
-    pieces.push_back(Fmt(*t, comments, arena));
-    pieces.push_back(arena.colon());
+    leader_pieces.push_back(Fmt(*t, comments, arena));
+    leader_pieces.push_back(arena.colon());
   }
-  pieces.push_back(arena.obracket());
+  leader_pieces.push_back(arena.obracket());
+
+  std::vector<DocRef> pieces;
+  pieces.push_back(ConcatNGroup(arena, leader_pieces));
   pieces.push_back(arena.break0());
-  for (const Expr* member : n.members()) {
-    pieces.push_back(Fmt(*member, comments, arena));
-    pieces.push_back(arena.comma());
-    pieces.push_back(arena.break1());
-  }
+
+  std::vector<DocRef> member_pieces;
+  member_pieces.push_back(FmtJoin<const Expr*>(
+      n.members(), Joiner::kCommaBreak1AsGroup, FmtExprPtr, comments, arena));
+
   if (n.has_ellipsis()) {
-    pieces.push_back(arena.MakeText("..."));
-  } else {
-    pieces.pop_back();
-    pieces.pop_back();
+    // Subtle implementation note: The Joiner::CommaBreak1AsGroup puts a
+    // trailing comma when we're in break mode, so we only insert the comma for
+    // ellipsis when we're in flat mode.
+    member_pieces.push_back(arena.MakeFlatChoice(arena.comma(), arena.empty()));
+
+    member_pieces.push_back(
+        ConcatNGroup(arena, {arena.break1(), arena.MakeText("...")}));
   }
+
+  pieces.push_back(arena.MakeNest(ConcatNGroup(arena, member_pieces)));
+  pieces.push_back(arena.break0());
   pieces.push_back(arena.cbracket());
+
   return ConcatNGroup(arena, pieces);
 }
 
@@ -1118,17 +1159,20 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
 
 static DocRef Fmt(const ConstantDef& n, const Comments& comments,
                   DocArena& arena) {
-  std::vector<DocRef> pieces;
+  std::vector<DocRef> leader_pieces;
   if (n.is_public()) {
-    pieces.push_back(arena.Make(Keyword::kPub));
-    pieces.push_back(arena.break1());
+    leader_pieces.push_back(arena.Make(Keyword::kPub));
+    leader_pieces.push_back(arena.break1());
   }
-  pieces.push_back(arena.Make(Keyword::kConst));
-  pieces.push_back(arena.break1());
-  pieces.push_back(arena.MakeText(n.identifier()));
-  pieces.push_back(arena.break1());
-  pieces.push_back(arena.equals());
-  pieces.push_back(arena.break1());
+  leader_pieces.push_back(arena.Make(Keyword::kConst));
+  leader_pieces.push_back(arena.break1());
+  leader_pieces.push_back(arena.MakeText(n.identifier()));
+  leader_pieces.push_back(arena.break1());
+  leader_pieces.push_back(arena.equals());
+  leader_pieces.push_back(arena.space());
+
+  std::vector<DocRef> pieces;
+  pieces.push_back(ConcatNGroup(arena, leader_pieces));
   pieces.push_back(Fmt(*n.value(), comments, arena));
   pieces.push_back(arena.semi());
   return ConcatNGroup(arena, pieces);

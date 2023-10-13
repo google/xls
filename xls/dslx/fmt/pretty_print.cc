@@ -98,6 +98,9 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
     absl::visit(
         Visitor{
             [&](const std::string& s) {
+              XLS_VLOG(3) << "emitting text: `" << s
+                          << "` at outcol: " << outcol << " (size " << s.size()
+                          << ")";
               // Text is simply emitted to the output and we bump the output
               // column tracker accordingly.
               pieces.push_back(s);
@@ -213,7 +216,7 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               int64_t remaining_cols = text_width - outcol;
               Requirement grouped_requirement =
                   arena.Deref(group.arg).flat_requirement;
-              XLS_VLOG(1) << "grouped_requirement: "
+              XLS_VLOG(3) << "grouped_requirement: "
                           << RequirementToString(grouped_requirement)
                           << " remaining_cols: " << remaining_cols;
               if (grouped_requirement > remaining_cols) {
