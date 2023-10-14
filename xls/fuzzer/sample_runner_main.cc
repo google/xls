@@ -70,11 +70,10 @@ std::filesystem::path MaybeCopyFile(const std::filesystem::path& file_path,
 }  // namespace
 
 // Runs the sample in the given run directory.
-absl::Status RealMain(const std::filesystem::path& run_dir,
-                      const std::string& options_file,
-                      const std::string& input_file,
-                      const std::optional<std::string>& args_file,
-                      const std::optional<std::string>& ir_channel_names_file) {
+static absl::Status RealMain(
+    const std::filesystem::path& run_dir, const std::string& options_file,
+    const std::string& input_file, const std::optional<std::string>& args_file,
+    const std::optional<std::string>& ir_channel_names_file) {
   SampleRunner runner(run_dir);
   std::filesystem::path input_filename = MaybeCopyFile(input_file, run_dir);
   std::filesystem::path options_filename = MaybeCopyFile(options_file, run_dir);
