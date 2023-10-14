@@ -126,6 +126,7 @@ cc_library(
     hdrs = ["jit_wrapper_generator.h"],
     deps = [
         "@com_google_absl//absl/strings",
+        "//xls/common/logging",
         "//xls/ir",
     ],
 )
@@ -159,6 +160,100 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
+    ],
+)
+
+alias(
+    name = "switchable_function_jit",
+    actual = "switchable_function_jit-normal",
+    # Uncomment this and comment the above to make the
+    # switchable-function-jit use the interpreter instead. This can be used
+    # if the jit is non-functional due to some llvm update.
+    # actual = "switchable_function_jit-interpreter_fallback",
+    visibility = ["//xls:xls_users"],
+)
+
+cc_library(
+    name = "switchable_function_jit-normal",
+    srcs = ["switchable_function_jit.cc"],
+    hdrs = ["switchable_function_jit.h"],
+    defines = [
+        "EMERGENCY_FORCE_INTERPRETER=0",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":function_jit",
+        ":observer",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:value",
+    ],
+)
+
+cc_library(
+    name = "switchable_function_jit-interpreter_fallback",
+    srcs = ["switchable_function_jit.cc"],
+    hdrs = ["switchable_function_jit.h"],
+    defines = [
+        "EMERGENCY_FORCE_INTERPRETER=1",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":function_jit",
+        ":observer",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:value",
+    ],
+)
+
+cc_test(
+    name = "switchable_function_jit_test",
+    srcs = ["switchable_function_jit_test.cc"],
+    deps = [
+        ":switchable_function_jit",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+    ],
+)
+
+cc_test(
+    name = "switchable_function_jit_interpreter_fallback_test",
+    srcs = ["switchable_function_jit_interpreter_fallback_test.cc"],
+    deps = [
+        ":switchable_function_jit-interpreter_fallback",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
     ],
 )
 
