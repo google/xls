@@ -69,6 +69,13 @@ class LlvmTypeConverter {
   // DataLayout object can handle ~all of the work for us.
   int64_t GetTypeByteSize(const Type* type) const;
 
+  // Returns the next position (starting from offset) where LLVM would consider
+  // an object of the given type to have ended; specifically, the next position
+  // that matches the greater of the stack alignment and the type's preferred
+  // alignment. As above, the rules aren't immediately obvious, but the
+  // DataLayout object takes care of the details.
+  int64_t AlignFor(const Type* type, int64_t offset) const;
+
   // Returns a new Value representing the LLVM form of a Token.
   llvm::Value* GetToken() const;
 

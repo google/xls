@@ -383,6 +383,7 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:Support",
     ],
 )
 

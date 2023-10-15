@@ -20,6 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
+#include "llvm/include/llvm/Support/Alignment.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 
@@ -166,6 +167,15 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
 
 int64_t LlvmTypeConverter::GetTypeByteSize(const Type* type) const {
   return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedSize();
+}
+
+int64_t LlvmTypeConverter::AlignFor(const Type* type, int64_t offset) const {
+  llvm::Align alignment =
+      data_layout_.getPrefTypeAlign(ConvertToLlvmType(type));
+  if (data_layout_.exceedsNaturalStackAlignment(alignment)) {
+    return llvm::alignTo(offset, alignment);
+  }
+  return llvm::alignTo(offset, data_layout_.getStackAlignment());
 }
 
 llvm::Type* LlvmTypeConverter::GetTokenType() const {

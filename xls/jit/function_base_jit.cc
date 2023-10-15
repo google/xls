@@ -302,13 +302,12 @@ class BufferAllocator {
     int64_t offset = current_offset_;
     int64_t node_size = type_converter_->GetTypeByteSize(node->GetType());
     temp_block_offsets_[node] = offset;
-    current_offset_ += RoundUpToNearest<int64_t>(node_size, kMinAlignment);
+    current_offset_ =
+        type_converter_->AlignFor(node->GetType(), current_offset_ + node_size);
     XLS_VLOG(3) << absl::StreamFormat(
         "Allocated %s at offset %d (size = %d): total size %d", node->GetName(),
         offset, node_size, current_offset_);
   }
-  // The minimum alignment of any temp allocation.
-  static constexpr int64_t kMinAlignment = 16;
 
   const LlvmTypeConverter* type_converter_;
   absl::flat_hash_map<Node*, int64_t> temp_block_offsets_;
