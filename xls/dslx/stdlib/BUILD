@@ -17,6 +17,7 @@ load(
     "cc_xls_ir_jit_wrapper",
     "get_mangled_ir_symbol",
     "xls_benchmark_ir",
+    "xls_dslx_fmt_test",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
@@ -43,6 +44,11 @@ xls_dslx_test(
 xls_dslx_test(
     name = "acm_random_dslx_test",
     srcs = ["acm_random.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "acm_random_dslx_fmt",
+    src = "acm_random.x",
 )
 
 xls_dslx_library(

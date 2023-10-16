@@ -195,6 +195,7 @@ bzl_library(
         ":xls_rules_bzl",
         ":xls_type_check_helpers_bzl",
         "@bazel_skylib//rules:build_test",
+        "@bazel_skylib//rules:diff_test",
     ],
 )
 

@@ -57,6 +57,7 @@ load(
     "//xls/build_rules:xls_macros.bzl",
     _xls_delay_model_generation = "xls_delay_model_generation",
     _xls_dslx_cpp_type_library = "xls_dslx_cpp_type_library",
+    _xls_dslx_fmt_test_macro = "xls_dslx_fmt_test_macro",
     _xls_dslx_opt_ir_macro = "xls_dslx_opt_ir_macro",
     _xls_dslx_verilog_build_and_test = "xls_dslx_verilog_build_and_test",
     _xls_synthesis_metrics = "xls_synthesis_metrics",
@@ -93,6 +94,7 @@ cc_xls_ir_jit_wrapper = _cc_xls_ir_jit_wrapper
 # TODO (vmirian) 1-10-2022 Do not expose xls_dslx_ir to user. Prefer to simply
 # have an opt ir generated from a DSLX file.
 xls_dslx_ir = _xls_dslx_ir_macro
+xls_dslx_fmt_test = _xls_dslx_fmt_test_macro
 
 # TODO (vmirian) 1-10-2022 Do not expose xls_ir_opt_ir to user.
 xls_ir_opt_ir = _xls_ir_opt_ir_macro

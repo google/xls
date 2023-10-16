@@ -17,6 +17,7 @@ This module contains build macros for XLS.
 """
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
@@ -42,6 +43,10 @@ load(
     "//xls/build_rules:xls_rules.bzl",
     "xls_dslx_opt_ir",
     "xls_dslx_verilog",
+)
+load(
+    "//xls/build_rules:xls_toolchains.bzl",
+    "DEFAULT_DSLX_FMT_TARGET",
 )
 load(
     "//xls/build_rules:xls_type_check_helpers.bzl",
@@ -507,4 +512,25 @@ def xls_delay_model_generation(
                 echo -n ' ' \\\"\\$$\\@\\\" >> $@; \
                 echo '' >> $@",
         **kwargs
+    )
+
+def xls_dslx_fmt_test_macro(name, src):
+    """Creates a test target that confirms `src` is auto-formatted.
+
+    Args:
+        name: Name of the (diff) test target this will emit.
+        src: Source file to auto-format.
+    """
+    native.genrule(
+        name = name + "_dslx_fmt",
+        srcs = [src],
+        outs = [name + ".fmt.x"],
+        tools = [DEFAULT_DSLX_FMT_TARGET],
+        cmd = "$(location %s) $< > $@" % DEFAULT_DSLX_FMT_TARGET,
+    )
+    diff_test(
+        name = name,
+        file1 = src,
+        file2 = ":" + name + "_dslx_fmt",
+        failure_message = "File %s was not canonically auto-formatted" % src,
     )

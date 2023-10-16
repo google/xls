@@ -20,6 +20,11 @@ _DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler"
 
 _DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
+# Note: exported so we can use it in our macro implementation (which does not
+# get a toolchain ctx).
+_DEFAULT_DSLX_FMT_TARGET = "//xls/dslx:dslx_fmt"
+DEFAULT_DSLX_FMT_TARGET = _DEFAULT_DSLX_FMT_TARGET
+
 _DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx/ir_convert:ir_converter_main"
 
 _DEFAULT_OPT_IR_TARGET = "//xls/tools:opt_main"
@@ -161,6 +166,13 @@ Examples:
         "dslx_interpreter_tool": attr.label(
             doc = "The target of the DSLX interpreter executable.",
             default = Label(_DEFAULT_INTERPRETER_TARGET),
+            allow_single_file = True,
+            executable = True,
+            cfg = "exec",
+        ),
+        "dslx_autoformat_tool": attr.label(
+            doc = "The target of the DSLX auto-format executable.",
+            default = Label(DEFAULT_DSLX_FMT_TARGET),
             allow_single_file = True,
             executable = True,
             cfg = "exec",

@@ -676,6 +676,25 @@ a cc_library with its target name identical to this macro.
 | <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., `foo::bar`).   |  `None` |
 
 
+<a id="xls_dslx_fmt_test"></a>
+
+## xls_dslx_fmt_test
+
+<pre>
+xls_dslx_fmt_test(<a href="#xls_dslx_fmt_test-name">name</a>, <a href="#xls_dslx_fmt_test-src">src</a>)
+</pre>
+
+Creates a test target that confirms `src` is auto-formatted.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="xls_dslx_fmt_test-name"></a>name |  Name of the (diff) test target this will emit.   |  none |
+| <a id="xls_dslx_fmt_test-src"></a>src |  Source file to auto-format.   |  none |
+
+
 <a id="xls_dslx_ir"></a>
 
 ## xls_dslx_ir
