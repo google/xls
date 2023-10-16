@@ -56,7 +56,7 @@ ProcJitContinuation::ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
                                    absl::MakeSpan(input_buffers_[param_index]));
   }
 
-  temp_buffer_.resize(temp_buffer_size);
+  temp_buffer_.resize(jit_runtime->ShouldAllocateForStack(temp_buffer_size));
 }
 
 std::vector<Value> ProcJitContinuation::GetState() const {

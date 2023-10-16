@@ -14,12 +14,16 @@
 
 #include "xls/jit/jit_runtime.h"
 
+#include <cstdint>
+#include <cstring>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/Support/Alignment.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -140,6 +144,12 @@ void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
   // are cleared.
   memset(buffer.data(), 0, type_converter_->GetTypeByteSize(type));
   BlitValueToBufferInternal(value, type, buffer);
+}
+
+absl::Span<uint8_t> JitRuntime::AsStack(absl::Span<uint8_t> buffer) {
+  return buffer.subspan(
+      llvm::offsetToAlignment(reinterpret_cast<uintptr_t>(buffer.data()),
+                              data_layout_.getStackAlignment()));
 }
 
 void JitRuntime::BlitValueToBufferInternal(const Value& value, const Type* type,

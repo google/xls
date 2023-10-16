@@ -57,6 +57,24 @@ class JitRuntime {
 
   const llvm::DataLayout& data_layout() { return data_layout_; }
 
+  // Returns the number of bytes that should be allocated for a native LLVM
+  // stack storing `size` bytes.
+  //
+  // Note: A user cannot just allocate `size` bytes in every scenario, as there
+  //       may be stack alignment constraints. This method tells us how much to
+  //       overallocate.
+  size_t ShouldAllocateForStack(size_t size) {
+    return size + data_layout_.getStackAlignment().value() - 1;
+  }
+
+  // Converts the provided buffer into a native LLVM stack by aligning to the
+  // memory model's requirements.
+  //
+  // May reduce the size of the buffer; if the buffer was allocated to hold at
+  // least `ShouldAllocateForStack(size)` bytes, then the result is guaranteed
+  // to hold at least `size` bytes.
+  absl::Span<uint8_t> AsStack(absl::Span<uint8_t> buffer);
+
   int64_t GetTypeByteSize(Type* xls_type) {
     absl::MutexLock lock(&mutex_);
     return type_converter_->GetTypeByteSize(xls_type);

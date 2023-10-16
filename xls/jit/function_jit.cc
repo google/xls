@@ -82,7 +82,8 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
     jit->arg_buffer_ptrs_.push_back(jit->arg_buffers_.back().data());
   }
   jit->result_buffer_.resize(jit->GetReturnTypeSize());
-  jit->temp_buffer_.resize(jit->GetTempBufferSize());
+  jit->temp_buffer_.resize(
+      jit->jit_runtime_->ShouldAllocateForStack(jit->GetTempBufferSize()));
 
   return jit;
 }
@@ -153,7 +154,8 @@ void FunctionJit::InvokeJitFunction(
     InterpreterEvents* events) {
   uint8_t* output_buffers[1] = {output_buffer};
   jitted_function_base_.function(
-      arg_buffers.data(), output_buffers, temp_buffer_.data(), events,
+      arg_buffers.data(), output_buffers,
+      jit_runtime_->AsStack(absl::MakeSpan(temp_buffer_)).data(), events,
       /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 }
 

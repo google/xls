@@ -365,6 +365,7 @@ cc_library(
         "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:Support",
         "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
     ],

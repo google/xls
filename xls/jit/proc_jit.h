@@ -67,7 +67,9 @@ class ProcJitContinuation : public ProcContinuation {
   absl::Span<uint8_t*> GetOutputBuffers() {
     return absl::MakeSpan(output_ptrs_);
   }
-  absl::Span<uint8_t> GetTempBuffer() { return absl::MakeSpan(temp_buffer_); }
+  absl::Span<uint8_t> GetTempBuffer() {
+    return jit_runtime_->AsStack(absl::MakeSpan(temp_buffer_));
+  }
 
   // Sets the continuation to resume execution at the entry of the proc. Updates
   // state to the "next" value computed in the previous tick.
