@@ -38,12 +38,12 @@
 namespace xls {
 
 #if EMERGENCY_FORCE_INTERPRETER == 1
-#pragma clang diagnostic_push
+#pragma clang diagnostic push
 #pragma clang diagnostic warning "-W#warnings"
 #warning XLS JIT is currently disabled via EMERGENCY_FORCE_INTERPRETER and by \
 default won't be used.
 constexpr ExecutionType kRealDefaultExecutionType = ExecutionType::kInterpreter;
-#pragma clang diagnostic_pop
+#pragma clang diagnostic pop
 #else
 constexpr ExecutionType kRealDefaultExecutionType = ExecutionType::kJit;
 #endif
