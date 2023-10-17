@@ -440,7 +440,7 @@ class ModuleTestbench {
   std::string verilog_text_;
   FileType file_type_;
   const VerilogSimulator* simulator_;
-  absl::Span<const VerilogInclude> includes_;
+  std::vector<VerilogInclude> includes_;
 
   TestbenchMetadata metadata_;
   SignalCaptureManager capture_manager_;

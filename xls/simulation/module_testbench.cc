@@ -666,7 +666,7 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
     : verilog_text_(verilog_text),
       file_type_(file_type),
       simulator_(simulator),
-      includes_(includes),
+      includes_(includes.begin(), includes.end()),
       metadata_(signature) {
   if (metadata_.reset_proto().has_value()) {
     XLS_CHECK_OK(metadata_.AddInternalSignal(kLastResetCycleSignal, 1));
