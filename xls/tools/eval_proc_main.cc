@@ -828,26 +828,6 @@ static absl::Status RunBlockInterpreter(
   return absl::OkStatus();
 }
 
-static absl::StatusOr<std::vector<Value>> ParseValuesFile(
-    std::string_view filename, uint64_t max_lines) {
-  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(filename));
-  std::vector<Value> ret;
-  uint64_t li = 0;
-  for (const auto& line :
-       absl::StrSplit(contents, '\n', absl::SkipWhitespace())) {
-    if (0 == (li % 500)) {
-      XLS_VLOG(1) << "Parsing values file at line " << li;
-    }
-    li++;
-    XLS_ASSIGN_OR_RETURN(Value expected_status, Parser::ParseTypedValue(line));
-    ret.push_back(expected_status);
-    if (li == max_lines) {
-      break;
-    }
-  }
-  return ret;
-}
-
 static absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
 ParseChannelFilenames(absl::Span<const std::string> files_raw) {
   absl::flat_hash_map<std::string, std::string> ret;

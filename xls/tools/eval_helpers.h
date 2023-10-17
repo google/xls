@@ -26,6 +26,12 @@
 
 namespace xls {
 
+
+// Returns all XLS Values in file.
+// If max_lines is <0 then it is ignored.
+absl::StatusOr<std::vector<Value>> ParseValuesFile(
+    std::string_view filename, int64_t max_lines = -1);
+
 // Returns a string representation of the channels-to-values map. The values are
 // represented in Hex format. For example, given the following
 // channels-to-values map:

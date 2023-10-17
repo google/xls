@@ -14,19 +14,47 @@
 
 #include "xls/tools/eval_helpers.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/indent.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/value.h"
 #include "re2/re2.h"
 
 namespace xls {
+
+absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
+                                                   int64_t max_lines) {
+  if (max_lines == 0) {
+    return std::vector<Value>();
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(filename));
+  std::vector<Value> ret;
+  int64_t li = 0;
+  for (const auto& line :
+       absl::StrSplit(contents, '\n', absl::SkipWhitespace())) {
+    XLS_VLOG_IF(1, 0 == (li % 500)) << "Parsing values file at line " << li;
+    li++;
+    XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(line));
+    ret.push_back(std::move(value));
+    if (li == max_lines) {
+      break;
+    }
+  }
+  return ret;
+}
 
 std::string ChannelValuesToString(
     const absl::flat_hash_map<std::string, std::vector<Value>>&

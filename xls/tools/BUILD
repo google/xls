@@ -605,6 +605,8 @@ cc_library(
     deps = [
         "//xls/common:indent",
         "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
