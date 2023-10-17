@@ -188,6 +188,7 @@ def _xls_cc_ir_impl(ctx):
         "meta_out",
         "meta_out_text",
         "block_from_class",
+        "z3_rlimit",
     )
 
     xlscc_args = append_default_to_args(
