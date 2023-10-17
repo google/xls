@@ -84,6 +84,7 @@ Checks: >
   -misc-redundant-expression,
   -misc-unused-parameters,
   -misc-use-anonymous-namespace,
+  -cppcoreguidelines-narrowing-conversions,
 
 CheckOptions:
   - key:             readability-implicit-bool-conversion.AllowPointerConditions
