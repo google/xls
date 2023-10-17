@@ -69,6 +69,7 @@ class Pos {
   bool operator<=(const Pos& other) const {
     return (*this) < other || (*this) == other;
   }
+  bool operator>(const Pos& other) const { return !(*this <= other); }
   bool operator>=(const Pos& other) const { return !((*this) < other); }
 
   const std::string& filename() const { return filename_; }

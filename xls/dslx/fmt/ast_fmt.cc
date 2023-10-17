@@ -1005,6 +1005,8 @@ DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena) {
       n.wrapped());
 }
 
+// Formats parameters (i.e. function parameters) with leading '(' and trailing
+// ')'.
 static DocRef FmtParams(absl::Span<const Param* const> params,
                         const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces = {arena.oparen()};
@@ -1095,7 +1097,73 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
 }
 
 static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "proc: " << n.ToString();
+  std::vector<DocRef> signature_pieces;
+  if (n.is_public()) {
+    signature_pieces.push_back(arena.Make(Keyword::kPub));
+    signature_pieces.push_back(arena.space());
+  }
+  signature_pieces.push_back(arena.Make(Keyword::kProc));
+  signature_pieces.push_back(arena.space());
+  signature_pieces.push_back(arena.MakeText(n.identifier()));
+
+  if (n.IsParametric()) {
+    signature_pieces.push_back(
+        ConcatNGroup(arena, {arena.oangle(),
+                             FmtJoin<const ParametricBinding*>(
+                                 n.parametric_bindings(), Joiner::kCommaSpace,
+                                 FmtParametricBindingPtr, comments, arena),
+                             arena.cangle()}));
+  }
+  signature_pieces.push_back(arena.break1());
+  signature_pieces.push_back(arena.ocurl());
+
+  std::vector<DocRef> config_pieces = {
+      arena.MakeText("config"),
+      FmtParams(n.config()->params(), comments, arena),
+      arena.space(),
+      arena.ocurl(),
+      arena.break1(),
+      FmtBlock(*n.config()->body(), comments, arena, /*add_curls=*/false),
+      arena.break1(),
+      arena.ccurl(),
+  };
+
+  std::vector<DocRef> init_pieces = {
+      arena.MakeText("init"),
+      arena.space(),
+      arena.ocurl(),
+      arena.break1(),
+      FmtBlock(*n.init()->body(), comments, arena, /*add_curls=*/false),
+      arena.break1(),
+      arena.ccurl(),
+  };
+
+  std::vector<DocRef> next_pieces = {
+      arena.MakeText("next"),
+      FmtParams(n.next()->params(), comments, arena),
+      arena.space(),
+      arena.ocurl(),
+      arena.break1(),
+      FmtBlock(*n.next()->body(), comments, arena, /*add_curls=*/false),
+      arena.break1(),
+      arena.ccurl(),
+  };
+
+  std::vector<DocRef> proc_pieces = {
+      ConcatNGroup(arena, signature_pieces),
+      arena.hard_line(),
+      arena.MakeNest(ConcatNGroup(arena, config_pieces)),
+      arena.hard_line(),
+      arena.hard_line(),
+      arena.MakeNest(ConcatNGroup(arena, init_pieces)),
+      arena.hard_line(),
+      arena.hard_line(),
+      arena.MakeNest(ConcatNGroup(arena, next_pieces)),
+      arena.hard_line(),
+      arena.ccurl(),
+  };
+
+  return ConcatNGroup(arena, proc_pieces);
 }
 
 static DocRef Fmt(const TestFunction& n, const Comments& comments,
@@ -1282,7 +1350,9 @@ static std::optional<DocRef> EmitCommentsBetween(
   if (!start_pos.has_value()) {
     start_pos = Pos(limit_pos.filename(), 0, 0);
   }
+  XLS_CHECK_LE(start_pos.value(), limit_pos);
   const Span span(start_pos.value(), limit_pos);
+
   XLS_VLOG(3) << "Looking for comments in span: " << span;
 
   std::vector<DocRef> pieces;
@@ -1326,11 +1396,28 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   for (size_t i = 0; i < n.top().size(); ++i) {
     const auto& member = n.top()[i];
 
+    const AstNode* node = ToAstNode(member);
+
+    // If this is a desugared proc function, we skip it, and handle formatting
+    // it when we get to the proc node.
+    if (const Function* f = dynamic_cast<const Function*>(node);
+        f != nullptr && f->tag() != Function::Tag::kNormal) {
+      continue;
+    }
+
+    XLS_VLOG(3) << "Fmt; " << node->GetNodeTypeName()
+                << " module member: " << node->ToString();
+
     // If there are comment blocks between the last member position and the
     // member we're about the process, we need to emit them.
-    std::optional<Span> member_span = ToAstNode(member)->GetSpan();
-    XLS_CHECK(member_span.has_value()) << ToAstNode(member)->GetNodeTypeName();
+    std::optional<Span> member_span = node->GetSpan();
+    XLS_CHECK(member_span.has_value()) << node->GetNodeTypeName();
     Pos member_start = member_span->start();
+
+    // Check the start of this member is >= the last member limit.
+    if (last_member_pos.has_value()) {
+      XLS_CHECK_GE(member_start, last_member_pos.value()) << node->ToString();
+    }
 
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
@@ -1347,6 +1434,12 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
         pieces.push_back(arena.hard_line());
       }
     }
+
+    // Check the last member position is monotonically increasing.
+    if (last_member_pos.has_value()) {
+      XLS_CHECK_GT(member_span->limit(), last_member_pos.value());
+    }
+
     last_member_pos = member_span->limit();
 
     pieces.push_back(Fmt(member, comments, arena));
