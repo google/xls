@@ -14,14 +14,18 @@
 
 #include "xls/fuzzer/cpp_run_fuzz.h"
 
+#include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
 
 namespace xls {
@@ -66,8 +70,9 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
 
   SampleOptions ir_minimize_options = smp.options();
   ir_minimize_options.set_input_is_dslx(false);
-  XLS_RETURN_IF_ERROR(WriteToFile(run_dir, "ir_minimizer.options.pbtxt",
-                                  ir_minimize_options.proto().DebugString()));
+  XLS_RETURN_IF_ERROR(
+      SetFileContents(run_dir / "ir_minimizer.options.pbtxt",
+                      ir_minimize_options.proto().DebugString()));
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path sample_runner_main_path,
                        GetSampleRunnerMainPath());
@@ -79,10 +84,12 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
         std::string{sample_runner_main_path}, "--logtostderr",
         "--options_file=ir_minimizer.options.pbtxt", "--args_file=args.txt",
         "--input_file=$1"};
-    XLS_RETURN_IF_ERROR(
-        WriteToFile(run_dir, "ir_minimizer_test.sh",
-                    absl::StrCat("#!/bin/sh\n! ", absl::StrJoin(args, " ")),
-                    /*executable=*/true));
+    const std::filesystem::path test_script = run_dir / "ir_minimizer_test.sh";
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        test_script, absl::StrCat("#!/bin/sh\n! ", absl::StrJoin(args, " "))));
+    std::filesystem::permissions(test_script,
+                                 std::filesystem::perms::owner_exec,
+                                 std::filesystem::perm_options::add);
 
     std::string basename = ir_minimizer_main_path.stem();
     std::filesystem::path stderr_path =
@@ -92,7 +99,8 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
         SubprocessResult result,
         InvokeSubprocess(
             {ir_minimizer_main_path, "--alsologtostderr",
-             "--test_executable=ir_minimizer_test.sh", "sample.ir"},
+             absl::StrCat("--test_executable=", test_script.string()),
+             "sample.ir"},
             /*cwd=*/run_dir, timeout));
     XLS_RETURN_IF_ERROR(SetFileContents(stderr_path, result.stderr));
 

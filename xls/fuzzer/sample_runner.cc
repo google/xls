@@ -172,10 +172,10 @@ absl::StatusOr<std::string> RunCommand(
   std::filesystem::path executable = std::get<std::filesystem::path>(command);
   std::string basename = executable.filename();
 
-  std::vector<std::string> filters;
-  for (const auto& filter : options.known_failures()) {
-    if (!filter.has_tool() || RE2::FullMatch(basename, filter.tool())) {
-      filters.emplace_back(filter.stderr_regex());
+  std::vector<std::shared_ptr<RE2>> filters;
+  for (const KnownFailure& filter : options.known_failures()) {
+    if (filter.tool == nullptr || RE2::FullMatch(basename, *filter.tool)) {
+      filters.emplace_back(filter.stderr_regex);
     }
   }
 
@@ -227,8 +227,8 @@ absl::StatusOr<std::string> RunCommand(
         absl::StrCat("Subprocess call failed: ", command_string));
   }
   if (result.exit_status != EXIT_SUCCESS) {
-    if (absl::c_any_of(filters, [&](const RE2& re) {
-          return RE2::PartialMatch(result.stderr, re);
+    if (absl::c_any_of(filters, [&](const std::shared_ptr<RE2>& re) {
+          return RE2::PartialMatch(result.stderr, *re);
         })) {
       return absl::FailedPreconditionError(
           absl::StrFormat("%s returned a non-zero exit status (%d) but failure "

@@ -16,6 +16,7 @@
 
 #include <fcntl.h>
 #include <poll.h>
+#include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -29,6 +30,7 @@
 #include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -42,6 +44,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/file/file_descriptor.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -50,6 +53,10 @@
 
 namespace xls {
 namespace {
+
+// Note: this path is runfiles-relative.
+constexpr std::string_view kSubprocessHelperPath =
+    "xls/common/subprocess_helper";
 
 struct Pipe {
   Pipe(FileDescriptor exit, FileDescriptor&& entrance)
@@ -71,45 +78,95 @@ struct Pipe {
   FileDescriptor entrance;
 };
 
+absl::Status ReplaceFdWithPipe(posix_spawn_file_actions_t& actions, int fd,
+                               Pipe& pipe, std::string_view pipe_name) {
+  if (int err = posix_spawn_file_actions_addclose(&actions, pipe.exit.get());
+      err != 0) {
+    return absl::InternalError(absl::StrFormat(
+        "Cannot add close() action for %s exit: %s", pipe_name, Strerror(err)));
+  }
+
+  if (int err =
+          posix_spawn_file_actions_adddup2(&actions, pipe.entrance.get(), fd);
+      err != 0) {
+    return absl::InternalError(
+        absl::StrFormat("Cannot add dup2() action for %s entrance: %s",
+                        pipe_name, Strerror(err)));
+  }
+  if (int err =
+          posix_spawn_file_actions_addclose(&actions, pipe.entrance.get());
+      err != 0) {
+    return absl::InternalError(absl::StrFormat(
+        "Cannot clean up for %s entrance: %s", pipe_name, Strerror(err)));
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<posix_spawn_file_actions_t> CreateChildFileActions(
+    Pipe& stdout_pipe, Pipe& stderr_pipe) {
+  posix_spawn_file_actions_t actions;
+
+  if (int err = posix_spawn_file_actions_init(&actions); err != 0) {
+    return absl::InternalError(
+        absl::StrCat("Cannot initialize file actions: ", Strerror(err)));
+  }
+  if (int err = posix_spawn_file_actions_addclose(&actions, STDIN_FILENO);
+      err != 0) {
+    return absl::InternalError(
+        absl::StrCat("Cannot add close() action (stdin): ", Strerror(err)));
+  }
+
+  XLS_RETURN_IF_ERROR(
+      ReplaceFdWithPipe(actions, STDOUT_FILENO, stdout_pipe, "stdout"));
+  XLS_RETURN_IF_ERROR(
+      ReplaceFdWithPipe(actions, STDERR_FILENO, stderr_pipe, "stderr"));
+
+  return actions;
+}
+
 absl::StatusOr<pid_t> ExecInChildProcess(
     const std::vector<const char*>& argv_pointers,
     const std::optional<std::filesystem::path>& cwd, Pipe& stdout_pipe,
     Pipe& stderr_pipe) {
-  const char* cwd_c_str = nullptr;
-  if (cwd.has_value()) {
-    cwd_c_str = cwd->c_str();
-  }
+  // We previously used fork() & exec() here, but that's prone to many subtle
+  // problems (e.g., allocating between fork() and exec() can cause arbitrary
+  // problems)... and it's also slow. vfork() might have made the performance
+  // better, but it's not fully clear what's safe between vfork() and exec()
+  // either, so we just use posix_spawn for safety and convenience.
 
-  pid_t pid = fork();
-  if (pid == -1) {
+  // Since we may need the child to have a different working directory (per
+  // `cwd`), and posix_spawn does not (yet) have support for a chdir action, we
+  // use a helper binary that chdir's to its first argument, then invokes
+  // "execvp" with the remaining arguments to replace itself with the command we
+  // actually wanted to run.
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path subprocess_helper,
+                       GetXlsRunfilePath(kSubprocessHelperPath));
+  std::vector<const char*> helper_argv_pointers;
+  helper_argv_pointers.reserve(argv_pointers.size() + 2);
+  helper_argv_pointers.push_back(subprocess_helper.c_str());
+  helper_argv_pointers.push_back(cwd.has_value() ? cwd->c_str() : "");
+  helper_argv_pointers.insert(helper_argv_pointers.end(), argv_pointers.begin(),
+                              argv_pointers.end());
+
+  XLS_ASSIGN_OR_RETURN(posix_spawn_file_actions_t file_actions,
+                       CreateChildFileActions(stdout_pipe, stderr_pipe));
+
+  pid_t pid;
+  if (int err = posix_spawnp(
+          &pid, subprocess_helper.c_str(), &file_actions, nullptr,
+          const_cast<char* const*>(helper_argv_pointers.data()), environ);
+      err != 0) {
     return absl::InternalError(
-        absl::StrCat("Failed to fork: ", Strerror(errno)));
-  }
-  if (pid != 0) {
-    // This is the parent process.
-    stdout_pipe.entrance.Close();
-    stderr_pipe.entrance.Close();
-    return pid;
+        absl::StrCat("Cannot spawn child process: ", Strerror(err)));
   }
 
-  // This is the child process.
-  //
-  // NOTE: It is not safe to allocate from here to the `exec` invocation, so
-  // logging is also unsafe.
-  if (cwd_c_str != nullptr) {
-    if (chdir(cwd_c_str) != 0) {
-      _exit(127);
-    }
+  if (int err = posix_spawn_file_actions_destroy(&file_actions); err != 0) {
+    return absl::InternalError(
+        absl::StrCat("Cannot destroy file actions: ", Strerror(err)));
   }
-  while ((dup2(stdout_pipe.entrance.get(), STDOUT_FILENO) == -1) &&
-         (errno == EINTR)) {
-  }
-  while ((dup2(stderr_pipe.entrance.get(), STDERR_FILENO) == -1) &&
-         (errno == EINTR)) {
-  }
-  execv(argv_pointers[0], const_cast<char* const*>(argv_pointers.data()));
-  XLS_LOG(ERROR) << "Execv syscall failed: " << Strerror(errno);
-  _exit(127);
+  stdout_pipe.entrance.Close();
+  stderr_pipe.entrance.Close();
+  return pid;
 }
 
 // Takes a list of file descriptor data streams and reads them into a list of

@@ -15,6 +15,7 @@
 #ifndef XLS_FUZZER_SAMPLE_H_
 #define XLS_FUZZER_SAMPLE_H_
 
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -27,6 +28,7 @@
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.pb.h"
+#include "re2/re2.h"
 
 namespace xls {
 
@@ -39,6 +41,16 @@ std::string IrChannelNamesToText(
 // Returns a list of ir channel names.
 std::vector<std::string> ParseIrChannelNames(
     std::string_view ir_channel_names_text);
+
+struct KnownFailure {
+  // We use shared_ptr here because it's extremely difficult to get things to
+  // compile if we use unique_ptr... these get stored & passed around in a
+  // std::vector, which has a lot of restrictions on its use if storing a
+  // non-copyable struct. (RE2 itself is neither copyable nor movable, which
+  // causes its own set of problems.)
+  std::shared_ptr<RE2> tool;
+  std::shared_ptr<RE2> stderr_regex;
+};
 
 // Options describing how to run a code sample. See member comments for details.
 class SampleOptions {
@@ -126,24 +138,42 @@ class SampleOptions {
   int64_t proc_ticks() const { return proto_.proc_ticks(); }
   void set_proc_ticks(int64_t value) { proto_.set_proc_ticks(value); }
 
-  std::vector<fuzzer::KnownFailure> known_failures() const {
-    return std::vector<fuzzer::KnownFailure>(
-        proto_.known_failure().begin(),
-        proto_.known_failure().end());
+  const std::vector<KnownFailure>& known_failures() const {
+    if (known_failures_.empty() && proto_.known_failure_size() > 0) {
+      known_failures_.reserve(proto_.known_failure_size());
+      for (const auto& fail : proto_.known_failure()) {
+        KnownFailure compiled_fail;
+        if (fail.has_tool()) {
+          compiled_fail.tool = std::make_shared<RE2>(fail.tool());
+        }
+        if (fail.has_stderr_regex()) {
+          compiled_fail.stderr_regex =
+              std::make_shared<RE2>(fail.stderr_regex());
+        }
+        known_failures_.push_back(std::move(compiled_fail));
+      }
+    }
+    return known_failures_;
   }
-  void clear_known_failures() { proto_.clear_known_failure(); }
+  void clear_known_failures() {
+    proto_.clear_known_failure();
+    known_failures_.clear();
+  }
   void add_known_failure(std::string_view re) {
     *proto_.mutable_known_failure()->Add()->mutable_stderr_regex() = re;
+    known_failures_.clear();
   }
   void add_known_failure(std::string_view tool, std::string_view re) {
     auto* fail = proto_.add_known_failure();
     *fail->mutable_tool() = tool;
     *fail->mutable_stderr_regex() = re;
+    known_failures_.clear();
   }
   void set_known_failures(absl::Span<const fuzzer::KnownFailure> fails) {
     for (const auto& arg : fails) {
       *proto_.add_known_failure() = arg;
     }
+    known_failures_.clear();
   }
 
   bool operator==(const SampleOptions& other) const;
@@ -164,6 +194,8 @@ class SampleOptions {
 
  private:
   fuzzer::SampleOptionsProto proto_ = DefaultOptionsProto();
+
+  mutable std::vector<KnownFailure> known_failures_;
 };
 bool AbslParseFlag(std::string_view text, SampleOptions* sample_options,
                    std::string* error);

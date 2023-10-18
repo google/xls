@@ -200,10 +200,16 @@ cc_test(
     ],
 )
 
+cc_binary(
+    name = "subprocess_helper",
+    srcs = ["subprocess_helper.cc"],
+)
+
 cc_library(
     name = "subprocess",
     srcs = ["subprocess.cc"],
     hdrs = ["subprocess.h"],
+    data = [":subprocess_helper"],
     deps = [
         ":strerror",
         ":thread",
@@ -216,6 +222,7 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
         "//xls/common/file:file_descriptor",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
