@@ -109,7 +109,12 @@ struct Options {
   std::optional<int64_t> worker_count;
 };
 
-absl::Status CheckWritableDirectory(const std::filesystem::path& path) {
+absl::Status CheckOrCreateWritableDirectory(const std::filesystem::path& path) {
+  if (!std::filesystem::exists(path) &&
+      !std::filesystem::create_directory(path)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat(path.string(), " could not be created"));
+  }
   if (!std::filesystem::is_directory(path)) {
     return absl::InvalidArgumentError(
         absl::StrCat(path.string(), " is not a directory"));
@@ -120,10 +125,10 @@ absl::Status CheckWritableDirectory(const std::filesystem::path& path) {
 
 absl::Status RealMain(const Options& options) {
   if (options.crash_path.has_value()) {
-    XLS_RETURN_IF_ERROR(CheckWritableDirectory(*options.crash_path));
+    XLS_RETURN_IF_ERROR(CheckOrCreateWritableDirectory(*options.crash_path));
   }
   if (options.summary_path.has_value()) {
-    XLS_RETURN_IF_ERROR(CheckWritableDirectory(*options.summary_path));
+    XLS_RETURN_IF_ERROR(CheckOrCreateWritableDirectory(*options.summary_path));
   }
 
   int64_t worker_count;
