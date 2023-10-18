@@ -17,15 +17,18 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
@@ -600,6 +603,54 @@ TEST(IrMatchersTest, NameMatcher) {
   // Tests that matchers can be passed to m::Name().
   EXPECT_THAT(f->return_value(),
               m::Add(m::Name(HasSubstr("xy")), m::Name(HasSubstr("yx"))));
+}
+
+// Make and return a block which adds two u32 numbers.
+absl::StatusOr<Block*> MakeAddBlock(std::string_view name, Package* package) {
+  Type* u32 = package->GetBitsType(32);
+  BlockBuilder bb(name, package);
+  BValue a = bb.InputPort("a", u32);
+  BValue b = bb.InputPort("b", u32);
+  bb.OutputPort("result", bb.Add(a, b));
+  return bb.Build();
+}
+
+TEST(IrMatchersTest, InstantiationMatcher) {
+  Package p("p");
+  Type* u32 = p.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * add_block, MakeAddBlock("adder", &p));
+  BlockBuilder bb("my_block", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * add0,
+      bb.block()->AddBlockInstantiation("add0", add_block));
+  BValue x = bb.InputPort("x", u32);
+  BValue y = bb.InputPort("y", u32);
+
+  bb.InstantiationInput(add0, "a", x);
+  bb.InstantiationInput(add0, "b", y);
+  BValue x_plus_y = bb.InstantiationOutput(add0, "result");
+  bb.OutputPort("x_plus_y", x_plus_y);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(block->GetInstantiations(),
+              UnorderedElementsAre(m::Instantiation("add0")));
+  EXPECT_THAT(block->GetInstantiations(),
+              UnorderedElementsAre(
+                  m::Instantiation("add0", InstantiationKind::kBlock)));
+  EXPECT_THAT(
+      block->GetInstantiations(),
+      UnorderedElementsAre(m::Instantiation(InstantiationKind::kBlock)));
+
+  EXPECT_THAT(
+      Explain(block->GetInstantiations().at(0), m::Instantiation("sub0")),
+      HasSubstr("add0"));
+  EXPECT_THAT(Explain(block->GetInstantiations().at(0),
+                      m::Instantiation("sub0", InstantiationKind::kExtern)),
+              HasSubstr("add0 has incorrect name, expected: sub0"));
+  EXPECT_THAT(Explain(block->GetInstantiations().at(0),
+                      m::Instantiation(InstantiationKind::kExtern)),
+              HasSubstr("add0 has incorrect kind, expected: extern"));
 }
 
 }  // namespace

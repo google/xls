@@ -33,6 +33,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -669,6 +670,50 @@ void MinDelayMatcher::DescribeTo(::std::ostream* os) const {
   std::stringstream delay_description;
   delay_.DescribeTo(&delay_description);
   DescribeToHelper(os, {absl::StrCat("delay=", delay_description.str())});
+}
+
+bool InstantiationMatcher::MatchAndExplain(
+    const ::xls::Instantiation* instantiation,
+    ::testing::MatchResultListener* listener) const {
+  *listener << instantiation->name();
+  if (name_.has_value() &&
+      !name_->MatchAndExplain(instantiation->name(), listener)) {
+    return false;
+  }
+
+  if (kind_.has_value() && *kind_ != instantiation->kind()) {
+    *listener << " has incorrect kind, expected: " << *kind_;
+    return false;
+  }
+  return true;
+}
+
+void InstantiationMatcher::DescribeTo(::std::ostream* os) const {
+  std::string kind_str;
+  if (kind_.has_value()) {
+    kind_str = absl::StrFormat("(kind=%s)", InstantiationKindToString(*kind_));
+  }
+  std::string name_str = "<unspecified>";
+  if (name_.has_value()) {
+    std::stringstream ss;
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
+  }
+  *os << absl::StreamFormat("instantiation %s%s", name_str, kind_str);
+}
+void InstantiationMatcher::DescribeNegationTo(std::ostream* os) const {
+  std::string kind_str;
+  if (kind_.has_value()) {
+    kind_str = absl::StrFormat("kind=%s", InstantiationKindToString(*kind_));
+  }
+  std::string name_str = "<unspecified>";
+  if (name_.has_value()) {
+    std::stringstream ss;
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
+  }
+  *os << absl::StreamFormat("Instantiation did not have (name=%s, kind=%s)",
+                            name_str, kind_str);
 }
 
 }  // namespace op_matchers

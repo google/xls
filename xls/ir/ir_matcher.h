@@ -34,6 +34,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
@@ -1352,6 +1353,61 @@ inline ::testing::PolymorphicMatcher<ProcMatcher> Proc(
   return ::testing::MakePolymorphicMatcher(
       ::xls::op_matchers::ProcMatcher(std::move(name)));
 }
+
+// Matcher for instances. Supported forms:
+//
+//   m::Instantiation()
+//   m::Instantiation(/*instance_name=*/name)
+//   m::Instantiation(/*kind=*/kind)
+//   m::Instantiation(/*instance_name=*/name, /*kind=*/kind)
+//
+class InstantiationMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit InstantiationMatcher(
+      std::optional<::testing::Matcher<const std::string>> name,
+      std::optional<InstantiationKind> kind)
+      : name_(std::move(name)), kind_(kind) {}
+
+  bool MatchAndExplain(const ::xls::Instantiation* instantiation,
+                       ::testing::MatchResultListener* listener) const;
+
+  void DescribeTo(::std::ostream* os) const;
+  void DescribeNegationTo(std::ostream* os) const;
+
+ protected:
+  std::optional<::testing::Matcher<const std::string>> name_;
+  std::optional<InstantiationKind> kind_;
+};
+
+inline InstantiationMatcher Instantiation(
+    std::optional<std::string> name = std::nullopt) {
+  return ::xls::op_matchers::InstantiationMatcher(std::move(name),
+                                                  std::nullopt);
+}
+
+inline InstantiationMatcher Instantiation(
+    std::optional<::testing::Matcher<const std::string>> name = std::nullopt) {
+  return ::xls::op_matchers::InstantiationMatcher(std::move(name),
+                                                  std::nullopt);
+}
+
+inline InstantiationMatcher Instantiation(std::string name,
+                                          InstantiationKind kind) {
+  return ::xls::op_matchers::InstantiationMatcher(
+      internal::NameMatcherInternal(std::move(name)), kind);
+}
+
+inline InstantiationMatcher Instantiation(
+    ::testing::Matcher<const std::string> name, InstantiationKind kind) {
+  return ::xls::op_matchers::InstantiationMatcher(std::move(name), kind);
+}
+
+inline InstantiationMatcher Instantiation(InstantiationKind kind) {
+  return ::xls::op_matchers::InstantiationMatcher(std::nullopt, kind);
+}
+
 }  // namespace op_matchers
 }  // namespace xls
 

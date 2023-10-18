@@ -16,9 +16,9 @@
 # Description Language.
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
-load("@rules_python//python:defs.bzl", "py_binary")
 
 # pytype library only
+load("@rules_python//python:defs.bzl", "py_binary")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 # cc_proto_library is used in this file
@@ -1391,6 +1391,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
