@@ -45,7 +45,7 @@ std::string Strerror(int error_num) {
 
   if constexpr (kXsiCompliant) {
     if (strerror_r(error_num, buffer, kBufferSize) !=
-        static_cast<strerror_r_type>(nullptr)) {
+        static_cast<strerror_r_type>(0)) {  // NOLINT(modernize-use-nullptr):
       return absl::StrFormat(
           "Unknown error, strerror_r failed. error number %d", error_num);
     }
