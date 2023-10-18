@@ -112,6 +112,8 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
       "yosys log {*}$::env(DONT_USE_ARGS)";
   const std::string read_verilog_rtl =
       absl::StrFormat("read_verilog %s", verilog_path.string());
+  const std::string delete_print_cells =
+      "delete {*/t:$print}";
 
   const std::string perform_generic_synthesis =
       absl::StrFormat("synth -top %s", request->top_module_name());
@@ -139,6 +141,7 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
   yosys_tcl_vec.push_back(yosys_import);
   yosys_tcl_vec.push_back(show_dont_use);
   yosys_tcl_vec.push_back(read_verilog_rtl);
+  yosys_tcl_vec.push_back(delete_print_cells);
 
   yosys_tcl_vec.push_back(perform_generic_synthesis);
   yosys_tcl_vec.push_back(perform_ff_mapping);
