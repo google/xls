@@ -14,8 +14,10 @@
 
 #include "xls/dslx/fmt/ast_fmt.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -129,7 +131,8 @@ class FunctionFmtTest : public testing::Test {
   //  builtin_name_defs: Names to initialize in the bindings as built-in.
   absl::StatusOr<std::string> DoFmt(
       std::string_view original,
-      const absl::flat_hash_set<std::string>& builtin_name_defs = {}) {
+      const absl::flat_hash_set<std::string>& builtin_name_defs = {},
+      int64_t text_width = 100) {
     XLS_CHECK(!scanner_.has_value());
     scanner_.emplace("fake.x", std::string{original});
     parser_.emplace("fake", &scanner_.value());
@@ -143,7 +146,7 @@ class FunctionFmtTest : public testing::Test {
     Comments comments = Comments::Create(scanner_->comments());
 
     DocRef doc = Fmt(*f_, comments, arena_);
-    return PrettyPrint(arena_, doc, /*text_width=*/100);
+    return PrettyPrint(arena_, doc, text_width);
   }
 
   Bindings& bindings() { return bindings_; }
@@ -176,6 +179,30 @@ TEST_F(FunctionFmtTest, FormatLetYEqualsXFn) {
     y
 })";
   EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, FormatLetYEqualsXWithTypeFn) {
+  const std::string_view original = "fn f(x:u32)->u32{let y:u32=x;y}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u32 {
+    let y: u32 = x;
+    y
+})";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, FormatLetWithLongRhs) {
+  const std::string_view original =
+      R"(fn f(x: u32, partial_narrowed_result: u32) -> bool {
+    let overflow_narrowed_result_upper_sum = false;
+    let overflow_detected = or_reduce(x) || or_reduce(x) || or_reduce(x) || or_reduce(x) ||
+                            or_reduce(partial_narrowed_result[x as s32:]) ||
+                            overflow_narrowed_result_upper_sum;
+    overflow_detected
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           DoFmt(original, {"or_reduce"}, 100));
+  EXPECT_EQ(got, original);
 }
 
 TEST_F(FunctionFmtTest, FormatTupleDestructure) {

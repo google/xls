@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -294,9 +295,7 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
   const Expr& rhs = *n.rhs();
   Precedence lhs_precedence = lhs.GetPrecedence();
 
-  std::vector<DocRef> pieces;
-
-  auto emit = [&](const Expr& e, bool parens) {
+  auto emit = [&](const Expr& e, bool parens, std::vector<DocRef>& pieces) {
     if (parens) {
       pieces.push_back(arena.oparen());
       pieces.push_back(Fmt(e, comments, arena));
@@ -306,9 +305,11 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
     }
   };
 
+  std::vector<DocRef> lhs_pieces;
+
   if (WeakerThan(lhs_precedence, op_precedence)) {
     // We have to parenthesize the LHS.
-    emit(lhs, /*parens=*/true);
+    emit(lhs, /*parens=*/true, lhs_pieces);
   } else if (n.binop_kind() == BinopKind::kLt &&
              lhs.kind() == AstNodeKind::kCast && !lhs.in_parens()) {
     // If there is an open angle bracket, and the LHS is suffixed with a type,
@@ -321,22 +322,30 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
     // instantiation, so we force conservative parenthesization:
     //
     //    (foo as bar) < baz
-    emit(lhs, /*parens=*/true);
+    emit(lhs, /*parens=*/true, lhs_pieces);
   } else {
-    emit(lhs, /*parens=*/false);
+    emit(lhs, /*parens=*/false, lhs_pieces);
   }
 
-  pieces.push_back(arena.break1());
-  pieces.push_back(arena.MakeText(BinopKindFormat(n.binop_kind())));
-  pieces.push_back(arena.break1());
+  lhs_pieces.push_back(arena.space());
+  lhs_pieces.push_back(arena.MakeText(BinopKindFormat(n.binop_kind())));
 
+  DocRef lhs_ref = ConcatNGroup(arena, lhs_pieces);
+
+  std::vector<DocRef> rhs_pieces;
   if (WeakerThan(rhs.GetPrecedence(), op_precedence)) {
-    emit(rhs, /*parens=*/true);
+    emit(rhs, /*parens=*/true, rhs_pieces);
   } else {
-    emit(rhs, /*parens=*/false);
+    emit(rhs, /*parens=*/false, rhs_pieces);
   }
 
-  return ConcatNGroup(arena, pieces);
+  std::vector<DocRef> top_pieces = {
+      lhs_ref,
+      arena.break1(),
+      ConcatNGroup(arena, rhs_pieces),
+  };
+
+  return ConcatNGroup(arena, top_pieces);
 }
 
 // Note: if a comment doc is emitted (i.e. return value has_value()) it does not
@@ -1002,7 +1011,23 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
   leader_pieces.push_back(break1);
 
   DocRef leader = ConcatNGroup(arena, leader_pieces);
-  DocRef body = Fmt(*n.rhs(), comments, arena);
+  DocRef body;
+  if (n.rhs()->IsBlockedExpr() || n.rhs()->kind() == AstNodeKind::kArray) {
+    // For blocked expressions we don't align them to the equals in the let,
+    // because it'd shove constructs like `let really_long_identifier = for ...`
+    // too far to the right hand side.
+    //
+    // Similarly for array literals, as they can have lots of elements which
+    // effectively makes them like blocks.
+    //
+    // Note that if you do e.g. a binary operation on blocked constructs as the
+    // RHS it /will/ align because we don't look for blocked constructs
+    // transitively -- seems reasonable given that's going to look funky no
+    // matter what.
+    body = Fmt(*n.rhs(), comments, arena);
+  } else {
+    body = arena.MakeAlign(Fmt(*n.rhs(), comments, arena));
+  }
 
   DocRef syntax = arena.MakeConcat(leader, body);
 
