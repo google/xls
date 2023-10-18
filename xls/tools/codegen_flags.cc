@@ -152,11 +152,9 @@ absl::StatusOr<IOKindProto> IOKindProtoFromString(std::string_view s) {
   }
   if (s == "zerolatency") {
     return IO_KIND_ZERO_LATENCY_BUFFER;
-  } else {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Invalid I/O kind specified: `%s`; choices: flop, skid, zerolatency",
-        s));
   }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Invalid I/O kind specified: `%s`; choices: flop, skid, zerolatency", s));
 }
 
 }  // namespace
