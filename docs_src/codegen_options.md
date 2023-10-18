@@ -290,6 +290,15 @@ string. These format strings use placeholders to fill in relevant information.
 
     3.  All valid signals for the input channels.
 
+-   For functions, when `--generator` is set to `pipeline`,
+    optional 'valid' logic can be added by using
+    `--input_valid_signal=...` and `--output_valid_signal=...`,
+    which also set the names for the valid I/O signals.  This logic
+    has no 'ready' signal and thus provides no backpressure.  See
+    also [Naming](#naming).
+
+-   See also [Reset Signal Configuration](#reset-signal-configuration).
+
 # RAMs (experimental)
 
 XLS has experimental support for using proc channels to drive an external RAM.
