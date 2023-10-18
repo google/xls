@@ -30,10 +30,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_toolchains.bzl",
-    "get_executable_from",
-    "get_runfiles_from",
-    "get_xls_toolchain_info",
-    "xls_toolchain_attr",
+    "xls_toolchain_attrs",
 )
 
 _DEFAULT_DSLX_TEST_ARGS = {
@@ -92,9 +89,7 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
     Returns:
       The command that executes in the xls_dslx_test rule.
     """
-    dslx_interpreter_tool = get_executable_from(
-        get_xls_toolchain_info(ctx).dslx_interpreter_tool,
-    )
+    dslx_interpreter_tool = ctx.executable._xls_dslx_interpreter_tool
     _dslx_test_args = append_default_to_args(
         ctx.attr.dslx_test_args,
         _DEFAULT_DSLX_TEST_ARGS,
@@ -257,8 +252,8 @@ def _xls_dslx_library_impl(ctx):
     """
 
     # Get runfiles for task.
-    dslx_interpreter_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).dslx_interpreter_tool,
+    dslx_interpreter_tool_runfiles = (
+        ctx.attr._xls_dslx_interpreter_tool[DefaultInfo].default_runfiles
     )
     runfiles = get_runfiles_for_xls(
         ctx = ctx,
@@ -267,9 +262,7 @@ def _xls_dslx_library_impl(ctx):
     )
 
     my_srcs_list = ctx.files.srcs
-    dslx_interpreter_tool = get_executable_from(
-        get_xls_toolchain_info(ctx).dslx_interpreter_tool,
-    )
+    dslx_interpreter_tool = ctx.executable._xls_dslx_interpreter_tool
 
     # Parse and type check the DSLX source files.
     dslx_srcs_str = " ".join([s.path for s in my_srcs_list])
@@ -279,7 +272,7 @@ def _xls_dslx_library_impl(ctx):
     # the binary can be different with the execroot, requiring to change
     # the dslx stdlib search path accordingly.
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = get_xls_toolchain_info(ctx).dslx_interpreter_tool.label.workspace_root
+    wsroot = ctx.attr._xls_dslx_interpreter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
     dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in my_srcs_list])
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
@@ -382,7 +375,7 @@ Examples:
     implementation = _xls_dslx_library_impl,
     attrs = dicts.add(
         _xls_dslx_library_attrs,
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
 )
 
@@ -400,8 +393,8 @@ def get_dslx_test_cmd(ctx, src_files_to_test):
     """
 
     # Get runfiles.
-    dslx_interpreter_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).dslx_interpreter_tool,
+    dslx_interpreter_tool_runfiles = (
+        ctx.attr._xls_dslx_interpreter_tool[DefaultInfo].default_runfiles
     )
     runfiles = get_runfiles_for_xls(
         ctx,
@@ -489,7 +482,7 @@ Examples:
     attrs = dicts.add(
         xls_dslx_library_as_input_attrs,
         xls_dslx_test_common_attrs,
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
     test = True,
 )

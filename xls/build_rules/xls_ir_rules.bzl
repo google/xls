@@ -39,10 +39,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_toolchains.bzl",
-    "get_executable_from",
-    "get_runfiles_from",
-    "get_xls_toolchain_info",
-    "xls_toolchain_attr",
+    "xls_toolchain_attrs",
 )
 load(
     "//xls/build_rules:xls_type_check_helpers.bzl",
@@ -124,9 +121,7 @@ def _convert_to_ir(ctx, src):
         1. The runfiles to convert the IR file.
         1. The converted IR file.
     """
-    ir_converter_tool = get_executable_from(
-        get_xls_toolchain_info(ctx).ir_converter_tool,
-    )
+    ir_converter_tool = ctx.executable._xls_ir_converter_tool
     IR_CONV_FLAGS = (
         "dslx_path",
         "emit_fail_as_assert",
@@ -138,7 +133,7 @@ def _convert_to_ir(ctx, src):
     # the binary can be different with the execroot, requiring to change
     # the dslx stdlib search path accordingly.
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = get_xls_toolchain_info(ctx).ir_converter_tool.label.workspace_root
+    wsroot = ctx.attr._xls_ir_converter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
 
     # Get workspaces for the source as well.
@@ -168,10 +163,7 @@ def _convert_to_ir(ctx, src):
     ir_file = ctx.actions.declare_file(ir_filename)
 
     # Get runfiles
-    ir_converter_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).ir_converter_tool,
-    )
-    runfiles = get_runfiles_for_xls(ctx, [ir_converter_tool_runfiles], [src])
+    runfiles = get_runfiles_for_xls(ctx, [], [src])
 
     ctx.actions.run_shell(
         outputs = [ir_file],
@@ -204,7 +196,7 @@ def _optimize_ir(ctx, src):
         1. The runfiles to optimize the IR file.
         1. The optimized IR file.
     """
-    opt_ir_tool = get_executable_from(get_xls_toolchain_info(ctx).opt_ir_tool)
+    opt_ir_tool = ctx.executable._xls_opt_ir_tool
     opt_ir_args = dict(ctx.attr.opt_ir_args)
     IR_OPT_FLAGS = (
         "ir_dump_path",
@@ -234,9 +226,6 @@ def _optimize_ir(ctx, src):
     opt_ir_file = ctx.actions.declare_file(opt_ir_filename)
 
     # Get runfiles
-    opt_ir_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).opt_ir_tool,
-    )
     ram_rewrite_files = []
     for rewrite in ctx.attr.ram_rewrites:
         ram_rewrite_files.extend(rewrite.files.to_list())
@@ -252,7 +241,7 @@ def _optimize_ir(ctx, src):
     )
     log_file = ctx.actions.declare_file(opt_log_filename)
 
-    runfiles = get_runfiles_for_xls(ctx, [opt_ir_tool_runfiles], [src] + ram_rewrite_files + debug_src_files)
+    runfiles = get_runfiles_for_xls(ctx, [], [src] + ram_rewrite_files + debug_src_files)
     ctx.actions.run_shell(
         outputs = [opt_ir_file, log_file],
         # The IR optimization executable is a tool needed by the action.
@@ -294,9 +283,7 @@ def get_ir_equivalence_test_cmd(
         1. The runfiles to execute the command.
         1. The command.
     """
-    ir_equivalence_tool = get_executable_from(
-        get_xls_toolchain_info(ctx).ir_equivalence_tool,
-    )
+    ir_equivalence_tool = ctx.executable._xls_ir_equivalence_tool
     IR_EQUIVALENCE_FLAGS = (
         "timeout",
     )
@@ -319,9 +306,7 @@ def get_ir_equivalence_test_cmd(
         cmd = append_cmd_line_args_to(cmd)
 
     # Get runfiles
-    ir_equivalence_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).ir_equivalence_tool,
-    )
+    ir_equivalence_tool_runfiles = ctx.attr._xls_ir_equivalence_tool[DefaultInfo].default_runfiles
     runfiles = get_runfiles_for_xls(
         ctx,
         [ir_equivalence_tool_runfiles],
@@ -345,7 +330,7 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         1. The runfiles to execute the command.
         1. The command.
     """
-    ir_eval_tool = get_executable_from(get_xls_toolchain_info(ctx).ir_eval_tool)
+    ir_eval_tool = ctx.executable._xls_ir_eval_tool
     IR_EVAL_FLAGS = (
         "input",
         "input_file",
@@ -365,7 +350,7 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
     # the binary can be different with the execroot, requiring to change
     # the dslx stdlib search path accordingly.
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = get_xls_toolchain_info(ctx).ir_converter_tool.label.workspace_root
+    wsroot = ctx.attr._xls_ir_converter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
 
     # Get workspaces for the source as well.
@@ -417,9 +402,7 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         cmd = append_cmd_line_args_to(cmd)
 
     # Get runfiles
-    ir_eval_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).ir_eval_tool,
-    )
+    ir_eval_tool_runfiles = ctx.attr._xls_ir_eval_tool[DefaultInfo].default_runfiles
     runfiles = get_runfiles_for_xls(
         ctx,
         [ir_eval_tool_runfiles],
@@ -444,9 +427,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         1. The runfiles to execute the command.
         1. The command.
     """
-    benchmark_ir_tool = get_executable_from(
-        get_xls_toolchain_info(ctx).benchmark_ir_tool,
-    )
+    benchmark_ir_tool = ctx.executable._xls_benchmark_ir_tool
     BENCHMARK_IR_FLAGS = (
         "clock_period_ps",
         "pipeline_stages",
@@ -478,9 +459,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         cmd = append_cmd_line_args_to(cmd)
 
     # Get runfiles
-    benchmark_ir_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).benchmark_ir_tool,
-    )
+    benchmark_ir_tool_runfiles = ctx.attr._xls_benchmark_ir_tool[DefaultInfo].default_runfiles
     runfiles = get_runfiles_for_xls(ctx, [benchmark_ir_tool_runfiles], [src])
     return runfiles, cmd
 
@@ -675,7 +654,7 @@ An IR conversion with a top entity defined.
     attrs = dicts.add(
         xls_dslx_ir_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
 )
 
@@ -792,7 +771,7 @@ Examples:
         xls_ir_common_attrs,
         xls_ir_opt_ir_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
 )
 
@@ -896,7 +875,7 @@ Examples:
         _two_ir_files_attrs,
         xls_ir_equivalence_test_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
     test = True,
 )
@@ -997,7 +976,7 @@ Examples:
         xls_ir_common_attrs,
         xls_eval_ir_test_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
     test = True,
 )
@@ -1090,7 +1069,7 @@ Examples:
         xls_ir_common_attrs,
         xls_benchmark_ir_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
     executable = True,
 )
@@ -1129,13 +1108,9 @@ def _xls_ir_cc_library_impl(ctx):
     if ctx.attr.namespaces:
         aot_compiler_args.add("-namespaces", ctx.attr.namespaces)
 
-    aot_compiler_tool = get_executable_from(
-        get_xls_toolchain_info(ctx).aot_compiler_tool,
-    )
+    aot_compiler_tool = ctx.executable._xls_aot_compiler_tool
 
-    aot_compiler_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).aot_compiler_tool,
-    )
+    aot_compiler_tool_runfiles = ctx.attr._xls_aot_compiler_tool[DefaultInfo].default_runfiles
     runfiles = get_runfiles_for_xls(ctx, [aot_compiler_tool_runfiles], [src])
 
     ctx.actions.run(
@@ -1198,7 +1173,7 @@ xls_ir_cc_library = rule(
     attrs = dicts.add(
         xls_ir_common_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
         {
             "header_file": attr.output(
                 doc = "Name of the generated header file.",

@@ -32,10 +32,7 @@ load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 load("//xls/build_rules:xls_providers.bzl", "CodegenInfo", "OptIRInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
-    "get_executable_from",
-    "get_runfiles_from",
-    "get_xls_toolchain_info",
-    "xls_toolchain_attr",
+    "xls_toolchain_attrs",
 )
 
 _DEFAULT_SCHEDULING_ARGS = {
@@ -233,7 +230,7 @@ def xls_ir_verilog_impl(ctx, src):
         1. The list of built files.
         1. The runfiles.
     """
-    codegen_tool = get_executable_from(get_xls_toolchain_info(ctx).codegen_tool)
+    codegen_tool = ctx.executable._xls_codegen_tool
     my_generated_files = []
 
     # default arguments
@@ -379,9 +376,7 @@ def xls_ir_verilog_impl(ctx, src):
     my_generated_files.append(block_ir_file)
 
     # Get runfiles
-    codegen_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).codegen_tool,
-    )
+    codegen_tool_runfiles = ctx.attr._xls_codegen_tool[DefaultInfo].default_runfiles
 
     runfiles_list = [src]
     if ctx.file.codegen_options_proto:
@@ -487,7 +482,7 @@ Example:
         xls_ir_common_attrs,
         xls_ir_verilog_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
         {
             "log_file": attr.label(
                 doc = "The file to log the output to.",
@@ -508,9 +503,7 @@ def _xls_benchmark_verilog_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    benchmark_codegen_tool = get_executable_from(
-        get_xls_toolchain_info(ctx).benchmark_codegen_tool,
-    )
+    benchmark_codegen_tool = ctx.executable._xls_benchmark_codegen_tool
     codegen_info = ctx.attr.verilog_target[CodegenInfo]
     opt_ir_info = ctx.attr.verilog_target[OptIRInfo]
     if not codegen_info.top:
@@ -532,8 +525,8 @@ def _xls_benchmark_verilog_impl(ctx):
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
 
     # Get runfiles
-    benchmark_codegen_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).benchmark_codegen_tool,
+    benchmark_codegen_tool_runfiles = (
+        ctx.attr._xls_benchmark_codegen_tool[DefaultInfo].default_runfiles
     )
     runfiles = get_runfiles_for_xls(
         ctx,
@@ -588,6 +581,6 @@ Example:
     ```
     """,
     implementation = _xls_benchmark_verilog_impl,
-    attrs = dicts.add(xls_benchmark_verilog_attrs, xls_toolchain_attr),
+    attrs = dicts.add(xls_benchmark_verilog_attrs, xls_toolchain_attrs),
     executable = True,
 )

@@ -23,6 +23,10 @@ load(
     "xls_ir_verilog_impl",
 )
 load(
+    "//xls/build_rules:xls_toolchains.bzl",
+    "xls_toolchain_attrs",
+)
+load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_default_to_args",
     "args_to_string",
@@ -42,7 +46,6 @@ load(
     "xls_ir_opt_ir_impl",
 )
 load("//xls/build_rules:xls_providers.bzl", "ConvIRInfo")
-load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
 load(
     "//xls/build_rules:xls_type_check_helpers.bzl",
     "bool_type_check",
@@ -415,6 +418,7 @@ defined.
     attrs = dicts.add(
         _xls_cc_ir_attrs,
         CONFIG["xls_outs_attrs"],
+        xls_toolchain_attrs,
     ),
 )
 
@@ -556,7 +560,7 @@ _cc_verilog_attrs = dicts.add(
     xls_ir_opt_ir_attrs,
     xls_ir_verilog_attrs,
     CONFIG["xls_outs_attrs"],
-    xls_toolchain_attr,
+    xls_toolchain_attrs,
 )
 
 xls_cc_verilog = rule(

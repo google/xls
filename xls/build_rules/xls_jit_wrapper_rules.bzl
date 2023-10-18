@@ -31,10 +31,7 @@ load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
-    "get_executable_from",
-    "get_runfiles_from",
-    "get_xls_toolchain_info",
-    "xls_toolchain_attr",
+    "xls_toolchain_attrs",
 )
 load(
     "//xls/build_rules:xls_type_check_helpers.bzl",
@@ -75,9 +72,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
       JitWrapperInfo provider
       DefaultInfo provider
     """
-    jit_wrapper_tool = get_executable_from(
-        get_xls_toolchain_info(ctx).jit_wrapper_tool,
-    )
+    jit_wrapper_tool = ctx.executable._xls_jit_wrapper_tool
 
     # default arguments
     jit_wrapper_args = ctx.attr.jit_wrapper_args
@@ -146,9 +141,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
     my_generated_files = [cc_file, h_file]
 
     # Get runfiles
-    jit_wrapper_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).jit_wrapper_tool,
-    )
+    jit_wrapper_tool_runfiles = ctx.attr._xls_jit_wrapper_tool[DefaultInfo].default_runfiles
     runfiles = get_runfiles_for_xls(ctx, [jit_wrapper_tool_runfiles], [src])
 
     ctx.actions.run(
@@ -205,7 +198,7 @@ Examples:
         xls_ir_common_attrs,
         _xls_ir_jit_wrapper_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
 )
 

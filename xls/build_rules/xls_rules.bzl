@@ -52,13 +52,13 @@ load(
     "DslxInfo",
     "OptIRInfo",
 )
-load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
+load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attrs")
 
 _xls_dslx_opt_ir_attrs = dicts.add(
     xls_dslx_ir_attrs,
     xls_ir_opt_ir_attrs,
     CONFIG["xls_outs_attrs"],
-    xls_toolchain_attr,
+    xls_toolchain_attrs,
 )
 
 def _xls_dslx_opt_ir_impl(ctx):
@@ -262,7 +262,7 @@ Examples:
         xls_eval_ir_test_attrs,
         xls_benchmark_ir_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
     test = True,
 )
@@ -312,7 +312,7 @@ _dslx_verilog_attrs = dicts.add(
     xls_ir_opt_ir_attrs,
     xls_ir_verilog_attrs,
     CONFIG["xls_outs_attrs"],
-    xls_toolchain_attr,
+    xls_toolchain_attrs,
 )
 
 xls_dslx_verilog = rule(

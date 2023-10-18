@@ -37,10 +37,7 @@ load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
-    "get_executable_from",
-    "get_runfiles_from",
-    "get_xls_toolchain_info",
-    "xls_toolchain_attr",
+    "xls_toolchain_attrs",
 )
 
 _DEFAULT_SCHEDULING_ARGS = {
@@ -167,7 +164,7 @@ def xls_ir_verilog_fdo_impl(ctx, src):
         1. The list of built files.
         1. The runfiles.
     """
-    codegen_tool = get_executable_from(get_xls_toolchain_info(ctx).codegen_tool)
+    codegen_tool = ctx.executable._xls_codegen_tool
     my_generated_files = []
 
     # default arguments
@@ -327,9 +324,7 @@ def xls_ir_verilog_fdo_impl(ctx, src):
         synth_lib = None
 
     # Get runfiles
-    codegen_tool_runfiles = get_runfiles_from(
-        get_xls_toolchain_info(ctx).codegen_tool,
-    )
+    codegen_tool_runfiles = ctx.attr._xls_codegen_tool[DefaultInfo].default_runfiles
 
     runfiles_list = [src]
     if ctx.file.codegen_options_proto:
@@ -461,6 +456,6 @@ Example:
         xls_ir_common_attrs,
         xls_ir_verilog_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attr,
+        xls_toolchain_attrs,
     ),
 )
