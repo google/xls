@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <cerrno>
+#include <csignal>  // NOLINT(misc-include-cleaner)
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
