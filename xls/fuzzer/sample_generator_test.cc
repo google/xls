@@ -14,27 +14,34 @@
 
 #include "xls/fuzzer/sample_generator.h"
 
+#include <cstdint>
 #include <memory>
+#include <random>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/channel_direction.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/fuzzer/ast_generator.h"
+#include "xls/fuzzer/sample.h"
 #include "xls/fuzzer/value_generator.h"
 
 namespace xls {
 namespace {
 
+using ::testing::HasSubstr;
 using ::xls::status_testing::IsOkAndHolds;
 
 TEST(SampleGeneratorTest, GenerateBasicSample) {
-  ValueGenerator value_gen(std::mt19937_64{});
+  std::mt19937_64 rng;
   SampleOptions sample_options;
   sample_options.set_calls_per_sample(3);
   XLS_ASSERT_OK_AND_ASSIGN(
       Sample sample,
-      GenerateSample(dslx::AstGeneratorOptions{}, sample_options, &value_gen));
+      GenerateSample(dslx::AstGeneratorOptions{}, sample_options, rng));
   EXPECT_TRUE(sample.options().input_is_dslx());
   EXPECT_TRUE(sample.options().convert_to_ir());
   EXPECT_TRUE(sample.options().optimize_ir());
@@ -45,7 +52,7 @@ TEST(SampleGeneratorTest, GenerateBasicSample) {
 }
 
 TEST(SampleGeneratorTest, GenerateCodegenSample) {
-  ValueGenerator value_gen(std::mt19937_64{});
+  std::mt19937_64 rng;
   SampleOptions sample_options;
   sample_options.set_codegen(true);
   sample_options.set_simulate(true);
@@ -53,7 +60,7 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
   sample_options.set_calls_per_sample(kCallsPerSample);
   XLS_ASSERT_OK_AND_ASSIGN(
       Sample sample,
-      GenerateSample(dslx::AstGeneratorOptions{}, sample_options, &value_gen));
+      GenerateSample(dslx::AstGeneratorOptions{}, sample_options, rng));
   EXPECT_TRUE(sample.options().input_is_dslx());
   EXPECT_TRUE(sample.options().convert_to_ir());
   EXPECT_TRUE(sample.options().optimize_ir());
@@ -64,7 +71,7 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
 }
 
 TEST(SampleGeneratorTest, GenerateChannelArgument) {
-  ValueGenerator value_gen(std::mt19937_64{});
+  std::mt19937_64 rng;
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
   param_types.push_back(
       std::make_unique<dslx::ChannelType>(std::make_unique<dslx::BitsType>(
@@ -78,7 +85,7 @@ TEST(SampleGeneratorTest, GenerateChannelArgument) {
     param_type_ptrs.push_back(t.get());
   }
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<dslx::InterpValue> arguments,
-                           value_gen.GenerateInterpValues(param_type_ptrs));
+                           GenerateInterpValues(rng, param_type_ptrs));
   ASSERT_EQ(arguments.size(), 1);
   dslx::InterpValue value = arguments[0];
   ASSERT_TRUE(value.IsSBits());
@@ -86,7 +93,7 @@ TEST(SampleGeneratorTest, GenerateChannelArgument) {
 }
 
 TEST(SampleGeneratorTest, GenerateBasicProcSample) {
-  ValueGenerator value_gen(std::mt19937_64{});
+  std::mt19937_64 rng;
   SampleOptions sample_options;
   constexpr int64_t kProcTicks = 3;
   sample_options.set_calls_per_sample(0);
@@ -94,14 +101,14 @@ TEST(SampleGeneratorTest, GenerateBasicProcSample) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Sample sample,
       GenerateSample(dslx::AstGeneratorOptions{.generate_proc = true},
-                     sample_options, &value_gen));
+                     sample_options, rng));
   EXPECT_TRUE(sample.options().input_is_dslx());
   EXPECT_TRUE(sample.options().convert_to_ir());
   EXPECT_TRUE(sample.options().optimize_ir());
   EXPECT_FALSE(sample.options().codegen());
   EXPECT_FALSE(sample.options().simulate());
   EXPECT_EQ(sample.args_batch().size(), kProcTicks);
-  EXPECT_THAT(sample.input_text(), testing::HasSubstr("proc main"));
+  EXPECT_THAT(sample.input_text(), HasSubstr("proc main"));
 }
 
 }  // namespace

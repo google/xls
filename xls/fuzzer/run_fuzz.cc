@@ -24,6 +24,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -47,7 +48,6 @@
 #include "xls/fuzzer/sample_generator.h"
 #include "xls/fuzzer/sample_runner.h"
 #include "xls/fuzzer/sample_summary.pb.h"
-#include "xls/fuzzer/value_generator.h"
 
 namespace xls {
 
@@ -249,14 +249,15 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
 }
 
 absl::StatusOr<Sample> GenerateSampleAndRun(
-    ValueGenerator* rng, const dslx::AstGeneratorOptions& ast_generator_options,
+    absl::BitGenRef bit_gen,
+    const dslx::AstGeneratorOptions& ast_generator_options,
     const SampleOptions& sample_options, const std::filesystem::path& run_dir,
     const std::optional<std::filesystem::path>& crasher_dir,
     const std::optional<std::filesystem::path>& summary_file,
     bool force_failure) {
   Stopwatch stopwatch;
-  XLS_ASSIGN_OR_RETURN(
-      Sample smp, GenerateSample(ast_generator_options, sample_options, rng));
+  XLS_ASSIGN_OR_RETURN(Sample smp, GenerateSample(ast_generator_options,
+                                                  sample_options, bit_gen));
   absl::Duration generate_sample_elapsed = stopwatch.GetElapsedTime();
 
   absl::Status status =

@@ -38,7 +38,6 @@
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/run_fuzz.h"
 #include "xls/fuzzer/sample.h"
-#include "xls/fuzzer/value_generator.h"
 
 namespace xls {
 namespace {
@@ -79,7 +78,7 @@ absl::Status GenerateAndRunSamples(
                   << " chose a nondeterministic seed for value generation: "
                   << absl::StreamFormat("0x%16X", rng_seed) << kDefaultColor;
   }
-  ValueGenerator rng{std::mt19937_64(rng_seed)};
+  std::mt19937_64 rng{rng_seed};
 
   int64_t sample = 0;
   while (true) {
@@ -95,7 +94,7 @@ absl::Status GenerateAndRunSamples(
     }
 
     absl::Status sample_status =
-        GenerateSampleAndRun(&rng, ast_generator_options, sample_options,
+        GenerateSampleAndRun(rng, ast_generator_options, sample_options,
                              run_dir, crasher_dir, summary_file, force_failure)
             .status();
     if (!sample_status.ok()) {

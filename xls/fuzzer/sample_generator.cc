@@ -25,6 +25,8 @@
 #include <variant>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -148,14 +150,14 @@ static absl::StatusOr<bool> HasNonBlockingRecv(const std::string& dslx_text) {
 //   rng: Random number generator state.
 static std::vector<std::string> GenerateCodegenArgs(
     bool use_system_verilog, bool has_proc, bool has_registers,
-    int64_t min_stages, bool has_nb_recv, ValueGenerator* value_gen) {
+    int64_t min_stages, bool has_nb_recv, absl::BitGenRef bit_gen) {
   std::vector<std::string> args;
   if (use_system_verilog) {
     args.push_back("--use_system_verilog");
   } else {
     args.push_back("--nouse_system_verilog");
   }
-  bool is_pipeline = value_gen->RandomDouble() < 0.8 || has_registers;
+  bool is_pipeline = has_registers || absl::Bernoulli(bit_gen, 0.8);
   if (is_pipeline) {
     args.push_back("--generator=pipeline");
     // Set the pipeline stage to one when fuzzing a proc with a non-blocking
@@ -166,8 +168,9 @@ static std::vector<std::string> GenerateCodegenArgs(
     if (has_nb_recv) {
       args.push_back("--pipeline_stages=1");
     } else {
-      args.push_back(absl::StrCat("--pipeline_stages=",
-                                  value_gen->RandRange(10) + min_stages));
+      args.push_back(absl::StrCat(
+          "--pipeline_stages=",
+          absl::Uniform<int64_t>(bit_gen, min_stages, min_stages + 10)));
     }
   } else {
     args.push_back("--generator=combinational");
@@ -178,11 +181,9 @@ static std::vector<std::string> GenerateCodegenArgs(
     args.push_back("--reset_active_low=false");
     // TODO(https://github.com/google/xls/issues/795) Test the
     // 'reset_asynchronous' flag in codegen in the fuzzer.
-    if (value_gen->RandomBool()) {
-      args.push_back("--reset_asynchronous=true");
-    } else {
-      args.push_back("--reset_asynchronous=false");
-    }
+    args.push_back(
+        absl::StrCat("--reset_asynchronous=",
+                     absl::Bernoulli(bit_gen, 0.5) ? "true" : "false"));
   }
   if (is_pipeline && has_proc) {
     // For a pipelined proc, the data path may contain register driving control
@@ -207,8 +208,8 @@ static std::vector<std::string> GenerateCodegenArgs(
 // DSLX for that module and the minimum number of stages it can be safely
 // scheduled in.
 static absl::StatusOr<std::pair<std::string, int64_t>> Generate(
-    const AstGeneratorOptions& ast_options, ValueGenerator* value_gen) {
-  AstGenerator g(ast_options, value_gen);
+    const AstGeneratorOptions& ast_options, absl::BitGenRef bit_gen) {
+  AstGenerator g(ast_options, bit_gen);
   XLS_ASSIGN_OR_RETURN(dslx::AnnotatedModule module,
                        g.Generate("main", "test"));
   return std::make_pair(module.module->ToString(), module.min_stages);
@@ -286,7 +287,7 @@ static std::vector<std::string> GetInputChannelNamesOfProc(dslx::Proc* proc) {
 
 static absl::StatusOr<Sample> GenerateFunctionSample(
     dslx::Function* function, const TypecheckedModule& tm,
-    const SampleOptions& sample_options, ValueGenerator* value_gen,
+    const SampleOptions& sample_options, absl::BitGenRef bit_gen,
     const std::string& dslx_text) {
   XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ConcreteType>> top_params,
                        GetParamTypesOfFunction(function, tm));
@@ -296,7 +297,7 @@ static absl::StatusOr<Sample> GenerateFunctionSample(
   std::vector<std::vector<InterpValue>> args_batch;
   for (int64_t i = 0; i < sample_options.calls_per_sample(); ++i) {
     XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args,
-                         value_gen->GenerateInterpValues(params));
+                         GenerateInterpValues(bit_gen, params));
     args_batch.push_back(std::move(args));
   }
 
@@ -305,7 +306,7 @@ static absl::StatusOr<Sample> GenerateFunctionSample(
 
 static absl::StatusOr<Sample> GenerateProcSample(
     dslx::Proc* proc, const TypecheckedModule& tm,
-    const SampleOptions& sample_options, ValueGenerator* value_gen,
+    const SampleOptions& sample_options, absl::BitGenRef bit_gen,
     const std::string& dslx_text) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<ConcreteType>> input_channel_payload_types,
@@ -317,7 +318,7 @@ static absl::StatusOr<Sample> GenerateProcSample(
   for (int64_t i = 0; i < sample_options.proc_ticks(); ++i) {
     XLS_ASSIGN_OR_RETURN(
         std::vector<InterpValue> channel_values,
-        value_gen->GenerateInterpValues(input_channel_payload_types_ptr));
+        GenerateInterpValues(bit_gen, input_channel_payload_types_ptr));
     channel_values_batch.push_back(std::move(channel_values));
   }
 
@@ -335,7 +336,7 @@ static absl::StatusOr<Sample> GenerateProcSample(
 
 absl::StatusOr<Sample> GenerateSample(
     const AstGeneratorOptions& generator_options,
-    const SampleOptions& sample_options, ValueGenerator* value_gen) {
+    const SampleOptions& sample_options, absl::BitGenRef bit_gen) {
   constexpr std::string_view top_name = "main";
   if (generator_options.generate_proc) {
     XLS_CHECK_EQ(sample_options.calls_per_sample(), 0)
@@ -353,7 +354,7 @@ absl::StatusOr<Sample> GenerateSample(
   int64_t min_stages = 1;
   do {
     XLS_ASSIGN_OR_RETURN(std::tie(dslx_text, min_stages),
-                         Generate(generator_options, value_gen));
+                         Generate(generator_options, bit_gen));
     XLS_ASSIGN_OR_RETURN(has_nb_recv, HasNonBlockingRecv(dslx_text));
     // If this sample is going through codegen, regenerate the sample until it's
     // legal; we currently can't verify latency-sensitive samples, which means
@@ -376,7 +377,7 @@ absl::StatusOr<Sample> GenerateSample(
                             generator_options.generate_proc,
                             generator_options.generate_proc &&
                                 !generator_options.emit_stateless_proc,
-                            min_stages, has_nb_recv, value_gen));
+                            min_stages, has_nb_recv, bit_gen));
   }
 
   // Parse and type check the DSLX input to retrieve the top entity. The top
@@ -397,12 +398,12 @@ absl::StatusOr<Sample> GenerateSample(
     XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
     sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
     return GenerateProcSample(std::get<dslx::Proc*>(*member), tm,
-                              sample_options_copy, value_gen, dslx_text);
+                              sample_options_copy, bit_gen, dslx_text);
   }
   XLS_CHECK(std::holds_alternative<dslx::Function*>(*member));
   sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_FUNCTION);
   return GenerateFunctionSample(std::get<dslx::Function*>(*member), tm,
-                                sample_options_copy, value_gen, dslx_text);
+                                sample_options_copy, bit_gen, dslx_text);
 }
 
 }  // namespace xls

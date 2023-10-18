@@ -34,7 +34,6 @@
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/run_fuzz.h"
 #include "xls/fuzzer/sample.h"
-#include "xls/fuzzer/value_generator.h"
 
 ABSL_FLAG(bool, use_nondeterministic_seed, false,
           "Use a non-deterministic seed for the random number generator. If "
@@ -99,7 +98,7 @@ TEST(FuzzIntegrationTest, Fuzzing) {
   } else {
     XLS_LOG(INFO) << "Random seed specified via flag: " << seed;
   }
-  ValueGenerator rng(std::mt19937_64{seed});
+  std::mt19937_64 rng{seed};
 
   dslx::AstGeneratorOptions ast_generator_options{
       .max_width_bits_types = absl::GetFlag(FLAGS_max_width_bits_types),
@@ -159,7 +158,7 @@ TEST(FuzzIntegrationTest, Fuzzing) {
     XLS_LOG(INFO) << "Running sample " << sample_count++;
     XLS_ASSERT_OK_AND_ASSIGN(TempDirectory run_dir, TempDirectory::Create());
     absl::Status status =
-        GenerateSampleAndRun(&rng, ast_generator_options, sample_options,
+        GenerateSampleAndRun(rng, ast_generator_options, sample_options,
                              run_dir.path(), crasher_dir,
                              /*summary_file=*/std::nullopt,
                              absl::GetFlag(FLAGS_force_failure))

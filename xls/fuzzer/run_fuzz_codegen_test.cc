@@ -32,7 +32,6 @@
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/run_fuzz.h"
 #include "xls/fuzzer/sample.h"
-#include "xls/fuzzer/value_generator.h"
 
 ABSL_FLAG(bool, wide, false, "Run with wide bits types.");
 ABSL_FLAG(bool, generate_proc, false, "Generate a proc sample.");
@@ -134,8 +133,8 @@ class RunFuzzCodegenTest : public ::testing::Test {
   }
 
   absl::StatusOr<Sample> RunFuzz(int64_t seed) {
-    ValueGenerator rng{std::mt19937_64(seed)};
-    return GenerateSampleAndRun(&rng, GetAstGeneratorOptions(),
+    std::mt19937_64 rng(seed);
+    return GenerateSampleAndRun(rng, GetAstGeneratorOptions(),
                                 GetSampleOptions(), /*run_dir=*/GetTempPath(),
                                 crasher_dir_);
   }

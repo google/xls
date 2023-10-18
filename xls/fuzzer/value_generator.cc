@@ -13,27 +13,37 @@
 // limitations under the License.
 #include "xls/fuzzer/value_generator.h"
 
-#include <array>
-#include <cmath>
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <random>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/data_structures/inline_bitmap.h"
-#include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls {
 
+// keep-sorted start
 using dslx::ArrayType;
 using dslx::BitsType;
 using dslx::ChannelType;
@@ -46,213 +56,34 @@ using dslx::Module;
 using dslx::Number;
 using dslx::TupleType;
 using dslx::TypeAnnotation;
+// keep-sorted end
 
-bool ValueGenerator::RandomBool() {
-  std::bernoulli_distribution d(0.5);
-  return d(rng_);
-}
+namespace {
 
-int64_t ValueGenerator::RandomIntWithExpectedValue(float expected_value,
-                                                   int64_t lower_limit) {
-  XLS_CHECK_GE(expected_value, lower_limit);
-  std::poisson_distribution<int64_t> distribution(expected_value - lower_limit);
-  return distribution(rng_) + lower_limit;
-}
-
-float ValueGenerator::RandomFloat() {
-  std::uniform_real_distribution<float> g(0.0f, 1.0f);
-  return g(rng_);
-}
-
-double ValueGenerator::RandomDouble() {
-  std::uniform_real_distribution<double> g(0.0f, 1.0f);
-  return g(rng_);
-}
-
-int64_t ValueGenerator::RandRange(int64_t limit) { return RandRange(0, limit); }
-
-int64_t ValueGenerator::RandRange(int64_t start, int64_t limit) {
-  XLS_CHECK_GT(limit, start);
-  std::uniform_int_distribution<int64_t> g(start, limit - 1);
-  int64_t value = g(rng_);
-  XLS_CHECK_LT(value, limit);
-  XLS_CHECK_GE(value, start);
-  return value;
-}
-
-int64_t ValueGenerator::RandRangeBiasedTowardsZero(int64_t limit) {
-  XLS_CHECK_GT(limit, 0);
-  if (limit == 1) {  // Only one possible value.
-    return 0;
-  }
-  std::array<double, 3> i = {{0, 0, static_cast<double>(limit)}};
-  std::array<double, 3> w = {{0, 1, 0}};
-  std::piecewise_linear_distribution<double> d(i.begin(), i.end(), w.begin());
-  double triangular = d(rng_);
-  int64_t result = static_cast<int64_t>(std::ceil(triangular)) - 1;
-  XLS_CHECK_GE(result, 0);
-  XLS_CHECK_LT(result, limit);
-  return result;
-}
-
-Bits ValueGenerator::GenerateBits(int64_t bit_count) {
-  if (bit_count == 0) {
-    return Bits(0);
-  }
-  enum PatternKind {
-    kZero,
-    kAllOnes,
-    // Just the high bit is unset, otherwise all ones.
-    kAllButHighOnes,
-    // Alternating 01 bit pattern.
-    kOffOn,
-    // Alternating 10 bit pattern.
-    kOnOff,
-    kOneHot,
-    kRandom,
-  };
-  PatternKind choice = static_cast<PatternKind>(RandRange(kRandom + 1));
-  switch (choice) {
-    case kZero:
-      return Bits(bit_count);
-    case kAllOnes:
-      return Bits::AllOnes(bit_count);
-    case kAllButHighOnes:
-      return bits_ops::ShiftRightLogical(Bits::AllOnes(bit_count), 1);
-    case kOffOn: {
-      InlineBitmap bitmap(bit_count);
-      for (int64_t i = 1; i < bit_count; i += 2) {
-        bitmap.Set(i, true);
-      }
-      return Bits::FromBitmap(std::move(bitmap));
-    }
-    case kOnOff: {
-      InlineBitmap bitmap(bit_count);
-      for (int64_t i = 0; i < bit_count; i += 2) {
-        bitmap.Set(i, true);
-      }
-      return Bits::FromBitmap(std::move(bitmap));
-    }
-    case kOneHot: {
-      InlineBitmap bitmap(bit_count);
-      int64_t index = RandRange(bit_count);
-      bitmap.Set(index, true);
-      return Bits::FromBitmap(std::move(bitmap));
-    }
-    case kRandom: {
-      InlineBitmap bitmap(bit_count);
-      for (int64_t i = 0; i < bit_count; ++i) {
-        bitmap.Set(i, RandomBool());
-      }
-      return Bits::FromBitmap(std::move(bitmap));
-    }
-    default:
-      XLS_LOG(FATAL) << "Impossible choice: " << choice;
-  }
-}
-
-absl::StatusOr<InterpValue> ValueGenerator::GenerateBitValue(int64_t bit_count,
-                                                             bool is_signed) {
+absl::StatusOr<InterpValue> GenerateBitValue(absl::BitGenRef bit_gen,
+                                             int64_t bit_count,
+                                             bool is_signed) {
   InterpValueTag tag =
       is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
   if (bit_count == 0) {
     return InterpValue::MakeBits(tag, Bits(0));
   }
 
-  return InterpValue::MakeBits(tag, GenerateBits(bit_count));
+  return InterpValue::MakeBits(tag, GenerateBits(bit_gen, bit_count));
 }
 
-// Note: "unbiased" here refers to the fact we don't use the history of
-// previously generated values, but just sample arbitrarily something for the
-// given bit count of the bits type. You'll see other routines taking "prior" as
-// a history to help prevent repetition that could hide bugs.
-absl::StatusOr<InterpValue> ValueGenerator::GenerateUnbiasedValue(
-    const BitsType& bits_type) {
+absl::StatusOr<InterpValue> GenerateBitValue(absl::BitGenRef bit_gen,
+                                             const BitsType& bits_type) {
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type.size().GetAsInt64());
-  return GenerateBitValue(bit_count, bits_type.is_signed());
+  return GenerateBitValue(bit_gen, bit_count, bits_type.is_signed());
 }
 
-absl::StatusOr<InterpValue> ValueGenerator::GenerateInterpValue(
-    const ConcreteType& arg_type, absl::Span<const InterpValue> prior) {
-  XLS_RET_CHECK(!arg_type.IsMeta()) << arg_type.ToString();
-  if (auto* channel_type = dynamic_cast<const ChannelType*>(&arg_type)) {
-    // For channels, the argument must be of its payload type.
-    return GenerateInterpValue(channel_type->payload_type(), prior);
-  }
-  if (auto* tuple_type = dynamic_cast<const TupleType*>(&arg_type)) {
-    std::vector<InterpValue> members;
-    for (const std::unique_ptr<ConcreteType>& t : tuple_type->members()) {
-      XLS_ASSIGN_OR_RETURN(InterpValue member, GenerateInterpValue(*t, prior));
-      members.push_back(member);
-    }
-    return InterpValue::MakeTuple(members);
-  }
-  if (auto* array_type = dynamic_cast<const ArrayType*>(&arg_type)) {
-    std::vector<InterpValue> elements;
-    const ConcreteType& element_type = array_type->element_type();
-    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
-    for (int64_t i = 0; i < array_size; ++i) {
-      XLS_ASSIGN_OR_RETURN(InterpValue element,
-                           GenerateInterpValue(element_type, prior));
-      elements.push_back(element);
-    }
-    return InterpValue::MakeArray(std::move(elements));
-  }
-  auto* bits_type = dynamic_cast<const BitsType*>(&arg_type);
-  XLS_RET_CHECK(bits_type != nullptr);
-  if (prior.empty() || RandomDouble() < 0.5) {
-    return GenerateUnbiasedValue(*bits_type);
-  }
-
-  // Try to mutate a prior argument. If it happens to not be a bits type that we
-  // look at, then just generate an unbiased argument.
-  int64_t index = RandRange(prior.size());
-  if (!prior[index].IsBits()) {
-    return GenerateUnbiasedValue(*bits_type);
-  }
-
-  Bits to_mutate = prior[index].GetBitsOrDie();
-
-  XLS_ASSIGN_OR_RETURN(const int64_t target_bit_count,
-                       bits_type->size().GetAsInt64());
-  if (target_bit_count > to_mutate.bit_count()) {
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue addendum,
-        GenerateBitValue(target_bit_count - to_mutate.bit_count(),
-                         /*is_signed=*/false));
-    to_mutate = bits_ops::Concat({to_mutate, addendum.GetBitsOrDie()});
-  } else {
-    to_mutate = to_mutate.Slice(0, target_bit_count);
-  }
-
-  InlineBitmap bitmap = to_mutate.bitmap();
-  XLS_RET_CHECK_EQ(bitmap.bit_count(), target_bit_count);
-  if (target_bit_count > 0) {
-    int64_t mutation_count = RandRangeBiasedTowardsZero(target_bit_count);
-    for (int64_t i = 0; i < mutation_count; ++i) {
-      // Pick a random bit and flip it.
-      int64_t bitno = RandRange(target_bit_count);
-      bitmap.Set(bitno, !bitmap.Get(bitno));
-    }
-  }
-  bool is_signed = bits_type->is_signed();
-  auto tag = is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
-  return InterpValue::MakeBits(tag, Bits::FromBitmap(std::move(bitmap)));
-}
-
-absl::StatusOr<std::vector<InterpValue>> ValueGenerator::GenerateInterpValues(
-    absl::Span<const ConcreteType* const> arg_types) {
-  std::vector<InterpValue> args;
-  for (const ConcreteType* arg_type : arg_types) {
-    XLS_RET_CHECK(arg_type != nullptr);
-    XLS_RET_CHECK(!arg_type->IsMeta());
-    XLS_ASSIGN_OR_RETURN(InterpValue arg, GenerateInterpValue(*arg_type, args));
-    args.push_back(std::move(arg));
-  }
-  return args;
-}
-
-absl::StatusOr<int64_t> ValueGenerator::GetArraySize(const Expr* dim) {
+// Evaluates the given Expr* (holding the declaration of an
+// ArrayTypeAnnotation's size) and returns its resolved integer value. This
+// relies on current behavior of AstGenerator, namely that array dims are pure
+// Number nodes or are references to ConstantDefs (potentially via a series of
+// NameRefs) whose values are Numbers.
+absl::StatusOr<int64_t> GetArraySize(const dslx::Expr* dim) {
   if (const auto* number = dynamic_cast<const dslx::Number*>(dim);
       number != nullptr) {
     return ParseNumberAsInt64(number->text());
@@ -284,13 +115,90 @@ absl::StatusOr<int64_t> ValueGenerator::GetArraySize(const Expr* dim) {
   return ParseNumberAsInt64(number->text());
 }
 
-absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
-    Module* module, TypeAnnotation* type) {
+// Returns a number n in the range [0, limit), where Pr(n == k) is proportional
+// to (limit - k); the distribution density is "uniformly decreasing", so the
+// result is biased toward zero.
+int64_t UniformlyDecreasing(absl::BitGenRef bit_gen, int64_t limit) {
+  XLS_CHECK_GT(limit, 0);
+  if (limit == 1) {  // Only one possible value.
+    return 0;
+  }
+  int64_t x = absl::Uniform(bit_gen, 0, limit);
+  int64_t y = absl::Uniform(bit_gen, 0, limit + 1);
+  return std::min(x, y);
+}
+
+}  // namespace
+
+Bits GenerateBits(absl::BitGenRef bit_gen, int64_t bit_count) {
+  if (bit_count == 0) {
+    return Bits(0);
+  }
+  enum PatternKind : std::uint8_t {
+    kZero,
+    kAllOnes,
+    // Just the high bit is unset, otherwise all ones.
+    kAllButHighOnes,
+    // Alternating 01 bit pattern.
+    kOffOn,
+    // Alternating 10 bit pattern.
+    kOnOff,
+    kOneHot,
+    kRandom,
+
+    // Sentinel marking the end of the enum
+    kEndSentinel,
+  };
+  PatternKind choice = static_cast<PatternKind>(
+      absl::Uniform<std::underlying_type_t<PatternKind>>(bit_gen, kZero,
+                                                         kEndSentinel));
+  switch (choice) {
+    case kZero:
+      return Bits(bit_count);
+    case kAllOnes:
+      return Bits::AllOnes(bit_count);
+    case kAllButHighOnes:
+      return bits_ops::ShiftRightLogical(Bits::AllOnes(bit_count), 1);
+    case kOffOn: {
+      InlineBitmap bitmap(bit_count);
+      for (int64_t i = 1; i < bit_count; i += 2) {
+        bitmap.Set(i, true);
+      }
+      return Bits::FromBitmap(std::move(bitmap));
+    }
+    case kOnOff: {
+      InlineBitmap bitmap(bit_count);
+      for (int64_t i = 0; i < bit_count; i += 2) {
+        bitmap.Set(i, true);
+      }
+      return Bits::FromBitmap(std::move(bitmap));
+    }
+    case kOneHot: {
+      InlineBitmap bitmap(bit_count);
+      int64_t index = absl::Uniform(bit_gen, 0, bit_count);
+      bitmap.Set(index, true);
+      return Bits::FromBitmap(std::move(bitmap));
+    }
+    case kRandom: {
+      InlineBitmap bitmap(bit_count);
+      for (int64_t i = 0; i < bit_count; ++i) {
+        bitmap.Set(i, absl::Bernoulli(bit_gen, 0.5));
+      }
+      return Bits::FromBitmap(std::move(bitmap));
+    }
+    default:
+      XLS_LOG(FATAL) << "Impossible choice: " << choice;
+  }
+}
+
+absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
+                                           Module* module,
+                                           TypeAnnotation* type) {
   dslx::Span fake_span = dslx::FakeSpan();
   if (auto* builtin_type = dynamic_cast<dslx::BuiltinTypeAnnotation*>(type);
       builtin_type != nullptr) {
     XLS_ASSIGN_OR_RETURN(dslx::InterpValue num_value,
-                         GenerateBitValue(builtin_type->GetBitCount(),
+                         GenerateBitValue(bit_gen, builtin_type->GetBitCount(),
                                           builtin_type->GetSignedness()));
     return module->Make<Number>(fake_span, num_value.ToHumanString(),
                                 dslx::NumberKind::kOther, type);
@@ -308,7 +216,7 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
       if (builtin_type == dslx::BuiltinType::kBits ||
           builtin_type == dslx::BuiltinType::kUN ||
           builtin_type == dslx::BuiltinType::kSN) {
-        Bits num_value = GenerateBits(array_size);
+        Bits num_value = GenerateBits(bit_gen, array_size);
         return module->Make<Number>(fake_span, BitsToString(num_value),
                                     dslx::NumberKind::kOther, type);
       }
@@ -318,7 +226,7 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
     members.reserve(array_size);
     for (int i = 0; i < array_size; i++) {
       XLS_ASSIGN_OR_RETURN(Expr * member,
-                           GenerateDslxConstant(module, element_type));
+                           GenerateDslxConstant(bit_gen, module, element_type));
       members.push_back(member);
     }
 
@@ -331,7 +239,7 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
     std::vector<Expr*> members;
     for (auto* member_type : tuple_type->members()) {
       XLS_ASSIGN_OR_RETURN(Expr * member,
-                           GenerateDslxConstant(module, member_type));
+                           GenerateDslxConstant(bit_gen, module, member_type));
       members.push_back(member);
     }
     return module->Make<dslx::XlsTuple>(fake_span, members,
@@ -344,14 +252,16 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
   return absl::visit(
       Visitor{
           [&](dslx::TypeAlias* type_alias) -> absl::StatusOr<Expr*> {
-            return GenerateDslxConstant(module, type_alias->type_annotation());
+            return GenerateDslxConstant(bit_gen, module,
+                                        type_alias->type_annotation());
           },
           [&](dslx::StructDef* struct_def) -> absl::StatusOr<Expr*> {
             std::vector<std::pair<std::string, Expr*>> members;
             for (const auto& [member_name, member_type] :
                  struct_def->members()) {
-              XLS_ASSIGN_OR_RETURN(Expr * member_value,
-                                   GenerateDslxConstant(module, member_type));
+              XLS_ASSIGN_OR_RETURN(
+                  Expr * member_value,
+                  GenerateDslxConstant(bit_gen, module, member_type));
               members.push_back(
                   std::make_pair(member_name->identifier(), member_value));
             }
@@ -360,7 +270,8 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
           },
           [&](dslx::EnumDef* enum_def) -> absl::StatusOr<Expr*> {
             const std::vector<dslx::EnumMember>& values = enum_def->values();
-            int64_t value_idx = RandRange(values.size());
+            int64_t value_idx =
+                absl::Uniform(bit_gen, size_t{0}, values.size());
             const dslx::EnumMember& value = values[value_idx];
             auto* name_ref = module->Make<dslx::NameRef>(
                 fake_span, value.name_def->identifier(), value.name_def);
@@ -373,6 +284,89 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
           },
       },
       typeref->type_definition());
+}
+
+absl::StatusOr<InterpValue> GenerateInterpValue(
+    absl::BitGenRef bit_gen, const ConcreteType& arg_type,
+    absl::Span<const InterpValue> prior) {
+  XLS_RET_CHECK(!arg_type.IsMeta()) << arg_type.ToString();
+  if (auto* channel_type = dynamic_cast<const ChannelType*>(&arg_type)) {
+    // For channels, the argument must be of its payload type.
+    return GenerateInterpValue(bit_gen, channel_type->payload_type(), prior);
+  }
+  if (auto* tuple_type = dynamic_cast<const TupleType*>(&arg_type)) {
+    std::vector<InterpValue> members;
+    for (const std::unique_ptr<ConcreteType>& t : tuple_type->members()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue member,
+                           GenerateInterpValue(bit_gen, *t, prior));
+      members.push_back(member);
+    }
+    return InterpValue::MakeTuple(members);
+  }
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&arg_type)) {
+    std::vector<InterpValue> elements;
+    const ConcreteType& element_type = array_type->element_type();
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
+    for (int64_t i = 0; i < array_size; ++i) {
+      XLS_ASSIGN_OR_RETURN(InterpValue element,
+                           GenerateInterpValue(bit_gen, element_type, prior));
+      elements.push_back(element);
+    }
+    return InterpValue::MakeArray(std::move(elements));
+  }
+  auto* bits_type = dynamic_cast<const BitsType*>(&arg_type);
+  XLS_RET_CHECK(bits_type != nullptr);
+  if (prior.empty() || absl::Bernoulli(bit_gen, 0.5)) {
+    return GenerateBitValue(bit_gen, *bits_type);
+  }
+
+  // Try to mutate a prior argument. If it happens to not be a bits type that we
+  // look at, then just generate an unbiased argument.
+  int64_t index = absl::Uniform(bit_gen, size_t{0}, prior.size());
+  if (!prior[index].IsBits()) {
+    return GenerateBitValue(bit_gen, *bits_type);
+  }
+
+  Bits to_mutate = prior[index].GetBitsOrDie();
+
+  XLS_ASSIGN_OR_RETURN(const int64_t target_bit_count,
+                       bits_type->size().GetAsInt64());
+  if (target_bit_count > to_mutate.bit_count()) {
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue addendum,
+        GenerateBitValue(bit_gen, target_bit_count - to_mutate.bit_count(),
+                         /*is_signed=*/false));
+    to_mutate = bits_ops::Concat({to_mutate, addendum.GetBitsOrDie()});
+  } else {
+    to_mutate = to_mutate.Slice(0, target_bit_count);
+  }
+
+  InlineBitmap bitmap = to_mutate.bitmap();
+  XLS_RET_CHECK_EQ(bitmap.bit_count(), target_bit_count);
+  if (target_bit_count > 0) {
+    int64_t mutation_count = UniformlyDecreasing(bit_gen, target_bit_count);
+    for (int64_t i = 0; i < mutation_count; ++i) {
+      // Pick a random bit and flip it.
+      int64_t bitno = absl::Uniform<int64_t>(bit_gen, 0, target_bit_count);
+      bitmap.Set(bitno, !bitmap.Get(bitno));
+    }
+  }
+  bool is_signed = bits_type->is_signed();
+  auto tag = is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
+  return InterpValue::MakeBits(tag, Bits::FromBitmap(std::move(bitmap)));
+}
+
+absl::StatusOr<std::vector<InterpValue>> GenerateInterpValues(
+    absl::BitGenRef bit_gen, absl::Span<const ConcreteType* const> arg_types) {
+  std::vector<InterpValue> args;
+  for (const ConcreteType* arg_type : arg_types) {
+    XLS_RET_CHECK(arg_type != nullptr);
+    XLS_RET_CHECK(!arg_type->IsMeta());
+    XLS_ASSIGN_OR_RETURN(InterpValue arg,
+                         GenerateInterpValue(bit_gen, *arg_type, args));
+    args.push_back(std::move(arg));
+  }
+  return args;
 }
 
 }  // namespace xls

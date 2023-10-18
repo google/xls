@@ -19,7 +19,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <random>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -27,15 +26,22 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/token.h"
 #include "xls/fuzzer/ast_generator_options.pb.h"
-#include "xls/fuzzer/value_generator.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
@@ -128,30 +134,32 @@ std::string AbslUnparseFlag(const AstGeneratorOptions& ast_generator_options);
 // Type that generates a random module for use in fuzz testing; i.e.
 //
 //    std::mt19937_64 rng;
-//    AstGenerator g(AstGeneratorOptions(), &rng);
+//    AstGenerator g(AstGeneratorOptions(), rng);
 //    auto [f, module] = g.GenerateFunctionInModule().value();
 //
 // Where if is the main entry point inside of the returned module.
 class AstGenerator {
  public:
-  // The value generator must be alive for the lifetime of the object.
-  AstGenerator(AstGeneratorOptions options, ValueGenerator* value_gen);
+  // The random generator must be alive for the lifetime of the object.
+  AstGenerator(AstGeneratorOptions options, absl::BitGenRef bit_gen);
 
   // Generates the entity with name "name" in a module named "module_name".
   absl::StatusOr<AnnotatedModule> Generate(const std::string& top_entity_name,
                                            const std::string& module_name);
 
-  bool RandomBool() { return value_gen_->RandomBool(); }
+  bool RandomBool() { return absl::Bernoulli(bit_gen_, 0.5); }
 
   // Returns a random float uniformly distributed over [0, 1).
-  float RandomFloat() { return value_gen_->RandomFloat(); }
+  float RandomFloat() { return absl::Uniform<float>(bit_gen_, 0.0f, 1.0f); }
 
   // Returns a random integer over the range [0, limit).
-  int64_t RandRange(int64_t limit) { return value_gen_->RandRange(0, limit); }
+  int64_t RandRange(int64_t limit) {
+    return absl::Uniform<int64_t>(bit_gen_, 0, limit);
+  }
 
   // Returns a random integer over the range [start, limit).
   int64_t RandRange(int64_t start, int64_t limit) {
-    return value_gen_->RandRange(start, limit);
+    return absl::Uniform<int64_t>(bit_gen_, start, limit);
   }
 
   // Returns a random integer with the given expected value from a distribution
@@ -162,7 +170,9 @@ class AstGenerator {
   // https://en.wikipedia.org/wiki/Poisson_distribution.
   int64_t RandomIntWithExpectedValue(float expected_value,
                                      int64_t lower_limit = 0) {
-    return value_gen_->RandomIntWithExpectedValue(expected_value, lower_limit);
+    const double mean =
+        static_cast<double>(expected_value) - static_cast<double>(lower_limit);
+    return lower_limit + absl::Poisson<int64_t>(bit_gen_, mean);
   }
 
  private:
@@ -251,7 +261,7 @@ class AstGenerator {
   // Chooses a value from the environment that satisfies the predicate "take",
   // or returns nullopt if none exists.
   std::optional<TypedExpr> ChooseEnvValueOptional(
-      Env* env, std::function<bool(const TypedExpr&)> take = nullptr);
+      Env* env, const std::function<bool(const TypedExpr&)>& take = nullptr);
 
   // As above, but takes a type to compare for equality.
   std::optional<TypedExpr> ChooseEnvValueOptional(Env* env,
@@ -262,7 +272,7 @@ class AstGenerator {
   }
 
   absl::StatusOr<TypedExpr> ChooseEnvValue(
-      Env* env, std::function<bool(const TypedExpr&)> take = nullptr);
+      Env* env, const std::function<bool(const TypedExpr&)>& take = nullptr);
 
   // As above, but takes a type to compare for equality.
   absl::StatusOr<TypedExpr> ChooseEnvValue(Env* env,
@@ -274,7 +284,7 @@ class AstGenerator {
 
   // Return all values from the environment which satisty the given predicate.
   std::vector<TypedExpr> GatherAllValues(
-      Env* env, std::function<bool(const TypedExpr&)> take);
+      Env* env, const std::function<bool(const TypedExpr&)>& take);
 
   // As above, but takes a type to compare for equality.
   std::vector<TypedExpr> GatherAllValues(Env* env, const TypeAnnotation* type) {
@@ -375,11 +385,10 @@ class AstGenerator {
   absl::StatusOr<int64_t> GenerateNaryOperandCount(Context* ctx,
                                                    int64_t lower_limit = 0);
 
-  // Generates an expression AST node and returns it. expr_size is a measure of
-  // the size of the expression generated so far (used to probabilistically
-  // limit the size of the generated expression). call_depth is the depth of the
-  // call stack (via map or other function-calling operation) for the function
-  // being generated.
+  // Generates an expression AST node and returns it. expr_size is a limit on
+  // the size of the generated expression. call_depth is the depth of the call
+  // stack (via map or other function-calling operation) for the function being
+  // generated.
   absl::StatusOr<TypedExpr> GenerateExpr(int64_t expr_size, int64_t call_depth,
                                          Context* ctx);
 
@@ -616,17 +625,6 @@ class AstGenerator {
   // Generates a unique symbol identifier.
   std::string GenSym();
 
-  // Returns true if the expression should continue to be extended. expr_depth
-  // is a measure of the current size of the expression (number of times
-  // GenerateExpr has been invoked). call_depth is the current depth of the call
-  // stack (if any) calling this function to be generated.
-  bool ShouldNest(int64_t expr_size, int64_t call_depth) {
-    // Make non-top level functions smaller.
-    double alpha = (call_depth > 0) ? 1.0 : 7.0;
-    std::gamma_distribution<double> g(alpha, 5.0);
-    return g(value_gen_->rng()) >= static_cast<double>(expr_size);
-  }
-
   // Returns the (flattened) bit count of the given type.
   int64_t GetTypeBitCount(const TypeAnnotation* type);
 
@@ -702,7 +700,7 @@ class AstGenerator {
     std::vector<ProcMember*> members;
   };
 
-  ValueGenerator* value_gen_;
+  absl::BitGenRef bit_gen_;
 
   const AstGeneratorOptions options_;
 

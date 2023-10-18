@@ -15,20 +15,17 @@
 #ifndef XLS_FUZZER_SAMPLE_GENERATOR_H_
 #define XLS_FUZZER_SAMPLE_GENERATOR_H_
 
-#include <random>
-
-#include "absl/types/span.h"
-#include "xls/dslx/type_system/concrete_type.h"
+#include "absl/random/bit_gen_ref.h"
+#include "absl/status/statusor.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"
-#include "xls/fuzzer/value_generator.h"
 
 namespace xls {
 
 // Generates and returns a random Sample with the given options.
 absl::StatusOr<Sample> GenerateSample(
     const dslx::AstGeneratorOptions& generator_options,
-    const SampleOptions& sample_options, ValueGenerator* value_gen);
+    const SampleOptions& sample_options, absl::BitGenRef bit_gen);
 
 }  // namespace xls
 

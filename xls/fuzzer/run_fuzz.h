@@ -17,12 +17,13 @@
 
 #include <filesystem>  // NOLINT
 #include <optional>
-#include <string_view>
 
+#include "absl/random/bit_gen_ref.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"
-#include "xls/fuzzer/value_generator.h"
 
 namespace xls {
 
@@ -37,7 +38,8 @@ absl::Status RunSample(
     std::optional<absl::Duration> generate_sample_elapsed = std::nullopt);
 
 absl::StatusOr<Sample> GenerateSampleAndRun(
-    ValueGenerator* rng, const dslx::AstGeneratorOptions& ast_generator_options,
+    absl::BitGenRef bit_gen,
+    const dslx::AstGeneratorOptions& ast_generator_options,
     const SampleOptions& sample_options, const std::filesystem::path& run_dir,
     const std::optional<std::filesystem::path>& crasher_dir = std::nullopt,
     const std::optional<std::filesystem::path>& summary_file = std::nullopt,

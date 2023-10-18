@@ -24,7 +24,6 @@
 #include <limits>
 #include <memory>
 #include <optional>
-#include <random>
 #include <set>
 #include <string>
 #include <string_view>
@@ -35,6 +34,9 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/discrete_distribution.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -990,7 +992,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
           &ctx->env, 1, std::min(int64_t{64}, options_.max_width_bits_types)));
   // Divide by an arbitrary literal.
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
-  Bits divisor = value_gen_->GenerateBits(bit_count);
+  Bits divisor = GenerateBits(bit_gen_, bit_count);
   Number* divisor_node = GenerateNumberFromBits(divisor, lhs.type);
   return TypedExpr{.expr = module_->Make<Binop>(fake_span_, BinopKind::kDiv,
                                                 lhs.expr, divisor_node),
@@ -1639,7 +1641,7 @@ TypedExpr AstGenerator::GenerateNumberWithType(
   }
   int64_t bit_count = GetTypeBitCount(type);
 
-  Bits value = value_gen_->GenerateBits(bit_count);
+  Bits value = GenerateBits(bit_gen_, bit_count);
   if (out != nullptr) {
     *out = value;
   }
@@ -1955,7 +1957,7 @@ TypeAnnotation* AstGenerator::GenerateType(
 }
 
 std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
-    Env* env, std::function<bool(const TypedExpr&)> take) {
+    Env* env, const std::function<bool(const TypedExpr&)>& take) {
   if (take == nullptr) {
     // Fast path if there's no take function, we don't need to inspect/copy
     // things.
@@ -1982,7 +1984,7 @@ std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValue(
-    Env* env, std::function<bool(const TypedExpr&)> take) {
+    Env* env, const std::function<bool(const TypedExpr&)>& take) {
   auto result = ChooseEnvValueOptional(env, take);
   if (!result.has_value()) {
     return RecoverableError(
@@ -1992,7 +1994,7 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValue(
 }
 
 std::vector<TypedExpr> AstGenerator::GatherAllValues(
-    Env* env, std::function<bool(const TypedExpr&)> take) {
+    Env* env, const std::function<bool(const TypedExpr&)>& take) {
   std::vector<TypedExpr> values;
   for (auto& item : *env) {
     if (take(item.second)) {
@@ -2247,7 +2249,7 @@ absl::StatusOr<int64_t> AstGenerator::GenerateNaryOperandCount(
 
 namespace {
 
-enum OpChoice {
+enum OpChoice : std::uint8_t {
   kArray,
   kArrayIndex,
   kArrayUpdate,
@@ -2352,7 +2354,7 @@ int OpProbability(OpChoice op) {
   XLS_LOG(FATAL) << "Invalid op choice: " << static_cast<int64_t>(op);
 }
 
-std::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
+absl::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
   auto dist = [&](bool generate_proc) {
     static const std::set<int> proc_ops = {int{kChannelOp}, int{kJoinOp}};
     std::vector<int> tmp;
@@ -2366,14 +2368,18 @@ std::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
       }
       tmp.push_back(OpProbability(static_cast<OpChoice>(i)));
     }
-    return std::discrete_distribution<int>(tmp.begin(), tmp.end());
+    return new absl::discrete_distribution<int>(tmp.begin(), tmp.end());
   };
-  static std::discrete_distribution<int> func_dist = dist(false);
-  static std::discrete_distribution<int> proc_dist = dist(true);
+  static absl::discrete_distribution<int>& func_dist = *dist(false);
+  static absl::discrete_distribution<int>& proc_dist = *dist(true);
   if (generate_proc) {
     return proc_dist;
   }
   return func_dist;
+}
+
+OpChoice ChooseOp(absl::BitGenRef bit_gen, bool generate_proc) {
+  return static_cast<OpChoice>(GetOpDistribution(generate_proc)(bit_gen));
 }
 
 }  // namespace
@@ -2381,8 +2387,8 @@ std::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
 absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
                                                      int64_t call_depth,
                                                      Context* ctx) {
-  if (!ShouldNest(expr_size, call_depth)) {
-    // Should not nest any more, select return values.
+  if (expr_size == 0) {
+    // Should not recurse any more; select return values.
     if (ctx->is_generating_proc) {
       return GenerateProcNextFunctionRetval(ctx);
     }
@@ -2393,8 +2399,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   while (true) {
     absl::StatusOr<TypedExpr> generated;
 
-    int choice = GetOpDistribution(ctx->is_generating_proc)(value_gen_->rng());
-    switch (static_cast<OpChoice>(choice)) {
+    switch (ChooseOp(bit_gen_, ctx->is_generating_proc)) {
       case kArray:
         generated = GenerateArray(ctx);
         break;
@@ -2566,7 +2571,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   }
 
   XLS_ASSIGN_OR_RETURN(TypedExpr body,
-                       GenerateExpr(expr_size + 1, call_depth, ctx));
+                       GenerateExpr(expr_size - 1, call_depth, ctx));
 
   std::vector<Statement*> statements;
 
@@ -2670,7 +2675,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
   // draw references from the environment. The environment can be empty for
   // subsequent call depths.
   XLS_RET_CHECK(call_depth > 0 || (call_depth == 0 && !ctx->env.empty()));
-  return GenerateExpr(/*expr_size=*/0, call_depth, ctx);
+
+  // Make non-top-level functions smaller; these means were chosen
+  // arbitrarily, and can be adjusted as we see fit later.
+  const double mean_size_minus_1 = (call_depth == 0) ? 21.0 : 1.87;
+  return GenerateExpr(1 + absl::Poisson<int64_t>(bit_gen_, mean_size_minus_1),
+                      call_depth, ctx);
 }
 
 absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
@@ -2839,8 +2849,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
   NameDef* name_def = module_->Make<NameDef>(fake_span_, std::string(name),
                                              /*definer=*/nullptr);
 
-  XLS_ASSIGN_OR_RETURN(Expr * init_constant, value_gen_->GenerateDslxConstant(
-                                                 module_.get(), return_type));
+  XLS_ASSIGN_OR_RETURN(
+      Expr * init_constant,
+      GenerateDslxConstant(bit_gen_, module_.get(), return_type));
   Statement* s = module_->Make<Statement>(init_constant);
   Block* b = module_->Make<Block>(fake_span_, std::vector<Statement*>{s},
                                   /*trailing_semi=*/false);
@@ -2915,9 +2926,8 @@ absl::StatusOr<AnnotatedModule> AstGenerator::Generate(
                          .min_stages = min_stages};
 }
 
-AstGenerator::AstGenerator(AstGeneratorOptions options,
-                           ValueGenerator* value_gen)
-    : value_gen_(XLS_DIE_IF_NULL(value_gen)),
+AstGenerator::AstGenerator(AstGeneratorOptions options, absl::BitGenRef bit_gen)
+    : bit_gen_(bit_gen),
       options_(options),
       fake_pos_("<fake>", 0, 0),
       fake_span_(fake_pos_, fake_pos_) {}

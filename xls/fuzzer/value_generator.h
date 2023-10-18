@@ -14,88 +14,39 @@
 #ifndef XLS_FUZZER_VALUE_GENERATOR_H_
 #define XLS_FUZZER_VALUE_GENERATOR_H_
 
-#include <random>
-#include <utility>
+#include <cstdint>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/ir/bits.h"
 
 namespace xls {
 
-// Contains logic to generate random values for use by fuzzer components.
-class ValueGenerator {
- public:
-  explicit ValueGenerator(std::mt19937_64 rng) : rng_(std::move(rng)) {}
+// Generates a Bits object with the given size.
+Bits GenerateBits(absl::BitGenRef bit_gen, int64_t bit_count);
 
-  // Returns a random boolean value.
-  bool RandomBool();
+// Randomly generates an Expr* holding a value of the given type.
+// Note: Currently, AstGenerator only produces single-dimensional arrays with
+// [AST] Number-typed or ConstantDef-defined sizes. If that changes, then this
+// function will need to be modified.
+absl::StatusOr<dslx::Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
+                                                 dslx::Module* module,
+                                                 dslx::TypeAnnotation* type);
 
-  // Returns a random integer with the given expected value from a distribution
-  // which tails off exponentially in both directions over the range
-  // [lower_limit, inf). Useful for picking a number around some value with
-  // decreasing likelihood of picking something far away from the expected
-  // value.  The underlying distribution is a Poisson distribution. See:
-  // https://en.wikipedia.org/wiki/Poisson_distribution
-  int64_t RandomIntWithExpectedValue(float expected_value,
-                                     int64_t lower_limit = 0);
+// Returns a single value of the given type.
+absl::StatusOr<dslx::InterpValue> GenerateInterpValue(
+    absl::BitGenRef bit_gen, const dslx::ConcreteType& arg_type,
+    absl::Span<const dslx::InterpValue> prior);
 
-  // Returns a random float value in the range [0.0, 1.0).
-  float RandomFloat();
-
-  // Returns a random double value in the range [0.0, 1.0).
-  double RandomDouble();
-
-  // Returns a random integer in the range [0, limit).
-  int64_t RandRange(int64_t limit);
-
-  // Returns a random integer in the range [start, limit).
-  int64_t RandRange(int64_t start, int64_t limit);
-
-  // Returns a triangular distribution biased towards the zero side, with limit
-  // as the exclusive limit.
-  int64_t RandRangeBiasedTowardsZero(int64_t limit);
-
-  // Generates a Bits object with the given size.
-  Bits GenerateBits(int64_t bit_count);
-
-  // Generates a BitsTyped InterpValue with the given attributes.
-  absl::StatusOr<dslx::InterpValue> GenerateBitValue(int64_t bit_count,
-                                                     bool is_signed);
-
-  // Returns a single value of the given type.
-  absl::StatusOr<dslx::InterpValue> GenerateInterpValue(
-      const dslx::ConcreteType& arg_type,
-      absl::Span<const dslx::InterpValue> prior);
-
-  // Returns randomly generated values of the given types.
-  absl::StatusOr<std::vector<dslx::InterpValue>> GenerateInterpValues(
-      absl::Span<const dslx::ConcreteType* const> arg_types);
-
-  // Randomly generates an Expr* holding a value of the given type.
-  // Note: Currently, AstGenerator only produces single-dimensional arrays with
-  // [AST] Number-typed or ConstantDef-defined sizes. If that changes, then this
-  // function will need to be modified.
-  absl::StatusOr<dslx::Expr*> GenerateDslxConstant(dslx::Module* module,
-                                                   dslx::TypeAnnotation* type);
-
-  std::mt19937_64& rng() { return rng_; }
-
- private:
-  absl::StatusOr<dslx::InterpValue> GenerateUnbiasedValue(
-      const dslx::BitsType& bits_type);
-
-  // Evaluates the given Expr* (holding the declaration of an
-  // ArrayTypeAnnotation's size) and returns its resolved integer value.
-  // This relies on current behavior of AstGenerator, namely that array dims are
-  // pure Number nodes or are references to ConstantDefs (potentially via a
-  // series of NameRefs) whose values are Numbers.
-  absl::StatusOr<int64_t> GetArraySize(const dslx::Expr* dim);
-
-  std::mt19937_64 rng_;
-};
+// Returns randomly generated values of the given types.
+absl::StatusOr<std::vector<dslx::InterpValue>> GenerateInterpValues(
+    absl::BitGenRef bit_gen,
+    absl::Span<const dslx::ConcreteType* const> arg_types);
 
 }  // namespace xls
 

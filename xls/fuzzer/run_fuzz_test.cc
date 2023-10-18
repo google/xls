@@ -32,7 +32,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"
-#include "xls/fuzzer/value_generator.h"
 
 ABSL_FLAG(bool, wide, false, "Run with wide bits types.");
 ABSL_FLAG(bool, generate_proc, false, "Generate a proc sample.");
@@ -129,8 +128,8 @@ class RunFuzzTest : public ::testing::Test {
   }
 
   absl::StatusOr<Sample> RunFuzz(int64_t seed) {
-    ValueGenerator rng{std::mt19937_64(seed)};
-    return GenerateSampleAndRun(&rng, GetAstGeneratorOptions(),
+    std::mt19937_64 rng(seed);
+    return GenerateSampleAndRun(rng, GetAstGeneratorOptions(),
                                 GetSampleOptions(), /*run_dir=*/GetTempPath(),
                                 crasher_dir_);
   }
@@ -150,14 +149,14 @@ TEST_F(RunFuzzTest, DifferentSeedsProduceDifferentSamples) {
 }
 
 TEST_F(RunFuzzTest, SequentialSamplesAreDifferent) {
-  ValueGenerator rng{std::mt19937_64(42)};
+  std::mt19937_64 rng{42};
   XLS_ASSERT_OK_AND_ASSIGN(
       Sample sample1,
-      GenerateSampleAndRun(&rng, GetAstGeneratorOptions(), GetSampleOptions(),
+      GenerateSampleAndRun(rng, GetAstGeneratorOptions(), GetSampleOptions(),
                            /*run_dir=*/GetTempPath(), crasher_dir_));
   XLS_ASSERT_OK_AND_ASSIGN(
       Sample sample2,
-      GenerateSampleAndRun(&rng, GetAstGeneratorOptions(), GetSampleOptions(),
+      GenerateSampleAndRun(rng, GetAstGeneratorOptions(), GetSampleOptions(),
                            /*run_dir=*/GetTempPath(), crasher_dir_));
   EXPECT_NE(sample1, sample2);
 }

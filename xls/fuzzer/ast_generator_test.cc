@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -36,7 +37,6 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/fuzzer/value_generator.h"
 
 namespace xls::dslx {
 namespace {
@@ -73,8 +73,8 @@ absl::Status ParseAndTypecheck(std::string_view text,
 
 TEST(AstGeneratorTest, BitsTypeGetMetadata) {
   AstGeneratorOptions options;
-  ValueGenerator value_gen(std::mt19937_64{0});
-  AstGenerator g(options, &value_gen);
+  std::mt19937_64 rng{0};
+  AstGenerator g(options, rng);
   g.module_ = std::make_unique<Module>("test_module", /*fs_path=*/std::nullopt);
 
   TypeAnnotation* u7 = g.MakeTypeAnnotation(false, 7);
@@ -93,8 +93,8 @@ TEST(AstGeneratorTest, BitsTypeGetMetadata) {
 }
 
 TEST(AstGeneratorTest, GeneratesParametricBindings) {
-  ValueGenerator value_gen(std::mt19937_64{0});
-  AstGenerator g(AstGeneratorOptions(), &value_gen);
+  std::mt19937_64 rng{0};
+  AstGenerator g(AstGeneratorOptions(), rng);
   g.module_ = std::make_unique<Module>("my_mod", /*fs_path=*/std::nullopt);
   std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
   EXPECT_EQ(pbs.size(), 2);
@@ -111,10 +111,10 @@ namespace {
 // Simply tests that we generate a bunch of valid functions using seed 0 (that
 // parse and typecheck).
 TEST(AstGeneratorTest, GeneratesValidFunctions) {
-  ValueGenerator value_gen(std::mt19937_64{0});
+  std::mt19937_64 rng{0};
   AstGeneratorOptions options;
   for (int64_t i = 0; i < 32; ++i) {
-    AstGenerator g(options, &value_gen);
+    AstGenerator g(options, rng);
     XLS_LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
@@ -128,7 +128,7 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
 // Simply tests that we generate a bunch of valid procs with an empty state type
 // using seed 0 (that parse and typecheck).
 TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
-  ValueGenerator value_gen(std::mt19937_64{0});
+  std::mt19937_64 rng{0};
   AstGeneratorOptions options;
   options.generate_proc = true;
   options.emit_stateless_proc = true;
@@ -136,7 +136,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
   constexpr const char* kWantPattern =
       R"(next\(x[0-9]+: token, x[0-9]+: \(\)\))";
   for (int64_t i = 0; i < 32; ++i) {
-    AstGenerator g(options, &value_gen);
+    AstGenerator g(options, rng);
     XLS_LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
@@ -152,7 +152,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
 // Simply tests that we generate a bunch of valid procs with a random state type
 // using seed 0 (that parse and typecheck).
 TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
-  ValueGenerator value_gen(std::mt19937_64{0});
+  std::mt19937_64 rng{0};
   AstGeneratorOptions options;
   options.generate_proc = true;
   // Regex matcher for the next function signature.
@@ -161,7 +161,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
   constexpr const char* kWantPattern =
       R"(next\(x[0-9]+: token, x[0-9]+: []0-9a-zA-Z_, ()[]+\))";
   for (int64_t i = 0; i < 32; ++i) {
-    AstGenerator g(options, &value_gen);
+    AstGenerator g(options, rng);
     XLS_LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
@@ -181,8 +181,8 @@ static void TestRepeatable(uint64_t seed) {
   std::optional<std::string> first;
   // Try 32 generations at a given seed.
   for (int64_t i = 0; i < 32; ++i) {
-    ValueGenerator value_gen(std::mt19937_64{seed});
-    AstGenerator g(options, &value_gen);
+    std::mt19937_64 rng{seed};
+    AstGenerator g(options, rng);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", "test"));
     std::string text = module.module->ToString();
@@ -197,7 +197,7 @@ static void TestRepeatable(uint64_t seed) {
 }
 
 TEST(AstGeneratorTest, GeneratesZeroWidthValues) {
-  ValueGenerator value_gen(std::mt19937_64{0});
+  std::mt19937_64 rng{0};
   AstGeneratorOptions options;
   options.emit_zero_width_bits_types = true;
   bool saw_zero_width = false;
@@ -206,7 +206,7 @@ TEST(AstGeneratorTest, GeneratesZeroWidthValues) {
   // generator.
   constexpr int64_t kNumSamples = 5000;
   for (int64_t i = 0; i < kNumSamples; ++i) {
-    AstGenerator g(options, &value_gen);
+    AstGenerator g(options, rng);
     XLS_VLOG(1) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
