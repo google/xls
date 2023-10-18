@@ -42,7 +42,9 @@ namespace xls {
 
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::Not;
 using ::testing::Optional;
 
 // EXPECTS that the two given strings are similar modulo extra whitespace.
@@ -2311,6 +2313,25 @@ TEST(IrParserTest, ParseStreamingChannelWithStrictness) {
             ChannelStrictness::kArbitraryStaticOrder);
 }
 
+TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadata) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
+                           Parser::ParseChannel(
+                               R"(chan foo(bits[32], id=42, kind=streaming,
+                         flow_control=none, ops=send_receive, fifo_depth=3,
+                         bypass=false, metadata=""""""))",
+                               &p));
+  EXPECT_EQ(ch->name(), "foo");
+  EXPECT_EQ(ch->id(), 42);
+  EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
+  ASSERT_EQ(ch->kind(), ChannelKind::kStreaming);
+  EXPECT_EQ(ch->type(), p.GetBitsType(32));
+  ASSERT_THAT(down_cast<StreamingChannel*>(ch)->fifo_config(),
+              Not(Eq(std::nullopt)));
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->depth, 3);
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->bypass, false);
+}
+
 TEST(IrParserTest, ParseStreamingValueChannelWithBlockPortMapping) {
   // For testing round-trip parsing.
   std::string ch_ir_text;
@@ -2517,7 +2538,7 @@ TEST(IrParserTest, ChannelParsingErrors) {
           &p)
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Only streaming channels can have a fifo_depth")));
+               HasSubstr("Only streaming channels can have fifo_depth")));
 
   // Strictness on single-value channel.
   EXPECT_THAT(
@@ -2527,7 +2548,16 @@ TEST(IrParserTest, ChannelParsingErrors) {
           &p)
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Only streaming channels can have a strictness")));
+               HasSubstr("Only streaming channels can have strictness")));
+
+  // Bypass, register_push_outputs, or register_pop_outputs without fifo_depth.
+  EXPECT_THAT(Parser::ParseChannel(
+                  R"(chan meh(bits[32], id=44, kind=streaming, ops=receive_only,
+                      bypass=true, metadata=""))",
+                  &p)
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("fifo_depth must be specified")));
 }
 
 TEST(IrParserTest, PackageWithSingleDataElementChannels) {

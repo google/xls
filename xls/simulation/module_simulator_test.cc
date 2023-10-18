@@ -70,7 +70,7 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
   b.AddDataInputAsBits("input_valid", 1);
   b.AddStreamingChannel("input", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(8),
-                        /*fifo_depth=*/std::nullopt, "input_data",
+                        /*fifo_config=*/std::nullopt, "input_data",
                         "input_valid", "input_ready");
 
   b.AddDataOutputAsBits("monitor_data", 9);
@@ -78,7 +78,7 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
   b.AddDataOutputAsBits("monitor_valid", 1);
   b.AddStreamingChannel("monitor", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(9),
-                        /*fifo_depth=*/std::nullopt, "monitor_data",
+                        /*fifo_config=*/std::nullopt, "monitor_data",
                         "monitor_valid", "monitor_ready");
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return ModuleGeneratorResult{.verilog_text = verilog_text,
@@ -192,16 +192,16 @@ endmodule
   b.AddDataOutputAsBits("operand_1_rdy", 1);
   b.AddStreamingChannel("operand_0", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(32),
-                        /*fifo_depth=*/42, "operand_0", "operand_0_vld",
-                        "operand_0_rdy");
+                        /*fifo_config=*/FifoConfig{.depth = 42}, "operand_0",
+                        "operand_0_vld", "operand_0_rdy");
   b.AddStreamingChannel("operand_1", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(32),
-                        /*fifo_depth=*/42, "operand_1", "operand_1_vld",
-                        "operand_1_rdy");
+                        /*fifo_config=*/FifoConfig{.depth = 42}, "operand_1",
+                        "operand_1_vld", "operand_1_rdy");
   b.AddStreamingChannel("result", ChannelOps::kSendOnly,
                         FlowControl::kReadyValid, p.GetBitsType(32),
-                        /*fifo_depth=*/42, "result", "result_vld",
-                        "result_rdy");
+                        /*fifo_config=*/FifoConfig{.depth = 42}, "result",
+                        "result_vld", "result_rdy");
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return ModuleGeneratorResult{.verilog_text = text,
                                .verilog_line_map = VerilogLineMap(),
@@ -480,16 +480,16 @@ endmodule
   b.AddDataOutputAsBits("operand_1_rdy", 1);
   b.AddStreamingChannel("operand_0", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(32),
-                        /*fifo_depth=*/42, "operand_0", "operand_0_vld",
-                        "operand_0_rdy");
+                        /*fifo_config=*/FifoConfig{.depth = 42}, "operand_0",
+                        "operand_0_vld", "operand_0_rdy");
   b.AddStreamingChannel("operand_1", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(32),
-                        /*fifo_depth=*/42, "operand_1", "operand_1_vld",
-                        "operand_1_rdy");
+                        /*fifo_config=*/FifoConfig{.depth = 42}, "operand_1",
+                        "operand_1_vld", "operand_1_rdy");
   b.AddStreamingChannel("result", ChannelOps::kSendOnly,
                         FlowControl::kReadyValid, p.GetBitsType(32),
-                        /*fifo_depth=*/42, "result", "result_vld",
-                        "result_rdy");
+                        /*fifo_config=*/FifoConfig{.depth = 42}, "result",
+                        "result_vld", "result_rdy");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
   ModuleSimulator simulator = NewModuleSimulator(text, signature);

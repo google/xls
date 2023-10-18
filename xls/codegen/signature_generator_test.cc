@@ -14,16 +14,20 @@
 
 #include "xls/codegen/signature_generator.h"
 
-#include "gmock/gmock.h"
+#include <optional>
+
 #include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
+#include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
@@ -205,7 +209,7 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
       Channel * in_streaming_rv,
       package.CreateStreamingChannel(
           "in_streaming", ChannelOps::kReceiveOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
           FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
                            package.CreateSingleValueChannel(
@@ -214,7 +218,7 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
       Channel * out_streaming_rv,
       package.CreateStreamingChannel(
           "out_streaming", ChannelOps::kSendOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
           FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb("test", /*token_name=*/"tkn", &package);

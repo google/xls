@@ -481,11 +481,13 @@ TEST_F(ProcInliningPassTest, NestedProcs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -519,11 +521,13 @@ TEST_F(ProcInliningPassTest, NestedProcsFifoDepth1) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -560,7 +564,8 @@ TEST_F(ProcInliningPassTest, NestedProcsWithUnspecifiedFifoDepth) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -594,11 +599,13 @@ TEST_F(ProcInliningPassTest, NestedProcsWithNonzeroFifoDepth) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/42));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 42}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -669,7 +676,8 @@ TEST_F(ProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   ProcBuilder ab("A", "tkn", p.get());
   BValue rcv_in = ab.Receive(ch_in, ab.GetTokenParam());
@@ -711,11 +719,13 @@ TEST_F(ProcInliningPassTest, NestedProcPassThrough) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -749,11 +759,13 @@ TEST_F(ProcInliningPassTest, NestedProcDelayedPassThrough) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   ProcBuilder ab("A", "tkn", p.get());
   BValue rcv_in = ab.Receive(ch_in, ab.GetTokenParam());
@@ -797,11 +809,13 @@ TEST_F(ProcInliningPassTest, InputPlusDelayedInput) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -838,11 +852,13 @@ TEST_F(ProcInliningPassTest, NestedProcsTrivialInnerLoop) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -889,7 +905,8 @@ TEST_F(ProcInliningPassTest, NestedProcsIota) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -927,7 +944,8 @@ TEST_F(ProcInliningPassTest, NestedProcsOddIota) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -975,11 +993,13 @@ TEST_F(ProcInliningPassTest, SynchronizedNestedProcs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     // Outer proc performs the following:
@@ -1051,11 +1071,13 @@ TEST_F(ProcInliningPassTest, NestedProcsNontrivialInnerLoop) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -1115,20 +1137,24 @@ TEST_F(ProcInliningPassTest, DoubleNestedProcsPassThrough) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_c,
       p->CreateStreamingChannel("b_to_c", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * c_to_b,
       p->CreateStreamingChannel("c_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -1164,20 +1190,24 @@ TEST_F(ProcInliningPassTest, SequentialNestedProcsPassThrough) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_c,
       p->CreateStreamingChannel("a_to_c", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * c_to_a,
       p->CreateStreamingChannel("c_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -1230,29 +1260,35 @@ TEST_F(ProcInliningPassTest, SequentialNestedLoopingProcsWithState) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_c,
       p->CreateStreamingChannel("a_to_c", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * c_to_a,
       p->CreateStreamingChannel("c_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_d,
       p->CreateStreamingChannel("a_to_d", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * d_to_a,
       p->CreateStreamingChannel("d_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -1314,20 +1350,24 @@ TEST_F(ProcInliningPassTest, SequentialNestedProcsWithLoops) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_c,
       p->CreateStreamingChannel("a_to_c", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * c_to_a,
       p->CreateStreamingChannel("c_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -1379,20 +1419,24 @@ TEST_F(ProcInliningPassTest, DoubleNestedLoops) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_c,
       p->CreateStreamingChannel("b_to_c", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * c_to_b,
       p->CreateStreamingChannel("c_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -1495,20 +1539,24 @@ TEST_F(ProcInliningPassTest, MultiIO) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_x,
       p->CreateStreamingChannel("pass_x", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_y,
       p->CreateStreamingChannel("pass_y", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * x_plus_y,
       p->CreateStreamingChannel("x_plus_y", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * x_minus_y,
       p->CreateStreamingChannel("x_minus_y", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -1571,12 +1619,14 @@ TEST_F(ProcInliningPassTest, InlinedProcsWithExternalStreamingIO) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_x,
       p->CreateStreamingChannel("pass_x", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * x_plus_y,
       p->CreateStreamingChannel("pass_x_plus_y", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -1634,12 +1684,14 @@ TEST_F(ProcInliningPassTest, InlinedProcsWithExternalSingleValueIO) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_x,
       p->CreateStreamingChannel("pass_x", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * x_plus_y,
       p->CreateStreamingChannel("pass_x_plus_y", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -1687,7 +1739,8 @@ TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_x,
       p->CreateStreamingChannel("pass_x", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_sv,
       p->CreateSingleValueChannel("pass_sv", ChannelOps::kSendReceive, u32));
@@ -1695,7 +1748,8 @@ TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_sum,
       p->CreateStreamingChannel("pass_sum", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * sum_out,
       p->CreateStreamingChannel("sum", ChannelOps::kSendOnly, u32));
@@ -1751,25 +1805,30 @@ TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_c,
       p->CreateStreamingChannel("a_to_c", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * c_to_a,
       p->CreateStreamingChannel("c_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_c,
       p->CreateStreamingChannel("b_to_c", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -1839,11 +1898,13 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth0) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -1897,11 +1958,13 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant0) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -1951,11 +2014,13 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -2008,11 +2073,13 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
@@ -2067,11 +2134,13 @@ TEST_F(ProcInliningPassTest, DataLoss) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   // Outer proc "A" sends every tick to inner proc "B", but only receives from
   // "B" every other tick. This results in a overflow in one of the A<->B
@@ -2125,11 +2194,13 @@ TEST_F(ProcInliningPassTest, DataLossDueToReceiveNotActivated) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b0,
       p->CreateStreamingChannel("a_to_b0", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b1,
       p->CreateStreamingChannel("a_to_b1", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     // Top proc doesn't send on a_to_b0 on the first cycle which stalls the
@@ -2189,10 +2260,11 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
       Channel * pass_inputs,
       p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
                                   u32_u64));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * pass_result,
-                           p->CreateStreamingChannel(
-                               "pass_result", ChannelOps::kSendReceive, u32_u64,
-                               /*initial_values=*/{}, /*fifo_depth=*/0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel(
+          "pass_result", ChannelOps::kSendReceive, u32_u64,
+          /*initial_values=*/{}, /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * result0_out,
@@ -2271,10 +2343,11 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
       Channel * pass_inputs,
       p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
                                   u32_u64));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * pass_result,
-                           p->CreateStreamingChannel(
-                               "pass_result", ChannelOps::kSendReceive, u32_u64,
-                               /*initial_values=*/{}, /*fifo_depth=*/0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel(
+          "pass_result", ChannelOps::kSendReceive, u32_u64,
+          /*initial_values=*/{}, /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * result0_out,
@@ -2347,10 +2420,11 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
       Channel * pass_inputs,
       p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
                                   u32_u32));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * pass_result,
-                           p->CreateStreamingChannel(
-                               "pass_result", ChannelOps::kSendReceive, u32_u32,
-                               /*initial_values=*/{}, /*fifo_depth=*/0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel(
+          "pass_result", ChannelOps::kSendReceive, u32_u32,
+          /*initial_values=*/{}, /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * result0_out,
@@ -2423,10 +2497,11 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
       Channel * pass_inputs,
       p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
                                   u32_u32));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * pass_result,
-                           p->CreateStreamingChannel(
-                               "pass_result", ChannelOps::kSendReceive, u32_u32,
-                               /*initial_values=*/{}, /*fifo_depth=*/0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel(
+          "pass_result", ChannelOps::kSendReceive, u32_u32,
+          /*initial_values=*/{}, /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * result0_out,
@@ -2502,11 +2577,13 @@ TEST_F(ProcInliningPassTest, TokenFanIn) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     ProcBuilder ab("A", "tkn", p.get());
@@ -2554,20 +2631,24 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_c,
       p->CreateStreamingChannel("a_to_c", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * c_to_a,
       p->CreateStreamingChannel("c_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     // Proc "A":
@@ -2677,17 +2758,19 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
     for (int proc_number = 0; proc_number < proc_count; ++proc_number) {
       // Generate channels to talk with proc.
       XLS_ASSERT_OK_AND_ASSIGN(
-          Channel * from_top, p->CreateStreamingChannel(
-                                  absl::StrFormat("top_to_proc%d", proc_number),
-                                  ChannelOps::kSendReceive, u32,
-                                  /*initial_values=*/{},
-                                  /*fifo_depth=*/int64_t{coin_flip(engine)}));
+          Channel * from_top,
+          p->CreateStreamingChannel(
+              absl::StrFormat("top_to_proc%d", proc_number),
+              ChannelOps::kSendReceive, u32,
+              /*initial_values=*/{},
+              /*fifo_config=*/FifoConfig{.depth = int64_t{coin_flip(engine)}}));
       XLS_ASSERT_OK_AND_ASSIGN(
-          Channel * to_top, p->CreateStreamingChannel(
-                                absl::StrFormat("proc%d_to_top", proc_number),
-                                ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{},
-                                /*fifo_depth=*/int64_t{coin_flip(engine)}));
+          Channel * to_top,
+          p->CreateStreamingChannel(
+              absl::StrFormat("proc%d_to_top", proc_number),
+              ChannelOps::kSendReceive, u32,
+              /*initial_values=*/{},
+              /*fifo_config=*/FifoConfig{.depth = int64_t{coin_flip(engine)}}));
 
       channel_pairs.push_back(ChannelPair{.send_channel = from_top,
                                           .sent = false,
@@ -2819,11 +2902,13 @@ TEST_F(ProcInliningPassTest, DataDependencyWithoutTokenDependency) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   ProcBuilder ab("A", "tkn", p.get());
   BValue rcv_in = ab.Receive(ch_in, ab.GetTokenParam());
@@ -2869,11 +2954,13 @@ TEST_F(ProcInliningPassTest, ReceivedValueSentAndNext) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   {
     // Proc "A":
@@ -2923,7 +3010,8 @@ TEST_F(ProcInliningPassTest, OffsetSendAndReceive) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -2983,11 +3071,13 @@ TEST_F(ProcInliningPassTest, DISABLED_InliningProducesCycle) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
@@ -3053,7 +3143,8 @@ TEST_F(ProcInliningPassTest, MultipleSends) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3100,7 +3191,8 @@ TEST_F(ProcInliningPassTest, MultipleSendsInDifferentOrder) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3147,7 +3239,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3195,7 +3288,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth1) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3243,7 +3337,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3299,7 +3394,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3364,7 +3460,8 @@ TEST_F(ProcInliningPassTest, MultipleSendsAndReceives) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3427,7 +3524,8 @@ TEST_F(ProcInliningPassTest, ReceiveIfsWithFalseCondition) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/1));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 1}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out0,
       p->CreateStreamingChannel("out0", ChannelOps::kSendOnly, u32));
@@ -3485,11 +3583,13 @@ TEST_F(ProcInliningPassTest, ProcsWithDifferentII) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
       p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * b_to_a,
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/42));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 42}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * top,
@@ -3518,7 +3618,8 @@ TEST_F(ProcInliningPassTest, ProcsWithNonblockingReceivesWithDroppingProc) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * drop_to_arb,
       p->CreateStreamingChannel("drop_to_arb", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3571,7 +3672,8 @@ TEST_F(ProcInliningPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * accum_to_arb,
       p->CreateStreamingChannel("accum_to_arb", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3609,7 +3711,8 @@ TEST_F(ProcInliningPassTest, ProcWithAssert) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * middle,
       p->CreateStreamingChannel("middle", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3666,7 +3769,8 @@ TEST_F(ProcInliningPassTest, ProcWithCover) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * middle,
       p->CreateStreamingChannel("middle", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3712,7 +3816,8 @@ TEST_F(ProcInliningPassTest, ProcWithGate) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * middle,
       p->CreateStreamingChannel("middle", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -3758,7 +3863,8 @@ TEST_F(ProcInliningPassTest, ProcWithTrace) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * middle,
       p->CreateStreamingChannel("middle", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfig{.depth = 0}));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));

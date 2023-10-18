@@ -3223,7 +3223,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBlock) {
       Channel * in_streaming_rv,
       package.CreateStreamingChannel(
           "in_streaming", ChannelOps::kReceiveOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
           FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
                            package.CreateSingleValueChannel(
@@ -3232,7 +3232,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBlock) {
       Channel * out_streaming_rv,
       package.CreateStreamingChannel(
           "out_streaming", ChannelOps::kSendOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
           FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(),
@@ -3300,7 +3300,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
       Channel * in_streaming_rv,
       package.CreateStreamingChannel(
           "in_streaming", ChannelOps::kReceiveOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
           FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
                            package.CreateSingleValueChannel(
@@ -3309,7 +3309,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
       Channel * out_streaming_rv,
       package.CreateStreamingChannel(
           "out_streaming", ChannelOps::kSendOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
           FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(),

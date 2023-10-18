@@ -17,6 +17,7 @@ syntax = "proto3";
 package xls.verilog;
 
 import "xls/codegen/xls_metrics.proto";
+import "xls/ir/channel.proto";
 import "xls/ir/xls_type.proto";
 
 enum DirectionProto {
@@ -65,7 +66,7 @@ message ChannelProto {
   optional string data_port_name = 5;
   optional string ready_port_name = 6;
   optional string valid_port_name = 7;
-  optional int64 fifo_depth = 8;
+  optional FifoConfigProto fifo_config = 8;
 }
 
 // A RW RAM port has a request side with a single address field, as well as

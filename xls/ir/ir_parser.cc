@@ -16,11 +16,13 @@
 
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -1906,8 +1908,9 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
   std::vector<Value> initial_values;
   std::optional<ChannelKind> kind;
   std::optional<FlowControl> flow_control;
-  std::optional<int64_t> fifo_depth;
   std::optional<ChannelStrictness> strictness;
+  std::optional<int64_t> fifo_depth;
+  std::optional<bool> bypass;
 
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
@@ -2017,6 +2020,21 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
     strictness = strictness_status.value();
     return absl::OkStatus();
   };
+  auto token_to_bool = [](const Token& token) -> absl::StatusOr<bool> {
+    absl::StatusOr<bool> bool_status = token.GetValueBool();
+    if (!bool_status.ok()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid bool value \"%s\" @ %s", token.value(),
+                          token.pos().ToHumanString()));
+    }
+    return bool_status.value();
+  };
+  handlers["bypass"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(bypass, token_to_bool(token));
+    return absl::OkStatus();
+  };
 
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(
       handlers, /*mandatory_keywords=*/{"id", "ops", "metadata", "kind"}));
@@ -2024,47 +2042,47 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
                                                 "')' in channel definition"));
 
-  auto error = [&](std::string_view message) {
+  for (const auto& [option_has_value, option_name] :
+       std::initializer_list<std::tuple<bool, std::string_view>>{
+           {flow_control.has_value(), "flow control"},
+           {fifo_depth.has_value(), "fifo_depth"},
+           {strictness.has_value(), "strictness"},
+           {bypass.has_value(), "bypass"},
+       }) {
+    if (option_has_value && kind != ChannelKind::kStreaming) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Only streaming channels can have %s @ %s",
+                          option_name, channel_name.pos().ToHumanString()));
+    }
+  }
+  if (bypass.has_value() && !fifo_depth.has_value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "%s @ %s", message, channel_name.pos().ToHumanString()));
-  };
-
-  if (flow_control.has_value() && kind != ChannelKind::kStreaming) {
-    return error("Only streaming channels can have flow control");
-  }
-
-  if (fifo_depth.has_value() && kind != ChannelKind::kStreaming) {
-    return error("Only streaming channels can have a fifo_depth");
-  }
-
-  if (strictness.has_value() && kind != ChannelKind::kStreaming) {
-    return error("Only streaming channels can have a strictness");
+        "fifo_depth must be specified if bypass is specified @ %s",
+        channel_name.pos().ToHumanString()));
   }
 
   switch (kind.value()) {
-    case ChannelKind::kStreaming:
-      if (!flow_control.has_value()) {
-        return error("Streaming channels must have flow control");
+    case ChannelKind::kStreaming: {
+      std::optional<FifoConfig> fifo_config;
+      if (fifo_depth.has_value()) {
+        fifo_config.emplace();
+        fifo_config->depth = *fifo_depth;
+        fifo_config->bypass = bypass.value_or(true);
       }
       return package->CreateStreamingChannel(
           channel_name.value(), *supported_ops, type, initial_values,
-          fifo_depth, flow_control.value(),
-          // Default strictness is proven mutually exclusive.
+          fifo_config, flow_control.value_or(FlowControl::kNone),
           strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive),
-          *metadata, *id);
+          *metadata, id);
+    }
     case ChannelKind::kSingleValue: {
-      if (!initial_values.empty()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Single value channel %s cannot have initial value(s)",
-            channel_name.value()));
-      }
       return package->CreateSingleValueChannel(
-          channel_name.value(), *supported_ops, type, *metadata, *id);
+          channel_name.value(), *supported_ops, type, *metadata, id);
     }
   }
 
   return absl::InvalidArgumentError(
-      absl::StrCat("Unknown channel type: ", static_cast<int>(kind.value())));
+      absl::StrCat("Unknown channel kind: ", static_cast<int>(kind.value())));
 }
 
 absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {

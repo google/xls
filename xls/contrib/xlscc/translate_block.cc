@@ -74,7 +74,7 @@ absl::Status Translator::GenerateExternalChannels(
           new_channel.regular,
           package_->CreateStreamingChannel(
               decl->getNameAsString(), xls_channel_op, data_type,
-              /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+              /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
@@ -98,7 +98,7 @@ absl::Status Translator::GenerateExternalChannels(
           package_->CreateStreamingChannel(
               memory_name + "__read_request", xls::ChannelOps::kSendOnly,
               read_request_type,
-              /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+              /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
@@ -113,7 +113,7 @@ absl::Status Translator::GenerateExternalChannels(
           package_->CreateStreamingChannel(
               memory_name + "__read_response", xls::ChannelOps::kReceiveOnly,
               read_response_type,
-              /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+              /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
@@ -128,7 +128,7 @@ absl::Status Translator::GenerateExternalChannels(
           package_->CreateStreamingChannel(
               memory_name + "__write_request", xls::ChannelOps::kSendOnly,
               write_request_type,
-              /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+              /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
@@ -143,7 +143,7 @@ absl::Status Translator::GenerateExternalChannels(
           package_->CreateStreamingChannel(
               memory_name + "__write_response", xls::ChannelOps::kReceiveOnly,
               write_response_type,
-              /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+              /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.

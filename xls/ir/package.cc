@@ -807,13 +807,14 @@ absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
 
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     std::string_view name, ChannelOps supported_ops, Type* type,
-    absl::Span<const Value> initial_values, std::optional<int64_t> fifo_depth,
-    FlowControl flow_control, ChannelStrictness strictness,
-    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
+    absl::Span<const Value> initial_values,
+    std::optional<FifoConfig> fifo_config, FlowControl flow_control,
+    ChannelStrictness strictness, const ChannelMetadataProto& metadata,
+    std::optional<int64_t> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<StreamingChannel>(
-      name, actual_id, supported_ops, type, initial_values, fifo_depth,
+      name, actual_id, supported_ops, type, initial_values, fifo_config,
       flow_control, strictness, metadata);
   StreamingChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
@@ -956,6 +957,18 @@ absl::StatusOr<Channel*> Package::CloneChannel(
                             "be cast to StreamingChannel",
                             channel->name()));
       }
+      std::optional<FifoConfig> fifo_config;
+      if (!overrides.fifo_depth().has_value()) {
+        fifo_config = streaming_channel->fifo_config();
+      }
+      if (overrides.fifo_depth().has_value() &&
+          overrides.fifo_depth()->has_value()) {
+        fifo_config = streaming_channel->fifo_config();
+        if (!fifo_config.has_value()) {
+          fifo_config.emplace();
+        }
+        fifo_config->depth = **overrides.fifo_depth();
+      }
       XLS_ASSIGN_OR_RETURN(
           auto new_channel,
           this->CreateStreamingChannel(
@@ -963,8 +976,7 @@ absl::StatusOr<Channel*> Package::CloneChannel(
               overrides.supported_ops().value_or(channel->supported_ops()),
               new_channel_type,
               overrides.initial_values().value_or(channel->initial_values()),
-              overrides.fifo_depth().value_or(
-                  streaming_channel->GetFifoDepth()),
+              fifo_config,
               overrides.flow_control().value_or(
                   streaming_channel->GetFlowControl()),
               overrides.strictness().value_or(

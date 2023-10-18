@@ -106,7 +106,7 @@ class Package {
 
   Type* GetTypeForValue(const Value& value);
 
-  // Add a function, proc, or block to the package. Ownership is tranferred to
+  // Add a function, proc, or block to the package. Ownership is transferred to
   // the package.
   Function* AddFunction(std::unique_ptr<Function> f);
   Proc* AddProc(std::unique_ptr<Proc> proc);
@@ -243,7 +243,7 @@ class Package {
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
       std::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
-      std::optional<int64_t> fifo_depth = std::nullopt,
+      std::optional<FifoConfig> fifo_config = std::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
       ChannelStrictness strictness =
           ChannelStrictness::kProvenMutuallyExclusive,

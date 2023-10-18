@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -26,17 +27,22 @@
 #include "absl/strings/str_format.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Expr.h"
+#include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
+#include "../z3/src/api/z3_api.h"
 
 using std::shared_ptr;
 using std::string;
@@ -269,7 +275,8 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
   return absl::OkStatus();
 }
 
-bool Translator::LValueContainsOnlyChannels(std::shared_ptr<LValue> lvalue) {
+bool Translator::LValueContainsOnlyChannels(
+    const std::shared_ptr<LValue>& lvalue) {
   if (lvalue == nullptr) {
     return true;
   }
@@ -561,7 +568,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         xls::Channel * xls_channel,
         package_->CreateStreamingChannel(
             ch_name, xls::ChannelOps::kSendReceive, context_out_xls_type,
-            /*initial_values=*/{}, /*fifo_depth=*/0,
+            /*initial_values=*/{}, /*fifo_config=*/xls::FifoConfig{.depth = 0},
             xls::FlowControl::kReadyValid));
     IOChannel new_channel;
     new_channel.item_type = context_tuple_out.type();
@@ -576,7 +583,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         xls::Channel * xls_channel,
         package_->CreateStreamingChannel(
             ch_name, xls::ChannelOps::kSendReceive, context_in_struct_xls_type,
-            /*initial_values=*/{}, /*fifo_depth=*/0,
+            /*initial_values=*/{}, /*fifo_config=*/xls::FifoConfig{.depth = 0},
             xls::FlowControl::kReadyValid));
     IOChannel new_channel;
     new_channel.item_type = context_in_cvars_struct_ctype;

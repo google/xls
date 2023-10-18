@@ -341,14 +341,14 @@ TEST(IrMatchersTest, SendOps) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
+          /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
           ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
           42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
+          /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
           ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
           123));
 
@@ -380,14 +380,14 @@ TEST(IrMatchersTest, ReceiveOps) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
+          /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
           ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
           42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
+          /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
           ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
           123));
 

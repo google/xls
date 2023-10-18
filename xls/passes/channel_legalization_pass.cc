@@ -357,7 +357,7 @@ absl::StatusOr<StreamingChannel*> MakePredicateChannel(Node* operation) {
           /*initial_values=*/{},
           // This is an internal channel that may be inlined during proc
           // inlining, set FIFO depth to 1.
-          /*fifo_depth=*/std::optional(std::optional(1))));
+          /*fifo_config=*/FifoConfig{.depth = 1}));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> predicate,
@@ -416,7 +416,7 @@ absl::StatusOr<StreamingChannel*> MakeCompletionChannel(Node* operation) {
           /*initial_values=*/{},
           // This is an internal channel that may be inlined during proc
           // inlining, set FIFO depth to 1.
-          /*fifo_depth=*/std::optional(std::optional(1))));
+          /*fifo_config=*/FifoConfig{.depth = 1}));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> predicate,

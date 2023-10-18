@@ -1487,7 +1487,7 @@ class Translator {
       std::shared_ptr<LValue>* this_lval, const xls::SourceInfo& loc);
 
   absl::Status FailIfTypeHasDtors(const clang::CXXRecordDecl* cxx_record);
-  bool LValueContainsOnlyChannels(std::shared_ptr<LValue> lvalue);
+  bool LValueContainsOnlyChannels(const std::shared_ptr<LValue>& lvalue);
 
   absl::Status PushLValueSelectConditions(
       std::shared_ptr<LValue> lvalue, std::vector<xls::BValue>& return_bvals,
@@ -1707,7 +1707,7 @@ class Translator {
       const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
       std::string_view name_prefix, xls::Type* context_struct_xls_type,
       xls::Type* context_lvals_xls_type,
-      const std::shared_ptr<CStructType>& context_struct_ctype,
+      const std::shared_ptr<CStructType>& context_cvars_struct_ctype,
       absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
           lvalues_out,
       const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&

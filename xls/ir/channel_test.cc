@@ -85,7 +85,7 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   Package p("my_package");
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kReceiveOnly, p.GetBitsType(32),
-      /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+      /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
       FlowControl::kReadyValid, ChannelStrictness::kProvenMutuallyExclusive,
       ChannelMetadataProto());
 
@@ -114,7 +114,7 @@ TEST(ChannelTest, StreamingChannelWithInitialValues) {
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
       {Value(UBits(11, 32)), Value(UBits(22, 32))},
-      /*fifo_depth=*/std::nullopt, FlowControl::kNone,
+      /*fifo_config=*/std::nullopt, FlowControl::kNone,
       ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
@@ -131,7 +131,7 @@ TEST(ChannelTest, StreamingChannelWithFifoDepth) {
   Package p("my_package");
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
-      /*fifo_depth=*/123, FlowControl::kNone,
+      /*fifo_config=*/FifoConfig{.depth = 123}, FlowControl::kNone,
       ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
@@ -151,7 +151,7 @@ TEST(ChannelTest, StreamingToStringParses) {
       Value::Tuple({Value(UBits(2222, 32)), Value(UBits(444, 23))})};
   StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                       p.GetTypeForValue(initial_values.front()), initial_values,
-                      /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
+                      /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
                       ChannelStrictness::kProvenMutuallyExclusive,
                       ChannelMetadataProto());
   std::string channel_str = ch.ToString();
@@ -213,7 +213,7 @@ TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
     StreamingChannel ch(
         "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
         /*initial_values=*/{},
-        /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
+        /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
         ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
     EXPECT_FALSE(ch.HasCompletedBlockPortNames());
@@ -235,7 +235,7 @@ TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
   {
     StreamingChannel ch(
         "my_channel_2", 45, ChannelOps::kSendOnly, p.GetBitsType(32),
-        /*initial_values=*/{}, /*fifo_depth=*/std::nullopt, FlowControl::kNone,
+        /*initial_values=*/{}, /*fifo_config=*/std::nullopt, FlowControl::kNone,
         ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
     EXPECT_FALSE(ch.HasCompletedBlockPortNames());

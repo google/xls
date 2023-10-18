@@ -4659,10 +4659,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
                        TranslateTypeToXLS(channel_type->GetItemType(), loc));
   XLS_ASSIGN_OR_RETURN(
       xls::Channel * xls_channel,
-      package_->CreateStreamingChannel(ch_name, xls::ChannelOps::kSendReceive,
-                                       item_type_xls,
-                                       /*initial_values=*/{}, /*fifo_depth=*/0,
-                                       xls::FlowControl::kReadyValid));
+      package_->CreateStreamingChannel(
+          ch_name, xls::ChannelOps::kSendReceive, item_type_xls,
+          /*initial_values=*/{}, /*fifo_config=*/xls::FifoConfig{.depth = 0},
+          xls::FlowControl::kReadyValid));
 
   IOChannel new_channel;
   new_channel.item_type = channel_type->GetItemType();

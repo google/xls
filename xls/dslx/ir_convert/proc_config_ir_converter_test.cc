@@ -91,7 +91,7 @@ proc main {
   ChannelMetadataProto metadata;
   StreamingChannel channel("the_channel", /*id=*/0, ChannelOps::kSendReceive,
                            package.GetBitsType(32), {},
-                           /*fifo_depth=*/std::nullopt, FlowControl::kNone,
+                           /*fifo_config=*/std::nullopt, FlowControl::kNone,
                            ChannelStrictness::kProvenMutuallyExclusive,
                            metadata);
 

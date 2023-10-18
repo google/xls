@@ -167,8 +167,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
-    Type* type, std::optional<int64_t> fifo_depth, std::string_view port_name,
-    std::optional<std::string_view> valid_port_name,
+    Type* type, std::optional<FifoConfig> fifo_config,
+    std::string_view port_name, std::optional<std::string_view> valid_port_name,
     std::optional<std::string_view> ready_port_name) {
   ChannelProto* channel = proto_.add_data_channels();
   channel->set_name(ToProtoString(name));
@@ -189,8 +189,9 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     channel->set_flow_control(CHANNEL_FLOW_CONTROL_NONE);
   }
 
-  if (fifo_depth.has_value()) {
-    channel->set_fifo_depth(fifo_depth.value());
+  if (fifo_config.has_value()) {
+    *channel->mutable_fifo_config() =
+        fifo_config->ToProto(type->GetFlatBitCount());
   }
 
   channel->set_data_port_name(ToProtoString(port_name));

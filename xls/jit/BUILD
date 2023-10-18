@@ -316,12 +316,14 @@ cc_library(
     deps = [
         ":jit_runtime",
         ":orc_jit",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
         "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
@@ -329,6 +331,7 @@ cc_library(
         "//xls/interpreter:channel_queue",
         "//xls/ir",
         "//xls/ir:channel",
+        "//xls/ir:value",
     ],
 )
 

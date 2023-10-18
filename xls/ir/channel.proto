@@ -16,6 +16,12 @@ syntax = "proto3";
 
 package xls;
 
+message FifoConfigProto {
+  optional int64 width = 1;
+  optional int64 depth = 2;
+  optional bool bypass = 3;
+}
+
 // Metadata for a channel which describes ports on a Verilog module.
 message ModulePortProto {
   // Whether the port is flopped on entry (exit) to (from) the module.

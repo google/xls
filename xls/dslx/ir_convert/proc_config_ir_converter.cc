@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <variant>
@@ -22,6 +23,7 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
@@ -29,10 +31,18 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 namespace {
@@ -127,10 +137,15 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
     XLS_ASSIGN_OR_RETURN(fifo_depth, fifo_depth_value.bits().ToInt64());
   }
 
-  XLS_ASSIGN_OR_RETURN(StreamingChannel * channel,
-                       package_->CreateStreamingChannel(
-                           name, ChannelOps::kSendReceive, type,
-                           /*initial_values=*/{}, /*fifo_depth=*/fifo_depth));
+  std::optional<FifoConfig> fifo_config;
+  if (fifo_depth.has_value()) {
+    fifo_config.emplace(FifoConfig{.depth = *fifo_depth});
+  }
+  XLS_ASSIGN_OR_RETURN(
+      StreamingChannel * channel,
+      package_->CreateStreamingChannel(name, ChannelOps::kSendReceive, type,
+                                       /*initial_values=*/{},
+                                       /*fifo_config=*/fifo_config));
   node_to_ir_[node] = channel;
   return absl::OkStatus();
 }

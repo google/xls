@@ -34,14 +34,33 @@
 namespace xls {
 
 // Enum for the various kinds of channels supported in XLS.
-enum class ChannelKind {
-  //  A channel with FIFO semantics.
+enum class ChannelKind : uint8_t {
+  // A channel with FIFO semantics.
   kStreaming,
 
   // A channel which holds a single value. Values are written to the channel via
   // send operations which overwrites the previously sent values. Receives
   // nondestructively read the most-recently sent value.
   kSingleValue,
+};
+
+struct FifoConfig {
+  int64_t depth;
+  bool bypass = true;
+
+  bool operator==(const FifoConfig& other) const {
+    return depth == other.depth && bypass == other.bypass;
+  }
+
+  bool operator!=(const FifoConfig& other) const { return !(*this == other); }
+
+  FifoConfigProto ToProto(int64_t width) const {
+    FifoConfigProto proto;
+    proto.set_width(width);
+    proto.set_depth(depth);
+    proto.set_bypass(bypass);
+    return proto;
+  }
 };
 
 std::string ChannelKindToString(ChannelKind kind);
@@ -55,17 +74,6 @@ std::ostream& operator<<(std::ostream& os, ChannelKind kind);
 // communication occurs over the channel.
 class Channel {
  public:
-  Channel(std::string_view name, int64_t id, ChannelOps supported_ops,
-          ChannelKind kind, Type* type, absl::Span<const Value> initial_values,
-          const ChannelMetadataProto& metadata)
-      : name_(name),
-        id_(id),
-        supported_ops_(supported_ops),
-        kind_(kind),
-        type_(type),
-        initial_values_(initial_values.begin(), initial_values.end()),
-        metadata_(metadata) {}
-
   virtual ~Channel() = default;
 
   // Returns the name of the channel.
@@ -75,7 +83,7 @@ class Channel {
   // package.
   int64_t id() const { return id_; }
 
-  // Returns the suppored ops for the channel: send-only, receive-only, or
+  // Returns the supported ops for the channel: send-only, receive-only, or
   // send-receive.
   ChannelOps supported_ops() const { return supported_ops_; }
 
@@ -152,6 +160,17 @@ class Channel {
   }
 
  protected:
+  Channel(std::string_view name, int64_t id, ChannelOps supported_ops,
+          ChannelKind kind, Type* type, absl::Span<const Value> initial_values,
+          const ChannelMetadataProto& metadata)
+      : name_(name),
+        id_(id),
+        supported_ops_(supported_ops),
+        kind_(kind),
+        type_(type),
+        initial_values_(initial_values.begin(), initial_values.end()),
+        metadata_(metadata) {}
+
   std::string name_;
   int64_t id_;
   ChannelOps supported_ops_;
@@ -163,7 +182,7 @@ class Channel {
 
 // The flow control mechanism to use for streaming channels. This affects how
 // the channels are lowered to verilog.
-enum class FlowControl {
+enum class FlowControl : uint8_t {
   // The channel has no flow control. Some external mechanism ensures data is
   // neither lost nor corrupted.
   kNone,
@@ -188,7 +207,7 @@ std::ostream& operator<<(std::ostream& os, FlowControl fc);
 // Note that this does not apply to e.g. a send and receive on an internal
 // SendReceive channel. This only applies when multiples of the same channel
 // operation are being performed on the same channel.
-enum class ChannelStrictness {
+enum class ChannelStrictness : uint8_t {
   // Requires that channel operations be formally proven to be mutually
   // exclusive by Z3.
   kProvenMutuallyExclusive,
@@ -215,20 +234,20 @@ std::string ChannelStrictnessToString(ChannelStrictness in);
 
 // A channel with FIFO semantics. Send operations add an data entry to the
 // channel; receives remove an element from the channel with FIFO ordering.
-class StreamingChannel : public Channel {
+class StreamingChannel final : public Channel {
  public:
   StreamingChannel(std::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
-                   std::optional<int64_t> fifo_depth, FlowControl flow_control,
-                   ChannelStrictness strictness,
+                   std::optional<FifoConfig> fifo_config,
+                   FlowControl flow_control, ChannelStrictness strictness,
                    const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
                 initial_values, metadata),
-        fifo_depth_(fifo_depth),
+        fifo_config_(fifo_config),
         flow_control_(flow_control),
         strictness_(strictness) {}
 
-  bool HasCompletedBlockPortNames() const override {
+  bool HasCompletedBlockPortNames() const final {
     if (GetFlowControl() == FlowControl::kReadyValid) {
       return GetBlockName().has_value() && GetDataPortName().has_value() &&
              GetReadyPortName().has_value() && GetValidPortName().has_value();
@@ -237,8 +256,15 @@ class StreamingChannel : public Channel {
     return GetBlockName().has_value() && GetDataPortName().has_value();
   }
 
-  std::optional<int64_t> GetFifoDepth() const { return fifo_depth_; }
-  void SetFifoDepth(std::optional<int64_t> value) { fifo_depth_ = value; }
+  std::optional<int64_t> GetFifoDepth() const {
+    if (fifo_config_.has_value()) {
+      return fifo_config_->depth;
+    }
+    return std::nullopt;
+  }
+
+  const std::optional<FifoConfig>& fifo_config() const { return fifo_config_; }
+  void fifo_config(FifoConfig value) { fifo_config_ = value; }
 
   FlowControl GetFlowControl() const { return flow_control_; }
   void SetFlowControl(FlowControl value) { flow_control_ = value; }
@@ -247,7 +273,7 @@ class StreamingChannel : public Channel {
   void SetStrictness(ChannelStrictness value) { strictness_ = value; }
 
  private:
-  std::optional<int64_t> fifo_depth_;
+  std::optional<FifoConfig> fifo_config_;
   FlowControl flow_control_;
   ChannelStrictness strictness_;
 };
@@ -255,7 +281,7 @@ class StreamingChannel : public Channel {
 // A channel which holds a single value. Values are written to the channel via
 // send operations, and receives nondestructively read the most-recently sent
 // value. SingleValueChannels are stateless and do not support initial values.
-class SingleValueChannel : public Channel {
+class SingleValueChannel final : public Channel {
  public:
   SingleValueChannel(std::string_view name, int64_t id,
                      ChannelOps supported_ops, Type* type,
@@ -263,7 +289,7 @@ class SingleValueChannel : public Channel {
       : Channel(name, id, supported_ops, ChannelKind::kSingleValue, type,
                 /*initial_values=*/{}, metadata) {}
 
-  bool HasCompletedBlockPortNames() const override {
+  bool HasCompletedBlockPortNames() const final {
     return GetBlockName().has_value() && GetDataPortName().has_value();
   }
 };

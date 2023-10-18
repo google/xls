@@ -13,13 +13,16 @@
 // limitations under the License.
 
 #include "xls/ir/channel.h"
+
 #include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "google/protobuf/text_format.h"
@@ -75,9 +78,13 @@ std::string Channel::ToString() const {
         &result, "flow_control=%s, strictness=%s, ",
         FlowControlToString(streaming_channel->GetFlowControl()),
         ChannelStrictnessToString(streaming_channel->GetStrictness()));
-    if (streaming_channel->GetFifoDepth().has_value()) {
-      absl::StrAppendFormat(&result, "fifo_depth=%d, ",
-                            streaming_channel->GetFifoDepth().value());
+    const std::optional<FifoConfig>& fifo_config =
+        streaming_channel->fifo_config();
+    if (fifo_config.has_value()) {
+      absl::StrAppendFormat(&result, "fifo_depth=%d, ", fifo_config->depth);
+      if (!fifo_config->bypass) {
+        absl::StrAppend(&result, "bypass=true, ");
+      }
     }
   }
 
