@@ -3,12 +3,11 @@
 [TOC]
 
 The XLS IR is a pure dataflow-oriented IR that has the static-single-assignment
-property, but is specialized for generating circuitry.
-The aim is to create effective circuit designs through
-a "lifted" understanding of the high-level operations and their semantics,
-instead of trying to reverse all relevant properties via dependence analysis,
-which often cannot take advantage of high level knowledge that the designer
-holds in their mind at design time.
+property, but is specialized for generating circuitry. The aim is to create
+effective circuit designs through a "lifted" understanding of the high-level
+operations and their semantics, instead of trying to reverse all relevant
+properties via dependence analysis, which often cannot take advantage of high
+level knowledge that the designer holds in their mind at design time.
 
 This document describes the semantics of the XLS intermediate representation
 (IR) including data types, operations, and textual representation.
@@ -125,6 +124,13 @@ arbitrarily-typed. Each register must have a single `register_write` and a
 single `register_read` operation for writing and reading the register
 respectively.
 
+Each register may optionally specify its reset behavior. The reset can be
+specified to occur either synchronously or asynchronously and either on the
+`reset` signal of the associated `register_write` being active-high or
+active-low. If specified the reset value must match the type of the register. If
+no reset behavior is specified then the `reset` argument of `register_write`
+must be unset.
+
 #### Instantiation
 
 An instantiation is a block-scoped construct that represents a module
@@ -197,15 +203,15 @@ result = xor(operand_{0}, ..., operand_{N-1})
 
 **Types**
 
-Value            | Type
----------------- | ---------
-`operand_{i}`    | `bits[N]`
-`result`         | `bits[N]`
+Value         | Type
+------------- | ---------
+`operand_{i}` | `bits[N]`
+`result`      | `bits[N]`
 
 **Operations**
 
 Operation | Opcode     | Semantics
---------- | ---------- | ---------------------
+--------- | ---------- | ----------------------------
 `and`     | `Op::kAnd` | `result = lhs & rhs & ...`
 `or`      | `Op::kOr`  | `result = lhs \| rhs \| ...`
 `xor`     | `Op::kXor` | `result = lhs ^ rhs ^ ...`
@@ -569,7 +575,6 @@ exception of out-of-bounds behavior.
 
 ### Tuple operations
 
-
 #### **`tuple`**
 
 Constructs a tuple of its operands.
@@ -678,8 +683,8 @@ are ignored. Examples:
 #### **`dynamic_bit_slice`**
 
 Slices a contiguous range of bits from a bits-typed operand, with variable
-starting index but fixed width. Out-of-bounds slicing is supported by
-treating all out-of-bounds bits as having value 0.
+starting index but fixed width. Out-of-bounds slicing is supported by treating
+all out-of-bounds bits as having value 0.
 
 **Syntax**
 
@@ -695,8 +700,8 @@ Value     | Type
 `start`   | `bits[M]`
 `result`  | `bits[<width>]`
 
-`start` can be of arbitrary bit width. It will be interpreted
-as an unsigned integer.
+`start` can be of arbitrary bit width. It will be interpreted as an unsigned
+integer.
 
 **Keyword arguments**
 
@@ -840,13 +845,13 @@ significant bit in the output) is only set if no bits in the input are set.
 
 Examples:
 
-* `one_hot(0b0011, lsb_prio=true)` => `0b00001` -- note that an extra MSb has
-  been appended to the output to potentially represent the "all zeros" case.
-* `one_hot(0b0111, lsb_prio=false)` => `0b00100`.
-* `one_hot(0b00, lsb_prio=false)` => `0b100`.
-* `one_hot(0b00, lsb_prio=true)` => `0b100` -- note the output for `one_hot` is
-  the same for the all-zeros case regardless of whether `lsb_prio` is true or
-  false.
+*   `one_hot(0b0011, lsb_prio=true)` => `0b00001` -- note that an extra MSb has
+    been appended to the output to potentially represent the "all zeros" case.
+*   `one_hot(0b0111, lsb_prio=false)` => `0b00100`.
+*   `one_hot(0b00, lsb_prio=false)` => `0b100`.
+*   `one_hot(0b00, lsb_prio=true)` => `0b100` -- note the output for `one_hot`
+    is the same for the all-zeros case regardless of whether `lsb_prio` is true
+    or false.
 
 This operation is useful for constructing match or switch operation semantics
 where a condition is matched against an ordered set of cases and the first match
@@ -888,10 +893,10 @@ fn f(x: bits[32]) -> bits[32] {
 
 **Types**
 
-Value      | Type
----------- | ---------
-`name`     | `str`
-`type`     | `type`
+Value  | Type
+------ | ------
+`name` | `str`
+`type` | `type`
 
 #### **`sel`**
 
@@ -981,8 +986,8 @@ Value      | Type
 `case_{i}` | `T`
 `result`   | `T`
 
-The result is the first case `case_{i}` for which the corresponding
-bit `i` is set in the selector. If the selector is known to be one-hot, then the
+The result is the first case `case_{i}` for which the corresponding bit `i` is
+set in the selector. If the selector is known to be one-hot, then the
 `priority_sel()` operation is equivalent to a `one_hot_sel()`.
 
 #### **`invoke`**
@@ -1251,10 +1256,9 @@ value is gated off). A helpful mnemonic is to think of this as analogous to an
 `AND` gate: if the condition is `true`, the value passes through, otherwise it's
 zeroed.
 
-This operation can reduce switching and may be used in
-power optimizations. This is intended for use in operand gating for power
-reduction, and the compiler may ultimately use it to perform register-level
-load-enable gating.
+This operation can reduce switching and may be used in power optimizations. This
+is intended for use in operand gating for power reduction, and the compiler may
+ultimately use it to perform register-level load-enable gating.
 
 The operation is considered side-effecting to prevent removal of the operation
 when the gated result (condition is false) is not observable. The 'side-effect'
@@ -1353,8 +1357,40 @@ The type `T` of the result of the operation is the type of the register.
 
 Writes a value to a register.
 
-The write to the register may be conditioned upon an optional load-enable
-and/or reset signal. The register is defined on the block.
+The write to the register may be conditioned upon an optional load-enable and/or
+reset signal. The register is defined on the block.
+
+If `reset` is given the `register` associated with this read **must** have a
+reset behavior set.
+
+If the `reset` value matches the reset-active value of the register then the
+`reset_value` of the register is written and the `data` is ignored.
+
+If the `load_enable` argument is present the register will only be written if
+the argument evaluates to `1`, remaining unchanged otherwise (i.e. if present it
+is equivalent to `register_write.REG(sel(load_enable, {register_read.REG,
+data}))`).
+
+The `reset` and `load_enable` arguments affect the value written according to
+the following table.
+
+| `Register` reset      | `reset` value | `load_enable` value | new value     | {.sortable}
+: behavior              :               :                     :               :
+| --------------------- | ------------- | ------------------- | ------------- |
+| `active_low == false` | `false` / `0` | not present         | `data`        |
+| `active_low == false` | `true` / `1`  | not present         | `reset_value` |
+| `active_low == true`  | `false` / `0` | not present         | `reset_value` |
+| `active_low == true`  | `true` / `1`  | not present         | `data`        |
+| `active_low == false` | `false` / `0` | `true` / `1`        | `data`        |
+| `active_low == false` | `true` / `1`  | `true` / `1`        | `reset_value` |
+| `active_low == true`  | `false` / `0` | `true` / `1`        | `reset_value` |
+| `active_low == true`  | `true` / `1`  | `true` / `1`        | `data`        |
+| `active_low == false` | `false` / `0` | `false` / `0`       | No change     |
+| `active_low == false` | `true` / `1`  | `false` / `0`       | `reset_value` |
+| `active_low == true`  | `false` / `0` | `false` / `0`       | `reset_value` |
+| `active_low == true`  | `true` / `1`  | `false` / `0`       | No change     |
+| not present           | not present   | `true` / `1`        | `data`        |
+| not present           | not present   | `false` / `0`       | No change     |
 
 **Syntax**
 
