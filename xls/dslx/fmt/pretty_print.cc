@@ -16,12 +16,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 #include "absl/strings/ascii.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -65,6 +67,18 @@ enum class Mode : uint8_t {
   kFlat,
   kBreak,
 };
+
+static std::ostream& operator<<(std::ostream& os, Mode mode) {
+  switch (mode) {
+    case Mode::kFlat:
+      os << "flat";
+      break;
+    case Mode::kBreak:
+      os << "break";
+      break;
+  }
+  return os;
+}
 
 struct StackEntry {
   const Doc* doc;
@@ -255,6 +269,9 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                 stack.push_back(StackEntry{&arena.Deref(flat_choice.on_flat),
                                            entry.mode, entry.indent});
               } else {
+                XLS_CHECK_EQ(entry.mode, Mode::kBreak);
+                XLS_VLOG(3) << "emitting FlatChoice as break mode: "
+                            << entry.doc->ToDebugString(arena);
                 stack.push_back(StackEntry{&arena.Deref(flat_choice.on_break),
                                            entry.mode, entry.indent});
               }
@@ -267,22 +284,54 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               int64_t remaining_cols = text_width - virtual_outcol;
               Requirement grouped_requirement =
                   arena.Deref(group.arg).flat_requirement;
+              Mode mode = grouped_requirement > remaining_cols ? Mode::kBreak
+                                                               : Mode::kFlat;
               XLS_VLOG(3) << "grouped_requirement: "
                           << RequirementToString(grouped_requirement)
-                          << " remaining_cols: " << remaining_cols;
-              if (grouped_requirement > remaining_cols) {
-                stack.push_back(StackEntry{&arena.Deref(group.arg),
-                                           Mode::kBreak, entry.indent});
-              } else {
-                stack.push_back(StackEntry{&arena.Deref(group.arg), Mode::kFlat,
-                                           entry.indent});
-              }
+                          << " remaining_cols: " << remaining_cols
+                          << "; now using mode: " << mode << " arg: "
+                          << arena.Deref(group.arg).ToDebugString(arena);
+              stack.push_back(
+                  StackEntry{&arena.Deref(group.arg), mode, entry.indent});
             }},
         entry.doc->value);
   }
 }
 
 }  // namespace
+
+std::string Doc::ToDebugString(const DocArena& arena) const {
+  std::string payload = absl::visit(
+      Visitor{
+          [&](const std::string& p) -> std::string {
+            return absl::StrFormat("std::string{\"%s\"}", absl::CEscape(p));
+          },
+          [&](const HardLine& p) -> std::string { return "HardLine"; },
+          [&](const FlatChoice& p) -> std::string {
+            return absl::StrFormat(
+                "FlatChoice{on_flat=%s, on_break=%s}",
+                arena.Deref(p.on_flat).ToDebugString(arena),
+                arena.Deref(p.on_break).ToDebugString(arena));
+          },
+          [&](const Group& p) -> std::string {
+            return absl::StrFormat("Group{%s}",
+                                   arena.Deref(p.arg).ToDebugString(arena));
+          },
+          [&](const Concat& p) -> std::string {
+            return absl::StrFormat("Concat{%s, %s}",
+                                   arena.Deref(p.lhs).ToDebugString(arena),
+                                   arena.Deref(p.rhs).ToDebugString(arena));
+          },
+          [&](const Nest& p) -> std::string { return "Nest"; },
+          [&](const Align& p) -> std::string { return "Align"; },
+          [&](const PrefixedReflow& p) -> std::string {
+            return "PrefixedReflow";
+          },
+      },
+      value);
+  return absl::StrFormat("Doc{%s, %s}", RequirementToString(flat_requirement),
+                         payload);
+}
 
 DocArena::DocArena() {
   empty_ = MakeText("");

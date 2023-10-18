@@ -1139,9 +1139,22 @@ static DocRef FmtParams(absl::Span<const Param* const> params,
 
 static DocRef Fmt(const ParametricBinding& n, const Comments& comments,
                   DocArena& arena) {
-  return ConcatNGroup(
-      arena, {arena.MakeText(n.identifier()), arena.colon(), arena.break1(),
-              Fmt(*n.type_annotation(), comments, arena)});
+  std::vector<DocRef> pieces = {
+      arena.MakeText(n.identifier()),
+      arena.colon(),
+      arena.break1(),
+      Fmt(*n.type_annotation(), comments, arena),
+  };
+  if (n.expr() != nullptr) {
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.equals());
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.ocurl());
+    pieces.push_back(arena.break0());
+    pieces.push_back(arena.MakeNest(Fmt(*n.expr(), comments, arena)));
+    pieces.push_back(arena.ccurl());
+  }
+  return ConcatNGroup(arena, pieces);
 }
 
 static DocRef FmtParametricBindingPtr(const ParametricBinding* n,
@@ -1161,8 +1174,6 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
   signature_pieces.push_back(arena.space());
   signature_pieces.push_back(arena.MakeText(n.identifier()));
 
-  DocRef params = FmtParams(n.params(), comments, arena);
-
   if (n.IsParametric()) {
     signature_pieces.push_back(
         ConcatNGroup(arena, {arena.oangle(),
@@ -1172,18 +1183,30 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
                              arena.cangle()}));
   }
 
-  signature_pieces.push_back(arena.break0());
-  signature_pieces.push_back(params);
-  signature_pieces.push_back(arena.break1());
+  {
+    std::vector<DocRef> params_pieces;
 
-  if (n.return_type() != nullptr) {
-    signature_pieces.push_back(arena.arrow());
-    signature_pieces.push_back(arena.break1());
-    signature_pieces.push_back(Fmt(*n.return_type(), comments, arena));
-    signature_pieces.push_back(arena.break1());
+    params_pieces.push_back(arena.break0());
+    params_pieces.push_back(FmtParams(n.params(), comments, arena));
+
+    if (n.return_type() == nullptr) {
+      params_pieces.push_back(arena.break1());
+      params_pieces.push_back(arena.ocurl());
+    } else {
+      params_pieces.push_back(
+          ConcatNGroup(arena, {
+                                  arena.break1(),
+                                  arena.arrow(),
+                                  arena.break1(),
+                                  Fmt(*n.return_type(), comments, arena),
+                                  arena.break1(),
+                                  arena.ocurl(),
+                              }));
+    }
+
+    signature_pieces.push_back(
+        arena.MakeNest(ConcatNGroup(arena, params_pieces)));
   }
-
-  signature_pieces.push_back(arena.ocurl());
 
   // For empty function we don't put spaces between the curls.
   if (n.body()->empty()) {

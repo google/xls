@@ -34,6 +34,9 @@ namespace xls::dslx {
 // A reference to a doc (pretty printable object type) within an arena.
 XLS_DEFINE_STRONG_INT_TYPE(DocRef, uint32_t);
 
+// Forward decl.
+class DocArena;
+
 namespace pprint_internal {
 
 // Represents a requirement (number of characters required in the line for
@@ -118,6 +121,8 @@ struct Doc {
   std::variant<std::string, HardLine, FlatChoice, Group, Concat, Nest, Align,
                PrefixedReflow>
       value;
+
+  std::string ToDebugString(const DocArena& arena) const;
 };
 
 }  // namespace pprint_internal

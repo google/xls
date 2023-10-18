@@ -453,6 +453,16 @@ TEST_F(FunctionFmtTest, FunctionWithCommentsOnLastLines) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, ParametricFunction) {
+  const std::string_view original =
+      R"(fn concat3<X: u32, Y: u32, Z: u32, R: u32 = {X + Y + Z}>
+    (x: bits[X], y: bits[Y], z: bits[Z]) -> bits[R] {
+    x ++ y ++ z
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
