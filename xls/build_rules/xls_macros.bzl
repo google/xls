@@ -500,6 +500,7 @@ def xls_delay_model_generation(
                 echo export ABC=$${_yosys_runfiles_dir}/edu_berkeley_abc/abc >> $@; \
                 _sta_runfiles_dir=$(location @org_theopenroadproject//:opensta).runfiles; \
                 echo export TCL_LIBRARY=$${_sta_runfiles_dir}/tk_tcl/library >> $@; \
+                echo export DONT_USE_ARGS=\"\" >> $@; \
                 echo 'set -e' >> $@; \
                 echo -n $(location //xls/tools:run_timing_characterization) >> $@; \
                 echo -n ' ' --yosys_path $(location @at_clifford_yosys//:yosys) >> $@; \

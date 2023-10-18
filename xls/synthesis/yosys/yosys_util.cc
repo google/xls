@@ -125,6 +125,7 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
   std::string freq_mhz;
   float tmp_float = 0.0;
   std::string slack_ps;
+  bool period_ok = false, slack_ok = false;
 
   for (std::string_view line : absl::StrSplit(sta_output, '\n')) {
     line = absl::StripAsciiWhitespace(line);
@@ -140,6 +141,7 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
       XLS_RET_CHECK(absl::SimpleAtof(clk_period_ps, &stats.period_ps));
       stats.max_frequency_hz = static_cast<int64_t>(
           1e12 / stats.period_ps);  // use clk in ps for accuracy
+      period_ok = true;
     }
 
     if (RE2::PartialMatch(line, R"(^worst slack (-?\d+.\d+))", &slack_ps)) {
@@ -149,8 +151,12 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
       if (tmp_float < 0.0 && stats.slack_ps == 0) {
         stats.slack_ps = -1;
       }
+      slack_ok = true;
     }
   }
+  bool opensta_ok = period_ok && slack_ok;
+  XLS_RET_CHECK(opensta_ok) << "\"Problem parsing results from OpenSTA. "
+                            "OpenSTA may have exited unexpectedly.\"";
 
   return stats;
 }  // ParseOpenSTAOutput

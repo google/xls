@@ -321,7 +321,6 @@ def xls_ir_verilog_fdo_impl(ctx, src):
         final_args += " --fdo_yosys_path={}".format(yosys_tool.path)
         final_args += " --fdo_sta_path={}".format(sta_tool.path)
         final_args += " --fdo_synthesis_libraries={}".format(synth_lib.path)
-        final_args += " --alsologtostderr"
     else:
         yosys_tool = None
         sta_tool = None
@@ -350,10 +349,12 @@ def xls_ir_verilog_fdo_impl(ctx, src):
 
         runfiles_list.append(synth_lib)
         yosys_runfiles_dir = ctx.executable.yosys_tool.path + ".runfiles"
+        opensta_runfiles_dir = ctx.executable.sta_tool.path + ".runfiles"
         env = {
             "ABC": yosys_runfiles_dir + "/edu_berkeley_abc/abc",
             "DONT_USE_ARGS": dont_use_args,
             "YOSYS_DATDIR": yosys_runfiles_dir + "/" + "at_clifford_yosys/techlibs/",
+            "TCL_LIBRARY": opensta_runfiles_dir + "/tk_tcl/library",
         }
     else:
         env = {}
