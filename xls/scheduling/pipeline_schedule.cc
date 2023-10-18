@@ -341,6 +341,15 @@ absl::Status PipelineSchedule::VerifyConstraints(
     return "s";
   };
 
+  auto matches_direction = [](IODirection direction, Node* node) -> bool {
+    switch (direction) {
+      case IODirection::kReceive:
+        return node->Is<Receive>();
+      case IODirection::kSend:
+        return node->Is<Send>();
+    }
+  };
+
   for (const SchedulingConstraint& constraint : constraints) {
     if (std::holds_alternative<IOConstraint>(constraint)) {
       IOConstraint io_constr = std::get<IOConstraint>(constraint);
@@ -350,6 +359,14 @@ absl::Status PipelineSchedule::VerifyConstraints(
       for (Node* source : channel_to_nodes[io_constr.SourceChannel()]) {
         for (Node* target : channel_to_nodes[io_constr.TargetChannel()]) {
           if (source == target) {
+            continue;
+          }
+          // Check that the source and target nodes are the correct kind of
+          // channel operations. If this is a "loopback" channel, a mixture of
+          // sends and receives might be in channel_to_nodes and you only want
+          // to perform the check in the correct direction.
+          if (!matches_direction(io_constr.SourceDirection(), source) ||
+              !matches_direction(io_constr.TargetDirection(), target)) {
             continue;
           }
           int64_t source_cycle = cycle_map_.at(source);

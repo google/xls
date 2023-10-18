@@ -1378,5 +1378,37 @@ TEST_F(PipelineScheduleTest, SingleStageSchedule) {
   EXPECT_EQ(schedule.value().nodes_in_cycle(0).size(), 21);
 }
 
+TEST_F(PipelineScheduleTest, LoopbackChannelWithConstraint) {
+  auto p = CreatePackage();
+  Type* u16 = p->GetBitsType(16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * loopback_ch,
+      p->CreateStreamingChannel("loopback", ChannelOps::kSendReceive, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+  TokenlessProcBuilder pb("the_proc", "tkn", p.get());
+  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue rcv = pb.Receive(loopback_ch);
+  BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
+  pb.Send(out_ch, out);
+  BValue loopback_send = pb.Send(loopback_ch, out);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
+
+  for (int64_t i = 3; i <= 9; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        RunPipelineSchedule(
+            proc, TestDelayEstimator(),
+            SchedulingOptions().pipeline_stages(10).add_constraint(
+                IOConstraint("loopback", IODirection::kReceive, "loopback",
+                             IODirection::kSend, i, i))));
+
+    EXPECT_EQ(schedule.length(), 10);
+    EXPECT_EQ(schedule.cycle(loopback_send.node()) - schedule.cycle(rcv.node()),
+              i);
+  }
+}
+
 }  // namespace
 }  // namespace xls
