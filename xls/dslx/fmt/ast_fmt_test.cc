@@ -406,6 +406,26 @@ TEST_F(FunctionFmtTest, TraceFormatMacro) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, FunctionWithCommentsOnLastLines) {
+  const std::string_view original =
+      R"(fn f(){
+    let x = u32:42;
+    let y = x + x;
+
+    // I like to put comments
+    // down here at the end...
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f() {
+    let x = u32:42;
+    let y = x + x;
+    // I like to put comments
+    // down here at the end...
+})";
+  EXPECT_EQ(got, want);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {

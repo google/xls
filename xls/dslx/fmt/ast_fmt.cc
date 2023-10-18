@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -338,6 +339,60 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
+// Note: if a comment doc is emitted (i.e. return value has_value()) it does not
+// have a trailing hard-line. This is for consistency with other emission
+// routines which generally don't emit any whitespace afterwards, just their
+// doc.
+static std::optional<DocRef> EmitCommentsBetween(
+    std::optional<Pos> start_pos, const Pos& limit_pos,
+    const Comments& comments, DocArena& arena,
+    std::optional<Span>* last_comment_span) {
+  if (!start_pos.has_value()) {
+    start_pos = Pos(limit_pos.filename(), 0, 0);
+  }
+  XLS_CHECK_LE(start_pos.value(), limit_pos);
+  const Span span(start_pos.value(), limit_pos);
+
+  XLS_VLOG(3) << "Looking for comments in span: " << span;
+
+  std::vector<DocRef> pieces;
+
+  std::vector<const CommentData*> items = comments.GetComments(span);
+  XLS_VLOG(3) << "Found " << items.size() << " comment data items";
+  std::optional<Span> previous_comment_span;
+  for (size_t i = 0; i < items.size(); ++i) {
+    const CommentData* comment_data = items[i];
+
+    // If the previous comment line and this comment line are abutted (i.e.
+    // contiguous lines with comments), we don't put a newline between them.
+    if (previous_comment_span.has_value() &&
+        previous_comment_span->start().lineno() + 1 !=
+            comment_data->span.start().lineno()) {
+      XLS_VLOG(3) << "previous comment span: " << previous_comment_span.value()
+                  << " this comment span: " << comment_data->span
+                  << " -- inserting hard line";
+      pieces.push_back(arena.hard_line());
+    }
+
+    pieces.push_back(arena.MakePrefixedReflow(
+        "//",
+        std::string{absl::StripTrailingAsciiWhitespace(comment_data->text)}));
+
+    if (i + 1 != items.size()) {
+      pieces.push_back(arena.hard_line());
+    }
+
+    previous_comment_span = comment_data->span;
+    *last_comment_span = comment_data->span;
+  }
+
+  if (pieces.empty()) {
+    return std::nullopt;
+  }
+
+  return ConcatN(arena, pieces);
+}
+
 // Note: we only add leading/trailing spaces in the block if add_curls is true.
 static DocRef FmtBlock(const Block& n, const Comments& comments,
                        DocArena& arena, bool add_curls,
@@ -379,9 +434,25 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     top.push_back(arena.hard_line());
   }
 
+  Pos last_stmt_pos = n.span().start();
   std::vector<DocRef> nested;
   for (size_t i = 0; i < n.statements().size(); ++i) {
     const Statement* stmt = n.statements()[i];
+
+    // Get the start position for the statement.
+    std::optional<Span> stmt_span = stmt->GetSpan();
+    XLS_CHECK(stmt_span.has_value()) << stmt->ToString();
+    Pos stmt_start = stmt_span->start();
+
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
+            last_stmt_pos, stmt_start, comments, arena, &last_comment_span)) {
+      nested.push_back(comments_doc.value());
+      nested.push_back(arena.hard_line());
+    }
+    last_stmt_pos = stmt_span->limit();
+
+    // Here we emit the formatted statement.
     nested.push_back(Fmt(*stmt, comments, arena));
     bool last_stmt = i + 1 == n.statements().size();
     if (!last_stmt || n.trailing_semi()) {
@@ -390,6 +461,16 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     if (!last_stmt) {
       nested.push_back(arena.hard_line());
     }
+  }
+
+  // See if there are any comments to emit after the last statement to the end
+  // of the block.
+  std::optional<Span> last_comment_span;
+  if (std::optional<DocRef> comments_doc =
+          EmitCommentsBetween(last_stmt_pos, n.span().limit(), comments, arena,
+                              &last_comment_span)) {
+    nested.push_back(arena.hard_line());
+    nested.push_back(comments_doc.value());
   }
 
   top.push_back(arena.MakeNest(ConcatN(arena, nested)));
@@ -953,7 +1034,12 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
   }
 
   if (!comment_data.empty()) {
-    XLS_LOG(FATAL) << "let: multiple inline comments";
+    XLS_LOG(FATAL) << "let: multiple inline comments @ "
+                   << absl::StrJoin(
+                          comment_data, ", ",
+                          [](std::string* out, const CommentData* data) {
+                            absl::StrAppend(out, data->span.ToString());
+                          });
   }
 
   return syntax;
@@ -1343,53 +1429,6 @@ DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
   return result;
 }
 
-static std::optional<DocRef> EmitCommentsBetween(
-    std::optional<Pos> start_pos, const Pos& limit_pos,
-    const Comments& comments, DocArena& arena,
-    std::optional<Span>* last_comment_span) {
-  if (!start_pos.has_value()) {
-    start_pos = Pos(limit_pos.filename(), 0, 0);
-  }
-  XLS_CHECK_LE(start_pos.value(), limit_pos);
-  const Span span(start_pos.value(), limit_pos);
-
-  XLS_VLOG(3) << "Looking for comments in span: " << span;
-
-  std::vector<DocRef> pieces;
-
-  std::vector<const CommentData*> items = comments.GetComments(span);
-  XLS_VLOG(3) << "Found " << items.size() << " comment data items";
-  std::optional<Span> previous_comment_span;
-  for (size_t i = 0; i < items.size(); ++i) {
-    const CommentData* comment_data = items[i];
-
-    // If the previous comment line and this comment line are abutted (i.e.
-    // contiguous lines with comments), we don't put a newline between them.
-    if (previous_comment_span.has_value() &&
-        previous_comment_span->start().lineno() + 1 !=
-            comment_data->span.start().lineno()) {
-      XLS_VLOG(3) << "previous comment span: " << previous_comment_span.value()
-                  << " this comment span: " << comment_data->span
-                  << " -- inserting hard line";
-      pieces.push_back(arena.hard_line());
-    }
-
-    pieces.push_back(arena.MakePrefixedReflow(
-        "//",
-        std::string{absl::StripTrailingAsciiWhitespace(comment_data->text)}));
-    pieces.push_back(arena.hard_line());
-
-    previous_comment_span = comment_data->span;
-    *last_comment_span = comment_data->span;
-  }
-
-  if (pieces.empty()) {
-    return std::nullopt;
-  }
-
-  return ConcatN(arena, pieces);
-}
-
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   std::optional<Pos> last_member_pos;
@@ -1424,6 +1463,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
             EmitCommentsBetween(last_member_pos, member_start, comments, arena,
                                 &last_comment_span)) {
       pieces.push_back(comments_doc.value());
+      pieces.push_back(arena.hard_line());
 
       XLS_VLOG(3) << "last_comment_span: " << last_comment_span.value()
                   << " this member start: " << member_start;
@@ -1442,6 +1482,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
 
     last_member_pos = member_span->limit();
 
+    // Here we actually emit the formatted member.
     pieces.push_back(Fmt(member, comments, arena));
     if (i + 1 == n.top().size()) {
       pieces.push_back(arena.hard_line());
@@ -1458,6 +1499,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
             EmitCommentsBetween(last_member_pos, last_data_limit.value(),
                                 comments, arena, &last_comment_span)) {
       pieces.push_back(comments_doc.value());
+      pieces.push_back(arena.hard_line());
     }
   }
 

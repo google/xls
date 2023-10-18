@@ -108,7 +108,7 @@ TEST(PrettyPrintTest, PrefixedReflow) {
 // liking, gladly)");
 }
 
-TEST(PrettyPrintTest, PrefixedReflowAfterIndent) {
+TEST(PrettyPrintTest, PrefixedReflowAfterIndentWidth18) {
   DocArena arena;
   DocRef ref0 = arena.MakePrefixedReflow(
       "// ", "this is overly long for our liking, gladly");
@@ -124,11 +124,38 @@ TEST(PrettyPrintTest, PrefixedReflowAfterIndent) {
     // pleasingly
     // long line,
     // indented)");
+}
+
+TEST(PrettyPrintTest, PrefixedReflowAfterIndentWidth40) {
+  DocArena arena;
+  DocRef ref0 = arena.MakePrefixedReflow(
+      "// ", "this is overly long for our liking, gladly");
+  DocRef ref1 = arena.MakeNest(arena.MakePrefixedReflow(
+      "// ", "yet another pleasingly long line, indented"));
+
+  DocRef ref = ConcatN(arena, {ref0, arena.hard_line(), ref1});
 
   EXPECT_EQ(PrettyPrint(arena, ref, 40),
-            R"(// this is overly long for our liking, gladly
+            R"(// this is overly long for our liking,
+// gladly
     // yet another pleasingly long line,
     // indented)");
+}
+
+// Demonstrates that the empty line between nested elements don't have leading
+// spaces.
+TEST(PrettyPrintTest, NestLevelWithEmptyLine) {
+  DocArena arena;
+  DocRef ref0 = arena.MakeText("foo");
+  DocRef ref1 = arena.MakeText("bar");
+
+  DocRef ref = arena.MakeNest(
+      ConcatN(arena, {ref0, arena.hard_line(), arena.hard_line(), ref1}));
+
+  // Note: the second line here has no leading spaces.
+  EXPECT_EQ(PrettyPrint(arena, ref, 100), R"(    foo
+
+    bar)");
 }
 
 TEST(PrettyPrintTest, PrefixedReflowOneOverflongToken) {

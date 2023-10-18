@@ -84,7 +84,10 @@ bool operator>(Requirement lhs, Requirement rhs) {
 }
 
 void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
-                         int64_t text_width, std::vector<std::string>& pieces) {
+                         const int64_t text_width,
+                         std::vector<std::string>& pieces) {
+  XLS_VLOG(1) << "PrettyPrintInternal; text width: " << text_width;
+
   // We maintain a stack to keep track of doc emission we still need to perform.
   // Every entry notes the document to emit, what mode it was in (flat or
   // line-breaking mode) and what indent level it was supposed to be emitted at.
@@ -92,7 +95,27 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
 
   // Number of columns we've output in the current line. (This is reset by hard
   // line breaks.)
-  int64_t outcol = 0;
+  int64_t real_outcol = 0;
+
+  // This number can be >= real_outcol when we anticipate inserting leading
+  // spaces, but we don't want to /realy/ insert them yet, because we want to
+  // avoid whitespace before newlines on newline-only lines.
+  int64_t virtual_outcol = 0;
+
+  auto emit = [&](std::string_view s) {
+    if (real_outcol < virtual_outcol) {
+      pieces.push_back(std::string(virtual_outcol - real_outcol, ' '));
+      real_outcol = virtual_outcol;
+    }
+    pieces.push_back(std::string{s});
+    real_outcol += s.size();
+    virtual_outcol += s.size();
+  };
+  auto emit_cr = [&](int64_t indent) {
+    pieces.push_back("\n");
+    real_outcol = 0;
+    virtual_outcol = indent;
+  };
 
   while (!stack.empty()) {
     StackEntry entry = stack.back();
@@ -101,20 +124,17 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
         Visitor{
             [&](const std::string& s) {
               XLS_VLOG(3) << "emitting text: `" << s
-                          << "` at outcol: " << outcol << " (size " << s.size()
-                          << ")";
+                          << "` at virtual outcol: " << virtual_outcol
+                          << " (size " << s.size() << ")";
               // Text is simply emitted to the output and we bump the output
               // column tracker accordingly.
-              pieces.push_back(s);
-              outcol += s.size();
+              emit(s);
             },
             [&](const HardLine&) {
               // A hardline command emits a newline and takes it to its
               // corresponding indent level that it was emitted at, and sets the
               // column tracker accordingly.
-              pieces.push_back(
-                  absl::StrCat("\n", std::string(entry.indent, ' ')));
-              outcol = entry.indent;
+              emit_cr(entry.indent);
             },
             [&](const Nest& nest) {
               // Nest bumps the indent in by its delta and then emits the nested
@@ -122,40 +142,38 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               stack.push_back(StackEntry{&arena.Deref(nest.arg), entry.mode,
                                          entry.indent + nest.delta});
               int64_t new_indent = entry.indent + nest.delta;
-              if (outcol < new_indent) {
-                pieces.push_back(std::string(new_indent - outcol, ' '));
-                outcol = new_indent;
+              if (virtual_outcol < new_indent) {
+                virtual_outcol = new_indent;
               }
             },
             [&](const Align& align) {
-              XLS_VLOG(3) << "Align; outcol: " << outcol;
+              XLS_VLOG(3) << "Align; outcol: " << virtual_outcol;
               // Align sets the alignment for the nested doc to the current
               // line's output column and then emits the nested doc.
               stack.push_back(StackEntry{&arena.Deref(align.arg), entry.mode,
-                                         /*indent=*/outcol});
+                                         /*indent=*/virtual_outcol});
             },
             [&](const PrefixedReflow& prefixed) {
-              XLS_VLOG(3) << "PrefixedReflow; prefix: " << prefixed.prefix
-                          << " text: `" << prefixed.text << "`";
+              XLS_VLOG(3) << "PrefixedReflow; prefix: `" << prefixed.prefix
+                          << "` text: `" << prefixed.text << "`";
               std::vector<std::string_view> lines =
                   absl::StrSplit(prefixed.text, '\n');
               const std::string& prefix = prefixed.prefix;
 
-              // Remaining columns at this indentation level.
-              const int64_t remaining_cols = text_width - outcol;
-              const std::string carriage_return =
-                  absl::StrCat("\n", std::string(entry.indent, ' '));
-
               for (size_t i = 0; i < lines.size(); ++i) {
                 std::string_view line = lines[i];
-                XLS_VLOG(5)
-                    << "PrefixedReflow; handling line: `" << line << "`";
+
+                // Remaining columns at this indentation level.
+                const int64_t remaining_cols = text_width - virtual_outcol;
+
+                XLS_VLOG(5) << "PrefixedReflow; handling line: `" << line
+                            << "` remaining cols: " << remaining_cols;
                 if (prefix.size() + line.size() < remaining_cols) {
                   // If it all fits in available cols, place it there in its
                   // entirety.
-                  pieces.push_back(absl::StrCat(prefix, line));
+                  emit(absl::StrCat(prefix, line));
                   if (i + 1 != lines.size()) {
-                    pieces.push_back(carriage_return);
+                    emit_cr(entry.indent);
                   }
                 } else {
                   // Otherwise, place tokens until we encounter EOL and then
@@ -179,33 +197,40 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                     toks[0] = absl::StrCat(leading_whitespace, toks[0]);
                   }
 
-                  auto remaining = absl::MakeConstSpan(toks);
+                  absl::Span<const std::string> remaining_toks =
+                      absl::MakeConstSpan(toks);
 
-                  while (!remaining.empty()) {
-                    outcol = entry.indent;
-                    pieces.push_back(prefix);
-                    outcol += prefix.size();
-                    while (!remaining.empty()) {
-                      std::string_view tok = remaining.front();
-                      remaining.remove_prefix(1);
+                  while (!remaining_toks.empty()) {
+                    emit(prefix);
 
-                      pieces.push_back(std::string{tok});
-                      outcol += pieces.back().size();
+                    // After we emit the prefix we make sure we emit at least
+                    // one token.
+                    while (!remaining_toks.empty()) {
+                      std::string_view tok = remaining_toks.front();
+                      remaining_toks.remove_prefix(1);
 
-                      if (!remaining.empty()) {
+                      emit(tok);
+
+                      if (!remaining_toks.empty()) {
                         // If the next token isn't going to fit we make a
                         // carriage return and go to the next prefix insertion.
-                        if (outcol + remaining.front().size() > text_width) {
-                          XLS_VLOG(5) << "PrefixedReflow; adding carriage "
-                                         "return in advance of: `"
-                                      << remaining.front() << "`";
-                          pieces.push_back(carriage_return);
+                        const std::string& next_tok = remaining_toks.front();
+                        if (virtual_outcol + next_tok.size() > text_width) {
+                          XLS_VLOG(5)
+                              << "PrefixedReflow; adding carriage "
+                                 "return in advance of: `"
+                              << next_tok
+                              << "` as it will not fit; virtual outcol: "
+                              << virtual_outcol
+                              << " tok width: " << next_tok.size()
+                              << " text width: " << text_width;
+                          emit_cr(entry.indent);
                           break;
                         }
 
                         // If the next token is going to fit we just put a
                         // space char.
-                        pieces.push_back(" ");
+                        emit(" ");
                       }
                     }
                   }
@@ -214,7 +239,6 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                   // contents), so user should put a hardline afterwards.
                 }
               }
-              outcol = entry.indent;
             },
             [&](const struct Concat& concat) {
               stack.push_back(StackEntry{&arena.Deref(concat.rhs), entry.mode,
@@ -240,7 +264,7 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               // flat space that it can be emitted in flat mode in the columns
               // remaining -- if so, we emit the nested doc in flat mode; if
               // not, we emit it in break mode.
-              int64_t remaining_cols = text_width - outcol;
+              int64_t remaining_cols = text_width - virtual_outcol;
               Requirement grouped_requirement =
                   arena.Deref(group.arg).flat_requirement;
               XLS_VLOG(3) << "grouped_requirement: "
