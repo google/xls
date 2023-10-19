@@ -15,18 +15,21 @@
 #include "xls/ir/bits.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "rapidcheck/gtest.h"
-#include "rapidcheck.h"
+#include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/bits_test_helpers.h"
 #include "xls/ir/number_parser.h"
@@ -38,6 +41,7 @@ namespace {
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 
 TEST(BitsTest, BitsConstructor) {
@@ -534,94 +538,57 @@ static std::string BytesToHexString(absl::Span<const uint8_t> bytes) {
          });
 }
 
-RC_GTEST_PROP(BitsRapidcheck, RoundTripByte, (uint8_t byte)) {
-  std::vector<uint8_t> orig = {byte};
-  int64_t bit_count = *rc::gen::inRange(8 * 0 + 1, 8 * 1 + 1).as("bit_count");
-  const Bits b = Bits::FromBytes(orig, bit_count);
-  std::vector<uint8_t> exported = b.ToBytes();
-
-  RC_ASSERT(exported.size() == 1);
-  RC_ASSERT(exported.at(0) == (byte & Mask(bit_count)));
+void RoundtripOneByte(uint8_t byte, int64_t bit_count) {
+  EXPECT_THAT(Bits::FromBytes(std::vector<uint8_t>{byte}, bit_count).ToBytes(),
+              ElementsAre(byte & Mask(bit_count)));
 }
+FUZZ_TEST(BitsFuzzTest, RoundtripOneByte)
+    .WithDomains(fuzztest::Arbitrary<uint8_t>(), fuzztest::InRange(1, 8));
 
-RC_GTEST_PROP(BitsRapidcheck, RoundTripTwoBytes, (uint8_t b0, uint8_t b1)) {
-  std::vector<uint8_t> orig = {b0, b1};
-  int64_t bit_count = *rc::gen::inRange(8 * 1 + 1, 8 * 2 + 1).as("bit_count");
-  const Bits b = Bits::FromBytes(orig, bit_count);
-  std::vector<uint8_t> exported = b.ToBytes();
-
-  XLS_VLOG(1) << absl::StreamFormat("b0: 0x%02x b1: 0x%02x", b0, b1);
-  XLS_VLOG(1) << "exported: " << BytesToHexString(exported);
-
-  // Note: the way we import/export bytes to words, b1 becomes the most
-  // significant byte in the word, so it is the byte that gets masked.
-  uint8_t mask = Mask(bit_count % 8 == 0 ? 8 : bit_count % 8);
-  RC_ASSERT(exported.size() == 2);
-  RC_ASSERT(exported.at(0) == b0);
-  RC_ASSERT(exported.at(1) == (b1 & mask));
+void RoundtripTwoBytes(uint8_t b0, uint8_t b1, int64_t bit_count) {
+  EXPECT_THAT(
+      Bits::FromBytes(std::vector<uint8_t>{b0, b1}, bit_count).ToBytes(),
+      ElementsAre(b0, b1 & Mask(bit_count - int64_t{8} * 1)));
 }
+FUZZ_TEST(BitsFuzzTest, RoundtripTwoBytes)
+    .WithDomains(fuzztest::Arbitrary<uint8_t>(), fuzztest::Arbitrary<uint8_t>(),
+                 fuzztest::InRange(8 * 1 + 1, 8 * 1 + 8));
 
-RC_GTEST_PROP(BitsRapidcheck, RoundTripThreeBytes,
-              (uint8_t b0, uint8_t b1, uint8_t b2)) {
-  std::vector<uint8_t> orig = {b0, b1, b2};
-  int64_t bit_count = *rc::gen::inRange(8 * 2 + 1, 8 * 3 + 1).as("bit_count");
-  const Bits b = Bits::FromBytes(orig, bit_count);
-  std::vector<uint8_t> exported = b.ToBytes();
-
-  // Note: the way we import/export bytes to words, b2 becomes the most
-  // significant byte in the word, so it is the byte that gets masked.
-  uint8_t mask = Mask(bit_count % 8 == 0 ? 8 : bit_count % 8);
-  RC_ASSERT(exported.size() == 3);
-  RC_ASSERT(exported.at(0) == b0);
-  RC_ASSERT(exported.at(1) == b1);
-  RC_ASSERT(exported.at(2) == (b2 & mask));
+void RoundtripThreeBytes(uint8_t b0, uint8_t b1, uint8_t b2,
+                         int64_t bit_count) {
+  EXPECT_THAT(
+      Bits::FromBytes(std::vector<uint8_t>{b0, b1, b2}, bit_count).ToBytes(),
+      ElementsAre(b0, b1, b2 & Mask(bit_count - int64_t{8} * 2)));
 }
+FUZZ_TEST(BitsFuzzTest, RoundtripThreeBytes)
+    .WithDomains(fuzztest::Arbitrary<uint8_t>(), fuzztest::Arbitrary<uint8_t>(),
+                 fuzztest::Arbitrary<uint8_t>(),
+                 fuzztest::InRange(8 * 2 + 1, 8 * 2 + 8));
 
-RC_GTEST_PROP(BitsRapidcheck, RoundTripNBytes,
-              (const std::vector<uint8_t>& orig)) {
-  if (orig.empty()) {
+void RoundtripNBytes(const std::vector<uint8_t>& bytes, int64_t excess_bits) {
+  if (bytes.empty() && excess_bits > 0) {
+    // Can't have excess bits if there aren't any bits to start with...
     return;
   }
-  int64_t orig_size = orig.size();
-  int64_t bit_count =
-      *rc::gen::inRange(8 * (orig_size - 1) + 1, 8 * orig_size + 1)
-           .as("bit_count");
-  const Bits b = Bits::FromBytes(orig, bit_count);
-  std::vector<uint8_t> exported = b.ToBytes();
-
-  RC_ASSERT(exported.size() == orig.size());
-
-  // Note: the way we import/export bytes to words, the last byte always becomes
-  // the most significant byte in the last word, so it is the byte that gets
-  // masked.
-  uint8_t mask = Mask(bit_count % 8 == 0 ? 8 : bit_count % 8);
-  for (size_t i = 0; i < orig.size() - 1; ++i) {
-    RC_ASSERT(exported.at(i) == orig.at(i));
+  const int64_t bit_count = 8 * bytes.size() - excess_bits;
+  std::vector<uint8_t> expected = bytes;
+  if (!expected.empty()) {
+    expected.back() &= Mask(bit_count - int64_t{8} * (expected.size() - 1));
   }
-  RC_ASSERT(exported.back() == (orig.back() & mask));
+  EXPECT_THAT(Bits::FromBytes(bytes, bit_count).ToBytes(),
+              ElementsAreArray(expected));
 }
+FUZZ_TEST(BitsFuzzTest, RoundtripNBytes)
+    .WithDomains(fuzztest::Arbitrary<std::vector<uint8_t>>(),
+                 fuzztest::InRange(0, 7));
 
-// Populates a bitmap, converts that to bits, exports it back out, and checks it
-// is the same as the original.
-RC_GTEST_PROP(BitsRapidcheck, RoundTripFromBitmapToBitmap,
-              (const std::vector<bool>& orig)) {
-  // Construct the input bitmap from our bool vector.
-  InlineBitmap bitmap(orig.size());
-  for (size_t i = 0; i < orig.size(); ++i) {
-    bitmap.Set(i, orig.at(i));
-  }
-
-  // Make a bits object from that input bitmap.
-  const Bits b = Bits::FromBitmap(bitmap);
-
-  // Now export it to a bit vector and check it has the same contents as our
-  // original bool vector.
-  absl::InlinedVector<bool, 1> bit_vector = b.ToBitVector();
-  RC_ASSERT(bit_vector.size() == orig.size());
-  for (size_t i = 0; i < orig.size(); ++i) {
-    RC_ASSERT(orig.at(i) == bit_vector.at(i));
-  }
+void RoundtripBitVectorThroughBitmap(
+    const absl::InlinedVector<bool, 64>& bit_vector) {
+  EXPECT_THAT(
+      Bits::FromBitmap(InlineBitmap::FromBits(bit_vector)).ToBitVector(),
+      ElementsAreArray(bit_vector));
 }
+FUZZ_TEST(BitsFuzzTest, RoundtripBitVectorThroughBitmap);
 
 }  // namespace
 }  // namespace xls

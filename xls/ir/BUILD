@@ -311,28 +311,41 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "bits_test_helpers",
+    testonly = True,
+    hdrs = ["bits_test_helpers.h"],
+    deps = [
+        ":bits",
+        "//xls/common/logging",
+        "//xls/data_structures:inline_bitmap",
+        "@com_google_fuzztest//fuzztest",
+    ],
+)
+
 cc_test(
     name = "bits_test",
     size = "small",
     srcs = [
         "bits_test.cc",
-        "bits_test_helpers.h",
     ],
     deps = [
         ":bits",
         ":bits_ops",
+        ":bits_test_helpers",
         ":number_parser",
         ":value",
+        "//xls/common:bits_util",
         "//xls/common:math_util",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/data_structures:inline_bitmap",
+        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_fuzztest//fuzztest",
-        "@rapidcheck",
     ],
 )
 
@@ -1148,11 +1161,11 @@ cc_test(
     name = "bits_ops_test",
     srcs = [
         "bits_ops_test.cc",
-        "bits_test_helpers.h",
     ],
     deps = [
         ":bits",
         ":bits_ops",
+        ":bits_test_helpers",
         ":format_preference",
         ":number_parser",
         "//xls/common:xls_gunit",
@@ -1371,10 +1384,12 @@ cc_test(
         ":abstract_evaluator",
         ":big_int",
         ":bits",
+        ":bits_ops",
+        ":bits_test_helpers",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//fuzztest",
     ],
 )
 

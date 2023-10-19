@@ -14,16 +14,16 @@
 
 #include "xls/ir/abstract_evaluator.h"
 
-#include <random>
-#include <tuple>
+#include <cstdint>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
+#include "fuzztest/fuzztest.h"
+#include "absl/types/span.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
-#include "xls/tools/testbench_builder.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/bits_test_helpers.h"
 
 namespace xls {
 namespace {
@@ -126,36 +126,29 @@ TEST(AbstractEvaluatorTest, UMul) {
   EXPECT_EQ(c.ToUint64().value(), 8128);
 }
 
-// Performs random UMul and SMul implementations as constructed by the
-// TestAbstractEvaluator and compares them to the bits_ops reference
-// implementation (up to 16 bit values on either side).
-void DoMulRandoms(int64_t seed, int64_t iterations) {
+void EvaluatorMatchesReferenceUMul(const Bits& lhs, const Bits& rhs) {
   TestAbstractEvaluator eval;
-
-  std::mt19937_64 rng(seed);
-
-  std::uniform_int_distribution<int64_t> bit_count_dist(1, 16);
-
-  for (int64_t i = 0; i < iterations; ++i) {
-    int64_t lhs_bits = bit_count_dist(rng);
-    int64_t rhs_bits = bit_count_dist(rng);
-    uint64_t lhs_value =
-        std::uniform_int_distribution<uint64_t>(0, (1 << lhs_bits) - 1)(rng);
-    uint64_t rhs_value =
-        std::uniform_int_distribution<uint64_t>(0, (1 << rhs_bits) - 1)(rng);
-    Bits lhs = UBits(lhs_value, /*bit_count=*/lhs_bits);
-    Bits rhs = UBits(rhs_value, /*bit_count=*/rhs_bits);
-    Bits umul_got =
-        FromBoxedVector(eval.UMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
-    Bits umul_want = bits_ops::UMul(lhs, rhs);
-    EXPECT_EQ(umul_got, umul_want) << "lhs: " << lhs << " rhs: " << rhs;
-
-    Bits smul_got =
-        FromBoxedVector(eval.SMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
-    Bits smul_want = bits_ops::SMul(lhs, rhs);
-    EXPECT_EQ(smul_got, smul_want) << "lhs: " << lhs << " rhs: " << rhs;
-  }
+  Bits got = FromBoxedVector(eval.UMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+  Bits want = bits_ops::UMul(lhs, rhs);
+  EXPECT_EQ(got, want) << "unsigned: " << BigInt::MakeUnsigned(lhs) << " * "
+                       << BigInt::MakeUnsigned(rhs) << " = "
+                       << BigInt::MakeUnsigned(got)
+                       << ", should be: " << BigInt::MakeUnsigned(want);
 }
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMul)
+    .WithDomains(NonemptyBits(), NonemptyBits());
+
+void EvaluatorMatchesReferenceSMul(const Bits& lhs, const Bits& rhs) {
+  TestAbstractEvaluator eval;
+  Bits got = FromBoxedVector(eval.SMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+  Bits want = bits_ops::SMul(lhs, rhs);
+  EXPECT_EQ(got, want) << "signed: " << BigInt::MakeSigned(lhs) << " * "
+                       << BigInt::MakeSigned(rhs) << " = "
+                       << BigInt::MakeSigned(got)
+                       << ", should be: " << BigInt::MakeSigned(want);
+}
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSMul)
+    .WithDomains(NonemptyBits(), NonemptyBits());
 
 TEST(AbstractEvaluatorTest, UDiv) {
   TestAbstractEvaluator eval;
@@ -209,108 +202,65 @@ TEST(AbstractEvaluatorTest, SDiv) {
   EXPECT_EQ(c.ToInt64().value(), -4);
 }
 
-// Performs random UDiv, SDiv, UMod, and SMod implementations as constructed by
-// the TestAbstractEvaluator and compares them to the bits_ops reference
-// implementation (up to 16 bit values on either side).
-void DoDivRandoms(int64_t seed, int64_t iterations) {
-  TestAbstractEvaluator eval;
-
-  std::mt19937_64 rng(seed);
-
-  std::uniform_int_distribution<int64_t> bit_count_dist(1, 16);
-
-  for (int64_t i = 0; i < iterations; ++i) {
-    int64_t lhs_bits = bit_count_dist(rng);
-    int64_t rhs_bits = bit_count_dist(rng);
-    uint64_t lhs_value =
-        std::uniform_int_distribution<uint64_t>(0, (1 << lhs_bits) - 1)(rng);
-    uint64_t rhs_value =
-        std::uniform_int_distribution<uint64_t>(0, (1 << rhs_bits) - 1)(rng);
-    Bits lhs = UBits(lhs_value, /*bit_count=*/lhs_bits);
-    Bits rhs = UBits(rhs_value, /*bit_count=*/rhs_bits);
-
-    Bits udiv_got =
-        FromBoxedVector(eval.UDiv(ToBoxedVector(lhs), ToBoxedVector(rhs)));
-    Bits udiv_want = bits_ops::UDiv(lhs, rhs);
-    EXPECT_EQ(udiv_got, udiv_want) << "lhs: " << lhs << " rhs: " << rhs;
-
-    Bits umod_got =
-        FromBoxedVector(eval.UMod(ToBoxedVector(lhs), ToBoxedVector(rhs)));
-    Bits umod_want = bits_ops::UMod(lhs, rhs);
-    EXPECT_EQ(umod_got, umod_want) << "lhs: " << lhs << " rhs: " << rhs;
-
-    Bits sdiv_got =
-        FromBoxedVector(eval.SDiv(ToBoxedVector(lhs), ToBoxedVector(rhs)));
-    Bits sdiv_want = bits_ops::SDiv(lhs, rhs);
-    EXPECT_EQ(sdiv_got, sdiv_want)
-        << "lhs: " << BigInt::MakeSigned(lhs)
-        << " rhs: " << BigInt::MakeSigned(rhs)
-        << " got: " << BigInt::MakeSigned(sdiv_got)
-        << " want: " << BigInt::MakeSigned(sdiv_want);
-
-    Bits smod_got =
-        FromBoxedVector(eval.SMod(ToBoxedVector(lhs), ToBoxedVector(rhs)));
-    Bits smod_want = bits_ops::SMod(lhs, rhs);
-    EXPECT_EQ(smod_got, smod_want)
-        << "lhs: " << BigInt::MakeSigned(lhs)
-        << " rhs: " << BigInt::MakeSigned(rhs)
-        << " got: " << BigInt::MakeSigned(smod_got)
-        << " want: " << BigInt::MakeSigned(smod_want);
+void EvaluatorMatchesReferenceUDiv(const Bits& lhs, const Bits& rhs) {
+  if (rhs.IsZero()) {
+    return;
   }
+  TestAbstractEvaluator eval;
+  Bits got = FromBoxedVector(eval.UDiv(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+  Bits want = bits_ops::UDiv(lhs, rhs);
+  EXPECT_EQ(got, want) << "unsigned: " << BigInt::MakeUnsigned(lhs) << " / "
+                       << BigInt::MakeUnsigned(rhs) << " = "
+                       << BigInt::MakeUnsigned(got)
+                       << ", should be: " << BigInt::MakeUnsigned(want);
 }
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUDiv)
+    .WithDomains(NonemptyBits(), NonemptyBits());
 
-// Note: a bit of manual sharding is easy and still gets us more coverage, since
-// BitGen is constructed with a nondeterministic seed on each construction.
+void EvaluatorMatchesReferenceSDiv(const Bits& lhs, const Bits& rhs) {
+  if (rhs.IsZero()) {
+    return;
+  }
+  TestAbstractEvaluator eval;
+  Bits got = FromBoxedVector(eval.SDiv(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+  Bits want = bits_ops::SDiv(lhs, rhs);
+  EXPECT_EQ(got, want) << "signed: " << BigInt::MakeSigned(lhs) << " / "
+                       << BigInt::MakeSigned(rhs) << " = "
+                       << BigInt::MakeSigned(got)
+                       << ", should be: " << BigInt::MakeSigned(want);
+}
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSDiv)
+    .WithDomains(NonemptyBits(), NonemptyBits());
 
-constexpr int64_t kRandomsPerShard = 4 * 1024;
-TEST(AbstractEvaluatorTest, MulRandomsShard0) {
-  DoMulRandoms(0, kRandomsPerShard);
+void EvaluatorMatchesReferenceUMod(const Bits& lhs, const Bits& rhs) {
+  if (rhs.IsZero()) {
+    return;
+  }
+  TestAbstractEvaluator eval;
+  Bits got = FromBoxedVector(eval.UMod(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+  Bits want = bits_ops::UMod(lhs, rhs);
+  EXPECT_EQ(got, want) << "unsigned: " << BigInt::MakeUnsigned(lhs) << " % "
+                       << BigInt::MakeUnsigned(rhs) << " = "
+                       << BigInt::MakeUnsigned(got)
+                       << ", should be: " << BigInt::MakeUnsigned(want);
 }
-TEST(AbstractEvaluatorTest, MulRandomsShard1) {
-  DoMulRandoms(1, kRandomsPerShard);
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMod)
+    .WithDomains(NonemptyBits(), NonemptyBits());
+
+void EvaluatorMatchesReferenceSMod(const Bits& lhs, const Bits& rhs) {
+  if (rhs.IsZero()) {
+    return;
+  }
+  TestAbstractEvaluator eval;
+  Bits got = FromBoxedVector(eval.SMod(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+  Bits want = bits_ops::SMod(lhs, rhs);
+  EXPECT_EQ(got, want) << "signed: " << BigInt::MakeSigned(lhs) << " % "
+                       << BigInt::MakeSigned(rhs) << " = "
+                       << BigInt::MakeSigned(got)
+                       << ", should be: " << BigInt::MakeSigned(want);
 }
-TEST(AbstractEvaluatorTest, MulRandomsShard2) {
-  DoMulRandoms(2, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, MulRandomsShard3) {
-  DoMulRandoms(3, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, MulRandomsShard4) {
-  DoMulRandoms(4, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, MulRandomsShard5) {
-  DoMulRandoms(5, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, MulRandomsShard6) {
-  DoMulRandoms(6, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, MulRandomsShard7) {
-  DoMulRandoms(7, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, DivRandomsShard0) {
-  DoDivRandoms(0, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, DivRandomsShard1) {
-  DoDivRandoms(1, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, DivRandomsShard2) {
-  DoDivRandoms(2, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, DivRandomsShard3) {
-  DoDivRandoms(3, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, DivRandomsShard4) {
-  DoDivRandoms(4, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, DivRandomsShard5) {
-  DoDivRandoms(5, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, DivRandomsShard6) {
-  DoDivRandoms(6, kRandomsPerShard);
-}
-TEST(AbstractEvaluatorTest, DivRandomsShard7) {
-  DoDivRandoms(7, kRandomsPerShard);
-}
+FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSMod)
+    .WithDomains(NonemptyBits(), NonemptyBits());
 
 TEST(AbstractEvaluatorTest, SMul) {
   TestAbstractEvaluator eval;
@@ -422,29 +372,15 @@ TEST(AbstractEvaluatorTest, BitSliceUpdate) {
   test_eq(0x12, UBits(0x12, 8), UBits(8, 32), UBits(0xabcd, 16));
 }
 
-// This test is temporary - the goal is to replace it (and the other random UMul
-// testing above) with a RapidCheck-like macro. Currently this test demonstrates
-// a non-JIT Testbench use case to try and simplify.
-TEST(AbstractEvaluatorTest, SpeedyCheckUMul) {
-  using InputT = std::tuple<uint32_t, uint32_t>;
-  using ResultT = uint32_t;
-
-  auto compute_expected = [](InputT input) {
-    return std::get<0>(input) * std::get<1>(input);
-  };
-  auto compute_actual = [](InputT input) {
-    TestAbstractEvaluator eval;
-    uint32_t a = std::get<0>(input);
-    uint32_t b = std::get<1>(input);
-    Bits a_bits = UBits(a, 32);
-    Bits b_bits = UBits(b, 32);
-    Bits c = FromBoxedVector(
-        eval.UMul(ToBoxedVector(a_bits), ToBoxedVector(b_bits)));
-    return static_cast<uint32_t>(c.ToUint64().value());
-  };
-  TestbenchBuilder<InputT, ResultT> builder(compute_expected, compute_actual);
-  XLS_ASSERT_OK(builder.Build().Run());
+void UMulMatches32BitMultiplication(uint32_t a, uint32_t b) {
+  TestAbstractEvaluator eval;
+  Bits a_bits = UBits(a, 32);
+  Bits b_bits = UBits(b, 32);
+  Bits c =
+      FromBoxedVector(eval.UMul(ToBoxedVector(a_bits), ToBoxedVector(b_bits)));
+  EXPECT_EQ(static_cast<uint32_t>(c.ToUint64().value()), a * b);
 }
+FUZZ_TEST(AbstractEvaluatorFuzzTest, UMulMatches32BitMultiplication);
 
 }  // namespace
 }  // namespace xls
