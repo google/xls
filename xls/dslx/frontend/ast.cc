@@ -2540,4 +2540,19 @@ absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
   return nodes;
 }
 
+absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
+                                                         bool want_types) {
+  // Implementation note: delegate to non-const version and turn result values
+  // back to const.
+  XLS_ASSIGN_OR_RETURN(std::vector<AstNode*> got,
+                       CollectUnder(const_cast<AstNode*>(root), want_types));
+
+  std::vector<const AstNode*> result;
+  result.reserve(got.size());
+  for (AstNode* n : got) {
+    result.push_back(n);
+  }
+  return result;
+}
+
 }  // namespace xls::dslx

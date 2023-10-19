@@ -17,7 +17,6 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls::dslx {
@@ -37,6 +36,29 @@ TEST(PosTest, PosLt) {
   EXPECT_LT(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 0, 1));
   EXPECT_LT(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 1, 0));
   EXPECT_GE(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 0, 0));
+}
+
+TEST(SpanTest, SpanContainsOther) {
+  const char* kFakeFile = "<fake>";
+  const Pos origin = Pos(kFakeFile, 0, 0);
+  Span line0_col0 = Span(origin, Pos(kFakeFile, 0, 1));
+  Span line0_col0to5 = Span(origin, Pos(kFakeFile, 0, 5));
+  Span line0_col1to5 = Span(Pos(kFakeFile, 0, 1), Pos(kFakeFile, 0, 5));
+  Span line0to1_col0 = Span(origin, Pos(kFakeFile, 1, 0));
+
+  EXPECT_TRUE(line0_col0to5.Contains(line0_col0));
+  EXPECT_FALSE(line0_col0.Contains(line0_col0to5));
+
+  EXPECT_TRUE(line0_col0to5.Contains(line0_col1to5));
+  EXPECT_FALSE(line0_col1to5.Contains(line0_col0to5));
+
+  EXPECT_TRUE(line0to1_col0.Contains(line0_col0));
+  EXPECT_TRUE(line0to1_col0.Contains(line0_col0to5));
+
+  auto contains_self = [](const Span& s) { EXPECT_TRUE(s.Contains(s)); };
+  contains_self(line0_col0);
+  contains_self(line0_col0to5);
+  contains_self(line0to1_col0);
 }
 
 }  // namespace

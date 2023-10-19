@@ -516,6 +516,22 @@ TEST_F(FunctionFmtTest, ParametricFunction) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, LetWithCommentsInBlock) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    let x = {
+        // A comment on the top statement
+        let y = u32:42 + u32:64;
+        // And a comment on the second statement.
+        y
+        // And a comment on the last line!
+    };
+    x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {

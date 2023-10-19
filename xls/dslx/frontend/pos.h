@@ -132,6 +132,13 @@ class Span {
   // not considered to be contained in the span.)
   bool Contains(const Pos& pos) const { return start_ <= pos && pos < limit_; }
 
+  // Returns whether "span" is contained within this span.
+  //
+  // Note: a span is considered to be contained inside of itself.
+  bool Contains(const Span& span) const {
+    return start() <= span.start() && span.limit() <= limit();
+  }
+
   bool operator<(const Span& other) const {
     return start_ < other.start_ ||
            (start_ == other.start_ && limit_ < other.limit_);

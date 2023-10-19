@@ -132,6 +132,58 @@ DocRef FmtJoin(
   return ConcatN(arena, pieces);
 }
 
+// Returns all the comment data that's contained within `node_span` of the AST
+// node, but knocking out comment data that's within block expressions contained
+// under node.
+//
+// For example, in:
+//
+//    let x = {
+//        // Comment in here.
+//        let y = u32:42;
+//        // This is not multiple inline comments.
+//        y
+//    };
+//
+// we want to "knock out" the comments contained within the block expression as
+// pertaining to the Let node.
+//
+// Implementation note: we assume this is a small vector (that will also
+// typically will go un-modified) so we just do linear traversals.
+static std::vector<const CommentData*> GetCommentsForNode(
+    const AstNode& node, const Span& node_span, const Comments& comments) {
+  std::vector<const CommentData*> all = comments.GetComments(node_span);
+
+  auto remove_comments_under = [&](const Span& span) {
+    // Note: in the typical case we expect that there are no comments under the
+    // given "span", so we do a simple/readable test for it up front.
+    if (!std::any_of(all.begin(), all.end(), [&](const CommentData* cd) {
+          return span.Contains(cd->span);
+        })) {
+      return;
+    }
+
+    std::vector<const CommentData*> updated;
+    for (const CommentData* cd : all) {
+      if (!span.Contains(cd->span)) {
+        updated.push_back(cd);
+      }
+    }
+    all = updated;
+  };
+
+  std::vector<const AstNode*> under =
+      CollectUnder(&node, /*want_types=*/false).value();
+  for (const AstNode* descendant : under) {
+    if (auto* e = dynamic_cast<const Expr*>(descendant);
+        e != nullptr && e->IsBlockedExpr()) {
+      remove_comments_under(e->span());
+    }
+  }
+
+  return all;
+}
+
 DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   return arena.MakeText(BuiltinTypeToString(n.builtin_type()));
@@ -1106,7 +1158,8 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
 
   DocRef syntax = arena.MakeConcat(leader, body);
 
-  std::vector<const CommentData*> comment_data = comments.GetComments(n.span());
+  std::vector<const CommentData*> comment_data =
+      GetCommentsForNode(n, n.span(), comments);
   if (comment_data.size() == 1) {
     std::string comment_text = comment_data[0]->text;
     if (!comment_text.empty() && comment_text.back() == '\n') {

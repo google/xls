@@ -3331,6 +3331,9 @@ inline Conditional* MakeTernary(Module* module, const Span& span, Expr* test,
 absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
                                                    bool want_types);
 
+absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
+                                                         bool want_types);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_H_
