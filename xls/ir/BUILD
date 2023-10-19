@@ -208,11 +208,13 @@ cc_test(
         ":bits",
         ":bits_ops",
         ":interval",
+        ":interval_test_helpers",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/types:span",
-        "@rapidcheck",
+        "@com_google_fuzztest//fuzztest",
     ],
 )
 
@@ -267,6 +269,34 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "interval_test_helpers",
+    testonly = True,
+    hdrs = ["interval_test_helpers.h"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        ":bits_test_helpers",
+        ":interval",
+        "//xls/common/logging",
+        "@com_google_fuzztest//fuzztest",
+    ],
+)
+
+cc_library(
+    name = "interval_set_test_helpers",
+    testonly = True,
+    hdrs = ["interval_set_test_helpers.h"],
+    deps = [
+        ":interval",
+        ":interval_set",
+        ":interval_test_helpers",
+        "//xls/common/logging",
+        "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//fuzztest",
+    ],
+)
+
 cc_test(
     name = "interval_set_test",
     size = "small",
@@ -277,10 +307,11 @@ cc_test(
         ":bits",
         ":interval",
         ":interval_set",
+        ":interval_set_test_helpers",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@rapidcheck",
+        "@com_google_fuzztest//fuzztest",
     ],
 )
 

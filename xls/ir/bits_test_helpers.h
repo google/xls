@@ -50,6 +50,20 @@ inline Bits PrimeBits(int64_t bit_count) {
   return Bits::FromBitmap(bitmap);
 }
 
+// GoogleFuzzTest "Arbitrary" domain for Bits with known count.
+inline auto ArbitraryBits(int64_t bit_count) {
+  const int64_t byte_count = (bit_count + 7) / 8;
+  return fuzztest::ReversibleMap(
+      [bit_count](const std::vector<uint8_t>& bytes) {
+        return Bits::FromBytes(bytes, bit_count);
+      },
+      [](const Bits& bits) {
+        return std::make_optional(std::make_tuple(bits.ToBytes()));
+      },
+      fuzztest::Arbitrary<std::vector<uint8_t>>().WithSize(byte_count));
+}
+
+// GoogleFuzzTest "Arbitrary" domain for Bits with arbitrary count.
 inline auto ArbitraryBits() {
   return fuzztest::ReversibleMap(
       [](const std::vector<uint8_t>& bytes, uint8_t excess_bits) -> Bits {
@@ -70,6 +84,7 @@ inline auto ArbitraryBits() {
       fuzztest::InRange<uint8_t>(0, 7));
 }
 
+// GoogleFuzzTest domain for nonempty Bits.
 inline auto NonemptyBits() {
   return fuzztest::ReversibleMap(
       [](const std::vector<uint8_t>& bytes, uint8_t excess_bits) -> Bits {

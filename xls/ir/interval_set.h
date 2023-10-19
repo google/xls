@@ -195,15 +195,6 @@ class IntervalSet {
   // Print this set of intervals as a string.
   std::string ToString() const;
 
-  // Generates a random set of intervals with the given seed and bit count.
-  // This is useful for tests.
-  //
-  // The `max_intervals` parameter controls the maximum number of intervals
-  // that can be present in the returned set, which is useful for limiting
-  // the amount of computation done by anything consuming the output of this.
-  static IntervalSet Random(uint64_t seed, int64_t bit_count,
-                            int64_t max_intervals);
-
   friend bool operator==(IntervalSet lhs, IntervalSet rhs) {
     lhs.Normalize();
     rhs.Normalize();
@@ -216,6 +207,11 @@ class IntervalSet {
   template <typename H>
   friend H AbslHashValue(H h, const IntervalSet& set) {
     return H::combine(std::move(h), set.bit_count_, set.intervals_);
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const IntervalSet& set) {
+    absl::Format(&sink, "%s", set.ToString());
   }
 
  private:

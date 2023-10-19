@@ -17,18 +17,16 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -40,25 +38,18 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/interval_set_test_helpers.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
-#include "xls/passes/query_engine.h"
 
 namespace xls {
 namespace {
 
 class RangeQueryEngineTest : public IrTestBase {};
-
-// TODO(taktoa): replace this with a proper property-based testing library
-// once we have such a thing in XLS
-
-IntervalSet RandomIntervalSet(uint32_t seed, int64_t bit_count) {
-  return IntervalSet::Random(seed, bit_count, 30);
-}
 
 IntervalSet CreateIntervalSet(
     int64_t bit_count, absl::Span<const std::pair<int64_t, int64_t>> bounds) {
@@ -96,21 +87,27 @@ LeafTypeTree<IntervalSet> BitsLTT(Node* node,
   return result;
 }
 
-TEST_F(RangeQueryEngineTest, MinimizeIntervals) {
-  for (int64_t size = 1; size < 20; ++size) {
-    for (int64_t bits = 1; bits < 10; ++bits) {
-      for (int64_t i = 0; i < 10; ++i) {
-        uint32_t seed = 802103005;
-        IntervalSet interval_set = RandomIntervalSet(seed, bits);
-        IntervalSet minimized = MinimizeIntervals(interval_set, size);
-        EXPECT_EQ(interval_set.BitCount(), minimized.BitCount());
-        EXPECT_LE(minimized.NumberOfIntervals(), size)
-            << "interval_set = " << interval_set.ToString() << "\n"
-            << "minimized    = " << minimized.ToString() << "\n";
-      }
-    }
-  }
+void MinimizeIntervalsSatisfiesInvariants(const IntervalSet& interval_set,
+                                          int64_t size) {
+  IntervalSet minimized = MinimizeIntervals(interval_set, size);
+  EXPECT_EQ(interval_set.BitCount(), minimized.BitCount());
+  EXPECT_LE(minimized.NumberOfIntervals(), size)
+      << "interval_set = " << interval_set.ToString() << "\n"
+      << "minimized    = " << minimized.ToString() << "\n";
+
+  IntervalSet normalized = interval_set;
+  normalized.Normalize();
+  EXPECT_LE(minimized.NumberOfIntervals(), normalized.NumberOfIntervals())
+      << "normalized interval_set = " << normalized.ToString() << "\n"
+      << "              minimized = " << minimized.ToString() << "\n";
 }
+FUZZ_TEST(RangeQueryEngineFuzzTest, MinimizeIntervalsSatisfiesInvariants)
+    .WithDomains(fuzztest::FlatMap(
+                     [](int64_t bit_count) {
+                       return ArbitraryIntervalSet(bit_count);
+                     },
+                     fuzztest::InRange(1, 32)),
+                 fuzztest::InRange(1, 20));
 
 TEST_F(RangeQueryEngineTest, Add) {
   auto p = CreatePackage();
@@ -388,20 +385,20 @@ TEST_F(RangeQueryEngineTest, AndReduce) {
   EXPECT_EQ("0b1", engine.ToString(expr.node()));
 }
 
-TEST_F(RangeQueryEngineTest, Concat) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
+void ConcatIsCorrect(const IntervalSet& x_intervals,
+                     const IntervalSet& y_intervals,
+                     const IntervalSet& z_intervals) {
+  constexpr std::string_view kTestName =
+      "RangeQueryEngineFuzzTest.ConcatIsCorrect";
 
-  BValue x = fb.Param("x", p->GetBitsType(6));
-  BValue y = fb.Param("y", p->GetBitsType(5));
-  BValue z = fb.Param("z", p->GetBitsType(3));
+  auto p = std::make_unique<VerifiedPackage>(kTestName);
+  FunctionBuilder fb(kTestName, p.get());
+  BValue x = fb.Param("x", p->GetBitsType(x_intervals.BitCount()));
+  BValue y = fb.Param("y", p->GetBitsType(y_intervals.BitCount()));
+  BValue z = fb.Param("z", p->GetBitsType(z_intervals.BitCount()));
   BValue expr = fb.Concat({x, y, z});
-
-  IntervalSet x_intervals = RandomIntervalSet(802103005, 6);
-  IntervalSet y_intervals = RandomIntervalSet(802103006, 5);
-  IntervalSet z_intervals = RandomIntervalSet(802103007, 3);
-
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
   RangeQueryEngine engine;
   engine.SetIntervalSetTree(x.node(),
                             BitsLTT(x.node(), x_intervals.Intervals()));
@@ -425,6 +422,10 @@ TEST_F(RangeQueryEngineTest, Concat) {
     return false;
   });
 }
+FUZZ_TEST(RangeQueryEngineFuzzTest, ConcatIsCorrect)
+    .WithDomains(NonemptyNormalizedIntervalSet(6),
+                 NonemptyNormalizedIntervalSet(5),
+                 NonemptyNormalizedIntervalSet(3));
 
 TEST_F(RangeQueryEngineTest, Eq) {
   auto p = CreatePackage();
@@ -437,7 +438,8 @@ TEST_F(RangeQueryEngineTest, Eq) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   RangeQueryEngine engine;
 
-  // When the interval sets are precise and equivalent, we know they are equal.
+  // When the interval sets are precise and equivalent, we know they are
+  // equal.
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
       x.node(), BitsLTT(x.node(), {Interval(UBits(560, 20), UBits(560, 20))}));
@@ -623,7 +625,8 @@ TEST_F(RangeQueryEngineTest, Ne) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   RangeQueryEngine engine;
 
-  // When the interval sets are precise and equivalent, we know they are equal.
+  // When the interval sets are precise and equivalent, we know they are
+  // equal.
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
       x.node(), BitsLTT(x.node(), {Interval(UBits(560, 20), UBits(560, 20))}));
@@ -1310,7 +1313,8 @@ TEST_F(RangeQueryEngineTest, XorReduce) {
                          Interval(UBits(0b1110, 20), UBits(0b1110, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
 
-  // Interval set covers only numbers with an odd number of 1s, so result is 1.
+  // Interval set covers only numbers with an odd number of 1s, so result
+  // is 1.
   EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
@@ -1328,7 +1332,8 @@ TEST_F(RangeQueryEngineTest, XorReduce) {
                          Interval(UBits(0b1001, 20), UBits(0b1001, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
 
-  // Intervals are precise, but don't match parity of 1s, so result is unknown.
+  // Intervals are precise, but don't match parity of 1s, so result is
+  // unknown.
   EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
@@ -1409,8 +1414,8 @@ TEST_F(RangeQueryEngineTest, EarlyBailout) {
                      &*(absl::c_find(sort.AsVector(), xy.node()) + 1)));
   XLS_ASSERT_OK(engine.PopulateWithGivens(test_givens));
 
-  // We should stop after calculating xy so xyz should not have any info beyond
-  // type based.
+  // We should stop after calculating xy so xyz should not have any info
+  // beyond type based.
   EXPECT_EQ(engine.GetIntervalSetTree(xyz.node()),
             BitsLTT(xyz.node(), {Interval::Maximal(10)}));
   EXPECT_EQ(engine.GetIntervalSetTree(ltxyz.node()),

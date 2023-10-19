@@ -18,16 +18,18 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/types/span.h"
-#include "rapidcheck/gtest.h"
-#include "rapidcheck.h"
+#include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/interval_test_helpers.h"
 
 using ::testing::ElementsAre;
 using ::testing::Optional;
@@ -47,6 +49,16 @@ Bits SumOf(absl::Span<Bits const> vec) {
 
 Interval SimpleInterval(uint32_t lower, uint32_t upper) {
   return Interval(UBits(lower, 32), UBits(upper, 32));
+}
+
+constexpr int64_t kMaxIntervalBitCountToCheck = 1024;
+auto ComparablePairOfProperIntervals() {
+  return fuzztest::FlatMap(
+      [](int64_t bit_count) {
+        return fuzztest::PairOf(ProperInterval(bit_count),
+                                ProperInterval(bit_count));
+      },
+      fuzztest::InRange<int64_t>(1, kMaxIntervalBitCountToCheck));
 }
 
 TEST(IntervalTest, BitCount) {
@@ -129,19 +141,25 @@ TEST(IntervalTest, Abuts) {
       Interval::Abuts(Interval(Bits(64), Bits(64)), Interval::Maximal(64)));
 }
 
-RC_GTEST_PROP(IntervalRapidcheck, Abuts,
-              (uint64_t x, uint64_t y, uint64_t z, uint64_t w)) {
-  uint64_t a = std::min(x, y);
-  uint64_t b = std::max(x, y);
-  uint64_t c = std::min(z, w);
-  uint64_t d = std::max(z, w);
-  Interval interval1(UBits(a, 64), UBits(b, 64));
-  Interval interval2(UBits(c, 64), UBits(d, 64));
-  RC_ASSERT(Interval::Abuts(interval1, interval2) ==
-            Interval::Abuts(interval2, interval1));
-  RC_ASSERT(Interval::Abuts(interval1, interval2) ==
-            ((c > 0 && b == c - 1) || (a > 0 && d == a - 1)));
+void AbutsIsSymmetric(const std::pair<Interval, Interval>& intervals) {
+  const auto& [a, b] = intervals;
+  EXPECT_EQ(Interval::Abuts(a, b), Interval::Abuts(b, a));
 }
+FUZZ_TEST(IntervalFuzzTest, AbutsIsSymmetric)
+    .WithDomains(ComparablePairOfProperIntervals());
+
+void AbutsSatisfiesDefiningProperty(const Interval& i1, const Interval& i2) {
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t a, i1.LowerBound().ToUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t b, i1.UpperBound().ToUint64());
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t c, i2.LowerBound().ToUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t d, i2.UpperBound().ToUint64());
+
+  bool abutsByDefinition = (c > 0 && b == c - 1) || (a > 0 && d == a - 1);
+  EXPECT_EQ(Interval::Abuts(i1, i2), abutsByDefinition);
+}
+FUZZ_TEST(IntervalFuzzTest, AbutsSatisfiesDefiningProperty)
+    .WithDomains(ProperInterval(64), ProperInterval(64));
 
 TEST(IntervalTest, ConvexHull) {
   Bits sixteen = Bits::PowerOfTwo(4, 6);
@@ -165,16 +183,26 @@ TEST(IntervalTest, ConvexHull) {
             Interval(UBits(0, 6), UBits(5, 6)));
 }
 
-RC_GTEST_PROP(IntervalRapidcheck, ConvexHull,
-              (uint64_t a, uint64_t b, uint64_t c, uint64_t d)) {
-  Interval interval1(UBits(std::min(a, b), 64), UBits(std::max(a, b), 64));
-  Interval interval2(UBits(std::min(c, d), 64), UBits(std::max(c, d), 64));
-  RC_ASSERT(Interval::ConvexHull(interval1, interval2) ==
-            Interval::ConvexHull(interval2, interval1));
-  RC_ASSERT(Interval::ConvexHull(interval1, interval2) ==
+void ConvexHullIsSymmetric(const std::pair<Interval, Interval>& intervals) {
+  const auto& [a, b] = intervals;
+  EXPECT_EQ(Interval::ConvexHull(a, b), Interval::ConvexHull(b, a));
+}
+FUZZ_TEST(IntervalFuzzTest, ConvexHullIsSymmetric)
+    .WithDomains(ComparablePairOfProperIntervals());
+
+void ConvexHullWorksFor64Bits(const Interval& i1, const Interval& i2) {
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t a, i1.LowerBound().ToUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t b, i1.UpperBound().ToUint64());
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t c, i2.LowerBound().ToUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t d, i2.UpperBound().ToUint64());
+
+  EXPECT_EQ(Interval::ConvexHull(i1, i2),
             Interval(UBits(std::min({a, b, c, d}), 64),
                      UBits(std::max({a, b, c, d}), 64)));
 }
+FUZZ_TEST(IntervalFuzzTest, ConvexHullWorksFor64Bits)
+    .WithDomains(ProperInterval(64), ProperInterval(64));
 
 TEST(IntervalSet, Intersect) {
   EXPECT_EQ(Interval::Intersect(SimpleInterval(20, 30), SimpleInterval(40, 50)),

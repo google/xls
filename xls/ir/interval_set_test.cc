@@ -18,19 +18,19 @@
 #include <functional>
 #include <limits>
 #include <optional>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
 #include "absl/container/flat_hash_set.h"
-#include "rapidcheck/gtest.h"
-#include "rapidcheck.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
+#include "xls/ir/interval_set_test_helpers.h"
 
 using ::testing::Optional;
 using ::testing::SizeIs;
+using ::testing::UnorderedElementsAreArray;
 
 namespace xls {
 namespace {
@@ -172,38 +172,38 @@ TEST(IntervalTest, Combine) {
                                    MakeInterval(25, 35, 32)}));
 }
 
-TEST(IntervalTest, Intersect) {
-  // Manually tested with 1,000 random seeds;
-  int64_t seed = 815303902;
-  for (int64_t i = 0; i < 30; ++i) {
-    IntervalSet lhs = IntervalSet::Random(seed, 12, 5);
-    IntervalSet rhs = IntervalSet::Random(seed + 1, 12, 5);
-    seed = seed + 2;
-    absl::flat_hash_set<Bits> intersection_set;
+void IntersectMatchesSetIntersection(const IntervalSet& lhs,
+                                     const IntervalSet& rhs) {
+  IntervalSet intersection = IntervalSet::Intersect(lhs, rhs);
 
-    {
-      absl::flat_hash_set<Bits> lhs_set;
-      lhs.ForEachElement([&](const Bits& bits) -> bool {
-        lhs_set.insert(bits);
-        return false;
-      });
-      rhs.ForEachElement([&](const Bits& bits) -> bool {
-        if (lhs_set.contains(bits)) {
-          intersection_set.insert(bits);
-        }
-        return false;
-      });
-    }
-
-    // If A ⊆ B and |A| = |B| then A = B
-    IntervalSet intersection = IntervalSet::Intersect(lhs, rhs);
-    EXPECT_EQ(intersection_set.size(), intersection.Size().value());
-    intersection.ForEachElement([&](const Bits& bits) -> bool {
-      EXPECT_TRUE(intersection_set.contains(bits));
+  absl::flat_hash_set<Bits> intersection_set;
+  {
+    absl::flat_hash_set<Bits> lhs_set;
+    lhs.ForEachElement([&](const Bits& bits) -> bool {
+      lhs_set.insert(bits);
+      return false;
+    });
+    rhs.ForEachElement([&](const Bits& bits) -> bool {
+      if (lhs_set.contains(bits)) {
+        intersection_set.insert(bits);
+      }
       return false;
     });
   }
 
+  EXPECT_EQ(intersection_set.size(), intersection.Size().value());
+  std::vector<Bits> intersection_vector;
+  intersection.ForEachElement([&](const Bits& bits) -> bool {
+    intersection_vector.push_back(bits);
+    return false;
+  });
+  EXPECT_THAT(intersection_vector, UnorderedElementsAreArray(intersection_set));
+}
+FUZZ_TEST(IntervalFuzzTest, IntersectMatchesSetIntersection)
+    .WithDomains(ArbitraryNormalizedIntervalSet(12),
+                 ArbitraryNormalizedIntervalSet(12));
+
+TEST(IntervalTest, Intersect) {
   {
     IntervalSet empty(0);
     EXPECT_EQ(IntervalSet::Intersect(empty, empty).ToString(), "[]");
@@ -438,60 +438,44 @@ TEST(IntervalTest, ZeroExtend) {
   EXPECT_EQ(extended.BitCount(), 60);
 }
 
-RC_GTEST_PROP(
-    IntervalRapidcheck, IntersectionIsSmaller,
-    (const std::vector<std::pair<uint32_t, uint32_t>>& lhs_intervals,
-     const std::vector<std::pair<uint32_t, uint32_t>>& rhs_intervals)) {
-  IntervalSet lhs(32);
-  for (const auto& [lower_bound, upper_bound] : lhs_intervals) {
-    lhs.AddInterval(MakeInterval(lower_bound, upper_bound, 32));
-  }
-  lhs.Normalize();
-
-  IntervalSet rhs(32);
-  for (const auto& [lower_bound, upper_bound] : rhs_intervals) {
-    rhs.AddInterval(MakeInterval(lower_bound, upper_bound, 32));
-  }
-  rhs.Normalize();
-
+void IntersectionIsSmaller(const IntervalSet& lhs, const IntervalSet& rhs) {
   IntervalSet intersection = IntervalSet::Intersect(lhs, rhs);
-  std::optional<uint64_t> intersection_size = *intersection.Size();
+  std::optional<uint64_t> intersection_size = intersection.Size();
+  ASSERT_NE(intersection_size, std::nullopt);
   uint64_t lhs_size = *lhs.Size();
   uint64_t rhs_size = *rhs.Size();
-  RC_ASSERT(intersection_size.has_value());
-  RC_ASSERT(intersection_size <= lhs_size);
-  RC_ASSERT(intersection_size <= rhs_size);
-  RC_ASSERT(intersection_size != lhs_size || intersection == lhs);
-  RC_ASSERT(intersection_size != rhs_size || intersection == rhs);
+  EXPECT_LE(*intersection_size, lhs_size);
+  EXPECT_LE(*intersection_size, rhs_size);
+  if (*intersection_size == lhs_size) {
+    EXPECT_EQ(intersection, lhs);
+  }
+  if (*intersection_size == rhs_size) {
+    EXPECT_EQ(intersection, rhs);
+  }
 }
+FUZZ_TEST(IntervalFuzzTest, IntersectionIsSmaller)
+    .WithDomains(ArbitraryNormalizedIntervalSet(32),
+                 ArbitraryNormalizedIntervalSet(32));
 
-RC_GTEST_PROP(
-    IntervalRapidcheck, UnionIsLarger,
-    (const std::vector<std::pair<uint32_t, uint32_t>>& lhs_intervals,
-     const std::vector<std::pair<uint32_t, uint32_t>>& rhs_intervals)) {
-  IntervalSet lhs(32);
-  for (const auto& [lower_bound, upper_bound] : lhs_intervals) {
-    lhs.AddInterval(MakeInterval(lower_bound, upper_bound, 32));
-  }
-  lhs.Normalize();
-
-  IntervalSet rhs(32);
-  for (const auto& [lower_bound, upper_bound] : rhs_intervals) {
-    rhs.AddInterval(MakeInterval(lower_bound, upper_bound, 32));
-  }
-  rhs.Normalize();
-
+void UnionIsLarger(const IntervalSet& lhs, const IntervalSet& rhs) {
   IntervalSet union_set = IntervalSet::Combine(lhs, rhs);
-  std::optional<uint64_t> union_size = *union_set.Size();
+  std::optional<uint64_t> union_size = union_set.Size();
+  ASSERT_NE(union_size, std::nullopt);
   uint64_t lhs_size = *lhs.Size();
   uint64_t rhs_size = *rhs.Size();
-  RC_ASSERT(union_size.has_value());
-  RC_ASSERT(union_size >= lhs_size);
-  RC_ASSERT(union_size >= rhs_size);
-  RC_ASSERT(union_size <= lhs_size + rhs_size);
-  RC_ASSERT(union_size != lhs_size || union_set == lhs);
-  RC_ASSERT(union_size != rhs_size || union_set == rhs);
+  EXPECT_GE(*union_size, lhs_size);
+  EXPECT_GE(*union_size, rhs_size);
+  EXPECT_LE(*union_size, lhs_size + rhs_size);
+  if (*union_size == lhs_size) {
+    EXPECT_EQ(union_set, lhs);
+  }
+  if (*union_size == rhs_size) {
+    EXPECT_EQ(union_set, rhs);
+  }
 }
+FUZZ_TEST(IntervalFuzzTest, UnionIsLarger)
+    .WithDomains(ArbitraryNormalizedIntervalSet(32),
+                 ArbitraryNormalizedIntervalSet(32));
 
 }  // namespace
 }  // namespace xls

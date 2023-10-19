@@ -19,7 +19,6 @@
 #include <functional>
 #include <limits>
 #include <optional>
-#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -327,22 +326,6 @@ std::string Interval::ToString() const {
   FormatPreference pref = FormatPreference::kDefault;
   return absl::StrFormat("[%s, %s]", BitsToString(lower_bound_, pref, false),
                          BitsToString(upper_bound_, pref, false));
-}
-
-Interval Interval::Random(uint64_t seed, int64_t bit_count) {
-  std::mt19937_64 gen(seed);
-  std::uniform_int_distribution<int32_t> distrib(0, 255);
-  int64_t num_bytes = (bit_count / 8) + ((bit_count % 8 == 0) ? 0 : 1);
-  std::vector<uint8_t> start_bytes(num_bytes);
-  for (int64_t i = 0; i < num_bytes; ++i) {
-    start_bytes[i] = distrib(gen);
-  }
-  std::vector<uint8_t> end_bytes(num_bytes);
-  for (int64_t i = 0; i < num_bytes; ++i) {
-    end_bytes[i] = distrib(gen);
-  }
-  return Interval(Bits::FromBytes(start_bytes, bit_count),
-                  Bits::FromBytes(end_bytes, bit_count));
 }
 
 }  // namespace xls
