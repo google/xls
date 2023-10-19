@@ -522,8 +522,8 @@ cc_library(
     deps = [
         ":benchmark_support",
         ":gunit_init_xls",
-        ":init_xls",
         "@com_google_benchmark//:benchmark",
+        "@com_google_fuzztest//fuzztest:init_fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )

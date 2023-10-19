@@ -22,11 +22,10 @@
 
 #include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "rapidcheck/gtest.h"
-#include "rapidcheck.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
@@ -174,19 +173,11 @@ TEST(BitsOpsTest, Increment) {
       "0x1000_0000_0000_0000_0042_2000_0000_0000_0000_0000");
 }
 
-RC_GTEST_PROP(BitsOpsRapidcheck, Increment,
-              (const std::vector<uint8_t>& bytes, uint8_t excess_bits)) {
-  if (bytes.empty()) {
-    return;
-  }
-  excess_bits %= 8;
-  const int64_t bit_count =
-      static_cast<int64_t>(bytes.size()) * 8 - excess_bits;
-  Bits value = Bits::FromBytes(bytes, bit_count);
-  RC_ASSERT(bits_ops::Increment(value) ==
-            bits_ops::Add(
-                value, Bits::FromBitmap(InlineBitmap::FromWord(1, bit_count))));
+void IncrementEqualsAdd1(const Bits& bits) {
+  EXPECT_EQ(bits_ops::Increment(bits),
+            bits_ops::Add(bits, UBits(1, bits.bit_count())));
 }
+FUZZ_TEST(BitsOpsFuzzTest, IncrementEqualsAdd1).WithDomains(NonemptyBits());
 
 TEST(BitsOpsTest, Decrement) {
   EXPECT_EQ(bits_ops::Decrement(Bits()), Bits());
@@ -216,19 +207,11 @@ TEST(BitsOpsTest, Decrement) {
   }
 }
 
-RC_GTEST_PROP(BitsOpsRapidcheck, Decrement,
-              (const std::vector<uint8_t>& bytes, uint8_t excess_bits)) {
-  if (bytes.empty()) {
-    return;
-  }
-  excess_bits %= 8;
-  const int64_t bit_count =
-      static_cast<int64_t>(bytes.size()) * 8 - excess_bits;
-  Bits value = Bits::FromBytes(bytes, bit_count);
-  RC_ASSERT(bits_ops::Decrement(value) ==
-            bits_ops::Sub(
-                value, Bits::FromBitmap(InlineBitmap::FromWord(1, bit_count))));
+void DecrementEqualsSub1(const Bits& bits) {
+  EXPECT_EQ(bits_ops::Decrement(bits),
+            bits_ops::Sub(bits, UBits(1, bits.bit_count())));
 }
+FUZZ_TEST(BitsOpsFuzzTest, DecrementEqualsSub1).WithDomains(NonemptyBits());
 
 TEST(BitsOpsTest, UMul) {
   EXPECT_EQ(bits_ops::UMul(Bits(), Bits()), Bits());

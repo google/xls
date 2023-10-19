@@ -326,10 +326,12 @@ cc_test(
         "//xls/common:math_util",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_fuzztest//fuzztest",
         "@rapidcheck",
     ],
 )
@@ -1155,11 +1157,12 @@ cc_test(
         ":number_parser",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
-        "@rapidcheck",
+        "@com_google_fuzztest//fuzztest",
     ],
 )
 

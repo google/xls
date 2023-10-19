@@ -16,7 +16,11 @@
 #define XLS_IR_BITS_TEST_HELPERS_H_
 
 #include <cstdint>
+#include <optional>
+#include <vector>
 
+#include "fuzztest/fuzztest.h"
+#include "xls/common/logging/logging.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 
@@ -44,6 +48,45 @@ inline Bits PrimeBits(int64_t bit_count) {
     }
   }
   return Bits::FromBitmap(bitmap);
+}
+
+inline auto ArbitraryBits() {
+  return fuzztest::ReversibleMap(
+      [](const std::vector<uint8_t>& bytes, uint8_t excess_bits) -> Bits {
+        if (bytes.empty()) {
+          return Bits();
+        }
+        const int64_t bit_count =
+            static_cast<int64_t>(bytes.size()) * 8 - excess_bits;
+        return Bits::FromBytes(bytes, bit_count);
+      },
+      [](const Bits& bits)
+          -> std::optional<std::tuple<std::vector<uint8_t>, uint8_t>> {
+        const uint8_t overflow_bits = bits.bit_count() % 8;
+        return std::make_optional(std::make_tuple(
+            bits.ToBytes(), overflow_bits == 0 ? 0 : (8 - overflow_bits)));
+      },
+      fuzztest::Arbitrary<std::vector<uint8_t>>(),
+      fuzztest::InRange<uint8_t>(0, 7));
+}
+
+inline auto NonemptyBits() {
+  return fuzztest::ReversibleMap(
+      [](const std::vector<uint8_t>& bytes, uint8_t excess_bits) -> Bits {
+        XLS_CHECK(!bytes.empty());
+        const int64_t bit_count =
+            static_cast<int64_t>(bytes.size()) * 8 - excess_bits;
+        return Bits::FromBytes(bytes, bit_count);
+      },
+      [](const Bits& bits)
+          -> std::optional<std::tuple<std::vector<uint8_t>, uint8_t>> {
+        XLS_CHECK_NE(bits.bit_count(), 0);
+        const uint8_t overflow_bits = bits.bit_count() % 8;
+        return std::make_optional(std::make_tuple(
+            bits.ToBytes(), overflow_bits == 0 ? 0 : (8 - overflow_bits)));
+      },
+      fuzztest::NonEmpty(fuzztest::Arbitrary<std::vector<uint8_t>>()),
+      fuzztest::InRange<uint8_t>(0, 7));
 }
 
 }  // namespace xls

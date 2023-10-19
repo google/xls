@@ -13,11 +13,13 @@
 // limitations under the License.
 
 #include "gtest/gtest.h"
+#include "fuzztest/init_fuzztest.h"
 #include "xls/common/benchmark_support.h"
 #include "xls/common/gunit_init_xls.h"
 
 int main(int argc, char* argv[]) {
   xls::InitXlsForTest(argv[0], argc, argv);
+  fuzztest::InitFuzzTest(&argc, &argv);
   xls::RunSpecifiedBenchmarks();
 
   // Rapidcheck parameters for deterministic quickchecks in unit tests.

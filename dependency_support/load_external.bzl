@@ -238,6 +238,18 @@ def load_external_repositories():
         strip_prefix = "benchmark-1.7.0",
     )
 
+    # Updated 2023-10-19; latest version compatible with our current Abseil dependency.
+    FUZZTEST_COMMIT = "75e0b1ad97903dce24443948280b8f086b109ef4"
+    http_archive(
+        name = "com_google_fuzztest",
+        strip_prefix = "fuzztest-" + FUZZTEST_COMMIT,
+        url = "https://github.com/google/fuzztest/archive/" + FUZZTEST_COMMIT + ".zip",
+        sha256 = "1f796e790889da24efbd5ebc142eaed02f702190825bdaab29e893f1376398ab",
+        patches = [
+            "@com_google_xls//dependency_support/com_google_fuzztest:make_config_generator_public.diff",
+        ],
+    )
+
     http_archive(
         name = "rapidcheck",
         strip_prefix = "rapidcheck-1c91f40e64d87869250cfb610376c629307bf77d",

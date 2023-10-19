@@ -27,10 +27,11 @@
 # See https://google.github.io/xls/build_system/#whirlwind-intro-to-bazel for
 # more tutorial information.
 
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
-    default_applicable_licenses = ["//xls:license"],
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -41,3 +42,16 @@ license(
 )
 
 exports_files(["LICENSE", "mkdocs.yml"])
+
+genrule(
+    name = "fuzztest_generated_bazelrc",
+    outs = ["fuzztest.generated.bazelrc"],
+    tools = ["@com_google_fuzztest//bazel:setup_configs"],
+    cmd = "$(location @com_google_fuzztest//bazel:setup_configs) \"@com_google_fuzztest\" > $@",
+)
+
+diff_test(
+    name = "fuzztest_config_test",
+    file1 = "fuzztest.bazelrc",
+    file2 = ":fuzztest_generated_bazelrc",
+)
