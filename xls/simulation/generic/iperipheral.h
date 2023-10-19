@@ -17,6 +17,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/simulation/generic/common.h"
 
 namespace xls::simulation::generic {
 

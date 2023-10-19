@@ -73,11 +73,24 @@ cc_test(
 )
 
 cc_library(
+    name = "imasterport",
+    hdrs = [
+        "imasterport.h",
+    ],
+    deps = [
+        ":common",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "iconnection",
     hdrs = [
         "iconnection.h",
     ],
     deps = [
+        ":imasterport",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -392,6 +405,7 @@ cc_library(
         "iperipheral.h",
     ],
     deps = [
+        ":common",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],

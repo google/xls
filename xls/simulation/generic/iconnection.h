@@ -20,6 +20,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/simulation/generic/imasterport.h"
 
 namespace xls::simulation::generic {
 
@@ -33,6 +34,7 @@ namespace xls::simulation::generic {
 //  - Log() allows to push messages to the Renode's logging subsystem.
 class IConnection {
  public:
+  virtual IMasterPort* GetMasterPort() = 0;
   virtual absl::Status Log(absl::LogSeverity level, std::string_view msg) = 0;
   virtual ~IConnection() = default;
 };
