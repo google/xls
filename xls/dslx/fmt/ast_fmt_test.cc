@@ -1094,5 +1094,25 @@ TEST(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, SimpleTestProc) {
+  constexpr std::string_view kProgram =
+      R"(#[test_proc]
+proc p_test {
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) { (terminator,) }
+
+    init { () }
+
+    next(tok: token, state: ()) { send(tok, terminator, true); }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

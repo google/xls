@@ -1397,7 +1397,11 @@ static DocRef Fmt(const TestFunction& n, const Comments& comments,
 
 static DocRef Fmt(const TestProc& n, const Comments& comments,
                   DocArena& arena) {
-  XLS_LOG(FATAL) << "test proc: " << n.ToString();
+  std::vector<DocRef> pieces;
+  pieces.push_back(arena.MakeText("#[test_proc]"));
+  pieces.push_back(arena.hard_line());
+  pieces.push_back(Fmt(*n.proc(), comments, arena));
+  return ConcatN(arena, pieces);
 }
 
 static DocRef Fmt(const QuickCheck& n, const Comments& comments,
