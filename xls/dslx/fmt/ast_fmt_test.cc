@@ -646,11 +646,28 @@ fn f() -> u8 { p<8>(u8:42) }
   }
 }
 
-TEST(ModuleFmtTest, TypeRefTypeAnnotation) {
-  const std::string_view kProgram =
+TEST(ModuleFmtTest, TypeRefTypeAnnotationModuleLevel) {
+  constexpr std::string_view kProgram =
       R"(type MyU32 = u32;
 
 fn f() -> MyU32 { MyU32:42 }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
+TEST(ModuleFmtTest, TypeRefTypeAnnotationInBody) {
+  constexpr std::string_view kProgram =
+      R"(fn f() -> u32 {
+    type MyU32 = u32;
+    MyU32:42
+}
 )";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,

@@ -213,7 +213,6 @@ DocRef Fmt(const TypeAlias& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.equals());
   pieces.push_back(arena.break1());
   pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
-  pieces.push_back(arena.semi());
   return ConcatNGroup(arena, pieces);
 }
 
@@ -1456,7 +1455,9 @@ static DocRef Fmt(const ModuleMember& n, const Comments& comments,
               [&](const TestFunction* n) { return Fmt(*n, comments, arena); },
               [&](const TestProc* n) { return Fmt(*n, comments, arena); },
               [&](const QuickCheck* n) { return Fmt(*n, comments, arena); },
-              [&](const TypeAlias* n) { return Fmt(*n, comments, arena); },
+              [&](const TypeAlias* n) {
+                return arena.MakeConcat(Fmt(*n, comments, arena), arena.semi());
+              },
               [&](const StructDef* n) { return Fmt(*n, comments, arena); },
               [&](const ConstantDef* n) { return Fmt(*n, comments, arena); },
               [&](const EnumDef* n) { return Fmt(*n, comments, arena); },
