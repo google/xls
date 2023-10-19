@@ -60,6 +60,7 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:visitor",
         "//xls/common/logging",
+        "//xls/dslx:channel_direction",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:pos",

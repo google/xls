@@ -33,6 +33,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
@@ -182,6 +183,25 @@ DocRef Fmt(const TypeRefTypeAnnotation& n, const Comments& comments,
   return ConcatNGroup(arena, pieces);
 }
 
+DocRef Fmt(const ChannelTypeAnnotation& n, const Comments& comments,
+           DocArena& arena) {
+  std::vector<DocRef> pieces = {
+      arena.Make(Keyword::kChannel),
+      arena.oangle(),
+      Fmt(*n.payload(), comments, arena),
+      arena.cangle(),
+      arena.break1(),
+      arena.Make(n.direction() == ChannelDirection::kIn ? Keyword::kIn
+                                                        : Keyword::kOut),
+  };
+  if (n.dims().has_value()) {
+    for (const Expr* dim : *n.dims()) {
+      pieces.push_back(Fmt(*dim, comments, arena));
+    }
+  }
+  return ConcatNGroup(arena, pieces);
+}
+
 DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
   if (auto* t = dynamic_cast<const BuiltinTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
@@ -193,6 +213,9 @@ DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
     return Fmt(*t, comments, arena);
   }
   if (auto* t = dynamic_cast<const TypeRefTypeAnnotation*>(&n)) {
+    return Fmt(*t, comments, arena);
+  }
+  if (auto* t = dynamic_cast<const ChannelTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
   }
 

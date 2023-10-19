@@ -679,6 +679,20 @@ TEST(ModuleFmtTest, TypeRefTypeAnnotationInBody) {
   }
 }
 
+TEST(ModuleFmtTest, TypeRefChannelTypeAnnotation) {
+  constexpr std::string_view kProgram =
+      R"(type MyChan = chan<u32> out;
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
 TEST(ModuleFmtTest, ColonRefWithImportSubject) {
   const std::string_view kProgram =
       R"(import foo

@@ -701,7 +701,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   // than `chan in u32[32]` for a 32-channel declaration. The former declares 32
   // channels, each of which transmits a u32, whereas the latter declares a
   // single channel that transmits a 32-element array of u32s.
-  std::optional<std::vector<Expr*>> dims() const { return dims_; }
+  const std::optional<std::vector<Expr*>>& dims() const { return dims_; }
 
  private:
   ChannelDirection direction_;
