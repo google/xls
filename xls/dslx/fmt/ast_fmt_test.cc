@@ -958,6 +958,26 @@ TEST(ModuleFmtTest, SimpleProc) {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, SimpleProcWithMembers) {
+  const std::string_view kProgram =
+      R"(pub proc p {
+    cin: chan<u32> in;
+    cout: chan<u32> out;
+
+    config(cin: chan<u32> in, cout: chan<u32> out) { (cin, cout) }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 TEST(ModuleFmtTest, SimpleParametricProc) {
   const std::string_view kProgram =
       R"(pub proc p<N: u32> {
