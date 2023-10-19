@@ -1094,6 +1094,38 @@ TEST(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, SimpleProcWithSpawn) {
+  const std::string_view kProgram =
+      R"(pub proc p {
+    cin: chan<u32> in;
+    cout: chan<u32> out;
+
+    config(cin: chan<u32> in, cout: chan<u32> out) { (cin, cout) }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+
+pub proc q {
+    config() {
+        let (cin, cout) = chan<u32, u32:4>;
+        spawn p(cin, cout);
+        ()
+    }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 TEST(ModuleFmtTest, SimpleTestProc) {
   constexpr std::string_view kProgram =
       R"(#[test_proc]

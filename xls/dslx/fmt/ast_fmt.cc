@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -27,6 +28,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -244,6 +246,12 @@ DocRef Fmt(const NameDef& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const NameRef& n, const Comments& comments, DocArena& arena) {
+  // Check for special identifier for proc config, which is ProcName.config
+  // internally, but in spawns we just want to say ProcName.
+  if (auto pos = n.identifier().find('.'); pos != std::string::npos) {
+    XLS_CHECK_EQ(n.identifier().substr(pos), ".config");
+    return arena.MakeText(n.identifier().substr(0, pos));
+  }
   return arena.MakeText(n.identifier());
 }
 
@@ -725,7 +733,10 @@ DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Spawn& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle spawn: " << n.ToString();
+  return ConcatNGroup(arena, {arena.Make(Keyword::kSpawn), arena.space(),
+                              Fmt(*n.config(), comments, arena)}
+
+  );
 }
 
 DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
