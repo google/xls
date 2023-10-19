@@ -51,6 +51,10 @@
 #include "xls/common/strerror.h"
 #include "xls/common/thread.h"
 
+#if defined(__APPLE__)
+extern char **environ;
+#endif
+
 namespace xls {
 namespace {
 
