@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_FRONTEND_AST_TEST_UTILS_H_
 #define XLS_DSLX_FRONTEND_AST_TEST_UTILS_H_
 
+#include <cstdint>
+#include <string_view>
 #include <utility>
 
 #include "xls/dslx/frontend/ast.h"
@@ -44,6 +46,15 @@ std::pair<Module, Index*> MakeCastWithinIndexExpression();
 // This is an interesting test case for parenthesization purposes similar to the
 // above example.
 std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression();
+
+// Returns an AST node with the following structure:
+//
+// (x0,x1,...,x(n-1)[,])
+//
+// This can be used to test that tuples of various sizes with or without
+// trailing commas are formatted correctly.
+std::pair<Module, XlsTuple*> MakeNElementTupleExpression(
+    int64_t n, bool has_trailing_comma);
 
 // Returns an AST node with the following structure:
 //

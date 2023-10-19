@@ -731,22 +731,49 @@ DocRef Fmt(const Spawn& n, const Comments& comments, DocArena& arena) {
 DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
 
+  // 1-element tuples are a special case- we always want a trailing comma and
+  // never want it to be broken up. Handle separately here.
+  if (n.members().size() == 1) {
+    return ConcatNGroup(arena, {
+                                   arena.oparen(),
+                                   Fmt(*n.members()[0], comments, arena),
+                                   arena.comma(),
+                                   arena.cparen(),
+                               });
+  }
+
   for (size_t i = 0; i < n.members().size(); ++i) {
+    bool last_element = i + 1 == n.members().size();
     const Expr* member = n.members()[i];
     DocRef member_doc = Fmt(*member, comments, arena);
-    if (i + 1 == n.members().size()) {
+    if (last_element) {
       pieces.push_back(arena.MakeGroup(member_doc));
-      pieces.push_back(arena.break0());
+      pieces.push_back(arena.MakeFlatChoice(
+          /*on_flat=*/arena.empty(),
+          /*on_break=*/arena.comma()));
     } else {
-      pieces.push_back(ConcatNGroup(arena, {member_doc, arena.comma()}));
-      pieces.push_back(arena.break1());
+      pieces.push_back(ConcatNGroup(arena, {
+                                               arena.MakeGroup(member_doc),
+                                               arena.comma(),
+                                               arena.break1(),
+                                           }));
     }
   }
 
-  std::vector<DocRef> top = {arena.oparen()};
-  top.push_back(arena.MakeAlign(ConcatNGroup(arena, pieces)));
-  top.push_back(arena.cparen());
-  return ConcatNGroup(arena, top);
+  return ConcatNGroup(
+      arena, {
+                 arena.oparen(),
+                 arena.MakeFlatChoice(
+                     /*on_flat=*/ConcatNGroup(arena, pieces),
+                     /*on_break=*/ConcatNGroup(
+                         arena,
+                         {
+                             arena.hard_line(),
+                             arena.MakeNest(ConcatNGroup(arena, pieces)),
+                             arena.hard_line(),
+                         })),
+                 arena.cparen(),
+             });
 }
 
 static DocRef Fmt(const StructRef& n, const Comments& comments,

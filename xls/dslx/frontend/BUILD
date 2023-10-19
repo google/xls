@@ -385,6 +385,8 @@ cc_library(
     deps = [
         ":ast",
         ":pos",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
     ],
 )
 

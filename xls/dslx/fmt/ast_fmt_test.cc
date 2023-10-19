@@ -66,6 +66,59 @@ TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x[i]).2");
 }
 
+TEST(BuildAstFmtTest, FormatSingleElementTuple) {
+  auto [module, tuple] =
+      MakeNElementTupleExpression(1, /*has_trailing_comma=*/true);
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*tuple, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0,)");
+}
+
+TEST(BuildAstFmtTest, FormatShortTupleWithoutTrailingComma) {
+  auto [module, tuple] =
+      MakeNElementTupleExpression(2, /*has_trailing_comma=*/false);
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*tuple, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
+}
+
+TEST(BuildAstFmtTest, FormatShortTupleWithTrailingComma) {
+  auto [module, tuple] =
+      MakeNElementTupleExpression(2, /*has_trailing_comma=*/true);
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*tuple, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
+}
+
+TEST(BuildAstFmtTest, FormatLongTupleShouldTrailingComma) {
+  auto [module, tuple] =
+      MakeNElementTupleExpression(40, /*has_trailing_comma=*/true);
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena;
+  DocRef doc = Fmt(*tuple, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
+            R"((
+    x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20, x21,
+    x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39,
+))");
+  auto [_, tuple_without_trailing_comma] =
+      MakeNElementTupleExpression(40, /*has_trailing_comma=*/false);
+
+  doc = Fmt(*tuple_without_trailing_comma, empty_comments, arena);
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
+            R"((
+    x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20, x21,
+    x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39,
+))");
+}
+
 TEST(BuiltAstFmtTest, FormatUnopThatNeedsParensOnOperand) {
   auto [module, unop] = MakeCastWithinNegateExpression();
   const Comments empty_comments = Comments::Create({});

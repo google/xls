@@ -14,10 +14,15 @@
 
 #include "xls/dslx/frontend/ast_test_utils.h"
 
+#include <cstdint>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 
@@ -84,6 +89,27 @@ std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression() {
       m.Make<Number>(fake_span, "2", NumberKind::kOther, /*type=*/nullptr);
   TupleIndex* tuple_index = m.Make<TupleIndex>(fake_span, index, two);
   return std::make_pair(std::move(m), tuple_index);
+}
+
+std::pair<Module, XlsTuple*> MakeNElementTupleExpression(
+    int64_t n, bool has_trailing_comma) {
+  XLS_CHECK(n != 1 || has_trailing_comma);  // n==1 -> has_trailing_comme
+  Module m("test", /*fs_path=*/std::nullopt);
+  const Span fake_span;
+  std::vector<Expr*> elements;
+  elements.reserve(n);
+  for (int64_t i = 0; i < n; ++i) {
+    std::string name = absl::StrFormat("x%d", i);
+    BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef(name);
+    NameRef* x_ref = m.Make<NameRef>(fake_span, name, x_def);
+    elements.push_back(x_ref);
+  }
+
+  XlsTuple* tuple = m.Make<XlsTuple>(fake_span, elements,
+                                     /*has_trailing_comma=*/has_trailing_comma
+
+  );
+  return std::make_pair(std::move(m), tuple);
 }
 
 std::pair<Module, Unop*> MakeCastWithinNegateExpression() {

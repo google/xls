@@ -1365,6 +1365,14 @@ TEST_F(ParserTest, EmptyTuple) {
   EXPECT_TRUE(tuple->empty());
 }
 
+TEST_F(ParserTest, SingleElementTuple) {
+  Expr* e = RoundTripExpr("(a,)", {"a"}, false, std::nullopt);
+  auto* tuple = dynamic_cast<XlsTuple*>(e);
+  ASSERT_NE(tuple, nullptr);
+  EXPECT_EQ(tuple->members().size(), 1);
+  EXPECT_TRUE(tuple->has_trailing_comma());
+}
+
 TEST_F(ParserTest, Match) {
   RoundTripExpr(R"(match x {
     u32:42 => u32:64,

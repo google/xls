@@ -1463,6 +1463,11 @@ absl::StatusOr<XlsTuple*> Parser::ParseTupleRemainder(const Pos& start_pos,
       std::vector<Expr*> es,
       ParseCommaSeq<Expr*>(parse_expression, TokenKind::kCParen, nullptr,
                            &saw_trailing_comma));
+  if (es.empty()) {
+    // If ParseCommaSeq ends up not parsing anything, we need to remember that
+    // there was a comma before ParseCommaSeq was called.
+    saw_trailing_comma = true;
+  }
   es.insert(es.begin(), first);
   Span span(start_pos, GetPos());
   return module_->Make<XlsTuple>(span, std::move(es), saw_trailing_comma);
