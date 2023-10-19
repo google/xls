@@ -531,7 +531,23 @@ DocRef Fmt(const Cast& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const ChannelDecl& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle channel decl: " << n.ToString();
+  std::vector<DocRef> pieces{
+      arena.Make(Keyword::kChannel),
+      arena.oangle(),
+      Fmt(*n.type(), comments, arena),
+  };
+  if (n.fifo_depth().has_value()) {
+    pieces.push_back(arena.comma());
+    pieces.push_back(arena.space());
+    pieces.push_back(Fmt(*n.fifo_depth().value(), comments, arena));
+  }
+  pieces.push_back(arena.cangle());
+  if (n.dims().has_value()) {
+    for (const Expr* dim : *n.dims()) {
+      pieces.push_back(Fmt(*dim, comments, arena));
+    }
+  }
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {

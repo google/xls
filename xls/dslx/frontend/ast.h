@@ -3062,7 +3062,7 @@ class ChannelDecl : public Expr {
   }
 
   TypeAnnotation* type() const { return type_; }
-  std::optional<std::vector<Expr*>> dims() const { return dims_; }
+  const std::optional<std::vector<Expr*>>& dims() const { return dims_; }
   std::optional<Expr*> fifo_depth() const { return fifo_depth_; }
 
  private:
