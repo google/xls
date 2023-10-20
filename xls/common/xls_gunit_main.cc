@@ -22,20 +22,5 @@ int main(int argc, char* argv[]) {
   fuzztest::InitFuzzTest(&argc, &argv);
   xls::RunSpecifiedBenchmarks();
 
-  // Rapidcheck parameters for deterministic quickchecks in unit tests.
-  //
-  // We use deterministic quickchecks to avoid "flakiness" in unit test targets.
-  // Particular targets can be broken out from unit test files if we want longer
-  // running entities.
-  //
-  // Note that, even in environments that use the same seed value, the
-  // randomized values that result from the RNG sequence are not necessarily the
-  // same as RNG device implementations may differ.
-  //
-  // Seed value was obtained arbitrarily via `random.randint(0, 2**64)`.
-  setenv("RC_PARAMS",
-         "seed=10066090388458203979 verbose_progress=1 max_success=300",
-         /*replace=*/false);
-
   return RUN_ALL_TESTS();
 }

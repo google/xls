@@ -250,14 +250,6 @@ def load_external_repositories():
         ],
     )
 
-    http_archive(
-        name = "rapidcheck",
-        strip_prefix = "rapidcheck-1c91f40e64d87869250cfb610376c629307bf77d",
-        urls = ["https://github.com/emil-e/rapidcheck/archive/1c91f40e64d87869250cfb610376c629307bf77d.zip"],
-        build_file = "@//dependency_support/rapidcheck:bundled.BUILD.bazel",
-        sha256 = "21dc5ed99390bc62e10f45698aff2704cf994c27cb388b0296db741bf128d803",
-    )
-
     # Updated 2023-2-1
     http_archive(
         name = "rules_license",
