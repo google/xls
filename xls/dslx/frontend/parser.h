@@ -304,6 +304,17 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseTerm(Bindings& bindings,
                                   ExprRestrictions restrictions);
 
+  // Parses the "left hand side" of a term expression -- since term is the
+  // tightest-binding expression production, we look for tokens following the
+  // left-hand side like '[' or '(' in ParseTerm() above.
+  absl::StatusOr<Expr*> ParseTermLhs(Bindings& bindings,
+                                     ExprRestrictions restrictions);
+
+  // When there is no "chained" right hand side observed, returns the original
+  // "lhs".
+  absl::StatusOr<Expr*> ParseTermRhs(Expr* lhs, Bindings& bindings,
+                                     ExprRestrictions restrictions);
+
   // Parses a slicing index expression.
   absl::StatusOr<Index*> ParseBitSlice(const Pos& start_pos, Expr* lhs,
                                        Bindings& bindings,

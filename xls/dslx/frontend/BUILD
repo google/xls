@@ -98,11 +98,13 @@ cc_library(
         "//xls/common:casts",
         "//xls/common:strong_int",
         "//xls/common:visitor",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",
         "//xls/ir:code_template",
         "//xls/ir:foreign_function",
+        "//xls/ir:format_strings",
         "//xls/ir:name_uniquer",
     ],
 )

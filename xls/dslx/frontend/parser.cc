@@ -37,6 +37,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
@@ -50,6 +51,7 @@
 #include "xls/dslx/frontend/token.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/name_uniquer.h"
 
 namespace xls::dslx {
@@ -1473,8 +1475,8 @@ absl::StatusOr<XlsTuple*> Parser::ParseTupleRemainder(const Pos& start_pos,
   return module_->Make<XlsTuple>(span, std::move(es), saw_trailing_comma);
 }
 
-absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
-                                        ExprRestrictions restrictions) {
+absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
+                                           ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   const Pos start_pos = peek->span().start();
   XLS_VLOG(5) << "ParseTerm @ " << start_pos << " peek: `" << peek->ToString()
@@ -1579,178 +1581,190 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
                         peek->ToErrorString()));
   }
   XLS_CHECK(lhs != nullptr);
+  return lhs;
+}
 
-  while (true) {
-    const Pos new_pos = GetPos();
-    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-    switch (peek->kind()) {
-      case TokenKind::kColon: {  // Possibly a Number of ColonRef type.
-        Span span(new_pos, GetPos());
-        // The only valid construct here would be declaring a number via
-        // ColonRef-colon-Number, e.g., "module::type:7".
-        if (dynamic_cast<ColonRef*>(lhs) == nullptr) {
-          goto done;
-        }
+absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
+                                           ExprRestrictions restrictions) {
+  const Pos new_pos = GetPos();
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  switch (peek->kind()) {
+    case TokenKind::kColon: {  // Possibly a Number of ColonRef type.
+      Span span(new_pos, GetPos());
+      // The only valid construct here would be declaring a number via
+      // ColonRef-colon-Number, e.g., "module::type:7".
+      if (dynamic_cast<ColonRef*>(lhs) == nullptr) {
+        goto done;
+      }
 
-        auto* type_ref =
-            module_->Make<TypeRef>(span, ToTypeDefinition(lhs).value());
-        auto* type_annot = module_->Make<TypeRefTypeAnnotation>(
-            span, type_ref, /*parametrics=*/std::vector<ExprOrType>{});
-        XLS_ASSIGN_OR_RETURN(lhs, ParseCast(outer_bindings, type_annot));
+      auto* type_ref =
+          module_->Make<TypeRef>(span, ToTypeDefinition(lhs).value());
+      auto* type_annot = module_->Make<TypeRefTypeAnnotation>(
+          span, type_ref, /*parametrics=*/std::vector<ExprOrType>{});
+      XLS_ASSIGN_OR_RETURN(lhs, ParseCast(outer_bindings, type_annot));
+      break;
+    }
+    case TokenKind::kOParen: {  // Invocation.
+      DropTokenOrDie();
+      XLS_ASSIGN_OR_RETURN(std::vector<Expr*> args,
+                           ParseCommaSeq<Expr*>(
+                               [&outer_bindings, this] {
+                                 return ParseExpression(outer_bindings);
+                               },
+                               TokenKind::kCParen));
+      XLS_ASSIGN_OR_RETURN(
+          lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), outer_bindings,
+                                      lhs, std::move(args)));
+      break;
+    }
+    case TokenKind::kDot: {  // Attribute or tuple index access.
+      DropTokenOrDie();
+      XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
+      const Span span(new_pos, GetPos());
+      if (tok.kind() == TokenKind::kIdentifier) {
+        lhs = module_->Make<Attr>(span, lhs, *tok.GetValue());
+      } else if (tok.kind() == TokenKind::kNumber) {
+        XLS_ASSIGN_OR_RETURN(Number * number, TokenToNumber(tok));
+        lhs = module_->Make<TupleIndex>(span, lhs, number);
+      } else {
+        return ParseErrorStatus(
+            span,
+            absl::StrFormat(
+                "Unknown dot ('.') reference: expected number or identifier; "
+                "got %s",
+                tok.ToString()));
+      }
+      break;
+    }
+    case TokenKind::kOBrack: {  // Indexing.
+      DropTokenOrDie();
+
+      XLS_ASSIGN_OR_RETURN(bool dropped_colon, TryDropToken(TokenKind::kColon));
+      if (dropped_colon) {  // Slice-from-beginning.
+        XLS_ASSIGN_OR_RETURN(lhs, ParseBitSlice(new_pos, lhs, outer_bindings,
+                                                /*start=*/nullptr));
         break;
       }
-      case TokenKind::kOParen: {  // Invocation.
-        DropTokenOrDie();
-        XLS_ASSIGN_OR_RETURN(std::vector<Expr*> args,
-                             ParseCommaSeq<Expr*>(
-                                 [&outer_bindings, this] {
-                                   return ParseExpression(outer_bindings);
-                                 },
-                                 TokenKind::kCParen));
-        XLS_ASSIGN_OR_RETURN(
-            lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), outer_bindings,
-                                        lhs, std::move(args)));
-        break;
-      }
-      case TokenKind::kDot: {  // Attribute or tuple index access.
-        DropTokenOrDie();
-        XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
-        const Span span(new_pos, GetPos());
-        if (tok.kind() == TokenKind::kIdentifier) {
-          lhs = module_->Make<Attr>(span, lhs, *tok.GetValue());
-        } else if (tok.kind() == TokenKind::kNumber) {
-          XLS_ASSIGN_OR_RETURN(Number * number, TokenToNumber(tok));
-          lhs = module_->Make<TupleIndex>(span, lhs, number);
-        } else {
-          return ParseErrorStatus(
-              span,
-              absl::StrFormat(
-                  "Unknown dot ('.') reference: expected number or identifier; "
-                  "got %s",
-                  tok.ToString()));
-        }
-        break;
-      }
-      case TokenKind::kOBrack: {  // Indexing.
-        DropTokenOrDie();
 
-        XLS_ASSIGN_OR_RETURN(bool dropped_colon,
-                             TryDropToken(TokenKind::kColon));
-        if (dropped_colon) {  // Slice-from-beginning.
-          XLS_ASSIGN_OR_RETURN(lhs, ParseBitSlice(new_pos, lhs, outer_bindings,
-                                                  /*start=*/nullptr));
+      // Index may be followed by a `:` for a slice, or a `+:` for a
+      // type-sized slice.
+      XLS_ASSIGN_OR_RETURN(Expr * index, ParseExpression(outer_bindings));
+      XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+      switch (peek->kind()) {
+        case TokenKind::kPlusColon: {  // Explicit width slice.
+          DropTokenOrDie();
+          Expr* start = index;
+          XLS_ASSIGN_OR_RETURN(TypeAnnotation * width,
+                               ParseTypeAnnotation(outer_bindings));
+          Span span(new_pos, GetPos());
+          auto* width_slice = module_->Make<WidthSlice>(span, start, width);
+          lhs = module_->Make<Index>(span, lhs, width_slice);
+          XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
           break;
         }
+        case TokenKind::kColon: {  // Slice to end.
+          DropTokenOrDie();
+          XLS_ASSIGN_OR_RETURN(
+              lhs, ParseBitSlice(new_pos, lhs, outer_bindings, index));
+          break;
+        }
+        default: {
+          XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
 
-        // Index may be followed by a `:` for a slice, or a `+:` for a
-        // type-sized slice.
-        XLS_ASSIGN_OR_RETURN(Expr * index, ParseExpression(outer_bindings));
-        XLS_ASSIGN_OR_RETURN(peek, PeekToken());
-        switch (peek->kind()) {
-          case TokenKind::kPlusColon: {  // Explicit width slice.
+          // It's either an Index if the LHS is a NameRef or
+          // ColonRef-to-ConstantDef, or an Array if lhs is a
+          // ColonRef-to-type.
+          const Span span(new_pos, GetPos());
+          XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+          // Array type before literal, e.g. Foo[2]:[...]
+          //                  this colon ----------^
+          if (peek->kind() == TokenKind::kColon) {
             DropTokenOrDie();
-            Expr* start = index;
-            XLS_ASSIGN_OR_RETURN(TypeAnnotation * width,
-                                 ParseTypeAnnotation(outer_bindings));
-            Span span(new_pos, GetPos());
-            auto* width_slice = module_->Make<WidthSlice>(span, start, width);
-            lhs = module_->Make<Index>(span, lhs, width_slice);
-            XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
-            break;
-          }
-          case TokenKind::kColon: {  // Slice to end.
-            DropTokenOrDie();
-            XLS_ASSIGN_OR_RETURN(
-                lhs, ParseBitSlice(new_pos, lhs, outer_bindings, index));
-            break;
-          }
-          default: {
-            XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
-
-            // It's either an Index if the LHS is a NameRef or
-            // ColonRef-to-ConstantDef, or an Array if lhs is a
-            // ColonRef-to-type.
-            const Span span(new_pos, GetPos());
-            XLS_ASSIGN_OR_RETURN(peek, PeekToken());
-            // Array type before literal, e.g. Foo[2]:[...]
-            //                  this colon ----------^
-            if (peek->kind() == TokenKind::kColon) {
-              DropTokenOrDie();
-              absl::StatusOr<TypeDefinition> type_definition_or =
-                  ToTypeDefinition(lhs);
-              if (!type_definition_or.ok()) {
-                const Span error_span(lhs->span().start(),
-                                      index->span().limit());
-                return ParseErrorStatus(
-                    error_span,
-                    absl::StrFormat(
-                        "Type before ':' for presumed array literal was not a "
-                        "type definition; got `%s` (kind: %v)",
-                        lhs->ToString(), lhs->kind()));
-              }
-              // TODO(rspringer): We can't currently support parameterized
-              // ColonRef-to-types with this function structure.
-              auto* type_ref =
-                  module_->Make<TypeRef>(span, type_definition_or.value());
-              auto* type_ref_type = module_->Make<TypeRefTypeAnnotation>(
-                  span, type_ref, /*parametrics=*/std::vector<ExprOrType>());
-              auto* array_type = module_->Make<ArrayTypeAnnotation>(
-                  span, type_ref_type, index);
-              XLS_ASSIGN_OR_RETURN(Array * array, ParseArray(outer_bindings));
-              array->set_type_annotation(array_type);
-              lhs = array;
-              lhs->SetParentage();
-            } else {
-              lhs = module_->Make<Index>(span, lhs, index);
+            absl::StatusOr<TypeDefinition> type_definition_or =
+                ToTypeDefinition(lhs);
+            if (!type_definition_or.ok()) {
+              const Span error_span(lhs->span().start(), index->span().limit());
+              return ParseErrorStatus(
+                  error_span,
+                  absl::StrFormat(
+                      "Type before ':' for presumed array literal was not a "
+                      "type definition; got `%s` (kind: %v)",
+                      lhs->ToString(), lhs->kind()));
             }
+            // TODO(rspringer): We can't currently support parameterized
+            // ColonRef-to-types with this function structure.
+            auto* type_ref =
+                module_->Make<TypeRef>(span, type_definition_or.value());
+            auto* type_ref_type = module_->Make<TypeRefTypeAnnotation>(
+                span, type_ref, /*parametrics=*/std::vector<ExprOrType>());
+            auto* array_type =
+                module_->Make<ArrayTypeAnnotation>(span, type_ref_type, index);
+            XLS_ASSIGN_OR_RETURN(Array * array, ParseArray(outer_bindings));
+            array->set_type_annotation(array_type);
+            lhs = array;
+            lhs->SetParentage();
+          } else {
+            lhs = module_->Make<Index>(span, lhs, index);
           }
         }
-        break;
       }
-      case TokenKind::kOAngle: {
-        // Comparison op or parametric function invocation.
-        // TODO(rspringer): Or parameterization on ColonRef-to-type.
-        Transaction sub_txn(this, &outer_bindings);
-        auto sub_cleanup =
-            absl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
-
-        auto parametrics_or = ParseParametrics(*sub_txn.bindings());
-        if (!parametrics_or.ok()) {
-          XLS_VLOG(5) << "ParseParametrics gave error: "
-                      << parametrics_or.status();
-          goto done;
-        }
-
-        XLS_ASSIGN_OR_RETURN(
-            Token tok,
-            PopTokenOrError(
-                TokenKind::kOParen, /*start=*/nullptr,
-                "Expected a '(' after parametrics for function invocation."));
-        Bindings* b = sub_txn.bindings();
-        XLS_ASSIGN_OR_RETURN(
-            std::vector<Expr*> args,
-            ParseCommaSeq<Expr*>([b, this] { return ParseExpression(*b); },
-                                 TokenKind::kCParen));
-        XLS_ASSIGN_OR_RETURN(
-            lhs, BuildMacroOrInvocation(
-                     Span(new_pos, GetPos()), *sub_txn.bindings(), lhs,
-                     std::move(args), std::move(parametrics_or).value()));
-        sub_txn.CommitAndCancelCleanup(&sub_cleanup);
-        break;
-      }
-      case TokenKind::kArrow:
-        // If we're a term followed by an arrow...then we followed the wrong
-        // production, as arrows are only allowed after fn decls. Rewind.
-        // Should this be something else, like a "wrong production" error?
-        return ParseErrorStatus(
-            lhs->span(), "Parenthesized expression cannot precede an arrow.");
-      default:
-        goto done;
+      break;
     }
-  }
+    case TokenKind::kOAngle: {
+      // Comparison op or parametric function invocation.
+      // TODO(rspringer): Or parameterization on ColonRef-to-type.
+      Transaction sub_txn(this, &outer_bindings);
+      absl::Cleanup sub_cleanup = [&sub_txn]() { sub_txn.Rollback(); };
 
+      auto parametrics_or = ParseParametrics(*sub_txn.bindings());
+      if (!parametrics_or.ok()) {
+        XLS_VLOG(5) << "ParseParametrics gave error: "
+                    << parametrics_or.status();
+        goto done;
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          Token tok,
+          PopTokenOrError(
+              TokenKind::kOParen, /*start=*/nullptr,
+              "Expected a '(' after parametrics for function invocation."));
+      Bindings* b = sub_txn.bindings();
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<Expr*> args,
+          ParseCommaSeq<Expr*>([b, this] { return ParseExpression(*b); },
+                               TokenKind::kCParen));
+      XLS_ASSIGN_OR_RETURN(
+          lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()),
+                                      *sub_txn.bindings(), lhs, std::move(args),
+                                      std::move(parametrics_or).value()));
+      sub_txn.CommitAndCancelCleanup(&sub_cleanup);
+      break;
+    }
+    case TokenKind::kArrow:
+      // If we're a term followed by an arrow...then we followed the wrong
+      // production, as arrows are only allowed after fn decls. Rewind.
+      // Should this be something else, like a "wrong production" error?
+      return ParseErrorStatus(
+          lhs->span(), "Parenthesized expression cannot precede an arrow.");
+    default:
+      goto done;
+  }
 done:
   return lhs;
+}
+
+absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
+                                        ExprRestrictions restrictions) {
+  XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseTermLhs(outer_bindings, restrictions));
+
+  while (true) {
+    XLS_ASSIGN_OR_RETURN(Expr * new_lhs,
+                         ParseTermRhs(lhs, outer_bindings, restrictions));
+    if (new_lhs == lhs) {
+      return lhs;
+    }
+    lhs = new_lhs;
+  }
 }
 
 absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
