@@ -67,7 +67,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_view",
-        "@rapidcheck",
+        "@com_google_fuzztest//fuzztest",
     ],
 )
 
