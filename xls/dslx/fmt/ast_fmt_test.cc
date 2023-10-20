@@ -488,7 +488,7 @@ TEST_F(FunctionFmtTest, TraceFormatMacro) {
 
 TEST_F(FunctionFmtTest, FunctionWithCommentsOnLastLines) {
   const std::string_view original =
-      R"(fn f(){
+      R"(fn f() {
     let x = u32:42;
     let y = x + x;
 
@@ -496,14 +496,7 @@ TEST_F(FunctionFmtTest, FunctionWithCommentsOnLastLines) {
     // down here at the end...
 })";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
-  const std::string_view want =
-      R"(fn f() {
-    let x = u32:42;
-    let y = x + x;
-    // I like to put comments
-    // down here at the end...
-})";
-  EXPECT_EQ(got, want);
+  EXPECT_EQ(got, original);
 }
 
 TEST_F(FunctionFmtTest, ParametricFunction) {
@@ -527,6 +520,64 @@ TEST_F(FunctionFmtTest, LetWithCommentsInBlock) {
         // And a comment on the last line!
     };
     x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+// Shows that when we separate statement chunks with a newline (i.e. in the
+// style of paragraphs) it is retained.
+TEST_F(FunctionFmtTest, FunctionWithParagraphStyleCodeChunks) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    // A comment on the top statement
+    let y = u32:42 + u32:64;
+
+    // And a comment on the second statement.
+    y
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest,
+       FunctionWithParagraphStyleCodeChunksIntermediateCommentParagraph) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    // A comment on the top statement
+    let y = u32:42 + u32:64;
+
+    // A trailing paragraph-style comment on this first chunk.
+    // This could be multiple lines.
+
+    // And a comment associated with the second statement.
+    y
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, FunctionWithParagraphStyleTrailingComment) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    // A comment on the top statement
+    let y = u32:42 + u32:64;
+
+    // A trailing comment in its own "paragraph".
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, FunctionWithParagraphStyleChunksOfStatements) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    let y = u32:42 + u32:64;
+    let z = y * y;
+
+    let a = z - y;
+    let b = a * a;
+    b
 })";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
   EXPECT_EQ(got, original);

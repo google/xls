@@ -325,7 +325,9 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
           [&](const Nest& p) -> std::string { return "Nest"; },
           [&](const Align& p) -> std::string { return "Align"; },
           [&](const PrefixedReflow& p) -> std::string {
-            return "PrefixedReflow";
+            return absl::StrFormat("PrefixedReflow{\"%s\", \"%s\"}",
+                                   absl::CEscape(p.prefix),
+                                   absl::CEscape(p.text));
           },
       },
       value);

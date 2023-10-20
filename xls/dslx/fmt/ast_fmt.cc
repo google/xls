@@ -487,7 +487,9 @@ static std::optional<DocRef> EmitCommentsBetween(
 static DocRef FmtBlock(const Block& n, const Comments& comments,
                        DocArena& arena, bool add_curls,
                        bool force_multiline = false) {
-  if (n.statements().empty()) {
+  bool has_comments = comments.HasComments(n.span());
+
+  if (n.statements().empty() && !has_comments) {
     if (add_curls) {
       return ConcatNGroup(arena,
                           {arena.ocurl(), arena.break0(), arena.ccurl()});
@@ -497,7 +499,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
 
   // We only want to flatten single-statement blocks -- multi-statement blocks
   // we always make line breaks between the statements.
-  if (n.statements().size() == 1 && !force_multiline) {
+  if (n.statements().size() == 1 && !force_multiline && !has_comments) {
     std::vector<DocRef> pieces;
     if (add_curls) {
       pieces = {arena.ocurl(), arena.break1()};
@@ -524,7 +526,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     top.push_back(arena.hard_line());
   }
 
-  Pos last_stmt_pos = n.span().start();
+  Pos last_entity_pos = n.span().start();
   std::vector<DocRef> nested;
   for (size_t i = 0; i < n.statements().size(); ++i) {
     const Statement* stmt = n.statements()[i];
@@ -534,13 +536,36 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     XLS_CHECK(stmt_span.has_value()) << stmt->ToString();
     Pos stmt_start = stmt_span->start();
 
+    XLS_VLOG(5) << "stmt: `" << stmt->ToString() << "` start: " << stmt_start
+                << " last_entity_pos: " << last_entity_pos;
+
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
-            last_stmt_pos, stmt_start, comments, arena, &last_comment_span)) {
+            last_entity_pos, stmt_start, comments, arena, &last_comment_span)) {
+      XLS_VLOG(5) << "last entity position: " << last_entity_pos
+                  << " last_comment_span.start: " << last_comment_span->start();
+      // If there's a line break between the last entity and this comment, we
+      // retain it in the output (i.e. in paragraph style).
+      if (last_entity_pos.lineno() + 1 < last_comment_span->start().lineno()) {
+        nested.push_back(arena.hard_line());
+      }
+
       nested.push_back(comments_doc.value());
       nested.push_back(arena.hard_line());
+
+      last_entity_pos = last_comment_span->limit();
+      XLS_VLOG(5) << "last comment position limit: " << last_entity_pos
+                  << " comments_doc: "
+                  << arena.Deref(comments_doc.value()).ToDebugString(arena);
+    } else {  // No comments to emit ahead of the statement.
+      // If there's a line break between the last entity and this statement, we
+      // retain it in the output (i.e. in paragraph style).
+      if (last_entity_pos.lineno() + 1 < stmt_span->start().lineno()) {
+        nested.push_back(arena.hard_line());
+      }
+
+      last_entity_pos = stmt_span->limit();
     }
-    last_stmt_pos = stmt_span->limit();
 
     // Here we emit the formatted statement.
     nested.push_back(Fmt(*stmt, comments, arena));
@@ -557,8 +582,17 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
   // of the block.
   std::optional<Span> last_comment_span;
   if (std::optional<DocRef> comments_doc =
-          EmitCommentsBetween(last_stmt_pos, n.span().limit(), comments, arena,
-                              &last_comment_span)) {
+          EmitCommentsBetween(last_entity_pos, n.span().limit(), comments,
+                              arena, &last_comment_span)) {
+    XLS_VLOG(5) << "last entity position: " << last_entity_pos
+                << " last_comment_span.start: " << last_comment_span->start();
+
+    // If there's a line break between the last entity and this comment, we
+    // retain it in the output (i.e. in paragraph style).
+    if (last_entity_pos.lineno() + 1 < last_comment_span->start().lineno()) {
+      nested.push_back(arena.hard_line());
+    }
+
     nested.push_back(arena.hard_line());
     nested.push_back(comments_doc.value());
   }
@@ -1215,6 +1249,16 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
     }
   }
   return Comments{std::move(line_to_comment), last_data_limit};
+}
+
+bool Comments::HasComments(const Span& in_span) const {
+  for (int64_t i = in_span.start().lineno(); i <= in_span.limit().lineno();
+       ++i) {
+    if (auto it = line_to_comment_.find(i); it != line_to_comment_.end()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 std::vector<const CommentData*> Comments::GetComments(

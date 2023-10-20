@@ -42,6 +42,9 @@ class Comments {
   // This is a convenient way for nodes to query for all their related comments.
   std::vector<const CommentData*> GetComments(const Span& node_span) const;
 
+  // Returns whether there are any comments contained in the given span.
+  bool HasComments(const Span& in_span) const;
+
   const std::optional<Pos>& last_data_limit() const { return last_data_limit_; }
 
  private:
