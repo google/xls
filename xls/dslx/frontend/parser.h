@@ -35,6 +35,7 @@
 #include "xls/common/strong_int.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_parser.h"
 
 namespace xls::dslx {
@@ -309,6 +310,9 @@ class Parser : public TokenParser {
   // left-hand side like '[' or '(' in ParseTerm() above.
   absl::StatusOr<Expr*> ParseTermLhs(Bindings& bindings,
                                      ExprRestrictions restrictions);
+
+  absl::StatusOr<Expr*> ParseTermLhsParenthesized(Bindings& bindings,
+                                                  const Pos& start_pos);
 
   // When there is no "chained" right hand side observed, returns the original
   // "lhs".

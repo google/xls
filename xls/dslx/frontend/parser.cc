@@ -1475,6 +1475,38 @@ absl::StatusOr<XlsTuple*> Parser::ParseTupleRemainder(const Pos& start_pos,
   return module_->Make<XlsTuple>(span, std::move(es), saw_trailing_comma);
 }
 
+absl::StatusOr<Expr*> Parser::ParseTermLhsParenthesized(
+    Bindings& outer_bindings, const Pos& start_pos) {
+  Expr* lhs = nullptr;
+  Token oparen = PopTokenOrDie();
+  XLS_ASSIGN_OR_RETURN(bool next_is_cparen, PeekTokenIs(TokenKind::kCParen));
+  if (next_is_cparen) {  // Empty tuple.
+    XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
+    Span span(start_pos, GetPos());
+    lhs = module_->Make<XlsTuple>(span, std::vector<Expr*>{},
+                                  /*has_trailing_comma=*/false);
+  } else {
+    XLS_ASSIGN_OR_RETURN(lhs, ParseExpression(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(bool peek_is_comma, PeekTokenIs(TokenKind::kComma));
+    if (peek_is_comma) {  // Singleton tuple.
+      XLS_ASSIGN_OR_RETURN(
+          lhs, ParseTupleRemainder(oparen.span().start(), lhs, outer_bindings));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          DropTokenOrError(TokenKind::kCParen, /*start=*/&oparen,
+                           "Expected ')' at end of parenthesized expression"));
+      // Make a note the expression was
+      // wrapped in parens. This helps us disambiguate when people chain
+      // comparison operators on purpose vs accidentally e.g.
+      //    x == y == z    // error
+      //    (x == y) == z  // ok
+      lhs->set_in_parens(true);
+    }
+  }
+  XLS_CHECK(lhs != nullptr);
+  return lhs;
+}
+
 absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
                                            ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
@@ -1542,31 +1574,8 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     }
     lhs = ToExprNode(nocr);
   } else if (peek->kind() == TokenKind::kOParen) {  // Parenthesized expression.
-    Token oparen = PopTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(bool next_is_cparen, PeekTokenIs(TokenKind::kCParen));
-    if (next_is_cparen) {  // Empty tuple.
-      XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
-      Span span(start_pos, GetPos());
-      lhs = module_->Make<XlsTuple>(span, std::vector<Expr*>{},
-                                    /*has_trailing_comma=*/false);
-    } else {
-      XLS_ASSIGN_OR_RETURN(lhs, ParseExpression(outer_bindings));
-      XLS_ASSIGN_OR_RETURN(bool peek_is_comma, PeekTokenIs(TokenKind::kComma));
-      if (peek_is_comma) {  // Singleton tuple.
-        XLS_ASSIGN_OR_RETURN(lhs, ParseTupleRemainder(oparen.span().start(),
-                                                      lhs, outer_bindings));
-      } else {
-        XLS_RETURN_IF_ERROR(DropTokenOrError(
-            TokenKind::kCParen, /*start=*/&oparen,
-            "Expected ')' at end of parenthesized expression"));
-        // Make a note the expression was
-        // wrapped in parens. This helps us disambiguate when people chain
-        // comparison operators on purpose vs accidentally e.g.
-        //    x == y == z    // error
-        //    (x == y) == z  // ok
-        lhs->set_in_parens(true);
-      }
-    }
+    XLS_ASSIGN_OR_RETURN(lhs,
+                         ParseTermLhsParenthesized(outer_bindings, start_pos));
   } else if (peek->IsKeyword(Keyword::kMatch)) {  // Match expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings));
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
