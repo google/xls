@@ -198,6 +198,77 @@ cc_library(
 )
 
 cc_library(
+    name = "ir_value_common",
+    srcs = [
+        "ir_value_access_methods.cc",
+    ],
+    hdrs = [
+        "ir_value_access_methods.h",
+    ],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/ir:value",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "ir_value_common_test",
+    size = "small",
+    srcs = [
+        "ir_value_access_methods_test.cc",
+    ],
+    deps = [
+        ":ir_value_common",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "ir_single_value",
+    srcs = [
+        "ir_single_value.cc",
+    ],
+    hdrs = [
+        "ir_single_value.h",
+    ],
+    deps = [
+        ":ir_value_common",
+        ":iregister",
+        "//xls/interpreter:channel_queue",
+        "//xls/ir:value_helpers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "ir_single_value_test",
+    srcs = [
+        "ir_single_value_test.cc",
+    ],
+    deps = [
+        ":ir_single_value",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:channel_queue",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "iregister_stub",
     srcs = [
         "iregister_stub.cc",
