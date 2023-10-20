@@ -12,20 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Point {
-  x: u32,
-  y: u32,
-}
+struct Point { x: u32, y: u32 }
 
-fn f(p: Point) -> u32 {
-  p.x + p.y
-}
+fn f(p: Point) -> u32 { p.x + p.y }
 
-fn main() -> u32 {
-  f(Point { x: u32:42, y: u32:64 })
-}
+fn main() -> u32 { f(Point { x: u32:42, y: u32:64 }) }
 
 #[test]
-fn main_test() {
-  assert_eq(u32:106, main())
-}
+fn main_test() { assert_eq(u32:106, main()) }

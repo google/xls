@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn bool_not(x: bool) -> bool {
-  !x
-}
+fn bool_not(x: bool) -> bool { !x }
+
 #[test]
 fn bool_not_test() {
-  assert_eq(true, bool_not(false));
-  assert_eq(false, bool_not(true));
+    assert_eq(true, bool_not(false));
+    assert_eq(false, bool_not(true));
 }

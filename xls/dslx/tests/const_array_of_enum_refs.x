@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-enum MyEnum: u2 {
-  FOO = 2,
-  BAR = 3,
+enum MyEnum : u2 {
+    FOO = 2,
+    BAR = 3,
 }
+
 const A = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];
 
 #[test]
 fn t_test() {
-  assert_eq(MyEnum::FOO, A[u32:0]);
-  assert_eq(MyEnum::BAR, A[u32:1]);
+    assert_eq(MyEnum::FOO, A[u32:0]);
+    assert_eq(MyEnum::BAR, A[u32:1]);
 }

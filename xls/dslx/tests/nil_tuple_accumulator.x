@@ -13,12 +13,10 @@
 // limitations under the License.
 
 fn main() -> () {
-  for (_, ()) in u32:0 .. u32:4 {
-    ()
-  }(())
+    for (_, ()) in u32:0..u32:4 {
+        ()
+    }(())
 }
 
 #[test]
-fn test_main() {
-  main()
-}
+fn test_main() { main() }

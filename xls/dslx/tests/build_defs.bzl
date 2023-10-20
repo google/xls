@@ -43,7 +43,7 @@ def dslx_lang_test(
         evaluate_ir = True,
         benchmark_ir = True,
         warnings_as_errors = True,
-        test_autofmt = False):
+        test_autofmt = True):
     """This macro is convenient shorthand for our many DSLX test targets.
 
     The primary target that it generates that developers may want to depend upon is:

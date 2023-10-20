@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn range_doer<N: u32, M:u32, SIZE:u32 = {M - N}>() -> u32[SIZE] {
- N..M
-}
+fn range_doer<N: u32, M: u32, SIZE: u32 = {M - N}>() -> u32[SIZE] { N..M }
 
 #[test]
-fn main() {
-  assert_eq(range_doer<u32:0, u32:4>(), u32[4]:[u32:0, u32:1, u32:2, u32:3])
-}
+fn main() { assert_eq(range_doer<u32:0, u32:4>(), u32[4]:[u32:0, u32:1, u32:2, u32:3]) }

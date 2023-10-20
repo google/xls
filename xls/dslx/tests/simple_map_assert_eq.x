@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn add_one(x: u32) -> u32 {
-  x + u32:1
-}
+fn add_one(x: u32) -> u32 { x + u32:1 }
 
 #[test]
-fn test_main() {
-  assert_eq(u32[1]:[43], map(u32[1]:[42], add_one))
-}
+fn test_main() { assert_eq(u32[1]:[43], map(u32[1]:[42], add_one)) }

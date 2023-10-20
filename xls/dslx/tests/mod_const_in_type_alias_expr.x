@@ -20,11 +20,7 @@ const FIVE = mod_simple_const::FOUR + u32:1;
 
 type U32X5 = u32[FIVE];
 
-fn main(x: u32) -> U32X5 {
-  U32X5:[x, ...]
-}
+fn main(x: u32) -> U32X5 { U32X5:[x, ...] }
 
 #[test]
-fn main_test() {
-  assert_eq(main(u32:42), u32[5]:[42, 42, 42, 42, 42])
-}
+fn main_test() { assert_eq(main(u32:42), u32[5]:[42, 42, 42, 42, 42]) }

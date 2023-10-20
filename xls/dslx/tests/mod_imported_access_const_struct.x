@@ -18,4 +18,5 @@
 import xls.dslx.tests.mod_imported_const_struct
 
 pub const TWO = mod_imported_const_struct::MY_POINT.x;
+
 pub const FOUR = mod_imported_const_struct::MY_POINT.y;

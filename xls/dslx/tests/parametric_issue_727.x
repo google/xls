@@ -12,36 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct MyStruct<WIDTH: u32> {
-    myfield: bits[WIDTH]
-}
+struct MyStruct<WIDTH: u32> { myfield: bits[WIDTH] }
 
-fn myfunc<FIELD_WIDTH: u32>(arg: MyStruct<FIELD_WIDTH>) -> u32 {
-    (arg.myfield as u32)
-}
+fn myfunc<FIELD_WIDTH: u32>(arg: MyStruct<FIELD_WIDTH>) -> u32 { (arg.myfield as u32) }
 
 const WIDTH_15 = u32:15;
 
-fn myfunc_spec1(arg: MyStruct<15>) -> u32 {
-    (myfunc<u32:15>(arg))
-}
+fn myfunc_spec1(arg: MyStruct<15>) -> u32 { (myfunc<u32:15>(arg)) }
 
-fn myfunc_spec2(arg: MyStruct<15>) -> u32 {
-    (myfunc<WIDTH_15>(arg))
-}
+fn myfunc_spec2(arg: MyStruct<15>) -> u32 { (myfunc<WIDTH_15>(arg)) }
 
-fn myfunc_spec3(arg: MyStruct<15>) -> u32 {
-    (myfunc(arg))
-}
+fn myfunc_spec3(arg: MyStruct<15>) -> u32 { (myfunc(arg)) }
 
-fn myfunc_spec4(arg: MyStruct<WIDTH_15>) -> u32 {
-    (myfunc<u32:15>(arg))
-}
+fn myfunc_spec4(arg: MyStruct<WIDTH_15>) -> u32 { (myfunc<u32:15>(arg)) }
 
-fn myfunc_spec5(arg: MyStruct<WIDTH_15>) -> u32 {
-    (myfunc<WIDTH_15>(arg))
-}
+fn myfunc_spec5(arg: MyStruct<WIDTH_15>) -> u32 { (myfunc<WIDTH_15>(arg)) }
 
-fn myfunc_spec6(arg: MyStruct<WIDTH_15>) -> u32 {
-    (myfunc(arg))
-}
+fn myfunc_spec6(arg: MyStruct<WIDTH_15>) -> u32 { (myfunc(arg)) }

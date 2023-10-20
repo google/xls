@@ -99,6 +99,8 @@ dslx_lang_test(
     name = "module_level_const_assert_that_calls_fn",
     # No meaningful entry point to convert.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Deleting contents after first constexpr?!
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -124,6 +126,8 @@ dslx_lang_test(
 dslx_lang_test(
     name = "typedef_array",
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Weird spacing at start of array literal.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -216,6 +220,8 @@ dslx_lang_test(name = "local_type_alias")
 
 dslx_lang_test(
     name = "block_with_trailing_semi",
+    # TODO(leary): 2023-10-20 Puts newline after inline block.
+    test_autofmt = False,
     # We intenionally have unused vars.
     warnings_as_errors = False,
 )
@@ -230,30 +236,46 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(name = "constexpr")
+dslx_lang_test(
+    name = "constexpr",
+    # TODO(leary): 2023-10-20 Want paragraph-style grouping for global consts.
+    test_autofmt = False,
+)
 
 dslx_lang_test(
     name = "constexpr_attrs",
     convert_to_ir = False,
     dslx_deps = [":constexpr_dslx"],
+    # TODO(leary): 2023-10-20 Newline after comment (before test function).
+    test_autofmt = False,
 )
 
 dslx_lang_test(
     name = "builtin_type_max",
     dslx_deps = [":number_of_imported_type_import_dslx"],
+    # TODO(leary): 2023-10-20 Has an awkward line wrapping.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
     name = "builtin_type_zero",
     dslx_deps = [":number_of_imported_type_import_dslx"],
+    # TODO(leary): 2023-10-20 Wants "paragraph" of global constants.
+    test_autofmt = False,
 )
 
-dslx_lang_test(name = "fallible_constexpr")
+dslx_lang_test(
+    name = "fallible_constexpr",
+    # TODO(leary): 2023-10-20 Newline at start of function.
+    test_autofmt = False,
+)
 
 dslx_lang_test(name = "comments")
 
 dslx_lang_test(
     name = "compound_eq",
+    # TODO(leary): 2023-10-20 Weird inline array.
+    test_autofmt = False,
     # Compound eq not supported yet in z3.
     test_ir_equivalence = False,
 )
@@ -278,21 +300,31 @@ dslx_lang_test(name = "constexpr_pad_via_slice")
 dslx_lang_test(
     name = "explicit_parametric",
     dslx_entry = "instantiates_indirect_foo",
+    # TODO(leary): 2023-10-20 Explicit instantiations of structs get deleted.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
     name = "explicit_parametric_simple",
     # No meaningful entry point to convert.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Missing braces in parametric instantiation.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
     name = "explicit_parametric_reduced",
     # No meaningful entry point to convert.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Explicit instantiations of structs get deleted.
+    test_autofmt = False,
 )
 
-dslx_lang_test(name = "parametric_dot_product")
+dslx_lang_test(
+    name = "parametric_dot_product",
+    # TODO(leary): 2023-10-20 Over-long `for` line that doesn't format nicely.
+    test_autofmt = False,
+)
 
 dslx_lang_test(name = "parametric_plus_global_as_dimension")
 
@@ -314,15 +346,27 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(name = "character_conversion")
+dslx_lang_test(
+    name = "character_conversion",
+    # TODO(leary): 2023-10-20 Char literals are messed up.
+    test_autofmt = False,
+)
 
-dslx_lang_test(name = "string_conversion")
+dslx_lang_test(
+    name = "string_conversion",
+    # TODO(leary): 2023-10-20 Mangles characters / rewrites strings.
+    test_autofmt = False,
+)
 
 dslx_lang_test(name = "array_concat_str")
 
 dslx_lang_test(name = "array_slice_str")
 
-dslx_lang_test(name = "array_update_str")
+dslx_lang_test(
+    name = "array_update_str",
+    # TODO(leary): 2023-10-20 Char is not formatted properly.
+    test_autofmt = False,
+)
 
 dslx_lang_test(
     name = "import_constexpr",
@@ -341,7 +385,11 @@ dslx_lang_test(name = "match_multi")
 
 dslx_lang_test(name = "match_range_or_wildcard")
 
-dslx_lang_test(name = "match_overlapping_range_and_value")
+dslx_lang_test(
+    name = "match_overlapping_range_and_value",
+    # TODO(leary): 2023-10-20 Inline comments are being moved unnecessarily.
+    test_autofmt = False,
+)
 
 dslx_lang_test(name = "elseif_sample")
 
@@ -353,6 +401,8 @@ xls_dslx_library(
 dslx_lang_test(
     name = "number_of_imported_type",
     dslx_deps = [":number_of_imported_type_import_dslx"],
+    # TODO(leary): 2023-10-20 Puts inline comments in a bad spot.
+    test_autofmt = False,
 )
 
 # Note: library defined for importing.
@@ -364,12 +414,17 @@ xls_dslx_library(
 dslx_lang_test(
     name = "type_aliasing_importer",
     dslx_deps = [":mod_struct_point_dslx"],
+    # TODO(leary): 2023-10-20 Somehow this is manifesting a colon-ref.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
     name = "parametric_call_parametric",
     # No meaningful entry function to convert.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Over-long parametric decl line that doesn't
+    # format nicely.
+    test_autofmt = False,
 )
 
 xls_dslx_library(
@@ -400,6 +455,8 @@ dslx_lang_test(name = "trace")
 # trace_fmt tests.
 dslx_lang_test(
     name = "trace_fmt_hello",
+    # TODO(leary): 2023-10-20 Erroneous trailing comma in trace_fmt! call.
+    test_autofmt = False,
     # No trace op Z3 translation.
     test_ir_equivalence = False,
 )
@@ -444,6 +501,8 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "cover",
+    # TODO(leary): 2023-10-20 Newline after comment (before test function).
+    test_autofmt = False,
     # cover! not supported yet in translation to z3.
     test_ir_equivalence = False,
 )
@@ -480,7 +539,11 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(name = "bit_slice_update")
+dslx_lang_test(
+    name = "bit_slice_update",
+    # TODO(leary): 2023-10-20 Overlong line.
+    test_autofmt = False,
+)
 
 dslx_lang_test(name = "const_slice_limit")
 
@@ -494,6 +557,8 @@ dslx_lang_test(
     name = "tuple_indexing",
     # Note: no meaningful function to convert.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Putting newline at start of function.
+    test_autofmt = False,
 )
 
 dslx_lang_test(name = "clz")
@@ -559,6 +624,8 @@ dslx_lang_test(
     name = "casts",
     # Note: no meaningful function to convert.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Newline at start of test function.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -569,6 +636,8 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "parametric_with_comparison",
+    # TODO(leary): 2023-10-20 Parametric on instantiation side missing {} delimiters.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -587,6 +656,9 @@ dslx_lang_test(name = "basic_struct_attr")
 
 dslx_lang_test(
     name = "struct_equality",
+    # TODO(leary): 2023-10-20 We're not handling the formatting case where the
+    # identifiers line up with the struct member names.
+    test_autofmt = False,
     # TODO(https://github.com/google/xls/issues/1083): No struct equality
     # translation to Z3 is currently implemented.
     test_ir_equivalence = False,
@@ -627,6 +699,8 @@ xls_dslx_library(
 dslx_lang_test(
     name = "mod_importer",
     dslx_deps = [":mod_imported_dslx"],
+    # TODO(leary): 2023-10-20 Puts newline between imports.
+    test_autofmt = False,
 )
 
 xls_dslx_library(
@@ -648,6 +722,8 @@ xls_dslx_library(
 dslx_lang_test(
     name = "mod_importer_struct_of_enum",
     dslx_deps = [":mod_imported_struct_of_enum_dslx"],
+    # TODO(leary): 2023-10-20 Somehow this is manifesting a colon-ref.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -658,6 +734,8 @@ dslx_lang_test(
 dslx_lang_test(
     name = "mod_struct_importer",
     dslx_deps = [":mod_imported_dslx"],
+    # TODO(leary): 2023-10-20 Somehow this is manifesting a colon-ref.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -719,6 +797,8 @@ xls_dslx_library(
 dslx_lang_test(
     name = "mod_typedef_importer",
     dslx_deps = [":mod_imported_aliases_dslx"],
+    # TODO(leary): 2023-10-20 Somehow this is manifesting a colon-ref.
+    test_autofmt = False,
 )
 
 dslx_lang_test(name = "array_ellipsis")
@@ -733,7 +813,12 @@ dslx_lang_test(name = "local_const_value_in_parametric")
 
 dslx_lang_test(name = "constant_array_unannotated_type")
 
-dslx_lang_test(name = "reverse")
+dslx_lang_test(
+    name = "reverse",
+    # TODO(leary): 2023-10-20 Newline after comment (before test/quickcheck
+    # function).
+    test_autofmt = False,
+)
 
 dslx_lang_test(name = "typedef_multidim_array")
 
@@ -756,15 +841,27 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(name = "parametric_struct")
+dslx_lang_test(
+    name = "parametric_struct",
+    # TODO(leary): 2023-10-20 We're not handling the formatting case where the
+    # identifiers line up with the struct member names.
+    test_autofmt = False,
+)
 
 dslx_lang_test(
     name = "parametric_struct_simple",
     # No meaningful entry point to convert.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 We're not handling the formatting case where the
+    # identifiers line up with the struct member names.
+    test_autofmt = False,
 )
 
-dslx_lang_test(name = "test_f_calls_parametric_f")
+dslx_lang_test(
+    name = "test_f_calls_parametric_f",
+    # TODO(leary): 2023-10-20 Deletes comment on match arm.
+    test_autofmt = False,
+)
 
 dslx_lang_test(
     name = "array_concat",
@@ -803,6 +900,8 @@ dslx_lang_test(
         ":mod_imported_array_dslx",
         ":mod_imported_lsb_dslx",
     ],
+    # TODO(leary): 2023-10-20 Puts newline between imports.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -1007,7 +1106,11 @@ dslx_lang_test(name = "parametric_used_in_for")
 
 dslx_lang_test(name = "parametric_to_value")
 
-dslx_lang_test(name = "constexpr_with_typed_stuff_after")
+dslx_lang_test(
+    name = "constexpr_with_typed_stuff_after",
+    # TODO(leary): 2023-10-20 Puts inline comment in a bad spot.
+    test_autofmt = False,
+)
 
 dslx_lang_test(name = "for_up_to_constexpr_cast")
 
@@ -1015,6 +1118,8 @@ dslx_lang_test(
     name = "bits_concat",
     # Note: no meaningful function to convert.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Newline after comment (before test function).
+    test_autofmt = False,
 )
 
 dslx_lang_test(name = "local_const_value_in_parametric_match")
@@ -1052,6 +1157,9 @@ dslx_lang_test(
     name = "proc_channel_arrays",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Arrays of channels are being formatted
+    # incorrectly.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -1064,6 +1172,8 @@ dslx_lang_test(
     name = "proc_smoke",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,
+    # TODO(leary): 2023-10-20 Comment adorning proc next fn is being deleted.
+    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -1076,6 +1186,8 @@ dslx_lang_test(
     name = "send_if_recv_if",
     convert_to_ir = False,
     dslx_entry = "main",
+    # TODO(leary): 2023-10-20 Crashes! (assertion failure)
+    test_autofmt = False,
 )
 
 xls_dslx_ir(
@@ -1088,6 +1200,8 @@ dslx_lang_test(
     name = "non_blocking_receives",
     convert_to_ir = False,
     dslx_entry = "proc_main",
+    # TODO(leary): 2023-10-20 Crashes! (assertion failure)
+    test_autofmt = False,
 )
 
 xls_dslx_ir(
@@ -1106,6 +1220,8 @@ dslx_lang_test(
     name = "non_blocking_receive_if",
     convert_to_ir = False,
     dslx_entry = "Tester",
+    # TODO(leary): 2023-10-20 Puts newline at start of next fn.
+    test_autofmt = False,
 )
 
 xls_dslx_ir(

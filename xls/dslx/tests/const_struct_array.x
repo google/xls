@@ -15,19 +15,13 @@
 // Test to verify that constant arrays of structs are supported. Motivated by
 // GitHub issue #211.
 
-struct FooAndBar {
-  foo: u32,
-  bar: u32
-}
+struct FooAndBar { foo: u32, bar: u32 }
 
-const MY_FOO_BARS = FooAndBar[2] : [
-  FooAndBar{ foo: u32:1, bar: u32:2 },
-  FooAndBar{ foo: u32:3, bar: u32:4 },
+const MY_FOO_BARS = FooAndBar[2]:[
+    FooAndBar { foo: u32:1, bar: u32:2 }, FooAndBar { foo: u32:3, bar: u32:4 }
 ];
 
 fn main() -> u32 { array_size(MY_FOO_BARS) }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u32:2)
-}
+fn test_main() { assert_eq(main(), u32:2) }

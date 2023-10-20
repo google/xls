@@ -14,6 +14,6 @@
 
 #[test]
 fn indexing_test() {
-  let t = (u1:0, u8:1, u32:2);
-  assert_eq(u32:2, t.2)
+    let t = (u1:0, u8:1, u32:2);
+    assert_eq(u32:2, t.2)
 }

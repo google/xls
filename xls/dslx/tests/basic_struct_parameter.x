@@ -12,22 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Point {
-  x: u32,
-  y: u32,
-}
+struct Point { x: u32, y: u32 }
 
-fn id(x: Point) -> Point {
-  x
-}
+fn id(x: Point) -> Point { x }
 
-fn main(x: Point) -> Point {
-  id(x)
-}
+fn main(x: Point) -> Point { id(x) }
 
 #[test]
 fn id_test() {
-  let x = Point { x: u32:42, y: u32:64 };
-  let y = main(x);
-  assert_eq(x, y)
+    let x = Point { x: u32:42, y: u32:64 };
+    let y = main(x);
+    assert_eq(x, y)
 }

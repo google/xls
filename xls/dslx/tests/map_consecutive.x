@@ -14,14 +14,12 @@
 
 // A test that does two consecutive calls to the map() builtin.
 
-fn id(x: u32) -> u32 {
-  x
-}
+fn id(x: u32) -> u32 { x }
 
 #[test]
 fn test_main() {
-  let x = u32[1]:[0];
-  let y0 = map(x, id);
-  let y1 = map(x, id);
-  assert_eq(y0, y1)
+    let x = u32[1]:[0];
+    let y0 = map(x, id);
+    let y1 = map(x, id);
+    assert_eq(y0, y1)
 }

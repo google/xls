@@ -13,17 +13,13 @@
 // limitations under the License.
 
 fn f(x: u32) -> u32 {
-  match x {
-    u32:2..u32:4 => u32:0,
-    _ => x,
-  }
+    match x {
+        u32:2..u32:4 => u32:0,
+        _ => x,
+    }
 }
 
-fn main() -> u32[5] {
-  u32[5]:[f(u32:0), f(u32:1), f(u32:2), f(u32:3), f(u32:4)]
-}
+fn main() -> u32[5] { u32[5]:[f(u32:0), f(u32:1), f(u32:2), f(u32:3), f(u32:4)] }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u32[5]:[0, 1, 0, 0, 4])
-}
+fn test_main() { assert_eq(main(), u32[5]:[0, 1, 0, 0, 4]) }

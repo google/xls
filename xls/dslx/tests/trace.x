@@ -15,15 +15,15 @@
 // Verifies that trace!() can show up in a DSLX sequence w/o the
 // IR converter complaining.
 fn main() -> u3 {
-  let x0 = clz(u3:0b111);
-  trace!(x0);
-  x0
+    let x0 = clz(u3:0b111);
+    trace!(x0);
+    x0
 }
 
 #[test]
 fn trace_test() {
-  let x0 = clz(u3:0b011);
-  trace!(x0);
-  let x1 = (x0 as u8) * u8:3;
-  trace!(x1);
+    let x0 = clz(u3:0b011);
+    trace!(x0);
+    let x1 = (x0 as u8) * u8:3;
+    trace!(x1);
 }

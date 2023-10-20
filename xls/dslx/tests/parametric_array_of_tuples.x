@@ -12,33 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-type MyTuple = (u8,);
+type MyTuple = (u8);
 
-fn f_tuple_as_type_alias<N: u32>(xs: MyTuple[N]) -> u32 {
-  N
-}
+fn f_tuple_as_type_alias<N: u32>(xs: MyTuple[N]) -> u32 { N }
 
 fn main_tuple_as_type_alias() -> u32 {
-  let xs: MyTuple[3] = MyTuple[3]:[(u8:0,), (u8:1,), (u8:2,)];
-  f_tuple_as_type_alias(xs)
+    let xs: MyTuple[3] = MyTuple[3]:[(u8:0,), (u8:1,), (u8:2,)];
+    f_tuple_as_type_alias(xs)
 }
 
-fn f_tuple_as_type_annotation<N: u32>(xs: (u8,)[N]) -> u32 {
-  N
-}
+fn f_tuple_as_type_annotation<N: u32>(xs: (u8)[N]) -> u32 { N }
 
 fn main_tuple_as_type_annotation() -> u32 {
-  let xs: (u8,)[3] = [(u8:0,), (u8:1,), (u8:2,)];
-  f_tuple_as_type_annotation(xs)
+    let xs: (u8)[3] = [(u8:0,), (u8:1,), (u8:2,)];
+    f_tuple_as_type_annotation(xs)
 }
 
-fn main() -> u32 {
-  main_tuple_as_type_annotation() + main_tuple_as_type_alias()
-}
+fn main() -> u32 { main_tuple_as_type_annotation() + main_tuple_as_type_alias() }
 
 #[test]
 fn main_test() {
-  assert_eq(u32:3, main_tuple_as_type_alias());
-  assert_eq(u32:3, main_tuple_as_type_annotation());
-  assert_eq(u32:6, main());
+    assert_eq(u32:3, main_tuple_as_type_alias());
+    assert_eq(u32:3, main_tuple_as_type_annotation());
+    assert_eq(u32:6, main());
 }

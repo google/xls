@@ -14,8 +14,8 @@
 
 #[test]
 fn for_over_array_test() {
-  let result: u8 = for (value, accum): (u8, u8) in range(u8:1, u8:4) {
-    accum + value
-  }(u8:0);
-  assert_eq(u8:6, result)
+    let result: u8 = for (value, accum): (u8, u8) in range(u8:1, u8:4) {
+        accum + value
+    }(u8:0);
+    assert_eq(u8:6, result)
 }

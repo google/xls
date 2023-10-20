@@ -13,8 +13,8 @@
 // limitations under the License.
 
 pub enum MyEnum : u32 {
-  FOO = 42,
-  BAR = 64,
+    FOO = 42,
+    BAR = 64,
 }
 
 pub const MY_FOO = MyEnum::FOO;

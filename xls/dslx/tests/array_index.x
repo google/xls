@@ -14,7 +14,7 @@
 
 #[test]
 fn indexing_test() {
-  let x: u32[3] = u32[3]:[1, 2, 3];
-  let y: u32 = u32:1;
-  assert_eq(u32:2, x[y])
+    let x: u32[3] = u32[3]:[1, 2, 3];
+    let y: u32 = u32:1;
+    assert_eq(u32:2, x[y])
 }

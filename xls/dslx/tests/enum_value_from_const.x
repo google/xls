@@ -15,17 +15,14 @@
 fn add1(x: u32) -> u32 { x + u32:1 }
 
 const MOL = u32:42;
+
 const MOLP1 = add1(MOL);
 
 enum MyEnum : u32 {
-  MolValue = MOLP1,
+    MolValue = MOLP1,
 }
 
-fn main() -> MyEnum {
-  MyEnum::MolValue
-}
+fn main() -> MyEnum { MyEnum::MolValue }
 
 #[test]
-fn main_test() {
-  assert_eq(MyEnum::MolValue as u32, MOLP1)
-}
+fn main_test() { assert_eq(MyEnum::MolValue as u32, MOLP1) }

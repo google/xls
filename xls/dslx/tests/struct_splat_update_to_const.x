@@ -12,22 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Point {
-  x: u32,
-  y: u32,
-}
+struct Point { x: u32, y: u32 }
 
 const BEST_Y = u32:42;
 
 // Update the y member of the Point struct to BEST_Y.
-fn main(p: Point) -> Point {
-  Point{ y: BEST_Y, ..p }
-}
+fn main(p: Point) -> Point { Point { y: BEST_Y, ..p } }
 
 #[test]
 fn main_test() {
-  let p = Point{ x: u32:1, y: u32:2 };
-  let q = main(p);
-  assert_eq(q.y, u32:42);
-  assert_eq(q.x, u32:1);
+    let p = Point { x: u32:1, y: u32:2 };
+    let q = main(p);
+    assert_eq(q.y, u32:42);
+    assert_eq(q.x, u32:1);
 }

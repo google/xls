@@ -14,7 +14,7 @@
 
 #[test]
 fn simple_add_test() {
-  let x: u32 = (u32:1<<u32:31)+((u32:1<<u32:31)-u32:1);
-  let y: u32 = u32:1;
-  assert_eq(u32:0, x+y)
+    let x: u32 = (u32:1 << u32:31) + ((u32:1 << u32:31) - u32:1);
+    let y: u32 = u32:1;
+    assert_eq(u32:0, x + y)
 }

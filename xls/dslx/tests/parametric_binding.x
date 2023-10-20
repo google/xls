@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn add_num_bits<N: u32>(x: bits[N]) -> bits[N] { x+(N as bits[N]) }
+fn add_num_bits<N: u32>(x: bits[N]) -> bits[N] { x + (N as bits[N]) }
 
 #[test]
-fn different_parametric_invocations_test() {
-  assert_eq(bits[2]:3, add_num_bits(bits[2]:1))
-}
+fn different_parametric_invocations_test() { assert_eq(bits[2]:3, add_num_bits(bits[2]:1)) }

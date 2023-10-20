@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> u32[8] {
-  update(u32[8]: [0, ...], u32:2, u32:42)
-}
+fn main() -> u32[8] { update(u32[8]:[0, ...], u32:2, u32:42) }
 
 #[test]
-fn test_update() {
-  assert_eq(u32[8]: [0, 0, 42, 0, ...], main())
-}
+fn test_update() { assert_eq(u32[8]:[0, 0, 42, 0, ...], main()) }

@@ -15,7 +15,9 @@
 import std
 
 const THING_COUNT_IN_CRUMBS = u32:2;
+
 const THING_COUNT = THING_COUNT_IN_CRUMBS * u32:2;
+
 const THING_BITS = std::clog2(THING_COUNT);
 
 // TODO(https://github.com/google/xls/issues/246) We should be able to use the
@@ -24,12 +26,10 @@ const THING_BITS = std::clog2(THING_COUNT);
 //   bits[THING_BITS]:-1
 // }
 
-fn main() -> u32 {
-  THING_BITS
-}
+fn main() -> u32 { THING_BITS }
 
 #[test]
 fn test_main() {
-  assert_eq(u32:2, THING_BITS);
-  assert_eq(u32:2, main());
+    assert_eq(u32:2, THING_BITS);
+    assert_eq(u32:2, main());
 }

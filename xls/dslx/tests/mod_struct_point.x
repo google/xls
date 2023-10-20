@@ -14,7 +14,4 @@
 
 // A module primarily intended for importing a user-defined type definition.
 
-pub struct Point {
-  x: u32,
-  y: u32,
-}
+pub struct Point { x: u32, y: u32 }

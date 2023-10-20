@@ -13,17 +13,15 @@
 // limitations under the License.
 
 fn main(input: u32) -> u32 {
-  const FOO = u32:2;
-  for(_, acc): (u32, u32) in range(u32:0, FOO) {
-    for(_, acc): (u32, u32) in range(u32:0, FOO) {
-      for(_, acc): (u32, u32) in range(u32:0, FOO) {
-        acc + input
-      }(acc)
-    }(acc)
-  }(u32:0)
+    const FOO = u32:2;
+    for (_, acc): (u32, u32) in range(u32:0, FOO) {
+        for (_, acc): (u32, u32) in range(u32:0, FOO) {
+            for (_, acc): (u32, u32) in range(u32:0, FOO) {
+                acc + input
+            }(acc)
+        }(acc)
+    }(u32:0)
 }
 
 #[test]
-fn local_test() {
-  assert_eq(u32:8, main(u32:1))
-}
+fn local_test() { assert_eq(u32:8, main(u32:1)) }

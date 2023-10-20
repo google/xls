@@ -14,7 +14,7 @@
 
 #[test]
 fn slice_test() {
-  let x = u4:0b1001;
-  assert_eq(x[0:2], u2:0b01);
-  assert_eq(x[2:4], u2:0b10);
+    let x = u4:0b1001;
+    assert_eq(x[0:2], u2:0b01);
+    assert_eq(x[2:4], u2:0b10);
 }

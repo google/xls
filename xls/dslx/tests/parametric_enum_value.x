@@ -15,27 +15,24 @@
 // Uses an enum type for a parametric expression.
 
 enum MyEnum : u1 {
-  A = false,
-  B = true,
+    A = false,
+    B = true,
 }
 
-fn p<E: MyEnum>(x: MyEnum) -> bool {
-  x == E
-}
+fn p<E: MyEnum>(x: MyEnum) -> bool { x == E }
 
 fn is_a(x: MyEnum) -> bool { p<MyEnum::A>(x) }
+
 fn is_b(x: MyEnum) -> bool { p<MyEnum::B>(x) }
 
-fn main(x: MyEnum) -> bool {
-  is_a(x) || is_b(x)
-}
+fn main(x: MyEnum) -> bool { is_a(x) || is_b(x) }
 
 #[test]
 fn parametric_enum_value() {
-  assert_eq(is_a(MyEnum::A), true);
-  assert_eq(is_a(MyEnum::B), false);
-  assert_eq(is_b(MyEnum::A), false);
-  assert_eq(is_b(MyEnum::B), true);
-  assert_eq(main(MyEnum::A), true);
-  assert_eq(main(MyEnum::B), true);
+    assert_eq(is_a(MyEnum::A), true);
+    assert_eq(is_a(MyEnum::B), false);
+    assert_eq(is_b(MyEnum::A), false);
+    assert_eq(is_b(MyEnum::B), true);
+    assert_eq(main(MyEnum::A), true);
+    assert_eq(main(MyEnum::B), true);
 }

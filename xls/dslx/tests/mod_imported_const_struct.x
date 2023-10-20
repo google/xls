@@ -14,9 +14,6 @@
 
 // Defines a struct and exports a constant with a value of that struct type.
 
-struct Point2D {
-  x: u32,
-  y: u16,
-}
+struct Point2D { x: u32, y: u16 }
 
 pub const MY_POINT = Point2D { x: u32:2, y: u16:4 };

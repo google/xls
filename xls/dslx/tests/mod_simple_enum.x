@@ -13,8 +13,8 @@
 // limitations under the License.
 
 pub enum EnumType : u1 {
-  FIRST = 0,
-  SECOND = 1
+    FIRST = 0,
+    SECOND = 1,
 }
 
 pub type EnumTypeAlias = EnumType;

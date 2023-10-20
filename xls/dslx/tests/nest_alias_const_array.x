@@ -13,14 +13,12 @@
 // limitations under the License.
 
 type U32 = u32;
+
 const FOUR = U32:4;
+
 type Nibble = uN[FOUR];
 
-fn main(x: Nibble) -> Nibble {
-  x+Nibble:1
-}
+fn main(x: Nibble) -> Nibble { x + Nibble:1 }
 
 #[test]
-fn test_main() {
-  assert_eq(main(Nibble:14), u4:15)
-}
+fn test_main() { assert_eq(main(Nibble:14), u4:15) }

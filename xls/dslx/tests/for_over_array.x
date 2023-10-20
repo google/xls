@@ -14,9 +14,9 @@
 
 #[test]
 fn for_over_array_test() {
-  let a: u32[3] = u32[3]:[1, 2, 3];
-  let result: u32 = for (value, accum): (u32, u32) in a {
-    accum + value
-  }(u32:0);
-  assert_eq(u32:6, result)
+    let a: u32[3] = u32[3]:[1, 2, 3];
+    let result: u32 = for (value, accum): (u32, u32) in a {
+        accum + value
+    }(u32:0);
+    assert_eq(u32:6, result)
 }

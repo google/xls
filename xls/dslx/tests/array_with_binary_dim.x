@@ -14,11 +14,7 @@
 
 type MyArray = u32[0b10];
 
-fn main() -> MyArray {
-  MyArray:[0, 1]
-}
+fn main() -> MyArray { MyArray:[0, 1] }
 
 #[test]
-fn main_test() {
-  assert_eq(main(), u32[2]:[0, 1])
-}
+fn main_test() { assert_eq(main(), u32[2]:[0, 1]) }

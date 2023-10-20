@@ -13,9 +13,9 @@
 // limitations under the License.
 
 pub enum MyEnum : u2 {
-  A = 0,
-  B = 1,
-  C = 2,
+    A = 0,
+    B = 1,
+    C = 2,
 }
 
 pub const ENUMS = MyEnum[3]:[MyEnum::A, MyEnum::B, MyEnum::C];

@@ -13,8 +13,7 @@
 // limitations under the License.
 
 const A = u32:2;
+
 const B = u32:3;
 
-pub fn id<N: u32 = {A + B}>() -> bits[N] {
-  bits[N]:31
-}
+pub fn id<N: u32 = {A + B}>() -> bits[N] { bits[N]:31 }

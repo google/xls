@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> u8[4] {
-  "ab" ++ "cd"
-}
+fn main() -> u8[4] { "ab" ++ "cd" }
 
 #[test]
-fn test_concat() {
-  assert_eq("abcd", main())
-}
+fn test_concat() { assert_eq("abcd", main()) }

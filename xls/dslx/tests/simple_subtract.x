@@ -14,7 +14,7 @@
 
 #[test]
 fn simple_subtract_test() {
-  let x: u32 = u32:5;
-  let y: u32 = u32:4;
-  assert_eq(u32:1, x-y)
+    let x: u32 = u32:5;
+    let y: u32 = u32:4;
+    assert_eq(u32:1, x - y)
 }

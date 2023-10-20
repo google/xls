@@ -13,28 +13,28 @@
 // limitations under the License.
 
 enum MyEnum : u2 {
-  A = 0,
-  B = 1,
-  C = 2,
-  D = 3,
+    A = 0,
+    B = 1,
+    C = 2,
+    D = 3,
 }
 
 fn main(x: u2) -> MyEnum {
-  for (_, _): (u4, MyEnum) in u4:0..u4:4 {
-    match x {
-      u2:0 => MyEnum::A,
-      u2:1 => MyEnum::B,
-      u2:2 => MyEnum::C,
-      u2:3 => MyEnum::D,
-      _ => MyEnum::A,
-    }
-  }(MyEnum::A)
+    for (_, _): (u4, MyEnum) in u4:0..u4:4 {
+        match x {
+            u2:0 => MyEnum::A,
+            u2:1 => MyEnum::B,
+            u2:2 => MyEnum::C,
+            u2:3 => MyEnum::D,
+            _ => MyEnum::A,
+        }
+    }(MyEnum::A)
 }
 
 #[test]
 fn test_main() {
-  assert_eq(MyEnum::A, main(u2:0));
-  assert_eq(MyEnum::B, main(u2:1));
-  assert_eq(MyEnum::C, main(u2:2));
-  assert_eq(MyEnum::D, main(u2:3));
+    assert_eq(MyEnum::A, main(u2:0));
+    assert_eq(MyEnum::B, main(u2:1));
+    assert_eq(MyEnum::C, main(u2:2));
+    assert_eq(MyEnum::D, main(u2:3));
 }

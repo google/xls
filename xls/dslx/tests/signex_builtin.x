@@ -14,45 +14,43 @@
 
 import xls.dslx.tests.mod_imported_typedef
 
-fn main(x: s8) -> s32 {
-  signex(x, s32:0)
-}
+fn main(x: s8) -> s32 { signex(x, s32:0) }
 
 #[test]
 fn test_main() {
-  assert_eq(main(s8:-1), s32:-1);
-  assert_eq(main(s8:1), s32:1);
+    assert_eq(main(s8:-1), s32:-1);
+    assert_eq(main(s8:1), s32:1);
 }
 
 #[test]
 fn signex_builtin() {
-  let x = s8:-1;
-  let s: s32 = signex(x, s32:0);
-  let u: u32 = signex(x, u32:0);
-  assert_eq(s as u32, u)
+    let x = s8:-1;
+    let s: s32 = signex(x, s32:0);
+    let u: u32 = signex(x, u32:0);
+    assert_eq(s as u32, u)
 }
 
 #[test]
 fn signex_builtin_convert_to_fewer_bits() {
-  let x = s8:-1;
-  let s: s4 = signex(x, s4:0);
-  let u: u4 = signex(x, u4:0);
-  assert_eq(s as u4, u);
-  assert_eq(x as s4, s);
-  assert_eq(x as u4, u);
+    let x = s8:-1;
+    let s: s4 = signex(x, s4:0);
+    let u: u4 = signex(x, u4:0);
+    assert_eq(s as u4, u);
+    assert_eq(x as s4, s);
+    assert_eq(x as u4, u);
 }
 
 #[test]
 fn signex_builtin_convert_to_external_typedef() {
-  let x = s8:-1;
-  let u32_result: u32 = signex(x, mod_imported_typedef::MY_PUBLIC_CONST);
-  assert_eq(u32_result, u32::MAX);
-  let u42_result: u42 = signex(x, mod_imported_typedef::MyBits:0);
-  assert_eq(u42_result, u42::MAX);
-  // Now do the same with a zero value as the input to sign extend..
-  let y = s8:0;
-  let u32_result: u32 = signex(y, mod_imported_typedef::MY_PUBLIC_CONST);
-  assert_eq(u32_result, u32:0);
-  let u42_result: u42 = signex(y, mod_imported_typedef::MyBits:0);
-  assert_eq(u42_result, u42:0);
+    let x = s8:-1;
+    let u32_result: u32 = signex(x, mod_imported_typedef::MY_PUBLIC_CONST);
+    assert_eq(u32_result, u32::MAX);
+    let u42_result: u42 = signex(x, mod_imported_typedef::MyBits:0);
+    assert_eq(u42_result, u42::MAX);
+    // Now do the same with a zero value as the input to sign extend..
+    let y = s8:0;
+    let u32_result: u32 = signex(y, mod_imported_typedef::MY_PUBLIC_CONST);
+    assert_eq(u32_result, u32:0);
+    let u42_result: u42 = signex(y, mod_imported_typedef::MyBits:0);
+    assert_eq(u42_result, u42:0);
 }

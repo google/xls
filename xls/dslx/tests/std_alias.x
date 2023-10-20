@@ -14,12 +14,10 @@
 
 import std as my_std
 
-fn main(x: u2) -> u1 {
-  my_std::lsb(x)
-}
+fn main(x: u2) -> u1 { my_std::lsb(x) }
 
 #[test]
 fn main_test() {
-  assert_eq(main(u2:0b01), u1:1);
-  assert_eq(main(u2:0b10), u1:0);
+    assert_eq(main(u2:0b01), u1:1);
+    assert_eq(main(u2:0b10), u1:0);
 }

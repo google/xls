@@ -18,18 +18,13 @@
 
 // Note: faked definition specialized to reduce complexity, but still parametric
 // invocation.
-fn clog2<N: u32>(x: bits[N]) -> bits[N] {
-  u32:4
-}
+fn clog2<N: u32>(x: bits[N]) -> bits[N] { u32:4 }
 
 const VALUE_LIMIT = u32:16;
+
 type MyType = bits[clog2(VALUE_LIMIT)];
 
-fn main(x: MyType) -> MyType {
-  x
-}
+fn main(x: MyType) -> MyType { x }
 
 #[test]
-fn test_main() {
-  assert_eq(main(u4:0xa), u4:0xa)
-}
+fn test_main() { assert_eq(main(u4:0xa), u4:0xa) }

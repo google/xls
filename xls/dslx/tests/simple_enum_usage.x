@@ -13,16 +13,14 @@
 // limitations under the License.
 
 enum Foo : u32 {
-  A = 0,
-  B = 1,
+    A = 0,
+    B = 1,
 }
 
-fn main(x: Foo) -> Foo {
-  if x == Foo::A { Foo::B } else { Foo::A }
-}
+fn main(x: Foo) -> Foo { if x == Foo::A { Foo::B } else { Foo::A } }
 
 #[test]
 fn test_main() {
-  assert_eq(Foo::B, main(Foo::A));
-  assert_eq(Foo::A, main(Foo::B));
+    assert_eq(Foo::B, main(Foo::A));
+    assert_eq(Foo::A, main(Foo::B));
 }

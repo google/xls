@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct MyStruct {
-  x: u32
-}
+struct MyStruct { x: u32 }
+
 const C = MyStruct { x: u32:3 };
+
 const C_ARRAY = MyStruct[1]:[C];
 
 fn main() -> u32 {
-  const C': MyStruct = C_ARRAY[u32:0];
-  for (i, accum) in range(u32:0, C'.x) {
-    accum + i
-  }(u32:0)
+    const C': MyStruct = C_ARRAY[u32:0];
+    for (i, accum) in range(u32:0, C'.x) {
+        accum + i
+    }(u32:0)
 }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u32:0+u32:1+u32:2)
-}
+fn test_main() { assert_eq(main(), u32:0 + u32:1 + u32:2) }

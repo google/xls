@@ -21,15 +21,15 @@
 import xls.dslx.tests.mod_simple_enum as exporter
 
 fn main(x: exporter::EnumType) -> u32 {
-  match x {
-    exporter::EnumType::FIRST => u32:0,
-    exporter::EnumType::SECOND => u32:1,
-    _ => fail!("no_match", u32:1),
-  }
+    match x {
+        exporter::EnumType::FIRST => u32:0,
+        exporter::EnumType::SECOND => u32:1,
+        _ => fail!("no_match", u32:1),
+    }
 }
 
 #[test]
 fn test_main() {
-  assert_eq(u32:0, main(exporter::EnumType::FIRST));
-  assert_eq(u32:1, main(exporter::EnumType::SECOND));
+    assert_eq(u32:0, main(exporter::EnumType::FIRST));
+    assert_eq(u32:1, main(exporter::EnumType::SECOND));
 }

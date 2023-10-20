@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(a:u32, b:u32) -> u32 {
-    a % b
-}
+fn main(a: u32, b: u32) -> u32 { a % b }
 
 #[test]
 fn simple_mod_test() {

@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Point {
-  x: u32,
-  y: s32,
-}
+struct Point { x: u32, y: s32 }
 
 fn main() {
-  let p = Point{x: u32:42, y: s32:-1};
-  trace_fmt!("point: {}", p);
+    let p = Point { x: u32:42, y: s32:-1 };
+    trace_fmt!("point: {}", p);
 }
 
 #[test]

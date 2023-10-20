@@ -13,12 +13,10 @@
 // limitations under the License.
 
 // Makes array
-fn main(x: u32) -> u32[3] {
-  u32[3]:[u32:42, x, ...]
-}
+fn main(x: u32) -> u32[3] { u32[3]:[u32:42, x, ...] }
 
 #[test]
 fn main_test() {
-  assert_eq(u32[3]:[u32:42, u32:42, u32:42], main(u32:42));
-  assert_eq(u32[3]:[u32:42, u32:64, u32:64], main(u32:64));
+    assert_eq(u32[3]:[u32:42, u32:42, u32:42], main(u32:42));
+    assert_eq(u32[3]:[u32:42, u32:64, u32:64], main(u32:64));
 }

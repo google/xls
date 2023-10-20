@@ -13,6 +13,7 @@
 // limitations under the License.
 
 const MOL = u32:42;
+
 const TWO = u32:2;
 
 const_assert!(MOL > TWO);

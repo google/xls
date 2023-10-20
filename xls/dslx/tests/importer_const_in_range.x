@@ -18,12 +18,10 @@
 import xls.dslx.tests.mod_simple_const
 
 fn main(x: u32) -> u32 {
-  for (i, accum): (u32, u32) in u32:0..mod_simple_const::FOUR {
-    accum+i
-  }(u32:0)
+    for (i, accum): (u32, u32) in u32:0..mod_simple_const::FOUR {
+        accum + i
+    }(u32:0)
 }
 
 #[test]
-fn main_test() {
-  assert_eq(main(u32:0), u32:6)
-}
+fn main_test() { assert_eq(main(u32:0), u32:6) }

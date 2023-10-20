@@ -16,5 +16,5 @@ fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 
 #[test]
 fn different_parametric_invocations_test() {
-  assert_eq(bits[5]:0b01111, id(bits[2]:0b01) ++ id(bits[3]:0b111))
+    assert_eq(bits[5]:0b01111, id(bits[2]:0b01) ++ id(bits[3]:0b111))
 }

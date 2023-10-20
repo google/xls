@@ -15,24 +15,25 @@
 // Ensures that we can be referentially transparent with negative index slices.
 
 const FIVE_U32 = u32:5;
+
 const FIVE_S32 = s32:5;
 
 fn f(x: u32) -> bits[5] { x[-5:] }
+
 fn g(x: u32) -> bits[5] { x[-FIVE_S32:] }
+
 fn h(x: u32) -> bits[5] { x[(-FIVE_U32) as s32:] }
 
-fn main(x: u32) -> u5 {
-  f(x) + g(x) + h(x)
-}
+fn main(x: u32) -> u5 { f(x) + g(x) + h(x) }
 
 #[test]
 fn main_test() {
-  let x = u32:0xa000_0000;
-  let want = u5:0b1010_0;
-  assert_eq(f(x), g(x));
-  assert_eq(g(x), h(x));
-  assert_eq(f(x), want);
-  assert_eq(g(x), want);
-  assert_eq(h(x), want);
-  assert_eq(main(x), u5:28);
+    let x = u32:0xa000_0000;
+    let want = u5:0b1010_0;
+    assert_eq(f(x), g(x));
+    assert_eq(g(x), h(x));
+    assert_eq(f(x), want);
+    assert_eq(g(x), want);
+    assert_eq(h(x), want);
+    assert_eq(main(x), u5:28);
 }

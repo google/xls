@@ -15,15 +15,9 @@
 // Note: double is only called from the body of a parametric.
 fn double(x: u8) -> u8 { x * u8:2 }
 
-fn p<N: u32>(x: bits[N]) -> bits[N] {
-  double(x)
-}
+fn p<N: u32>(x: bits[N]) -> bits[N] { double(x) }
 
-fn main(x: u8) -> u8 {
-  p(x)
-}
+fn main(x: u8) -> u8 { p(x) }
 
 #[test]
-fn main_test() {
-  assert_eq(main(u8:0x10), u8:0x20)
-}
+fn main_test() { assert_eq(main(u8:0x10), u8:0x20) }

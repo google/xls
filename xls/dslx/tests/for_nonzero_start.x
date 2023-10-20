@@ -15,13 +15,13 @@
 const LOOP_START = u32:5;
 
 fn main() -> u32 {
-  for (i, j): (u32, u32) in LOOP_START..u32:10 {
-    j + i
-  }(u32:0)
+    for (i, j): (u32, u32) in LOOP_START..u32:10 {
+        j + i
+    }(u32:0)
 }
 
 #[test]
 fn test_fn() {
-  let x = main();
-  assert_eq(x, u32:35)
+    let x = main();
+    assert_eq(x, u32:35)
 }

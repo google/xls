@@ -13,46 +13,44 @@
 // limitations under the License.
 
 proc parametric<N: u32, M: u32> {
-  c: chan<uN[M]> in;
-  s: chan<uN[M]> out;
+    c: chan<uN[M]> in;
+    s: chan<uN[M]> out;
 
-  init { () }
+    config(c: chan<uN[M]> in, s: chan<uN[M]> out) { (c, s) }
 
-  config(c: chan<uN[M]> in, s: chan<uN[M]> out) {
-    (c, s)
-  }
+    init { () }
 
-  next(tok: token, state: ()) {
-    let (tok, input) = recv(tok, c);
-    let output = (input as uN[N] * uN[N]:2) as uN[M];
-    let tok = send(tok, s, output);
-  }
+    next(tok: token, state: ()) {
+        let (tok, input) = recv(tok, c);
+        let output = ((input as uN[N]) * uN[N]:2) as uN[M];
+        let tok = send(tok, s, output);
+    }
 }
 
 #[test_proc]
 proc test_proc {
-  terminator: chan<bool> out;
-  output_c: chan<u37> in;
-  input_p: chan<u37> out;
+    terminator: chan<bool> out;
+    output_c: chan<u37> in;
+    input_p: chan<u37> out;
 
-  init { () }
+    config(terminator: chan<bool> out) {
+        let (input_p, input_c) = chan<u37>;
+        let (output_p, output_c) = chan<u37>;
+        spawn parametric<u32:32, u32:37>(input_c, output_p);
+        (terminator, output_c, input_p)
+    }
 
-  config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<u37>;
-    let (output_p, output_c) = chan<u37>;
-    spawn parametric<u32:32, u32:37>(input_c, output_p);
-    (terminator, output_c, input_p)
-  }
+    init { () }
 
-  next(tok: token, state: ()) {
-    let tok = send(tok, input_p, u37:1);
-    let (tok, result) = recv(tok, output_c);
-    assert_eq(result, u37:2);
+    next(tok: token, state: ()) {
+        let tok = send(tok, input_p, u37:1);
+        let (tok, result) = recv(tok, output_c);
+        assert_eq(result, u37:2);
 
-    let tok = send(tok, input_p, u37:8);
-    let (tok, result) = recv(tok, output_c);
-    assert_eq(result, u37:16);
+        let tok = send(tok, input_p, u37:8);
+        let (tok, result) = recv(tok, output_c);
+        assert_eq(result, u37:16);
 
-    let tok = send(tok, terminator, true);
-  }
+        let tok = send(tok, terminator, true);
+    }
 }

@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn returns_bool() -> bool {
-  false
-}
+fn returns_bool() -> bool { false }
+
 #[test]
-fn returns_bool_test() {
-  assert_eq(false, returns_bool())
-}
+fn returns_bool_test() { assert_eq(false, returns_bool()) }

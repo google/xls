@@ -18,6 +18,6 @@ fn main(xs: u4[1]) -> u4[1] { map(xs, p) }
 
 #[test]
 fn test_main() {
-  let xs = u4[1]:[0x7];
-  assert_eq(main(xs), xs)
+    let xs = u4[1]:[0x7];
+    assert_eq(main(xs), xs)
 }

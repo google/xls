@@ -15,15 +15,15 @@
 import xls.dslx.tests.mod_simple_enum
 
 fn main(et: mod_simple_enum::EnumType) -> u32 {
-  match et {
-    mod_simple_enum::EnumType::FIRST => u32:0,
-    mod_simple_enum::EnumType::SECOND => u32:1,
-    _ => u32:2
-  }
+    match et {
+        mod_simple_enum::EnumType::FIRST => u32:0,
+        mod_simple_enum::EnumType::SECOND => u32:1,
+        _ => u32:2,
+    }
 }
 
 #[test]
 fn test_main() {
-  assert_eq(u32:0, main(mod_simple_enum::EnumType::FIRST));
-  assert_eq(u32:1, main(mod_simple_enum::EnumType::SECOND));
+    assert_eq(u32:0, main(mod_simple_enum::EnumType::FIRST));
+    assert_eq(u32:1, main(mod_simple_enum::EnumType::SECOND));
 }

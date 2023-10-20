@@ -18,12 +18,10 @@
 import xls.dslx.tests.mod_parametric_id_with_default
 
 fn main() -> (u5, u8) {
-  let x: u5 = mod_parametric_id_with_default::id();
-  let y: u8 = mod_parametric_id_with_default::id<u32:8>();
-  (x, y)
+    let x: u5 = mod_parametric_id_with_default::id();
+    let y: u8 = mod_parametric_id_with_default::id<u32:8>();
+    (x, y)
 }
 
 #[test]
-fn test_main() {
-  assert_eq((u5:31, u8:31), main())
-}
+fn test_main() { assert_eq((u5:31, u8:31), main()) }

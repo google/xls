@@ -14,19 +14,12 @@
 
 fn double(x: u32) -> u32 { x * u32:2 }
 
-struct MyParametric<A: u32, B: u32 = {double(A)}> {
-  x: bits[A],
-  y: bits[B]
-}
+struct MyParametric<A: u32, B: u32 = {double(A)}> { x: bits[A], y: bits[B] }
 
 // TODO(leary): 2020-12-19 This doesn't work, we have to annotate B as well.
 // We should be able to infer it.
 // fn f() -> MyParametric<8> {
-fn main() -> MyParametric<8, 16> {
-  MyParametric { x: u8:1, y: u16:2 }
-}
+fn main() -> MyParametric<8, 16> { MyParametric { x: u8:1, y: u16:2 } }
 
 #[test]
-fn test_main() {
-  assert_eq(MyParametric { x: u8:1, y: u16:2 }, main())
-}
+fn test_main() { assert_eq(MyParametric { x: u8:1, y: u16:2 }, main()) }

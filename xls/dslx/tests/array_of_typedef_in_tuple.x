@@ -13,31 +13,25 @@
 // limitations under the License.
 
 type Foo = (u8, u32);
-type Bar = (
-  u16,
-  Foo[2],
-);
+
+type Bar = (u16, Foo[2]);
+
 type Foo2 = Foo[2];
 
-fn foo_add_all(x: Foo) -> u32 {
-  (x.0 as u32) + x.1
-}
+fn foo_add_all(x: Foo) -> u32 { (x.0 as u32) + x.1 }
 
 fn bar_add_all(x: Bar) -> u32 {
-  let foos: Foo2 = x.1;
-  let foo0: Foo = foos[u32:0];
-  let foo1: Foo = foos[u32:1];
-  (x.0 as u32) + foo_add_all(foo0) + foo_add_all(foo1)
+    let foos: Foo2 = x.1;
+    let foo0: Foo = foos[u32:0];
+    let foo1: Foo = foos[u32:1];
+    (x.0 as u32) + foo_add_all(foo0) + foo_add_all(foo1)
 }
 
 #[test]
 fn bar_add_all_test() {
-  let foo0: Foo = (u8:1, u32:2);
-  let bar: Bar = (u16:3, [foo0, foo0]);
-  assert_eq(u32:9, bar_add_all(bar))
+    let foo0: Foo = (u8:1, u32:2);
+    let bar: Bar = (u16:3, [foo0, foo0]);
+    assert_eq(u32:9, bar_add_all(bar))
 }
 
-fn main(x: Bar) -> u32 {
-  bar_add_all(x)
-}
-
+fn main(x: Bar) -> u32 { bar_add_all(x) }

@@ -14,7 +14,7 @@
 
 #[test]
 fn destructure_test() {
-  let t = (u32:2, u8:3, true);
-  let (_, _, v) = t;
-  assert_eq(v, true)
+    let t = (u32:2, u8:3, true);
+    let (_, _, v) = t;
+    assert_eq(v, true)
 }

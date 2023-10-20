@@ -13,23 +13,18 @@
 // limitations under the License.
 
 const FORTY_TWO = u32:42;
+
 const SIXTY_FOUR = u32:64;
 
 // Returns the parametric value N this function is instantiated with.
-fn p_id<N: u32>() -> u32 {
-  N
-}
+fn p_id<N: u32>() -> u32 { N }
 
 fn p<N: u32>() -> u32 {
-  const BASE = p_id<FORTY_TWO>();
-  BASE + N
+    const BASE = p_id<FORTY_TWO>();
+    BASE + N
 }
 
-fn main() -> u32{
-  p<SIXTY_FOUR>()
-}
+fn main() -> u32 { p<SIXTY_FOUR>() }
 
 #[test]
-fn test_main() {
-  assert_eq(u32:106, main())
-}
+fn test_main() { assert_eq(u32:106, main()) }

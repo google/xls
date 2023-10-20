@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn parametric<X: u32, Y: u32 = {X+X}, Z: u32 = {Y+u32:1}>(
-      x: bits[X]) -> (u32, u32, u32) {
-  (X, Y, Z)
+fn parametric<X: u32, Y: u32 = {X + X}, Z: u32 = {Y + u32:1}>(x: bits[X]) -> (u32, u32, u32) {
+    (X, Y, Z)
 }
+
 #[test]
-fn parametric_test() {
-  assert_eq((u32:2, u32:4, u32:5), parametric(bits[2]:0))
-}
+fn parametric_test() { assert_eq((u32:2, u32:4, u32:5), parametric(bits[2]:0)) }

@@ -14,8 +14,8 @@
 
 #[test]
 fn not_equals_test() {
-  assert_eq(false, u32:0 != u32:0);
-  assert_eq(true, u32:1 != u32:0);
-  assert_eq(true, s32:1 != s32:-1);
-  assert_eq(true, u32:1 != u32:2);
+    assert_eq(false, u32:0 != u32:0);
+    assert_eq(true, u32:1 != u32:0);
+    assert_eq(true, s32:1 != s32:-1);
+    assert_eq(true, u32:1 != u32:2);
 }

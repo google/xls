@@ -13,7 +13,7 @@
 // limitations under the License.
 
 fn main() {
-  const N = u32:2;
-  const M = u32:3;
-  const_assert!(N + M == u32:5);
+    const N = u32:2;
+    const M = u32:3;
+    const_assert!(N + M == u32:5);
 }

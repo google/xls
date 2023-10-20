@@ -13,11 +13,9 @@
 // limitations under the License.
 
 fn main(x: u32) -> u32 {
-  let x' = x + x;
-  x'
+    let x' = x + x;
+    x'
 }
 
 #[test]
-fn main_test() {
-  assert_eq(u32:42, main(u32:21))
-}
+fn main_test() { assert_eq(u32:42, main(u32:21)) }

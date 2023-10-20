@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(x: s8, y: s8) -> s8 {
-  x - y
-}
+fn main(x: s8, y: s8) -> s8 { x - y }
 
 #[test]
 fn main_test() {
-  let x: s8 = s8:2;
-  let y: s8 = s8:3;
-  let z: s8 = main(x, y);
-  assert_lt(z, s8:0);
-  assert_eq(false, z >= s8:0);
+    let x: s8 = s8:2;
+    let y: s8 = s8:3;
+    let z: s8 = main(x, y);
+    assert_lt(z, s8:0);
+    assert_eq(false, z >= s8:0);
 }

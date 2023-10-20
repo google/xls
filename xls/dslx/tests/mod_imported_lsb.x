@@ -13,11 +13,7 @@
 // limitations under the License.
 
 // Extracts the LSb (least significant bit) from the value `x` and returns it.
-pub fn lsb<N: u32>(x: uN[N]) -> u1 {
-  x as u1
-}
+pub fn lsb<N: u32>(x: uN[N]) -> u1 { x as u1 }
 
 // Wrapper around the above that exposes a non-parametric callable for u32s.
-pub fn lsb_u32(x: u32) -> u1 {
-  lsb(x)
-}
+pub fn lsb_u32(x: u32) -> u1 { lsb(x) }

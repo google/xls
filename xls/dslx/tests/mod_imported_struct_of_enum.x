@@ -13,14 +13,12 @@
 // limitations under the License.
 
 const EIGHT = u32:8;
+
 type MyEnumBase = uN[EIGHT];
 
 pub enum MyEnum : MyEnumBase {
-  FOO = 42,
-  BAR = 64,
+    FOO = 42,
+    BAR = 64,
 }
 
-pub struct MyStruct {
-  x: MyEnum,
-}
-
+pub struct MyStruct { x: MyEnum }

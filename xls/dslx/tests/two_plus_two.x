@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> u32 {
-  u32:2 + u32:2
-}
+fn main() -> u32 { u32:2 + u32:2 }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u32:4)
-}
+fn test_main() { assert_eq(main(), u32:4) }

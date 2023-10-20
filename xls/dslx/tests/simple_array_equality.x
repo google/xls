@@ -14,6 +14,6 @@
 
 #[test]
 fn array_equality_test() {
-  let a: u8[4] = u8[4]:[1,2,3,4];
-  assert_eq(a, a)
+    let a: u8[4] = u8[4]:[1, 2, 3, 4];
+    assert_eq(a, a)
 }

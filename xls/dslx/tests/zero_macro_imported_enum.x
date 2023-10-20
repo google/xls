@@ -14,21 +14,15 @@
 
 import xls.dslx.tests.mod_simple_enum
 
-fn f() -> mod_simple_enum::EnumType {
-  zero!<mod_simple_enum::EnumType>()
-}
+fn f() -> mod_simple_enum::EnumType { zero!<mod_simple_enum::EnumType>() }
 
-fn g() -> mod_simple_enum::EnumTypeAlias {
-  zero!<mod_simple_enum::EnumTypeAlias>()
-}
+fn g() -> mod_simple_enum::EnumTypeAlias { zero!<mod_simple_enum::EnumTypeAlias>() }
 
-fn main() -> (mod_simple_enum::EnumType, mod_simple_enum::EnumTypeAlias) {
-  (f(), g())
-}
+fn main() -> (mod_simple_enum::EnumType, mod_simple_enum::EnumTypeAlias) { (f(), g()) }
 
 #[test]
 fn test_main() {
-  let (a, b) = main();
-  assert_eq(a, b);
-  assert_eq(a, mod_simple_enum::EnumType::FIRST)
+    let (a, b) = main();
+    assert_eq(a, b);
+    assert_eq(a, mod_simple_enum::EnumType::FIRST)
 }

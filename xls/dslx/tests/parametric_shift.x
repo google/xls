@@ -12,17 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn p<N: u32>(x: bits[N]) -> bits[N] {
-    (x << 0) | (x >> 0)
-}
+fn p<N: u32>(x: bits[N]) -> bits[N] { (x << 0) | (x >> 0) }
 
 fn f() -> u32 { p(u32:42) }
+
 fn g() -> u16 { p(u16:64) }
-fn main() -> u32 {
-  f() + g() as u32
-}
+
+fn main() -> u32 { f() + g() as u32 }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u32:106)
-}
+fn test_main() { assert_eq(main(), u32:106) }

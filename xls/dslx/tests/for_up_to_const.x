@@ -20,12 +20,10 @@
 const FOO = u2:3;
 
 fn main() -> u32 {
-  for (i, accum): (u2, u32) in range(u2:0, FOO) {
-    accum + (i as u32)
-  }(u32:0)
+    for (i, accum): (u2, u32) in range(u2:0, FOO) {
+        accum + (i as u32)
+    }(u32:0)
 }
 
 #[test]
-fn main_test() {
-  assert_eq(main(), u32:3)
-}
+fn main_test() { assert_eq(main(), u32:3) }

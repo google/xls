@@ -13,13 +13,11 @@
 // limitations under the License.
 
 fn main() -> u32 {
-  // Note: there's no type annotation on the for loop bindings here.
-  for (i, accum) in u32:0..u32:4 {
-    accum + i
-  }(u32:0)
+    // Note: there's no type annotation on the for loop bindings here.
+    for (i, accum) in u32:0..u32:4 {
+        accum + i
+    }(u32:0)
 }
 
 #[test]
-fn test_main() {
-  assert_eq(u32:6, main())
-}
+fn test_main() { assert_eq(u32:6, main()) }

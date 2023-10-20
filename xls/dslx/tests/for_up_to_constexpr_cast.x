@@ -15,36 +15,35 @@
 // Contains a for loop that iterates up to a constexpr casted value.
 
 const FOO = u2:3;
+
 const CASTED = FOO as u4;
 
 fn f() -> u32 {
-  for (i, accum): (u4, u32) in u4:0..CASTED {
-    accum + (i as u32)
-  }(u32:0)
+    for (i, accum): (u4, u32) in u4:0..CASTED {
+        accum + (i as u32)
+    }(u32:0)
 }
 
 // As above, but puts the constexpr inline instead of binding to a module-level
 // const.
 fn g() -> u32 {
-  for (i, accum): (u4, u32) in u4:0..FOO as u4 {
-    accum + (i as u32)
-  }(u32:0)
+    for (i, accum): (u4, u32) in u4:0..FOO as u4 {
+        accum + (i as u32)
+    }(u32:0)
 }
 
 fn p<N: u2>() -> u32 {
-  for (i, accum): (u4, u32) in u4:0..N as u4 {
-    accum + (i as u32)
-  }(u32:0)
+    for (i, accum): (u4, u32) in u4:0..N as u4 {
+        accum + (i as u32)
+    }(u32:0)
 }
 
-fn main() -> u32 {
-  f() + g() + p<FOO>()
-}
+fn main() -> u32 { f() + g() + p<FOO>() }
 
 #[test]
 fn f_test() {
-  assert_eq(f(), u32:3);
-  assert_eq(g(), u32:3);
-  assert_eq(p<FOO>(), u32:3);
-  assert_eq(main(), u32:9);
+    assert_eq(f(), u32:3);
+    assert_eq(g(), u32:3);
+    assert_eq(p<FOO>(), u32:3);
+    assert_eq(main(), u32:9);
 }

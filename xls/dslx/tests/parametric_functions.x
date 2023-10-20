@@ -14,20 +14,12 @@
 
 // Tests various forms of parametric fns.
 
-fn basic<X: u32>(x: bits[X]) -> bits[X] {
-  bits[X]:5
-}
+fn basic<X: u32>(x: bits[X]) -> bits[X] { bits[X]:5 }
 
 // Has an empty param list.
-fn empty_param_list<X: u32 = {u32: 5}>() -> bits[5] {
-  bits[X]: 1
-}
+fn empty_param_list<X: u32 = {u32:5}>() -> bits[5] { bits[X]:1 }
 
-fn main() -> bits[5] {
-  empty_param_list() + basic(u5:0x1f)
-}
+fn main() -> bits[5] { empty_param_list() + basic(u5:0x1f) }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), bits[5]:6)
-}
+fn test_main() { assert_eq(main(), bits[5]:6) }

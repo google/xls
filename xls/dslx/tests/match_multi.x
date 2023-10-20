@@ -13,15 +13,15 @@
 // limitations under the License.
 
 fn main(x: u32) -> u32 {
-  match x {
-    u32:24 | u32:42 => u32:42,
-    _ => u32:64
-  }
+    match x {
+        u32:24 | u32:42 => u32:42,
+        _ => u32:64,
+    }
 }
 
 #[test]
 fn main_test() {
-  //assert_eq(u32:42, main(u32:24));
-  assert_eq(u32:42, main(u32:42));
-  //assert_eq(u32:64, main(u32:41));
+    //assert_eq(u32:42, main(u32:24));
+    assert_eq(u32:42, main(u32:42));
+    //assert_eq(u32:64, main(u32:41));
 }

@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(p: bool, x: u32) -> u32 {
-  gate!(p, x)
-}
+fn main(p: bool, x: u32) -> u32 { gate!(p, x) }
 
 #[test]
 fn test_main() {
-  assert_eq(u32:0, main(false, u32:1));
-  assert_eq(u32:1, main(true, u32:1));
+    assert_eq(u32:0, main(false, u32:1));
+    assert_eq(u32:1, main(true, u32:1));
 }

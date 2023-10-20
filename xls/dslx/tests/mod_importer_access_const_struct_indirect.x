@@ -16,11 +16,7 @@ import xls.dslx.tests.mod_imported_access_const_struct
 
 const SIX = mod_imported_access_const_struct::FOUR as u32 + mod_imported_access_const_struct::TWO;
 
-fn main() -> u32 {
-  SIX
-}
+fn main() -> u32 { SIX }
 
 #[test]
-fn test_main() {
-  assert_eq(u32:6, main())
-}
+fn test_main() { assert_eq(u32:6, main()) }

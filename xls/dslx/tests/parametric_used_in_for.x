@@ -13,16 +13,12 @@
 // limitations under the License.
 
 fn p<N: u32>() -> u32 {
-  for (i, accum): (u32, u32) in range(u32:0, N) {
-    accum + i
-  }(u32:0)
+    for (i, accum): (u32, u32) in range(u32:0, N) {
+        accum + i
+    }(u32:0)
 }
 
-fn main() -> u32 {
-  p<u32:4>()
-}
+fn main() -> u32 { p<u32:4>() }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u32:6)
-}
+fn test_main() { assert_eq(main(), u32:6) }

@@ -14,6 +14,6 @@
 
 #[test]
 fn simple_add_test() {
-  let x: u1 = u1:1;
-  assert_eq((u1:1, u1:0), add_with_carry(x, x))
+    let x: u1 = u1:1;
+    assert_eq((u1:1, u1:0), add_with_carry(x, x))
 }

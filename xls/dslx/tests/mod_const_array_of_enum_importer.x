@@ -15,12 +15,12 @@
 import xls.dslx.tests.mod_simple_const_array_of_enums
 
 fn main(i: u2) -> mod_simple_const_array_of_enums::MyEnum {
-  mod_simple_const_array_of_enums::ENUMS[i]
+    mod_simple_const_array_of_enums::ENUMS[i]
 }
 
 #[test]
 fn main_test() {
-  assert_eq(main(u2:0), mod_simple_const_array_of_enums::MyEnum::A);
-  assert_eq(main(u2:1), mod_simple_const_array_of_enums::MyEnum::B);
-  assert_eq(main(u2:2), mod_simple_const_array_of_enums::MyEnum::C);
+    assert_eq(main(u2:0), mod_simple_const_array_of_enums::MyEnum::A);
+    assert_eq(main(u2:1), mod_simple_const_array_of_enums::MyEnum::B);
+    assert_eq(main(u2:2), mod_simple_const_array_of_enums::MyEnum::C);
 }

@@ -12,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct S {
-    i: bool
-}
+struct S { i: bool }
 
 fn main(s: S) {
-  for (_, ()) in u32:0 .. u32:4 {
-    cover!("indirect_list_size_C",
-                   s.i);
-  }(())
+    for (_, ()) in u32:0..u32:4 {
+        cover!("indirect_list_size_C", s.i);
+    }(())
 }
 
 #[test]
-fn test_main() {
-  main(S{i: true})
-}
+fn test_main() { main(S { i: true }) }

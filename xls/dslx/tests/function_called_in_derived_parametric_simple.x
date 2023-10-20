@@ -15,15 +15,9 @@
 // Note: double is only called from a "derived parametric" expression.
 fn double(x: u32) -> u32 { x * u32:2 }
 
-fn concat_self<N: u32, M: u32 = {double(N)}>(x: bits[N]) -> bits[M] {
-  x ++ x
-}
+fn concat_self<N: u32, M: u32 = {double(N)}>(x: bits[N]) -> bits[M] { x ++ x }
 
-fn main(x: u8) -> u16 {
-  concat_self(x)
-}
+fn main(x: u8) -> u16 { concat_self(x) }
 
 #[test]
-fn main_test() {
-  assert_eq(main(u8:0x10), u16:0x1010)
-}
+fn main_test() { assert_eq(main(u8:0x10), u16:0x1010) }

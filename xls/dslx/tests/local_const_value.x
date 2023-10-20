@@ -13,11 +13,9 @@
 // limitations under the License.
 
 fn main() -> u32[4] {
-  const FOO = u32:4;
-  u32[FOO]:[0, ...]
+    const FOO = u32:4;
+    u32[FOO]:[0, ...]
 }
 
 #[test]
-fn main_test() {
-  assert_eq(u32[4]:[0, ...], main())
-}
+fn main_test() { assert_eq(u32[4]:[0, ...], main()) }

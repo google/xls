@@ -13,12 +13,10 @@
 // limitations under the License.
 
 // Returns a value with X bits set (of type bits[X]).
-pub fn mask_bits<X: u32, Y:u32= {X + u32:1}>() -> bits[X] {
-  !bits[X]:0
-}
+pub fn mask_bits<X: u32, Y: u32 = {X + u32:1}>() -> bits[X] { !bits[X]:0 }
 
 #[test]
 fn test_mask_bits() {
-  assert_eq(u8:0xff, mask_bits<u32:8>());
-  //assert_eq(u13:0x1fff, mask_bits<u32:13>());
+    assert_eq(u8:0xff, mask_bits<u32:8>());
+    //assert_eq(u13:0x1fff, mask_bits<u32:13>());
 }

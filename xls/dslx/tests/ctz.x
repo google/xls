@@ -13,18 +13,17 @@
 // limitations under the License.
 
 fn main() -> u32 {
-  let x0 = clz(u32:0x0005a000);
-  let x1 = clz(x0);
-  clz(x1)
+    let x0 = clz(u32:0x0005a000);
+    let x1 = clz(x0);
+    clz(x1)
 }
 
 #[test]
 fn ctz_test() {
-  assert_eq(u32:27, main());
-  assert_eq(u3:2, ctz(u3:0b100));
-  assert_eq(u3:1, ctz(u3:0b010));
-  assert_eq(u3:0, ctz(u3:0b001));
-  assert_eq(u3:0, ctz(u3:0b111));
-  assert_eq(u3:3, ctz(u3:0b000));
+    assert_eq(u32:27, main());
+    assert_eq(u3:2, ctz(u3:0b100));
+    assert_eq(u3:1, ctz(u3:0b010));
+    assert_eq(u3:0, ctz(u3:0b001));
+    assert_eq(u3:0, ctz(u3:0b111));
+    assert_eq(u3:3, ctz(u3:0b000));
 }
-

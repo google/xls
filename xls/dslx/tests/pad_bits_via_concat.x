@@ -14,8 +14,8 @@
 
 #[test]
 fn pad_to_four_bits_test() {
-  let x: bits[2] = bits[2]:0b10;
-  let y: bits[4] = bits[2]:0 ++ x;
-  let expected: bits[4] = bits[4]:0b0010;
-  assert_eq(y, expected)
+    let x: bits[2] = bits[2]:0b10;
+    let y: bits[4] = bits[2]:0 ++ x;
+    let expected: bits[4] = bits[4]:0b0010;
+    assert_eq(y, expected)
 }

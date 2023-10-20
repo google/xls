@@ -12,37 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Point3 {
-  x: u32,
-  y: u32,
-  z: u32,
-}
+struct Point3 { x: u32, y: u32, z: u32 }
 
-struct ParametricPoint3<X: u32, Y: u32, Z: u32> {
-  x: bits[X],
-  y: bits[Y],
-  z: bits[Z]
-}
+struct ParametricPoint3<X: u32, Y: u32, Z: u32> { x: bits[X], y: bits[Y], z: bits[Z] }
 
-fn update_yz(p: Point3, new_y: u32, new_z: u32) -> Point3 {
-  Point3 { y: new_y, z: new_z, ..p }
-}
+fn update_yz(p: Point3, new_y: u32, new_z: u32) -> Point3 { Point3 { y: new_y, z: new_z, ..p } }
 
 fn main() -> Point3 {
-  let p = Point3 { x: u32:42, y: u32:0, z: u32:0 };
-  update_yz(p, u32:128, u32:256)
+    let p = Point3 { x: u32:42, y: u32:0, z: u32:0 };
+    update_yz(p, u32:128, u32:256)
 }
 
 #[test]
 fn test_main() {
-  let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
-  assert_eq(want, main())
+    let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
+    assert_eq(want, main())
 }
 
 #[test]
 fn test_parametric() {
-  let p = ParametricPoint3 { x: u32:42, y: u64:42, z: bits[128]:42 };
-  let q = ParametricPoint3 { x: u16:42, ..p };
-  assert_eq(p.y, q.y);
-  assert_eq(p.z, q.z);
+    let p = ParametricPoint3 { x: u32:42, y: u64:42, z: bits[128]:42 };
+    let q = ParametricPoint3 { x: u16:42, ..p };
+    assert_eq(p.y, q.y);
+    assert_eq(p.z, q.z);
 }

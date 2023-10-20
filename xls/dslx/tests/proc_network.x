@@ -13,51 +13,49 @@
 // limitations under the License.
 
 proc second_level_proc {
-  input_r: chan<u32> in;
-  output_s: chan<u32> out;
+    input_r: chan<u32> in;
+    output_s: chan<u32> out;
 
-  init { () }
+    config(input_r: chan<u32> in, output_s: chan<u32> out) { (input_r, output_s) }
 
-  config(input_r: chan<u32> in, output_s: chan<u32> out) {
-    (input_r, output_s)
-  }
+    init { () }
 
-  next(tok: token, state: ()) { () }
+    next(tok: token, state: ()) { () }
 }
 
 proc first_level_proc {
-  input_s0: chan<u32> out;
-  input_s1: chan<u32> out;
-  output_r0: chan<u32> in;
-  output_r1: chan<u32> in;
+    input_s0: chan<u32> out;
+    input_s1: chan<u32> out;
+    output_r0: chan<u32> in;
+    output_r1: chan<u32> in;
 
-  init { () }
+    config() {
+        let (input_s0, input_r0) = chan<u32>;
+        let (output_s0, output_r0) = chan<u32>;
+        spawn second_level_proc(input_r0, output_s0);
 
-  config() {
-    let (input_s0, input_r0) = chan<u32>;
-    let (output_s0, output_r0) = chan<u32>;
-    spawn second_level_proc(input_r0, output_s0);
+        let (input_s1, input_r1) = chan<u32>;
+        let (output_s1, output_r1) = chan<u32>;
+        spawn second_level_proc(input_r1, output_s1);
 
-    let (input_s1, input_r1) = chan<u32>;
-    let (output_s1, output_r1) = chan<u32>;
-    spawn second_level_proc(input_r1, output_s1);
+        (input_s0, input_s1, output_r0, output_r1)
+    }
 
-    (input_s0, input_s1, output_r0, output_r1)
-  }
+    init { () }
 
-  next(tok: token, state: ()) { () }
+    next(tok: token, state: ()) { () }
 }
 
 #[test_proc]
 proc main {
-  terminator: chan<bool> out;
-  init { () }
-  config(terminator: chan<bool> out) {
-    spawn first_level_proc();
-    (terminator,)
-  }
+    terminator: chan<bool> out;
 
-  next(tok: token, state: ()) {
-    let tok = send(tok, terminator, true);
-  }
+    config(terminator: chan<bool> out) {
+        spawn first_level_proc();
+        (terminator,)
+    }
+
+    init { () }
+
+    next(tok: token, state: ()) { let tok = send(tok, terminator, true); }
 }

@@ -14,11 +14,7 @@
 
 import xls.dslx.tests.mod_parametric_id_indirect
 
-fn main(x: u32) -> u32 {
-  mod_parametric_id_indirect::id_indirect(x)
-}
+fn main(x: u32) -> u32 { mod_parametric_id_indirect::id_indirect(x) }
 
 #[test]
-fn main_test() {
-  assert_eq(u32:42, main(u32:42))
-}
+fn main_test() { assert_eq(u32:42, main(u32:42)) }

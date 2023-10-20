@@ -17,15 +17,9 @@
 
 const GLOBAL = u32:2;
 
-fn p<P: u32>() -> u32[P+GLOBAL] {
-  u32[P+GLOBAL]:[0, ...]
-}
+fn p<P: u32>() -> u32[P + GLOBAL] { u32[P + GLOBAL]:[0, ...] }
 
-fn main() -> u32[3] {
-  p<u32:1>()
-}
+fn main() -> u32[3] { p<u32:1>() }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u32[3]:[0, 0, 0])
-}
+fn test_main() { assert_eq(main(), u32[3]:[0, 0, 0]) }

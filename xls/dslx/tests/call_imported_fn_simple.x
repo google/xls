@@ -14,11 +14,7 @@
 
 import xls.dslx.tests.mod_imported_lsb
 
-fn main(x: u3) -> u1 {
-  mod_imported_lsb::lsb(x)
-}
+fn main(x: u3) -> u1 { mod_imported_lsb::lsb(x) }
 
 #[test]
-fn main_test() {
-  assert_eq(u1:0b1, main(u3:0b001))
-}
+fn main_test() { assert_eq(u1:0b1, main(u3:0b001)) }

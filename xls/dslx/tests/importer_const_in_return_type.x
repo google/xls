@@ -21,19 +21,11 @@ import xls.dslx.tests.mod_simple_const
 
 const LOCAL_FOUR = mod_simple_const::FOUR;
 
-fn f() -> uN[mod_simple_const::FOUR] {
-  uN[mod_simple_const::FOUR]:0b1111
-}
+fn f() -> uN[mod_simple_const::FOUR] { uN[mod_simple_const::FOUR]:0b1111 }
 
-fn g() -> uN[LOCAL_FOUR] {
-  uN[LOCAL_FOUR]:0b1001
-}
+fn g() -> uN[LOCAL_FOUR] { uN[LOCAL_FOUR]:0b1001 }
 
-fn main() -> u4 {
-  f() ^ g()
-}
+fn main() -> u4 { f() ^ g() }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u4:0b0110)
-}
+fn test_main() { assert_eq(main(), u4:0b0110) }

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 fn id(x: u32) -> u32 { x }
+
 #[test]
-fn identity_invocation_test() {
-  assert_eq(u32:42, id(u32:42))
-}
+fn identity_invocation_test() { assert_eq(u32:42, id(u32:42)) }

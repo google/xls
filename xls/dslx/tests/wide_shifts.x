@@ -14,15 +14,16 @@
 
 #[test]
 fn main_test() {
-  let x: uN[96] = uN[96]:0xaaaa_bbbb_cccc_dddd_eeee_ffff;
-  let big: uN[96] = uN[96]:0x9999_9999_9999_9999_9999_9999;
-  let four: uN[96] = uN[96]:0x4;
-  // Test a value which fits in an int64_t as a signed number,
-  // but not in a uint64_t an unsigned number.
-  let does_not_fit_in_uint64: uN[65] = uN[65]:0x1_ffff_ffff_ffff_ffff;
-  assert_eq(x >> big, uN[96]:0);
-  assert_eq(x >> four, uN[96]:0x0aaa_abbb_bccc_cddd_deee_efff);
-  assert_eq(x << big, uN[96]:0);
-  assert_eq(x << does_not_fit_in_uint64, uN[96]:0);
-  assert_eq(x << four, uN[96]:0xaaab_bbbc_cccd_ddde_eeef_fff0)
+    let x: uN[96] = uN[96]:0xaaaa_bbbb_cccc_dddd_eeee_ffff;
+    let big: uN[96] = uN[96]:0x9999_9999_9999_9999_9999_9999;
+    let four: uN[96] = uN[96]:0x4;
+
+    // Test a value which fits in an int64_t as a signed number,
+    // but not in a uint64_t an unsigned number.
+    let does_not_fit_in_uint64: uN[65] = uN[65]:0x1_ffff_ffff_ffff_ffff;
+    assert_eq(x >> big, uN[96]:0);
+    assert_eq(x >> four, uN[96]:0x0aaa_abbb_bccc_cddd_deee_efff);
+    assert_eq(x << big, uN[96]:0);
+    assert_eq(x << does_not_fit_in_uint64, uN[96]:0);
+    assert_eq(x << four, uN[96]:0xaaab_bbbc_cccd_ddde_eeef_fff0)
 }

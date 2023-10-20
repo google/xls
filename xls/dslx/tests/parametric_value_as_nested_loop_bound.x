@@ -13,20 +13,16 @@
 // limitations under the License.
 
 fn parametric_main<FOO: u32>(input: u32) -> u32 {
-  for(idx, acc): (u32, u32) in u32:0..FOO {
-    for(idx, acc): (u32, u32) in u32:0..FOO {
-      for(idx, acc): (u32, u32) in u32:0..FOO {
-        acc + input
-      }(acc)
-    }(acc)
-  }(u32:0)
+    for (idx, acc): (u32, u32) in u32:0..FOO {
+        for (idx, acc): (u32, u32) in u32:0..FOO {
+            for (idx, acc): (u32, u32) in u32:0..FOO {
+                acc + input
+            }(acc)
+        }(acc)
+    }(u32:0)
 }
 
-fn main(arg: u32) -> u32 {
-  parametric_main<u32:2>(arg)
-}
+fn main(arg: u32) -> u32 { parametric_main<u32:2>(arg) }
 
 #[test]
-fn main_test() {
-  assert_eq(u32:8, main(u32:1))
-}
+fn main_test() { assert_eq(u32:8, main(u32:1)) }

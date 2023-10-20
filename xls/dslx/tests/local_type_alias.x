@@ -14,50 +14,40 @@
 
 // Simple single alias at the start.
 fn f() -> u32 {
-  type MyU32 = u32;
-  MyU32:42
+    type MyU32 = u32;
+    MyU32:42
 }
 
 // Two aliases at the start.
 fn g() -> u32 {
-  type MyU8 = u8;
-  type MyU32 = u32;
-  MyU8:64 as MyU32
+    type MyU8 = u8;
+    type MyU32 = u32;
+    MyU8:64 as MyU32
 }
 
 // Alias in a block expr.
 fn h() -> u32 {
-  let x = {
-    type MyType = u32;
-    MyType:42
-  };
-  let y = {
-    type MyType = u8;
-    MyType:64 as u32
-  };
-  x + y
+    let x = {
+        type MyType = u32;
+        MyType:42
+    };
+    let y = {
+        type MyType = u8;
+        MyType:64 as u32
+    };
+    x + y
 }
 
-fn main() -> u32 {
-  f() + g() + h()
-}
+fn main() -> u32 { f() + g() + h() }
 
 #[test]
-fn test_f() {
-  assert_eq(f(), u32:42)
-}
+fn test_f() { assert_eq(f(), u32:42) }
 
 #[test]
-fn test_g() {
-  assert_eq(g(), u32:64)
-}
+fn test_g() { assert_eq(g(), u32:64) }
 
 #[test]
-fn test_h() {
-  assert_eq(h(), u32:106)
-}
+fn test_h() { assert_eq(h(), u32:106) }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u32:212)
-}
+fn test_main() { assert_eq(main(), u32:212) }

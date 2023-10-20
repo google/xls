@@ -14,6 +14,6 @@
 
 #[test]
 fn cast_to_u32_test() {
-  let x: bits[3] = bits[3]:0b010;
-  assert_eq(u32:4, (x + x) as u32)
+    let x: bits[3] = bits[3]:0b010;
+    assert_eq(u32:4, (x + x) as u32)
 }

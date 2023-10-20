@@ -15,11 +15,9 @@
 struct Empty {}
 
 fn main() -> Empty {
-  let orig = Empty{};
-  Empty{..orig}
+    let orig = Empty {};
+    Empty { ..orig }
 }
 
 #[test]
-fn main_test() {
-  assert_eq(main(), Empty {})
-}
+fn main_test() { assert_eq(main(), Empty {}) }

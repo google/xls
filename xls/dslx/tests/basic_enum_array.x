@@ -13,17 +13,15 @@
 // limitations under the License.
 
 enum MyEnum : u2 {
-  FOO = 0,
-  BAR = 1
+    FOO = 0,
+    BAR = 1,
 }
 
-fn main(xs: MyEnum[2], i: u1) -> MyEnum {
-  xs[i]
-}
+fn main(xs: MyEnum[2], i: u1) -> MyEnum { xs[i] }
 
 #[test]
 fn main_test() {
-  let xs: MyEnum[2] = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];
-  assert_eq(MyEnum::FOO, main(xs, u1:0));
-  assert_eq(MyEnum::BAR, main(xs, u1:1));
+    let xs: MyEnum[2] = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];
+    assert_eq(MyEnum::FOO, main(xs, u1:0));
+    assert_eq(MyEnum::BAR, main(xs, u1:1));
 }

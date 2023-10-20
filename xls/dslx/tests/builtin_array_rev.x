@@ -15,38 +15,26 @@
 import std
 
 fn do_rev_rev<N: u32>(x: uN[N]) -> bool {
-  let a: bool[N] = std::convert_to_bools_lsb0(x);
-  array_rev(array_rev(a)) == a
+    let a: bool[N] = std::convert_to_bools_lsb0(x);
+    array_rev(array_rev(a)) == a
 }
 
 #[quickcheck]
-fn quickcheck_rev_rev_is_orig2(x: u2) -> bool {
-  do_rev_rev(x)
-}
+fn quickcheck_rev_rev_is_orig2(x: u2) -> bool { do_rev_rev(x) }
 
 #[quickcheck]
-fn quickcheck_rev_rev_is_orig3(x: u3) -> bool {
-  do_rev_rev(x)
-}
+fn quickcheck_rev_rev_is_orig3(x: u3) -> bool { do_rev_rev(x) }
 
 #[quickcheck]
-fn quickcheck_rev_rev_is_orig4(x: u4) -> bool {
-  do_rev_rev(x)
-}
+fn quickcheck_rev_rev_is_orig4(x: u4) -> bool { do_rev_rev(x) }
 
 #[quickcheck]
-fn quickcheck_rev_rev_is_orig5(x: u5) -> bool {
-  do_rev_rev(x)
-}
+fn quickcheck_rev_rev_is_orig5(x: u5) -> bool { do_rev_rev(x) }
 
-fn main(x: bool[3]) -> bool[3] {
-  array_rev(x)
-}
+fn main(x: bool[3]) -> bool[3] { array_rev(x) }
 
 #[test]
 fn test_main() {
-  assert_eq(main(bool[3]:[true, false, false]),
-                         bool[3]:[false, false, true]);
-  assert_eq(main(bool[3]:[false, false, true]),
-                         bool[3]:[true, false, false]);
+    assert_eq(main(bool[3]:[true, false, false]), bool[3]:[false, false, true]);
+    assert_eq(main(bool[3]:[false, false, true]), bool[3]:[true, false, false]);
 }
