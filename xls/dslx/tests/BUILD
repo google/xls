@@ -14,6 +14,7 @@
 
 # Interpreter-based standalone tests.
 
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_dslx_ir",
@@ -24,7 +25,6 @@ load(
 )
 load("//xls/dslx/tests:build_defs.bzl", "dslx_lang_test")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -766,7 +766,10 @@ dslx_lang_test(
 
 dslx_lang_test(name = "test_f_calls_parametric_f")
 
-dslx_lang_test(name = "array_concat")
+dslx_lang_test(
+    name = "array_concat",
+    test_autofmt = True,
+)
 
 dslx_lang_test(name = "for_up_to_const")
 

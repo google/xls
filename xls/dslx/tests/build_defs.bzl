@@ -25,6 +25,7 @@ of defining a DSLX language-level test.
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
+    "xls_dslx_fmt_test",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
@@ -41,7 +42,8 @@ def dslx_lang_test(
         test_ir_equivalence = True,
         evaluate_ir = True,
         benchmark_ir = True,
-        warnings_as_errors = True):
+        warnings_as_errors = True,
+        test_autofmt = False):
     """This macro is convenient shorthand for our many DSLX test targets.
 
     The primary target that it generates that developers may want to depend upon is:
@@ -89,6 +91,8 @@ def dslx_lang_test(
       benchmark_ir: Whether to enable the IR benchmarking tool to run on the
         converted IR. Only used when convert_to_ir is true.
       warnings_as_errors: Whether warnings are errors within the DSLX library definition.
+      test_autofmt: Whether to make an autoformatting test target. This ensures the
+        language test remains auto-formatted.
 
     As a byproduct this makes a "{name}_dslx" library target that other
     dslx_interp_tests can reference via the dslx_deps attribute.
@@ -108,6 +112,13 @@ def dslx_lang_test(
         library = name + "_dslx",
         dslx_test_args = test_args,
     )
+
+    if test_autofmt:
+        xls_dslx_fmt_test(
+            name = name + "_dslx_fmt",
+            src = name + ".x",
+        )
+
     if convert_to_ir:
         # Note: this generates output files with both .ir and .opt.ir suffixes.
         xls_dslx_opt_ir(

@@ -12,23 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> s32[4] {
-  s32[2]:[1, 2] ++ s32[2]:[3, 4]
-}
+fn main() -> s32[4] { s32[2]:[1, 2] ++ s32[2]:[3, 4] }
 
 #[test]
-fn test_concat() {
-  assert_eq(s32[4]:[1, 2, 3, 4], main())
-}
+fn test_concat() { assert_eq(s32[4]:[1, 2, 3, 4], main()) }
 
 #[quickcheck]
 fn prop_associative(xs: s32[2], ys: s32[2], zs: s32[2]) -> bool {
-  ((xs ++ ys) ++ zs) == (xs ++ (ys ++ zs))
+    ((xs ++ ys) ++ zs) == (xs ++ (ys ++ zs))
 }
 
 #[quickcheck]
-fn prop_non_commutative(xs: s32[4], ys: s32[4]) -> bool {
-  xs == ys || (xs ++ ys) != (ys ++ xs)
-}
-
-
+fn prop_non_commutative(xs: s32[4], ys: s32[4]) -> bool { xs == ys || (xs ++ ys) != (ys ++ xs) }
