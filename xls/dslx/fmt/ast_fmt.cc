@@ -1640,9 +1640,19 @@ static DocRef Fmt(const Import& n, const Comments& comments, DocArena& arena) {
     }
     dotted_pieces.push_back(this_doc_ref);
   }
-  return ConcatNGroup(arena,
-                      {arena.MakeText("import "),
-                       arena.MakeAlign(ConcatNGroup(arena, dotted_pieces))});
+
+  std::vector<DocRef> pieces = {
+      arena.Make(Keyword::kImport), arena.space(),
+      arena.MakeAlign(ConcatNGroup(arena, dotted_pieces))};
+
+  if (const std::optional<std::string>& alias = n.alias()) {
+    pieces.push_back(arena.break1());
+    pieces.push_back(arena.Make(Keyword::kAs));
+    pieces.push_back(arena.break1());
+    pieces.push_back(arena.MakeText(alias.value()));
+  }
+
+  return ConcatNGroup(arena, pieces);
 }
 
 static DocRef Fmt(const ModuleMember& n, const Comments& comments,
