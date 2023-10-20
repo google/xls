@@ -15,13 +15,10 @@
 #include "xls/common/stopwatch.h"
 
 #include <algorithm>
-#include <cstdint>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
 #include "absl/time/time.h"
-#include "rapidcheck/gtest.h"
-#include "rapidcheck.h"
 
 namespace xls {
 namespace {
@@ -42,43 +39,34 @@ TEST(SteadyTimeTest, RoundtripAddition) {
   EXPECT_EQ(t - absl::InfiniteDuration(), SteadyTime::Min());
 }
 
+static constexpr absl::Duration kMaxSteadyDuration =
+    absl::FromChrono(steady_clock_t::duration::max());
+static constexpr absl::Duration kMinSteadyDuration =
+    absl::FromChrono(steady_clock_t::duration::min());
+
 void AdditionRoundtrips(SteadyTime t, absl::Duration d) {
+  d = std::clamp(d, kMinSteadyDuration, kMaxSteadyDuration);
+
   if (SteadyTime::Min() - t > d) {
-    // Saturated; should stay saturated.
-    RC_ASSERT((t + d) - d == SteadyTime::Min());
-  } else if (SteadyTime::Max() - t < d) {
-    // Saturated; should stay saturated.
-    RC_ASSERT((t + d) - d == SteadyTime::Max());
-  } else {
-    // Not saturated; should roundtrip successfully.
-    RC_ASSERT((t + d) - t == d);
+    // Saturates; should stay saturated.
+    EXPECT_EQ((t + d) - d, SteadyTime::Min());
+    return;
   }
+  if (SteadyTime::Max() - t < d) {
+    // Saturates; should stay saturated.
+    EXPECT_EQ((t + d) - d, SteadyTime::Max());
+    return;
+  }
+
+  // Not saturated; should roundtrip successfully (to steady-clock precision)
+  static const absl::Duration kSteadyClockPrecision =
+      absl::Seconds(1) / steady_clock_t::period::type::den;
+  EXPECT_GT((t + d) - t, d - kSteadyClockPrecision);
+  EXPECT_LT((t + d) - t, d + kSteadyClockPrecision);
 }
-
-RC_GTEST_PROP(SteadyTimeRapidCheck, RoundtripAddition, (int64_t v)) {
-  static constexpr absl::Duration kMaxSteadyDuration =
-      absl::FromChrono(steady_clock_t::duration::max());
-  static constexpr absl::Duration kMinSteadyDuration =
-      absl::FromChrono(steady_clock_t::duration::min());
-
-  SteadyTime t;
-
-  absl::Duration s =
-      std::clamp(absl::Seconds(v), kMinSteadyDuration, kMaxSteadyDuration);
-  AdditionRoundtrips(t, s);
-
-  absl::Duration ms =
-      std::clamp(absl::Milliseconds(v), kMinSteadyDuration, kMaxSteadyDuration);
-  AdditionRoundtrips(t, ms);
-
-  absl::Duration us =
-      std::clamp(absl::Microseconds(v), kMinSteadyDuration, kMaxSteadyDuration);
-  AdditionRoundtrips(t, us);
-
-  absl::Duration ns =
-      std::clamp(absl::Nanoseconds(v), kMinSteadyDuration, kMaxSteadyDuration);
-  AdditionRoundtrips(t, ns);
-}
+FUZZ_TEST(SteadyTimeFuzzTest, AdditionRoundtrips)
+    .WithDomains(fuzztest::Just(SteadyTime()),
+                 fuzztest::Arbitrary<absl::Duration>());
 
 }  // namespace
 }  // namespace xls

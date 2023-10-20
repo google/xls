@@ -569,7 +569,7 @@ cc_test(
         ":xls_gunit_main",
         "@com_google_absl//absl/time",
         "//xls/common:xls_gunit",
-        "@rapidcheck",
+        "@com_google_fuzztest//fuzztest",
     ],
 )
 
