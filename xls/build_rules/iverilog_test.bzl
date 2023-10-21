@@ -62,7 +62,10 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
         # verilog files as we can generated C++ files in cc_library rules.
         cmd = "$(location @com_icarus_iverilog//:iverilog) -s %s $(location %s) %s -o $@ -g2001 -I$(GENDIR)" % (top, main, defines),
         outs = [name + ".iverilog.out"],
-        tools = ["@com_icarus_iverilog//:iverilog"],
+        tools = [
+            "@com_icarus_iverilog//:iverilog",
+            "@com_icarus_iverilog//:vvp",
+        ],
     )
     if execute:
         native.genrule(
