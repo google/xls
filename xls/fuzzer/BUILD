@@ -363,6 +363,8 @@ generate_crasher_regression_tests(
         "crashers/crasher_2023-10-06_2e1e.x",
         # TODO(https://github.com/google/xls/issues/1148): Remove when fixed.
         "crashers/crasher_2023-10-08_e7fc.x",
+        # TODO(https://github.com/google/xls/issues/1159): Remove when fixed.
+        "crashers/crasher_2023-10-20_60a0.x",
     ],
     prefix = package_name(),
     tags = {
