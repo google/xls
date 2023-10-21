@@ -12,34 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Point {
-  x: u32,
-  y: u32,
-}
+struct Point { x: u32, y: u32 }
 
 #[test]
 fn test_shorthand_equality() {
-  let x = u32:42;
-  let y = u32:64;
+    let x = u32:42;
+    let y = u32:64;
 
-  let p0 = Point { x, y };
-  let p1 = Point { y, x };
+    let p0 = Point { x, y };
+    let p1 = Point { y, x };
 
-  assert_eq(x, p0.x);
-  assert_eq(y, p0.y);
-  assert_eq(x, p1.x);
-  assert_eq(y, p1.y);
-  assert_eq(p0, p1)
+    assert_eq(x, p0.x);
+    assert_eq(y, p0.y);
+    assert_eq(x, p1.x);
+    assert_eq(y, p1.y);
+    assert_eq(p0, p1)
 }
 
-fn main(p0: Point, p1: Point) -> bool {
-  p0 == p1
-}
+fn main(p0: Point, p1: Point) -> bool { p0 == p1 }
 
 #[test]
 fn struct_equality() {
-  let p0 = Point { x: u32:42, y: u32:64 };
-  let p1 = Point { y: u32:64, x: u32:42 };
-  assert_eq(p0, p1);
-  assert_eq(main(p0, p1), true);
+    let p0 = Point { x: u32:42, y: u32:64 };
+    let p1 = Point { y: u32:64, x: u32:42 };
+    assert_eq(p0, p1);
+    assert_eq(main(p0, p1), true);
 }

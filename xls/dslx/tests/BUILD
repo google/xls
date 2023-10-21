@@ -656,9 +656,6 @@ dslx_lang_test(name = "basic_struct_attr")
 
 dslx_lang_test(
     name = "struct_equality",
-    # TODO(leary): 2023-10-20 We're not handling the formatting case where the
-    # identifiers line up with the struct member names.
-    test_autofmt = False,
     # TODO(https://github.com/google/xls/issues/1083): No struct equality
     # translation to Z3 is currently implemented.
     test_ir_equivalence = False,
@@ -843,18 +840,12 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "parametric_struct",
-    # TODO(leary): 2023-10-20 We're not handling the formatting case where the
-    # identifiers line up with the struct member names.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
     name = "parametric_struct_simple",
     # No meaningful entry point to convert.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 We're not handling the formatting case where the
-    # identifiers line up with the struct member names.
-    test_autofmt = False,
 )
 
 dslx_lang_test(

@@ -901,6 +901,15 @@ static DocRef FmtStructMembers(
       members, Joiner::kCommaBreak1,
       [](const auto& member, const Comments& comments, DocArena& arena) {
         const auto& [name, expr] = member;
+        // If the expression is an identifier that matches its corresponding
+        // struct member name, we canonically use the shorthand notation of just
+        // providing the identifier and leaving the member name implicitly as
+        // the same symbol.
+        if (const NameRef* name_ref = dynamic_cast<const NameRef*>(expr);
+            name_ref != nullptr && name_ref->identifier() == name) {
+          return arena.MakeText(name);
+        }
+
         return ConcatNGroup(
             arena, {arena.MakeText(name), arena.colon(), arena.break1(),
                     Fmt(*expr, comments, arena)});
@@ -915,6 +924,10 @@ DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
     return arena.MakeConcat(leader, arena.ccurl());
   }
 
+  // Implementation note: we cannot reorder members to be canonically the same
+  // order as the struct definition in the general case, since the struct
+  // definition may be defined an an imported file, and we have auto-formatting
+  // work purely at the single-file syntax level.
   DocRef body_pieces =
       FmtStructMembers(n.GetUnorderedMembers(), comments, arena);
 

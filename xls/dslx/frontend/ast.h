@@ -2271,6 +2271,8 @@ class StructInstance : public Expr {
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
+  // These are the members in the order given in the instantiation, note that
+  // this can be different from the order in the struct definition.
   absl::Span<const std::pair<std::string, Expr*>> GetUnorderedMembers() const {
     return members_;
   }

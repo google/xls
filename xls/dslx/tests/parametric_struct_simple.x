@@ -12,22 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Point1D<N: u32> {
-  x: bits[N]
-}
+struct Point1D<N: u32> { x: bits[N] }
 
-fn make_point<N: u32>(x: bits[N]) -> Point1D<N> {
-  Point1D { x }
-}
+fn make_point<N: u32>(x: bits[N]) -> Point1D<N> { Point1D { x } }
 
 fn from_point<N: u32>(p: Point1D<N>) -> Point1D<N> {
-  let x = p.x;
-  Point1D { x }
+    let x = p.x;
+    Point1D { x }
 }
 
 #[test]
 fn test_from_point() {
-  let p = make_point(u7:42);
-  let q = from_point(p);
-  assert_eq(p.x, q.x)
+    let p = make_point(u7:42);
+    let q = from_point(p);
+    assert_eq(p.x, q.x)
 }

@@ -951,6 +951,46 @@ const Q = Point { ..P };
   }
 }
 
+TEST(ModuleFmtTest, StructInstanceWithNamesViaBindings) {
+  const std::string_view kProgram =
+      R"(struct Point { x: u32, y: u16 }
+
+fn f() {
+    let x = u32:42;
+    let y = u16:64;
+    Point { x, y }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
+TEST(ModuleFmtTest, StructInstanceWithNamesViaBindingsBackwards) {
+  const std::string_view kProgram =
+      R"(struct Point { x: u32, y: u16 }
+
+fn f() {
+    let x = u32:42;
+    let y = u16:64;
+    Point { y, x }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
 TEST(ModuleFmtTest, SimpleQuickCheck) {
   const std::string_view kProgram =
       R"(#[quickcheck]
