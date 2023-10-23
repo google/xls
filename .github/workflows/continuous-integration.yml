@@ -19,6 +19,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: ubuntu-20.04-64core
