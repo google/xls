@@ -121,9 +121,8 @@ click==8.1.3 \
     #   -r dependency_support/pip_requirements.in
     #   flask
     #   mkdocs
-# WARNING: pip install will require the following package to be hashed.
-# Consider using a hashable URL like https://github.com/jazzband/pip-tools/archive/SOMECOMMIT.zip
-cocotb @ git+https://github.com/cocotb/cocotb.git@a853db95b0019db6796a6803aa94304bde743e4e
+cocotb @ https://github.com/cocotb/cocotb/archive/a853db95b0019db6796a6803aa94304bde743e4e.zip \
+    --hash=sha256:a1afb65756b3b25d56c59f976e47f91a198af18a5d8e25db1dfde4076d5f1546
     # via
     #   -r dependency_support/pip_requirements.in
     #   cocotb-bus
