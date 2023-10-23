@@ -754,15 +754,15 @@ dslx_lang_test(
 )
 
 xls_dslx_opt_ir(
-    name = "mod_parametric_id_user",
+    name = "mod_parametric_id_user_opt_ir",
     srcs = ["mod_parametric_id_user.x"],
     dslx_top = "main",
     deps = [":mod_parametric_id_dslx"],
 )
 
 xls_dslx_opt_ir_test(
-    name = "mod_parametric_id_user_test",
-    dep = ":mod_parametric_id_user",
+    name = "mod_parametric_id_user_opt_ir_test",
+    dep = ":mod_parametric_id_user_opt_ir",
 )
 
 # Library for use in importing a parametric identity function.
@@ -1003,28 +1003,28 @@ dslx_lang_test(
 )
 
 xls_dslx_opt_ir(
-    name = "mod_const_array_of_enum_importer",
+    name = "mod_const_array_of_enum_importer_opt_ir",
     srcs = ["mod_const_array_of_enum_importer.x"],
     dslx_top = "main",
     deps = [":mod_simple_const_array_of_enums_dslx"],
 )
 
 xls_dslx_opt_ir_test(
-    name = "mod_const_array_of_enum_importer_test",
-    dep = ":mod_const_array_of_enum_importer",
+    name = "mod_const_array_of_enum_importer_opt_ir_test",
+    dep = ":mod_const_array_of_enum_importer_opt_ir",
 )
 
 dslx_lang_test(name = "simple_enum_usage")
 
 xls_dslx_opt_ir(
-    name = "simple_enum_usage",
+    name = "simple_enum_usage_opt_ir",
     srcs = ["simple_enum_usage.x"],
     dslx_top = "main",
 )
 
 xls_dslx_opt_ir_test(
-    name = "simple_enum_usage_test",
-    dep = ":simple_enum_usage",
+    name = "simple_enum_usage_opt_ir_test",
+    dep = ":simple_enum_usage_opt_ir",
 )
 
 dslx_lang_test(name = "for_rotate")
