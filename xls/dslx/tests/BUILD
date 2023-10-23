@@ -541,8 +541,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "bit_slice_update",
-    # TODO(leary): 2023-10-20 Overlong line.
-    test_autofmt = False,
 )
 
 dslx_lang_test(name = "const_slice_limit")

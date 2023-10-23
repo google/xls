@@ -583,6 +583,28 @@ TEST_F(FunctionFmtTest, FunctionWithParagraphStyleChunksOfStatements) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, FunctionWithStmtThatNeedsReflow) {
+  const std::string_view original =
+      R"(fn f() {
+    assert_eq(aaaaaaaaaaa,
+              ffffffffffffffff(xxxxxxxxxxx, yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy, zzzzzzz));
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string got,
+      DoFmt(original,
+            {"assert_eq", "aaaaaaaaaaa", "ffffffffffffffff", "xxxxxxxxxxx",
+             "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy", "zzzzzzz"}));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, FunctionWithSmallInlineArrayLiteral) {
+  const std::string_view original =
+      R"(fn f() { let arr = map([u2:1, u2:2], self_append); })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           DoFmt(original, {"map", "self_append"}));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {

@@ -153,9 +153,9 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
             [&](const Nest& nest) {
               // Nest bumps the indent in by its delta and then emits the nested
               // doc.
-              stack.push_back(StackEntry{&arena.Deref(nest.arg), entry.mode,
-                                         entry.indent + nest.delta});
               int64_t new_indent = entry.indent + nest.delta;
+              stack.push_back(
+                  StackEntry{&arena.Deref(nest.arg), entry.mode, new_indent});
               if (virtual_outcol < new_indent) {
                 virtual_outcol = new_indent;
               }
@@ -323,7 +323,10 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
                                    arena.Deref(p.rhs).ToDebugString(arena));
           },
           [&](const Nest& p) -> std::string { return "Nest"; },
-          [&](const Align& p) -> std::string { return "Align"; },
+          [&](const Align& p) -> std::string {
+            return absl::StrFormat("Align{%s}",
+                                   arena.Deref(p.arg).ToDebugString(arena));
+          },
           [&](const PrefixedReflow& p) -> std::string {
             return absl::StrFormat("PrefixedReflow{\"%s\", \"%s\"}",
                                    absl::CEscape(p.prefix),

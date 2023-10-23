@@ -68,7 +68,8 @@ enum class Joiner : uint8_t {
   //
   // Note that, in this mode, if we span multiple lines, we'll put a trailing
   // comma as well.
-  kCommaBreak1AsGroup,
+  kCommaBreak1AsGroupTrailingComma,
+  kCommaBreak1AsGroupNoTrailingComma,
 
   kSpaceBarBreak,
   kHardLine,
@@ -85,22 +86,27 @@ DocRef FmtJoin(
   std::vector<DocRef> pieces;
   for (size_t i = 0; i < items.size(); ++i) {
     const T& item = items[i];
-    pieces.push_back(fmt(item, comments, arena));
-    if (i + 1 != items.size()) {
+
+    // First we format the member into a doc and then decide the best way to put
+    // it into the sequence.
+    DocRef member = fmt(item, comments, arena);
+
+    if (i + 1 != items.size()) {  // Not the last item.
       switch (joiner) {
         case Joiner::kCommaSpace:
+          pieces.push_back(member);
           pieces.push_back(arena.comma());
           pieces.push_back(arena.space());
           break;
         case Joiner::kCommaBreak1:
+          pieces.push_back(member);
           pieces.push_back(arena.comma());
           pieces.push_back(arena.break1());
           break;
-        case Joiner::kCommaBreak1AsGroup: {
-          DocRef member = pieces.back();
-          pieces.pop_back();
+        case Joiner::kCommaBreak1AsGroupNoTrailingComma:
+        case Joiner::kCommaBreak1AsGroupTrailingComma: {
           std::vector<DocRef> this_pieces;
-          if (i != 0) {
+          if (i != 0) {  // If it's the first item we don't put a leading space.
             this_pieces.push_back(arena.break1());
           }
           this_pieces.push_back(member);
@@ -109,27 +115,43 @@ DocRef FmtJoin(
           break;
         }
         case Joiner::kSpaceBarBreak:
+          pieces.push_back(member);
           pieces.push_back(arena.space());
           pieces.push_back(arena.bar());
           pieces.push_back(arena.break1());
           break;
         case Joiner::kHardLine:
+          pieces.push_back(member);
           pieces.push_back(arena.hard_line());
           break;
       }
-    } else {  // last member, no trailing delimiter
-      if (joiner == Joiner::kCommaBreak1AsGroup && i != 0) {
-        // Note: we only want to put a leading space in front of the last
-        // element if the last element is not also the first element.
-        pieces.back() = ConcatNGroup(arena, {arena.break1(), pieces.back()});
+    } else {  // Last item, generally "no trailing delimiter".
+      switch (joiner) {
+        case Joiner::kCommaBreak1AsGroupNoTrailingComma:
+        case Joiner::kCommaBreak1AsGroupTrailingComma: {
+          // Note: we only want to put a leading space in front of the last
+          // element if the last element is not also the first element.
+          if (i == 0) {
+            pieces.push_back(member);
+          } else {
+            pieces.push_back(ConcatNGroup(arena, {arena.break1(), member}));
+          }
 
-        // With this pattern if we're in break mode (implying we spanned
-        // multiple lines), we allow a trailing comma.
-        pieces.push_back(arena.MakeFlatChoice(arena.empty(), arena.comma()));
+          if (joiner == Joiner::kCommaBreak1AsGroupTrailingComma) {
+            // With this pattern if we're in break mode (implying we spanned
+            // multiple lines), we allow a trailing comma.
+            pieces.push_back(
+                arena.MakeFlatChoice(arena.empty(), arena.comma()));
+          }
+          break;
+        }
+        default:
+          pieces.push_back(member);
+          break;
       }
     }
   }
-  return ConcatN(arena, pieces);
+  return ConcatNGroup(arena, pieces);
 }
 
 // Returns all the comment data that's contained within `node_span` of the AST
@@ -334,7 +356,8 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
 
   std::vector<DocRef> member_pieces;
   member_pieces.push_back(FmtJoin<const Expr*>(
-      n.members(), Joiner::kCommaBreak1AsGroup, FmtExprPtr, comments, arena));
+      n.members(), Joiner::kCommaBreak1AsGroupTrailingComma, FmtExprPtr,
+      comments, arena));
 
   if (n.has_ellipsis()) {
     // Subtle implementation note: The Joiner::CommaBreak1AsGroup puts a
@@ -346,7 +369,8 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
         ConcatNGroup(arena, {arena.break1(), arena.MakeText("...")}));
   }
 
-  pieces.push_back(arena.MakeNest(ConcatNGroup(arena, member_pieces)));
+  DocRef inner = ConcatNGroup(arena, member_pieces);
+  pieces.push_back(arena.MakeFlatChoice(inner, arena.MakeNest(inner)));
   pieces.push_back(arena.break0());
   pieces.push_back(arena.cbracket());
 
@@ -774,8 +798,9 @@ DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
     pieces.push_back(arena.cangle());
   }
   pieces.push_back(arena.oparen());
-  pieces.push_back(FmtJoin<const Expr*>(n.args(), Joiner::kCommaSpace,
-                                        FmtExprPtr, comments, arena));
+  pieces.push_back(arena.MakeAlign(
+      FmtJoin<const Expr*>(n.args(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
+                           FmtExprPtr, comments, arena)));
   pieces.push_back(arena.cparen());
   return ConcatNGroup(arena, pieces);
 }
