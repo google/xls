@@ -23,7 +23,8 @@
 #include "gmock/gmock.h"
 #include "absl/base/log_severity.h"
 #include "xls/common/logging/log_entry.h"
-#include "xls/common/logging/logging.h"
+#include "xls/common/logging/log_sink.h"
+#include "xls/common/logging/log_sink_registry.h"
 
 namespace xls {
 namespace testing {

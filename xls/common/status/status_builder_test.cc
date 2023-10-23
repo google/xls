@@ -28,6 +28,7 @@
 #include "xls/common/logging/log_entry.h"
 #include "xls/common/logging/log_sink.h"
 #include "xls/common/logging/scoped_mock_log.h"
+#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/source_location.h"
 
 namespace xabsl {

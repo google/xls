@@ -14,6 +14,8 @@
 
 #include "xls/common/logging/log_message.h"
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -23,33 +25,24 @@
 #include <string>
 #include <string_view>
 #include <tuple>
-#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/flags/flag.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/str_cat.h"
-#include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_entry.h"
 #include "xls/common/logging/log_flags.h"
+#include "xls/common/logging/log_sink_registry.h"
 #include "xls/common/strerror.h"
 #include "xls/common/symbolized_stacktrace.h"
 
 namespace xls {
 namespace logging_internal {
 namespace {
-
-// `global_sinks` holds globally registered `LogSink`s.
-ABSL_CONST_INIT absl::Mutex global_sinks_mutex(absl::kConstInit);
-ABSL_CONST_INIT std::vector<LogSink*>* global_sinks ABSL_GUARDED_BY(
-    global_sinks_mutex) ABSL_PT_GUARDED_BY(global_sinks_mutex) = nullptr;
-
-// `sink_send_mutex` protects against concurrent calls from the logging library
-// to any `LogSink::Send()`.
-ABSL_CONST_INIT absl::Mutex sink_send_mutex
-    ABSL_ACQUIRED_AFTER(global_sinks_mutex)(absl::kConstInit);
 
 // Have we already seen a fatal message?
 std::atomic_flag seen_fatal = ATOMIC_FLAG_INIT;
@@ -120,9 +113,9 @@ struct LogMessage::LogMessageData {
   // true => PLOG was requested
   bool is_perror;
 
-  // Extra `LogSink`s to log to, in addition to `global_sinks`.
+  // Extra `LogSink`s to log to, in addition to the global sinks.
   absl::InlinedVector<LogSink*, 16> extra_sinks;
-  // If true, log to `extra_sinks` but not to `global_sinks` or hardcoded
+  // If true, log to `extra_sinks` but not to the global sinks or hardcoded
   // non-sink targets (e.g. stderr, log files).
   bool extra_sinks_only;
 
@@ -261,37 +254,9 @@ void LogMessage::Flush() {
   data_->has_been_flushed = true;
 }
 
-void LogMessage::LogToSinks() const
-    ABSL_LOCKS_EXCLUDED(global_sinks_mutex,
-                        sink_send_mutex) ABSL_NO_THREAD_SAFETY_ANALYSIS {
-  if (!data_->extra_sinks_only) {
-    global_sinks_mutex.ReaderLock();
-  }
-  if (!data_->extra_sinks.empty() ||
-      (!data_->extra_sinks_only && global_sinks && !global_sinks->empty())) {
-    {
-      absl::MutexLock send_sink_lock(&sink_send_mutex);
-      for (LogSink* sink : data_->extra_sinks) {
-        sink->Send(data_->entry);
-      }
-      if (!data_->extra_sinks_only && global_sinks) {
-        for (LogSink* sink : *global_sinks) {
-          sink->Send(data_->entry);
-        }
-      }
-    }
-    for (LogSink* sink : data_->extra_sinks) {
-      sink->WaitTillSent();
-    }
-    if (!data_->extra_sinks_only && global_sinks) {
-      for (LogSink* sink : *global_sinks) {
-        sink->WaitTillSent();
-      }
-    }
-  }
-  if (!data_->extra_sinks_only) {
-    global_sinks_mutex.ReaderUnlock();
-  }
+void LogMessage::LogToSinks() const {
+  logging_internal::LogToSinks(data_->entry, absl::MakeSpan(data_->extra_sinks),
+                               data_->extra_sinks_only);
 }
 
 void LogMessage::Fail() {
@@ -514,29 +479,5 @@ LogMessageQuietlyFatal::~LogMessageQuietlyFatal() {
 }
 
 }  // namespace logging_internal
-
-void AddLogSink(LogSink* sink)
-    ABSL_LOCKS_EXCLUDED(logging_internal::global_sinks_mutex) {
-  absl::MutexLock global_sinks_lock(&logging_internal::global_sinks_mutex);
-  if (!logging_internal::global_sinks) {
-    logging_internal::global_sinks = new std::vector<LogSink*>();
-  }
-  logging_internal::global_sinks->push_back(sink);
-}
-
-void RemoveLogSink(LogSink* sink)
-    ABSL_LOCKS_EXCLUDED(logging_internal::global_sinks_mutex) {
-  absl::MutexLock global_sinks_lock(&logging_internal::global_sinks_mutex);
-  if (!logging_internal::global_sinks) {
-    return;
-  }
-  for (auto iter = logging_internal::global_sinks->begin();
-       iter != logging_internal::global_sinks->end(); ++iter) {
-    if (*iter == sink) {
-      logging_internal::global_sinks->erase(iter);
-      return;
-    }
-  }
-}
 
 }  // namespace xls

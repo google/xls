@@ -35,6 +35,7 @@
 #include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/logging/log_sink_registry.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"

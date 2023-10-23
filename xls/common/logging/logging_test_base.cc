@@ -15,6 +15,7 @@
 #include "xls/common/logging/logging_test_base.h"
 
 #include "gmock/gmock.h"
+#include "xls/common/logging/log_sink_registry.h"
 
 namespace xls {
 namespace logging_internal {

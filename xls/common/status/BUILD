@@ -108,6 +108,7 @@ cc_test(
         "//xls/common/logging:log_entry",
         "//xls/common/logging:log_sink",
         "//xls/common/logging:scoped_mock_log",
+        "//xls/common/logging:vlog_is_on",
     ],
 )
 

@@ -172,14 +172,14 @@ cc_library(
         ":log_entry",
         ":log_flags",
         ":log_sink",
+        ":log_sink_registry",
         ":null_guard",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/hash",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
         "//xls/common:source_location",
@@ -224,6 +224,19 @@ cc_library(
     ],
     deps = [
         ":log_entry",
+    ],
+)
+
+cc_library(
+    name = "log_sink_registry",
+    srcs = ["log_sink_registry.cc"],
+    hdrs = ["log_sink_registry.h"],
+    deps = [
+        ":log_entry",
+        ":log_sink",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -290,6 +303,7 @@ cc_library(
     deps = [
         ":log_entry",
         ":log_sink",
+        ":log_sink_registry",
         ":logging",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
@@ -343,7 +357,8 @@ cc_library(
     hdrs = ["scoped_mock_log.h"],
     deps = [
         ":log_entry",
-        ":logging",
+        ":log_sink",
+        ":log_sink_registry",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",

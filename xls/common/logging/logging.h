@@ -328,12 +328,4 @@
 #define XLS_DIE_IF_NULL(val) \
   ::xls::logging_internal::DieIfNull(__FILE__, __LINE__, #val, (val))
 
-namespace xls {
-
-// Add or remove a `LogSink` as a consumer of logging data.  Thread-safe.
-void AddLogSink(LogSink* sink);
-void RemoveLogSink(LogSink* sink);
-
-}  // namespace xls
-
 #endif  // XLS_COMMON_LOGGING_LOGGING_H_

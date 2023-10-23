@@ -26,6 +26,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/logging:log_entry",
         "//xls/common/logging:log_sink",
+        "//xls/common/logging:log_sink_registry",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/contrib/xlscc:cc_parser",
