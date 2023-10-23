@@ -193,8 +193,8 @@ def load_external_repositories():
         sha256 = "9c3c0a0ad986ee4fc0a9b58fd71255010068df7d1437c425b525d68c30c85ac7",
         strip_prefix = "grpc-1.55.1",
         repo_mapping = {
-            "@local_config_python": "@python39",
-            "@system_python": "@python39",
+            "@local_config_python": "@python310",
+            "@system_python": "@python310",
         },
     )
 

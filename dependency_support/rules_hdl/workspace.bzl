@@ -42,6 +42,6 @@ def repo():
             "https://github.com/antmicro/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
         ],
         repo_mapping = {
-            "@rules_hdl_cpython": "@python39",
+            "@rules_hdl_cpython": "@python310",
         },
     )
