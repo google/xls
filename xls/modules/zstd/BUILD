@@ -40,3 +40,21 @@ xls_dslx_test(
     },
     library = ":buffer_dslx",
 )
+
+xls_dslx_library(
+    name = "zstd_magic_dslx",
+    srcs = [
+        "zstd_magic.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ]
+)
+
+xls_dslx_test(
+    name = "zstd_magic_dslx_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":zstd_magic_dslx",
+)
