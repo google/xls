@@ -16,12 +16,12 @@
 
 #include <cstdint>
 #include <optional>
-#include <ostream>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -38,18 +38,6 @@
 namespace m = ::xls::op_matchers;
 
 namespace xls {
-
-std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
-  switch (a) {
-    case NarrowingPass::AnalysisType::kBdd:
-      return os << "Bdd";
-    case NarrowingPass::AnalysisType::kRange:
-      return os << "Range";
-    case NarrowingPass::AnalysisType::kRangeWithContext:
-      return os << "Context";
-  }
-}
-
 namespace {
 
 using status_testing::IsOkAndHolds;
@@ -77,6 +65,8 @@ class NarrowingPassTestBase : public IrTestBase {
       case NarrowingPass::AnalysisType::kRange:
       case NarrowingPass::AnalysisType::kRangeWithContext:
         return true;
+      case NarrowingPass::AnalysisType::kRangeWithOptionalContext:
+        XLS_LOG(FATAL) << "Marker analysis type!";
     }
   }
 };

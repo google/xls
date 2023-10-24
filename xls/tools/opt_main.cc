@@ -71,6 +71,10 @@ ABSL_FLAG(bool, inline_procs, false,
           "Whether to inline all procs by calling the proc inlining pass.");
 ABSL_FLAG(std::string, ram_rewrites_pb, "",
           "Path to protobuf describing ram rewrites.");
+ABSL_FLAG(bool, use_context_narrowing_analysis, false,
+          "Use context sensitive narrowing analysis. This is somewhat slower "
+          "but might produce better results in some circumstances by using "
+          "usage context to narrow values more aggressively.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls::tools {
@@ -90,6 +94,8 @@ absl::Status RealMain(std::string_view input_path) {
       absl::GetFlag(FLAGS_convert_array_index_to_select);
   bool inline_procs = absl::GetFlag(FLAGS_inline_procs);
   std::string ram_rewrites_pb = absl::GetFlag(FLAGS_ram_rewrites_pb);
+  bool use_context_narrowing_analysis =
+      absl::GetFlag(FLAGS_use_context_narrowing_analysis);
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
@@ -100,7 +106,8 @@ absl::Status RealMain(std::string_view input_path) {
           /*skip_passes=*/skip_passes,
           /*convert_array_index_to_select=*/convert_array_index_to_select,
           /*inline_procs=*/inline_procs,
-          /*ram_rewrites_pb=*/ram_rewrites_pb));
+          /*ram_rewrites_pb=*/ram_rewrites_pb,
+          /*use_context_narrowing_analysis=*/use_context_narrowing_analysis));
   std::cout << opt_ir;
   return absl::OkStatus();
 }

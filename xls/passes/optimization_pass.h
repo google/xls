@@ -120,6 +120,9 @@ struct OptimizationPassOptions : public PassOptionsBase {
   // List of RAM rewrites, generally lowering abstract RAMs into concrete
   // variants.
   std::vector<RamRewrite> ram_rewrites;
+
+  // Use select context during narrowing range analysis.
+  bool use_context_narrowing_analysis = false;
 };
 
 // An object containing information about the invocation of a pass (single call

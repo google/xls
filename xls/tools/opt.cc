@@ -63,6 +63,8 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
   pass_options.convert_array_index_to_select =
       options.convert_array_index_to_select;
   pass_options.ram_rewrites = options.ram_rewrites;
+  pass_options.use_context_narrowing_analysis =
+      options.use_context_narrowing_analysis;
   PassResults results;
   XLS_RETURN_IF_ERROR(
       pipeline->Run(package.get(), pass_options, &results).status());
@@ -75,7 +77,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(
     absl::Span<const std::string> run_only_passes,
     absl::Span<const std::string> skip_passes,
     int64_t convert_array_index_to_select, bool inline_procs,
-    std::string_view ram_rewrites_pb) {
+    std::string_view ram_rewrites_pb, bool use_context_narrowing_analysis) {
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
   std::vector<RamRewrite> ram_rewrites;
   if (!ram_rewrites_pb.empty()) {
@@ -101,6 +103,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(
               : std::make_optional(convert_array_index_to_select),
       .inline_procs = inline_procs,
       .ram_rewrites = std::move(ram_rewrites),
+      .use_context_narrowing_analysis = use_context_narrowing_analysis,
   };
   return OptimizeIrForTop(ir, options);
 }

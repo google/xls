@@ -205,6 +205,7 @@ def _optimize_ir(ctx, src):
         "opt_level",
         "convert_array_index_to_select",
         "inline_procs",
+        "use_context_narrowing_analysis",
         "top",
     )
 
@@ -436,6 +437,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "delay_model",
         "convert_array_index_to_select",
         "scheduling_options_proto",
+        "use_context_narrowing_analysis",
     )
 
     benchmark_ir_args = append_default_to_args(

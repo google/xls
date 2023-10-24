@@ -16,6 +16,7 @@
 #define XLS_PASSES_NARROWING_PASS_H_
 
 #include <cstdint>
+#include <ostream>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
@@ -32,6 +33,8 @@ class NarrowingPass : public OptimizationFunctionBasePass {
     kRange,
     // Use the select context of instructions when calculating ranges.
     kRangeWithContext,
+    // Use the select context controlled by the optimization options.
+    kRangeWithOptionalContext,
   };
   explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange,
                          int64_t opt_level = kMaxOptLevel)
@@ -43,10 +46,14 @@ class NarrowingPass : public OptimizationFunctionBasePass {
  protected:
   AnalysisType analysis_;
   int64_t opt_level_;
+
+  AnalysisType RealAnalysis(const OptimizationPassOptions& options) const;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
+
+std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a);
 
 }  // namespace xls
 

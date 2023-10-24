@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
@@ -97,6 +98,10 @@ ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
           "equal to the given number of possible indices (by range analysis) "
           "into chains of selects. Otherwise, this optimization is skipped, "
           "since it can sometimes reduce output quality.");
+ABSL_FLAG(bool, use_context_narrowing_analysis, false,
+          "Use context sensitive narrowing analysis. This is somewhat slower "
+          "but might produce better results in some circumstances by using "
+          "usage context to narrow values more aggressively.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
@@ -150,6 +155,8 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
           : std::make_optional(convert_array_index_to_select);
   // TODO(meheff): 2022/3/23 Add this as a flag and benchmark_ir option.
   pass_options.inline_procs = true;
+  pass_options.use_context_narrowing_analysis =
+      absl::GetFlag(FLAGS_use_context_narrowing_analysis);
   PassResults pass_results;
   XLS_RETURN_IF_ERROR(
       pipeline->Run(package, pass_options, &pass_results).status());

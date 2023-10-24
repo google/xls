@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <variant>
@@ -135,7 +136,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       : specialized_query_engine_(engine),
         analysis_(analysis),
         options_(options),
-        splits_enabled_(splits_enabled) {}
+        splits_enabled_(splits_enabled) {
+    XLS_CHECK_NE(analysis_,
+                 NarrowingPass::AnalysisType::kRangeWithOptionalContext);
+  }
 
   absl::Status MaybeReplacePreciseInputEdgeWithLiteral(Node* node) {
     if (analysis_ != AnalysisType::kRangeWithContext) {
@@ -1518,12 +1522,13 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
-                       GetQueryEngine(f, analysis_));
+                       GetQueryEngine(f, RealAnalysis(options)));
 
   PredicateDominatorAnalysis pda = PredicateDominatorAnalysis::Run(f);
-  SpecializedQueryEngines sqe(analysis_, pda, *query_engine);
+  SpecializedQueryEngines sqe(RealAnalysis(options), pda, *query_engine);
 
-  NarrowVisitor narrower(sqe, analysis_, options, SplitsEnabled(opt_level_));
+  NarrowVisitor narrower(sqe, RealAnalysis(options), options,
+                         SplitsEnabled(opt_level_));
 
   for (Node* node : TopoSort(f)) {
     // We specifically want gate ops to be eligible for being reduced to a
@@ -1551,5 +1556,28 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   // XLS_LOG(ERROR) << "Unable to analyze " << narrower.err_cnt() << " times!";
   return narrower.changed();
 }
+AnalysisType NarrowingPass::RealAnalysis(
+    const OptimizationPassOptions& options) const {
+  if (analysis_ == AnalysisType::kRangeWithOptionalContext) {
+    return options.use_context_narrowing_analysis
+               ? AnalysisType::kRangeWithContext
+               : AnalysisType::kRange;
+  }
+  return analysis_;
+}
+
+std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
+  switch (a) {
+    case NarrowingPass::AnalysisType::kBdd:
+      return os << "Bdd";
+    case NarrowingPass::AnalysisType::kRange:
+      return os << "Range";
+    case NarrowingPass::AnalysisType::kRangeWithContext:
+      return os << "Context";
+    case NarrowingPass::AnalysisType::kRangeWithOptionalContext:
+      return os << "OptionalContext";
+  }
+}
+
 
 }  // namespace xls

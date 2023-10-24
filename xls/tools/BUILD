@@ -1144,6 +1144,7 @@ cc_binary(
         "//xls/passes:optimization_pass_pipeline",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_pass_pipeline",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
