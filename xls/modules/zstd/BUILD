@@ -119,3 +119,17 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+xls_dslx_library(
+    name = "magic_dslx",
+    srcs = [
+        "magic.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ]
+)
+
+xls_dslx_test(
+    name = "magic_dslx_test",
+    library = ":magic_dslx",
+)
