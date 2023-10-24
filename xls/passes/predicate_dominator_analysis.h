@@ -47,8 +47,15 @@ class PredicateDominatorAnalysis {
   // NB Extending this to return the full predicate-set would be fairly
   // straightforward and could enable better optimization by allowing each
   // narrow to choose the best predicate to use for its pass.
-  PredicateState GetSingleNearestPredicate(Node* node) {
-    return nearest_predicates_[node];
+  PredicateState GetSingleNearestPredicate(Node* node) const {
+    // TODO(google/xls#1104): Due to not tracking replaced nodes correctly we
+    // might ask for the predicate of a node which is a replacement. Once we
+    // track these we can answer correctly but until then we need to just
+    // fallback to the base.
+    if (nearest_predicates_.contains(node)) {
+      return nearest_predicates_.at(node);
+    }
+    return PredicateState();
   }
 
  private:

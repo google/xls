@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -54,8 +55,11 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/context_sensitive_range_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/predicate_dominator_analysis.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
@@ -66,6 +70,35 @@ namespace xls {
 namespace {
 
 using AnalysisType = NarrowingPass::AnalysisType;
+
+class SpecializedQueryEngines {
+ public:
+  SpecializedQueryEngines(AnalysisType type, PredicateDominatorAnalysis& pda,
+                          const QueryEngine& base)
+      : type_(type), base_(base), pda_(pda) {}
+  const QueryEngine& ForSelect(PredicateState state) const {
+    if (type_ != AnalysisType::kRangeWithContext) {
+      return base_;
+    }
+    if (!engines_.contains(state)) {
+      engines_.emplace(state, base_.SpecializeGivenPredicate({state}));
+    }
+    return *engines_.at(state);
+  }
+  const QueryEngine& ForNode(Node* node) const {
+    if (type_ != AnalysisType::kRangeWithContext) {
+      return base_;
+    }
+    return ForSelect(pda_.GetSingleNearestPredicate(node));
+  }
+
+ private:
+  AnalysisType type_;
+  const QueryEngine& base_;
+  const PredicateDominatorAnalysis& pda_;
+  mutable absl::flat_hash_map<PredicateState, std::unique_ptr<QueryEngine>>
+      engines_;
+};
 
 // Return the given node sign-extended (if is_signed is true) or zero-extended
 // (if 'is_signed' is false) to the given bit count. If the node is already of
@@ -95,16 +128,65 @@ absl::StatusOr<Node*> MaybeNarrow(Node* node, int64_t bit_count) {
 
 class NarrowVisitor final : public DfsVisitorWithDefault {
  public:
-  explicit NarrowVisitor(const QueryEngine& engine, AnalysisType analysis,
+  explicit NarrowVisitor(const SpecializedQueryEngines& engine,
+                         AnalysisType analysis,
                          const OptimizationPassOptions& options,
                          bool splits_enabled)
-      : query_engine_(engine),
+      : specialized_query_engine_(engine),
         analysis_(analysis),
         options_(options),
         splits_enabled_(splits_enabled) {}
 
+  absl::Status MaybeReplacePreciseInputEdgeWithLiteral(Node* node) {
+    if (analysis_ != AnalysisType::kRangeWithContext) {
+      return NoChange();
+    }
+    const QueryEngine& node_qe = specialized_query_engine_.ForNode(node);
+    bool changed = false;
+    for (int64_t i = 0; i < node->operand_count(); ++i) {
+      Node* to_replace = node->operand(i);
+      if (to_replace->Is<Literal>()) {
+        continue;
+      }
+      // TODO(allight): 2023-09-11: google/xls#1104 means we might have already
+      // replaced the argument and can't easily retrieve what it was and so
+      // won't be able to replace it with a literal. This is unfortunate and
+      // should be remedied at some point.
+      // if (!node_qe.IsTracked(to_replace)) {
+      //   continue;
+      // }
+      XLS_ASSIGN_OR_RETURN(
+          bool one_change,
+          MaybeReplacePreciseWithLiteral(
+              to_replace, node_qe,
+              [&](const Value& value) -> absl::Status {
+                XLS_ASSIGN_OR_RETURN(
+                    Node * literal,
+                    to_replace->function_base()->MakeNode<Literal>(
+                        to_replace->loc(), value));
+                return node->ReplaceOperandNumber(i, literal);
+              },
+              absl::StrFormat("in operand %d of %s", i, node->ToString())));
+      changed = changed || one_change;
+    }
+    if (changed) {
+      return Change();
+    }
+    return NoChange();
+  }
   absl::StatusOr<bool> MaybeReplacePreciseWithLiteral(Node* node) {
-    LeafTypeTree<IntervalSet> intervals = query_engine_.GetIntervals(node);
+    return MaybeReplacePreciseWithLiteral(
+        node, specialized_query_engine_.ForNode(node),
+        [&](const Value& value) {
+          return node->ReplaceUsesWithNew<Literal>(value).status();
+        },
+        "in global usage");
+  }
+  absl::StatusOr<bool> MaybeReplacePreciseWithLiteral(
+      Node* to_replace, const QueryEngine& query_engine,
+      const std::function<absl::Status(const Value&)>& replace_with,
+      std::string_view context) {
+    LeafTypeTree<IntervalSet> intervals = query_engine.GetIntervals(to_replace);
     for (Type* leaf_type : intervals.leaf_types()) {
       if (leaf_type->IsToken()) {
         XLS_RETURN_IF_ERROR(NoChange());
@@ -125,10 +207,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
             intervals,
             LeafTypeTree<Type*>(intervals.type(), intervals.leaf_types()));
     XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_tree));
-    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Literal>(value).status());
+    XLS_RETURN_IF_ERROR(replace_with(value));
     XLS_VLOG(3) << absl::StreamFormat(
-        "Range analysis found precise value for %s, replacing with literal\n",
-        node->GetName());
+        "Range analysis found precise value for %s == %s %s, replacing with "
+        "literal\n",
+        to_replace->GetName(), value.ToString(), context);
     XLS_RETURN_IF_ERROR(Change());
     return true;
   }
@@ -140,6 +223,54 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     // We explicitly never want anything to occur here except being replaced
     // with a constant.
     return NoChange();
+  }
+
+  absl::Status HandleSel(Select* sel) override {
+    if (analysis_ != AnalysisType::kRangeWithContext) {
+      return NoChange();
+    }
+    // Replace any input edge with the constant value if we can
+    bool changed = false;
+    for (int64_t i = 0; i < sel->cases().size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          bool one_change,
+          MaybeReplaceSelectArmWithPreciseValue(PredicateState(sel, i)));
+      changed = changed || one_change;
+    }
+    if (sel->default_value()) {
+      XLS_ASSIGN_OR_RETURN(bool one_change,
+                           MaybeReplaceSelectArmWithPreciseValue(PredicateState(
+                               sel, PredicateState::kDefaultArm)));
+      changed = changed || one_change;
+    }
+    if (changed) {
+      return Change();
+    }
+    return NoChange();
+  }
+
+  absl::StatusOr<bool> MaybeReplaceSelectArmWithPreciseValue(
+      PredicateState state) {
+    XLS_CHECK(!state.IsBasePredicate());
+    const QueryEngine& qe = specialized_query_engine_.ForSelect(state);
+    Select* select = state.node()->As<Select>();
+    Node* to_replace = state.IsDefaultArm()
+                           ? *select->default_value()
+                           : select->get_case(state.arm_index());
+    int64_t arg_num = state.IsDefaultArm() ? select->operand_count() - 1
+                                           : state.arm_index() + 1;
+    return MaybeReplacePreciseWithLiteral(
+        to_replace, qe,
+        [&](const Value& value) -> absl::Status {
+          XLS_ASSIGN_OR_RETURN(Node * literal,
+                               to_replace->function_base()->MakeNode<Literal>(
+                                   to_replace->loc(), value));
+          return select->ReplaceOperandNumber(arg_num, literal);
+        },
+        absl::StrFormat(
+            "as case %d in %s",
+            state.IsDefaultArm() ? select->cases().size() : state.arm_index(),
+            select->ToString()));
   }
   absl::Status HandleEq(CompareOp* eq) override {
     return MaybeNarrowCompare(eq);
@@ -178,13 +309,15 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     if (!compare->operand(0)->GetType()->IsBits()) {
       return NoChange();
     }
+    const QueryEngine& query_engine =
+        specialized_query_engine_.ForNode(compare);
     // Returns the number of consecutive leading/trailing bits that are known to
     // be equal between the LHS and RHS of the given compare operation.
     auto matched_leading_operand_bits = [&](CompareOp* c) -> int64_t {
       int64_t bit_count = c->operand(0)->BitCountOrDie();
       for (int64_t i = 0; i < bit_count; ++i) {
         int64_t bit_index = bit_count - i - 1;
-        if (!query_engine_.KnownEquals(
+        if (!query_engine.KnownEquals(
                 TreeBitLocation(c->operand(0), bit_index),
                 TreeBitLocation(c->operand(1), bit_index))) {
           return i;
@@ -195,8 +328,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     auto matched_trailing_operand_bits = [&](CompareOp* c) -> int64_t {
       int64_t bit_count = c->operand(0)->BitCountOrDie();
       for (int64_t i = 0; i < bit_count; ++i) {
-        if (!query_engine_.KnownEquals(TreeBitLocation(c->operand(0), i),
-                                       TreeBitLocation(c->operand(1), i))) {
+        if (!query_engine.KnownEquals(TreeBitLocation(c->operand(0), i),
+                                      TreeBitLocation(c->operand(1), i))) {
           return i;
         }
       }
@@ -253,12 +386,12 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     // compare can be sliced away (except the unsliced bit must remain as the
     // sign bit).
     int64_t common_leading_ones_or_zeros =
-        std::min(CountLeadingKnownZeros(compare->operand(0)),
-                 CountLeadingKnownZeros(compare->operand(1)));
+        std::min(CountLeadingKnownZeros(compare->operand(0), /*user=*/compare),
+                 CountLeadingKnownZeros(compare->operand(1), /*user=*/compare));
     if (common_leading_ones_or_zeros == 0) {
-      common_leading_ones_or_zeros =
-          std::min(CountLeadingKnownOnes(compare->operand(0)),
-                   CountLeadingKnownOnes(compare->operand(1)));
+      common_leading_ones_or_zeros = std::min(
+          CountLeadingKnownOnes(compare->operand(0), /*user=*/compare),
+          CountLeadingKnownOnes(compare->operand(1), /*user=*/compare));
     }
     if (IsSignedCompare(compare) && common_leading_ones_or_zeros > 1) {
       XLS_RETURN_IF_ERROR(narrow_compare_operands(
@@ -546,7 +679,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   absl::Status MaybeNarrowShiftAmount(Node* shift) {
     XLS_RET_CHECK(shift->op() == Op::kShll || shift->op() == Op::kShrl ||
                   shift->op() == Op::kShra);
-    int64_t leading_zeros = CountLeadingKnownZeros(shift->operand(1));
+    int64_t leading_zeros =
+        CountLeadingKnownZeros(shift->operand(1), /*user=*/shift);
     if (leading_zeros == shift->operand(1)->BitCountOrDie()) {
       // Shift amount is zero. Replace with (slice of) input operand of shift.
       if (shift->BitCountOrDie() == shift->operand(0)->BitCountOrDie()) {
@@ -594,7 +728,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     }
 
     int64_t common_leading_zeros =
-        std::min(CountLeadingKnownZeros(lhs), CountLeadingKnownZeros(rhs));
+        std::min(CountLeadingKnownZeros(lhs, /*user=*/add),
+                 CountLeadingKnownZeros(rhs, /*user=*/add));
 
     if (common_leading_zeros > 1) {
       // Narrow the add removing all but one of the known-zero leading
@@ -692,10 +827,12 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     // Zero-extended operands of unsigned multiplies can be narrowed.
     if (mul->op() == Op::kUMul || is_sign_agnostic) {
-      XLS_ASSIGN_OR_RETURN(std::optional<Node*> operand0,
-                           MaybeNarrowUnsignedOperand(mul->operand(0)));
-      XLS_ASSIGN_OR_RETURN(std::optional<Node*> operand1,
-                           MaybeNarrowUnsignedOperand(mul->operand(1)));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<Node*> operand0,
+          MaybeNarrowUnsignedOperand(mul->operand(0), /*user=*/mul));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<Node*> operand1,
+          MaybeNarrowUnsignedOperand(mul->operand(1), /*user=*/mul));
       if (operand0.has_value() || operand1.has_value()) {
         XLS_RETURN_IF_ERROR(
             mul->ReplaceUsesWithNew<ArithOp>(operand0.value_or(mul->operand(0)),
@@ -709,10 +846,12 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     // Sign-extended operands of signed multiplies can be narrowed by replacing
     // the operand of the multiply with the value before sign-extension.
     if (mul->op() == Op::kSMul || is_sign_agnostic) {
-      XLS_ASSIGN_OR_RETURN(std::optional<Node*> operand0,
-                           MaybeNarrowSignedOperand(mul->operand(0)));
-      XLS_ASSIGN_OR_RETURN(std::optional<Node*> operand1,
-                           MaybeNarrowSignedOperand(mul->operand(1)));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<Node*> operand0,
+          MaybeNarrowSignedOperand(mul->operand(0), /*user=*/mul));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<Node*> operand1,
+          MaybeNarrowSignedOperand(mul->operand(1), /*user=*/mul));
       if (operand0.has_value() || operand1.has_value()) {
         XLS_RETURN_IF_ERROR(
             mul->ReplaceUsesWithNew<ArithOp>(operand0.value_or(mul->operand(0)),
@@ -783,10 +922,17 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
 
       int64_t index_width = index->BitCountOrDie();
-      int64_t leading_zeros = CountLeadingKnownZeros(index);
-      XLS_RET_CHECK_NE(leading_zeros, index_width)
-          << "Known constant zero value should have been caught by previous "
-             "checks.";
+      int64_t leading_zeros =
+          CountLeadingKnownZeros(index, /*user=*/array_index);
+      if (leading_zeros == index_width) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * zero,
+            array_index->function_base()->MakeNode<Literal>(
+                array_index->loc(), Value(UBits(0, min_index_width))));
+        new_indices.push_back(zero);
+        changed = true;
+        continue;
+      }
       if (leading_zeros > 0) {
         XLS_ASSIGN_OR_RETURN(Node * narrowed_index,
                              array_index->function_base()->MakeNode<BitSlice>(
@@ -886,10 +1032,12 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     // Zero-extended operands of unsigned multiplies can be narrowed.
     if (mul->op() == Op::kUMulp || is_sign_agnostic) {
-      XLS_ASSIGN_OR_RETURN(std::optional<Node*> operand0,
-                           MaybeNarrowUnsignedOperand(mul->operand(0)));
-      XLS_ASSIGN_OR_RETURN(std::optional<Node*> operand1,
-                           MaybeNarrowUnsignedOperand(mul->operand(1)));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<Node*> operand0,
+          MaybeNarrowUnsignedOperand(mul->operand(0), /*user=*/mul));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<Node*> operand1,
+          MaybeNarrowUnsignedOperand(mul->operand(1), /*user=*/mul));
       if (operand0.has_value() || operand1.has_value()) {
         XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<PartialProductOp>(
                                    operand0.value_or(mul->operand(0)),
@@ -903,10 +1051,12 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     // Sign-extended operands of signed multiplies can be narrowed by replacing
     // the operand of the multiply with the value before sign-extension.
     if (mul->op() == Op::kSMulp || is_sign_agnostic) {
-      XLS_ASSIGN_OR_RETURN(std::optional<Node*> operand0,
-                           MaybeNarrowSignedOperand(mul->operand(0)));
-      XLS_ASSIGN_OR_RETURN(std::optional<Node*> operand1,
-                           MaybeNarrowSignedOperand(mul->operand(1)));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<Node*> operand0,
+          MaybeNarrowSignedOperand(mul->operand(0), /*user=*/mul));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<Node*> operand1,
+          MaybeNarrowSignedOperand(mul->operand(1), /*user=*/mul));
       if (operand0.has_value() || operand1.has_value()) {
         XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<PartialProductOp>(
                                    operand0.value_or(mul->operand(0)),
@@ -924,12 +1074,27 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   }
 
  private:
-  // Return the number of leading known zeros in the given nodes values.
-  int64_t CountLeadingKnownZeros(Node* node) {
+  // Return the number of leading known zeros in the given nodes values when
+  // used as an argument to 'user'. 'user' must not be null.
+  int64_t CountLeadingKnownZeros(Node* node, Node* user) const {
     XLS_CHECK(node->GetType()->IsBits());
+    XLS_CHECK_NE(user, nullptr);
     int64_t leading_zeros = 0;
+    const QueryEngine& node_query_engine =
+        specialized_query_engine_.ForNode(node);
+    const std::optional<const QueryEngine*> user_query_engine =
+        analysis_ == AnalysisType::kRangeWithContext
+            ? std::make_optional(&specialized_query_engine_.ForNode(user))
+            : std::nullopt;
+    auto is_user_zero = [&](const TreeBitLocation& tbl) {
+      if (user_query_engine) {
+        return (*user_query_engine)->IsZero(tbl);
+      }
+      return false;
+    };
     for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
-      if (!query_engine_.IsZero(TreeBitLocation(node, i))) {
+      if (!node_query_engine.IsZero(TreeBitLocation(node, i)) &&
+          !is_user_zero(TreeBitLocation(node, i))) {
         break;
       }
       ++leading_zeros;
@@ -937,12 +1102,27 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return leading_zeros;
   }
 
-  // Return the number of leading known ones in the given nodes values.
-  int64_t CountLeadingKnownOnes(Node* node) {
+  // Return the number of leading known ones in the given nodes values when the
+  // nodes value is used as an argument to 'user'. 'user' must not be null.
+  int64_t CountLeadingKnownOnes(Node* node, Node* user) const {
     XLS_CHECK(node->GetType()->IsBits());
+    XLS_CHECK_NE(user, nullptr);
     int64_t leading_ones = 0;
+    const QueryEngine& node_query_engine =
+        specialized_query_engine_.ForNode(node);
+    const std::optional<const QueryEngine*> user_query_engine =
+        analysis_ == AnalysisType::kRangeWithContext
+            ? std::make_optional(&specialized_query_engine_.ForNode(user))
+            : std::nullopt;
+    auto is_user_one = [&](const TreeBitLocation& tbl) {
+      if (user_query_engine) {
+        return (*user_query_engine)->IsOne(tbl);
+      }
+      return false;
+    };
     for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
-      if (!query_engine_.IsOne(TreeBitLocation(node, i))) {
+      if (!node_query_engine.IsOne(TreeBitLocation(node, i)) &&
+          !is_user_one(TreeBitLocation(node, i))) {
         break;
       }
       ++leading_ones;
@@ -950,9 +1130,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return leading_ones;
   }
 
-  absl::StatusOr<std::optional<Node*>> MaybeNarrowUnsignedOperand(
-      Node* operand) {
-    int64_t leading_zeros = CountLeadingKnownZeros(operand);
+  absl::StatusOr<std::optional<Node*>> MaybeNarrowUnsignedOperand(Node* operand,
+                                                                  Node* user) {
+    int64_t leading_zeros = CountLeadingKnownZeros(operand, user);
     if (leading_zeros == 0) {
       return std::nullopt;
     }
@@ -961,20 +1141,22 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         /*width=*/operand->BitCountOrDie() - leading_zeros);
   }
 
-  absl::StatusOr<std::optional<Node*>> MaybeNarrowSignedOperand(Node* operand) {
+  absl::StatusOr<std::optional<Node*>> MaybeNarrowSignedOperand(Node* operand,
+                                                                Node* user) {
     if (operand->op() == Op::kSignExt) {
       // Operand is a sign-extended value. Just use the value before
       // sign-extension.
       return operand->operand(0);
     }
-    if (CountLeadingKnownZeros(operand) > 1) {
+    if (CountLeadingKnownZeros(operand, user) > 1) {
       // Operand has more than one leading zero, something like:
       //    operand = 0000XXXX
       // This is equivalent to:
       //    operand = signextend(0XXXX)
       // So we can replace the operand with 0XXXX.
-      return MaybeNarrow(operand, operand->BitCountOrDie() -
-                                      CountLeadingKnownZeros(operand) + 1);
+      return MaybeNarrow(
+          operand,
+          operand->BitCountOrDie() - CountLeadingKnownZeros(operand, user) + 1);
     }
     return std::nullopt;
   }
@@ -997,11 +1179,22 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     std::vector<IntervalSet> index_intervals;
 
     // Populate `dimension` and `index_intervals`.
+    auto get_intervals = [&](Node* value) {
+      const QueryEngine& array_engine =
+          specialized_query_engine_.ForNode(array_index);
+      if (analysis_ != AnalysisType::kRangeWithContext) {
+        return array_engine.GetIntervals(value).Get({});
+      }
+      const QueryEngine& value_engine =
+          specialized_query_engine_.ForNode(value);
+      return IntervalSet::Intersect(value_engine.GetIntervals(value).Get({}),
+                                    array_engine.GetIntervals(value).Get({}));
+    };
     {
       ArrayType* array_type = array_index->array()->GetType()->AsArrayOrDie();
       for (Node* index : array_index->indices()) {
         dimension.push_back(array_type->size());
-        index_intervals.push_back(query_engine_.GetIntervals(index).Get({}));
+        index_intervals.push_back(get_intervals(index));
         absl::StatusOr<ArrayType*> array_type_status =
             array_type->element_type()->AsArray();
         array_type = array_type_status.ok() ? *array_type_status : nullptr;
@@ -1198,7 +1391,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  const QueryEngine& query_engine_;
+  const SpecializedQueryEngines& specialized_query_engine_;
   const AnalysisType analysis_;
   const OptimizationPassOptions& options_;
   const bool splits_enabled_;
@@ -1207,9 +1400,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
 }  // namespace
 
+template <typename RangeEngine>
 static void RangeAnalysisLog(FunctionBase* f,
                              const TernaryQueryEngine& ternary_query_engine,
-                             const RangeQueryEngine& range_query_engine) {
+                             const RangeEngine& range_query_engine) {
   int64_t bits_saved = 0;
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> parents_map;
 
@@ -1221,8 +1415,7 @@ static void RangeAnalysisLog(FunctionBase* f,
 
   for (Node* node : f->nodes()) {
     if (node->GetType()->IsBits()) {
-      IntervalSet intervals =
-          range_query_engine.GetIntervalSetTree(node).Get({});
+      IntervalSet intervals = range_query_engine.GetIntervals(node).Get({});
       int64_t current_size = node->BitCountOrDie();
       Bits compressed_total(current_size + 1);
       for (const Interval& interval : intervals.Intervals()) {
@@ -1252,7 +1445,7 @@ static void RangeAnalysisLog(FunctionBase* f,
           break;
         }
         IntervalSet intervals =
-            range_query_engine.GetIntervalSetTree(operand).Get({});
+            range_query_engine.GetIntervals(operand).Get({});
         intervals.Normalize();
         if (!intervals.IsMaximal()) {
           inputs_all_maximal = false;
@@ -1260,7 +1453,7 @@ static void RangeAnalysisLog(FunctionBase* f,
         }
       }
       if (!inputs_all_maximal &&
-          range_query_engine.GetIntervalSetTree(node).Get({}).IsMaximal()) {
+          range_query_engine.GetIntervals(node).Get({}).IsMaximal()) {
         XLS_VLOG(3) << "narrowing_pass: range analysis lost precision for "
                     << node << "\n";
       }
@@ -1289,7 +1482,20 @@ static void RangeAnalysisLog(FunctionBase* f,
 static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     FunctionBase* f, AnalysisType analysis) {
   std::unique_ptr<QueryEngine> query_engine;
-  if (analysis == AnalysisType::kRange) {
+  if (analysis == AnalysisType::kRangeWithContext) {
+    auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
+    auto range_query_engine =
+        std::make_unique<ContextSensitiveRangeQueryEngine>();
+
+    if (XLS_VLOG_IS_ON(3)) {
+      RangeAnalysisLog(f, *ternary_query_engine, *range_query_engine);
+    }
+
+    std::vector<std::unique_ptr<QueryEngine>> engines;
+    engines.push_back(std::move(ternary_query_engine));
+    engines.push_back(std::move(range_query_engine));
+    query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
+  } else if (analysis == AnalysisType::kRange) {
     auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
     auto range_query_engine = std::make_unique<RangeQueryEngine>();
 
@@ -1314,8 +1520,10 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
                        GetQueryEngine(f, analysis_));
 
-  NarrowVisitor narrower(*query_engine, analysis_, options,
-                         SplitsEnabled(opt_level_));
+  PredicateDominatorAnalysis pda = PredicateDominatorAnalysis::Run(f);
+  SpecializedQueryEngines sqe(analysis_, pda, *query_engine);
+
+  NarrowVisitor narrower(sqe, analysis_, options, SplitsEnabled(opt_level_));
 
   for (Node* node : TopoSort(f)) {
     // We specifically want gate ops to be eligible for being reduced to a
@@ -1332,7 +1540,15 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
       }
     }
     XLS_RETURN_IF_ERROR(node->VisitSingleNode(&narrower));
+    // Force input edges to be constant if possible.
+    // We do this after handling the node itself with the expectation that those
+    // have more powerful transforms.
+    // TODO(allight): 2023-09-11: google/xls#1104 makes this a bit less
+    // effective than it could be by hitting both this transform and the
+    // transform the node-specific handler did.
+    XLS_RETURN_IF_ERROR(narrower.MaybeReplacePreciseInputEdgeWithLiteral(node));
   }
+  // XLS_LOG(ERROR) << "Unable to analyze " << narrower.err_cnt() << " times!";
   return narrower.changed();
 }
 

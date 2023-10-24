@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <ostream>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -37,6 +38,18 @@
 namespace m = ::xls::op_matchers;
 
 namespace xls {
+
+std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
+  switch (a) {
+    case NarrowingPass::AnalysisType::kBdd:
+      return os << "Bdd";
+    case NarrowingPass::AnalysisType::kRange:
+      return os << "Range";
+    case NarrowingPass::AnalysisType::kRangeWithContext:
+      return os << "Context";
+  }
+}
+
 namespace {
 
 using status_testing::IsOkAndHolds;
@@ -45,26 +58,40 @@ using ::testing::_;
 using ::testing::AllOf;
 
 // The test is parameterized on whether to use range analysis or not.
-class NarrowingPassTest
-    : public IrTestBase,
-      public testing::WithParamInterface<NarrowingPass::AnalysisType> {
+class NarrowingPassTestBase : public IrTestBase {
  protected:
-  NarrowingPassTest() = default;
+  NarrowingPassTestBase() = default;
+
+  virtual NarrowingPass::AnalysisType analysis() const = 0;
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     OptimizationPassOptions options;
     options.convert_array_index_to_select = 2;
-    return NarrowingPass(/*analysis=*/GetParam()).Run(p, options, &results);
+    return NarrowingPass(analysis()).Run(p, options, &results);
   }
-
   bool DoesRangeAnalysis() const {
-    switch (GetParam()) {
+    switch (analysis()) {
       case NarrowingPass::AnalysisType::kBdd:
         return false;
       case NarrowingPass::AnalysisType::kRange:
+      case NarrowingPass::AnalysisType::kRangeWithContext:
         return true;
     }
+  }
+};
+
+class NarrowingPassTest
+    : public NarrowingPassTestBase,
+      public testing::WithParamInterface<NarrowingPass::AnalysisType> {
+ protected:
+  NarrowingPass::AnalysisType analysis() const override { return GetParam(); }
+};
+
+class ContextNarrowingPassTest : public NarrowingPassTestBase {
+ protected:
+  NarrowingPass::AnalysisType analysis() const override {
+    return NarrowingPass::AnalysisType::kRangeWithContext;
   }
 };
 
@@ -106,7 +133,7 @@ TEST_P(NarrowingPassTest, ShiftWithKnownOnePrefix) {
           fb.Concat({fb.Literal(UBits(0b111, 3)),
                      fb.Param("amt", p->GetBitsType(2))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false)) << f->DumpIr();
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("in"), m::Concat()));
 }
 
@@ -522,7 +549,7 @@ TEST_P(NarrowingPassTest, ArrayIndexWithAllSameValue) {
       p->GetBitsType(32));
   fb.ArrayIndex(array, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  if (/*analysis=*/GetParam() == NarrowingPass::AnalysisType::kRange) {
+  if (analysis() == NarrowingPass::AnalysisType::kRange) {
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(), m::Literal(600));
   }
@@ -552,7 +579,7 @@ TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  if (/*analysis=*/GetParam() == NarrowingPass::AnalysisType::kRange) {
+  if (analysis() == NarrowingPass::AnalysisType::kRange) {
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(),
                 m::Select(m::And(m::Eq(index.node(), m::Literal(7))),
@@ -674,17 +701,112 @@ TEST_P(NarrowingPassTest, EliminableArray) {
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
 }
 
+TEST_F(ContextNarrowingPassTest, ExactMatch) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("param", p->GetBitsType(64));
+  BValue lit_10 = fb.Literal(UBits(10, 64));
+  BValue add_10 = fb.Add(param, lit_10);
+  BValue result = fb.Select(param, {lit_10, add_10, lit_10, add_10}, lit_10);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_EQ(f->return_value(), result.node());
+  ASSERT_THAT(result.node(),
+              m::Select(param.node(),
+                        {m::Literal(UBits(10, 64)), m::Literal(UBits(11, 64)),
+                         m::Literal(UBits(10, 64)), m::Literal(UBits(13, 64))},
+                        m::Literal(UBits(10, 64))))
+      << f->DumpIr();
+}
+
+TEST_F(ContextNarrowingPassTest, ExactMatchWithEq) {
+  auto p = CreatePackage();
+  // fn (x) { if (x == 10) { x + 10 } else { 13 } }
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("param", p->GetBitsType(64));
+  BValue lit_10 = fb.Literal(UBits(10, 64));
+  BValue add_10 = fb.Add(param, lit_10);
+  BValue result =
+      fb.Select(fb.Eq(param, lit_10), {fb.Literal(UBits(13, 64)), add_10});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_EQ(f->return_value(), result.node());
+  ASSERT_THAT(result.node(), m::Select(m::Eq(m::Param(), m::Literal()),
+                                       {m::Literal(UBits(13, 64)),
+                                        m::Literal(UBits(20, 64))}));
+}
+
+TEST_F(ContextNarrowingPassTest, ExactMatchWithEq2) {
+  auto p = CreatePackage();
+  // fn (x) { if (x == 10) { x + 10 } else { x } }
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("param", p->GetBitsType(64));
+  BValue lit_10 = fb.Literal(UBits(10, 64));
+  BValue add_10 = fb.Add(param, lit_10);
+  BValue result = fb.Select(fb.Eq(param, lit_10), {param, add_10});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_EQ(f->return_value(), result.node());
+  ASSERT_THAT(result.node(),
+              m::Select(m::Eq(m::Param(), m::Literal()),
+                        {param.node(), m::Literal(UBits(20, 64))}));
+}
+
+TEST_F(ContextNarrowingPassTest, MaxSizeShift) {
+  auto p = CreatePackage();
+  // fn (x:u64, y:u64) { if (x < 4) { y << x } else { y } }
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(64));
+  BValue y = fb.Param("y", p->GetBitsType(64));
+  BValue lit_4 = fb.Literal(UBits(4, 64));
+  BValue shift_l = fb.Shll(y, x);
+  BValue cond = fb.ULt(x, lit_4);
+  BValue result = fb.Select(cond, {y, shift_l});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_EQ(f->return_value(), result.node());
+  ASSERT_THAT(
+      result.node(),
+      m::Select(m::ULt(m::Param("x"), m::Literal(UBits(4, 64))),
+                {m::Param("y"),
+                 m::Shll(m::Param("y"), m::BitSlice(m::Param("x"), 0, 2))}));
+}
+
+TEST_F(ContextNarrowingPassTest, KnownSmallAdd) {
+  auto p = CreatePackage();
+  // fn (x:u64, y:u4) { if (x < 4) { (y as u64) + x } else { x } }
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(64));
+  BValue y = fb.Param("y", p->GetBitsType(4));
+  BValue lit_4 = fb.Literal(UBits(4, 64));
+  BValue add = fb.Add(fb.ZeroExtend(y, 64), x);
+  BValue cond = fb.ULt(x, lit_4);
+  BValue result = fb.Select(cond, {x, add});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_EQ(f->return_value(), result.node());
+  ASSERT_THAT(result.node(),
+              m::Select(m::ULt(m::Param("x"), m::Literal(UBits(4, 64))),
+                        {m::Param("x"), m::ZeroExt()}))
+      << f->DumpIr();
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
-    testing::Values(false, true),
-    [](const testing::TestParamInfo<NarrowingPassTest::ParamType>& info) {
-      switch (info.param) {
-        case NarrowingPass::AnalysisType::kBdd:
-          return "kWithoutRangeAnalysis";
-        case NarrowingPass::AnalysisType::kRange:
-          return "kWithRangeAnalysis";
-      }
-    });
+    testing::Values(NarrowingPass::AnalysisType::kBdd,
+                    NarrowingPass::AnalysisType::kRange,
+                    NarrowingPass::AnalysisType::kRangeWithContext),
+    testing::PrintToStringParamName());
 
 }  // namespace
 }  // namespace xls

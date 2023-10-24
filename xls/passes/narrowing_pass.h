@@ -16,12 +16,12 @@
 #define XLS_PASSES_NARROWING_PASS_H_
 
 #include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls {
-
 
 // A pass which reduces the width of operations eliminating redundant or unused
 // bits.
@@ -30,6 +30,8 @@ class NarrowingPass : public OptimizationFunctionBasePass {
   enum class AnalysisType : uint8_t {
     kBdd,
     kRange,
+    // Use the select context of instructions when calculating ranges.
+    kRangeWithContext,
   };
   explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange,
                          int64_t opt_level = kMaxOptLevel)

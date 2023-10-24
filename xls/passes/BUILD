@@ -928,8 +928,11 @@ cc_library(
     srcs = ["narrowing_pass.cc"],
     hdrs = ["narrowing_pass.h"],
     deps = [
+        ":context_sensitive_range_query_engine",
         ":optimization_pass",
         ":pass_base",
+        ":predicate_dominator_analysis",
+        ":predicate_state",
         ":query_engine",
         ":range_query_engine",
         ":ternary_query_engine",
