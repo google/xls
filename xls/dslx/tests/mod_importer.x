@@ -16,13 +16,11 @@ import xls.dslx.tests.mod_imported
 import xls.dslx.tests.mod_imported as mi
 
 fn main(x: u3) -> u1 {
-  let lhs: u1 = mod_imported::my_lsb(x);
-  let rhs: u1 = mi::my_lsb(x);
-  let ehs: u1 = mi::my_lsb_uses_const(x);
-  lhs || rhs || ehs
+    let lhs: u1 = mod_imported::my_lsb(x);
+    let rhs: u1 = mi::my_lsb(x);
+    let ehs: u1 = mi::my_lsb_uses_const(x);
+    lhs || rhs || ehs
 }
 
 #[test]
-fn main_test() {
-  assert_eq(u1:0b1, main(u3:0b001))
-}
+fn main_test() { assert_eq(u1:0b1, main(u3:0b001)) }

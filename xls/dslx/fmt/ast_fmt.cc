@@ -1724,6 +1724,24 @@ DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
   return result;
 }
 
+// Returns whether the given members are of the given "MemberT" and "grouped" --
+// that is, one is placed directly on the line above the other. We use this as
+// an indicator they should also be grouped in the formatted output for certain
+// constructs.
+template <typename MemberT>
+static bool AreGroupedMembers(const ModuleMember& above,
+                              const ModuleMember& below) {
+  if (!std::holds_alternative<MemberT*>(above) ||
+      !std::holds_alternative<MemberT*>(below)) {
+    return false;
+  }
+
+  const auto* above_member = std::get<MemberT*>(above);
+  const auto* below_member = std::get<MemberT*>(below);
+  return above_member->span().start().lineno() + 1 ==
+         below_member->span().start().lineno();
+}
+
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   std::optional<Pos> last_member_pos;
@@ -1779,9 +1797,18 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
 
     // Here we actually emit the formatted member.
     pieces.push_back(Fmt(member, comments, arena));
+
     if (i + 1 == n.top().size()) {
+      // For the last module member we just put a trailing newline at EOF.
+      pieces.push_back(arena.hard_line());
+    } else if (AreGroupedMembers<Import>(member, n.top()[i + 1]) ||
+               AreGroupedMembers<TypeAlias>(member, n.top()[i + 1]) ||
+               AreGroupedMembers<ConstantDef>(member, n.top()[i + 1])) {
+      // If two (e.g. imports) are adjacent to each other (i.e. no intervening
+      // newline) we keep them adjacent to each other in the formatted output.
       pieces.push_back(arena.hard_line());
     } else {
+      // For other module members we separate them by an intervening newline.
       pieces.push_back(arena.hard_line());
       pieces.push_back(arena.hard_line());
     }

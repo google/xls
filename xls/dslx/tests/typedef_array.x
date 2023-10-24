@@ -13,18 +13,16 @@
 // limitations under the License.
 
 type MyType = u2;
-type StructLike = (
-  MyType[2],
-);
+type StructLike = (MyType[2]);
+
 fn f(s: StructLike) -> StructLike {
-  let updated: StructLike = (
-    [s.0[u32:0]+MyType:1, s.0[u32:1]+MyType:1],
-  );
-  updated
+    let updated: StructLike = ([s.0[u32:0] + MyType:1, s.0[u32:1] + MyType:1],);
+    updated
 }
+
 #[test]
 fn t_test() {
-  let s: StructLike = (MyType[2]:[MyType:0, MyType:1],);
-  let s_2 = f(s);
-  assert_eq(s_2, (u2[2]:[u2:1, u2:2],))
+    let s: StructLike = (MyType[2]:[MyType:0, MyType:1],);
+    let s_2 = f(s);
+    assert_eq(s_2, (u2[2]:[u2:1, u2:2],))
 }

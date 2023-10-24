@@ -643,6 +643,50 @@ TEST(ModuleFmtTest, ImportAs) {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, ImportGroups) {
+  const std::string_view kProgram = R"(import thing1
+import thing2
+
+import other
+import stuff
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, TypeAliasGroups) {
+  const std::string_view kProgram = R"(import thing1
+import float32
+
+type F32 = float32::F32;
+type FloatTag = float32::FloatTag;
+
+type TaggedF32 = float32::TaggedF32;
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, ConstantDefGroups) {
+  const std::string_view kProgram = R"(const A = u32:42;
+const B = u32:64;
+
+const C = u32:128;
+const D = u32:256;
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 TEST(ModuleFmtTest, ConstantDef) {
   const std::string_view kProgram = "pub const MOL = u32:42;\n";
   std::vector<CommentData> comments;

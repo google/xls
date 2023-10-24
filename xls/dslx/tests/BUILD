@@ -126,8 +126,6 @@ dslx_lang_test(
 dslx_lang_test(
     name = "typedef_array",
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Weird spacing at start of array literal.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -238,8 +236,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "constexpr",
-    # TODO(leary): 2023-10-20 Want paragraph-style grouping for global consts.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -260,8 +256,6 @@ dslx_lang_test(
 dslx_lang_test(
     name = "builtin_type_zero",
     dslx_deps = [":number_of_imported_type_import_dslx"],
-    # TODO(leary): 2023-10-20 Wants "paragraph" of global constants.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -694,8 +688,6 @@ xls_dslx_library(
 dslx_lang_test(
     name = "mod_importer",
     dslx_deps = [":mod_imported_dslx"],
-    # TODO(leary): 2023-10-20 Puts newline between imports.
-    test_autofmt = False,
 )
 
 xls_dslx_library(
