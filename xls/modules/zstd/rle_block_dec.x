@@ -186,6 +186,7 @@ proc BatchPacker {
     init { (BatchState { prev_last: true, ..ZERO_BATCH_STATE }) }
 
     next(tok: token, state: BatchState) {
+        trace_fmt!("BatchPacker: next: state: {:#x}", state);
         let (tok, decoded_data) = recv(tok, rle_data_r);
 
         let symbols_in_batch = state.symbols_in_batch;
@@ -218,13 +219,16 @@ proc BatchPacker {
         let new_symbols_in_batch =
             if do_send_batch { BlockPacketLength:0 } else { symbols_in_batch };
         let new_batch = if do_send_batch { BlockData:0 } else { batch };
-        BatchState {
+        let end_state = BatchState {
             batch: new_batch,
             symbols_in_batch: new_symbols_in_batch,
             prev_last: decoded_data.last,
             prev_last_block: sync_data.last_block,
             prev_id: sync_data.id
-        }
+        };
+        trace_fmt!("BatchPacker: next: end_state: {:#x}", end_state);
+
+        end_state
     }
 }
 

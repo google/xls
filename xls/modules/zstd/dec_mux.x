@@ -62,6 +62,7 @@ pub proc DecoderMux {
     ) {(raw_r, rle_r, cmp_r, output_s)}
 
     next (tok: token, state: DecoderMuxState) {
+        trace_fmt!("DecMux: next: state: {:#x}", state);
         let (tok, raw_data, raw_data_valid) = recv_if_non_blocking(
             tok, raw_r, !state.raw_data_valid, zero!<ExtendedBlockDataPacket>());
         let state = if (raw_data_valid) {
@@ -159,6 +160,8 @@ pub proc DecoderMux {
         if (do_send) {
             trace_fmt!("sent {:#x}", data_to_send);
         } else {()};
+        trace_fmt!("DecMux: next: end_state: {:#x}", state);
+
         state
     }
 }

@@ -21,11 +21,9 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
     "xls_benchmark_verilog",
-    "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_test",
     "xls_dslx_verilog",
-    "xls_ir_opt_ir",
 )
 
 package(
@@ -848,5 +846,128 @@ place_and_route(
     placement_density = "0.30",
     skip_detailed_routing = True,
     synthesized_rtl = ":repacketizer_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "zstd_dec_dslx",
+    srcs = [
+        "zstd_dec.x",
+    ],
+    deps = [
+        ":block_dec_dslx",
+        ":block_header_dslx",
+        ":buffer_dslx",
+        ":common_dslx",
+        ":frame_header_dslx",
+        ":frame_header_test_dslx",
+        ":magic_dslx",
+        ":ram_printer_dslx",
+        ":repacketizer_dslx",
+        ":sequence_executor_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_verilog(
+    name = "zstd_dec_verilog",
+    codegen_args = {
+        "module_name": "ZstdDecoder",
+        "generator": "pipeline",
+        "delay_model": "asap7",
+        "ram_configurations": ",".join([
+            "{ram_name}:1RW:{req}:{resp}:{wr_comp}:{latency}".format(
+                latency = 5,
+                ram_name = "ram{}".format(num),
+                req = "zstd_dec__req{}_s".format(num),
+                resp = "zstd_dec__resp{}_r".format(num),
+                wr_comp = "zstd_dec__wr_comp{}_r".format(num),
+            )
+            for num in range(7)
+        ]),
+        "pipeline_stages": "10",
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "true",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "worst_case_throughput": "1",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "ZstdDecoder",
+    library = ":zstd_dec_dslx",
+    # TODO: 2024-01-15: Workaround for https://github.com/google/xls/issues/869
+    # Force proc inlining for IR optimization
+    opt_ir_args = {
+        "inline_procs": "true",
+    },
+    verilog_file = "zstd_dec.v",
+)
+
+cc_test(
+    name = "zstd_dec_cc_test",
+    srcs = [
+        "zstd_dec_test.cc",
+    ],
+    data = [
+        ":zstd_dec_verilog.ir",
+    ],
+    #shard_count = 50,
+    deps = [
+        ":data_generator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:interpreter_proc_runtime",
+        "//xls/ir:events",
+        "//xls/ir:ir_parser",
+        "//xls/ir:value",
+        "@com_github_facebook_zstd//:zstd",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+xls_benchmark_ir(
+    name = "zstd_dec_opt_ir_benchmark",
+    src = ":zstd_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        #TODO: rewrite ram in opt_ir step to perform valid IR benchmark
+        "pipeline_stages": "1",
+        "delay_model": "asap7",
+    },
+)
+
+verilog_library(
+    name = "zstd_dec_verilog_lib",
+    srcs = [
+        ":zstd_dec.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "zstd_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "ZstdDecoder",
+    deps = [
+        ":zstd_dec_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "zstd_dec_benchmark_synth",
+    synth_target = ":zstd_dec_synth_asap7",
+)
+
+place_and_route(
+    name = "zstd_dec_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    skip_detailed_routing = True,
+    synthesized_rtl = ":zstd_dec_synth_asap7",
     target_die_utilization_percentage = "10",
 )

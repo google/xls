@@ -35,7 +35,15 @@
 
 namespace xls::zstd {
 
+enum BlockType {
+  RAW,
+  RLE,
+  COMPRESSED,
+  RANDOM,
+};
+
 absl::StatusOr<std::vector<uint8_t>> GenerateFrameHeader(int seed, bool magic);
+absl::StatusOr<std::vector<uint8_t>> GenerateFrame(int seed, BlockType btype);
 
 }  // namespace xls::zstd
 

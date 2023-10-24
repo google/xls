@@ -109,6 +109,7 @@ pub proc DecoderDemux {
     )}
 
     next (tok: token, state: DecoderDemuxState) {
+        trace_fmt!("DecDemux: next: state: {:#x}", state);
         let (tok, data) = recv_if(tok, input_r, !state.last_packet.last, ZERO_DATA);
         let (send_raw, send_rle, send_cmp, new_state) = match state.status {
             DecoderDemuxStatus::IDLE =>
@@ -166,7 +167,7 @@ pub proc DecoderDemux {
         };
         let tok = send_if(tok, rle_s, send_rle, rle_data);
         let tok = send_if(tok, cmp_s, send_cmp, data_to_send);
-        if (new_state.send_data == new_state.byte_to_pass) {
+        let end_state = if (new_state.send_data == new_state.byte_to_pass) {
             let next_id = if (state.last_packet.last && state.last_packet.last_block) {
                 u32: 0
             } else {
@@ -181,7 +182,10 @@ pub proc DecoderDemux {
             }
         } else {
             new_state
-        }
+        };
+        trace_fmt!("DecDemux: next: end_state: {:#x}", end_state);
+
+        end_state
     }
 }
 
