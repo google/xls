@@ -125,3 +125,17 @@ place_and_route(
     tags = ["manual"],
 )
 
+xls_dslx_library(
+    name = "magic_dslx",
+    srcs = [
+        "magic.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ]
+)
+
+xls_dslx_test(
+    name = "magic_dslx_test",
+    library = ":magic_dslx",
+)
