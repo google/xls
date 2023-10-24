@@ -286,3 +286,14 @@ def load_external_repositories():
             "https://github.com/nlohmann/json/archive/refs/tags/v3.10.2.tar.gz",
         ],
     )
+
+    # Version 1.4.7 released on 17.12.2020
+    # https://github.com/facebook/zstd/releases/tag/v1.4.7
+    # Updated 23.11.2023
+    http_archive(
+        name = "com_github_facebook_zstd",
+        sha256 = "192cbb1274a9672cbcceaf47b5c4e9e59691ca60a357f1d4a8b2dfa2c365d757",
+        strip_prefix = "zstd-1.4.7",
+        urls = ["https://github.com/facebook/zstd/releases/download/v1.4.7/zstd-1.4.7.tar.gz"],
+        build_file = "@//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
+    )
