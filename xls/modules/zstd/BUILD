@@ -17,6 +17,7 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_dslx_library",
+    "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
 
@@ -75,4 +76,45 @@ xls_dslx_test(
         "compare": "none",
     },
     library = ":zstd_frame_header_dslx",
+)
+
+xls_dslx_library(
+    name = "zstd_dec_dslx",
+    srcs = [
+        "zstd_dec.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+        ":zstd_frame_header_dslx",
+        ":zstd_magic_dslx",
+    ],
+)
+
+xls_dslx_opt_ir(
+    name = "zstd_dec_opt_ir",
+    dslx_top = "ZstdDecoder",
+    library = "zstd_dec_dslx",
+)
+
+cc_test(
+    name = "zstd_dec_dslx_test",
+    srcs = [
+        "zstd_dec_test.cc",
+    ],
+    data = [
+        "data.zst",
+        ":zstd_dec_opt_ir",
+    ],
+    deps = [
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:interpreter_proc_runtime",
+        "//xls/ir:events",
+        "//xls/ir:ir_parser",
+        "//xls/ir:value",
+        "@com_github_facebook_zstd//:libzstd",
+        "@com_google_googletest//:gtest",
+    ],
 )
