@@ -58,3 +58,21 @@ xls_dslx_test(
     },
     library = ":zstd_magic_dslx",
 )
+
+xls_dslx_library(
+    name = "zstd_frame_header_dslx",
+    srcs = [
+        "zstd_frame_header.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "zstd_frame_header_dslx_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":zstd_frame_header_dslx",
+)
