@@ -139,3 +139,80 @@ xls_dslx_test(
     name = "magic_dslx_test",
     library = ":magic_dslx",
 )
+
+xls_dslx_library(
+    name = "frame_header_dslx",
+    srcs = [
+        "frame_header.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "zstd_frame_header_dslx_test",
+    library = ":zstd_frame_header_dslx",
+)
+
+xls_dslx_verilog(
+    name = "frame_header_verilog",
+    codegen_args = {
+        "module_name": "FrameHeaderDecoder",
+        "delay_model": "asap7",
+        "pipeline_stages": "9",
+        "reset": "rst",
+        "reset_data_path": "false",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "parse_frame_header_128",
+    library = ":frame_header_test_dslx",
+    verilog_file = "frame_header.v",
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "frame_header_opt_ir_benchmark",
+    src = ":frame_header_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "9",
+        "delay_model": "asap7",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "frame_header_verilog_lib",
+    srcs = [
+        ":frame_header.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "frame_header_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "FrameHeaderDecoder",
+    deps = [
+        ":frame_header_verilog_lib",
+    ],
+    tags = ["manual"],
+)
+
+benchmark_synth(
+    name = "frame_header_benchmark_synth",
+    synth_target = ":frame_header_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "frame_header_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":frame_header_synth_asap7",
+    target_die_utilization_percentage = "10",
+    tags = ["manual"],
+)
