@@ -169,6 +169,13 @@ class TokenParser {
   absl::StatusOr<bool> PeekTokenIn(absl::Span<TokenKind const> targets);
   absl::StatusOr<bool> PeekKeywordIn(absl::Span<Keyword const> targets);
 
+  // Args:
+  //  target: The kind of token we need to see and pop (otherwise we give back
+  //    an error).
+  //  start: The start position to report in the error message, if non-null.
+  //  context: Used as the suffix of the error message if the target token is
+  //    not found.
+  //  limit_pos: Populated with the limit position of the token, if non-null.
   absl::StatusOr<Token> PopTokenOrError(TokenKind target,
                                         const Token* start = nullptr,
                                         std::string_view context = "",

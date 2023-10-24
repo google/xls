@@ -17,28 +17,29 @@
 
 import xls.dslx.tests.constexpr
 
-struct LocalStruct {
-  a: bits[32],
-}
+struct LocalStruct { a: bits[32] }
 
 const LOCAL = LocalStruct { a: u32:8 };
+
 // TODO(rspringer): 2021/03/04 Support in progress.
 //const IMPORTED = constexpr::ImportedStruct { a: u32:16 };
 
 const local_struct = u32[LOCAL.a]:[u32:0, u32:1, u32:2, u32:3, ...];
+
 //const imported_struct = u32[IMPORTED.a]:[u32:8, u32:9, u32:10, u32:11, ...];
-//const imported_instance = u32[constexpr::IMPORTED_STRUCT_INSTANCE.a]:[u32:8, u32:9, u32:10, u32:11, ...];
+//const imported_instance = u32[constexpr::IMPORTED_STRUCT_INSTANCE.a]:[u32:8, u32:9, u32:10, u32:11,
+//...];
 
 // TODO(rspringer): 2021/03/04 Add a test that dereferences an attribute of an attribute,
 // e.g., "u32[IMPORTED_STRUCT.a.b]:[...]".
 #[test]
 fn can_instantiate() {
-  let local_struct_expected = u32[8]:[u32:0, u32:1, u32:2, u32:3, ...];
-  assert_eq(local_struct, local_struct_expected)
+    let local_struct_expected = u32[8]:[u32:0, u32:1, u32:2, u32:3, ...];
+    assert_eq(local_struct, local_struct_expected)
 
-  //let imported_struct_expected = u32[16]:[u32:8, u32:9, u32:10, u32:11, ...];
-  //assert_eq(imported_struct, imported_struct_expected);
+    //let imported_struct_expected = u32[16]:[u32:8, u32:9, u32:10, u32:11, ...];
+    //assert_eq(imported_struct, imported_struct_expected);
 
-  //let imported_instance_expected = u32[32]:[u32:8, u32:9, u32:10, u32:11, ...];
-  //assert_eq(imported_instance, imported_instance_expected)
+    //let imported_instance_expected = u32[32]:[u32:8, u32:9, u32:10, u32:11, ...];
+    //assert_eq(imported_instance, imported_instance_expected)
 }

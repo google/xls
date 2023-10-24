@@ -242,8 +242,6 @@ dslx_lang_test(
     name = "constexpr_attrs",
     convert_to_ir = False,
     dslx_deps = [":constexpr_dslx"],
-    # TODO(leary): 2023-10-20 Newline after comment (before test function).
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -495,8 +493,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "cover",
-    # TODO(leary): 2023-10-20 Newline after comment (before test function).
-    test_autofmt = False,
     # cover! not supported yet in translation to z3.
     test_ir_equivalence = False,
 )
@@ -1099,8 +1095,6 @@ dslx_lang_test(
     name = "bits_concat",
     # Note: no meaningful function to convert.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Newline after comment (before test function).
-    test_autofmt = False,
 )
 
 dslx_lang_test(name = "local_const_value_in_parametric_match")

@@ -15,12 +15,12 @@
 // Simple smoke test driver that the cover! builtin can parse & interpret.
 #[test]
 fn cover_smoke() {
-  let cond = u1:1;
-  cover!("my_coverpoint", cond)
+    let cond = u1:1;
+    cover!("my_coverpoint", cond)
 }
 
 // Driver for IR conversion initial check.
 fn main() {
-  let cond = u1:1;
-  cover!("my_coverpoint", cond)
+    let cond = u1:1;
+    cover!("my_coverpoint", cond)
 }

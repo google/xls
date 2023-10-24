@@ -1323,10 +1323,13 @@ type MyTupleType = (MyType[2],);)");
 }
 
 TEST_F(ParserTest, ModuleWithEmptyTestFunction) {
-  RoundTrip(R"(#[test]
+  std::unique_ptr<Module> mod = RoundTrip(R"(#[test]
 fn example() {
     ()
 })");
+  ASSERT_EQ(mod->top().size(), 1);
+  auto* tf = std::get<TestFunction*>(mod->top()[0]);
+  EXPECT_EQ(tf->span().ToString(), "test.x:1:1-4:2");
 }
 
 TEST_F(ParserTest, ModuleWithEmptyExternVerilogFunction) {

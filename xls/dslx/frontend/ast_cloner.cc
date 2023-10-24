@@ -720,7 +720,7 @@ class AstCloner : public AstNodeVisitor {
 
     XLS_RETURN_IF_ERROR(n->fn()->Accept(this));
     old_to_new_[n] = module_->Make<TestFunction>(
-        down_cast<Function*>(old_to_new_.at(n->fn())));
+        n->span(), down_cast<Function*>(old_to_new_.at(n->fn())));
     return absl::OkStatus();
   }
 

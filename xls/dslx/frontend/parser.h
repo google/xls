@@ -527,7 +527,7 @@ class Parser : public TokenParser {
   absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
                               std::nullptr_t>>
   ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
-                 Bindings& bindings);
+                 Bindings& bindings, const Pos& hash_pos);
 
   // Parses a "spawn" statement, which creates & initializes a proc.
   absl::StatusOr<Spawn*> ParseSpawn(Bindings& bindings);

@@ -199,8 +199,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/double_define_test_function.x'
     )
+    # This is the test function we collide with.
     self.assertIn(
-        'xls/dslx/tests/errors/double_define_test_function.x:24:3-24:7',
+        'xls/dslx/tests/errors/double_define_test_function.x:19:1-22:2',
         stderr,
     )
     self.assertIn('has same name as module member', stderr)

@@ -825,6 +825,27 @@ fn my_test() {
   }
 }
 
+TEST(ModuleFmtTest, SimpleTestFunctionWithLeadingComment) {
+  const std::string_view kProgram =
+      R"(fn id(x: u32) -> u32 { x }
+
+// This is a test function. Now you know.
+#[test]
+fn my_test() {
+    assert_eq(id(u32:64), u32:64);
+    assert_eq(id(u32:128), u32:128);
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  {
+    std::string got = AutoFmt(*m, Comments::Create(comments));
+    EXPECT_EQ(got, kProgram);
+  }
+}
+
 TEST(ModuleFmtTest, SimpleParametricInvocation) {
   const std::string_view kProgram =
       R"(fn p<N: u32>(x: bits[N]) -> bits[N] { x }

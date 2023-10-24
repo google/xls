@@ -2480,7 +2480,8 @@ class Range : public Expr {
 // ```
 class TestFunction : public AstNode {
  public:
-  TestFunction(Module* owner, Function* fn) : AstNode(owner), fn_(fn) {}
+  TestFunction(Module* owner, Span span, Function* fn)
+      : AstNode(owner), span_(std::move(span)), fn_(fn) {}
 
   ~TestFunction() override;
 
@@ -2500,13 +2501,15 @@ class TestFunction : public AstNode {
   }
 
   Function* fn() const { return fn_; }
-  std::optional<Span> GetSpan() const override { return fn_->span(); }
+  std::optional<Span> GetSpan() const override { return span(); }
+  const Span& span() const { return span_; }
 
   const std::string& identifier() const {
     return fn_->name_def()->identifier();
   }
 
  private:
+  const Span span_;
   Function* const fn_;
 };
 

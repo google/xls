@@ -305,10 +305,12 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
                               "after 'pub' keyword.");
     }
 
-    XLS_ASSIGN_OR_RETURN(bool dropped_hash, TryDropToken(TokenKind::kHash));
-    if (dropped_hash) {
-      XLS_ASSIGN_OR_RETURN(auto attribute,
-                           ParseAttribute(&name_to_fn, *bindings));
+    XLS_ASSIGN_OR_RETURN(std::optional<Token> hash,
+                         TryPopToken(TokenKind::kHash));
+    if (hash.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          auto attribute,
+          ParseAttribute(&name_to_fn, *bindings, hash->span().start()));
       XLS_RETURN_IF_ERROR(absl::visit(
           Visitor{
               [&](TestFunction* t) {
@@ -415,7 +417,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
                             std::nullptr_t>>
 Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
-                       Bindings& bindings) {
+                       Bindings& bindings, const Pos& hash_pos) {
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
   // a use for inner vs. outer attributes, but that day will likely come.
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
@@ -424,10 +426,10 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
   const std::string& directive_name = directive_tok.GetStringValue();
 
   if (directive_name == "test") {
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    XLS_ASSIGN_OR_RETURN(Token cbrack, PopTokenOrError(TokenKind::kCBrack));
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->IsKeyword(Keyword::kFn)) {
-      return ParseTestFunction(bindings, directive_tok.span());
+      return ParseTestFunction(bindings, Span(hash_pos, cbrack.span().limit()));
     }
 
     return ParseErrorStatus(
@@ -2818,8 +2820,8 @@ absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
                        ParseTypeAnnotation(bindings));
 
   {
-    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-    if (peek->kind() == TokenKind::kColon) {
+    XLS_ASSIGN_OR_RETURN(const Token* peek2, PeekToken());
+    if (peek2->kind() == TokenKind::kColon) {
       return ParseCast(bindings, type_annotation);
     }
   }
@@ -2853,12 +2855,13 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
   if (std::optional<ModuleMember*> member =
           module_->FindMemberWithName(f->identifier())) {
     return ParseErrorStatus(
-        directive_span,
+        f->name_def()->span(),
         absl::StrFormat(
             "Test function '%s' has same name as module member @ %s",
             f->identifier(), ToAstNode(**member)->GetSpan()->ToString()));
   }
-  TestFunction* tf = module_->Make<TestFunction>(f);
+  Span tf_span(directive_span.start(), f->span().limit());
+  TestFunction* tf = module_->Make<TestFunction>(tf_span, f);
   tf->SetParentage();  // Ensure the function has its parent marked.
   return tf;
 }
