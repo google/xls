@@ -133,3 +133,18 @@ xls_dslx_test(
     name = "magic_dslx_test",
     library = ":magic_dslx",
 )
+
+xls_dslx_library(
+    name = "frame_header_dslx",
+    srcs = [
+        "frame_header.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "zstd_frame_header_dslx_test",
+    library = ":zstd_frame_header_dslx",
+)
