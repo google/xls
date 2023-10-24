@@ -107,4 +107,24 @@ absl::StatusOr<std::vector<uint8_t>> GenerateFrameHeader(int seed, bool magic) {
   return raw_data;
 }
 
+absl::StatusOr<std::vector<uint8_t>> GenerateFrame(int seed, BlockType btype) {
+  std::vector<std::string> args;
+  args.push_back("-s" + std::to_string(seed));
+  std::filesystem::path output_path =
+      std::filesystem::temp_directory_path() /
+      std::filesystem::path(
+          CreateNameForGeneratedFile(absl::MakeSpan(args), ".zstd", "fh"));
+  args.push_back("-p" + std::string(output_path));
+  if (btype != BlockType::RANDOM)
+    args.push_back("--block-type=" + std::to_string(btype));
+  if (btype == BlockType::RLE) args.push_back("--content-size");
+  // Test payloads up to 16KB
+  args.push_back("--max-content-size-log=14");
+
+  XLS_ASSIGN_OR_RETURN(auto result, CallDecodecorpus(args));
+  auto raw_data = ReadFileAsRawData(output_path);
+  std::remove(output_path.c_str());
+  return raw_data;
+}
+
 }  // namespace xls::zstd
