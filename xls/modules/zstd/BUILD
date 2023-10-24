@@ -37,3 +37,18 @@ xls_dslx_test(
     name = "buffer_dslx_test",
     library = ":buffer_dslx",
 )
+
+xls_dslx_library(
+    name = "magic_dslx",
+    srcs = [
+        "magic.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ]
+)
+
+xls_dslx_test(
+    name = "magic_dslx_test",
+    library = ":magic_dslx",
+)
