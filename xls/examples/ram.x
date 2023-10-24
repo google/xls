@@ -55,7 +55,7 @@ pub fn ReadWordReq<NUM_PARTITIONS:u32, ADDR_WIDTH:u32>(addr:uN[ADDR_WIDTH]) ->
 }
 
 // Behavior of reads and writes to the same address in the same "tick".
-enum SimultaneousReadWriteBehavior : u2 {
+pub enum SimultaneousReadWriteBehavior : u2 {
   // The read shows the contents at the address before the write.
   READ_BEFORE_WRITE = 0,
   // The read shows the contents at the address after the write.
@@ -160,7 +160,7 @@ fn write_word_test() {
 
 // Function to compute num partitions (e.g. mask width) for a data_width-wide
 // word divided into word_partition_size-chunks.
-fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
+pub fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
   match word_partition_size {
     u32:0 => u32:0,
     _ => (word_partition_size + data_width - u32:1) / word_partition_size,
@@ -251,7 +251,7 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
     if read_req_valid && ASSERT_VALID_READ {
       let mem_initialized_as_bits =
         std::convert_to_bits_msb0(array_rev(mem_initialized[read_req.addr]));
-      assert_eq(read_req.mask & !mem_initialized_as_bits, uN[NUM_PARTITIONS]:0)
+      assert!(read_req.mask & !mem_initialized_as_bits == uN[NUM_PARTITIONS]:0, "memory_not_initialized")
     } else { () };
 
     let (value_to_write, written_mem_initialized) = write_word(
@@ -265,11 +265,8 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
       match SIMULTANEOUS_READ_WRITE_BEHAVIOR {
         SimultaneousReadWriteBehavior::READ_BEFORE_WRITE => mem[read_req.addr],
         SimultaneousReadWriteBehavior::WRITE_BEFORE_READ => value_to_write,
-        SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT => {
-          // Assertion failure, we have a conflicting read and write.
-          assert_eq(true, false);
-          mem[read_req.addr]  // Need to return something.
-        },
+        SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT => fail!("conflicting_read_and_write", mem[read_req.addr]),
+        _ => fail!("impossible_case", uN[DATA_WIDTH]:0),
       }
     } else { mem[read_req.addr] };
     let read_resp_value = ReadResp<DATA_WIDTH> {
