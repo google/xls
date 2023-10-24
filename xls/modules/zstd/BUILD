@@ -119,3 +119,150 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+xls_dslx_library(
+    name = "magic_dslx",
+    srcs = [
+        "magic.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "magic_dslx_test",
+    library = ":magic_dslx",
+)
+
+cc_library(
+    name = "data_generator",
+    srcs = ["data_generator.cc"],
+    hdrs = ["data_generator.h"],
+    data = [
+        "@com_github_facebook_zstd//:decodecorpus",
+    ],
+    deps = [
+        "//xls/common:subprocess",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+xls_dslx_library(
+    name = "frame_header_dslx",
+    srcs = [
+        "frame_header.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "frame_header_dslx_test",
+    library = ":frame_header_dslx",
+)
+
+xls_dslx_library(
+    name = "frame_header_test_dslx",
+    srcs = [
+        "frame_header_test.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+        ":frame_header_dslx",
+    ],
+)
+
+cc_test(
+    name = "frame_header_cc_test",
+    srcs = [
+        "frame_header_test.cc",
+    ],
+    data = [
+        ":frame_header_test_dslx",
+    ],
+    shard_count = 50,
+    deps = [
+        ":data_generator",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:ir_converter",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@com_github_facebook_zstd//:zstd",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_fuzztest//fuzztest",
+        "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+xls_dslx_verilog(
+    name = "frame_header_verilog",
+    codegen_args = {
+        "module_name": "FrameHeaderDecoder",
+        "delay_model": "asap7",
+        "pipeline_stages": "9",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "parse_frame_header_128",
+    library = ":frame_header_test_dslx",
+    verilog_file = "frame_header.v",
+)
+
+xls_benchmark_ir(
+    name = "frame_header_opt_ir_benchmark",
+    src = ":frame_header_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "9",
+        "delay_model": "asap7",
+    },
+)
+
+verilog_library(
+    name = "frame_header_verilog_lib",
+    srcs = [
+        ":frame_header.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "frame_header_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "FrameHeaderDecoder",
+    deps = [
+        ":frame_header_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "frame_header_benchmark_synth",
+    synth_target = ":frame_header_synth_asap7",
+)
+
+place_and_route(
+    name = "frame_header_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    skip_detailed_routing = True,
+    synthesized_rtl = ":frame_header_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
