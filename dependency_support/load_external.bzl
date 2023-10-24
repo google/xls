@@ -331,6 +331,7 @@ def load_external_repositories():
         sha256 = "cad05f864a32799f6f9022891de91ac78f30e0fa07dc68abac92a628121b5b11",
     )
 
+    # Used in C++ tests of the ZSTD Module
     # Version 1.4.7 released on 17.12.2020
     # https://github.com/facebook/zstd/releases/tag/v1.4.7
     # Updated 27.06.2024
@@ -340,5 +341,7 @@ def load_external_repositories():
         strip_prefix = "zstd-1.4.7",
         urls = ["https://github.com/facebook/zstd/releases/download/v1.4.7/zstd-1.4.7.tar.gz"],
         build_file = "//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
+        # Modify decodecorpus to allow generation of zstd frame headers only
+        patches = ["//dependency_support/com_github_facebook_zstd:decodecorpus.patch"],
     )
 
