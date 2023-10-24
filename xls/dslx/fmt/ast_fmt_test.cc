@@ -1349,5 +1349,24 @@ proc p_test {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, MatchLongWildcardArmExpression) {
+  const std::string_view kProgram =
+      R"(import float32
+
+fn f(input_float: float32::F32) -> float32::F32 {
+    match f.bexp {
+        _ => float32::F32 {
+            sign: input_float.sign, bexp: input_float.bexp - u8:1, fraction: input_float.fraction
+        },
+    }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

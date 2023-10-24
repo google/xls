@@ -818,7 +818,7 @@ static DocRef Fmt(const MatchArm& n, const Comments& comments,
                                   FmtNameDefTreePtr, comments, arena));
   pieces.push_back(arena.space());
   pieces.push_back(arena.fat_arrow());
-  pieces.push_back(arena.break1());
+  pieces.push_back(arena.space());
   pieces.push_back(Fmt(*n.expr(), comments, arena));
   return ConcatNGroup(arena, pieces);
 }
