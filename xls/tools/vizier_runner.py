@@ -109,8 +109,13 @@ def construct_bazel_command(test: BazelLabel, test_log: SystemPath, env) -> str:
     to bazel build system through `--action-env` argument.
     Write test output to the `test_log`.
     """
-    build_cmd = "bazel build"
-    test_cmd = "bazel test"
+    # Force the usage of custom optimization platform with constraint_value
+    # `has_env_vars` defined which is required for running generic
+    # implementation and testing rules generated with
+    # generate_compression_block_parameter_optimization() macro
+    force_platform = "--platforms //xls/build_rules:parameter_optimization_platform"
+    build_cmd = f"bazel build {force_platform}"
+    test_cmd = f"bazel test {force_platform}"
     for var, value in env.items():
         set_env_var = " --action_env " + var + "=" + str(value)
         build_cmd += set_env_var

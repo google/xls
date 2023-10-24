@@ -79,6 +79,7 @@ def generate_compression_block_parameter_optimization(name, optimized_ir, cocotb
         },
         verilog_file = name + "_compression_block.v",
         visibility = ["//visibility:private"],
+        target_compatible_with = ["//xls/build_rules:has_env_vars"], # Prevent this rule from being called in CI by `bazel test //xls/...`
     )
 
     verilog_library(
@@ -87,6 +88,7 @@ def generate_compression_block_parameter_optimization(name, optimized_ir, cocotb
             ":" + name + "_compression_block.v",
         ],
         visibility = ["//visibility:private"],
+        target_compatible_with = ["//xls/build_rules:has_env_vars"], # Prevent this rule from being called in CI by `bazel test //xls/...`
     )
 
     synthesize_rtl(
@@ -97,6 +99,7 @@ def generate_compression_block_parameter_optimization(name, optimized_ir, cocotb
             ":" + name + "_compression_block_verilog_lib",
         ],
         visibility = ["//visibility:private"],
+        target_compatible_with = ["//xls/build_rules:has_env_vars"], # Prevent this rule from being called in CI by `bazel test //xls/...`
     )
 
     place_and_route(
@@ -106,6 +109,7 @@ def generate_compression_block_parameter_optimization(name, optimized_ir, cocotb
         placement_density = "$env(PLACEMENT_DENSITY)",
         synthesized_rtl = ":" + name + "_compression_block_synth",
         target_die_utilization_percentage = "$env(TARGET_DIE_UTILIZATION_PERCENTAGE)",
+        target_compatible_with = ["//xls/build_rules:has_env_vars"], # Prevent this rule from being called in CI by `bazel test //xls/...`
     )
 
     py_test(
@@ -125,6 +129,7 @@ def generate_compression_block_parameter_optimization(name, optimized_ir, cocotb
             "//xls/tools/dashboard:utils",
         ],
         imports = ["."],
+        target_compatible_with = ["//xls/build_rules:has_env_vars"], # Prevent this rule from being called in CI by `bazel test //xls/...`
     )
 
     test_label = native.package_name() + ":" + name + "_compression_block_cocotb_test"
