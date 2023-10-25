@@ -351,8 +351,12 @@ fn test_frame_content_size_exists() {
 // the same frame as the provided FrameHeaderDescriptor. The function returns
 // BufferResult with the outcome of the operations on the buffer and frame content size.
 fn parse_frame_content_size<BSIZE: u32>(buffer: Buffer<BSIZE>, desc: FrameHeaderDescriptor) -> (BufferResult<BSIZE>, FrameContentSize) {
+    if !frame_content_size_exists(desc) {
+        fail!("frame_content_size_does_not_exist", ());
+    } else {()};
+
     let bytes = match desc.frame_content_size_flag {
-      u2:0 => u32:0,
+      u2:0 => u32:1,
       u2:1 => u32:2,
       u2:2 => u32:4,
       u2:3 => u32:8,
@@ -371,14 +375,18 @@ fn parse_frame_content_size<BSIZE: u32>(buffer: Buffer<BSIZE>, desc: FrameHeader
 fn test_parse_frame_content_size() {
     let zero_desc = zero!<FrameHeaderDescriptor>();
 
-    let buffer = Buffer { contents: u64:0x0, length: u32:0x0 };
-    let frame_header_desc = FrameHeaderDescriptor { frame_content_size_flag: u2:0, ..zero_desc};
+    let buffer = Buffer { contents: u64:0x12, length: u32:8 };
+    let frame_header_desc = FrameHeaderDescriptor {
+            frame_content_size_flag: u2:0,
+            single_segment_flag: u1:1,
+            ..zero_desc
+        };
     let (result, frame_content_size) = parse_frame_content_size(buffer, frame_header_desc);
     assert_eq(result, BufferResult {
         status: BufferStatus::OK,
         buffer: Buffer { contents: u64:0x0, length: u32:0x0 },
     });
-    assert_eq(frame_content_size, u64:0x0);
+    assert_eq(frame_content_size, u64:0x12);
 
     let buffer = Buffer { contents: u64:0x1234, length: u32:0x10 };
     let frame_header_desc = FrameHeaderDescriptor { frame_content_size_flag: u2:1, ..zero_desc};
@@ -431,7 +439,7 @@ pub fn parse_frame_header<BSIZE: u32>(buffer: Buffer<BSIZE>) -> FrameHeaderResul
     trace_fmt!("parse_frame_header: buffer after parsing header descriptor: {:#x}", result.buffer);
 
     if desc.reserved == u1:1 {
-        trace_fmt!("parse_frame_header: frame descriptor corupted!");
+        trace_fmt!("parse_frame_header: frame descriptor corrupted!");
         FrameHeaderResult {
             status: FrameHeaderStatus::CORRUPTED,
             buffer: buffer,
@@ -565,7 +573,7 @@ fn test_parse_frame_header() {
         },
     });
 
-    let buffer = Buffer { contents: bits[128]:0x20, length: u32:8 };
+    let buffer = Buffer { contents: bits[128]:0xaa20, length: u32:16 };
     let frame_header_result = parse_frame_header(buffer);
     assert_eq(frame_header_result, FrameHeaderResult {
         status: FrameHeaderStatus::OK,
@@ -574,8 +582,8 @@ fn test_parse_frame_header() {
             length: u32:0,
         },
         header: FrameHeader {
-            window_size: u64:0x0,
-            frame_content_size: u64:0x0,
+            window_size: u64:0xaa,
+            frame_content_size: u64:0xaa,
             dictionary_id: u32:0x0,
             descriptor: FrameHeaderDescriptor {
                 frame_content_size_flag: u2:0,
