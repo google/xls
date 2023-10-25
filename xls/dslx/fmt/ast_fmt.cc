@@ -1388,12 +1388,14 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
   signature_pieces.push_back(arena.MakeText(n.identifier()));
 
   if (n.IsParametric()) {
-    signature_pieces.push_back(
+    DocRef parametrics =
         ConcatNGroup(arena, {arena.oangle(),
                              FmtJoin<const ParametricBinding*>(
                                  n.parametric_bindings(), Joiner::kCommaSpace,
                                  FmtParametricBindingPtr, comments, arena),
-                             arena.cangle()}));
+                             arena.cangle()});
+    signature_pieces.push_back(arena.MakeNestIfFlatFits(
+        /*on_nested_flat=*/parametrics, /*on_other=*/parametrics));
   }
 
   {

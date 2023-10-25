@@ -1396,5 +1396,21 @@ proc p {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, ParametricFnWithManyArgs) {
+  const std::string_view kProgram =
+      R"(fn umax() {}
+
+pub fn uadd_with_overflow
+    <V: u32, N: u32, M: u32, MAX_N_M: u32 = {umax(N, M)}, MAX_N_M_V: u32 = {umax(MAX_N_M, V)}>
+    (x: uN[N], y: uN[M]) -> (bool, uN[V]) {
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx
