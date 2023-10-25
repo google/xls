@@ -207,20 +207,16 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                       absl::StripLeadingAsciiWhitespace(line);
                   size_t leading_whitespace_size =
                       line.size() - line_no_leading_whitespace.size();
-                  std::string_view leading_whitespace =
-                      std::string_view(line).substr(0, leading_whitespace_size);
 
                   std::vector<std::string> toks =
                       absl::StrSplit(line_no_leading_whitespace, ' ');
-                  if (!leading_whitespace.empty()) {
-                    toks[0] = absl::StrCat(leading_whitespace, toks[0]);
-                  }
 
                   absl::Span<const std::string> remaining_toks =
                       absl::MakeConstSpan(toks);
 
                   while (!remaining_toks.empty()) {
                     emit(prefix);
+                    emit(std::string(leading_whitespace_size, ' '));
 
                     // After we emit the prefix we make sure we emit at least
                     // one token.

@@ -37,7 +37,7 @@ class Comments {
  public:
   static Comments Create(absl::Span<const CommentData> comments);
 
-  // Returns all the comments related to the given `node_span`.
+  // Returns all the comments contained within the given `node_span`.
   //
   // This is a convenient way for nodes to query for all their related comments.
   std::vector<const CommentData*> GetComments(const Span& node_span) const;

@@ -151,26 +151,6 @@ TEST(AstFmtTest, FormatLet) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
 
-TEST(AstFmtTest, FormatLetWithInlineComment) {
-  Scanner s{"fake.x", R"({
-  let x: u32 = u32:42; // short
-})"};
-  Parser p("fake", &s);
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p.ParseBlockExpression(bindings));
-
-  Statement* stmt = block->statements().at(0);
-
-  Comments comments = Comments::Create(s.comments());
-
-  DocArena arena;
-  DocRef doc = Fmt(*stmt, comments, arena);
-  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
-            "let x: u32 = u32:42 // short");
-  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/20), R"(// short
-let x: u32 = u32:42)");
-}
-
 // Fixture for test that format entire (single) functions -- expected usage:
 //
 //  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt("fn ..."));
@@ -603,6 +583,33 @@ TEST_F(FunctionFmtTest, FunctionWithSmallInlineArrayLiteral) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string got,
                            DoFmt(original, {"map", "self_append"}));
   EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, LetWithInlineCommentThatFits) {
+  const std::string_view original =
+      R"(fn f() {
+    // some comment immediately above
+    // that is multi-line
+    let (a_wide, b_wide) = (a as uN[WIDTH + u32:1], b as uN[WIDTH + u32:1]);  // room for carry
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           DoFmt(original, {"a", "b", "WIDTH"}));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, LetWithInlineCommentThatDoesNotFit) {
+  const std::string_view original =
+      R"(fn f() {
+    let (a_wide, b_wide) = (a as uN[WIDTH + u32:1], b as uN[WIDTH + u32:1]);  // blah blah blah blah blah
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           DoFmt(original, {"a", "b", "WIDTH"}));
+  const std::string_view want =
+      R"(fn f() {
+    let (a_wide, b_wide) = (a as uN[WIDTH + u32:1], b as uN[WIDTH + u32:1]);  // blah blah blah blah
+                                                                              // blah
+})";
+  EXPECT_EQ(got, want);
 }
 
 // -- ModuleFmtTest cases, formatting entire modules

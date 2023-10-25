@@ -50,7 +50,6 @@ proc Tester {
     init { () }
 
     next(tok: token, state: ()) {
-
         // First, tell the proc to receive without data present. Expect a
         // result of 42 (the supplied default value).
         let tok = send(tok, do_recv_out, true);

@@ -141,6 +141,10 @@ class DocArena {
  public:
   DocArena();
 
+  std::string ToDebugString(DocRef ref) const {
+    return Deref(ref).ToDebugString(*this);
+  }
+
   // Creates a literal text string as a document.
   //
   // Note: text string should not include newline characters, those should be

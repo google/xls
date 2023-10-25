@@ -550,7 +550,11 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     top.push_back(arena.hard_line());
   }
 
-  Pos last_entity_pos = n.span().start();
+  // For our initial condition, we say the last entity we emitted is right after
+  // the start of the block (i.e. the open curl).
+  const Pos start_entity_pos = n.span().start().BumpCol();
+  Pos last_entity_pos = start_entity_pos;
+
   std::vector<DocRef> nested;
   for (size_t i = 0; i < n.statements().size(); ++i) {
     const Statement* stmt = n.statements()[i];
@@ -570,7 +574,8 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
                   << " last_comment_span.start: " << last_comment_span->start();
       // If there's a line break between the last entity and this comment, we
       // retain it in the output (i.e. in paragraph style).
-      if (last_entity_pos.lineno() + 1 < last_comment_span->start().lineno()) {
+      if (last_entity_pos != start_entity_pos &&
+          last_entity_pos.lineno() + 1 < last_comment_span->start().lineno()) {
         nested.push_back(arena.hard_line());
       }
 
@@ -580,7 +585,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       last_entity_pos = last_comment_span->limit();
       XLS_VLOG(5) << "last comment position limit: " << last_entity_pos
                   << " comments_doc: "
-                  << arena.Deref(comments_doc.value()).ToDebugString(arena);
+                  << arena.ToDebugString(comments_doc.value());
     } else {  // No comments to emit ahead of the statement.
       // If there's a line break between the last entity and this statement, we
       // retain it in the output (i.e. in paragraph style).
@@ -593,10 +598,25 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
 
     // Here we emit the formatted statement.
     nested.push_back(Fmt(*stmt, comments, arena));
+
     bool last_stmt = i + 1 == n.statements().size();
     if (!last_stmt || n.trailing_semi()) {
       nested.push_back(arena.semi());
     }
+
+    // See if there are inline comments after the statement.
+    const Pos next_line(last_entity_pos.filename(),
+                        last_entity_pos.lineno() + 1, 0);
+    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
+            last_entity_pos, next_line, comments, arena, &last_comment_span)) {
+      XLS_VLOG(3) << "Saw after-statement comment: "
+                  << arena.ToDebugString(comments_doc.value());
+      nested.push_back(arena.space());
+      nested.push_back(arena.space());
+      nested.push_back(arena.MakeAlign(comments_doc.value()));
+      last_entity_pos = last_comment_span->limit();
+    }
+
     if (!last_stmt) {
       nested.push_back(arena.hard_line());
     }
@@ -1231,46 +1251,7 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
   }
 
   DocRef leader = ConcatNGroup(arena, leader_pieces);
-  DocRef syntax = arena.MakeConcat(leader, body);
-
-  std::vector<const CommentData*> comment_data =
-      GetCommentsForNode(n, n.span(), comments);
-  if (comment_data.size() == 1) {
-    std::string comment_text = comment_data[0]->text;
-    if (!comment_text.empty() && comment_text.back() == '\n') {
-      comment_text.pop_back();
-    }
-
-    DocRef comment_text_ref = arena.MakeText(comment_text);
-
-    // If it's a single line comment we create a FlatChoice between:
-    //    let ... // comment text
-    //
-    // and:
-    //
-    //    // comment text reflowed with // prefix
-    //    let ...
-    DocRef flat = ConcatN(
-        arena, {syntax, arena.space(), arena.slash_slash(), comment_text_ref});
-
-    // TODO(leary): 2023-09-30 Make this so it reflows overlong lines in the
-    // comment text with the // prefix inserted at the indentation level.
-    DocRef line_prefixed = ConcatN(
-        arena,
-        {arena.slash_slash(), comment_text_ref, arena.hard_line(), syntax});
-    return arena.MakeGroup(arena.MakeFlatChoice(flat, line_prefixed));
-  }
-
-  if (!comment_data.empty()) {
-    XLS_LOG(FATAL) << "let: multiple inline comments @ "
-                   << absl::StrJoin(
-                          comment_data, ", ",
-                          [](std::string* out, const CommentData* data) {
-                            absl::StrAppend(out, data->span.ToString());
-                          });
-  }
-
-  return syntax;
+  return arena.MakeConcat(leader, body);
 }
 
 }  // namespace
@@ -1312,7 +1293,14 @@ std::vector<const CommentData*> Comments::GetComments(
   for (int64_t i = node_span.start().lineno(); i <= node_span.limit().lineno();
        ++i) {
     if (auto it = line_to_comment_.find(i); it != line_to_comment_.end()) {
-      results.push_back(&it->second);
+      // Check that the comment is properly contained within the given
+      // "node_span" we were targeting. E.g. the user might be requesting a
+      // subspan of a line, we don't want to give a comment that came
+      // afterwards.
+      const CommentData& cd = it->second;
+      if (node_span.Contains(cd.span)) {
+        results.push_back(&cd);
+      }
     }
   }
   return results;
