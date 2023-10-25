@@ -1368,5 +1368,33 @@ fn f(input_float: float32::F32) -> float32::F32 {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, ProcCallFarRhs) {
+  const std::string_view kProgram =
+      R"(struct DelayState {}
+
+const DELAY = u32:42;
+const DATA_WIDTH = u8:42;
+
+fn eq() {}
+
+proc p {
+    config() { () }
+
+    init { () }
+
+    next(tok: token, state: DelayState) {
+        let data_in = ();
+        let (recv_tok, input_data, data_in_valid) =
+            recv_if_non_blocking(tok, data_in, !eq(state.occupancy, DELAY), uN[DATA_WIDTH]:0);
+    }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

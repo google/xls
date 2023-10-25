@@ -1207,9 +1207,7 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
 
   leader_pieces.push_back(break1);
   leader_pieces.push_back(arena.equals());
-  leader_pieces.push_back(break1);
 
-  DocRef leader = ConcatNGroup(arena, leader_pieces);
   DocRef body;
   if (n.rhs()->IsBlockedExpr() || n.rhs()->kind() == AstNodeKind::kArray) {
     // For blocked expressions we don't align them to the equals in the let,
@@ -1223,11 +1221,16 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
     // RHS it /will/ align because we don't look for blocked constructs
     // transitively -- seems reasonable given that's going to look funky no
     // matter what.
+    leader_pieces.push_back(break1);
     body = Fmt(*n.rhs(), comments, arena);
   } else {
-    body = arena.MakeAlign(Fmt(*n.rhs(), comments, arena));
+    DocRef rhs = arena.MakeAlign(Fmt(*n.rhs(), comments, arena));
+    body = arena.MakeNestIfFlatFits(
+        /*on_nested_flat=*/rhs,
+        /*on_other=*/arena.MakeConcat(arena.space(), rhs));
   }
 
+  DocRef leader = ConcatNGroup(arena, leader_pieces);
   DocRef syntax = arena.MakeConcat(leader, body);
 
   std::vector<const CommentData*> comment_data =

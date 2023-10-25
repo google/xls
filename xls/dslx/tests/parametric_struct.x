@@ -65,9 +65,7 @@ fn test_funcs() {
     let s_wrapper = WrapperStruct { pp: r };
     assert_eq(r, s_wrapper.pp);
 
-    let sum = accum_points([
-                               make_point(u8:3, u16:4), make_point(u8:5, u16:6),
-                               make_point(u8:7, u16:8),
-                           ]);
+    let sum =
+        accum_points([make_point(u8:3, u16:4), make_point(u8:5, u16:6), make_point(u8:7, u16:8)]);
     assert_eq(sum, make_point(u8:15, u16:18));
 }

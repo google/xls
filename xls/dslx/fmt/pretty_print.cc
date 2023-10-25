@@ -45,6 +45,7 @@ using pprint_internal::Group;
 using pprint_internal::HardLine;
 using pprint_internal::InfinityRequirement;
 using pprint_internal::Nest;
+using pprint_internal::NestIfFlatFits;
 using pprint_internal::PrefixedReflow;
 using pprint_internal::Requirement;
 
@@ -68,7 +69,7 @@ enum class Mode : uint8_t {
   kBreak,
 };
 
-static std::ostream& operator<<(std::ostream& os, Mode mode) {
+std::ostream& operator<<(std::ostream& os, Mode mode) {
   switch (mode) {
     case Mode::kFlat:
       os << "flat";
@@ -95,6 +96,10 @@ bool operator>(Requirement lhs, Requirement rhs) {
                          [&](const std::monostate&) { return true; },
                      },
                      lhs);
+}
+bool operator<=(Requirement lhs, Requirement rhs) {
+  bool gt = lhs > rhs;
+  return !gt;
 }
 
 void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
@@ -276,6 +281,40 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                                            entry.mode, entry.indent});
               }
             },
+            [&](const struct NestIfFlatFits& nest_if_flat_fits) {
+              const Doc& on_nested_flat =
+                  arena.Deref(nest_if_flat_fits.on_nested_flat);
+              const Doc& on_other = arena.Deref(nest_if_flat_fits.on_other);
+
+              int64_t remaining_cols = text_width - virtual_outcol;
+              int64_t remaining_cols_with_newline =
+                  text_width - entry.indent - 4;
+
+              XLS_VLOG(3) << "NestIfFlatFits; on_other.flat_requirement: "
+                          << RequirementToString(on_other.flat_requirement)
+                          << " remaining_cols: " << remaining_cols
+                          << " on_nested_flat.flat_requirement: "
+                          << RequirementToString(
+                                 on_nested_flat.flat_requirement)
+                          << " remaining_cols_with_newline: "
+                          << remaining_cols_with_newline;
+              if (on_other.flat_requirement <= remaining_cols) {
+                stack.push_back(
+                    StackEntry{&on_other, Mode::kFlat, virtual_outcol});
+              } else if (on_nested_flat.flat_requirement <=
+                         remaining_cols_with_newline) {
+                int64_t nested_indent = entry.indent + 4;
+                emit_cr(nested_indent);
+                // Note that because we've determined the "on_nested_flat" doc
+                // should fit flat into this new line, the "nested_indent" value
+                // will never be observed.
+                stack.push_back(
+                    StackEntry{&on_nested_flat, Mode::kFlat, nested_indent});
+              } else {
+                stack.push_back(
+                    StackEntry{&on_other, Mode::kBreak, entry.indent});
+              }
+            },
             [&](const struct Group& group) {
               // Group evaluates whether the nested doc takes limited enough
               // flat space that it can be emitted in flat mode in the columns
@@ -316,6 +355,12 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
           [&](const Group& p) -> std::string {
             return absl::StrFormat("Group{%s}",
                                    arena.Deref(p.arg).ToDebugString(arena));
+          },
+          [&](const NestIfFlatFits& p) -> std::string {
+            return absl::StrFormat(
+                "NestIfFlatFits{on_flat=%s, on_break=%s}",
+                arena.Deref(p.on_nested_flat).ToDebugString(arena),
+                arena.Deref(p.on_other).ToDebugString(arena));
           },
           [&](const Concat& p) -> std::string {
             return absl::StrFormat("Concat{%s, %s}",
@@ -422,6 +467,15 @@ DocRef DocArena::MakeFlatChoice(DocRef on_flat, DocRef on_break) {
   Requirement flat_requirement = Deref(on_flat).flat_requirement;
   int64_t size = items_.size();
   items_.push_back(Doc{flat_requirement, FlatChoice{on_flat, on_break}});
+  return DocRef{size};
+}
+
+DocRef DocArena::MakeNestIfFlatFits(DocRef on_nested_flat_ref,
+                                    DocRef on_other_ref) {
+  Requirement flat_requirement = Deref(on_other_ref).flat_requirement;
+  int64_t size = items_.size();
+  items_.push_back(
+      Doc{flat_requirement, NestIfFlatFits{on_nested_flat_ref, on_other_ref}});
   return DocRef{size};
 }
 

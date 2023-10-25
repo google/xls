@@ -175,5 +175,51 @@ TEST(PrettyPrintTest, PrefixedReflowCustomSpacingBeforeToken) {
   EXPECT_EQ(PrettyPrint(arena, ref, 40), R"(//     I like this many spaces)");
 }
 
+// Scenario where we use NestIfFlatFits and the "on_other_ref" DOES NOT fits
+// inline into the current line so we emit the "on_nested_flat_ref" into the
+// subsequent line (it does fit there).
+TEST(PrettyPrintTest, NestIfFlatFitsDoNest) {
+  DocArena arena;
+  DocRef six_nums = arena.MakeText("123456");
+  DocRef six_chars = arena.MakeText("abcdef");
+  DocRef ref = arena.MakeConcat(
+      six_nums, arena.MakeNestIfFlatFits(/*on_nested_flat_ref=*/six_nums,
+                                         /*on_other_ref=*/six_chars));
+
+  EXPECT_EQ(PrettyPrint(arena, ref, 10), R"(123456
+    123456)");
+}
+
+// Scenario where we use NestIfFlatFits and the "on_other_ref" fits inline into
+// the current line so we don't need to emit nested.
+TEST(PrettyPrintTest, NestIfFlatFitsDoFlatInline) {
+  DocArena arena;
+  DocRef six_nums = arena.MakeText("123456");
+  DocRef four_chars = arena.MakeConcat(arena.break0(), arena.MakeText("abcd"));
+  DocRef ref = arena.MakeConcat(
+      six_nums, arena.MakeNestIfFlatFits(/*on_nested_flat_ref=*/four_chars,
+                                         /*on_other_ref=*/four_chars));
+
+  EXPECT_EQ(PrettyPrint(arena, ref, 10), "123456abcd");
+}
+
+// Scenario where we use NestIfFlatFits but we fall back to the "break mode"
+// case; i.e. the on_other_ref is selected and emitted in break mode.
+TEST(PrettyPrintTest, NestIfFlatFitsDoFlatBreak) {
+  DocArena arena;
+  DocRef six_nums = arena.MakeText("123456");
+  DocRef seven_chars =
+      arena.MakeConcat(arena.break0(), arena.MakeText("abcdefg"));
+  EXPECT_EQ(arena.Deref(seven_chars).flat_requirement,
+            pprint_internal::Requirement{7});
+
+  DocRef ref = arena.MakeConcat(
+      six_nums, arena.MakeNestIfFlatFits(/*on_nested_flat_ref=*/seven_chars,
+                                         /*on_other_ref=*/seven_chars));
+
+  EXPECT_EQ(PrettyPrint(arena, ref, 10), R"(123456
+abcdefg)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

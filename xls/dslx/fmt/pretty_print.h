@@ -63,6 +63,13 @@ struct FlatChoice {
   DocRef on_break;
 };
 
+struct NestIfFlatFits {
+  DocRef on_nested_flat;
+
+  // Used in flat-inline or break mode.
+  DocRef on_other;
+};
+
 // Command for the pretty printer that says, if we can emit arg in flat mode, do
 // so, otherwise switch into break mode.
 struct Group {
@@ -119,7 +126,7 @@ struct Doc {
   // The value can carry more information on what to do in flat/break
   // situations, or nested documents within commands.
   std::variant<std::string, HardLine, FlatChoice, Group, Concat, Nest, Align,
-               PrefixedReflow>
+               PrefixedReflow, NestIfFlatFits>
       value;
 
   std::string ToDebugString(const DocArena& arena) const;
@@ -166,6 +173,28 @@ class DocArena {
   // Creates an "align" doc that aligns at the current indentation level for
   // "arg_ref" doc emission.
   DocRef MakeAlign(DocRef arg_ref);
+
+  // Creates a "choice" doc where:
+  //
+  // * if the "arg" doc fits flat inline, we prefer that
+  // * otherwise, if the "arg" doc fits flat if we make a newline and nest, we
+  //   prefer that
+  // * otherwise, we'll emit it inline in break mode
+  //
+  // This allows us to make constructs that "prefer to fit all on the next line"
+  // when possible instead of smushing up against the right hand side of the
+  // pane via alignment constraints (e.g. with invocations); i.e.
+  //
+  //    let my_really_long_identifier = invoke_a_thing_that(smushes,
+  //                                                        against,
+  //                                                        rhs);
+  //
+  // vs preferring
+  //
+  //    let my_really_long_identifier =
+  //      invoke_a_thing_that(smushes, against, rhs);
+  //    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^-- nest-if-flat-and-fits
+  DocRef MakeNestIfFlatFits(DocRef on_nested_flat_ref, DocRef on_other_ref);
 
   // Creates a "prefixed reflow" doc, see `PrefixedReflow` for details.
   DocRef MakePrefixedReflow(std::string prefix, std::string text);
