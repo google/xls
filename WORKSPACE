@@ -58,8 +58,8 @@ load(
 py_repositories()
 
 python_register_toolchains(
-    name = "python39",
-    python_version = "3.9",
+    name = "python310",
+    python_version = "3.10",
 
     # Required for our containerized CI environments; we do not recommend
     # building XLS as root normally.

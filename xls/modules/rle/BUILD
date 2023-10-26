@@ -23,6 +23,11 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load("//xls/build_rules:dashboard.bzl", "dashboard")
+load("//xls/build_rules:vizier.bzl", "generate_compression_block_parameter_optimization")
+load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -93,8 +98,33 @@ xls_ir_verilog(
         "pipeline_stages": "2",
         "reset": "rst",
         "use_system_verilog": "false",
+        "streaming_channel_data_suffix": "_data",
     },
     verilog_file = "rle_enc.v",
+)
+
+verilog_library(
+    name = "rle_enc_verilog_lib",
+    srcs = [
+	":rle_enc.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "rle_enc_synth_sky130",
+    top_module = "rle_enc",
+    deps = [
+        ":rle_enc_verilog_lib",
+    ],
+)
+
+place_and_route(
+    name = "rle_enc_place_and_route_sky130",
+    clock_period = "1",
+    core_padding_microns = 10,
+    placement_density = "0.8",
+    synthesized_rtl = ":rle_enc_synth_sky130",
+    target_die_utilization_percentage = "30",
 )
 
 xls_benchmark_ir(
@@ -179,4 +209,58 @@ filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
     visibility = ["//xls:xls_internal"],
+)
+
+py_test(
+    name = "rle_enc_cocotb_test",
+    srcs = ["rle_enc_cocotb_test.py"],
+    data = [
+        ":rle_enc_verilog",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/simulation/cocotb:cocotb_struct",
+        "//xls/simulation/cocotb:cocotb_xls",
+        "//xls/tools/dashboard:utils",
+    ],
+)
+
+dashboard(
+    name = "rle_dashboard",
+    title = "RLE Dashboard",
+    files = [
+        {
+            "name": "//xls/modules/rle:rle_enc_place_and_route_sky130",
+            "file_parsers": {
+                "//xls/tools/dashboard:chip_area_results_textproto_parser": "xls/modules/rle/rle_enc_place_and_route_sky130_general_routing_area_results.textproto",
+                "//xls/tools/dashboard:chip_power_results_textproto_parser": "xls/modules/rle/rle_enc_place_and_route_sky130_general_routing_power_results.textproto",
+            },
+        },
+    ],
+    tests = [
+        {
+            "name": "rle_enc_cocotb_test",
+            "output_parsers": [
+                "//xls/tools/dashboard:generic_parser",
+            ],
+            "file_parsers": {
+                "//xls/tools/dashboard:cocotb_results_xml_parser": "sim_build/results.xml",
+            },
+        },
+        {
+            "name": "rle_enc_dslx_ir_test",
+            "output_parsers": [
+                "//xls/tools/dashboard:dslx_test_parser",
+            ],
+        },
+    ],
+)
+
+generate_compression_block_parameter_optimization(
+    name = "rle_enc",
+    cocotb_test = "rle_enc_compression_block_cocotb_test.py",
+    optimized_ir = ":rle_enc_opt_ir.opt.ir",
 )

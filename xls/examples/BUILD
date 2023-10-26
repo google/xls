@@ -32,6 +32,8 @@ load(
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("//xls/build_rules:dashboard.bzl", "dashboard")
+
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -640,4 +642,69 @@ filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
     visibility = ["//xls:xls_internal"],
+)
+
+xls_dslx_library(
+    name = "passthrough_dslx",
+    srcs = [
+        "passthrough.x",
+    ],
+)
+
+xls_dslx_verilog(
+    name = "passthrough_verilog",
+    codegen_args = {
+        "module_name": "passthrough",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "use_system_verilog": "false",
+        "streaming_channel_data_suffix": "_data",
+    },
+    dslx_top = "Passthrough",
+    library = "passthrough_dslx",
+    verilog_file = "passthrough.v",
+)
+
+xls_dslx_test(
+    name = "passthrough_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":passthrough_dslx",
+)
+
+py_test(
+    name = "passthrough_cocotb_test",
+    srcs = ["passthrough_cocotb_test.py"],
+    data = [
+        ":passthrough_verilog",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/simulation/cocotb:cocotb_xls",
+    ],
+)
+
+dashboard(
+    name = "passthrough_dashboard",
+    title = "Passthrough Dashboard",
+    tests = [
+        {
+            "name": "passthrough_cocotb_test",
+            "file_parsers": {
+                "//xls/tools/dashboard:cocotb_results_xml_parser": "sim_build/results.xml"
+            },
+        },
+        {
+            "name": "passthrough_test",
+            "output_parsers": [
+                "//xls/tools/dashboard:dslx_test_parser",
+            ],
+        },
+    ],
+    files = []
 )
