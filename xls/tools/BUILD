@@ -784,6 +784,7 @@ cc_binary(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:binary_search",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:channel",

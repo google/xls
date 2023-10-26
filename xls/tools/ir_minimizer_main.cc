@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
@@ -42,6 +43,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
+#include "xls/data_structures/binary_search.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -159,6 +161,9 @@ ABSL_FLAG(int64_t, simplifications_between_tests, 1,
           "Number of simplifications to do in-between tests. Increasing this "
           "value may speed minimization for large designs, especially when "
           "--test_executable is long-running.");
+ABSL_FLAG(int64_t, failed_attempts_between_tests_limit, 16,
+          "Failed simplification attempts between tests before we conclude we "
+          "need to check our changes so far.");
 ABSL_FLAG(
     bool, verify_ir, true,
     "Verify IR whenever parsing. In most cases, this is a good check that the "
@@ -789,7 +794,8 @@ absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
 
 absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
                       const int64_t total_attempt_limit,
-                      const int64_t simplifications_between_tests) {
+                      const int64_t simplifications_between_tests,
+                      const int64_t failed_attempts_between_tests_limit) {
   XLS_ASSIGN_OR_RETURN(std::string knownf_ir_text, GetFileContents(path));
   // Cache of test results to avoid duplicate invocations of the
   // test_executable.
@@ -838,9 +844,17 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
   int64_t failed_simplification_attempts = 0;
   int64_t total_attempts = 0;
   int64_t simplification_iterations = 0;
+  int64_t failed_attempts_between_tests = 0;
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        ParsePackage(knownf_ir_text));
 
+  struct CandidateChange {
+    std::string which_transform;
+    std::string package_ir_text;
+    std::string candidate_ir_text;
+    int64_t node_count;
+  };
+  std::vector<CandidateChange> candidate_changes;
   while (true) {
     if (failed_simplification_attempts >= failed_attempt_limit) {
       XLS_LOG(INFO) << "Hit failed-simplification-attempt-limit: "
@@ -878,27 +892,66 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     if (simplification == SimplificationResult::kDidNotChange) {
       XLS_VLOG(1) << "Did not change the sample.";
       failed_simplification_attempts++;
-      continue;
+      if (simplification_iterations > 0) {
+        failed_attempts_between_tests++;
+      }
+      if (failed_attempts_between_tests < failed_attempts_between_tests_limit) {
+        // No need to test again yet.
+        continue;
+      }
+      XLS_LOG(INFO) << "Hit failed-attempts-between-tests-limit, checking if "
+                       "the candidate still fails: "
+                    << failed_attempts_between_tests_limit;
+      failed_attempts_between_tests = 0;
+    } else {
+      XLS_CHECK(simplification == SimplificationResult::kDidChange);
+      XLS_LOG(INFO) << "Trying " << which_transform;
+      XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
+      XLS_VLOG_LINES(2, "=== After simplification [" + which_transform + "]\n" +
+                            candidate->DumpIr());
     }
-    XLS_LOG(INFO) << "Trying " << which_transform;
 
-    // When we changed (simplified) it, clean it up then see if it still fails.
-    XLS_CHECK(simplification == SimplificationResult::kDidChange);
-    XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
-
-    XLS_VLOG_LINES(2, "=== After simplification [" + which_transform + "]\n" +
-                          candidate->DumpIr());
+    candidate_changes.push_back({
+        .which_transform = which_transform,
+        .package_ir_text = package->DumpIr(),
+        .candidate_ir_text = candidate->DumpIr(),
+        .node_count = candidate->node_count(),
+    });
 
     simplification_iterations++;
     if (simplification_iterations < simplifications_between_tests) {
       continue;
     }
     simplification_iterations = 0;
+    failed_attempts_between_tests = 0;
 
-    std::string candidate_ir_text = package->DumpIr();
     XLS_ASSIGN_OR_RETURN(bool still_fails,
-                         StillFails(candidate_ir_text, inputs, &test_cache));
+                         StillFails(candidate_changes.back().package_ir_text,
+                                    inputs, &test_cache));
     if (!still_fails) {
+      // Test earlier changes to see if they were failing, and discard the ones
+      // that aren't.
+      XLS_LOG(INFO) << "Latest candidate no longer fails; trying earlier "
+                       "untested candidates";
+      XLS_ASSIGN_OR_RETURN(
+          int64_t first_non_failing,
+          BinarySearchMinTrueWithStatus(
+              0, candidate_changes.size() - 1,
+              [&](int64_t i) -> absl::StatusOr<bool> {
+                XLS_ASSIGN_OR_RETURN(
+                    bool still_fails,
+                    StillFails(candidate_changes[i].package_ir_text, inputs,
+                               &test_cache));
+                return !still_fails;
+              },
+              BinarySearchAssumptions::kEndKnownTrue));
+      XLS_LOG(INFO) << "Discarded "
+                    << (candidate_changes.size() - first_non_failing)
+                    << " candidates, leaving " << first_non_failing;
+      candidate_changes.erase(candidate_changes.begin() + first_non_failing,
+                              candidate_changes.end());
+    }
+    if (candidate_changes.empty()) {
       failed_simplification_attempts++;
       XLS_LOG(INFO) << "Sample no longer fails.";
       XLS_LOG(INFO) << "Failed simplification attempts now: "
@@ -910,23 +963,27 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
       continue;
     }
 
+    const CandidateChange& known_failure = candidate_changes.back();
+
     // We found something that definitely fails, update our "knownf" value and
     // reset our failed simplification attempt count since we see we've made
     // some forward progress.
-    XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
-
-    XLS_RETURN_IF_ERROR(VerifyStillFails(
-        knownf_ir_text, inputs, "Known failure does not fail after cleanup!",
-        &test_cache));
-
-    knownf_ir_text = candidate_ir_text;
-
-    std::cerr << "---\ntransform: " << which_transform << "\n"
-              << (candidate->node_count() > 50 ? "" : candidate->DumpIr())
-              << "(" << candidate->node_count() << " nodes)\n";
+    knownf_ir_text = known_failure.package_ir_text;
+    std::cerr << "---\ntransforms: "
+              << absl::StrJoin(
+                     candidate_changes, ", ",
+                     [](std::string* out, const CandidateChange& change) {
+                       absl::StrAppend(out, change.which_transform);
+                     })
+              << "\n"
+              << (known_failure.node_count > 50
+                      ? ""
+                      : known_failure.candidate_ir_text)
+              << "(" << known_failure.node_count << " nodes)\n";
 
     XLS_ASSIGN_OR_RETURN(package, ParsePackage(knownf_ir_text));
     failed_simplification_attempts = 0;
+    candidate_changes.clear();
   }
 
   // Run the last test verification without the cache.
@@ -958,5 +1015,6 @@ int main(int argc, char** argv) {
   return xls::ExitStatus(xls::RealMain(
       positional_arguments[0], absl::GetFlag(FLAGS_failed_attempt_limit),
       absl::GetFlag(FLAGS_total_attempt_limit),
-      absl::GetFlag(FLAGS_simplifications_between_tests)));
+      absl::GetFlag(FLAGS_simplifications_between_tests),
+      absl::GetFlag(FLAGS_failed_attempts_between_tests_limit)));
 }
