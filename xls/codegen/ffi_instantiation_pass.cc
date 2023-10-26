@@ -115,9 +115,11 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     Invoke* const invocation = node->As<Invoke>();
     Function* const fun = down_cast<Function*>(invocation->to_apply());
     if (!fun || !fun->ForeignFunctionData().has_value()) {
-      return absl::InternalError(absl::StrCat("Only FFI invocations expected; ",
-                                              invocation->to_apply()->name(),
-                                              " is not."));
+      return absl::InternalError(
+          absl::StrCat("Detected function call in IR. Probable cause: IR was "
+                       "not run through optimizer (opt_main) "
+                       "(Only FFI invocations are allowed here; ",
+                       invocation->to_apply()->name(), " is not)."));
     }
 
     // TODO(hzeller): Better ways to generate a name ?
