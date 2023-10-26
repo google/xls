@@ -495,6 +495,7 @@ cc_binary(
         "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/ir:value",
         "@com_google_benchmark//:benchmark_main",
     ],
 )

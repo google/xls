@@ -23,7 +23,7 @@ namespace xls {
 
 absl::StatusOr<std::vector<Value>> GenerateFunctionArguments(
     Function* f, std::minstd_rand* engine, std::string_view benchmark) {
-  return RandomFunctionArguments(f, engine);
+  return RandomFunctionArguments(f, *engine);
 }
 
 }  // namespace xls

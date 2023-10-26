@@ -15,9 +15,9 @@
 #ifndef XLS_INTERPRETER_RANDOM_VALUE_H_
 #define XLS_INTERPRETER_RANDOM_VALUE_H_
 
-#include <random>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
 #include "xls/ir/function.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -26,15 +26,14 @@ namespace xls {
 
 // Returns a Value with random uniformly distributed bits using the given
 // engine.
-Value RandomValue(Type* type, std::minstd_rand* engine);
+Value RandomValue(Type* type, absl::BitGenRef rng);
 
 // Returns a set of argument values for the given function with random uniformly
 // distributed bits using the given engine.
-std::vector<Value> RandomFunctionArguments(Function* f,
-                                           std::minstd_rand* engine);
+std::vector<Value> RandomFunctionArguments(Function* f, absl::BitGenRef rng);
 
 absl::StatusOr<std::vector<Value>> RandomFunctionArguments(
-    Function* f, std::minstd_rand* engine, Function* validator,
+    Function* f, absl::BitGenRef rng, Function* validator,
     int64_t max_attempts);
 
 }  // namespace xls

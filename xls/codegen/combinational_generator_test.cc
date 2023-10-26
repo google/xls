@@ -675,7 +675,7 @@ top fn main(a: bits[32],
   std::minstd_rand engine;
   ASSERT_TRUE(top.value()->IsFunction());
   Function* fn = top.value()->AsFunctionOrDie();
-  std::vector<Value> arguments = RandomFunctionArguments(fn, &engine);
+  std::vector<Value> arguments = RandomFunctionArguments(fn, engine);
   XLS_ASSERT_OK_AND_ASSIGN(
       Value expected, DropInterpreterEvents(InterpretFunction(fn, arguments)));
   EXPECT_THAT(simulator.RunFunction(arguments), IsOkAndHolds(expected));

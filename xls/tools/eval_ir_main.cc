@@ -436,7 +436,7 @@ absl::StatusOr<ArgSet> GenerateArgSet(Function* f, Function* validator,
   ArgSet arg_set;
   if (validator == nullptr) {
     for (Param* param : f->params()) {
-      arg_set.args.push_back(RandomValue(param->GetType(), rng_engine));
+      arg_set.args.push_back(RandomValue(param->GetType(), *rng_engine));
     }
     return arg_set;
   }
@@ -445,7 +445,7 @@ absl::StatusOr<ArgSet> GenerateArgSet(Function* f, Function* validator,
   for (int i = 0; i < input_validator_limit; i++) {
     arg_set.args.clear();
     for (Param* param : f->params()) {
-      arg_set.args.push_back(RandomValue(param->GetType(), rng_engine));
+      arg_set.args.push_back(RandomValue(param->GetType(), *rng_engine));
     }
 
     XLS_ASSIGN_OR_RETURN(bool valid, ValidateInput(validator, arg_set));

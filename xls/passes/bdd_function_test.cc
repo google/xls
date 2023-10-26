@@ -105,7 +105,7 @@ TEST_F(BddFunctionTest, Parity) {
                 IsOkAndHolds(Value(UBits(0, 1))));
 
     for (int64_t i = 0; i < kNumSamples; ++i) {
-      std::vector<Value> inputs = RandomFunctionArguments(f, &engine);
+      std::vector<Value> inputs = RandomFunctionArguments(f, engine);
       XLS_ASSERT_OK_AND_ASSIGN(
           Value expected, DropInterpreterEvents(InterpretFunction(f, inputs)));
       XLS_ASSERT_OK_AND_ASSIGN(Value actual, bdd_function->Evaluate(inputs));

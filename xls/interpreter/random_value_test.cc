@@ -14,11 +14,12 @@
 
 #include "xls/interpreter/random_value.h"
 
+#include <cstdint>
 #include <random>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/package.h"
@@ -31,15 +32,15 @@ TEST(RandomValueTest, RandomBits) {
   Package p("test_package");
   std::minstd_rand rng_engine;
 
-  Value b0 = RandomValue(p.GetBitsType(0), &rng_engine);
+  Value b0 = RandomValue(p.GetBitsType(0), rng_engine);
   EXPECT_TRUE(b0.IsBits());
   EXPECT_EQ(b0.bits().bit_count(), 0);
 
-  Value b1 = RandomValue(p.GetBitsType(1), &rng_engine);
+  Value b1 = RandomValue(p.GetBitsType(1), rng_engine);
   EXPECT_TRUE(b1.IsBits());
   EXPECT_EQ(b1.bits().bit_count(), 1);
 
-  Value b1234 = RandomValue(p.GetBitsType(1234), &rng_engine);
+  Value b1234 = RandomValue(p.GetBitsType(1234), rng_engine);
   EXPECT_TRUE(b1234.IsBits());
   EXPECT_EQ(b1234.bits().bit_count(), 1234);
 
@@ -54,7 +55,7 @@ TEST(RandomValueTest, RandomBits) {
   std::vector<int64_t> bit_set_count(kBitWidth);
   uint64_t previous_sample = 1;
   for (int64_t i = 0; i < kSampleCount; ++i) {
-    Value b = RandomValue(p.GetBitsType(kBitWidth), &rng_engine);
+    Value b = RandomValue(p.GetBitsType(kBitWidth), rng_engine);
     XLS_ASSERT_OK_AND_ASSIGN(uint64_t as_uint64, b.bits().ToUint64());
     uint64_t delta = as_uint64 - previous_sample;
     EXPECT_FALSE(samples.contains(as_uint64));
@@ -79,22 +80,22 @@ TEST(RandomValueTest, Determinism) {
   Package p("test_package");
   std::minstd_rand rng_engine0;
   std::minstd_rand rng_engine1;
-  EXPECT_EQ(RandomValue(p.GetBitsType(42), &rng_engine0),
-            RandomValue(p.GetBitsType(42), &rng_engine1));
-  EXPECT_EQ(RandomValue(p.GetBitsType(42), &rng_engine0),
-            RandomValue(p.GetBitsType(42), &rng_engine1));
+  EXPECT_EQ(RandomValue(p.GetBitsType(42), rng_engine0),
+            RandomValue(p.GetBitsType(42), rng_engine1));
+  EXPECT_EQ(RandomValue(p.GetBitsType(42), rng_engine0),
+            RandomValue(p.GetBitsType(42), rng_engine1));
 }
 
 TEST(RandomValueTest, RandomOtherTypes) {
   Package p("test_package");
   std::minstd_rand rng_engine;
 
-  Value empty_tuple = RandomValue(p.GetTupleType({}), &rng_engine);
+  Value empty_tuple = RandomValue(p.GetTupleType({}), rng_engine);
   EXPECT_TRUE(empty_tuple.IsTuple());
   EXPECT_EQ(empty_tuple.size(), 0);
 
   Value tuple = RandomValue(
-      p.GetTupleType({p.GetBitsType(12345), p.GetBitsType(32)}), &rng_engine);
+      p.GetTupleType({p.GetBitsType(12345), p.GetBitsType(32)}), rng_engine);
   EXPECT_TRUE(tuple.IsTuple());
   EXPECT_EQ(tuple.size(), 2);
   // Overwhelmingly likely that the 12345-bit number is larger than the 32-bit
@@ -102,8 +103,7 @@ TEST(RandomValueTest, RandomOtherTypes) {
   EXPECT_TRUE(
       bits_ops::UGreaterThan(tuple.element(0).bits(), tuple.element(1).bits()));
 
-  Value array =
-      RandomValue(p.GetArrayType(123, p.GetBitsType(57)), &rng_engine);
+  Value array = RandomValue(p.GetArrayType(123, p.GetBitsType(57)), rng_engine);
   EXPECT_TRUE(array.IsArray());
   EXPECT_EQ(array.size(), 123);
   for (int64_t i = 0; i < 123; ++i) {

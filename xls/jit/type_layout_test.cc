@@ -312,7 +312,7 @@ TEST_F(TypeLayoutTest, JitTypes) {
     ASSERT_EQ(leaf_types.size(), layout.elements().size());
 
     for (int64_t i = 0; i < kValuesPerType; ++i) {
-      Value value = RandomValue(type, &bitgen);
+      Value value = RandomValue(type, bitgen);
       XLS_VLOG(1) << value.ToString();
 
       std::vector<uint8_t> buffer(layout.size(), 0xff);

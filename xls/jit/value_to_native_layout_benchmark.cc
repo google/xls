@@ -20,6 +20,7 @@
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
@@ -53,7 +54,7 @@ static void BM_ValueToNativeLayout(benchmark::State& state) {
   Package package("BM");
   Type* type = Parser::ParseType(kValueTypes[state.range(0)], &package).value();
   std::minstd_rand bitgen;
-  Value value = RandomValue(type, &bitgen);
+  Value value = RandomValue(type, bitgen);
   TypeLayout type_layout = CreateTypeLayout(type);
   std::vector<uint8_t> buffer(type_layout.size());
   for (auto _ : state) {

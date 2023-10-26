@@ -145,7 +145,7 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(
 
   for (int i = 0; i < num_tests; i++) {
     results.arg_sets.push_back(
-        RandomFunctionArguments(xls_function, &rng_engine));
+        RandomFunctionArguments(xls_function, rng_engine));
     // TODO(https://github.com/google/xls/issues/506): 2021-10-15
     // Assertion failures should work out, but we should consciously decide
     // if/how we want to dump traces when running QuickChecks (always, for

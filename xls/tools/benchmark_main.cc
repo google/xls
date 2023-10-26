@@ -483,7 +483,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base,
     std::vector<std::vector<Value>> arg_set(kInputCount);
     for (std::vector<Value>& args : arg_set) {
       for (Param* param : function->params()) {
-        args.push_back(RandomValue(param->GetType(), &rng_engine));
+        args.push_back(RandomValue(param->GetType(), rng_engine));
       }
     }
 

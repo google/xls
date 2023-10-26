@@ -280,9 +280,9 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   XLS_ASSIGN_OR_RETURN(Function * function,
                        Parser::ParseFunction(ir_text, &package));
   XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
-  Value v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
+  Value v = RandomValue(package.GetBitsType(kBitWidth), bitgen);
   Bits a(v.bits());
-  v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
+  v = RandomValue(package.GetBitsType(kBitWidth), bitgen);
   Bits b(v.bits());
   Bits expected = bits_ops::Add(a, b);
   int64_t byte_width = jit->GetPackedReturnTypeSize();
@@ -318,9 +318,9 @@ absl::Status TestUnpackedBits(std::minstd_rand& bitgen) {
   XLS_ASSIGN_OR_RETURN(Function * function,
                        Parser::ParseFunction(ir_text, &package));
   XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
-  Value v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
+  Value v = RandomValue(package.GetBitsType(kBitWidth), bitgen);
   Bits a(v.bits());
-  v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
+  v = RandomValue(package.GetBitsType(kBitWidth), bitgen);
   Bits b(v.bits());
   Bits expected = bits_ops::Add(a, b);
   int64_t byte_width = jit->GetPackedReturnTypeSize();
@@ -455,7 +455,7 @@ absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
 
   std::vector<Bits> bits_vector;
   for (int i = 0; i < kNumElements; i++) {
-    Value value = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
+    Value value = RandomValue(package.GetBitsType(kBitWidth), bitgen);
     bits_vector.push_back(value.bits());
   }
   TestData<ArrayT> array_data(Value(VectorToPackedBits(bits_vector)));
@@ -464,7 +464,7 @@ absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
   TestData<PackedBitsView<kBitWidth>> index_data(
       Value(UBits(index, kBitWidth)));
 
-  Value value = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
+  Value value = RandomValue(package.GetBitsType(kBitWidth), bitgen);
   TestData<PackedBitsView<kBitWidth>> replacement_data(value);
   bits_vector[index] = replacement_data.value.bits();
 
@@ -523,9 +523,9 @@ absl::Status TestTuples(std::minstd_rand& bitgen) {
       CreateTupleFunction(&package, tuple_type, kReplacementIndex));
   XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
 
-  Value input_tuple = RandomValue(tuple_type, &bitgen);
+  Value input_tuple = RandomValue(tuple_type, bitgen);
   TestData<TupleT> input_tuple_data(input_tuple);
-  Value replacement = RandomValue(replacement_type, &bitgen);
+  Value replacement = RandomValue(replacement_type, bitgen);
   TestData<ReplacementT> replacement_data(replacement);
 
   XLS_ASSIGN_OR_RETURN(std::vector<Value> elements, input_tuple.GetElements());
