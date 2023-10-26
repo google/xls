@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -193,11 +194,6 @@ absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
   return package;
 }
 
-// Return a uniform random number over the interval [0, 1).
-float Random0To1(std::mt19937* rng) {
-  return absl::Uniform<float>(*rng, 0.0f, 1.0f);
-}
-
 // Checks whether we still fail when attempting to run function "f". Optional
 // 'inputs' is required if --test_llvm_jit is used.
 absl::StatusOr<bool> StillFailsHelper(
@@ -359,17 +355,27 @@ enum class SimplificationResult {
 
 // Return a random subset of the given input.
 template <typename T>
-std::vector<T> PickRandomSubset(absl::Span<const T> input, std::mt19937* rng) {
+std::vector<T> PickRandomSubset(absl::Span<const T> input,
+                                absl::BitGenRef rng) {
   std::vector<T> result;
-  // About half the time drop about 1 element, and otherwise drop about half of
-  // the elements.
-  bool drop_half = Random0To1(rng) < 0.5;
-  for (const T& element : input) {
-    float p = Random0To1(rng);
-    float threshold = drop_half ? 0.5 : (1.0 / input.size());
-    if (p > threshold) {
-      result.push_back(element);
+  result.reserve(input.size());
+  // About half the time, drop about half of the elements.
+  if (absl::Bernoulli(rng, 0.5)) {
+    for (const T& x : input) {
+      if (absl::Bernoulli(rng, 0.5)) {
+        result.push_back(x);
+      }
     }
+    return result;
+  }
+
+  // Otherwise drop 1 element.
+  int64_t dropped = absl::Uniform<int64_t>(rng, 0, result.size());
+  for (int64_t i = 0; i < dropped; ++i) {
+    result.push_back(input[i]);
+  }
+  for (int64_t i = dropped + 1; i < input.size(); ++i) {
+    result.push_back(input[i]);
   }
   return result;
 }
@@ -422,7 +428,7 @@ std::vector<Node*> ImplicitlyUsed(FunctionBase* fb) {
 
 // Removes a random subset of elements from a compound typed value. That is,
 // remove (potentially nested) tuple/array elements.
-Value ReduceValue(const Value& value, std::mt19937* rng) {
+Value ReduceValue(const Value& value, absl::BitGenRef rng) {
   if (value.IsTuple() || value.IsArray()) {
     // Pick a random subset of the elements to keep.
     std::vector<Value> elements =
@@ -446,11 +452,11 @@ Value ReduceValue(const Value& value, std::mt19937* rng) {
 }
 
 absl::StatusOr<SimplificationResult> SimplifyReturnValue(
-    FunctionBase* f, std::mt19937* rng, std::string* which_transform) {
+    FunctionBase* f, absl::BitGenRef rng, std::string* which_transform) {
   Node* orig = nullptr;
   {
     std::vector<Node*> implicitly_used = ImplicitlyUsed(f);
-    int64_t i = absl::Uniform<int64_t>(*rng, 0, implicitly_used.size());
+    int64_t i = absl::Uniform<int64_t>(rng, 0, implicitly_used.size());
     orig = implicitly_used.at(i);
   }
 
@@ -459,10 +465,11 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
   }
 
   // Try slicing array return values down to fewer elements.
-  if (f->IsFunction() && orig->GetType()->IsArray() && Random0To1(rng) < 0.25 &&
+  if (f->IsFunction() && orig->GetType()->IsArray() &&
+      absl::Bernoulli(rng, 0.25) &&
       orig->GetType()->AsArrayOrDie()->size() > 1) {
     int64_t original_size = orig->GetType()->AsArrayOrDie()->size();
-    int64_t new_size = absl::Uniform<int64_t>(*rng, 1, original_size);
+    int64_t new_size = absl::Uniform<int64_t>(rng, 1, original_size);
     XLS_ASSIGN_OR_RETURN(
         Node * zero,
         f->MakeNode<Literal>(orig->loc(),
@@ -481,7 +488,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
   // the operands which then become dead.
   if (f->IsFunction() &&
       (orig->Is<Tuple>() || orig->Is<Concat>() || orig->Is<Array>()) &&
-      Random0To1(rng) < 0.5) {
+      absl::Bernoulli(rng, 0.5)) {
     std::vector<Node*> new_operands = PickRandomSubset(orig->operands(), rng);
     if (new_operands.size() < orig->operand_count()) {
       *which_transform =
@@ -537,7 +544,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
       if (same_type_operands.empty()) {
         return SimplificationResult::kDidNotChange;
       }
-      int64_t which = absl::Uniform<int>(*rng, 0, same_type_operands.size());
+      int64_t which = absl::Uniform<int64_t>(rng, 0, same_type_operands.size());
       replacement = same_type_operands.at(which);
       *which_transform =
           absl::StrFormat("replace next state node %s with operand %s",
@@ -545,7 +552,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
     }
     if (f->IsFunction()) {
       int64_t which_operand =
-          absl::Uniform<int>(*rng, 0, orig->operand_count());
+          absl::Uniform<int64_t>(rng, 0, orig->operand_count());
       replacement = orig->operand(which_operand);
       *which_transform =
           absl::StrFormat("return operand %d of return value", which_operand);
@@ -561,7 +568,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 // Runs a randomly selected optimization pass and returns whether the graph
 // changed.
 absl::StatusOr<SimplificationResult> RunRandomPass(
-    FunctionBase* f, std::mt19937* rng, std::string* which_transform) {
+    FunctionBase* f, absl::BitGenRef rng, std::string* which_transform) {
   // All these passes have trivial construction costs.
   std::vector<std::unique_ptr<OptimizationPass>> passes;
   passes.push_back(std::make_unique<ArithSimplificationPass>());
@@ -576,7 +583,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   passes.push_back(std::make_unique<ProcStateFlatteningPass>());
   passes.push_back(std::make_unique<ProcStateOptimizationPass>());
 
-  int64_t pass_no = absl::Uniform<int64_t>(*rng, 0, passes.size());
+  int64_t pass_no = absl::Uniform<int64_t>(rng, 0, passes.size());
   PassResults results;
   XLS_ASSIGN_OR_RETURN(bool changed,
                        passes.at(pass_no)->Run(
@@ -591,11 +598,11 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
 }
 
 absl::StatusOr<SimplificationResult> SimplifyNode(
-    Node* n, std::mt19937* rng, std::string* which_transform) {
+    Node* n, absl::BitGenRef rng, std::string* which_transform) {
   FunctionBase* f = n->function_base();
   if (((n->Is<Receive>() && absl::GetFlag(FLAGS_can_remove_receives)) ||
        (n->Is<Send>() && absl::GetFlag(FLAGS_can_remove_sends))) &&
-      Random0To1(rng) < 0.3) {
+      absl::Bernoulli(rng, 0.3)) {
     XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(n));
     absl::flat_hash_set<std::string> preserved_channels;
     for (const std::string& chan : absl::GetFlag(FLAGS_preserve_channels)) {
@@ -648,16 +655,16 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   }
 
   if (OpIsSideEffecting(n->op()) && !n->Is<Param>() && n->IsDead() &&
-      Random0To1(rng) < 0.3) {
+      absl::Bernoulli(rng, 0.3)) {
     *which_transform = "remove userless side-effecting node: " + n->GetName();
     XLS_RETURN_IF_ERROR(f->RemoveNode(n));
     return SimplificationResult::kDidChange;
   }
 
-  if (!n->operands().empty() && Random0To1(rng) < 0.3) {
+  if (!n->operands().empty() && absl::Bernoulli(rng, 0.3)) {
     // Try to replace a node with one of its (potentially truncated/extended)
     // operands.
-    int64_t operand_no = absl::Uniform<int64_t>(*rng, 0, n->operand_count());
+    int64_t operand_no = absl::Uniform<int64_t>(rng, 0, n->operand_count());
     Node* operand = n->operand(operand_no);
 
     // If the chosen operand is the same type, just replace it.
@@ -706,7 +713,7 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   }
 
   // (Rarely) replace non-literal node with an all ones.
-  if (!n->Is<Literal>() && Random0To1(rng) < 0.1) {
+  if (!n->Is<Literal>() && absl::Bernoulli(rng, 0.1)) {
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
     *which_transform = "random replace with all-ones: " + n->GetName();
@@ -726,8 +733,9 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
 
 absl::StatusOr<SimplificationResult> Simplify(
     FunctionBase* f, std::optional<std::vector<Value>> inputs,
-    std::mt19937* rng, std::string* which_transform) {
-  if (absl::GetFlag(FLAGS_use_optimization_passes) && Random0To1(rng) < 0.2) {
+    absl::BitGenRef rng, std::string* which_transform) {
+  if (absl::GetFlag(FLAGS_use_optimization_passes) &&
+      absl::Bernoulli(rng, 0.2)) {
     XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
                          RunRandomPass(f, rng, which_transform));
     if (pass_result != SimplificationResult::kDidNotChange) {
@@ -736,7 +744,7 @@ absl::StatusOr<SimplificationResult> Simplify(
   }
 
   if (absl::GetFlag(FLAGS_use_optimization_pipeline) &&
-      Random0To1(rng) < 0.05) {
+      absl::Bernoulli(rng, 0.05)) {
     // Try to run the sample through the entire optimization pipeline.
     XLS_ASSIGN_OR_RETURN(bool changed,
                          RunOptimizationPassPipeline(f->package()));
@@ -746,7 +754,7 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
-  if (Random0To1(rng) < 0.2) {
+  if (absl::Bernoulli(rng, 0.2)) {
     XLS_ASSIGN_OR_RETURN(SimplificationResult result,
                          SimplifyReturnValue(f, rng, which_transform));
     if (result == SimplificationResult::kDidChange) {
@@ -754,10 +762,10 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
-  if (inputs.has_value() && Random0To1(rng) < 0.3) {
+  if (inputs.has_value() && absl::Bernoulli(rng, 0.3)) {
     // Try to replace a parameter with a literal equal to the respective input
     // value.
-    int64_t param_no = absl::Uniform<int64_t>(*rng, 0, f->params().size());
+    int64_t param_no = absl::Uniform<int64_t>(rng, 0, f->params().size());
     Param* param = f->params()[param_no];
     if (!param->GetType()->IsToken()) {
       XLS_RETURN_IF_ERROR(
@@ -770,7 +778,7 @@ absl::StatusOr<SimplificationResult> Simplify(
   }
 
   // Pick a random node and try to do something with it.
-  int64_t i = absl::Uniform<int64_t>(*rng, 0, f->node_count());
+  int64_t i = absl::Uniform<int64_t>(rng, 0, f->node_count());
   Node* n = *std::next(f->nodes().begin(), i);
   return SimplifyNode(n, rng, which_transform);
 }
@@ -878,7 +886,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     // Simplify the function.
     std::string which_transform;
     XLS_ASSIGN_OR_RETURN(SimplificationResult simplification,
-                         Simplify(candidate, inputs, &rng, &which_transform));
+                         Simplify(candidate, inputs, rng, &which_transform));
 
     // If we cannot change it, we're done.
     if (simplification == SimplificationResult::kCannotChange) {

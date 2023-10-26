@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.pb.h"
@@ -363,7 +365,7 @@ absl::Status ChannelSource::SetDataSequence(absl::Span<const uint64_t> data) {
 
 absl::Status ChannelSource::SetBlockInputs(
     int64_t this_cycle, absl::flat_hash_map<std::string, Value>& inputs,
-    std::minstd_rand& random_engine, std::optional<verilog::ResetProto> reset) {
+    absl::BitGenRef random_engine, std::optional<verilog::ResetProto> reset) {
   // Don't send inputs when reset is asserted, if we don't care about the
   // behavior of the block when inputs are sent during reset.
   if (reset_behavior_ == kAttendReady ||
@@ -380,7 +382,7 @@ absl::Status ChannelSource::SetBlockInputs(
     }
 
     if (HasMoreData()) {
-      bool send_next_data = std::bernoulli_distribution(lambda_)(random_engine);
+      bool send_next_data = absl::Bernoulli(random_engine, lambda_);
       if (send_next_data) {
         ++current_index_;
 
@@ -428,9 +430,9 @@ absl::Status ChannelSource::GetBlockOutputs(
 
 absl::Status ChannelSink::SetBlockInputs(
     int64_t this_cycle, absl::flat_hash_map<std::string, Value>& inputs,
-    std::minstd_rand& random_engine, std::optional<verilog::ResetProto> reset) {
+    absl::BitGenRef random_engine, std::optional<verilog::ResetProto> reset) {
   // Ready is independently random each cycle
-  bool signalled_ready = std::bernoulli_distribution(lambda_)(random_engine);
+  bool signalled_ready = absl::Bernoulli(random_engine, lambda_);
   inputs[ready_name_] =
       signalled_ready ? Value(UBits(1, 1)) : Value(UBits(0, 1));
 

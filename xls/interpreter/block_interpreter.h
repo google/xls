@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -113,7 +114,7 @@ class ChannelSource {
   // inputs[valid_name] to the Value they should be driven for this_cycle.
   absl::Status SetBlockInputs(int64_t this_cycle,
                               absl::flat_hash_map<std::string, Value>& inputs,
-                              std::minstd_rand& random_engine,
+                              absl::BitGenRef random_engine,
                               std::optional<verilog::ResetProto> reset);
 
   // For each cycle, GetBlockOutputs() is called to provide this channel
@@ -185,7 +186,7 @@ class ChannelSink {
   // it should be driven for this_cycle.
   absl::Status SetBlockInputs(int64_t this_cycle,
                               absl::flat_hash_map<std::string, Value>& inputs,
-                              std::minstd_rand& random_engine,
+                              absl::BitGenRef random_engine,
                               std::optional<verilog::ResetProto> reset);
 
   // For each cycle, GetBlockOutputs() is called to provide this channel

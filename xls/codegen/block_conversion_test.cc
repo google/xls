@@ -31,6 +31,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -251,7 +253,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
   // input signal to uniformly random input in range [min_value, max_value].
   absl::Status SetRandomSignalOverCycles(
       int64_t first_cycle, int64_t last_cycle, std::string_view signal_name,
-      uint64_t min_value, uint64_t max_value, std::minstd_rand& rnd_engine,
+      uint64_t min_value, uint64_t max_value, absl::BitGenRef rng,
       std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
     XLS_CHECK_GE(first_cycle, 0);
     XLS_CHECK_GE(last_cycle, 0);
@@ -261,10 +263,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
       io.resize(last_cycle + 1);
     }
 
-    std::uniform_int_distribution<uint64_t> rnd_generator(min_value, max_value);
-
     for (int64_t i = first_cycle; i <= last_cycle; ++i) {
-      io.at(i)[signal_name] = rnd_generator(rnd_engine);
+      io.at(i)[signal_name] =
+          absl::Uniform(absl::IntervalClosed, rng, min_value, max_value);
     }
 
     return absl::OkStatus();

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -432,11 +433,11 @@ absl::StatusOr<bool> ValidateInput(Function* validator, const ArgSet& arg_set) {
 }
 
 absl::StatusOr<ArgSet> GenerateArgSet(Function* f, Function* validator,
-                                      std::minstd_rand* rng_engine) {
+                                      absl::BitGenRef rng) {
   ArgSet arg_set;
   if (validator == nullptr) {
     for (Param* param : f->params()) {
-      arg_set.args.push_back(RandomValue(param->GetType(), *rng_engine));
+      arg_set.args.push_back(RandomValue(param->GetType(), rng));
     }
     return arg_set;
   }
@@ -445,7 +446,7 @@ absl::StatusOr<ArgSet> GenerateArgSet(Function* f, Function* validator,
   for (int i = 0; i < input_validator_limit; i++) {
     arg_set.args.clear();
     for (Param* param : f->params()) {
-      arg_set.args.push_back(RandomValue(param->GetType(), *rng_engine));
+      arg_set.args.push_back(RandomValue(param->GetType(), rng));
     }
 
     XLS_ASSIGN_OR_RETURN(bool valid, ValidateInput(validator, arg_set));
@@ -525,7 +526,7 @@ absl::Status RealMain(std::string_view input_path,
     }
 
     for (ArgSet& arg_set : arg_sets) {
-      XLS_ASSIGN_OR_RETURN(arg_set, GenerateArgSet(f, validator, &rng_engine));
+      XLS_ASSIGN_OR_RETURN(arg_set, GenerateArgSet(f, validator, rng_engine));
     }
   }
 

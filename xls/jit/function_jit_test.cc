@@ -24,7 +24,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
@@ -269,7 +271,7 @@ TEST(FunctionJitTest, PackedAndUnpackedSmokeWide) {
 
 // Tests PackedBitView<X> input/output handling.
 template <int64_t kBitWidth>
-absl::Status TestPackedBits(std::minstd_rand& bitgen) {
+absl::Status TestPackedBits(absl::BitGenRef bitgen) {
   Package package("my_package");
   std::string ir_template = R"(
   fn get_identity(x: bits[$0], y:bits[$0]) -> bits[$0] {
@@ -307,7 +309,7 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
 
 // Tests UnackedBitView<X> input/output handling.
 template <int64_t kBitWidth>
-absl::Status TestUnpackedBits(std::minstd_rand& bitgen) {
+absl::Status TestUnpackedBits(absl::BitGenRef bitgen) {
   Package package("my_package");
   std::string ir_template = R"(
   fn get_identity(x: bits[$0], y:bits[$0]) -> bits[$0] {
@@ -439,7 +441,7 @@ struct TestData {
 // and a replacement value, and does an array_update(). We then verify that the
 // output array looks like expected.
 template <int64_t kBitWidth, int64_t kNumElements>
-absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
+absl::Status TestSimpleArray(absl::BitGenRef bitgen) {
   using ArrayT = PackedArrayView<PackedBitsView<kBitWidth>, kNumElements>;
 
   Package package("my_package");
@@ -513,7 +515,7 @@ absl::StatusOr<Function*> CreateTupleFunction(Package* p, TupleType* tuple_type,
 // ReplacementT or kReplacementIndex...but I don't think it'd be worth the
 // effort.
 template <typename TupleT, typename ReplacementT, int kReplacementIndex>
-absl::Status TestTuples(std::minstd_rand& bitgen) {
+absl::Status TestTuples(absl::BitGenRef bitgen) {
   Package package("my_package");
   TupleType* tuple_type = TupleT::GetFullType(&package);
 

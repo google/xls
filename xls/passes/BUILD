@@ -1802,6 +1802,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":bdd_function",
+        "@com_google_absl//absl/random:bit_gen_ref",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

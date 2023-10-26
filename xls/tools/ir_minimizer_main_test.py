@@ -135,8 +135,8 @@ top fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         ir_file.full_path
     ])
-    self.assertIn('ret tuple.7: (bits[32]) = tuple(x, id=7)',
-                  minimized_ir.decode('utf-8'))
+    self.assertRegex(minimized_ir.decode('utf-8'),
+                     r'ret tuple\.\d+: \(bits\[32\]\) = tuple\(x, id=\d+\)')
 
   def test_simplify_array(self):
     input_ir = """package foo
@@ -387,7 +387,7 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
     ir_file = self.create_tempfile(content=ADD_IR)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, ['/usr/bin/env grep add $1'])
-    # Minimizing with small simplifcations_between_tests should work.
+    # Minimizing with small simplifications_between_tests should work.
     minimized_ir = subprocess.check_output(
         [
             IR_MINIMIZER_MAIN_PATH,

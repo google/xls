@@ -137,7 +137,7 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
       for (int64_t i = 0; i < kSampleCount; ++i) {
         XLS_ASSERT_OK_AND_ASSIGN(
             std::vector<Value> inputs,
-            GenerateFunctionArguments(entry, &engine, benchmark));
+            GenerateFunctionArguments(entry, engine, benchmark));
 
         XLS_ASSERT_OK_AND_ASSIGN(
             Value expected,
