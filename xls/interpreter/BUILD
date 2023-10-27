@@ -31,11 +31,14 @@ cc_library(
         "ir_interpreter.h",
     ],
     deps = [
+        ":block_evaluator",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/codegen:module_signature_cc_proto",
         "//xls/common/logging",
@@ -47,6 +50,33 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:events",
         "//xls/ir:keyword_args",
+        "//xls/ir:register",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+    ],
+)
+
+cc_library(
+    name = "block_evaluator",
+    srcs = ["block_evaluator.cc"],
+    hdrs = ["block_evaluator.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/codegen:module_signature_cc_proto",
+        "//xls/common/logging",
+        "//xls/common/logging:vlog_is_on",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:events",
+        "//xls/ir:register",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
     ],
@@ -119,13 +149,17 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "block_interpreter_test",
-    srcs = ["block_interpreter_test.cc"],
+cc_library(
+    name = "block_evaluator_test_base",
+    testonly = True,
+    srcs = ["block_evaluator_test_base.cc"],
+    hdrs = ["block_evaluator_test_base.h"],
     deps = [
-        ":ir_interpreter",
+        ":block_evaluator",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
         "//xls/codegen:module_signature_cc_proto",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -133,7 +167,22 @@ cc_test(
         "//xls/ir:format_preference",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:register",
         "//xls/ir:value",
+        "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "block_interpreter_test",
+    srcs = ["block_interpreter_test.cc"],
+    deps = [
+        ":block_evaluator_test_base",
+        ":ir_interpreter",
+        "//xls/codegen:module_signature_cc_proto",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
     ],
 )
 

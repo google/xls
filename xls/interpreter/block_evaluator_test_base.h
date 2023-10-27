@@ -1,4 +1,4 @@
-// Copyright 2021 The XLS Authors
+// Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/interpreter/block_interpreter.h"
-
-#include <string>
+#ifndef XLS_INTERPRETER_BLOCK_EVALUATOR_TEST_BASE_H_
+#define XLS_INTERPRETER_BLOCK_EVALUATOR_TEST_BASE_H_
 
 #include "gtest/gtest.h"
-#include "xls/codegen/module_signature.pb.h"
-#include "xls/interpreter/block_evaluator_test_base.h"
+#include "xls/interpreter/block_evaluator.h"
+#include "xls/ir/ir_test_base.h"
 
 namespace xls {
-namespace {
 
-INSTANTIATE_TEST_SUITE_P(BlockInterpreterTest, BlockEvaluatorTest,
-                         testing::Values(&kInterpreterBlockEvaluator),
-                         [](const auto& v) -> std::string {
-                           return std::string(v.param->name());
-                         });
-
-}  // namespace
+class BlockEvaluatorTest
+    : public IrTestBase,
+      public testing::WithParamInterface<const BlockEvaluator*> {
+ public:
+  const BlockEvaluator& evaluator() { return *GetParam(); }
+};
 }  // namespace xls
+
+#endif  // XLS_INTERPRETER_BLOCK_EVALUATOR_TEST_BASE_H_
