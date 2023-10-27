@@ -287,6 +287,7 @@ absl::StatusOr<Sample> GenerateSampleAndRun(
       if (minimized_path.has_value()) {
         XLS_LOG(INFO) << "...minimization successful; output at "
                       << *minimized_path;
+        std::filesystem::copy(*minimized_path, sample_crasher_dir);
       } else {
         XLS_LOG(INFO) << "...minimization failed.";
       }
