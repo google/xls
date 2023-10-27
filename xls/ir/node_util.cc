@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -24,18 +25,23 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
@@ -369,5 +375,19 @@ bool IsBinarySelect(Node* node) {
   return sel->cases().size() == 2 && !sel->default_value().has_value();
 }
 
+absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
+    Package* package) {
+  absl::flat_hash_map<Channel*, std::vector<Node*>> channel_users;
+  for (std::unique_ptr<Proc>& proc : package->procs()) {
+    for (Node* node : proc->nodes()) {
+      if (!IsChannelNode(node)) {
+          continue;
+      }
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      channel_users[channel].push_back(node);
+    }
+  }
+  return channel_users;
+}
 
 }  // namespace xls

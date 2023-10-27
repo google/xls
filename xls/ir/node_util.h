@@ -18,9 +18,11 @@
 #define XLS_IR_NODE_UTIL_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -29,7 +31,9 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
@@ -272,6 +276,9 @@ inline absl::StatusOr<Op> ReverseComparisonOp(Op op) {
           absl::StrFormat("%v is not a comparison operation", op));
   }
 }
+
+absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
+    Package* package);
 
 }  // namespace xls
 

@@ -14,6 +14,7 @@
 
 #include "xls/ir/node_util.h"
 
+#include <cstdint>
 #include <memory>
 #include <ostream>
 #include <string_view>
@@ -21,6 +22,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/golden_files.h"
@@ -28,12 +31,15 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -44,7 +50,9 @@ using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::Key;
 using ::testing::Not;
+using ::testing::UnorderedElementsAre;
 
 class Result {
  public:
@@ -376,6 +384,47 @@ TEST_F(NodeUtilTest, NaryNorWithMultipleInputs) {
                                 a4.node(), a1.node(), a3.node(), a1.node()}),
       IsOkAndHolds(m::Nor(m::Param("a0"), m::Param("a1"), m::Param("a2"),
                           m::Param("a3"), m::Param("a4"))));
+}
+
+TEST_F(NodeUtilTest, ChannelUsers) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly,
+                                              p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
+                                              p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch2, p.CreateStreamingChannel("ch2", ChannelOps::kSendReceive,
+                                              p.GetBitsType(32)));
+  TokenlessProcBuilder pb(TestName(), "tok", &p);
+  BValue recv0 = pb.Receive(ch0);
+  BValue recv2 = pb.Receive(ch2);
+  BValue sum = pb.Add(recv0, recv2);
+  BValue send1_0 = pb.Send(ch1, sum);
+  BValue send1_1 = pb.Send(ch1, sum);
+  BValue send2 = pb.Send(ch2, sum);
+
+  XLS_ASSERT_OK(pb.Build({}));
+
+  absl::flat_hash_map<Channel*, std::vector<Node*>> channel_users;
+  XLS_ASSERT_OK_AND_ASSIGN(channel_users, ChannelUsers(&p));
+
+  EXPECT_THAT(channel_users,
+              UnorderedElementsAre(Key(ch0), Key(ch1), Key(ch2)));
+
+  // TokenlessProcBuilder returns the tuple_index() of the receive, so go
+  // backwards to get the original receive node.
+  ASSERT_TRUE(recv0.node()->op() == Op::kTupleIndex);
+  Node* recv0_node = recv0.node()->As<TupleIndex>()->operand(0);
+  ASSERT_TRUE(recv2.node()->op() == Op::kTupleIndex);
+  Node* recv2_node = recv2.node()->As<TupleIndex>()->operand(0);
+
+  EXPECT_THAT(channel_users[ch0], UnorderedElementsAre(recv0_node));
+  EXPECT_THAT(channel_users[ch1],
+              UnorderedElementsAre(send1_0.node(), send1_1.node()));
+  EXPECT_THAT(channel_users[ch2],
+              UnorderedElementsAre(send2.node(), recv2_node));
 }
 
 }  // namespace
