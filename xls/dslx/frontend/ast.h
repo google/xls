@@ -631,13 +631,18 @@ class Expr : public AstNode {
   // Precedence::kStrongest.
   //
   // To get the precedence of this operator directly (regardless of
-  // parenthesization) call GetPrecedenceInternal().
+  // parenthesization) call GetPrecedenceWithoutParens().
   Precedence GetPrecedence() const {
     if (in_parens()) {
       return Precedence::kStrongest;
     }
-    return GetPrecedenceInternal();
+    return GetPrecedenceWithoutParens();
   }
+
+  // Returns the precedence of this Expr node without considering whether it is
+  // wrapped in parentheses. This is useful e.g. when determining whether
+  // operands of the operator require parenthesization, see also WeakerThan().
+  virtual Precedence GetPrecedenceWithoutParens() const = 0;
 
   // Note: this is one of the rare instances where we're ok with updating the
   // AST node after it has been formed just to note that it is enclosed in
@@ -649,11 +654,6 @@ class Expr : public AstNode {
   void set_in_parens(bool enabled) { in_parens_ = enabled; }
 
  protected:
-  // Returns the precedence of this Expr node without considering whether it is
-  // wrapped in parentheses. This is useful e.g. when determining whether
-  // operands of the operator require parenthesization, see also WeakerThan().
-  virtual Precedence GetPrecedenceInternal() const = 0;
-
   virtual std::string ToStringInternal() const = 0;
 
  private:
@@ -804,7 +804,7 @@ class Block : public Expr {
   int64_t size() const { return statements_.size(); }
 
  private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
@@ -872,11 +872,11 @@ class NameRef : public Expr {
     return std::holds_alternative<BuiltinNameDef*>(name_def_);
   }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final { return identifier_; }
 
   AnyNameDef name_def_;
@@ -947,11 +947,11 @@ class Number : public Expr {
 
   NumberKind number_kind() const { return number_kind_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   std::string text_;  // Will never be empty.
@@ -984,11 +984,11 @@ class String : public Expr {
 
   const std::string& text() const { return text_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final {
     // We need to re-insert the escape slash for: the blackslahes and the double
     // quotes.
@@ -1073,11 +1073,11 @@ class Array : public Expr {
 
   bool has_ellipsis() const { return has_ellipsis_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const override;
 
   TypeAnnotation* type_annotation_ = nullptr;
@@ -1236,9 +1236,11 @@ class ColonRef : public Expr {
   // nullptr).
   std::optional<Import*> ResolveImportSubject() const;
 
- private:
-  Precedence GetPrecedenceInternal() const final { return Precedence::kPaths; }
+  Precedence GetPrecedenceWithoutParens() const final {
+    return Precedence::kPaths;
+  }
 
+ private:
   std::string ToStringInternal() const override {
     return absl::StrFormat("%s::%s", ToAstNode(subject_)->ToString(), attr_);
   }
@@ -1318,11 +1320,11 @@ class Unop : public Expr {
   UnopKind unop_kind() const { return unop_kind_; }
   Expr* operand() const { return operand_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kUnaryOp;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   UnopKind unop_kind_;
@@ -1408,9 +1410,9 @@ class Binop : public Expr {
   Expr* lhs() const { return lhs_; }
   Expr* rhs() const { return rhs_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final;
+  Precedence GetPrecedenceWithoutParens() const final;
 
+ private:
   std::string ToStringInternal() const final;
 
   BinopKind binop_kind_;
@@ -1468,11 +1470,11 @@ class Conditional : public Expr {
   // conditional have multiple statements.
   bool HasMultiStatementBlocks() const;
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   Expr* test_;
@@ -1791,11 +1793,11 @@ class Match : public Expr {
   const std::vector<MatchArm*>& arms() const { return arms_; }
   Expr* matched() const { return matched_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   Expr* matched_;
@@ -1833,11 +1835,11 @@ class Attr : public Expr {
 
   std::string_view attr() const { return attr_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kFieldExpression;
   }
 
+ private:
   std::string ToStringInternal() const final {
     return absl::StrFormat("%s.%s", lhs_->ToString(), attr_);
   }
@@ -1901,11 +1903,11 @@ class Invocation : public Instantiation {
 
   absl::Span<Expr* const> args() const { return args_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kFunctionCallOrArrayIndex;
   }
 
+ private:
   std::string ToStringInternal() const final {
     return absl::StrFormat("%s%s(%s)", callee()->ToString(),
                            FormatParametrics(), FormatArgs());
@@ -1942,11 +1944,11 @@ class Spawn : public Instantiation {
   Invocation* next() const { return next_; }
   bool IsParametric() { return !explicit_parametrics().empty(); }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const override;
 
   Invocation* config_;
@@ -2012,11 +2014,11 @@ class FormatMacro : public Expr {
   absl::Span<Expr* const> args() const { return args_; }
   absl::Span<const FormatStep> format() const { return format_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   std::string macro_;
@@ -2051,11 +2053,11 @@ class ZeroMacro : public Expr {
 
   ExprOrType type() const { return type_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   ExprOrType type_;
@@ -2278,11 +2280,11 @@ class StructInstance : public Expr {
   // An AST node that refers to the struct being instantiated.
   TypeAnnotation* struct_ref() const { return struct_ref_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   TypeAnnotation* struct_ref_;
@@ -2324,11 +2326,11 @@ class SplatStructInstance : public Expr {
     return members_;
   }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   // The struct being instantiated.
@@ -2413,11 +2415,11 @@ class Index : public Expr {
   Expr* lhs() const { return lhs_; }
   IndexRhs rhs() const { return rhs_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kFunctionCallOrArrayIndex;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   // Expression that yields the value being indexed into; e.g. `a` in `a[10]`.
@@ -2450,9 +2452,11 @@ class Range : public Expr {
   Expr* start() const { return start_; }
   Expr* end() const { return end_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final { return Precedence::kRange; }
+  Precedence GetPrecedenceWithoutParens() const final {
+    return Precedence::kRange;
+  }
 
+ private:
   std::string ToStringInternal() const final;
 
   Expr* start_;
@@ -2587,11 +2591,11 @@ class TupleIndex : public Expr {
   Expr* lhs() const { return lhs_; }
   Number* index() const { return index_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kFieldExpression;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   Expr* lhs_;
@@ -2629,11 +2633,11 @@ class XlsTuple : public Expr {
     return ToAstNodes<Expr>(members_);
   }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   std::vector<Expr*> members_;
@@ -2678,11 +2682,11 @@ class For : public Expr {
   // Initial expression for the loop (start values expr).
   Expr* init() const { return init_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   NameDefTree* names_;
@@ -2716,11 +2720,11 @@ class UnrollFor : public Expr {
   Block* body() const { return body_; }
   Expr* init() const { return init_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   NameDefTree* names_;
@@ -2768,9 +2772,11 @@ class Cast : public Expr {
   Expr* expr() const { return expr_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final { return Precedence::kAs; }
+  Precedence GetPrecedenceWithoutParens() const final {
+    return Precedence::kAs;
+  }
 
+ private:
   std::string ToStringInternal() const final;
 
   Expr* expr_;
@@ -3059,11 +3065,11 @@ class ChannelDecl : public Expr {
   const std::optional<std::vector<Expr*>>& dims() const { return dims_; }
   std::optional<Expr*> fifo_depth() const { return fifo_depth_; }
 
- private:
-  Precedence GetPrecedenceInternal() const final {
+  Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+ private:
   std::string ToStringInternal() const final;
 
   TypeAnnotation* type_;

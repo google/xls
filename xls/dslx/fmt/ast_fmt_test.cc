@@ -1434,5 +1434,20 @@ pub fn f() -> F32 { F32 { blah: u32:42 } }
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, AttrEquality) {
+  const std::string_view kProgram =
+      R"(import m
+
+const SOME_BOOL = true;
+
+fn f(x: m::MyStruct, y: m::MyStruct) -> bool { (x.foo == y.foo) || SOME_BOOL }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

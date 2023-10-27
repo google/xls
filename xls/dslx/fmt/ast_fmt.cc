@@ -29,7 +29,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -378,7 +377,7 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
-  Precedence op_precedence = n.GetPrecedence();
+  Precedence op_precedence = n.GetPrecedenceWithoutParens();
   const Expr& lhs = *n.lhs();
   Precedence lhs_precedence = lhs.GetPrecedence();
   std::vector<DocRef> pieces;
@@ -395,7 +394,7 @@ DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
-  Precedence op_precedence = n.GetPrecedence();
+  Precedence op_precedence = n.GetPrecedenceWithoutParens();
   const Expr& lhs = *n.lhs();
   const Expr& rhs = *n.rhs();
   Precedence lhs_precedence = lhs.GetPrecedence();

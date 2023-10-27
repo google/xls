@@ -1286,7 +1286,7 @@ Index::~Index() = default;
 
 std::string Index::ToStringInternal() const {
   std::string lhs = lhs_->ToString();
-  if (WeakerThan(lhs_->GetPrecedence(), GetPrecedenceInternal())) {
+  if (WeakerThan(lhs_->GetPrecedence(), GetPrecedenceWithoutParens())) {
     Parenthesize(&lhs);
   }
   return absl::StrFormat("%s[%s]", lhs, ToAstNode(rhs_)->ToString());
@@ -1645,7 +1645,7 @@ Unop::~Unop() = default;
 
 std::string Unop::ToStringInternal() const {
   std::string operand = operand_->ToString();
-  if (WeakerThan(operand_->GetPrecedence(), GetPrecedenceInternal())) {
+  if (WeakerThan(operand_->GetPrecedence(), GetPrecedenceWithoutParens())) {
     Parenthesize(&operand);
   }
   return absl::StrFormat("%s%s", UnopKindToString(unop_kind_), operand);
@@ -1665,7 +1665,7 @@ std::string UnopKindToString(UnopKind k) {
 
 Binop::~Binop() = default;
 
-Precedence Binop::GetPrecedenceInternal() const {
+Precedence Binop::GetPrecedenceWithoutParens() const {
   switch (binop_kind_) {
     case BinopKind::kShl:
       return Precedence::kShift;
@@ -1724,7 +1724,7 @@ Binop::Binop(Module* owner, Span span, BinopKind binop_kind, Expr* lhs,
       rhs_(rhs) {}
 
 std::string Binop::ToStringInternal() const {
-  Precedence op_precedence = GetPrecedenceInternal();
+  Precedence op_precedence = GetPrecedenceWithoutParens();
   std::string lhs = lhs_->ToString();
   {
     Precedence lhs_precedence = lhs_->GetPrecedence();
