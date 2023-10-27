@@ -609,11 +609,22 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
             last_entity_pos, next_line, comments, arena, &last_comment_span)) {
       XLS_VLOG(3) << "Saw after-statement comment: "
-                  << arena.ToDebugString(comments_doc.value());
+                  << arena.ToDebugString(comments_doc.value())
+                  << " last_comment_span: " << last_comment_span.value();
       nested.push_back(arena.space());
       nested.push_back(arena.space());
       nested.push_back(arena.MakeAlign(comments_doc.value()));
-      last_entity_pos = last_comment_span->limit();
+
+      // For inline comments we say that the last entity's limit was at the end
+      // of the line. Technically the limit() pos gives you the start of the
+      // next line, but for purposes of line spacing we want it to reflect the
+      // very end of the current line.
+      last_entity_pos =
+          Pos(last_comment_span->start().filename(),
+              last_comment_span->start().lineno(),
+              last_comment_span->start().colno() +
+                  std::get<int64_t>(
+                      arena.Deref(comments_doc.value()).flat_requirement));
     }
 
     if (!last_stmt) {

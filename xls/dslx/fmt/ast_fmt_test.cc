@@ -612,6 +612,18 @@ TEST_F(FunctionFmtTest, LetWithInlineCommentThatDoesNotFit) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, LetWithInlineCommentAndStatementOnSubsequentLine) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    let a = u32:42;  // May be the meaning of life.
+
+    let b = a + a;
+    b
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
