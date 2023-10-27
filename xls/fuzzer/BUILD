@@ -351,21 +351,18 @@ generate_crasher_regression_tests(
         "crashers/crasher_2022-10-19_a3a3.x",
         # TODO(https://github.com/google/xls/issues/746): Remove when fixed.
         "crashers/crasher_2022-10-19_5531.x",
-        # TODO(https://github.com/google/xls/issues/929): Remove when fixed.
-        "crashers/crasher_2023-04-09_1f76.x",
-        # TODO(https://github.com/google/xls/issues/1055): Remove when fixed.
-        "crashers/crasher_2023-07-06_feae.x",
         # TODO(https://github.com/google/xls/issues/1140): Remove when fixed.
         "crashers/crasher_2023-10-01_eb60.x",
         # TODO(https://github.com/google/xls/issues/1141): Remove when fixed.
         "crashers/crasher_2023-10-02_7c14.x",
-        # TODO(https://github.com/google/xls/issues/1148): Remove when fixed.
-        "crashers/crasher_2023-10-08_e7fc.x",
     ],
     prefix = package_name(),
     tags = {
         # Tests which timeout unless run in opt mode.
         "crashers/crasher_2021-03-27_2259.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2023-07-06_feae.x": [
             "optonly",
         ],
 
@@ -395,6 +392,9 @@ generate_crasher_regression_tests(
             "optonly",
         ],
         "crashers/crasher_2023-07-02_c303.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2023-04-09_1f76.x": [
             "optonly",
         ],
     },
