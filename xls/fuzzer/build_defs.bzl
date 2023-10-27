@@ -61,6 +61,12 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, tags =
         )
 
     native.test_suite(
+        name = "failing_{}".format(name),
+        tags = ["broken", "manual"],
+        tests = [":run_crasher_test_{}".format(_to_suffix(f)) for f in failing],
+    )
+
+    native.test_suite(
         name = name,
         tests = names,
         tags = ["manual"],
