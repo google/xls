@@ -24,6 +24,9 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/parser.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -249,6 +252,36 @@ struct TheStruct {
   EXPECT_FALSE(get_type_metadata("l").has_value());
   EXPECT_FALSE(get_type_metadata("m").has_value());
   EXPECT_FALSE(get_type_metadata("n").has_value());
+}
+
+// Tests that the ResolveLocalStructDef can see through transitive aliases.
+TEST(ResolveLocalStructDef, StructDefInTransitiveAlias) {
+  const std::string kProgram = R"(struct S {
+}
+
+type MyS1 = S;
+type MyS2 = MyS1;
+)";
+  Scanner scanner("test.x", kProgram);
+  Parser parser("test", &scanner);
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+
+  std::optional<ModuleMember*> maybe_my_s = module->FindMemberWithName("MyS2");
+  ASSERT_TRUE(maybe_my_s.has_value());
+  auto* type_alias = std::get<TypeAlias*>(*maybe_my_s.value());
+  auto* aliased = type_alias->type_annotation();
+  auto* type_ref_type_annotation =
+      dynamic_cast<TypeRefTypeAnnotation*>(aliased);
+  ASSERT_NE(type_ref_type_annotation, nullptr);
+  TypeDefinition td = type_ref_type_annotation->type_ref()->type_definition();
+
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * resolved, ResolveLocalStructDef(td));
+
+  std::optional<ModuleMember*> maybe_s = module->FindMemberWithName("S");
+  ASSERT_TRUE(maybe_s.has_value());
+  auto* s = std::get<StructDef*>(*maybe_s.value());
+  EXPECT_EQ(s, resolved);
 }
 
 }  // namespace

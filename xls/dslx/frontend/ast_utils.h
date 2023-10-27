@@ -55,6 +55,14 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
 // The target proc must have been typechecked prior to this call.
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 
+// Resolves the given TypeDefinition to a struct definition node local to the
+// module.
+//
+// If the definition is ultimately not a struct definition (e.g. after
+// traversing aliases) or is a colon-ref implying a definition outside of the
+// current module, returns a status error.
+absl::StatusOr<StructDef*> ResolveLocalStructDef(TypeDefinition td);
+
 // Returns the basis of the given ColonRef.
 //
 // In valid cases this will generally be:

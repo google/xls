@@ -265,8 +265,12 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
               members.push_back(
                   std::make_pair(member_name->identifier(), member_value));
             }
-            return module->Make<dslx::StructInstance>(fake_span, struct_def,
-                                                      members);
+            auto* type_ref = module->Make<dslx::TypeRef>(fake_span, struct_def);
+            auto* type_ref_type_annotation =
+                module->Make<dslx::TypeRefTypeAnnotation>(
+                    fake_span, type_ref, std::vector<dslx::ExprOrType>{});
+            return module->Make<dslx::StructInstance>(
+                fake_span, type_ref_type_annotation, members);
           },
           [&](dslx::EnumDef* enum_def) -> absl::StatusOr<Expr*> {
             const std::vector<dslx::EnumMember>& values = enum_def->values();

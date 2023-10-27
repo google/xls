@@ -160,6 +160,45 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
       colon_ref->attr());
 }
 
+static absl::StatusOr<StructDef*> ResolveLocalStructDef(
+    TypeAnnotation* type_annotation, const TypeDefinition& td) {
+  auto error = [&](const AstNode* latest) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Could not resolve local struct definition from %s -- "
+                        "%s was not a struct definition",
+                        ToAstNode(td)->ToString(), latest->ToString()));
+  };
+
+  TypeRefTypeAnnotation* type_ref_type_annotation =
+      dynamic_cast<TypeRefTypeAnnotation*>(type_annotation);
+  if (type_ref_type_annotation == nullptr) {
+    return error(type_annotation);
+  }
+
+  return ResolveLocalStructDef(
+      type_ref_type_annotation->type_ref()->type_definition());
+}
+
+absl::StatusOr<StructDef*> ResolveLocalStructDef(TypeDefinition td) {
+  auto error = [&](const AstNode* latest) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Could not resolve local struct definition from %s -- "
+                        "%s was not a struct definition",
+                        ToAstNode(td)->ToString(), latest->ToString()));
+  };
+
+  return absl::visit(
+      Visitor{
+          [&](TypeAlias* n) -> absl::StatusOr<StructDef*> {
+            return ResolveLocalStructDef(n->type_annotation(), td);
+          },
+          [&](StructDef* n) -> absl::StatusOr<StructDef*> { return n; },
+          [&](EnumDef* n) -> absl::StatusOr<StructDef*> { return error(n); },
+          [&](ColonRef* n) -> absl::StatusOr<StructDef*> { return error(n); },
+      },
+      td);
+}
+
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
     return name_ref->owner()->GetMemberOrError<Proc>(name_ref->identifier());

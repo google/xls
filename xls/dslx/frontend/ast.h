@@ -1122,7 +1122,7 @@ AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td);
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 
-// Represents an AST construct that refers to a defined type.
+// AST construct that refers to a defined type.
 //
 // Attrs:
 //  type_definition: The resolved type if it can be resolved locally, or a
@@ -2234,23 +2234,12 @@ class StructDef : public AstNode {
   bool public_;
 };
 
-// Variant that either points at a struct definition or a module reference
-// (which should be backed by a struct definition -- that property will be
-// checked by the typechecker).
-using StructRef = std::variant<StructDef*, ColonRef*>;
-
-std::string StructRefToText(const StructRef& struct_ref);
-
-inline TypeDefinition ToTypeDefinition(const StructRef& struct_ref) {
-  return ToTypeDefinition(ToAstNode(struct_ref)).value();
-}
-
 // Represents instantiation of a struct via member expressions.
 //
 // TODO(leary): 2020-09-08 Break out a StructMember type in lieu of the pair.
 class StructInstance : public Expr {
  public:
-  StructInstance(Module* owner, Span span, StructRef struct_ref,
+  StructInstance(Module* owner, Span span, TypeAnnotation* struct_ref,
                  std::vector<std::pair<std::string, Expr*>> members);
 
   ~StructInstance() override;
@@ -2287,7 +2276,7 @@ class StructInstance : public Expr {
   absl::StatusOr<Expr*> GetExpr(std::string_view name) const;
 
   // An AST node that refers to the struct being instantiated.
-  StructRef struct_def() const { return struct_ref_; }
+  TypeAnnotation* struct_ref() const { return struct_ref_; }
 
  private:
   Precedence GetPrecedenceInternal() const final {
@@ -2296,7 +2285,7 @@ class StructInstance : public Expr {
 
   std::string ToStringInternal() const final;
 
-  StructRef struct_ref_;
+  TypeAnnotation* struct_ref_;
   std::vector<std::pair<std::string, Expr*>> members_;
 };
 
@@ -2305,7 +2294,7 @@ class StructInstance : public Expr {
 //    Point { y: new_y, ..orig_p }
 class SplatStructInstance : public Expr {
  public:
-  SplatStructInstance(Module* owner, Span span, StructRef struct_ref,
+  SplatStructInstance(Module* owner, Span span, TypeAnnotation* struct_ref,
                       std::vector<std::pair<std::string, Expr*>> members,
                       Expr* splatted);
 
@@ -2330,7 +2319,7 @@ class SplatStructInstance : public Expr {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   Expr* splatted() const { return splatted_; }
-  StructRef struct_ref() const { return struct_ref_; }
+  TypeAnnotation* struct_ref() const { return struct_ref_; }
   const std::vector<std::pair<std::string, Expr*>>& members() const {
     return members_;
   }
@@ -2343,7 +2332,7 @@ class SplatStructInstance : public Expr {
   std::string ToStringInternal() const final;
 
   // The struct being instantiated.
-  StructRef struct_ref_;
+  TypeAnnotation* struct_ref_;
 
   // Sequence of members being changed from the splatted original; e.g. in the
   // above example this is [('y', new_y)].

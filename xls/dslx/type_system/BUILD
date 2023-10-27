@@ -114,6 +114,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:token_utils",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",

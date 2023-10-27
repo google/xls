@@ -15,6 +15,7 @@
 #include "xls/tools/proto_to_dslx.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <memory>
@@ -26,6 +27,10 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
 #include "google/protobuf/compiler/importer.h"
 #include "google/protobuf/descriptor.h"
@@ -38,6 +43,8 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls {
 namespace internal {
@@ -66,7 +73,9 @@ struct MessageRecord {
       descriptor;
 
   // The typedef associated with this message, if it describes a struct.
-  dslx::TypeDefinition dslx_typedef;
+  dslx::TypeAnnotation* dslx_type = nullptr;
+  dslx::EnumDef* enum_def = nullptr;
+  dslx::StructDef* struct_def = nullptr;
 };
 
 }  // namespace internal
@@ -290,15 +299,16 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
   if (dslx::TypeRefTypeAnnotation* typeref_type =
           dynamic_cast<dslx::TypeRefTypeAnnotation*>(type_annot)) {
     // TODO(rspringer): Could be enumdef or structdef!
-    dslx::StructDef* struct_def =
-        std::get<dslx::StructDef*>(typeref_type->type_ref()->type_definition());
+    XLS_ASSIGN_OR_RETURN(
+        dslx::StructDef * struct_def,
+        ResolveLocalStructDef(typeref_type->type_ref()->type_definition()));
     std::vector<std::pair<std::string, dslx::Expr*>> members;
     for (const auto& child : struct_def->members()) {
       XLS_ASSIGN_OR_RETURN(dslx::Expr * expr,
                            MakeZeroValuedElement(module, child.second));
       members.push_back({child.first->identifier(), expr});
     }
-    return module->Make<dslx::StructInstance>(span, struct_def, members);
+    return module->Make<dslx::StructInstance>(span, typeref_type, members);
   }
   if (dslx::ArrayTypeAnnotation* array_type =
           dynamic_cast<dslx::ArrayTypeAnnotation*>(type_annot)) {
@@ -496,7 +506,13 @@ absl::Status EmitEnumDef(dslx::Module* module, MessageRecord* message_record) {
   name_def->set_definer(enum_def);
   XLS_RETURN_IF_ERROR(
       module->AddTop(enum_def, /*make_collision_error=*/nullptr));
-  message_record->dslx_typedef = enum_def;
+
+  // Make a type annotation by which we can refer to this type.
+  auto* type_ref = module->Make<dslx::TypeRef>(span, enum_def);
+  message_record->dslx_type = module->Make<dslx::TypeRefTypeAnnotation>(
+      span, type_ref, /*parametrics=*/std::vector<dslx::ExprOrType>{});
+  message_record->enum_def = enum_def;
+
   return absl::OkStatus();
 }
 
@@ -522,10 +538,7 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
     if (std::holds_alternative<std::string>(element.type)) {
       // Message/struct or enum.
       std::string type_name = std::get<std::string>(element.type);
-      auto* type_ref = module->Make<dslx::TypeRef>(
-          span, name_to_record->at(type_name)->dslx_typedef);
-      type_annot = module->Make<dslx::TypeRefTypeAnnotation>(
-          span, type_ref, std::vector<dslx::ExprOrType>{});
+      type_annot = name_to_record->at(type_name)->dslx_type;
     } else {
       // Anything else that's supported, i.e., a number.
       FieldDescriptor::Type field_type =
@@ -581,7 +594,13 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
   name_def->set_definer(struct_def);
   XLS_RETURN_IF_ERROR(
       module->AddTop(struct_def, /*make_collision_error=*/nullptr));
-  message_record->dslx_typedef = struct_def;
+
+  auto* type_ref = module->Make<dslx::TypeRef>(span, struct_def);
+  auto* type_ref_type_annotation = module->Make<dslx::TypeRefTypeAnnotation>(
+      span, type_ref, /*parametrics=*/std::vector<dslx::ExprOrType>{});
+  message_record->dslx_type = type_ref_type_annotation;
+  message_record->struct_def = struct_def;
+
   return absl::OkStatus();
 }
 
@@ -725,10 +744,7 @@ absl::Status EmitStructData(
 
     std::string type_name =
         GetParentPrefixedName(top_package, fd->message_type());
-    auto* type_ref = module->Make<dslx::TypeRef>(
-        span, name_to_record.at(type_name)->dslx_typedef);
-    auto* typeref_type = module->Make<dslx::TypeRefTypeAnnotation>(
-        span, type_ref, std::vector<dslx::ExprOrType>{});
+    auto* typeref_type = name_to_record.at(type_name)->dslx_type;
     return EmitArray(
         module, message, fd, reflection, message_record, &array_elements,
         [module, typeref_type]() {
@@ -757,7 +773,7 @@ absl::Status EmitEnumData(
   const EnumDescriptor* ed = fd->enum_type();
 
   if (fd->is_repeated()) {
-    int total_submsgs = message_record.children.at(fd->name()).count;
+    int64_t total_submsgs = message_record.children.at(fd->name()).count;
     int num_submsgs = reflection->FieldSize(message, fd);
     if (total_submsgs == 0) {
       return absl::OkStatus();
@@ -768,10 +784,7 @@ absl::Status EmitEnumData(
       const google::protobuf::EnumValueDescriptor* evd =
           reflection->GetRepeatedEnum(message, fd, submsg_idx);
       std::string type_name = GetParentPrefixedName(top_package, evd->type());
-      auto* enum_def =
-          std::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
-      // auto* enum_def =
-      // std::get<dslx::EnumDef*>(message_record.dslx_typedef);
+      auto* enum_def = name_to_record.at(type_name)->enum_def;
       auto* name_ref =
           module->Make<dslx::NameRef>(span, type_name, enum_def->name_def());
       array_elements.push_back(
@@ -779,8 +792,7 @@ absl::Status EmitEnumData(
     }
 
     std::string type_name = GetParentPrefixedName(top_package, ed);
-    auto* enum_def =
-        std::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
+    auto* enum_def = name_to_record.at(type_name)->enum_def;
     auto* name_ref =
         module->Make<dslx::NameRef>(span, type_name, enum_def->name_def());
     return EmitArray(
@@ -795,8 +807,7 @@ absl::Status EmitEnumData(
 
   const google::protobuf::EnumValueDescriptor* evd = reflection->GetEnum(message, fd);
   std::string type_name = GetParentPrefixedName(top_package, evd->type());
-  auto* enum_def =
-      std::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
+  auto* enum_def = name_to_record.at(type_name)->enum_def;
   auto* name_ref =
       module->Make<dslx::NameRef>(span, type_name, enum_def->name_def());
   auto* colon_ref = module->Make<dslx::ColonRef>(span, name_ref, evd->name());
@@ -883,8 +894,7 @@ absl::StatusOr<dslx::Expr*> EmitData(const std::string& top_package,
   const MessageRecord& message_record = *name_to_record.at(type_name);
 
   dslx::Span span(dslx::Pos{}, dslx::Pos{});
-  dslx::TypeDefinition struct_def =
-      std::get<dslx::StructDef*>(message_record.dslx_typedef);
+  dslx::TypeAnnotation* struct_def = message_record.dslx_type;
   std::vector<std::pair<std::string, dslx::Expr*>> elements;
   for (int field_idx = 0; field_idx < descriptor->field_count(); field_idx++) {
     const FieldDescriptor* fd = descriptor->field(field_idx);
@@ -912,15 +922,7 @@ absl::StatusOr<dslx::Expr*> EmitData(const std::string& top_package,
     }
   }
 
-  XLS_RET_CHECK(std::holds_alternative<dslx::StructDef*>(struct_def) ||
-                std::holds_alternative<dslx::ColonRef*>(struct_def));
-  if (std::holds_alternative<dslx::StructDef*>(struct_def)) {
-    return module->Make<dslx::StructInstance>(
-        span, std::get<dslx::StructDef*>(struct_def), elements);
-  }
-
-  return module->Make<dslx::StructInstance>(
-      span, std::get<dslx::ColonRef*>(struct_def), elements);
+  return module->Make<dslx::StructInstance>(span, struct_def, elements);
 }
 
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(

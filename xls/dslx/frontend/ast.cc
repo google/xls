@@ -38,6 +38,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/indent.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -620,12 +621,7 @@ std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
 }
 
 std::string StructInstance::ToStringInternal() const {
-  std::string type_name;
-  if (std::holds_alternative<StructDef*>(struct_ref_)) {
-    type_name = std::get<StructDef*>(struct_ref_)->identifier();
-  } else {
-    type_name = ToAstNode(struct_ref_)->ToString();
-  }
+  std::string type_name = ToAstNode(struct_ref_)->ToString();
 
   std::string members_str = absl::StrJoin(
       members_, ", ",
@@ -1240,12 +1236,7 @@ std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
 }
 
 std::string SplatStructInstance::ToStringInternal() const {
-  std::string type_name;
-  if (std::holds_alternative<StructDef*>(struct_ref_)) {
-    type_name = std::get<StructDef*>(struct_ref_)->identifier();
-  } else {
-    type_name = ToAstNode(struct_ref_)->ToString();
-  }
+  std::string type_name = ToAstNode(struct_ref_)->ToString();
 
   std::string members_str = absl::StrJoin(
       members_, ", ",
@@ -1609,7 +1600,7 @@ std::vector<std::string> StructDef::GetMemberNames() const {
 // -- class StructInstance
 
 StructInstance::StructInstance(
-    Module* owner, Span span, StructRef struct_ref,
+    Module* owner, Span span, TypeAnnotation* struct_ref,
     std::vector<std::pair<std::string, Expr*>> members)
     : Expr(owner, std::move(span)),
       struct_ref_(struct_ref),
@@ -1639,7 +1630,7 @@ absl::StatusOr<Expr*> StructInstance::GetExpr(std::string_view name) const {
 // -- class SplatStructInstance
 
 SplatStructInstance::SplatStructInstance(
-    Module* owner, Span span, StructRef struct_ref,
+    Module* owner, Span span, TypeAnnotation* struct_ref,
     std::vector<std::pair<std::string, Expr*>> members, Expr* splatted)
     : Expr(owner, std::move(span)),
       struct_ref_(struct_ref),
@@ -2262,17 +2253,6 @@ std::string XlsTuple::ToStringInternal() const {
   }
   absl::StrAppend(&result, ")");
   return result;
-}
-
-std::string StructRefToText(const StructRef& struct_ref) {
-  if (std::holds_alternative<StructDef*>(struct_ref)) {
-    return std::get<StructDef*>(struct_ref)->identifier();
-  }
-  if (std::holds_alternative<ColonRef*>(struct_ref)) {
-    return std::get<ColonRef*>(struct_ref)->ToString();
-  }
-  XLS_LOG(FATAL)
-      << "Unhandled alternative for converting struct reference to string.";
 }
 
 // -- class NameDefTree

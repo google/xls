@@ -161,6 +161,9 @@ cc_test(
     deps = [
         ":ast",
         ":ast_utils",
+        ":parser",
+        ":pos",
+        ":scanner",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",

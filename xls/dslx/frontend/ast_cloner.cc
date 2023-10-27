@@ -612,17 +612,10 @@ class AstCloner : public AstNodeVisitor {
       const SplatStructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    // Have to explicitly visit struct def, since it's not a child.
-    StructRef new_struct_ref;
-    if (std::holds_alternative<StructDef*>(n->struct_ref())) {
-      StructDef* old_struct_def = std::get<StructDef*>(n->struct_ref());
-      XLS_RETURN_IF_ERROR(old_struct_def->Accept(this));
-      new_struct_ref = down_cast<StructDef*>(old_to_new_.at(old_struct_def));
-    } else {
-      ColonRef* old_colon_ref = std::get<ColonRef*>(n->struct_ref());
-      XLS_RETURN_IF_ERROR(old_colon_ref->Accept(this));
-      new_struct_ref = down_cast<ColonRef*>(old_to_new_.at(old_colon_ref));
-    }
+    // Have to explicitly visit struct ref, since it's not a child.
+    XLS_RETURN_IF_ERROR(n->struct_ref()->Accept(this));
+    TypeAnnotation* new_struct_ref =
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
 
     const std::vector<std::pair<std::string, Expr*>>& old_members =
         n->members();
@@ -670,17 +663,10 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleStructInstance(const StructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    // Have to explicitly visit struct def, since it's not a child.
-    StructRef new_struct_ref;
-    if (std::holds_alternative<StructDef*>(n->struct_def())) {
-      StructDef* old_struct_def = std::get<StructDef*>(n->struct_def());
-      XLS_RETURN_IF_ERROR(old_struct_def->Accept(this));
-      new_struct_ref = down_cast<StructDef*>(old_to_new_.at(old_struct_def));
-    } else {
-      ColonRef* old_colon_ref = std::get<ColonRef*>(n->struct_def());
-      XLS_RETURN_IF_ERROR(old_colon_ref->Accept(this));
-      new_struct_ref = down_cast<ColonRef*>(old_to_new_.at(old_colon_ref));
-    }
+    // Have to explicitly visit struct ref, since it's not a child.
+    XLS_RETURN_IF_ERROR(n->struct_ref()->Accept(this));
+    TypeAnnotation* new_struct_ref =
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
 
     absl::Span<const std::pair<std::string, Expr*>> old_members =
         n->GetUnorderedMembers();

@@ -93,6 +93,14 @@ AstNode* ToAstNode(const std::variant<NameDefTree::Leaf, NameDefTree*>& x) {
   return ToAstNode(std::get<NameDefTree::Leaf>(x));
 }
 
+absl::StatusOr<TypeDefinition> ToTypeDefinition(
+    const TypeAnnotation* type_annotation) {
+  auto* type_ref_type_annotation =
+      dynamic_cast<const TypeRefTypeAnnotation*>(type_annotation);
+  XLS_RET_CHECK(type_annotation != nullptr);
+  return type_ref_type_annotation->type_ref()->type_definition();
+}
+
 }  // namespace
 
 absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
@@ -2426,8 +2434,9 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
     XLS_ASSIGN_OR_RETURN(updates[item.first], Use(item.second));
   }
 
-  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
-                       DerefStruct(ToTypeDefinition(node->struct_ref())));
+  XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
+                       ToTypeDefinition(node->struct_ref()));
+  XLS_ASSIGN_OR_RETURN(StructDef * struct_def, DerefStruct(type_definition));
   std::vector<BValue> members;
   for (int64_t i = 0; i < struct_def->members().size(); ++i) {
     const std::string& k = struct_def->GetMemberName(i);
@@ -2447,8 +2456,9 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
 absl::Status FunctionConverter::HandleStructInstance(
     const StructInstance* node) {
   std::vector<BValue> operands;
-  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
-                       DerefStruct(ToTypeDefinition(node->struct_def())));
+  XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
+                       ToTypeDefinition(node->struct_ref()));
+  XLS_ASSIGN_OR_RETURN(StructDef * struct_def, DerefStruct(type_definition));
   std::vector<Value> const_operands;
   for (auto [_, member_expr] : node->GetOrderedMembers(struct_def)) {
     XLS_RETURN_IF_ERROR(Visit(member_expr));

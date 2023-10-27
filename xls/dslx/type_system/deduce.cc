@@ -51,6 +51,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
@@ -2296,6 +2297,27 @@ static absl::StatusOr<StructDef*> DerefToStruct(
   }
 }
 
+// Wrapper around the DerefToStruct above (that works on TypeDefinitions) that
+// takes a `TypeAnnotation` instead.
+static absl::StatusOr<StructDef*> DerefToStruct(
+    const Span& span, std::string_view original_ref_text,
+    TypeAnnotation* type_annotation, TypeInfo* type_info) {
+  auto* type_ref_type_annotation =
+      dynamic_cast<TypeRefTypeAnnotation*>(type_annotation);
+  if (type_ref_type_annotation == nullptr) {
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat("Could not resolve struct from %s (%s) @ %s",
+                        type_annotation->ToString(),
+                        type_annotation->GetNodeTypeName(),
+                        type_annotation->span().ToString()));
+  }
+
+  return DerefToStruct(span, original_ref_text,
+                       type_ref_type_annotation->type_ref()->type_definition(),
+                       type_info);
+}
+
 // Deduces the type for a ParametricBinding (via its type annotation).
 //
 // Note that this returns the type of the expression (i.e. parameter reference)
@@ -2318,7 +2340,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
   XLS_VLOG(5) << "Deducing type for struct instance: " << node->ToString();
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                       ctx->Deduce(ToAstNode(node->struct_def())));
+                       ctx->Deduce(ToAstNode(node->struct_ref())));
   XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(std::move(type), node->span(),
                                             "struct instance type"));
 
@@ -2337,7 +2359,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
   XLS_ASSIGN_OR_RETURN(
       ValidatedStructMembers validated,
       ValidateStructMembersSubset(node->GetUnorderedMembers(), *struct_type,
-                                  StructRefToText(node->struct_def()), ctx));
+                                  node->struct_ref()->ToString(), ctx));
   if (validated.seen_names != expected_names) {
     absl::btree_set<std::string> missing_set;
     absl::c_set_difference(expected_names, validated.seen_names,
@@ -2354,11 +2376,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
                           })));
   }
 
-  StructRef struct_ref = node->struct_def();
-  XLS_ASSIGN_OR_RETURN(
-      StructDef * struct_def,
-      DerefToStruct(node->span(), StructRefToText(struct_ref),
-                    ToTypeDefinition(struct_ref), ctx->type_info()));
+  TypeAnnotation* struct_ref = node->struct_ref();
+  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                       DerefToStruct(node->span(), struct_ref->ToString(),
+                                     struct_ref, ctx->type_info()));
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<ParametricConstraint> parametric_constraints,
@@ -2404,7 +2425,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   XLS_ASSIGN_OR_RETURN(
       ValidatedStructMembers validated,
       ValidateStructMembersSubset(node->members(), *struct_type,
-                                  StructRefToText(node->struct_ref()), ctx));
+                                  node->struct_ref()->ToString(), ctx));
 
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> all_names,
                        struct_type->GetMemberNames());
@@ -2438,11 +2459,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   // number of members defined in the struct.
   XLS_RET_CHECK_EQ(validated.args.size(), validated.member_types.size());
 
-  StructRef struct_ref = node->struct_ref();
-  XLS_ASSIGN_OR_RETURN(
-      StructDef * struct_def,
-      DerefToStruct(node->span(), StructRefToText(struct_ref),
-                    ToTypeDefinition(struct_ref), ctx->type_info()));
+  TypeAnnotation* struct_ref = node->struct_ref();
+  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                       DerefToStruct(node->span(), struct_ref->ToString(),
+                                     struct_ref, ctx->type_info()));
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<ParametricConstraint> parametric_constraints,
@@ -2491,16 +2511,21 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
   // implicitly make the type of the dimension u32, as we generally do with
   // dimension values.
   if (auto* number = dynamic_cast<const Number*>(dim_expr)) {
-    if (number->type_annotation() != nullptr) {
-      return TypeInferenceErrorStatus(number->type_annotation()->span(),
-                                      nullptr,
-                                      "Please do not annotate a type on "
-                                      "dimensions (they are implicitly u32).");
+    if (number->type_annotation() == nullptr) {
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *u32));
+      ctx->type_info()->SetItem(number, *u32);
+    } else {
+      XLS_ASSIGN_OR_RETURN(auto dim_type, ctx->Deduce(number));
+      if (*dim_type != *u32) {
+        return ctx->TypeMismatchError(
+            dim_expr->span(), nullptr, *dim_type, nullptr, *u32,
+            absl::StrFormat(
+                "Dimension %s must be a `u32` (soon to be `usize`, see "
+                "https://github.com/google/xls/issues/450 for details).",
+                dim_expr->ToString()));
+      }
     }
 
-    XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *u32));
-
-    ctx->type_info()->SetItem(number, *u32);
     XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
     const uint32_t value_u32 = static_cast<uint32_t>(value);
     XLS_RET_CHECK_EQ(value, value_u32);

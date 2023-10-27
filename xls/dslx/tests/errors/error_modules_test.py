@@ -432,9 +432,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/array_type_dimension_with_width_annotated.x'
     )
-    self.assertIn('array_type_dimension_with_width_annotated.x:15:24-15:26',
-                  stderr)
-    self.assertIn('Please do not annotate a type on dimensions', stderr)
+    self.assertIn(
+        'array_type_dimension_with_width_annotated.x:15:27-15:28', stderr
+    )
+    self.assertIn('Dimension u8:7 must be a `u32`', stderr)
 
   def test_signed_array_size(self):
     stderr = self._run('xls/dslx/tests/errors/signed_array_size.x')
@@ -959,9 +960,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/struct_instantiate_s32.x',
     )
-    self.assertIn('ParseError:', stderr)
+    self.assertIn('TypeInferenceError:', stderr)
     self.assertIn(
-        'Can only resolve a TypeRefTypeAnnotation to a struct; got: s32',
+        'Expected a struct definition to instantiate',
         stderr,
     )
 

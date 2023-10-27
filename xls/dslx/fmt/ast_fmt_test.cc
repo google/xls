@@ -1419,5 +1419,20 @@ pub fn uadd_with_overflow
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, TypeAliasToColonRefInstantiated) {
+  const std::string_view kProgram =
+      R"(import float32
+
+type F32 = float32::F32;
+
+pub fn f() -> F32 { F32 { blah: u32:42 } }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

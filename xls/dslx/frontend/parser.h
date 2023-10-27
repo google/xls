@@ -224,9 +224,6 @@ class Parser : public TokenParser {
   absl::StatusOr<TypeRef*> ParseModTypeRef(Bindings& bindings,
                                            const Token& start_tok);
 
-  absl::StatusOr<StructRef> ResolveStruct(Bindings& bindings,
-                                          TypeAnnotation* type);
-
   // Parses an AST construct that refers to a type; e.g. a name or a colon-ref.
   absl::StatusOr<TypeRef*> ParseTypeRef(Bindings& bindings, const Token& tok);
 

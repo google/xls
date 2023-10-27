@@ -917,23 +917,13 @@ DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
              });
 }
 
-static DocRef Fmt(const StructRef& n, const Comments& comments,
-                  DocArena& arena) {
-  return absl::visit(
-      Visitor{
-          [&](const StructDef* n) { return arena.MakeText(n->identifier()); },
-          [&](const ColonRef* n) { return Fmt(*n, comments, arena); },
-      },
-      n);
-}
-
 // Note: this does not put any spacing characters after the '{' so we can
 // appropriately handle the case of an empty struct having no spacing in its
 // `S {}` style construct.
-static DocRef FmtStructLeader(const StructRef& struct_ref,
+static DocRef FmtStructLeader(const TypeAnnotation* struct_ref,
                               const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, {
-                                 Fmt(struct_ref, comments, arena),
+                                 Fmt(*struct_ref, comments, arena),
                                  arena.break1(),
                                  arena.ocurl(),
                              });
@@ -963,7 +953,7 @@ static DocRef FmtStructMembers(
 }
 
 DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
-  DocRef leader = FmtStructLeader(n.struct_def(), comments, arena);
+  DocRef leader = FmtStructLeader(n.struct_ref(), comments, arena);
 
   if (n.GetUnorderedMembers().empty()) {  // empty struct instance
     return arena.MakeConcat(leader, arena.ccurl());

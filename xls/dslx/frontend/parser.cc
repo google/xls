@@ -607,37 +607,6 @@ absl::StatusOr<Number*> Parser::TokenToNumber(const Token& tok) {
                                /*type=*/nullptr);
 }
 
-absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings& bindings,
-                                                TypeAnnotation* type) {
-  auto type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(type);
-  if (type_ref_annotation == nullptr) {
-    return ParseErrorStatus(
-        type->span(),
-        "Can only resolve a TypeRefTypeAnnotation to a struct; got: " +
-            type->ToString());
-  }
-  TypeRef* type_ref = type_ref_annotation->type_ref();
-  TypeDefinition type_defn = type_ref->type_definition();
-
-  if (std::holds_alternative<StructDef*>(type_defn)) {
-    return StructRef(std::get<StructDef*>(type_defn));
-  }
-  if (std::holds_alternative<ColonRef*>(type_defn)) {
-    return StructRef(std::get<ColonRef*>(type_defn));
-  }
-  if (std::holds_alternative<TypeAlias*>(type_defn)) {
-    return ResolveStruct(bindings,
-                         std::get<TypeAlias*>(type_defn)->type_annotation());
-  }
-  if (std::holds_alternative<EnumDef*>(type_defn)) {
-    return ParseErrorStatus(
-        type->span(),
-        "Type resolved to an enum definition; expected struct definition: " +
-            type->ToString());
-  }
-  XLS_LOG(FATAL) << "Unhandled TypeDefinition variant.";
-}
-
 absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
                                               const Token& tok) {
   if (tok.kind() != TokenKind::kIdentifier) {
@@ -876,8 +845,6 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings& bindings,
 
   const Pos start_pos = GetPos();
 
-  XLS_ASSIGN_OR_RETURN(StructRef struct_ref, ResolveStruct(bindings, type));
-
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
                                        "Opening brace for struct instance."));
 
@@ -919,8 +886,8 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings& bindings,
           TokenKind::kCBrace, /*start=*/nullptr,
           "Closing brace after struct instance \"splat\" (..) expression."));
       Span span(start_pos, GetPos());
-      return module_->Make<SplatStructInstance>(span, struct_ref,
-                                                std::move(members), splatted);
+      return module_->Make<SplatStructInstance>(span, type, std::move(members),
+                                                splatted);
     }
 
     XLS_ASSIGN_OR_RETURN(StructInstanceMember member, parse_struct_member());
@@ -929,7 +896,7 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings& bindings,
     must_end = !dropped_comma;
   }
   Span span(start_pos, GetPos());
-  return module_->Make<StructInstance>(span, struct_ref, std::move(members));
+  return module_->Make<StructInstance>(span, type, std::move(members));
 }
 
 absl::StatusOr<std::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(

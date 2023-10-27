@@ -12,6 +12,8 @@
 2:12-2:31: BLOCK :: `{
     S { x: u32:42 }
 }` :: S { x: uN[32] }
+2:14-2:15: TYPE_REF :: `S` :: typeof(S { x: uN[32] })
+2:14-2:16: TYPE_ANNOTATION :: `S` :: typeof(S { x: uN[32] })
 2:16-2:29: STATEMENT :: `S { x: u32:42 }` :: S { x: uN[32] }
 2:16-2:29: STRUCT_INSTANCE :: `S { x: u32:42 }` :: S { x: uN[32] }
 2:21-2:24: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
