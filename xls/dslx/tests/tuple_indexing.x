@@ -13,19 +13,18 @@
 // limitations under the License.
 
 fn tuple_index_all_bits_set(x: (u1, u2, u3, u4)) -> u4 {
-  // Tuple index access where the index has all bits set (e.g. demonstrates the index is treated as
-  // unsigned).
-  x.0b11
+    // Tuple index access where the index has all bits set (e.g. demonstrates the index is treated as
+    // unsigned).
+    x.0b11
 }
 
 #[test]
 fn test_tuple_index() {
-  // Perform tuple indexing without explicitly annotating the type of the index.
-  assert_eq((u32:42, u4:7).1, u4:7);
-  assert_eq((u32:42, u4:7).0, u32:42);
-  assert_eq(tuple_index_all_bits_set((u1:1, u2:2, u3:3, u4:4)), u4:4);
+    // Perform tuple indexing without explicitly annotating the type of the index.
+    assert_eq((u32:42, u4:7).1, u4:7);
+    assert_eq((u32:42, u4:7).0, u32:42);
+    assert_eq(tuple_index_all_bits_set((u1:1, u2:2, u3:3, u4:4)), u4:4);
 }
-
 // TODO(leary): 2020-11-09 Sample that will only work when we add unifying type
 // inference (the type variable that results from the indexing operation must
 // unify with the uN[R] result).

@@ -247,8 +247,6 @@ dslx_lang_test(
 dslx_lang_test(
     name = "builtin_type_max",
     dslx_deps = [":number_of_imported_type_import_dslx"],
-    # TODO(leary): 2023-10-20 Has an awkward line wrapping.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -258,8 +256,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "fallible_constexpr",
-    # TODO(leary): 2023-10-20 Newline at start of function.
-    test_autofmt = False,
 )
 
 dslx_lang_test(name = "comments")
@@ -379,8 +375,6 @@ dslx_lang_test(name = "match_range_or_wildcard")
 
 dslx_lang_test(
     name = "match_overlapping_range_and_value",
-    # TODO(leary): 2023-10-20 Inline comments are being moved unnecessarily.
-    test_autofmt = False,
 )
 
 dslx_lang_test(name = "elseif_sample")
@@ -393,8 +387,6 @@ xls_dslx_library(
 dslx_lang_test(
     name = "number_of_imported_type",
     dslx_deps = [":number_of_imported_type_import_dslx"],
-    # TODO(leary): 2023-10-20 Puts inline comments in a bad spot.
-    test_autofmt = False,
 )
 
 # Note: library defined for importing.
@@ -414,9 +406,6 @@ dslx_lang_test(
     name = "parametric_call_parametric",
     # No meaningful entry function to convert.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Over-long parametric decl line that doesn't
-    # format nicely.
-    test_autofmt = False,
 )
 
 xls_dslx_library(
@@ -545,8 +534,6 @@ dslx_lang_test(
     name = "tuple_indexing",
     # Note: no meaningful function to convert.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Putting newline at start of function.
-    test_autofmt = False,
 )
 
 dslx_lang_test(name = "clz")
@@ -612,8 +599,6 @@ dslx_lang_test(
     name = "casts",
     # Note: no meaningful function to convert.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Newline at start of test function.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -877,8 +862,6 @@ dslx_lang_test(
         ":mod_imported_array_dslx",
         ":mod_imported_lsb_dslx",
     ],
-    # TODO(leary): 2023-10-20 Puts newline between imports.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -1195,8 +1178,6 @@ dslx_lang_test(
     name = "non_blocking_receive_if",
     convert_to_ir = False,
     dslx_entry = "Tester",
-    # TODO(leary): 2023-10-20 Puts newline at start of next fn.
-    test_autofmt = False,
 )
 
 xls_dslx_ir(

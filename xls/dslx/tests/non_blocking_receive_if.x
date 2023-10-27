@@ -19,13 +19,11 @@ proc Main {
     data_in: chan<u32> in;
     result_out: chan<(u32, bool)> out;
 
-    init { () }
-
-    config(do_recv_in: chan<bool> in,
-           data_in: chan<u32> in,
-           result_out: chan<(u32, bool)> out) {
+    config(do_recv_in: chan<bool> in, data_in: chan<u32> in, result_out: chan<(u32, bool)> out) {
         (do_recv_in, data_in, result_out)
     }
+
+    init { () }
 
     next(tok: token, state: ()) {
         let (tok, do_recv) = recv(tok, do_recv_in);
@@ -41,8 +39,6 @@ proc Tester {
     data_out: chan<u32> out;
     result_in: chan<(u32, bool)> in;
 
-    init { () }
-
     config(terminator: chan<bool> out) {
         let (do_recv_out, do_recv_in) = chan<bool>;
         let (data_out, data_in) = chan<u32>;
@@ -50,6 +46,8 @@ proc Tester {
         spawn Main(do_recv_in, data_in, result_out);
         (terminator, do_recv_out, data_out, result_in)
     }
+
+    init { () }
 
     next(tok: token, state: ()) {
         // First, tell the proc to receive without data present. Expect a

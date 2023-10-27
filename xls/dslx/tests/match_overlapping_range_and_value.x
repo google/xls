@@ -13,22 +13,20 @@
 // limitations under the License.
 
 fn f(x: u32, y: u32, z: u32) -> u32 {
-  match x {
-    u32:2 => x,
-    u32:1..u32:3 => y,
-    _ => z,
-  }
+    match x {
+        u32:2 => x,
+        u32:1..u32:3 => y,
+        _ => z,
+    }
 }
 
-fn main(x: u32) -> u32 {
-  f(x, x+u32:1, x+u32:2)
-}
+fn main(x: u32) -> u32 { f(x, x + u32:1, x + u32:2) }
 
 #[test]
 fn test_main() {
-  assert_eq(main(u32:0), u32:2);  // z value
-  assert_eq(main(u32:1), u32:2);  // y value
-  assert_eq(main(u32:2), u32:2);  // x value
-  assert_eq(main(u32:3), u32:5);  // z value
-  assert_eq(main(u32:4), u32:6);  // z value
+    assert_eq(main(u32:0), u32:2);  // z value
+    assert_eq(main(u32:1), u32:2);  // y value
+    assert_eq(main(u32:2), u32:2);  // x value
+    assert_eq(main(u32:3), u32:5);  // z value
+    assert_eq(main(u32:4), u32:6);  // z value
 }

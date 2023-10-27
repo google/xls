@@ -19,11 +19,9 @@ import xls.dslx.tests.number_of_imported_type_import as noiti
 pub type other_type = bits[16];
 
 fn main(a: other_type) -> noiti::my_type {
-  let x = a as noiti::my_type + noiti::my_type:8;
-  x
+    let x = a as noiti::my_type + noiti::my_type:8;
+    x
 }
 
 #[test]
-fn main_test() {
-  assert_eq(main(other_type:8), noiti::my_type:16);
-}
+fn main_test() { assert_eq(main(other_type:8), noiti::my_type:16); }
