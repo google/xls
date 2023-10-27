@@ -624,6 +624,23 @@ TEST_F(FunctionFmtTest, LetWithInlineCommentAndStatementOnSubsequentLine) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, MultiLineTernary) {
+  const std::string_view original =
+      R"(fn f() {
+    let dddddddddddddddddddddddddddddddddddddddddddddddddddd = if ccccccccccccccccccccccc {
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    } else {
+        bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    };
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string got,
+      DoFmt(original, {"ccccccccccccccccccccccc",
+                       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {

@@ -1077,9 +1077,12 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
 
   XLS_CHECK(std::holds_alternative<Block*>(n.alternate()));
   const Block* else_block = std::get<Block*>(n.alternate());
-  pieces.push_back(ConcatNGroup(
-      arena, {arena.ccurl(), arena.break1(), arena.Make(Keyword::kElse),
-              arena.break1(), arena.ocurl(), arena.break1()}));
+  pieces.push_back(arena.ccurl());
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.Make(Keyword::kElse));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.ocurl());
+  pieces.push_back(arena.break1());
   pieces.push_back(FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
   pieces.push_back(arena.break1());
   pieces.push_back(arena.ccurl());
