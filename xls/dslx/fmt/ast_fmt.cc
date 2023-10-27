@@ -1389,9 +1389,9 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
           ConcatNGroup(arena, {
                                   arena.break1(),
                                   arena.arrow(),
-                                  arena.break1(),
+                                  arena.space(),
                                   Fmt(*n.return_type(), comments, arena),
-                                  arena.break1(),
+                                  arena.space(),
                                   arena.ocurl(),
                               }));
     }

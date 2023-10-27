@@ -1449,5 +1449,21 @@ fn f(x: m::MyStruct, y: m::MyStruct) -> bool { (x.foo == y.foo) || SOME_BOOL }
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, ArrowReturnTypePackedOnOneLine) {
+  const std::string_view kProgram =
+      R"(import apfloat
+
+fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>
+    (a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
+    -> (apfloat::APFloat<EXP_SZ, FRACTION_SZ>, bool) {
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx
