@@ -341,6 +341,10 @@ The LLVM tool `opt` optimizes the LLVM IR and can be piped to `lli` like so:
   opt sample.ll --O2 | lli
 ```
 
+The LLVM IR can also compiled to an object file using `llc` and driven using a
+C/C++ test harness. The directory `xls/fuzzer/debug` includes a script and
+example demonstrating how to run JIT-generated LLVM IR in this manner.
+
 ##### Running LLVM code generation
 
 If the bug occurs during LLVM code generation (lowering of LLVM IR to object
