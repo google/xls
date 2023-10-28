@@ -95,7 +95,7 @@ absl::StatusOr<Node*> {{ op_class.name }}::CloneInNewFunction(
 }
 {% endif %}
 
-{% if op_class.data_members() %}
+{% if op_class.has_data_members() %}
 bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
   if (this == other) {
     return true;

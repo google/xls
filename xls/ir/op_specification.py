@@ -17,8 +17,9 @@ The contents of this file is used to generate op.h and op.cc.
 """
 
 import collections
+import dataclasses
 import enum
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 
 class ConstructorArgument(object):
@@ -31,10 +32,9 @@ class ConstructorArgument(object):
       cloning.
   """
 
-  def __init__(self,
-               name: str,
-               cpp_type: str,
-               clone_expression: Optional[str] = None):
+  def __init__(
+      self, name: str, cpp_type: str, clone_expression: Optional[str] = None
+  ):
     self.name = name
     self.cpp_type = cpp_type
     self.clone_expression = clone_expression
@@ -54,11 +54,13 @@ class DataMember(object):
       '{lhs}.EqualTo({rhs})'.
   """
 
-  def __init__(self,
-               name: str,
-               cpp_type: str,
-               init: str,
-               equals_tmpl: str = '{lhs} == {rhs}'):
+  def __init__(
+      self,
+      name: str,
+      cpp_type: str,
+      init: str,
+      equals_tmpl: str = '{lhs} == {rhs}',
+  ):
     self.name = name
     self.cpp_type = cpp_type
     self.init = init
@@ -79,13 +81,15 @@ class Method(object):
     is_const: The method is a const method.
   """
 
-  def __init__(self,
-               name: str,
-               return_cpp_type: str,
-               expression: Optional[str],
-               expression_is_body: bool = False,
-               params: str = '',
-               is_const: bool = True):
+  def __init__(
+      self,
+      name: str,
+      return_cpp_type: str,
+      expression: Optional[str],
+      expression_is_body: bool = False,
+      params: str = '',
+      is_const: bool = True,
+  ):
     self.name = name
     self.return_cpp_type = return_cpp_type
     self.expression = expression
@@ -109,13 +113,15 @@ class Attribute(object):
     method: The accessor Method of the attribute.
   """
 
-  def __init__(self,
-               name: str,
-               cpp_type: str,
-               arg_cpp_type: Optional[str] = None,
-               return_cpp_type: Optional[str] = None,
-               equals_tmpl: str = '{lhs} == {rhs}',
-               init_args=None):
+  def __init__(
+      self,
+      name: str,
+      cpp_type: str,
+      arg_cpp_type: Optional[str] = None,
+      return_cpp_type: Optional[str] = None,
+      equals_tmpl: str = '{lhs} == {rhs}',
+      init_args=None,
+  ):
     """Initialize an Attribute.
 
     Args:
@@ -139,17 +145,21 @@ class Attribute(object):
     self.constructor_argument = ConstructorArgument(
         name=self.name,
         cpp_type=cpp_type if arg_cpp_type is None else arg_cpp_type,
-        clone_expression=self.name + '()')
+        clone_expression=self.name + '()',
+    )
     self.data_member = DataMember(
         name=name + '_',
         cpp_type=cpp_type,
         init=name if init_args is None else ', '.join(init_args),
-        equals_tmpl=equals_tmpl)
+        equals_tmpl=equals_tmpl,
+    )
     self.method = Method(
         name=name,
         return_cpp_type=cpp_type
-        if return_cpp_type is None else return_cpp_type,
-        expression=self.data_member.name)
+        if return_cpp_type is None
+        else return_cpp_type,
+        expression=self.data_member.name,
+    )
 
 
 class BoolAttribute(Attribute):
@@ -176,14 +186,16 @@ class FunctionAttribute(Attribute):
     super(FunctionAttribute, self).__init__(
         name,
         cpp_type='Function*',
-        equals_tmpl='{lhs}->IsDefinitelyEqualTo({rhs})')
+        equals_tmpl='{lhs}->IsDefinitelyEqualTo({rhs})',
+    )
 
 
 class ValueAttribute(Attribute):
 
   def __init__(self, name):
     super(ValueAttribute, self).__init__(
-        name, cpp_type='Value', return_cpp_type='const Value&')
+        name, cpp_type='Value', return_cpp_type='const Value&'
+    )
 
 
 class StringAttribute(Attribute):
@@ -204,7 +216,8 @@ class OptionalStringAttribute(Attribute):
         name,
         cpp_type='absl::optional<std::string>',
         return_cpp_type='absl::optional<std::string>',
-        arg_cpp_type='absl::optional<std::string>')
+        arg_cpp_type='absl::optional<std::string>',
+    )
 
 
 class LsbOrMsbAttribute(Attribute):
@@ -214,7 +227,8 @@ class LsbOrMsbAttribute(Attribute):
         name,
         cpp_type='LsbOrMsb',
         return_cpp_type='LsbOrMsb',
-        arg_cpp_type='LsbOrMsb')
+        arg_cpp_type='LsbOrMsb',
+    )
 
 
 class TypeVectorAttribute(Attribute):
@@ -225,7 +239,8 @@ class TypeVectorAttribute(Attribute):
         cpp_type='std::vector<Type*>',
         return_cpp_type='absl::Span<Type* const>',
         arg_cpp_type='absl::Span<Type* const>',
-        init_args=(f'{name}.begin()', f'{name}.end()'))
+        init_args=(f'{name}.begin()', f'{name}.end()'),
+    )
 
 
 class FormatStepsAttribute(Attribute):
@@ -236,14 +251,16 @@ class FormatStepsAttribute(Attribute):
         cpp_type='std::vector<FormatStep>',
         return_cpp_type='absl::Span<FormatStep const>',
         arg_cpp_type='absl::Span<FormatStep const>',
-        init_args=(f'{name}.begin()', f'{name}.end()'))
+        init_args=(f'{name}.begin()', f'{name}.end()'),
+    )
 
 
 class InstantiationAttribute(Attribute):
 
   def __init__(self, name):
     super(InstantiationAttribute, self).__init__(
-        name, cpp_type='Instantiation*')
+        name, cpp_type='Instantiation*'
+    )
 
 
 class Property(enum.Enum):
@@ -251,6 +268,7 @@ class Property(enum.Enum):
 
   An Op can have zero or more properties.
   """
+
   BITWISE = 1  # Ops such as kXor, kAnd, and kOr
   ASSOCIATIVE = 2
   COMMUTATIVE = 3
@@ -277,11 +295,43 @@ class OperandSpan(Operand):
 
 
 class OptionalOperand(Operand):
+  """An operand that may be ommited.
 
-  def __init__(self, name: str):
+  Attributes:
+    name: The name
+    add_method: The add method
+    manual_optional_implementation: Whether to auto-generate an operand-number
+      function. Defaults to false.
+  """
+
+  def __init__(self, name: str, *, manual_optional_implementation=False):
+    """Create an optional argument.
+
+    Args:
+      name: The name of the argument
+      manual_optional_implementation: If a '<name>_operand_number()' function,
+        has_<name>_ field and other helpers should be automatically created.
+        This should only be set to True if the operand follows an operand-span
+        and the node has a custom implementation.
+    """
     super(OptionalOperand, self).__init__(name)
     self.name = name
     self.add_method = 'AddOptionalOperand'
+    self.manual_optional_implementation = manual_optional_implementation
+
+
+@dataclasses.dataclass(frozen=True)
+class OperandInfo:
+  """Holder of information about a single operand.
+
+  Attributes:
+    operand: The operand data.
+    index: what index this is provisionally assigned in the operand list
+      (assuming all spans are 0 length and all optional operands are present).
+  """
+
+  operand: Operand
+  index: int
 
 
 class OpClass(object):
@@ -290,16 +340,18 @@ class OpClass(object):
   # Collection of all OpClass instances.
   kinds = collections.OrderedDict()
 
-  def __init__(self,
-               name: str,
-               op: str,
-               operands: List[Operand],
-               xls_type_expression: str,
-               attributes: List[Attribute] = (),
-               extra_constructor_args=(),
-               extra_data_members=(),
-               extra_methods: List[Method] = (),
-               custom_clone_method: bool = False):
+  def __init__(
+      self,
+      name: str,
+      op: str,
+      operands: List[Operand],
+      xls_type_expression: str,
+      attributes: List[Attribute] = (),
+      extra_constructor_args=(),
+      extra_data_members=(),
+      extra_methods: List[Method] = (),
+      custom_clone_method: bool = False,
+  ):
     """Initializes an OpClass.
 
     Args:
@@ -345,7 +397,8 @@ class OpClass(object):
 
   def base_constructor_invocation(self):
     return 'Node({op}, {type_expr}, loc, name, function)'.format(
-        op=self.op, type_expr=self.xls_type_expression)
+        op=self.op, type_expr=self.xls_type_expression
+    )
 
   def methods(self) -> List[Method]:
     """Returns the methods defined for this class."""
@@ -374,11 +427,21 @@ class OpClass(object):
       args.append('name_')
     return ', '.join(args)
 
-  def data_members(self) -> List[DataMember]:
+  def data_members(self) -> Iterable[DataMember]:
     """Returns the data members of the class."""
-    members = [a.data_member for a in self.attributes]
-    members.extend(self.extra_data_members)
-    return members
+    yield from map(lambda a: a.data_member, self.attributes)
+    yield from self.extra_data_members
+    for optional in self.optional_operands():
+      if not optional.operand.manual_optional_implementation:
+        yield DataMember(
+            f'has_{optional.operand.name}_',
+            'bool',
+            f'{optional.operand.name}.has_value()',
+        )
+
+  def has_data_members(self) -> bool:
+    """Returns whether the class has any data members."""
+    return any(True for _ in self.data_members())
 
   def equal_to_expr(self) -> str:
     """Returns expression used in IsDefinitelyEqualTo to compare expression."""
@@ -391,6 +454,47 @@ class OpClass(object):
     assert self.data_members()
     return '&& '.join(data_member_equal(m) for m in self.data_members())
 
+  def _is_fixed_operand(self, op: Operand) -> bool:
+    """Is the operand one with an exact statically known offset.
+
+    Args:
+      op: The operand to query.
+
+    Returns:
+      True if the operand is not a span or an optional.
+    """
+    return not isinstance(op, OperandSpan) and not isinstance(
+        op, OptionalOperand
+    )
+
+  def fixed_operands(self) -> Iterable[OperandInfo]:
+    """Get all the operands with compile-time known offsets.
+    
+    Note that any operand after the first optional or variable-length (think
+    span) operand does not have a fixed offset.
+
+    Yields:
+      OperandInfo for each fixed operand in the order they appear.
+    """
+    for i, op in enumerate(self.operands):
+      if not self._is_fixed_operand(op):
+        break
+      yield OperandInfo(operand=op, index=i)
+
+  def has_optional_operands(self) -> bool:
+    """Determine if there are any 'std::Optional<Node*>' operands."""
+    return any(isinstance(op, OptionalOperand) for op in self.operands)
+
+  def optional_operands(self) -> Iterable[OperandInfo]:
+    """Get all the std::optional<Node*> operands.
+
+    Yields:
+      OperandInfo for each optional operand in the order they appear.
+    """
+    for i, op in enumerate(self.operands):
+      if isinstance(op, OptionalOperand):
+        yield OperandInfo(operand=op, index=i)
+
 
 class Op(object):
   """Describes an xls::Op.
@@ -402,12 +506,18 @@ class Op(object):
    properties: A List of Properties describing the op.
   """
 
-  def __init__(self, enum_name: str, name: str, op_class: OpClass,
-               properties: List[Property]):
+  def __init__(
+      self,
+      enum_name: str,
+      name: str,
+      op_class: OpClass,
+      properties: List[Property],
+  ):
     self.enum_name = enum_name
     self.name = name
     self.op_class = op_class
     self.properties = properties
+
 
 # pyformat: disable
 OpClass.kinds['AFTER_ALL'] = OpClass(
@@ -604,7 +714,7 @@ OpClass.kinds['RECEIVE'] = OpClass(
                           expression='operand(0)'),
                    Method(name='predicate',
                           return_cpp_type='absl::optional<Node*>',
-                          expression='operand_count() > 1 ? absl::optional<Node*>(operand(1)) : absl::nullopt'),
+                          expression='predicate_operand_number().ok() ? absl::optional<Node*>(operand(*predicate_operand_number())) : absl::nullopt'),
                    Method(name='GetPayloadType',
                           return_cpp_type='Type*',
                           expression=None),
@@ -632,7 +742,7 @@ OpClass.kinds['SEND'] = OpClass(
                           expression='operand(1)'),
                    Method(name='predicate',
                           return_cpp_type='absl::optional<Node*>',
-                          expression='operand_count() > 2 ? absl::optional<Node*>(operand(2)) : absl::nullopt'),
+                          expression='predicate_operand_number().ok() ? absl::optional<Node*>(operand(*predicate_operand_number())) : absl::nullopt'),
                    Method(name='ReplaceChannel',
                           return_cpp_type='void',
                           expression=None,
@@ -861,7 +971,8 @@ OpClass.kinds['SELECT'] = OpClass(
     op='Op::kSel',
     operands=[Operand('selector'),
               OperandSpan('cases'),
-              OptionalOperand('default_value')],
+              OptionalOperand('default_value',
+                              manual_optional_implementation=True)],
     xls_type_expression='cases[0]->GetType()',
     extra_data_members=[
         DataMember(name='cases_size_',
@@ -1005,22 +1116,16 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
     extra_data_members=[
         DataMember(name='reg_',
                    cpp_type='Register*',
-                   init='reg'),
-        DataMember(name='has_load_enable_',
-                   cpp_type='bool',
-                   init='load_enable.has_value()'),
-        DataMember(name='has_reset_',
-                   cpp_type='bool',
-                   init='reset.has_value()')],
+                   init='reg')],
     extra_methods=[Method(name='data',
                           return_cpp_type='Node*',
                           expression='operand(0)'),
                    Method(name='load_enable',
                           return_cpp_type='absl::optional<Node*>',
-                          expression='has_load_enable_ ? absl::optional<Node*>(operand(1)) : absl::nullopt'),
+                          expression='load_enable_operand_number().ok() ? absl::optional<Node*>(operand(*load_enable_operand_number())) : std::nullopt'),
                    Method(name='reset',
                           return_cpp_type='absl::optional<Node*>',
-                          expression='has_reset_ ? absl::optional<Node*>(operand(has_load_enable_ ? 2 : 1)) : absl::nullopt'),
+                          expression='reset_operand_number().ok() ? absl::optional<Node*>(operand(*reset_operand_number())) : std::nullopt'),
                    Method(name='GetRegister',
                           return_cpp_type='Register*',
                           expression='reg_'),
@@ -1028,7 +1133,7 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                           is_const=False,
                           return_cpp_type='absl::Status',
                           params='Node* new_operand',
-                          expression='has_load_enable_ ? ReplaceOperandNumber(1, new_operand) : '
+                          expression='has_load_enable_ ? ReplaceOperandNumber(*load_enable_operand_number(), new_operand) : '
                           + 'absl::InternalError("Unable to replace load enable on RegisterWrite -- '
                           + 'register does not have an existing load enable operand.")'),
                    Method(name='AddOrReplaceReset',
@@ -1043,7 +1148,7 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                               has_reset_ = true;
                               return absl::OkStatus();
                             }
-                            return has_load_enable_ ? ReplaceOperandNumber(2, new_reset_node) : ReplaceOperandNumber(1, new_reset_node);
+                            return ReplaceOperandNumber(*reset_operand_number(), new_reset_node);
                           ''')],
 )
 

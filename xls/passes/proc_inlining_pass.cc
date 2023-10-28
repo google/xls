@@ -61,8 +61,8 @@ namespace xls {
 namespace {
 
 // Makes and returns a node computing Not(node).
-absl::StatusOr<Node*> Not(
-    Node* node, std::optional<std::string_view> name = std::nullopt) {
+absl::StatusOr<Node*> Not(Node* node,
+                          std::optional<std::string_view> name = std::nullopt) {
   if (name.has_value()) {
     return node->function_base()->MakeNodeWithName<UnOp>(
         node->loc(), node, Op::kNot, name.value());
@@ -82,8 +82,8 @@ absl::StatusOr<Node*> Identity(
 }
 
 // Makes and returns a node computing And(a, b).
-absl::StatusOr<Node*> And(
-    Node* a, Node* b, std::optional<std::string_view> name = std::nullopt) {
+absl::StatusOr<Node*> And(Node* a, Node* b,
+                          std::optional<std::string_view> name = std::nullopt) {
   if (name.has_value()) {
     return a->function_base()->MakeNodeWithName<NaryOp>(
         a->loc(), std::vector<Node*>{a, b}, Op::kAnd, name.value());
@@ -93,8 +93,8 @@ absl::StatusOr<Node*> And(
 }
 
 // Makes and returns a node computing Or(a, b).
-absl::StatusOr<Node*> Or(
-    Node* a, Node* b, std::optional<std::string_view> name = std::nullopt) {
+absl::StatusOr<Node*> Or(Node* a, Node* b,
+                         std::optional<std::string_view> name = std::nullopt) {
   if (name.has_value()) {
     return a->function_base()->MakeNodeWithName<NaryOp>(
         a->loc(), std::vector<Node*>{a, b}, Op::kOr, name.value());
@@ -149,8 +149,10 @@ absl::StatusOr<Send*> AddSendPredicate(Send* send, Node* predicate) {
   if (send->predicate().has_value()) {
     XLS_ASSIGN_OR_RETURN(Node * new_predicate,
                          And(send->predicate().value(), predicate));
+    XLS_ASSIGN_OR_RETURN(int64_t predicate_op,
+                         send->predicate_operand_number());
     XLS_RETURN_IF_ERROR(
-        send->ReplaceOperandNumber(Send::kPredicateOperand, new_predicate));
+        send->ReplaceOperandNumber(predicate_op, new_predicate));
     return send;
   }
   XLS_ASSIGN_OR_RETURN(Send * new_send, send->ReplaceUsesWithNew<Send>(
@@ -168,8 +170,10 @@ absl::StatusOr<Receive*> AddReceivePredicate(Receive* receive,
   if (receive->predicate().has_value()) {
     XLS_ASSIGN_OR_RETURN(Node * new_predicate,
                          And(receive->predicate().value(), predicate));
-    XLS_RETURN_IF_ERROR(receive->ReplaceOperandNumber(
-        Receive::kPredicateOperand, new_predicate));
+    XLS_ASSIGN_OR_RETURN(int64_t predicate_op,
+                         receive->predicate_operand_number());
+    XLS_RETURN_IF_ERROR(
+        receive->ReplaceOperandNumber(predicate_op, new_predicate));
     return receive;
   }
   XLS_ASSIGN_OR_RETURN(Receive * new_receive,
