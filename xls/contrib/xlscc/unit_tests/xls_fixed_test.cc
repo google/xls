@@ -1010,6 +1010,32 @@ TEST_F(XlsFixedTest, BitElemRefCastToXlsInt) {
                     xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsFixedTest, SubtractOneHalfSameWidth) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long long a) {
+      XlsFixed<32, 16, false> x = 1.0;
+      XlsFixed<32, 16, false> one_half = 0.5;
+      XlsFixed<32, 16, false> result = x - one_half;
+      result = result * 1000;
+      return result.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 0}}, 500, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, SubtractOneHalfDifferentWidth) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long long a) {
+      XlsFixed<32, 16, true> x = 1.0;
+      XlsFixed<32, 14, true> one_half = 0.5;
+      XlsFixed<32, 16, false> result = x - one_half;
+      result = result * 1000;
+      return result.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 0}}, 500, content, xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

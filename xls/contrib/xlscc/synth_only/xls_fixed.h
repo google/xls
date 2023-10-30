@@ -437,29 +437,31 @@ class XlsFixed {
     return orig;
   }
 
-#define BINARY_OP_FIXED(__OP, __IR, __RES)                                     \
-  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode ToQ,        \
-            ac_datatypes::ac_o_mode ToO>                                       \
-  inline typename rt<ToW, ToI, ToSign>::__RES operator __OP(                   \
-      const XlsFixed<ToW, ToI, ToSign, ToQ, ToO> &o) const {                   \
-    typedef typename rt<ToW, ToI, ToSign>::__RES Result;                       \
-    Result ret;                                                                \
-    auto a = ConvertBits<Width, Result::width, Result::sign>::Convert(         \
-        this->val.storage);                                                    \
-    auto b =                                                                   \
-        ConvertBits<ToW, Result::width, Result::sign>::Convert(o.val.storage); \
-    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[i] { ret (aid): bits[i] "    \
-        "= " __IR "(a, b, pos=(loc)) }"                                        \
-        : "=r"(ret)                                                            \
-        : "i"(Result::width), "parama"(a), "paramb"(b));                       \
-    return ret;                                                                \
-  }                                                                            \
-  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode ToQ,        \
-            ac_datatypes::ac_o_mode ToO>                                       \
-  inline XlsFixed operator __OP##=(                                            \
-      const XlsFixed<ToW, ToI, ToSign, ToQ, ToO> &o) {                         \
-    (*this) = (*this)__OP o;                                                   \
-    return (*this);                                                            \
+#define BINARY_OP_FIXED(__OP, __IR, __RES)                                  \
+  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode ToQ,     \
+            ac_datatypes::ac_o_mode ToO>                                    \
+  inline typename rt<ToW, ToI, ToSign>::__RES operator __OP(                \
+      const XlsFixed<ToW, ToI, ToSign, ToQ, ToO> &o) const {                \
+    typedef typename rt<ToW, ToI, ToSign>::__RES Result;                    \
+    Result ret;                                                             \
+    auto adj_a =                                                            \
+        XlsFixed<Result::width, Result::i_width, Result::sign>(*this);      \
+    auto adj_b = XlsFixed<Result::width, Result::i_width, Result::sign>(o); \
+    auto a = adj_a.val.storage;                                             \
+    auto b = adj_b.val.storage;                                             \
+    ConvertBits<ToW, Result::width, Result::sign>::Convert(o.val.storage);  \
+    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[i] { ret (aid): bits[i] " \
+        "= " __IR "(a, b, pos=(loc)) }"                                     \
+        : "=r"(ret)                                                         \
+        : "i"(Result::width), "parama"(a), "paramb"(b));                    \
+    return ret;                                                             \
+  }                                                                         \
+  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode ToQ,     \
+            ac_datatypes::ac_o_mode ToO>                                    \
+  inline XlsFixed operator __OP##=(                                         \
+      const XlsFixed<ToW, ToI, ToSign, ToQ, ToO> &o) {                      \
+    (*this) = (*this)__OP o;                                                \
+    return (*this);                                                         \
   }
 
   BINARY_OP_FIXED(+, "add", plus);
