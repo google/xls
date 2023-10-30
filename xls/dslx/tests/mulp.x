@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn max(x: u32, y: u32) -> u32 { if (x > y) { x } else { y } }
+fn max(x: u32, y: u32) -> u32 { if x > y { x } else { y } }
 
 fn smulp_with_add<M: u32, N: u32, O: u32 = {max(M, N)}>(x: sN[M], y: sN[N]) -> sN[O] {
     let partial_product = smulp(x as sN[O], y as sN[O]);

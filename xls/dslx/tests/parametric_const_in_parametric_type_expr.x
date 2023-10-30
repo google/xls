@@ -13,7 +13,7 @@
 // limitations under the License.
 
 fn min_clip<X: u32, MIN: sN[X] = {sN[X]:0}>(value: sN[X]) -> sN[X] {
-    if (value < MIN) { MIN } else { value }
+    if value < MIN { MIN } else { value }
 }
 
 fn main(x: s4) -> s4 {

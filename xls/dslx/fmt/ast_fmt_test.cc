@@ -381,6 +381,23 @@ TEST_F(FunctionFmtTest, ConditionalWithElseIf) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, ConditionalWithUnnecessaryParens) {
+  const std::string_view original =
+      "fn f(a:u32,b:u32)->u32{if(a<b){a}else if(b<a){b}else{a}}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(a: u32, b: u32) -> u32 {
+    if a < b {
+        a
+    } else if b < a {
+        b
+    } else {
+        a
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, SimpleForOneStatementNoTypeAnnotation) {
   const std::string_view original =
       "fn f(x:u32)->u32{for(i,accum)in u32:0..u32:4{accum+i}(x)}";

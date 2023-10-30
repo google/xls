@@ -51,6 +51,8 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena);
 DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
                      DocArena& arena);
 DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
+DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
+               bool suppress_parens);
 
 static DocRef FmtExprPtr(const Expr* n, const Comments& comments,
                          DocArena& arena) {
@@ -982,13 +984,14 @@ DocRef Fmt(const String& n, const Comments& comments, DocArena& arena) {
 static DocRef MakeConditionalTestGroup(const Conditional& n,
                                        const Comments& comments,
                                        DocArena& arena) {
-  return ConcatNGroup(arena, {
-                                 arena.Make(Keyword::kIf),
-                                 arena.break1(),
-                                 Fmt(*n.test(), comments, arena),
-                                 arena.break1(),
-                                 arena.ocurl(),
-                             });
+  return ConcatNGroup(
+      arena, {
+                 arena.Make(Keyword::kIf),
+                 arena.break1(),
+                 FmtExpr(*n.test(), comments, arena, /*suppress_parens=*/true),
+                 arena.break1(),
+                 arena.ocurl(),
+             });
 }
 
 // When there's an else-if, or multiple statements inside of the blocks, we
@@ -1226,6 +1229,19 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
 
   DocRef leader = ConcatNGroup(arena, leader_pieces);
   return arena.MakeConcat(leader, body);
+}
+
+// Note: suppress_parens just suppresses parentheses for the outermost
+// expression "n", not transitively.
+DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
+               bool suppress_parens) {
+  FmtExprVisitor v(arena, comments);
+  XLS_CHECK_OK(n.AcceptExpr(&v));
+  DocRef result = v.result();
+  if (n.in_parens() && !suppress_parens) {
+    return ConcatNGroup(arena, {arena.oparen(), result, arena.cparen()});
+  }
+  return result;
 }
 
 }  // namespace
@@ -1696,13 +1712,7 @@ static DocRef Fmt(const ModuleMember& n, const Comments& comments,
 }
 
 DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
-  FmtExprVisitor v(arena, comments);
-  XLS_CHECK_OK(n.AcceptExpr(&v));
-  DocRef result = v.result();
-  if (n.in_parens()) {
-    return ConcatNGroup(arena, {arena.oparen(), result, arena.cparen()});
-  }
-  return result;
+  return FmtExpr(n, comments, arena, /*suppress_parens=*/false);
 }
 
 // Returns whether the given members are of the given "MemberT" and "grouped" --
