@@ -154,58 +154,6 @@ DocRef FmtJoin(
   return ConcatNGroup(arena, pieces);
 }
 
-// Returns all the comment data that's contained within `node_span` of the AST
-// node, but knocking out comment data that's within block expressions contained
-// under node.
-//
-// For example, in:
-//
-//    let x = {
-//        // Comment in here.
-//        let y = u32:42;
-//        // This is not multiple inline comments.
-//        y
-//    };
-//
-// we want to "knock out" the comments contained within the block expression as
-// pertaining to the Let node.
-//
-// Implementation note: we assume this is a small vector (that will also
-// typically will go un-modified) so we just do linear traversals.
-static std::vector<const CommentData*> GetCommentsForNode(
-    const AstNode& node, const Span& node_span, const Comments& comments) {
-  std::vector<const CommentData*> all = comments.GetComments(node_span);
-
-  auto remove_comments_under = [&](const Span& span) {
-    // Note: in the typical case we expect that there are no comments under the
-    // given "span", so we do a simple/readable test for it up front.
-    if (!std::any_of(all.begin(), all.end(), [&](const CommentData* cd) {
-          return span.Contains(cd->span);
-        })) {
-      return;
-    }
-
-    std::vector<const CommentData*> updated;
-    for (const CommentData* cd : all) {
-      if (!span.Contains(cd->span)) {
-        updated.push_back(cd);
-      }
-    }
-    all = updated;
-  };
-
-  std::vector<const AstNode*> under =
-      CollectUnder(&node, /*want_types=*/false).value();
-  for (const AstNode* descendant : under) {
-    if (auto* e = dynamic_cast<const Expr*>(descendant);
-        e != nullptr && e->IsBlockedExpr()) {
-      remove_comments_under(e->span());
-    }
-  }
-
-  return all;
-}
-
 DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   return arena.MakeText(BuiltinTypeToString(n.builtin_type()));
@@ -726,11 +674,12 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
+  DocRef names_ref = Fmt(*n.names(), comments, arena);
   std::vector<DocRef> pieces = {
       arena.Make(Keyword::kFor),
-      arena.space(),
-      Fmt(*n.names(), comments, arena),
-  };
+      arena.MakeNestIfFlatFits(
+          /*on_nested_flat=*/names_ref,
+          /*on_other=*/arena.MakeConcat(arena.space(), names_ref))};
 
   if (n.type_annotation() != nullptr) {
     pieces.push_back(arena.colon());
@@ -740,8 +689,12 @@ DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
 
   pieces.push_back(arena.space());
   pieces.push_back(arena.Make(Keyword::kIn));
-  pieces.push_back(arena.space());
-  pieces.push_back(Fmt(*n.iterable(), comments, arena));
+
+  DocRef iterable_ref = Fmt(*n.iterable(), comments, arena);
+  pieces.push_back(arena.MakeNestIfFlatFits(
+      /*on_nested_flat=*/iterable_ref,
+      /*on_other=*/arena.MakeConcat(arena.space(), iterable_ref)));
+
   pieces.push_back(arena.space());
   pieces.push_back(arena.ocurl());
 

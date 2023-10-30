@@ -652,6 +652,20 @@ TEST_F(FunctionFmtTest, CommentParagraphThenStatement) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, LetRhsIsOverlongFor) {
+  const std::string_view original =
+      R"(fn f() {
+    let (_, _, _, div_result) = for
+        (idx, (shifted_y, shifted_index_bit, running_product, running_result)) in
+        range(u32:0, REALLY_LONG_NAME_HERE) {
+        idx
+    }(());
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           DoFmt(original, {"range", "REALLY_LONG_NAME_HERE"}));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
