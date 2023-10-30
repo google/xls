@@ -486,6 +486,140 @@ TEST_P(NarrowingPassTest, SignExtendedOperandsOfSignedCompare) {
           m::BitSlice(m::SignExt(m::Param("rhs")), /*start=*/0, /*width=*/23)));
 }
 
+TEST_P(NarrowingPassTest, SignedCompareSignExtendComparedWithLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x_ge_lit = fb.SGe(fb.SignExtend(fb.Param("x", p->GetBitsType(17)), 42),
+                           fb.Literal(UBits(0, 42)));
+  BValue lit_ge_x =
+      fb.SGe(fb.Literal(UBits(0, 42)),
+             fb.SignExtend(fb.Param("y", p->GetBitsType(17)), 42));
+  fb.Concat({x_ge_lit, lit_ge_x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      // The bit-slices would be removed later by the optimization pipeline.
+      m::Concat(m::SGe(m::BitSlice(m::SignExt(m::Param("x")),
+                                   /*start=*/0, /*width=*/17),
+                       m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/17)),
+                m::SGe(m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/17),
+                       m::BitSlice(m::SignExt(m::Param("y")), /*start=*/0,
+                                   /*width=*/17))));
+}
+
+TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x_gt_lit = fb.SGt(fb.ZeroExtend(fb.Param("x", p->GetBitsType(17)), 42),
+                           fb.Literal(UBits(0, 42)));
+  BValue lit_lt_x =
+      fb.SLt(fb.Literal(UBits(0, 42)),
+             fb.ZeroExtend(fb.Param("y", p->GetBitsType(17)), 42));
+  fb.Concat({x_gt_lit, lit_lt_x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      // The bit-slices would be removed later by the optimization pipeline.
+      m::Concat(m::SGt(m::BitSlice(m::ZeroExt(m::Param("x")),
+                                   /*start=*/0, /*width=*/18),
+                       m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/18)),
+                m::SLt(m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/18),
+                       m::BitSlice(m::ZeroExt(m::Param("y")), /*start=*/0,
+                                   /*width=*/18))));
+}
+
+TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithSignExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x_gt_y = fb.SGt(fb.ZeroExtend(fb.Param("x", p->GetBitsType(17)), 42),
+                         fb.SignExtend(fb.Param("y", p->GetBitsType(19)), 42));
+  BValue a_lt_b = fb.SLt(fb.ZeroExtend(fb.Param("a", p->GetBitsType(19)), 42),
+                         fb.SignExtend(fb.Param("b", p->GetBitsType(17)), 42));
+  fb.Concat({x_gt_y, a_lt_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      // The bit-slices would be removed later by the optimization pipeline.
+      m::Concat(m::SGt(m::BitSlice(m::ZeroExt(m::Param("x")),
+                                   /*start=*/0, /*width=*/19),
+                       m::BitSlice(m::SignExt(m::Param("y")), /*start=*/0,
+                                   /*width=*/19)),
+                m::SLt(m::BitSlice(m::ZeroExt(m::Param("a")),
+                                   /*start=*/0, /*width=*/20),
+                       m::BitSlice(m::SignExt(m::Param("b")), /*start=*/0,
+                                   /*width=*/20))));
+}
+
+TEST_P(NarrowingPassTest, UnsignedCompareSignExtendComparedWithLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x_gt_lit = fb.UGt(fb.SignExtend(fb.Param("x", p->GetBitsType(17)), 42),
+                           fb.Literal(UBits(0, 42)));
+  BValue lit_lt_x =
+      fb.ULt(fb.Literal(UBits(0, 42)),
+             fb.SignExtend(fb.Param("y", p->GetBitsType(17)), 42));
+  fb.Concat({x_gt_lit, lit_lt_x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      // The bit-slices would be removed later by the optimization pipeline.
+      m::Concat(m::UGt(m::BitSlice(m::SignExt(m::Param("x")),
+                                   /*start=*/0, /*width=*/17),
+                       m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/17)),
+                m::ULt(m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/17),
+                       m::BitSlice(m::SignExt(m::Param("y")), /*start=*/0,
+                                   /*width=*/17))));
+}
+
+TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x_gt_lit = fb.UGt(fb.ZeroExtend(fb.Param("x", p->GetBitsType(17)), 42),
+                           fb.Literal(UBits(0, 42)));
+  BValue lit_lt_x =
+      fb.ULt(fb.Literal(UBits(0, 42)),
+             fb.ZeroExtend(fb.Param("y", p->GetBitsType(17)), 42));
+  fb.Concat({x_gt_lit, lit_lt_x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      // The bit-slices would be removed later by the optimization pipeline.
+      m::Concat(m::UGt(m::BitSlice(m::ZeroExt(m::Param("x")),
+                                   /*start=*/0, /*width=*/17),
+                       m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/17)),
+                m::ULt(m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/17),
+                       m::BitSlice(m::ZeroExt(m::Param("y")), /*start=*/0,
+                                   /*width=*/17))));
+}
+
+TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithSignExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x_gt_y = fb.UGt(fb.ZeroExtend(fb.Param("x", p->GetBitsType(17)), 42),
+                         fb.SignExtend(fb.Param("y", p->GetBitsType(19)), 42));
+  BValue a_lt_b = fb.ULt(fb.ZeroExtend(fb.Param("a", p->GetBitsType(19)), 42),
+                         fb.SignExtend(fb.Param("b", p->GetBitsType(17)), 42));
+  fb.Concat({x_gt_y, a_lt_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      // The bit-slices would be removed later by the optimization pipeline.
+      m::Concat(m::UGt(m::BitSlice(m::ZeroExt(m::Param("x")),
+                                   /*start=*/0, /*width=*/19),
+                       m::BitSlice(m::SignExt(m::Param("y")), /*start=*/0,
+                                   /*width=*/19)),
+                m::ULt(m::BitSlice(m::ZeroExt(m::Param("a")),
+                                   /*start=*/0, /*width=*/20),
+                       m::BitSlice(m::SignExt(m::Param("b")), /*start=*/0,
+                                   /*width=*/20))));
+}
+
 TEST_P(NarrowingPassTest, AddWithLeadingZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

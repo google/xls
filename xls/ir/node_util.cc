@@ -180,6 +180,8 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
 
 bool IsUnsignedCompare(Node* node) {
   switch (node->op()) {
+    case Op::kEq:
+    case Op::kNe:
     case Op::kULe:
     case Op::kULt:
     case Op::kUGe:
@@ -192,6 +194,8 @@ bool IsUnsignedCompare(Node* node) {
 
 bool IsSignedCompare(Node* node) {
   switch (node->op()) {
+    case Op::kEq:
+    case Op::kNe:
     case Op::kSLe:
     case Op::kSLt:
     case Op::kSGe:

@@ -372,8 +372,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     int64_t matched_trailing_bits = matched_trailing_operand_bits(compare);
     bool all_bits_match =
         matched_leading_bits == compare->operand(0)->BitCountOrDie();
-    if ((IsUnsignedCompare(compare) || compare->op() == Op::kEq ||
-         compare->op() == Op::kNe) &&
+    if (IsUnsignedCompare(compare) &&
         (matched_leading_bits > 0 || matched_trailing_bits > 0) &&
         !all_bits_match) {
       XLS_VLOG(3) << absl::StreamFormat(
@@ -386,37 +385,53 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       return Change();
     }
 
-    // All but one of the leading known zeros (ones) on both sides of an signed
-    // compare can be sliced away (except the unsliced bit must remain as the
-    // sign bit).
-    int64_t common_leading_ones_or_zeros =
-        std::min(CountLeadingKnownZeros(compare->operand(0), /*user=*/compare),
-                 CountLeadingKnownZeros(compare->operand(1), /*user=*/compare));
-    if (common_leading_ones_or_zeros == 0) {
-      common_leading_ones_or_zeros = std::min(
-          CountLeadingKnownOnes(compare->operand(0), /*user=*/compare),
-          CountLeadingKnownOnes(compare->operand(1), /*user=*/compare));
-    }
-    if (IsSignedCompare(compare) && common_leading_ones_or_zeros > 1) {
-      XLS_RETURN_IF_ERROR(narrow_compare_operands(
-          compare, /*start=*/0,
-          /*bit_count=*/operand_width - common_leading_ones_or_zeros + 1));
+    // For a signed comparison, if both operands look like sign extensions
+    // (either because they are sign extend op or because leading bits == MSB),
+    // the leading bits can be sliced away (except the unsliced bit must remain
+    // as the sign bit).
+
+    // Helper to evaluate how many leading bits == MSB.
+    auto bits_eq_to_msb = [&](Node* n) -> int64_t {
+      int64_t bit_count = n->BitCountOrDie();
+      int64_t msb_index = bit_count - 1;
+      for (int64_t i = 1; i < bit_count; ++i) {
+        int64_t bit_index = bit_count - i - 1;
+        if (!query_engine.KnownEquals(TreeBitLocation(n, msb_index),
+                                      TreeBitLocation(n, bit_index))) {
+          return i - 1;
+        }
+      }
+      return bit_count - 1;
+    };
+    // Ideally, bits_eq_to_msb would be sufficient, but query engines are not
+    // good at evaluating ExtendOps. This is a similar helper specialized on
+    // ExtendOps.
+    auto sign_ext_bits = [](Node* n) -> int64_t {
+      switch (n->op()) {
+        case Op::kSignExt:
+          return n->As<ExtendOp>()->new_bit_count() -
+                 n->operand(0)->BitCountOrDie();
+        case Op::kZeroExt:
+          // subtract 1 because zero extend's extra bits do not match old msb.
+          // Take max with 0 in case new_bit_count == old_bit_count.
+          return std::max(0l, n->As<ExtendOp>()->new_bit_count() -
+                                  n->operand(0)->BitCountOrDie() - 1);
+        default:
+          return 0;
+      }
+    };
+    int64_t op0_bits_eq_to_msb = std::max(bits_eq_to_msb(compare->operand(0)),
+                                          sign_ext_bits(compare->operand(0)));
+    int64_t op1_bits_eq_to_msb = std::max(bits_eq_to_msb(compare->operand(1)),
+                                          sign_ext_bits(compare->operand(1)));
+    int64_t extra_msbs = std::min(op0_bits_eq_to_msb, op1_bits_eq_to_msb);
+    if (extra_msbs > 0) {
+      XLS_RETURN_IF_ERROR(
+          narrow_compare_operands(compare, /*start=*/0,
+                                  /*bit_count=*/operand_width - extra_msbs));
       return Change();
     }
 
-    // If both operands of a signed compare are sign-extensions we can narrow
-    // the compare to wider of the two operands *before* sign_extension.
-    if (IsSignedCompare(compare) && compare->operand(0)->op() == Op::kSignExt &&
-        compare->operand(1)->op() == Op::kSignExt) {
-      int64_t max_unextended_width =
-          std::max(compare->operand(0)->operand(0)->BitCountOrDie(),
-                   compare->operand(1)->operand(0)->BitCountOrDie());
-      if (max_unextended_width < operand_width) {
-        XLS_RETURN_IF_ERROR(narrow_compare_operands(
-            compare, /*start=*/0, /*bit_count=*/max_unextended_width));
-        return Change();
-      }
-    }
     return NoChange();
   }
 
