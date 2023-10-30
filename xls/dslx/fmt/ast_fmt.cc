@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -506,6 +507,21 @@ static std::optional<DocRef> EmitCommentsBetween(
   return ConcatN(arena, pieces);
 }
 
+// EOL-terminated comments we say, in the AST, that the entity's limit was at
+// the end of the line. Technically the limit() pos gives you the start of the
+// next line, but for purposes of line spacing we want it to reflect the very
+// end of the current line.
+//
+// Since we don't record the limit column number for each line to query here, we
+// just use an absurdly large number (int32_t max).
+static Pos AdjustCommentLimit(const Span& comment_span, DocArena& arena,
+                              DocRef comment_doc) {
+  XLS_CHECK_EQ(comment_span.limit().colno(), 0);
+  XLS_CHECK_GT(comment_span.limit().lineno(), 0);
+  return Pos(comment_span.start().filename(), comment_span.limit().lineno() - 1,
+             std::numeric_limits<int32_t>::max());
+}
+
 // Note: we only add leading/trailing spaces in the block if add_curls is true.
 static DocRef FmtBlock(const Block& n, const Comments& comments,
                        DocArena& arena, bool add_curls,
@@ -561,16 +577,19 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     // Get the start position for the statement.
     std::optional<Span> stmt_span = stmt->GetSpan();
     XLS_CHECK(stmt_span.has_value()) << stmt->ToString();
-    Pos stmt_start = stmt_span->start();
+    const Pos& stmt_start = stmt_span->start();
+    const Pos& stmt_limit = stmt_span->limit();
 
-    XLS_VLOG(5) << "stmt: `" << stmt->ToString() << "` start: " << stmt_start
+    XLS_VLOG(5) << "stmt: `" << stmt->ToString()
+                << "` span: " << stmt_span.value()
                 << " last_entity_pos: " << last_entity_pos;
 
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
             last_entity_pos, stmt_start, comments, arena, &last_comment_span)) {
-      XLS_VLOG(5) << "last entity position: " << last_entity_pos
-                  << " last_comment_span.start: " << last_comment_span->start();
+      XLS_VLOG(5) << "emitting comment ahead of: `" << stmt->ToString() << "`"
+                  << " last entity position: " << last_entity_pos
+                  << " last_comment_span: " << last_comment_span.value();
       // If there's a line break between the last entity and this comment, we
       // retain it in the output (i.e. in paragraph style).
       if (last_entity_pos != start_entity_pos &&
@@ -581,22 +600,30 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       nested.push_back(comments_doc.value());
       nested.push_back(arena.hard_line());
 
-      last_entity_pos = last_comment_span->limit();
-      XLS_VLOG(5) << "last comment position limit: " << last_entity_pos
-                  << " comments_doc: "
-                  << arena.ToDebugString(comments_doc.value());
-    } else {  // No comments to emit ahead of the statement.
-      // If there's a line break between the last entity and this statement, we
-      // retain it in the output (i.e. in paragraph style).
-      if (last_entity_pos.lineno() + 1 < stmt_span->start().lineno()) {
+      last_entity_pos = AdjustCommentLimit(last_comment_span.value(), arena,
+                                           comments_doc.value());
+
+      // See if we want a line break between the comment we just emitted and the
+      // statement we're about to emit.
+      if (last_entity_pos.lineno() + 1 < stmt_start.lineno()) {
         nested.push_back(arena.hard_line());
       }
 
-      last_entity_pos = stmt_span->limit();
+    } else {  // No comments to emit ahead of the statement.
+      XLS_VLOG(5) << "no comments to emit ahead of statement: "
+                  << stmt->ToString();
+      // If there's a line break between the last entity and this statement, we
+      // retain it in the output (i.e. in paragraph style).
+      if (last_entity_pos.lineno() + 1 < stmt_start.lineno()) {
+        nested.push_back(arena.hard_line());
+      }
     }
 
     // Here we emit the formatted statement.
     nested.push_back(Fmt(*stmt, comments, arena));
+
+    // Now we reflect the emission of the statement.
+    last_entity_pos = stmt_limit;
 
     bool last_stmt = i + 1 == n.statements().size();
     if (!last_stmt || n.trailing_semi()) {
@@ -604,8 +631,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     }
 
     // See if there are inline comments after the statement.
-    const Pos next_line(last_entity_pos.filename(),
-                        last_entity_pos.lineno() + 1, 0);
+    const Pos next_line(stmt_limit.filename(), stmt_limit.lineno() + 1, 0);
     if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
             last_entity_pos, next_line, comments, arena, &last_comment_span)) {
       XLS_VLOG(3) << "Saw after-statement comment: "
@@ -615,16 +641,8 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       nested.push_back(arena.space());
       nested.push_back(arena.MakeAlign(comments_doc.value()));
 
-      // For inline comments we say that the last entity's limit was at the end
-      // of the line. Technically the limit() pos gives you the start of the
-      // next line, but for purposes of line spacing we want it to reflect the
-      // very end of the current line.
-      last_entity_pos =
-          Pos(last_comment_span->start().filename(),
-              last_comment_span->start().lineno(),
-              last_comment_span->start().colno() +
-                  std::get<int64_t>(
-                      arena.Deref(comments_doc.value()).flat_requirement));
+      last_entity_pos = AdjustCommentLimit(last_comment_span.value(), arena,
+                                           comments_doc.value());
     }
 
     if (!last_stmt) {

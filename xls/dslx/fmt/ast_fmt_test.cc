@@ -641,6 +641,17 @@ TEST_F(FunctionFmtTest, MultiLineTernary) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, CommentParagraphThenStatement) {
+  const std::string_view original =
+      R"(fn f() {
+    // I am an explainer at the top of the function.
+
+    let x = u32:42;
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
