@@ -1350,14 +1350,28 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
   signature_pieces.push_back(arena.MakeText(n.identifier()));
 
   if (n.IsParametric()) {
-    DocRef parametrics =
+    DocRef flat_parametrics =
         ConcatNGroup(arena, {arena.oangle(),
                              FmtJoin<const ParametricBinding*>(
                                  n.parametric_bindings(), Joiner::kCommaSpace,
                                  FmtParametricBindingPtr, comments, arena),
                              arena.cangle()});
+
+    DocRef parametric_guts =
+        ConcatN(arena, {arena.oangle(),
+                        arena.MakeAlign(FmtJoin<const ParametricBinding*>(
+                            n.parametric_bindings(),
+                            Joiner::kCommaBreak1AsGroupNoTrailingComma,
+                            FmtParametricBindingPtr, comments, arena)),
+                        arena.cangle()});
+    DocRef break_parametrics = ConcatNGroup(
+        arena, {
+                   arena.break0(),
+                   arena.MakeFlatChoice(parametric_guts,
+                                        arena.MakeNest(parametric_guts)),
+               });
     signature_pieces.push_back(arena.MakeNestIfFlatFits(
-        /*on_nested_flat=*/parametrics, /*on_other=*/parametrics));
+        /*on_nested_flat=*/flat_parametrics, /*on_other=*/break_parametrics));
   }
 
   {

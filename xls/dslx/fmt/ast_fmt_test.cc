@@ -1519,5 +1519,22 @@ fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, LongParametricList) {
+  const std::string_view kProgram = R"(// Signed max routine.
+pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x > y { x } else { y } }
+
+pub fn extract_bits
+    <from_inclusive: u32, to_exclusive: u32, fixed_shift: u32, N: u32,
+     extract_width: u32 = {smax(s32:0, to_exclusive as s32 - from_inclusive as s32) as u32}>
+    (x: uN[N]) -> uN[extract_width] {
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx
