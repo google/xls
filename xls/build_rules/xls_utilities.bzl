@@ -18,6 +18,7 @@ load(
     "//xls/build_rules:xls_common_rules.bzl",
     "get_output_filename_value",
 )
+load("@rules_proto//proto:defs.bzl", "ProtoInfo")
 
 _PROTOBIN_FILE_EXTENSION = ".protobin"
 
@@ -305,4 +306,81 @@ Examples:
     """,
     implementation = _proto_data_impl,
     attrs = _proto_data_attrs,
+)
+
+def _proto_to_dslx_impl(ctx):
+    """The implementation of the 'proto_to_dslx' rule.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      DefaultInfo provider
+    """
+    schema_sources = ctx.attr.proto_schema[ProtoInfo].direct_sources
+    schema = schema_sources[0]
+
+    proto2dslx = ctx.executable._proto_to_dslx_tool
+    dslx_filename = get_output_filename_value(
+        ctx,
+        "dslx_file",
+        ctx.attr.name + ".x",
+    )
+    dslx_file = ctx.actions.declare_file(dslx_filename)
+    ctx.actions.run_shell(
+        outputs = [dslx_file],
+        # The files required for generating the protobin file.
+        inputs = [schema, ctx.file.textproto, proto2dslx],
+        # The proto2bin executable is a tool needed by the action.
+        tools = [proto2dslx],
+        command = "{} --proto_def_path {} --proto_name {} --textproto_path {} --var_name {} --output_path {}".format(
+            proto2dslx.path,
+            schema.path,
+            ctx.attr.proto_name,
+            ctx.file.textproto.path,
+            ctx.attr.variable_name,
+            dslx_file.path
+        ),
+        use_default_shell_env = True,
+        mnemonic = "Proto2DSLX",
+    )
+    return [DefaultInfo(files = depset([dslx_file]))]
+
+_proto_to_dslx_attrs = {
+    "proto_schema": attr.label(
+        doc = "Schema definition proto file",
+        providers = [ProtoInfo],
+        mandatory = True,
+    ),
+    "proto_name": attr.string(
+        doc = "The name of the message type in the .proto files that 'proto_def_path' " +
+              "file represents.",
+        mandatory = True,
+    ),
+    "textproto": attr.label(
+        doc = "The source textproto file to convert to DSLX",
+        allow_single_file = True,
+        mandatory = True,
+    ),
+    "variable_name": attr.string(
+        doc = "The name of the DSLX struct variable with contents of the textproto " +
+              "file. Defaults to 'parameters'",
+        default = "PARAMETERS",
+    ),
+    "dslx_file": attr.output(
+        doc = "The name of the output file to write DSLX output to. " +
+              "Defaults to <rule_name>.x",
+    ),
+    "_proto_to_dslx_tool": attr.label(
+        doc = "Convert a proto text to a dslx",
+        default = Label("//xls/tools:proto_to_dslx_main"),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+}
+
+proto_to_dslx = rule(
+    implementation = _proto_to_dslx_impl,
+    attrs = _proto_to_dslx_attrs,
 )
