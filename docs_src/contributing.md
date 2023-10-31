@@ -29,9 +29,9 @@ style guides:
 The [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
 and the
 [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
-There are a few small [XLS clarifications]
-(https://google.github.io/xls/xls_style/) for local style on this project where
-the style guide is ambiguous.
+There are a few small
+[XLS clarifications](https://google.github.io/xls/xls_style/) for local style on
+this project where the style guide is ambiguous.
 
 ## Code reviews
 
