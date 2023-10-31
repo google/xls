@@ -37,3 +37,19 @@ xls_dslx_test(
     name = "buffer_dslx_test",
     library = ":buffer_dslx",
 )
+
+xls_dslx_library(
+    name = "window_buffer_dslx",
+    srcs = [
+        "window_buffer.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "window_buffer_dslx_test",
+    library = ":window_buffer_dslx",
+)
+
