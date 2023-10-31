@@ -166,7 +166,7 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
 }
 
 int64_t LlvmTypeConverter::GetTypeByteSize(const Type* type) const {
-  return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedSize();
+  return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedValue();
 }
 
 int64_t LlvmTypeConverter::AlignFor(const Type* type, int64_t offset) const {
