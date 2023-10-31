@@ -73,15 +73,16 @@ TEST_P(TraceTest, CombinationalSimpleTrace) {
   ModuleTestbench tb =
       NewModuleTestbench(result.verilog_text, result.signature);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
   // The combinational module doesn't a connected clock, but the clock can still
   // be used to sequence events in time.
-  tbt->NextCycle().Set("cond", 0);
+  seq.NextCycle().Set("cond", 0);
   tbt->ExpectTrace("This is a simple trace.");
   EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
                                  HasSubstr("This is a simple trace.")));
 
-  tbt->NextCycle().Set("cond", 1);
+  seq.NextCycle().Set("cond", 1);
   XLS_ASSERT_OK(tb.Run());
 
   // Expect a second trace output
@@ -90,13 +91,13 @@ TEST_P(TraceTest, CombinationalSimpleTrace) {
                                  HasSubstr("This is a simple trace.")));
 
   // Trigger a second output by changing cond
-  tbt->NextCycle().Set("cond", 0);
-  tbt->NextCycle().Set("cond", 1);
+  seq.NextCycle().Set("cond", 0);
+  seq.NextCycle().Set("cond", 1);
   XLS_ASSERT_OK(tb.Run());
 
   // Expect a third trace output
   tbt->ExpectTrace("This is a simple trace.");
-  tbt->NextCycle();
+  seq.NextCycle();
 
   // Fail to find the third trace output because cond did not change.
   EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
@@ -133,16 +134,17 @@ TEST_P(TraceTest, ClockedSimpleTraceTest) {
   ModuleTestbench tb =
       NewModuleTestbench(result.verilog_text, result.signature);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->NextCycle().Set("cond", 0);
+  seq.NextCycle().Set("cond", 0);
   tbt->ExpectTrace("This is a simple trace.");
   EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
                                  HasSubstr("This is a simple trace.")));
 
-  tbt->NextCycle().Set("cond", 1);
+  seq.NextCycle().Set("cond", 1);
   // Advance a second cycle so that cond makes it through the pipeline to
   // trigger the trace.
-  tbt->NextCycle();
+  seq.NextCycle();
   XLS_ASSERT_OK(tb.Run());
 
   // Expect a second trace output
@@ -152,7 +154,7 @@ TEST_P(TraceTest, ClockedSimpleTraceTest) {
                                  HasSubstr("This is a simple trace.")));
 
   // Trigger a second output by advancing the clock even though cond is 0.
-  tbt->NextCycle().Set("cond", 0);
+  seq.NextCycle().Set("cond", 0);
   XLS_ASSERT_OK(tb.Run());
 
   // Expect a third trace output

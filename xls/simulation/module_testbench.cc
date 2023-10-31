@@ -15,6 +15,7 @@
 #include "xls/simulation/module_testbench.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -24,11 +25,16 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -38,8 +44,11 @@
 #include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
+#include "xls/ir/source_location.h"
 #include "xls/simulation/verilog_simulator.h"
+#include "xls/tools/verilog_include.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -103,9 +112,12 @@ void WaitNCycles(LogicRef* clk, StatementBlock* statement_block,
   if (n_cycles == 1) {
     WaitForClockPosEdge(clk, statement_block);
   } else {
-    statement_block->Add<RepeatStatement>(
-        SourceInfo(), file.PlainLiteral(n_cycles, SourceInfo()),
-        file.Make<EventControl>(SourceInfo(), posedge_clk));
+    verilog::RepeatStatement* repeat_statement =
+        statement_block->Add<verilog::RepeatStatement>(
+            SourceInfo(),
+            file.PlainLiteral(static_cast<int32_t>(n_cycles), SourceInfo()));
+    repeat_statement->statements()->Add<EventControl>(SourceInfo(),
+                                                      posedge_clk);
   }
   EmitDelay(statement_block, 1);
 }
@@ -302,19 +314,17 @@ absl::Status TestbenchMetadata::AddSignal(std::string_view name, int64_t width,
   return absl::OkStatus();
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::NextCycle() {
-  return AdvanceNCycles(1);
-}
+SequentialBlock& SequentialBlock::NextCycle() { return AdvanceNCycles(1); }
 
-ModuleTestbenchThread& ModuleTestbenchThread::AdvanceNCycles(int64_t n_cycles) {
-  actions_.push_back(AdvanceCycle{n_cycles});
+SequentialBlock& SequentialBlock::AdvanceNCycles(int64_t n_cycles) {
+  statements_.push_back(AdvanceCycle{n_cycles});
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfter(
+SequentialBlock& SequentialBlock::WaitForCycleAfter(
     std::string_view signal_name) {
   XLS_CHECK_EQ(metadata_->GetSignalWidth(signal_name), 1);
-  actions_.push_back(WaitForSignals{
+  statements_.push_back(WaitForSignals{
       .any_or_all = AnyOrAll::kAll,
       .signal_values = {SignalValue{std::string(signal_name), UBits(1, 1)}},
       .comment = absl::StrFormat("Wait for cycle after `%s` is asserted",
@@ -322,10 +332,10 @@ ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfter(
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterNot(
+SequentialBlock& SequentialBlock::WaitForCycleAfterNot(
     std::string_view signal_name) {
   XLS_CHECK_EQ(metadata_->GetSignalWidth(signal_name), 1);
-  actions_.push_back(WaitForSignals{
+  statements_.push_back(WaitForSignals{
       .any_or_all = AnyOrAll::kAll,
       .signal_values = {SignalValue{std::string(signal_name), UBits(0, 1)}},
       .comment = absl::StrFormat("Wait for cycle after `%s` is de-asserted",
@@ -333,9 +343,9 @@ ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterNot(
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterX(
+SequentialBlock& SequentialBlock::WaitForCycleAfterX(
     std::string_view signal_name) {
-  actions_.push_back(WaitForSignals{
+  statements_.push_back(WaitForSignals{
       .any_or_all = AnyOrAll::kAll,
       .signal_values = {SignalValue{std::string(signal_name), IsX()}},
       .comment =
@@ -343,9 +353,9 @@ ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterX(
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterNotX(
+SequentialBlock& SequentialBlock::WaitForCycleAfterNotX(
     std::string_view signal_name) {
-  actions_.push_back(WaitForSignals{
+  statements_.push_back(WaitForSignals{
       .any_or_all = AnyOrAll::kAll,
       .signal_values = {SignalValue{std::string(signal_name), IsNotX()}},
       .comment =
@@ -353,13 +363,13 @@ ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterNotX(
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterAll(
+SequentialBlock& SequentialBlock::WaitForCycleAfterAll(
     absl::Span<const std::string> signal_names) {
   std::vector<SignalValue> signal_values;
   for (const std::string& name : signal_names) {
     signal_values.push_back(SignalValue{std::string(name), UBits(1, 1)});
   }
-  actions_.push_back(WaitForSignals{
+  statements_.push_back(WaitForSignals{
       .any_or_all = AnyOrAll::kAll,
       .signal_values = signal_values,
       .comment = absl::StrFormat("Wait for cycle after all asserted: %s",
@@ -367,13 +377,13 @@ ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterAll(
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterAny(
+SequentialBlock& SequentialBlock::WaitForCycleAfterAny(
     absl::Span<const std::string> signal_names) {
   std::vector<SignalValue> signal_values;
   for (const std::string& name : signal_names) {
     signal_values.push_back(SignalValue{std::string(name), UBits(1, 1)});
   }
-  actions_.push_back(WaitForSignals{
+  statements_.push_back(WaitForSignals{
       .any_or_all = AnyOrAll::kAny,
       .signal_values = signal_values,
       .comment = absl::StrFormat("Wait for cycle after any asserted: %s",
@@ -381,24 +391,23 @@ ModuleTestbenchThread& ModuleTestbenchThread::WaitForCycleAfterAny(
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::Set(std::string_view signal_name,
-                                                  const Bits& value) {
+SequentialBlock& SequentialBlock::Set(std::string_view signal_name,
+                                      const Bits& value) {
   CheckCanDriveSignal(signal_name);
-  actions_.push_back(SetSignal{std::string(signal_name), value});
+  statements_.push_back(SetSignal{std::string(signal_name), value});
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::Set(std::string_view signal_name,
-                                                  uint64_t value) {
+SequentialBlock& SequentialBlock::Set(std::string_view signal_name,
+                                      uint64_t value) {
   CheckCanDriveSignal(signal_name);
   return Set(signal_name, UBits(value, metadata_->GetSignalWidth(signal_name)));
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::SetX(
-    std::string_view signal_name) {
+SequentialBlock& SequentialBlock::SetX(std::string_view signal_name) {
   CheckCanDriveSignal(signal_name);
-  actions_.push_back(SetSignalX{std::string(signal_name),
-                                metadata_->GetSignalWidth(signal_name)});
+  statements_.push_back(SetSignalX{std::string(signal_name),
+                                   metadata_->GetSignalWidth(signal_name)});
   return *this;
 }
 
@@ -406,9 +415,15 @@ SignalCapture SignalCaptureManager::Capture(const TestbenchSignal& signal,
                                             Bits* bits) {
   int64_t instance = signal_captures_.size();
   signal_captures_.push_back(
-      SignalCapture{.signal = signal,
-                    .action = TestbenchCapture{.bits = bits},
-                    .instance_id = instance});
+      SignalCapture{.signal = signal, .action = bits, .instance_id = instance});
+  return signal_captures_.back();
+}
+
+SignalCapture SignalCaptureManager::CaptureMultiple(
+    const TestbenchSignal& signal, std::vector<Bits>* values) {
+  int64_t instance = signal_captures_.size();
+  signal_captures_.push_back(SignalCapture{
+      .signal = signal, .action = values, .instance_id = instance});
   return signal_captures_.back();
 }
 
@@ -443,6 +458,16 @@ EndOfCycleEvent& EndOfCycleEvent::Capture(std::string_view signal_name,
   return *this;
 }
 
+EndOfCycleEvent& EndOfCycleEvent::CaptureMultiple(std::string_view signal_name,
+                                                  std::vector<Bits>* values) {
+  XLS_CHECK_OK(metadata_->CheckIsReadableSignal(signal_name));
+  if (metadata_->GetSignalWidth(signal_name) > 0) {
+    signal_captures_.push_back(capture_manager_->CaptureMultiple(
+        metadata_->GetSignal(signal_name), values));
+  }
+  return *this;
+}
+
 EndOfCycleEvent& EndOfCycleEvent::ExpectEq(std::string_view signal_name,
                                            const Bits& expected,
                                            xabsl::SourceLocation loc) {
@@ -472,17 +497,17 @@ EndOfCycleEvent& EndOfCycleEvent::ExpectX(std::string_view signal_name,
   return *this;
 }
 
-EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycle() {
+EndOfCycleEvent& SequentialBlock::AtEndOfCycle() {
   AdvanceCycle advance_cycle{
       .amount = 1,
       .end_of_cycle_event =
           std::make_unique<EndOfCycleEvent>(metadata_, capture_manager_)};
   EndOfCycleEvent* end_of_cycle_event = advance_cycle.end_of_cycle_event.get();
-  actions_.push_back(std::move(advance_cycle));
+  statements_.push_back(std::move(advance_cycle));
   return *end_of_cycle_event;
 }
 
-EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenSignalsEq(
+EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenSignalsEq(
     AnyOrAll any_or_all, std::vector<SignalValue> signal_values,
     std::string_view comment) {
   WaitForSignals wait_for_signals{
@@ -493,11 +518,11 @@ EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenSignalsEq(
       .comment = std::string{comment}};
   EndOfCycleEvent* end_of_cycle_event =
       wait_for_signals.end_of_cycle_event.get();
-  actions_.push_back(std::move(wait_for_signals));
+  statements_.push_back(std::move(wait_for_signals));
   return *end_of_cycle_event;
 }
 
-EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhen(
+EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhen(
     std::string_view signal_name) {
   XLS_CHECK_EQ(metadata_->GetSignalWidth(signal_name), 1);
   return AtEndOfCycleWhenSignalsEq(
@@ -506,7 +531,7 @@ EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhen(
                       signal_name));
 }
 
-EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenNot(
+EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenNot(
     std::string_view signal_name) {
   XLS_CHECK_EQ(metadata_->GetSignalWidth(signal_name), 1);
   return AtEndOfCycleWhenSignalsEq(
@@ -515,7 +540,7 @@ EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenNot(
                       signal_name));
 }
 
-EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenAll(
+EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenAll(
     absl::Span<const std::string> signal_names) {
   std::vector<SignalValue> signal_values;
   for (const std::string& name : signal_names) {
@@ -527,7 +552,7 @@ EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenAll(
                       absl::StrJoin(signal_names, ", ")));
 }
 
-EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenAny(
+EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenAny(
     absl::Span<const std::string> signal_names) {
   std::vector<SignalValue> signal_values;
   for (const std::string& name : signal_names) {
@@ -539,14 +564,14 @@ EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenAny(
                       absl::StrJoin(signal_names, ", ")));
 }
 
-EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenX(
+EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenX(
     std::string_view signal_name) {
   return AtEndOfCycleWhenSignalsEq(
       AnyOrAll::kAll, {SignalValue{std::string(signal_name), IsX()}},
       absl::StrFormat("Wait for `%s` to be X and capture output", signal_name));
 }
 
-EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenNotX(
+EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenNotX(
     std::string_view signal_name) {
   return AtEndOfCycleWhenSignalsEq(
       AnyOrAll::kAll, {SignalValue{std::string(signal_name), IsNotX()}},
@@ -554,21 +579,76 @@ EndOfCycleEvent& ModuleTestbenchThread::AtEndOfCycleWhenNotX(
                       signal_name));
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::ExpectTrace(
-    std::string_view trace_message) {
-  expected_traces_.push_back(std::string(trace_message));
-  return *this;
-}
-
-void ModuleTestbenchThread::CheckCanDriveSignal(std::string_view name) {
+void SequentialBlock::CheckCanDriveSignal(std::string_view name) {
   XLS_CHECK(driven_signal_names_.contains(name)) << absl::StrFormat(
       "'%s' is not a signal that the thread is designated to drive.", name);
 }
 
-void ModuleTestbenchThread::CheckCanReadSignal(std::string_view name) {
-  // Any signal except the clock is readable by any thread.
-  XLS_CHECK(metadata_->HasSignal(name) && !metadata_->IsClock(name))
-      << absl::StrFormat("'%s' is not a readable signal", name);
+SequentialBlock& SequentialBlock::RepeatForever() {
+  statements_.push_back(
+      RepeatStatement{.count = std::nullopt,
+                      .sequential_block = std::make_unique<SequentialBlock>(
+                          metadata_, driven_signal_names_, capture_manager_)});
+  return *std::get<RepeatStatement>(statements_.back()).sequential_block;
+}
+SequentialBlock& SequentialBlock::Repeat(int64_t count) {
+  statements_.push_back(
+      RepeatStatement{.count = count,
+                      .sequential_block = std::make_unique<SequentialBlock>(
+                          metadata_, driven_signal_names_, capture_manager_)});
+  return *std::get<RepeatStatement>(statements_.back()).sequential_block;
+}
+
+void SequentialBlock::Emit(
+    StatementBlock* statement_block, LogicRef* clk,
+    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
+  VerilogFile& file = *statement_block->file();
+  for (const Statement& statement : statements_) {
+    if (std::holds_alternative<Action>(statement)) {
+      EmitAction(std::get<Action>(statement), statement_block, clk,
+                 signal_refs);
+    } else {
+      const RepeatStatement& repeat_statement =
+          std::get<RepeatStatement>(statement);
+      if (repeat_statement.count.has_value()) {
+        verilog::RepeatStatement* verilog_statement =
+            statement_block->Add<verilog::RepeatStatement>(
+                SourceInfo(),
+                file.PlainLiteral(
+                    static_cast<int32_t>(repeat_statement.count.value()),
+                    SourceInfo()));
+        repeat_statement.sequential_block->Emit(verilog_statement->statements(),
+                                                clk, signal_refs);
+      } else {
+        verilog::WhileStatement* while_statement =
+            statement_block->Add<verilog::WhileStatement>(
+                SourceInfo(), file.PlainLiteral(1, SourceInfo()));
+        repeat_statement.sequential_block->Emit(while_statement->statements(),
+                                                clk, signal_refs);
+      }
+    }
+  }
+}
+
+ModuleTestbenchThread::ModuleTestbenchThread(
+    const TestbenchMetadata* metadata, SignalCaptureManager* capture_manager,
+    absl::Span<const DrivenSignal> driven_signals,
+    std::optional<std::string> done_signal_name)
+    : metadata_(XLS_DIE_IF_NULL(metadata)),
+      capture_manager_(capture_manager),
+      driven_signals_(driven_signals.begin(), driven_signals.end()),
+      done_signal_name_(std::move(done_signal_name)) {
+  for (const DrivenSignal& signal : driven_signals) {
+    driven_signal_names_.insert(signal.signal_name);
+  }
+  main_block_ = std::make_unique<SequentialBlock>(
+      metadata, driven_signal_names_, capture_manager);
+}
+
+ModuleTestbenchThread& ModuleTestbenchThread::ExpectTrace(
+    std::string_view trace_message) {
+  expected_traces_.push_back(std::string(trace_message));
+  return *this;
 }
 
 void ModuleTestbenchThread::EmitInto(
@@ -609,9 +689,8 @@ void ModuleTestbenchThread::EmitInto(
         procedure->statements(), clk, signal_refs);
   }
   // All actions occur one time unit after the pos edge of the clock.
-  for (const Action& action : actions_) {
-    EmitAction(action, procedure->statements(), clk, signal_refs);
-  }
+  main_block_->Emit(procedure->statements(), clk, signal_refs);
+
   // The last statement must be to assert the done signal of the thread.
   if (done_signal_name_.has_value()) {
     EmitAction(SetSignal{done_signal_name_.value(), UBits(1, 1)},
@@ -789,6 +868,100 @@ ExtractSignalValues(std::string_view stdout_str) {
   return parsed_values;
 }
 
+// Writes the captured sequence of values of the given signal/instance into the
+// given Bits vector. `outputs` is index by instance_id as returned by
+// `ExtractSignalValues`.
+static absl::Status RecordCapturedBitsVector(
+    std::string_view signal_name, int64_t instance_id,
+    const absl::flat_hash_map<int64_t, std::vector<BitsOrX>>& outputs,
+    std::vector<Bits>* bits_vector) {
+  bits_vector->clear();
+  if (outputs.contains(instance_id)) {
+    for (int64_t i = 0; i < outputs.at(instance_id).size(); ++i) {
+      const BitsOrX& output = outputs.at(instance_id)[i];
+      if (std::holds_alternative<IsX>(output)) {
+        return absl::NotFoundError(absl::StrFormat(
+            "Output `%s`, instance #%d, recurrence %d holds X value in "
+            "Verilog simulator output.",
+            signal_name, instance_id, i));
+      }
+      bits_vector->push_back(std::get<Bits>(output));
+    }
+  }
+  return absl::OkStatus();
+}
+
+// Writes the captured single value of the given signal/instance into the given
+// Bits. `outputs` is index by instance_id as returned by `ExtractSignalValues`.
+static absl::Status RecordCapturedBits(
+    std::string_view signal_name, int64_t instance_id,
+    const absl::flat_hash_map<int64_t, std::vector<BitsOrX>>& outputs,
+    Bits* bits) {
+  if (!outputs.contains(instance_id)) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Output `%s`, instance #%d not found in Verilog simulator output.",
+        signal_name, instance_id));
+  }
+  XLS_RET_CHECK_EQ(outputs.at(instance_id).size(), 1);
+  const BitsOrX& bits_or_x = outputs.at(instance_id).front();
+  // Write out module signal values to pointers passed in via Capture
+  // calls.
+  if (std::holds_alternative<IsX>(bits_or_x)) {
+    return absl::NotFoundError(
+        absl::StrFormat("Output `%s`, instance #%d holds X value in "
+                        "Verilog simulator output.",
+                        signal_name, instance_id));
+  }
+  *bits = std::get<Bits>(bits_or_x);
+  return absl::OkStatus();
+}
+
+// Checks all of the captured values of the given signal/instance against the
+// given expectation. `outputs` is index by instance_id as returned by
+// `ExtractSignalValues`.
+static absl::Status CheckCapturedSignalAgainstExpectation(
+    std::string_view signal_name, int64_t instance_id,
+    const TestbenchExpectation& expectation,
+    const absl::flat_hash_map<int64_t, std::vector<BitsOrX>>& outputs) {
+  // The captured signal may appear zero or more times in the output. Check
+  // every instance.
+  if (outputs.contains(instance_id)) {
+    auto get_source_location = [&]() {
+      return absl::StrFormat("%s@%d", expectation.loc.file_name(),
+                             expectation.loc.line());
+    };
+    for (int64_t i = 0; i < outputs.at(instance_id).size(); ++i) {
+      const BitsOrX& bits_or_x = outputs.at(instance_id)[i];
+      std::string instance_name =
+          absl::StrFormat("output `%s`, instance #%d, recurrence %d",
+                          signal_name, instance_id, i);
+      if (std::holds_alternative<Bits>(expectation.expected)) {
+        const Bits& expected_bits = std::get<Bits>(expectation.expected);
+        if (std::holds_alternative<IsX>(bits_or_x)) {
+          return absl::FailedPreconditionError(absl::StrFormat(
+              "%s: expected %s to have value: %v, has X", get_source_location(),
+              instance_name, expected_bits));
+        }
+        const Bits& actual_bits = std::get<Bits>(bits_or_x);
+        if (actual_bits != expected_bits) {
+          return absl::FailedPreconditionError(
+              absl::StrFormat("%s: expected %s to have value: %v, actual: %v",
+                              get_source_location(), instance_name,
+                              expected_bits, actual_bits));
+        }
+      } else {
+        XLS_CHECK(std::holds_alternative<IsX>(expectation.expected));
+        if (std::holds_alternative<Bits>(bits_or_x)) {
+          return absl::FailedPreconditionError(absl::StrFormat(
+              "%s: expected %s to have X value, has non X value: %v",
+              get_source_location(), instance_name, std::get<Bits>(bits_or_x)));
+        }
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
     std::string_view stdout_str) const {
   // Check for timeout.
@@ -803,62 +976,28 @@ absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
 
   for (const SignalCapture& signal_capture :
        capture_manager_.signal_captures()) {
-    if (!outputs.contains(signal_capture.instance_id)) {
-      return absl::NotFoundError(absl::StrFormat(
-          "Output `%s`, instance #%d not found in Verilog simulator output.",
-          signal_capture.signal.name, signal_capture.instance_id));
+    if (std::holds_alternative<std::vector<Bits>*>(signal_capture.action)) {
+      // Capture multiple instances of the same signal.
+      XLS_RETURN_IF_ERROR(RecordCapturedBitsVector(
+          signal_capture.signal.name, signal_capture.instance_id, outputs,
+          std::get<std::vector<Bits>*>(signal_capture.action)));
+      continue;
     }
-    XLS_RET_CHECK_EQ(outputs.at(signal_capture.instance_id).size(), 1);
-    const BitsOrX& bits_or_x = outputs.at(signal_capture.instance_id).front();
 
-    if (std::holds_alternative<TestbenchCapture>(signal_capture.action)) {
-      // Write out module signal values to pointers passed in via Capture
-      // calls.
-      const TestbenchCapture& bits_capture =
-          std::get<TestbenchCapture>(signal_capture.action);
-      if (std::holds_alternative<IsX>(bits_or_x)) {
-        return absl::NotFoundError(absl::StrFormat(
-            "Output `%s`, instance #%d holds X value in "
-            "Verilog simulator output.",
-            signal_capture.signal.name, signal_capture.instance_id));
-      }
-      *bits_capture.bits = std::get<Bits>(bits_or_x);
-    } else {
-      // Check the signal value against any expectations.
-      const TestbenchExpectation& expectation =
-          std::get<TestbenchExpectation>(signal_capture.action);
-      auto get_source_location = [&]() {
-        return absl::StrFormat("%s@%d", expectation.loc.file_name(),
-                               expectation.loc.line());
-      };
-      if (std::holds_alternative<Bits>(expectation.expected)) {
-        const Bits& expected_bits = std::get<Bits>(expectation.expected);
-        if (std::holds_alternative<IsX>(bits_or_x)) {
-          return absl::FailedPreconditionError(
-              absl::StrFormat("%s: expected output `%s`, instance #%d to "
-                              "have value: %v, has X",
-                              get_source_location(), signal_capture.signal.name,
-                              signal_capture.instance_id, expected_bits));
-        }
-        const Bits& actual_bits = std::get<Bits>(bits_or_x);
-        if (actual_bits != expected_bits) {
-          return absl::FailedPreconditionError(absl::StrFormat(
-              "%s: expected output `%s`, instance #%d to have value: %v, "
-              "actual: %v",
-              get_source_location(), signal_capture.signal.name,
-              signal_capture.instance_id, expected_bits, actual_bits));
-        }
-      } else {
-        XLS_CHECK(std::holds_alternative<IsX>(expectation.expected));
-        if (std::holds_alternative<Bits>(bits_or_x)) {
-          return absl::FailedPreconditionError(absl::StrFormat(
-              "%s: expected output `%s`, instance #%d to have X value, has "
-              "non X value: %v",
-              get_source_location(), signal_capture.signal.name,
-              signal_capture.instance_id, std::get<Bits>(bits_or_x)));
-        }
-      }
+    if (std::holds_alternative<Bits*>(signal_capture.action)) {
+      // Capture a single instance of a signal.
+      XLS_RETURN_IF_ERROR(RecordCapturedBits(
+          signal_capture.signal.name, signal_capture.instance_id, outputs,
+          std::get<Bits*>(signal_capture.action)));
+      continue;
     }
+
+    // Check the signal value against any expectations.
+    XLS_RET_CHECK(
+        std::holds_alternative<TestbenchExpectation>(signal_capture.action));
+    XLS_RETURN_IF_ERROR(CheckCapturedSignalAgainstExpectation(
+        signal_capture.signal.name, signal_capture.instance_id,
+        std::get<TestbenchExpectation>(signal_capture.action), outputs));
   }
 
   // Look for the expected trace messages in the simulation output.
@@ -1009,9 +1148,22 @@ std::string ModuleTestbench::GenerateVerilog() {
         SourceInfo(),
         std::vector<Expression*>{file.Make<QuotedString>(
             SourceInfo(),
-            absl::StrFormat("Starting. Clock rises at %d, %d, %d, ...:",
-                            kClockPeriod / 2, kClockPeriod + kClockPeriod / 2,
+            absl::StrFormat("Clock rises at %d, %d, %d, ....", kClockPeriod / 2,
+                            kClockPeriod + kClockPeriod / 2,
                             2 * kClockPeriod + kClockPeriod / 2))});
+    initial->statements()->Add<Display>(
+        SourceInfo(),
+        std::vector<Expression*>{file.Make<QuotedString>(
+            SourceInfo(), "Signals driven one time unit after rising clock.")});
+    initial->statements()->Add<Display>(
+        SourceInfo(),
+        std::vector<Expression*>{file.Make<QuotedString>(
+            SourceInfo(),
+            "Signals sampled one time unit before rising clock.")});
+    initial->statements()->Add<Display>(
+        SourceInfo(),
+        std::vector<Expression*>{file.Make<QuotedString>(
+            SourceInfo(), "Starting simulation. Monitor output:")});
     std::string monitor_fmt = "%t";
     std::vector<Expression*> monitor_args = {
         file.Make<SystemFunctionCall>(SourceInfo(), "time")};

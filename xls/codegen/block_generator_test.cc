@@ -47,6 +47,7 @@
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/simulation/module_simulator.h"
+#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -137,14 +138,15 @@ TEST_P(BlockGeneratorTest, AandB) {
 
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->AtEndOfCycle().ExpectX("sum");
+  seq.AtEndOfCycle().ExpectX("sum");
   // The combinational module doesn't a connected clock, but the clock can still
   // be used to sequence events in time.
-  tbt->Set("a", 0).Set("b", 0);
-  tbt->AtEndOfCycle().ExpectEq("sum", 0);
-  tbt->Set("a", 0x11ff).Set("b", 0x77bb);
-  tbt->AtEndOfCycle().ExpectEq("sum", 0x11bb);
+  seq.Set("a", 0).Set("b", 0);
+  seq.AtEndOfCycle().ExpectEq("sum", 0);
+  seq.Set("a", 0x11ff).Set("b", 0x77bb);
+  seq.AtEndOfCycle().ExpectEq("sum", 0x11bb);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -191,24 +193,25 @@ TEST_P(BlockGeneratorTest, PipelinedAandB) {
 
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->AtEndOfCycle().ExpectX("sum");
-  tbt->Set("a", 0).Set("b", 0);
-  tbt->AdvanceNCycles(2);
-  tbt->AtEndOfCycle().ExpectEq("sum", 0);
+  seq.AtEndOfCycle().ExpectX("sum");
+  seq.Set("a", 0).Set("b", 0);
+  seq.AdvanceNCycles(2);
+  seq.AtEndOfCycle().ExpectEq("sum", 0);
 
-  tbt->Set("a", 0x11ff).Set("b", 0x77bb);
-  tbt->AdvanceNCycles(2);
-  tbt->AtEndOfCycle().ExpectEq("sum", 0x11bb);
+  seq.Set("a", 0x11ff).Set("b", 0x77bb);
+  seq.AdvanceNCycles(2);
+  seq.AtEndOfCycle().ExpectEq("sum", 0x11bb);
 
-  tbt->Set("the_reset", 1);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("sum", 0);
+  seq.Set("the_reset", 1);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("sum", 0);
 
-  tbt->Set("the_reset", 0);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("sum", 0);
-  tbt->AtEndOfCycle().ExpectEq("sum", 0x11bb);
+  seq.Set("the_reset", 0);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("sum", 0);
+  seq.AtEndOfCycle().ExpectEq("sum", 0x11bb);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -243,16 +246,17 @@ TEST_P(BlockGeneratorTest, PipelinedAandBNoReset) {
 
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->AtEndOfCycle().ExpectX("sum");
-  tbt->Set("a", 0).Set("b", 0);
-  tbt->AtEndOfCycle().ExpectX("sum");
-  tbt->AtEndOfCycle().ExpectX("sum");
-  tbt->AtEndOfCycle().ExpectEq("sum", 0);
+  seq.AtEndOfCycle().ExpectX("sum");
+  seq.Set("a", 0).Set("b", 0);
+  seq.AtEndOfCycle().ExpectX("sum");
+  seq.AtEndOfCycle().ExpectX("sum");
+  seq.AtEndOfCycle().ExpectEq("sum", 0);
 
-  tbt->Set("a", 0x11ff).Set("b", 0x77bb);
-  tbt->AdvanceNCycles(2);
-  tbt->AtEndOfCycle().ExpectEq("sum", 0x11bb);
+  seq.Set("a", 0x11ff).Set("b", 0x77bb);
+  seq.AdvanceNCycles(2);
+  seq.AtEndOfCycle().ExpectEq("sum", 0x11bb);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -288,23 +292,24 @@ TEST_P(BlockGeneratorTest, Accumulator) {
 
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->Set("in", 0).Set("rst_n", 0);
-  tbt->NextCycle();
-  tbt->Set("rst_n", 1);
-  tbt->NextCycle();
+  seq.Set("in", 0).Set("rst_n", 0);
+  seq.NextCycle();
+  seq.Set("rst_n", 1);
+  seq.NextCycle();
 
-  tbt->Set("in", 42);
-  tbt->AtEndOfCycle().ExpectEq("out", 10);
-  tbt->Set("in", 100);
-  tbt->AtEndOfCycle().ExpectEq("out", 52);
-  tbt->Set("in", 0);
-  tbt->AtEndOfCycle().ExpectEq("out", 152);
+  seq.Set("in", 42);
+  seq.AtEndOfCycle().ExpectEq("out", 10);
+  seq.Set("in", 100);
+  seq.AtEndOfCycle().ExpectEq("out", 52);
+  seq.Set("in", 0);
+  seq.AtEndOfCycle().ExpectEq("out", 152);
 
-  tbt->Set("in", 0).Set("rst_n", 0);
-  tbt->NextCycle();
-  tbt->Set("rst_n", 1);
-  tbt->AtEndOfCycle().ExpectEq("out", 10);
+  seq.Set("in", 0).Set("rst_n", 0);
+  seq.NextCycle();
+  seq.Set("rst_n", 1);
+  seq.AtEndOfCycle().ExpectEq("out", 10);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -597,34 +602,35 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
                            GenerateSignature(codegen_options("clk"), block));
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
   // Set inputs to zero and disable load-enables.
-  tbt->Set("a", 100).Set("b", 200).Set("a_le", 0).Set("b_le", 0).Set("rst", 1);
-  tbt->NextCycle();
-  tbt->Set("rst", 0);
+  seq.Set("a", 100).Set("b", 200).Set("a_le", 0).Set("b_le", 0).Set("rst", 1);
+  seq.NextCycle();
+  seq.Set("rst", 0);
 
   // Outputs should be at the reset value.
-  tbt->AtEndOfCycle().ExpectEq("a_out", 42).ExpectEq("b_out", 43);
+  seq.AtEndOfCycle().ExpectEq("a_out", 42).ExpectEq("b_out", 43);
 
   // Outputs should remain at reset values after clocking because load enables
   // are unasserted.
-  tbt->AtEndOfCycle().ExpectEq("a_out", 42).ExpectEq("b_out", 43);
+  seq.AtEndOfCycle().ExpectEq("a_out", 42).ExpectEq("b_out", 43);
 
   // Assert load enable of 'a'. Load enable of 'b' remains unasserted.
-  tbt->Set("a_le", 1);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("a_out", 100).ExpectEq("b_out", 43);
+  seq.Set("a_le", 1);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("a_out", 100).ExpectEq("b_out", 43);
 
   // Assert load enable of 'b'. Deassert load enable of 'a' and change a's
   // input. New input of 'a' should not propagate.
-  tbt->Set("a", 101).Set("a_le", 0).Set("b_le", 1);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("a_out", 100).ExpectEq("b_out", 200);
+  seq.Set("a", 101).Set("a_le", 0).Set("b_le", 1);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("a_out", 100).ExpectEq("b_out", 200);
 
   // Assert both load enables.
-  tbt->Set("b", 201).Set("a_le", 1).Set("b_le", 1);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("a_out", 101).ExpectEq("b_out", 201);
+  seq.Set("b", 201).Set("a_le", 1).Set("b_le", 1);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("a_out", 101).ExpectEq("b_out", 201);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -785,15 +791,16 @@ TEST_P(BlockGeneratorTest, InstantiatedBlock) {
 
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->AtEndOfCycle().ExpectX("out");
+  seq.AtEndOfCycle().ExpectX("out");
   // The module doesn't a connected clock, but the clock can still
   // be used to sequence events in time.
   // `out` should be: ((x + 1) - (y - 1)) << 1
-  tbt->Set("x", 0).Set("y", 0);
-  tbt->AtEndOfCycle().ExpectEq("out", 4);
-  tbt->Set("x", 100).Set("y", 42);
-  tbt->AtEndOfCycle().ExpectEq("out", 120);
+  seq.Set("x", 0).Set("y", 0);
+  seq.AtEndOfCycle().ExpectEq("out", 4);
+  seq.Set("x", 100).Set("y", 42);
+  seq.AtEndOfCycle().ExpectEq("out", 120);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -850,18 +857,19 @@ TEST_P(BlockGeneratorTest, InstantiatedBlockWithClock) {
 
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->AtEndOfCycle().ExpectX("out");
-  tbt->Set("x", 100);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("out", 100);
-  tbt->Set("x", 101);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("out", 101);
-  tbt->Set("x", 102);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("out", 102);
-  tbt->Set("x", 0);
+  seq.AtEndOfCycle().ExpectX("out");
+  seq.Set("x", 100);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("out", 100);
+  seq.Set("x", 101);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("out", 101);
+  seq.Set("x", 102);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("out", 102);
+  seq.Set("x", 0);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -914,24 +922,25 @@ TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
 
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->AtEndOfCycle()
+  seq.AtEndOfCycle()
       .ExpectX("x_minus_y")
       .ExpectX("y_minus_x")
       .ExpectX("x_minus_x");
 
   // The module doesn't a connected clock, but the clock can still
   // be used to sequence events in time.
-  tbt->NextCycle();
-  tbt->Set("x", 0).Set("y", 0);
-  tbt->AtEndOfCycle()
+  seq.NextCycle();
+  seq.Set("x", 0).Set("y", 0);
+  seq.AtEndOfCycle()
       .ExpectEq("x_minus_y", 0)
       .ExpectEq("y_minus_x", 0)
       .ExpectEq("x_minus_x", 0);
 
-  tbt->NextCycle();
-  tbt->Set("x", 0xabcd).Set("y", 0x4242);
-  tbt->AtEndOfCycle()
+  seq.NextCycle();
+  seq.Set("x", 0xabcd).Set("y", 0x4242);
+  seq.AtEndOfCycle()
       .ExpectEq("x_minus_y", 0x698b)
       .ExpectEq("y_minus_x", 0xffff9675)
       .ExpectEq("x_minus_x", 0);
@@ -986,18 +995,19 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
 
   ModuleTestbench tb = NewModuleTestbench(verilog, sig);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  SequentialBlock& seq = tbt->MainBlock();
 
-  tbt->AtEndOfCycle().ExpectX("j_minus_k").ExpectX("k_minus_j");
+  seq.AtEndOfCycle().ExpectX("j_minus_k").ExpectX("k_minus_j");
 
   // The module doesn't a connected clock, but the clock can still
   // be used to sequence events in time.
-  tbt->NextCycle();
-  tbt->Set("j", 0).Set("k", 0);
-  tbt->AtEndOfCycle().ExpectEq("j_minus_k", 0).ExpectEq("k_minus_j", 0);
+  seq.NextCycle();
+  seq.Set("j", 0).Set("k", 0);
+  seq.AtEndOfCycle().ExpectEq("j_minus_k", 0).ExpectEq("k_minus_j", 0);
 
-  tbt->NextCycle();
-  tbt->Set("j", 0xabcd).Set("k", 0x4242);
-  tbt->AtEndOfCycle()
+  seq.NextCycle();
+  seq.Set("j", 0xabcd).Set("k", 0x4242);
+  seq.AtEndOfCycle()
       .ExpectEq("j_minus_k", 0x698b)
       .ExpectEq("k_minus_j", 0xffff9675);
 

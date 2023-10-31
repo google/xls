@@ -15,6 +15,7 @@
 #include "xls/simulation/module_simulator.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -23,10 +24,12 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/codegen/flattening.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
@@ -34,6 +37,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/simulation/module_testbench.h"
 #include "xls/tools/eval_helpers.h"
 
 namespace xls {
@@ -121,28 +125,29 @@ absl::Status VerifyReadyValidHoldoffs(
 absl::Status HoldoffValid(int64_t input_number, int64_t input_bit_count,
                           const ValidHoldoff& valid_holdoff,
                           const ChannelProto& channel_proto,
-                          ModuleTestbenchThread& tbt) {
+                          SequentialBlock& seq_block) {
   if (valid_holdoff.cycles == 0) {
     // Nothing to do as the valid holdoff is zero cycles.
   } else if (valid_holdoff.driven_values.empty()) {
     // Values to drive on the data port not specified. Drive X and wait
     // the specified number of cycles.
-    tbt.Set(channel_proto.valid_port_name(), UBits(0, 1));
-    tbt.SetX(channel_proto.data_port_name());
-    tbt.AdvanceNCycles(valid_holdoff.cycles);
+    seq_block.Set(channel_proto.valid_port_name(), UBits(0, 1));
+    seq_block.SetX(channel_proto.data_port_name());
+    seq_block.AdvanceNCycles(valid_holdoff.cycles);
   } else {
     XLS_RET_CHECK_EQ(valid_holdoff.driven_values.size(), valid_holdoff.cycles)
         << absl::StreamFormat(
                "Unexpected number of driven values for channel `%s`",
                channel_proto.name());
-    tbt.Set(channel_proto.valid_port_name(), UBits(0, 1));
+    seq_block.Set(channel_proto.valid_port_name(), UBits(0, 1));
     for (const BitsOrX& bits_or_x : valid_holdoff.driven_values) {
       if (std::holds_alternative<IsX>(bits_or_x)) {
-        tbt.SetX(channel_proto.data_port_name());
+        seq_block.SetX(channel_proto.data_port_name());
       } else {
-        tbt.Set(channel_proto.data_port_name(), std::get<Bits>(bits_or_x));
+        seq_block.Set(channel_proto.data_port_name(),
+                      std::get<Bits>(bits_or_x));
       }
-      tbt.NextCycle();
+      seq_block.NextCycle();
     }
   }
   return absl::OkStatus();
@@ -168,6 +173,7 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
   XLS_ASSIGN_OR_RETURN(
       ModuleTestbenchThread * tbt,
       tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/false));
+  SequentialBlock& seq_block = tbt->MainBlock();
   for (int64_t input_number = 0; input_number < inputs.size(); ++input_number) {
     const Bits& value = inputs[input_number];
     if (!valid_holdoffs.empty()) {
@@ -177,21 +183,21 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
           channel_proto.name());
       XLS_RETURN_IF_ERROR(HoldoffValid(input_number, value.bit_count(),
                                        valid_holdoffs[input_number],
-                                       channel_proto, *tbt));
+                                       channel_proto, seq_block));
     }
-    tbt->Set(data_port_name, value);
+    seq_block.Set(data_port_name, value);
     if (valid_port_name.has_value()) {
-      tbt->Set(valid_port_name.value(), UBits(1, 1));
+      seq_block.Set(valid_port_name.value(), UBits(1, 1));
     }
     if (ready_port_name.has_value()) {
-      tbt->WaitForCycleAfter(ready_port_name.value());
+      seq_block.WaitForCycleAfter(ready_port_name.value());
     }
   }
   // After driving all inputs, set valid to 0 and data port to X.
   if (valid_port_name.has_value()) {
-    tbt->Set(valid_port_name.value(), UBits(0, 1));
+    seq_block.Set(valid_port_name.value(), UBits(0, 1));
   }
-  tbt->SetX(data_port_name);
+  seq_block.SetX(data_port_name);
   return absl::OkStatus();
 }
 
@@ -226,15 +232,15 @@ absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
         ++assertion_length;
       } else {
         if (assertion_length > 0) {
-          ready_tbt->Set(ready_port_name, UBits(1, 1));
-          ready_tbt->AdvanceNCycles(assertion_length);
+          ready_tbt->MainBlock().Set(ready_port_name, UBits(1, 1));
+          ready_tbt->MainBlock().AdvanceNCycles(assertion_length);
         }
-        ready_tbt->Set(ready_port_name, UBits(0, 1));
-        ready_tbt->AdvanceNCycles(holdoff);
+        ready_tbt->MainBlock().Set(ready_port_name, UBits(0, 1));
+        ready_tbt->MainBlock().AdvanceNCycles(holdoff);
         assertion_length = 1;
       }
     }
-    ready_tbt->Set(ready_port_name, UBits(1, 1));
+    ready_tbt->MainBlock().Set(ready_port_name, UBits(1, 1));
   }
 
   // Create thread for capturing outputs. This thread drives no signals.
@@ -253,10 +259,11 @@ absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
   for (int64_t read_count = 0; read_count < output_count; ++read_count) {
     outputs.push_back(std::make_unique<Bits>());
     if (flow_control_signals.empty()) {
-      tbt->AtEndOfCycle().Capture(channel_proto.data_port_name(),
-                                  outputs.back().get());
+      tbt->MainBlock().AtEndOfCycle().Capture(channel_proto.data_port_name(),
+                                              outputs.back().get());
     } else {
-      tbt->AtEndOfCycleWhenAll(flow_control_signals)
+      tbt->MainBlock()
+          .AtEndOfCycleWhenAll(flow_control_signals)
           .Capture(channel_proto.data_port_name(), outputs.back().get());
     }
   }
@@ -343,11 +350,12 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
 
   XLS_ASSIGN_OR_RETURN(ModuleTestbenchThread * tbt,
                        tb.CreateThread(init_values_after_reset));
+  SequentialBlock& seq_block = tbt->MainBlock();
 
   // Drive data inputs. Values are flattened before using.
   auto drive_data = [&](int64_t index) {
     for (const PortProto& input : signature_.data_inputs()) {
-      tbt->Set(input.name(), inputs[index].at(input.name()));
+      seq_block.Set(input.name(), inputs[index].at(input.name()));
     }
   };
 
@@ -367,13 +375,13 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
       // Fixed latency interface: just wait for compute to complete.
-      tbt->AdvanceNCycles(signature_.proto().fixed_latency().latency());
-      EndOfCycleEvent& event = tbt->AtEndOfCycle();
+      seq_block.AdvanceNCycles(signature_.proto().fixed_latency().latency());
+      EndOfCycleEvent& event = seq_block.AtEndOfCycle();
       capture_outputs(i, event);
 
       // The input data cannot be changed in the same cycle that the output is
       // being read so hold for one more cycle while output is read.
-      tbt->NextCycle();
+      seq_block.NextCycle();
     }
   } else if (signature_.proto().has_pipeline()) {
     const int64_t latency = signature_.proto().pipeline().latency();
@@ -386,7 +394,8 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
 
     if (pipeline_control.has_value() && pipeline_control->has_manual()) {
       // Drive the pipeline register load-enable signals high.
-      tbt->Set(pipeline_control->manual().input_name(), Bits::AllOnes(latency));
+      seq_block.Set(pipeline_control->manual().input_name(),
+                    Bits::AllOnes(latency));
     }
 
     // Expect the output_valid signal (if it exists) to be the given value or X.
@@ -405,12 +414,12 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     while (cycle < inputs.size()) {
       drive_data(cycle);
       if (pipeline_control.has_value() && pipeline_control->has_valid()) {
-        tbt->Set(pipeline_control->valid().input_name(), 1);
+        seq_block.Set(pipeline_control->valid().input_name(), 1);
       }
       // Pipelined interface: drive inputs for a cycle, then wait for compute to
       // complete.  A pipelined interface should not require that the inputs be
       // held for more than a cycle.
-      EndOfCycleEvent& event = tbt->AtEndOfCycle();
+      EndOfCycleEvent& event = seq_block.AtEndOfCycle();
 
       if (cycle >= latency) {
         maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/true,
@@ -427,16 +436,16 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
       cycle++;
     }
     for (const PortProto& input : signature_.data_inputs()) {
-      tbt->SetX(input.name());
+      seq_block.SetX(input.name());
     }
     if (pipeline_control.has_value() && pipeline_control->has_valid()) {
-      tbt->Set(pipeline_control->valid().input_name(), 0);
+      seq_block.Set(pipeline_control->valid().input_name(), 0);
     }
     if (cycle < latency) {
-      tbt->AdvanceNCycles(latency - cycle);
+      seq_block.AdvanceNCycles(latency - cycle);
     }
     while (captured_outputs < inputs.size()) {
-      EndOfCycleEvent& event = tbt->AtEndOfCycle();
+      EndOfCycleEvent& event = seq_block.AtEndOfCycle();
       maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/true,
                                 event);
       capture_outputs(captured_outputs, event);
@@ -444,13 +453,13 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     }
     // valid == 0 should have propagated all the way through the pipeline to
     // output_valid.
-    EndOfCycleEvent& event = tbt->AtEndOfCycle();
+    EndOfCycleEvent& event = seq_block.AtEndOfCycle();
     maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/false,
                               event);
   } else if (signature_.proto().has_combinational()) {
     for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
-      capture_outputs(i, tbt->AtEndOfCycle());
+      capture_outputs(i, seq_block.AtEndOfCycle());
     }
   } else {
     return absl::UnimplementedError(absl::StrCat(

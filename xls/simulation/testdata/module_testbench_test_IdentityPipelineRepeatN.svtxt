@@ -1,0 +1,140 @@
+module test_module(
+  input wire clk,
+  input wire reset,
+  input wire [15:0] in,
+  output wire [15:0] out
+);
+  reg [15:0] p0;
+  reg [15:0] p1;
+  always @ (posedge clk) begin
+    if (reset) begin
+      p0 <= 16'h0000;
+      p1 <= 16'h0000;
+    end else begin
+      p0 <= in;
+      p1 <= p0;
+    end
+  end
+  assign out = p1;
+endmodule
+
+
+module testbench;
+  reg clk;
+  reg reset;
+  reg [15:0] in;
+  wire [15:0] out;
+  test_module dut (
+    .clk(clk),
+    .reset(reset),
+    .in(in),
+    .out(out)
+  );
+  reg __is_thread_0_done;
+  reg __is_thread_1_done;
+
+  // Clock generator.
+  initial begin
+    clk = 0;
+    forever #5 clk = !clk;
+  end
+
+  // Watchdog timer.
+  initial begin
+    repeat (10000) begin
+      @(posedge clk);
+    end
+    #1;
+    $display("ERROR: timeout, simulation ran too long (10000 cycles).");
+    $finish;
+  end
+
+  // Monitor for input/output ports.
+  initial begin
+    $display("Clock rises at 5, 15, 25, ....");
+    $display("Signals driven one time unit after rising clock.");
+    $display("Signals sampled one time unit before rising clock.");
+    $display("Starting simulation. Monitor output:");
+    $monitor("%t reset: %d in: %d out: %d", $time, reset, in, out);
+  end
+
+  // Thread 0. Drives signals: __is_thread_0_done, in, reset
+  initial begin
+    __is_thread_0_done = 1'h0;
+
+    in = 16'h0000;
+
+    reset = 1'h1;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    reset = 1'h0;
+
+    in = 16'h0001;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    in = 16'h0002;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    in = 16'h0003;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    in = 16'h0004;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    in = 16'h0005;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    __is_thread_0_done = 1'h1;
+  end
+
+  // Thread 1. Drives signals: __is_thread_1_done
+  initial begin
+    __is_thread_1_done = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    repeat (10) begin
+      // Wait 1 cycle(s).
+      #8;
+      $display("%t OUTPUT out = 16'h%0x (#0)", $time, out);
+      @(posedge clk);
+      #1;
+    end
+
+    __is_thread_1_done = 1'h1;
+  end
+
+  // Thread completion monitor.
+  initial begin
+    @(posedge clk);
+    #1;
+
+    // Wait for all threads to complete
+    #8;
+    while (!(1'h1 && __is_thread_0_done == 1'h1 && __is_thread_1_done == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+    $finish;
+  end
+endmodule

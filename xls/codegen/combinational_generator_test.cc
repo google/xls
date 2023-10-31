@@ -717,9 +717,10 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
   ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
                      GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("A", UBits(0xabcdef, 24));
-  tbt->Set("index", UBits(42, 8));
-  tbt->AtEndOfCycle().ExpectEq("out", 0xab);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("A", UBits(0xabcdef, 24));
+  seq.Set("index", UBits(42, 8));
+  seq.AtEndOfCycle().ExpectEq("out", 0xab);
   XLS_EXPECT_OK(tb.Run());
 }
 
@@ -756,9 +757,10 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
   ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
                      GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("A", UBits(0xabcdef, 24));
-  tbt->Set("index", UBits(3, 8));
-  tbt->AtEndOfCycle().ExpectX("out");
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("A", UBits(0xabcdef, 24));
+  seq.Set("index", UBits(3, 8));
+  seq.AtEndOfCycle().ExpectX("out");
   XLS_EXPECT_OK(tb.Run());
 }
 

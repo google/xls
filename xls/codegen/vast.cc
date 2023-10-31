@@ -1049,12 +1049,18 @@ std::string WhileStatement::Emit(LineInfo* line_info) const {
   return absl::StrFormat("while (%s) %s", condition, stmts);
 }
 
+RepeatStatement::RepeatStatement(Expression* repeat_count, VerilogFile* file,
+                                 const SourceInfo& loc)
+    : Statement(file, loc),
+      repeat_count_(repeat_count),
+      statements_(file->Make<StatementBlock>(loc)) {}
+
 std::string RepeatStatement::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string repeat_count = repeat_count_->Emit(line_info);
-  std::string statement = statement_->Emit(line_info);
+  std::string stmts = statements()->Emit(line_info);
   LineInfoEnd(line_info, this);
-  return absl::StrFormat("repeat (%s) %s", repeat_count, statement);
+  return absl::StrFormat("repeat (%s) %s", repeat_count, stmts);
 }
 
 std::string EventControl::Emit(LineInfo* line_info) const {

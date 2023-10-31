@@ -259,8 +259,8 @@ class DataType : public VastNode {
   //  signed [123:0] foo
   //  [1:0][33:0][44:0] foo [32][111]
   //
-  // This method is required rather than simply Emit because an identifer string
-  // is nested within the string describing the type.
+  // This method is required rather than simply Emit because an identifier
+  // string is nested within the string describing the type.
   std::string EmitWithIdentifier(LineInfo* line_info,
                                  std::string_view identifier) const;
 
@@ -544,17 +544,16 @@ class WhileStatement : public Statement {
 // Represents a repeat construct.
 class RepeatStatement : public Statement {
  public:
-  RepeatStatement(Expression* repeat_count, Statement* statement,
-                  VerilogFile* file, const SourceInfo& loc)
-      : Statement(file, loc),
-        repeat_count_(repeat_count),
-        statement_(statement) {}
+  RepeatStatement(Expression* repeat_count, VerilogFile* file,
+                  const SourceInfo& loc);
 
   std::string Emit(LineInfo* line_info) const override;
 
+  StatementBlock* statements() const { return statements_; }
+
  private:
   Expression* repeat_count_;
-  Statement* statement_;
+  StatementBlock* statements_;
 };
 
 // Represents an event control statement. This is represented as "@(...);" where

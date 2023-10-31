@@ -91,11 +91,12 @@ TEST_P(WrapIOTest, WrapIOIncrement8b) {
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("byte_out_ready", 0).Set("byte_in_valid", 1).Set("byte_in", 42);
-  tbt->WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in_valid", 0).Set("byte_out_ready", 1);
-  tbt->AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 43);
-  tbt->Set("byte_out_ready", 0);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("byte_out_ready", 0).Set("byte_in_valid", 1).Set("byte_in", 42);
+  seq.WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in_valid", 0).Set("byte_out_ready", 1);
+  seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 43);
+  seq.Set("byte_out_ready", 0);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -126,18 +127,19 @@ TEST_P(WrapIOTest, WrapIONot16b) {
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("byte_out_ready", 0).Set("byte_in_valid", 1);
-  tbt->Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in", 0x34).WaitForCycleAfter("byte_in_ready");
-  tbt->SetX("byte_in").Set("byte_in_valid", 0);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("byte_out_ready", 0).Set("byte_in_valid", 1);
+  seq.Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in", 0x34).WaitForCycleAfter("byte_in_ready");
+  seq.SetX("byte_in").Set("byte_in_valid", 0);
 
   // The output controller is not exactly ready/valid signaling. Pulse ready a
   // cycle after valid to consume the output value.
-  tbt->AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0xcb);
-  tbt->Set("byte_out_ready", 1).NextCycle();
-  tbt->Set("byte_out_ready", 0).NextCycle();
-  tbt->AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0xed);
-  tbt->Set("byte_out_ready", 0);
+  seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0xcb);
+  seq.Set("byte_out_ready", 1).NextCycle();
+  seq.Set("byte_out_ready", 0).NextCycle();
+  seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0xed);
+  seq.Set("byte_out_ready", 0);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -148,25 +150,26 @@ TEST_P(WrapIOTest, InputShiftRegisterTest) {
                            InputShiftRegisterModule(/*bit_count=*/16, &file));
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("clear", 1);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("clear", 1);
 
   // Hold write_en for two cycles and drive in the two bytes.
-  tbt->NextCycle();
-  tbt->Set("clear", 0).Set("byte_in", 0xab).Set("write_en", 1);
+  seq.NextCycle();
+  seq.Set("clear", 0).Set("byte_in", 0xab).Set("write_en", 1);
 
-  tbt->AtEndOfCycle().ExpectEq("done", 0);
-  tbt->Set("byte_in", 0xcd);
-  tbt->NextCycle();
-  tbt->Set("write_en", 0).SetX("byte_in");
-  tbt->AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 0xabcd);
+  seq.AtEndOfCycle().ExpectEq("done", 0);
+  seq.Set("byte_in", 0xcd);
+  seq.NextCycle();
+  seq.Set("write_en", 0).SetX("byte_in");
+  seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 0xabcd);
 
   // Done and data_out should be held until clear is asserted.
-  tbt->AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 0xabcd);
-  tbt->AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 0xabcd);
+  seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 0xabcd);
+  seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 0xabcd);
 
-  tbt->Set("clear", 1);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("done", 0);
+  seq.Set("clear", 1);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("done", 0);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -178,24 +181,25 @@ TEST_P(WrapIOTest, OneByteShiftRegisterTest) {
                            InputShiftRegisterModule(/*bit_count=*/8, &file));
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("clear", 1);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("clear", 1);
 
-  tbt->NextCycle().Set("clear", 0);
-  tbt->AtEndOfCycle().ExpectEq("done", 0);
-  tbt->Set("byte_in", 42).Set("write_en", 1);
+  seq.NextCycle().Set("clear", 0);
+  seq.AtEndOfCycle().ExpectEq("done", 0);
+  seq.Set("byte_in", 42).Set("write_en", 1);
 
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 42);
-  tbt->Set("clear", 1);
-  tbt->Set("write_en", 0).SetX("byte_in");
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 42);
+  seq.Set("clear", 1);
+  seq.Set("write_en", 0).SetX("byte_in");
 
-  tbt->NextCycle();
-  tbt->Set("clear", 0);
-  tbt->AtEndOfCycle().ExpectEq("done", 0);
-  tbt->Set("byte_in", 123).Set("write_en", 1);
+  seq.NextCycle();
+  seq.Set("clear", 0);
+  seq.AtEndOfCycle().ExpectEq("done", 0);
+  seq.Set("byte_in", 123).Set("write_en", 1);
 
-  tbt->NextCycle().Set("write_en", 0);
-  tbt->AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 123);
+  seq.NextCycle().Set("write_en", 0);
+  seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 123);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -207,23 +211,24 @@ TEST_P(WrapIOTest, ThreeBitShiftRegisterTest) {
                            InputShiftRegisterModule(/*bit_count=*/3, &file));
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("clear", 1);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("clear", 1);
 
-  tbt->NextCycle().Set("clear", 0);
-  tbt->AtEndOfCycle().ExpectEq("done", 0);
-  tbt->Set("byte_in", 2).Set("write_en", 1);
+  seq.NextCycle().Set("clear", 0);
+  seq.AtEndOfCycle().ExpectEq("done", 0);
+  seq.Set("byte_in", 2).Set("write_en", 1);
 
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 2);
-  tbt->Set("clear", 1);
-  tbt->NextCycle();
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 2);
+  seq.Set("clear", 1);
+  seq.NextCycle();
 
-  tbt->AtEndOfCycle().ExpectEq("done", 0);
-  tbt->NextCycle().Set("clear", 0);
-  tbt->Set("byte_in", 3).Set("write_en", 1);
+  seq.AtEndOfCycle().ExpectEq("done", 0);
+  seq.NextCycle().Set("clear", 0);
+  seq.Set("byte_in", 3).Set("write_en", 1);
 
-  tbt->NextCycle().Set("write_en", 0);
-  tbt->AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 3);
+  seq.NextCycle().Set("write_en", 0);
+  seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 3);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -236,22 +241,23 @@ TEST_P(WrapIOTest, OddBitWidthShiftRegisterTest) {
                            InputShiftRegisterModule(/*bit_count=*/57, &file));
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("clear", 1);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("clear", 1);
 
-  tbt->NextCycle().Set("clear", 0);
-  tbt->AtEndOfCycle().ExpectEq("done", 0);
-  tbt->Set("byte_in", 0x01).Set("write_en", 1);
-  tbt->NextCycle().Set("byte_in", 0x23);
-  tbt->NextCycle().Set("byte_in", 0x45);
-  tbt->NextCycle().Set("byte_in", 0x67);
-  tbt->NextCycle().Set("byte_in", 0x89);
-  tbt->NextCycle().Set("byte_in", 0x0a);
-  tbt->NextCycle().Set("byte_in", 0xbc);
-  tbt->NextCycle().Set("byte_in", 0xde);
+  seq.NextCycle().Set("clear", 0);
+  seq.AtEndOfCycle().ExpectEq("done", 0);
+  seq.Set("byte_in", 0x01).Set("write_en", 1);
+  seq.NextCycle().Set("byte_in", 0x23);
+  seq.NextCycle().Set("byte_in", 0x45);
+  seq.NextCycle().Set("byte_in", 0x67);
+  seq.NextCycle().Set("byte_in", 0x89);
+  seq.NextCycle().Set("byte_in", 0x0a);
+  seq.NextCycle().Set("byte_in", 0xbc);
+  seq.NextCycle().Set("byte_in", 0xde);
 
-  tbt->NextCycle().Set("write_en", 0);
-  tbt->AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out",
-                                                   0x1234567890abcdeULL);
+  seq.NextCycle().Set("write_en", 0);
+  seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out",
+                                                  0x1234567890abcdeULL);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -262,36 +268,37 @@ TEST_P(WrapIOTest, InputResetModuleTest) {
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("rst_n_in", 0);
-  tbt->AdvanceNCycles(5);
-  tbt->Set("rst_n_in", 1);
-  tbt->Set("byte_in", 0);
-  tbt->Set("byte_in_valid", 0);
-  tbt->AtEndOfCycle().ExpectEq("rst_n_out", 1).ExpectEq("byte_in_ready", 0);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("rst_n_in", 0);
+  seq.AdvanceNCycles(5);
+  seq.Set("rst_n_in", 1);
+  seq.Set("byte_in", 0);
+  seq.Set("byte_in_valid", 0);
+  seq.AtEndOfCycle().ExpectEq("rst_n_out", 1).ExpectEq("byte_in_ready", 0);
 
   // Drive random byte, verify that there is no reset.
-  tbt->Set("byte_in", 0xab).Set("byte_in_valid", 1);
+  seq.Set("byte_in", 0xab).Set("byte_in_valid", 1);
 
-  tbt->AtEndOfCycle().ExpectEq("rst_n_out", 1).ExpectEq("byte_in_ready", 0);
+  seq.AtEndOfCycle().ExpectEq("rst_n_out", 1).ExpectEq("byte_in_ready", 0);
   // Set input to reset character.
-  tbt->Set("byte_in", IOControlCode::kReset).Set("byte_in_valid", 0);
+  seq.Set("byte_in", IOControlCode::kReset).Set("byte_in_valid", 0);
 
   // Though the reset character was passed in, byte_in_valid was not asserted so
   // rst_n_out is not asserted. Now assert byte_in_valid.
-  tbt->AtEndOfCycle().ExpectEq("rst_n_out", 1).ExpectEq("byte_in_ready", 0);
-  tbt->Set("byte_in_valid", 1);
-  tbt->NextCycle();
+  seq.AtEndOfCycle().ExpectEq("rst_n_out", 1).ExpectEq("byte_in_ready", 0);
+  seq.Set("byte_in_valid", 1);
+  seq.NextCycle();
 
   // Reset and byte_in_ready should be asserted.
-  tbt->AtEndOfCycle().ExpectEq("rst_n_out", 0).ExpectEq("byte_in_ready", 1);
-  tbt->Set("byte_in_valid", 0);
+  seq.AtEndOfCycle().ExpectEq("rst_n_out", 0).ExpectEq("byte_in_ready", 1);
+  seq.Set("byte_in_valid", 0);
 
   // Next cycle, everything shoud be back to normal.
-  tbt->AtEndOfCycle().ExpectEq("rst_n_out", 1).ExpectEq("byte_in_ready", 0);
+  seq.AtEndOfCycle().ExpectEq("rst_n_out", 1).ExpectEq("byte_in_ready", 0);
 
   // Asserting rst_in should assert rst_out.
-  tbt->NextCycle().Set("rst_n_in", 0);
-  tbt->AtEndOfCycle().ExpectEq("rst_n_out", 0);
+  seq.NextCycle().Set("rst_n_in", 0);
+  seq.AtEndOfCycle().ExpectEq("rst_n_out", 0);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -310,14 +317,15 @@ TEST_P(WrapIOTest, InputControllerForSimpleComputation) {
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("rst_n_in", 0);
-  tbt->AdvanceNCycles(5);
-  tbt->Set("rst_n_in", 1).Set("data_out_ready", 0).Set("byte_in_valid", 1);
-  tbt->Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready").NextCycle();
-  tbt->Set("byte_in", 0x34).WaitForCycleAfter("byte_in_ready").NextCycle();
-  tbt->Set("byte_in_valid", 0).Set("data_out_ready", 1);
-  tbt->AtEndOfCycleWhen("data_out_valid").ExpectEq("data_out", 0x1234);
-  tbt->AtEndOfCycle().ExpectEq("data_out_valid", 0);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("rst_n_in", 0);
+  seq.AdvanceNCycles(5);
+  seq.Set("rst_n_in", 1).Set("data_out_ready", 0).Set("byte_in_valid", 1);
+  seq.Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready").NextCycle();
+  seq.Set("byte_in", 0x34).WaitForCycleAfter("byte_in_ready").NextCycle();
+  seq.Set("byte_in_valid", 0).Set("data_out_ready", 1);
+  seq.AtEndOfCycleWhen("data_out_valid").ExpectEq("data_out", 0x1234);
+  seq.AtEndOfCycle().ExpectEq("data_out_valid", 0);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -338,24 +346,25 @@ TEST_P(WrapIOTest, InputControllerResetControlCode) {
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("rst_n_in", 0);
-  tbt->AdvanceNCycles(5);
-  tbt->Set("rst_n_in", 1).Set("data_out_ready", 0).Set("byte_in_valid", 1);
-  tbt->Set("byte_in", 0x42).WaitForCycleAfter("byte_in_ready").NextCycle();
-  tbt->Set("byte_in", IOControlCode::kReset);
-  tbt->NextCycle();
-  tbt->AtEndOfCycle().ExpectEq("rst_n_out", 0).ExpectEq("byte_in_ready", 1);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("rst_n_in", 0);
+  seq.AdvanceNCycles(5);
+  seq.Set("rst_n_in", 1).Set("data_out_ready", 0).Set("byte_in_valid", 1);
+  seq.Set("byte_in", 0x42).WaitForCycleAfter("byte_in_ready").NextCycle();
+  seq.Set("byte_in", IOControlCode::kReset);
+  seq.NextCycle();
+  seq.AtEndOfCycle().ExpectEq("rst_n_out", 0).ExpectEq("byte_in_ready", 1);
 
-  tbt->Set("byte_in_valid", 0);
+  seq.Set("byte_in_valid", 0);
 
   // Asserting reset should have discarded the previously passed in byte (0x42).
-  tbt->WaitForCycleAfter("rst_n_out").NextCycle();
-  tbt->Set("byte_in_valid", 1);
-  tbt->Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready").NextCycle();
-  tbt->Set("byte_in", 0x34).WaitForCycleAfter("byte_in_ready").NextCycle();
-  tbt->Set("byte_in_valid", 0).Set("data_out_ready", 1);
-  tbt->AtEndOfCycleWhen("data_out_valid").ExpectEq("data_out", 0x1234);
-  tbt->AtEndOfCycle().ExpectEq("data_out_valid", 0);
+  seq.WaitForCycleAfter("rst_n_out").NextCycle();
+  seq.Set("byte_in_valid", 1);
+  seq.Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready").NextCycle();
+  seq.Set("byte_in", 0x34).WaitForCycleAfter("byte_in_ready").NextCycle();
+  seq.Set("byte_in_valid", 0).Set("data_out_ready", 1);
+  seq.AtEndOfCycleWhen("data_out_valid").ExpectEq("data_out", 0x1234);
+  seq.AtEndOfCycle().ExpectEq("data_out_valid", 0);
 
   XLS_EXPECT_OK(tb.Run());
 }
@@ -375,23 +384,24 @@ TEST_P(WrapIOTest, InputControllerEscapedCharacters) {
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("rst_n_in", 0);
-  tbt->AdvanceNCycles(5);
-  tbt->Set("rst_n_in", 1).Set("data_out_ready", 0).Set("byte_in_valid", 1);
-  tbt->Set("byte_in", IOControlCode::kEscape)
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("rst_n_in", 0);
+  seq.AdvanceNCycles(5);
+  seq.Set("rst_n_in", 1).Set("data_out_ready", 0).Set("byte_in_valid", 1);
+  seq.Set("byte_in", IOControlCode::kEscape)
       .WaitForCycleAfter("byte_in_ready")
       .NextCycle();
-  tbt->Set("byte_in", IOEscapeCode::kEscapeByte)
+  seq.Set("byte_in", IOEscapeCode::kEscapeByte)
       .WaitForCycleAfter("byte_in_ready")
       .NextCycle();
-  tbt->Set("byte_in", IOControlCode::kEscape)
+  seq.Set("byte_in", IOControlCode::kEscape)
       .WaitForCycleAfter("byte_in_ready")
       .NextCycle();
-  tbt->Set("byte_in", IOEscapeCode::kResetByte)
+  seq.Set("byte_in", IOEscapeCode::kResetByte)
       .WaitForCycleAfter("byte_in_ready")
       .NextCycle();
-  tbt->Set("byte_in_valid", 0).Set("data_out_ready", 1);
-  tbt->AtEndOfCycleWhen("data_out_valid")
+  seq.Set("byte_in_valid", 0).Set("data_out_ready", 1);
+  seq.AtEndOfCycleWhen("data_out_valid")
       .ExpectEq("data_out",
                 (static_cast<uint16_t>(IOControlCode::kEscape) << 8) |
                     IOControlCode::kReset);
@@ -412,32 +422,33 @@ TEST_P(WrapIOTest, InputControllerWideInput) {
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("data_out_ready", 0).Set("byte_in_valid", 0);
-  tbt->Set("rst_n_in", 0);
-  tbt->AdvanceNCycles(5);
-  tbt->Set("rst_n_in", 1);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("data_out_ready", 0).Set("byte_in_valid", 0);
+  seq.Set("rst_n_in", 0);
+  seq.AdvanceNCycles(5);
+  seq.Set("rst_n_in", 1);
 
   // Should be able to wait arbitrarly long between passing in input bytes.
-  tbt->AdvanceNCycles(42);
+  seq.AdvanceNCycles(42);
 
-  tbt->Set("byte_in_valid", 1);
-  tbt->Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in", 0x34).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in", 0x56).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in_valid", 0);
+  seq.Set("byte_in_valid", 1);
+  seq.Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in", 0x34).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in", 0x56).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in_valid", 0);
 
-  tbt->AdvanceNCycles(123);
+  seq.AdvanceNCycles(123);
 
-  tbt->Set("byte_in_valid", 1);
-  tbt->Set("byte_in", 0x78).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in", 0x90).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in", 0xab).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in", 0xcd).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in", 0xef).WaitForCycleAfter("byte_in_ready");
-  tbt->Set("byte_in_valid", 0);
+  seq.Set("byte_in_valid", 1);
+  seq.Set("byte_in", 0x78).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in", 0x90).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in", 0xab).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in", 0xcd).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in", 0xef).WaitForCycleAfter("byte_in_ready");
+  seq.Set("byte_in_valid", 0);
 
-  tbt->Set("data_out_ready", 0);
-  tbt->AtEndOfCycleWhen("data_out_valid")
+  seq.Set("data_out_ready", 0);
+  seq.AtEndOfCycleWhen("data_out_valid")
       .ExpectEq("data_out", 0x1234567890abcdefULL);
   XLS_EXPECT_OK(tb.Run());
 }
@@ -456,25 +467,26 @@ TEST_P(WrapIOTest, OutputControllerForSimpleComputation) {
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("byte_out_ready", 0).Set("data_in_valid", 1);
-  tbt->Set("rst_n", 0);
-  tbt->AdvanceNCycles(5);
-  tbt->Set("rst_n", 1);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("byte_out_ready", 0).Set("data_in_valid", 1);
+  seq.Set("rst_n", 0);
+  seq.AdvanceNCycles(5);
+  seq.Set("rst_n", 1);
 
-  tbt->Set("data_in_valid", 1);
-  tbt->Set("data_in", 0x12345678ULL).WaitForCycleAfter("data_in_ready");
-  tbt->SetX("data_in").Set("data_in_valid", 0);
+  seq.Set("data_in_valid", 1);
+  seq.Set("data_in", 0x12345678ULL).WaitForCycleAfter("data_in_ready");
+  seq.SetX("data_in").Set("data_in_valid", 0);
 
   // The output controller is not exactly ready/valid signaling. Pulse ready a
   // cycle after valid to consume the output value.
-  tbt->AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x78);
-  tbt->Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
-  tbt->AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x56);
-  tbt->Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
-  tbt->AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x34);
-  tbt->Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
-  tbt->AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x12);
-  tbt->Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
+  seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x78);
+  seq.Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
+  seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x56);
+  seq.Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
+  seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x34);
+  seq.Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
+  seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x12);
+  seq.Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
 
   XLS_EXPECT_OK(tb.Run());
 }

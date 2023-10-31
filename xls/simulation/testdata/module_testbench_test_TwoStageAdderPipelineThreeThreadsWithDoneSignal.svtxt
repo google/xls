@@ -47,7 +47,9 @@ module testbench;
   initial begin
     reset = 1'h1;
     __last_cycle_of_reset = 1'h0;
-    repeat (4) @(posedge clk);
+    repeat (4) begin
+      @(posedge clk);
+    end
     #1;
     __last_cycle_of_reset = 1'h1;
     @(posedge clk);
@@ -58,7 +60,9 @@ module testbench;
 
   // Watchdog timer.
   initial begin
-    repeat (10000) @(posedge clk);
+    repeat (10000) begin
+      @(posedge clk);
+    end
     #1;
     $display("ERROR: timeout, simulation ran too long (10000 cycles).");
     $finish;
@@ -66,7 +70,10 @@ module testbench;
 
   // Monitor for input/output ports.
   initial begin
-    $display("Starting. Clock rises at 5, 15, 25, ...:");
+    $display("Clock rises at 5, 15, 25, ....");
+    $display("Signals driven one time unit after rising clock.");
+    $display("Signals sampled one time unit before rising clock.");
+    $display("Starting simulation. Monitor output:");
     $monitor("%t reset: %d operand_0: %d operand_1: %d out: %d", $time, reset, operand_0, operand_1, out);
   end
 

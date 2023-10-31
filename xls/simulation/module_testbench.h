@@ -20,19 +20,21 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/ir/bits.h"
 #include "xls/simulation/verilog_simulator.h"
+#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {
@@ -115,12 +117,10 @@ struct TestbenchExpectation {
   xabsl::SourceLocation loc;
 };
 
-struct TestbenchCapture {
-  Bits* bits;
-};
-
+// Single (Bits*) or multiple (std::vector<Bits>*) values can be captured as an
+// action.
 using SignalCaptureAction =
-    std::variant<TestbenchExpectation, TestbenchCapture>;
+    std::variant<TestbenchExpectation, Bits*, std::vector<Bits>*>;
 
 // Represents a single instance of a signal capture. Each corresponds to a
 // particular $display statement in the testbench.
@@ -144,6 +144,8 @@ class SignalCaptureManager {
   // Return a capture instance associated with a Capture/ExpectEq/ExpectX
   // action.
   SignalCapture Capture(const TestbenchSignal& signal, Bits* bits);
+  SignalCapture CaptureMultiple(const TestbenchSignal& signal,
+                                std::vector<Bits>* values);
   SignalCapture ExpectEq(const TestbenchSignal& signal, const Bits& bits,
                          xabsl::SourceLocation loc);
   SignalCapture ExpectX(const TestbenchSignal& signal,
@@ -169,14 +171,19 @@ class SignalCaptureManager {
 //    testbench_thread.AtEndOfCycleWhen("foo_valid").Capture("bar", &bar);
 class EndOfCycleEvent {
  public:
-  explicit EndOfCycleEvent(const TestbenchMetadata* shared_data,
+  explicit EndOfCycleEvent(const TestbenchMetadata* metadata,
                            SignalCaptureManager* capture_manager)
-      : metadata_(XLS_DIE_IF_NULL(shared_data)),
+      : metadata_(XLS_DIE_IF_NULL(metadata)),
         capture_manager_(capture_manager) {}
 
   // Captures the value of the signal. The given pointer value is written with
   // the signal value when Run is called.
   EndOfCycleEvent& Capture(std::string_view signal_name, Bits* value);
+
+  // Captures multiple instances of the value of the given signal. This can be
+  // used in blocks from `RepeatForever` and `Repeat` calls.
+  EndOfCycleEvent& CaptureMultiple(std::string_view signal_name,
+                                   std::vector<Bits>* values);
 
   // Expects the given signal is the given value (or X). An error is returned
   // during Run if this expectation is not met.
@@ -232,7 +239,7 @@ struct SetSignalX {
 };
 
 // Waits for signals to equal a certain value.
-enum class AnyOrAll { kAny, kAll };
+enum class AnyOrAll : int8_t { kAny, kAll };
 struct SignalValue {
   std::string signal_name;
   std::variant<Bits, IsX, IsNotX> value;
@@ -251,71 +258,52 @@ struct WaitForSignals {
 using Action =
     std::variant<AdvanceCycle, SetSignal, SetSignalX, WaitForSignals>;
 
-struct DrivenSignal {
-  std::string signal_name;
-  BitsOrX initial_value;
-};
-
-// Provides a fluent interface for driving inputs, capturing outputs, and
-// setting expectations.
-class ModuleTestbenchThread {
+// Abstraction representing a sequence of statements within the testbench. These
+// statements can include driving signals and capturing signals. Sequential
+// blocks can be nested. For example, one sequential block may contain a loop
+// (`Repeat`) as a statement which itself contains a sequential block.
+class SequentialBlock {
  public:
-  // `driven_signals` is the set of signals which this thread can drive. A
-  // signal can only be driven by one thread.
-  //
-  // The done_signal_name is the name of the thread's done signal. The signal is
-  // used to notify the testbench that the thread is done with its execution. If
-  // its value is std::nullopt, then the thread does not emit the done signal.
-  ModuleTestbenchThread(
-      const TestbenchMetadata* metadata, SignalCaptureManager* capture_manager,
-      absl::Span<const DrivenSignal> driven_signals,
-      std::optional<std::string> done_signal_name = std::nullopt)
+  SequentialBlock(const TestbenchMetadata* metadata,
+                  const absl::flat_hash_set<std::string>& driven_signal_names,
+                  SignalCaptureManager* capture_manager)
       : metadata_(XLS_DIE_IF_NULL(metadata)),
-        capture_manager_(capture_manager),
-        driven_signals_(driven_signals.begin(), driven_signals.end()),
-        done_signal_name_(std::move(done_signal_name)) {
-    for (const DrivenSignal& signal : driven_signals) {
-      driven_signal_names_.insert(signal.signal_name);
-    }
-  }
-
-  std::optional<std::string> done_signal_name() const {
-    return done_signal_name_;
-  }
+        driven_signal_names_(driven_signal_names),
+        capture_manager_(capture_manager) {}
 
   // Sets the given signal to the given value (or X). The value is sticky and
   // remains driven to this value across cycle boundaries until it is Set again
   // (if ever). Signals are always set one time unit after the posedge of the
   // clock.
-  ModuleTestbenchThread& Set(std::string_view signal_name, const Bits& value);
-  ModuleTestbenchThread& Set(std::string_view signal_name, uint64_t value);
-  ModuleTestbenchThread& SetX(std::string_view signal_name);
+  SequentialBlock& Set(std::string_view signal_name, const Bits& value);
+  SequentialBlock& Set(std::string_view signal_name, uint64_t value);
+  SequentialBlock& SetX(std::string_view signal_name);
 
   // Advances the simulation the given number of cycles.
-  ModuleTestbenchThread& AdvanceNCycles(int64_t n_cycles);
+  SequentialBlock& AdvanceNCycles(int64_t n_cycles);
 
   // Advances the simulation a single cycle. Equivalent to AdvanceNCycles(1).
-  ModuleTestbenchThread& NextCycle();
+  SequentialBlock& NextCycle();
 
   // `WaitForCycleAfter...` methods sample signals at the end of the cycle right
   // before the rising edge of the clock. These methods advance the thread to
   // the cycle *after* the condition is satisfied.
 
   // Wait for a given single-bit signal to be asserted (unasserted).
-  ModuleTestbenchThread& WaitForCycleAfter(std::string_view signal_name);
-  ModuleTestbenchThread& WaitForCycleAfterNot(std::string_view signal_name);
+  SequentialBlock& WaitForCycleAfter(std::string_view signal_name);
+  SequentialBlock& WaitForCycleAfterNot(std::string_view signal_name);
 
   // Waits for all/any of the given single-bit signals to be asserted.
-  ModuleTestbenchThread& WaitForCycleAfterAll(
+  SequentialBlock& WaitForCycleAfterAll(
       absl::Span<const std::string> signal_names);
-  ModuleTestbenchThread& WaitForCycleAfterAny(
+  SequentialBlock& WaitForCycleAfterAny(
       absl::Span<const std::string> signal_names);
 
   // Wait for the given signal to have X or non-X values. The signal is
   // considered to have an X value if *any* bit is X. The signals may have
   // arbitrary width.
-  ModuleTestbenchThread& WaitForCycleAfterX(std::string_view signal_name);
-  ModuleTestbenchThread& WaitForCycleAfterNotX(std::string_view signal_name);
+  SequentialBlock& WaitForCycleAfterX(std::string_view signal_name);
+  SequentialBlock& WaitForCycleAfterNotX(std::string_view signal_name);
 
   // Returns a EndOfCycleEvent for the end of the current cycle. Can be used to
   // sample signals. Advances the testbench thread one cycle.
@@ -338,6 +326,65 @@ class ModuleTestbenchThread {
   EndOfCycleEvent& AtEndOfCycleWhenAny(
       absl::Span<const std::string> signal_names);
 
+  // Add a loop (`while (1)` or `repeat` Verilog statement). Returns the
+  // SequentialBlock of the loop body.
+  SequentialBlock& RepeatForever();
+  SequentialBlock& Repeat(int64_t count);
+
+  void Emit(StatementBlock* statement_block, LogicRef* clk,
+            const absl::flat_hash_map<std::string, LogicRef*>& signal_refs);
+
+ private:
+  // CHECKs whether the given name is a signal that the thread is
+  // designated to drive.
+  void CheckCanDriveSignal(std::string_view name);
+
+  // Returns the EndOfCycleEvent when any (all) of the given signals have the
+  // given values.
+  EndOfCycleEvent& AtEndOfCycleWhenSignalsEq(
+      AnyOrAll any_or_all, std::vector<SignalValue> signal_values,
+      std::string_view comment = "");
+
+  const TestbenchMetadata* metadata_;
+  const absl::flat_hash_set<std::string>& driven_signal_names_;
+  SignalCaptureManager* capture_manager_;
+
+  // The list of actions to perform during simulation.
+  struct RepeatStatement {
+    std::optional<int64_t> count;
+    std::unique_ptr<SequentialBlock> sequential_block;
+  };
+  using Statement = std::variant<RepeatStatement, Action>;
+  std::vector<Statement> statements_;
+};
+
+struct DrivenSignal {
+  std::string signal_name;
+  BitsOrX initial_value;
+};
+
+// Provides a fluent interface for driving inputs, capturing outputs, and
+// setting expectations.
+class ModuleTestbenchThread {
+ public:
+  // `driven_signals` is the set of signals which this thread can drive. A
+  // signal can only be driven by one thread.
+  //
+  // The done_signal_name is the name of the thread's done signal. The signal is
+  // used to notify the testbench that the thread is done with its execution. If
+  // its value is std::nullopt, then the thread does not emit the done signal.
+  ModuleTestbenchThread(
+      const TestbenchMetadata* metadata, SignalCaptureManager* capture_manager,
+      absl::Span<const DrivenSignal> driven_signals,
+      std::optional<std::string> done_signal_name = std::nullopt);
+
+  std::optional<std::string> done_signal_name() const {
+    return done_signal_name_;
+  }
+
+  // Returns the top-level block of the thread.
+  SequentialBlock& MainBlock() { return *main_block_; }
+
   // Expect to find a particular string in the simulation output, typically
   // generated by a trace in the dut.  Trace strings must be found in the order
   // of the ExpectTrace calls.
@@ -359,24 +406,15 @@ class ModuleTestbenchThread {
   }
 
  private:
-  // CHECKs whether the given name is a signal that the thread is
-  // designated to drive.
-  void CheckCanDriveSignal(std::string_view name);
-  // CHECKs whether the given name is a signal that the thread can read.
-  void CheckCanReadSignal(std::string_view name);
-
-  // Returns the EndOfCycleEvent when any (all) of the given signals have the
-  // given values.
-  EndOfCycleEvent& AtEndOfCycleWhenSignalsEq(
-      AnyOrAll any_or_all, std::vector<SignalValue> signal_values,
-      std::string_view comment = "");
-
   const TestbenchMetadata* metadata_;
   SignalCaptureManager* capture_manager_;
 
   // The signals which this thread drives. This can include internal signals of
   // the testbench of inputs to the DUT.
   std::vector<DrivenSignal> driven_signals_;
+
+  // The sequential block of the top scope in the thread.
+  std::unique_ptr<SequentialBlock> main_block_;
 
   // Set of driven signal names for easy membership testing.
   absl::flat_hash_set<std::string> driven_signal_names_;
@@ -385,9 +423,6 @@ class ModuleTestbenchThread {
   // testbench that the thread is done with its execution. If its value is
   // std::nullopt, then the thread does not emit the done signal.
   std::optional<std::string> done_signal_name_;
-
-  // The list of actions to perform during simulation.
-  std::vector<Action> actions_;
 
   std::vector<std::string> expected_traces_;
 };

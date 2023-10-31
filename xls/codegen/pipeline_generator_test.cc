@@ -675,32 +675,33 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
   ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
                      GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("in_valid", 0);
-  tbt->AtEndOfCycleWhenNotX("out_valid").ExpectEq("out_valid", 0);
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("in_valid", 0);
+  seq.AtEndOfCycleWhenNotX("out_valid").ExpectEq("out_valid", 0);
 
   // Send in a valid value on one cycle.
-  tbt->Set("in_valid", 1).Set("x", 2).Set("y", 3).Set("z", 4);
-  tbt->NextCycle();
+  seq.Set("in_valid", 1).Set("x", 2).Set("y", 3).Set("z", 4);
+  seq.NextCycle();
   // Then don't send any more valid values.
-  tbt->Set("in_valid", 0);
+  seq.Set("in_valid", 0);
 
   // Wait until the output goes valid.
   const int kExpected = 2 * 3 * 4;
-  tbt->AtEndOfCycleWhen("out_valid")
+  seq.AtEndOfCycleWhen("out_valid")
       .ExpectEq("out_valid", 1)
       .ExpectEq("out", kExpected);
 
   // Output will be invalid in all subsequent cycles.
-  tbt->AtEndOfCycle().ExpectEq("out_valid", 0);
-  tbt->AtEndOfCycle().ExpectEq("out_valid", 0);
+  seq.AtEndOfCycle().ExpectEq("out_valid", 0);
+  seq.AtEndOfCycle().ExpectEq("out_valid", 0);
 
   // Now change the input and observe that the output never changes (because we
   // don't correspondingly set input_valid).
-  tbt->Set("z", 7);
+  seq.Set("z", 7);
   int64_t latency = result.signature.proto().pipeline().latency();
   ASSERT_GT(latency, 0);
   for (int64_t i = 0; i < 2 * latency; ++i) {
-    tbt->AtEndOfCycle().ExpectEq("out", kExpected).ExpectEq("out_valid", 0);
+    seq.AtEndOfCycle().ExpectEq("out", kExpected).ExpectEq("out_valid", 0);
   }
 
   XLS_ASSERT_OK(tb.Run());
@@ -774,43 +775,44 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
     ModuleTestbench tb(result.verilog_text, GetFileType(), resetless_signature,
                        GetSimulator());
     XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+    SequentialBlock& seq = tbt->MainBlock();
     // One cycle after reset the output control signal should be zero.
-    tbt->Set(kResetSignal, kAssertReset).Set("in_valid", 0);
-    tbt->NextCycle();
-    tbt->AtEndOfCycle().ExpectEq("out_valid", 0);
+    seq.Set(kResetSignal, kAssertReset).Set("in_valid", 0);
+    seq.NextCycle();
+    seq.AtEndOfCycle().ExpectEq("out_valid", 0);
 
     // Even with in_valid one, out_valid should never be one because reset is
     // asserted.
-    tbt->Set("in_valid", 1);
-    tbt->AdvanceNCycles(100);
-    tbt->AtEndOfCycle().ExpectEq("out_valid", 0);
+    seq.Set("in_valid", 1);
+    seq.AdvanceNCycles(100);
+    seq.AtEndOfCycle().ExpectEq("out_valid", 0);
 
     // Deassert rst and set inputs.
-    tbt->Set(kResetSignal, kDeassertReset).Set("x", 2).Set("y", 3).Set("z", 4);
+    seq.Set(kResetSignal, kDeassertReset).Set("x", 2).Set("y", 3).Set("z", 4);
 
     // Wait until the output goes valid.
     const int kExpected = 2 * 3 * 4;
-    tbt->AtEndOfCycleWhen("out_valid")
+    seq.AtEndOfCycleWhen("out_valid")
         .ExpectEq("out_valid", 1)
         .ExpectEq("out", kExpected);
 
     // Output will remain valid in subsequent cycles.
-    tbt->AtEndOfCycle().ExpectEq("out_valid", 1);
-    tbt->AtEndOfCycle().ExpectEq("out_valid", 1);
+    seq.AtEndOfCycle().ExpectEq("out_valid", 1);
+    seq.AtEndOfCycle().ExpectEq("out_valid", 1);
 
     // Assert reset and verify out_valid is always zero.
-    tbt->Set(kResetSignal, kAssertReset);
-    tbt->NextCycle();
-    tbt->AtEndOfCycle().ExpectEq("out_valid", 0);
-    tbt->AtEndOfCycle().ExpectEq("out_valid", 0);
+    seq.Set(kResetSignal, kAssertReset);
+    seq.NextCycle();
+    seq.AtEndOfCycle().ExpectEq("out_valid", 0);
+    seq.AtEndOfCycle().ExpectEq("out_valid", 0);
 
     // Deassert reset and in_valid and change the input and observe that the
     // output never changes (because we don't correspondingly set input_valid).
-    tbt->Set("z", 7).Set(kResetSignal, kDeassertReset).Set("in_valid", 0);
+    seq.Set("z", 7).Set(kResetSignal, kDeassertReset).Set("in_valid", 0);
     int64_t latency = result.signature.proto().pipeline().latency();
     ASSERT_GT(latency, 0);
     for (int64_t i = 0; i < 2 * latency; ++i) {
-      tbt->AtEndOfCycle().ExpectEq("out", kExpected).ExpectEq("out_valid", 0);
+      seq.AtEndOfCycle().ExpectEq("out", kExpected).ExpectEq("out_valid", 0);
     }
 
     XLS_ASSERT_OK(tb.Run());
@@ -1033,46 +1035,47 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
   ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
                      GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
-  tbt->Set("in_valid", 0).Set("rst", 1);
-  tbt->NextCycle();
-  tbt->Set("rst", 0).NextCycle();
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("in_valid", 0).Set("rst", 1);
+  seq.NextCycle();
+  seq.Set("rst", 0).NextCycle();
 
-  tbt->AtEndOfCycleWhenNotX("out_valid").ExpectEq("out_valid", 0);
+  seq.AtEndOfCycleWhenNotX("out_valid").ExpectEq("out_valid", 0);
 
   // Send in a valid value on one cycle.
-  tbt->Set("in_valid", 1).Set("x", 2).Set("y", 3).Set("z", 4);
-  tbt->NextCycle();
+  seq.Set("in_valid", 1).Set("x", 2).Set("y", 3).Set("z", 4);
+  seq.NextCycle();
 
   // Then don't send any more valid values.
-  tbt->Set("in_valid", 0);
+  seq.Set("in_valid", 0);
 
   // Wait until the output goes valid.
   const int kExpected = 2 * 3 * 4;
-  tbt->AtEndOfCycleWhen("out_valid")
+  seq.AtEndOfCycleWhen("out_valid")
       .ExpectEq("out_valid", 1)
       .ExpectEq("out", kExpected);
 
   // Output will be invalid in all subsequent cycles.
-  tbt->AtEndOfCycle().ExpectEq("out_valid", 0);
-  tbt->AtEndOfCycle().ExpectEq("out_valid", 0);
+  seq.AtEndOfCycle().ExpectEq("out_valid", 0);
+  seq.AtEndOfCycle().ExpectEq("out_valid", 0);
 
   // Now change the input and observe that the output never changes (because we
   // don't correspondingly set input_valid).
-  tbt->Set("z", 7);
+  seq.Set("z", 7);
   int64_t latency = result.signature.proto().pipeline().latency();
   ASSERT_GT(latency, 0);
   for (int64_t i = 0; i < 2 * latency; ++i) {
-    tbt->AtEndOfCycle().ExpectEq("out", kExpected).ExpectEq("out_valid", 0);
+    seq.AtEndOfCycle().ExpectEq("out", kExpected).ExpectEq("out_valid", 0);
   }
 
   // Asserting reset should flush the pipeline after the pipeline latency even
   // without in_valid asserted.
-  tbt->Set("rst", 1).Set("in_valid", 0).Set("x", 0).Set("y", 0).Set("z", 0);
+  seq.Set("rst", 1).Set("in_valid", 0).Set("x", 0).Set("y", 0).Set("z", 0);
   for (int64_t i = 0; i < latency; ++i) {
-    tbt->AtEndOfCycle().ExpectEq("out", kExpected);
+    seq.AtEndOfCycle().ExpectEq("out", kExpected);
   }
   for (int64_t i = 0; i < latency; ++i) {
-    tbt->AtEndOfCycle().ExpectEq("out", 0);
+    seq.AtEndOfCycle().ExpectEq("out", 0);
   }
 
   XLS_ASSERT_OK(tb.Run());
