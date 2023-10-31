@@ -105,8 +105,8 @@ TEST(BuildAstFmtTest, FormatLongTupleShouldTrailingComma) {
   DocRef doc = Fmt(*tuple, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
             R"((
-    x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20, x21,
-    x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39,
+    x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20,
+    x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39,
 ))");
   auto [_, tuple_without_trailing_comma] =
       MakeNElementTupleExpression(40, /*has_trailing_comma=*/false);
@@ -114,8 +114,8 @@ TEST(BuildAstFmtTest, FormatLongTupleShouldTrailingComma) {
   doc = Fmt(*tuple_without_trailing_comma, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
             R"((
-    x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20, x21,
-    x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39,
+    x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20,
+    x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39,
 ))");
 }
 
@@ -676,10 +676,14 @@ TEST_F(FunctionFmtTest, LetRhsIsOverlongFor) {
         (idx, (shifted_y, shifted_index_bit, running_product, running_result)) in
         range(u32:0, REALLY_LONG_NAME_HERE) {
         idx
-    }(());
+    }((
+        (y as uN[DN]) << (init_shift_amount as uN[DN]), uN[N]:1 << init_shift_amount, uN[DN]:0,
+        uN[N]:0,
+    ));
 })";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
-                           DoFmt(original, {"range", "REALLY_LONG_NAME_HERE"}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string got, DoFmt(original, {"range", "REALLY_LONG_NAME_HERE", "y",
+                                        "DN", "init_shift_amount", "N"}));
   EXPECT_EQ(got, original);
 }
 

@@ -133,8 +133,8 @@ pub fn iterative_div<N: u32, DN: u32 = {N * u32:2}>(x: uN[N], y: uN[N]) -> uN[N]
 
         (shifted_y, shifted_index_bit, running_product, running_result)
     }((
-        (y as uN[DN]) << (init_shift_amount as uN[DN]), uN[N]:1 << init_shift_amount, uN[DN]:0, uN[N]:
-        0,
+        (y as uN[DN]) << (init_shift_amount as uN[DN]), uN[N]:1 << init_shift_amount, uN[DN]:0,
+        uN[N]:0,
     ));
 
     div_result
