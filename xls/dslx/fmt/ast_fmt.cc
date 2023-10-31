@@ -736,6 +736,7 @@ DocRef Fmt(const Slice& n, const Comments& comments, DocArena& arena) {
   if (n.start() != nullptr) {
     pieces.push_back(Fmt(*n.start(), comments, arena));
   }
+  pieces.push_back(arena.break0());
   pieces.push_back(arena.colon());
   if (n.limit() != nullptr) {
     pieces.push_back(Fmt(*n.limit(), comments, arena));
@@ -774,7 +775,7 @@ DocRef Fmt(const Index& n, const Comments& comments, DocArena& arena) {
     pieces.push_back(Fmt(*n.lhs(), comments, arena));
   }
   pieces.push_back(arena.obracket());
-  pieces.push_back(Fmt(n.rhs(), comments, arena));
+  pieces.push_back(arena.MakeAlign(Fmt(n.rhs(), comments, arena)));
   pieces.push_back(arena.cbracket());
   return ConcatNGroup(arena, pieces);
 }

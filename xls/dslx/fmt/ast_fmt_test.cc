@@ -689,6 +689,27 @@ TEST_F(FunctionFmtTest, ParametricInvocationWithExpression) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, SliceExprOverlong) {
+  const std::string_view original = R"(fn f() {
+    if a {
+        if b {
+            let middle_bits = upper_bits ++
+                              x[smin(from_inclusive as s32 - fixed_shift as s32, N as s32)
+                                :smin(to_exclusive as s32 - fixed_shift as s32, N as s32)];
+        } else {
+            ()
+        }
+    } else {
+        ()
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string got,
+      DoFmt(original, {"a", "b", "x", "smin", "upper_bits", "from_inclusive",
+                       "to_exclusive", "fixed_shift", "N"}));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {
