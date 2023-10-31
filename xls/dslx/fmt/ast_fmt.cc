@@ -1655,10 +1655,51 @@ static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.ocurl());
   pieces.push_back(arena.hard_line());
 
-  DocRef nested = FmtJoin<EnumMember>(n.values(), Joiner::kHardLine,
-                                      FmtEnumMember, comments, arena);
+  std::vector<DocRef> nested;
+  Pos last_member_pos = n.span().start();
+  for (size_t i = 0; i < n.values().size(); ++i) {
+    const EnumMember& node = n.values()[i];
+    // If there are comment blocks between the last member position and the
+    // member we're about the process, we need to emit them.
+    std::optional<Span> member_span = node.GetSpan();
+    XLS_CHECK(member_span.has_value());
+    Pos member_start = member_span->start();
 
-  pieces.push_back(arena.MakeNest(nested));
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc =
+            EmitCommentsBetween(last_member_pos, member_start, comments, arena,
+                                &last_comment_span)) {
+      nested.push_back(comments_doc.value());
+      nested.push_back(arena.hard_line());
+
+      // If the comment abuts the member we don't put a newline in
+      // between, we assume the comment is associated with the member.
+      if (last_comment_span->limit().lineno() != member_start.lineno()) {
+        nested.push_back(arena.hard_line());
+      }
+    }
+
+    last_member_pos = member_span->limit();
+
+    // Here we actually emit the formatted member.
+    nested.push_back(FmtEnumMember(node, comments, arena));
+    if (i + 1 != n.values().size()) {
+      nested.push_back(arena.hard_line());
+    }
+  }
+
+  // See if there are any comments to emit after the last statement to the end
+  // of the block.
+  std::optional<Span> last_comment_span;
+  if (std::optional<DocRef> comments_doc =
+          EmitCommentsBetween(last_member_pos, n.span().limit(), comments,
+                              arena, &last_comment_span)) {
+    nested.push_back(arena.hard_line());
+    nested.push_back(comments_doc.value());
+  }
+
+  DocRef nested_ref = ConcatN(arena, nested);
+  pieces.push_back(arena.MakeNest(nested_ref));
   pieces.push_back(arena.hard_line());
   pieces.push_back(arena.ccurl());
   return ConcatN(arena, pieces);

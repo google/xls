@@ -37,6 +37,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/indent.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -824,6 +825,23 @@ std::string ChannelDecl::ToStringInternal() const {
 
 Module::~Module() {
   XLS_VLOG(3) << "Destroying module \"" << name_ << "\" @ " << this;
+}
+
+std::string Module::ToString() const {
+  // Don't print Proc functions, as they'll be printed as part of the procs
+  // themselves.
+  std::vector<ModuleMember> print_top;
+  for (const auto& member : top_) {
+    if (std::holds_alternative<Function*>(member) &&
+        std::get<Function*>(member)->proc().has_value()) {
+      continue;
+    }
+    print_top.push_back(member);
+  }
+  return absl::StrJoin(print_top, "\n",
+                       [](std::string* out, const ModuleMember& member) {
+                         absl::StrAppend(out, ToAstNode(member)->ToString());
+                       });
 }
 
 const AstNode* Module::FindNode(AstNodeKind kind, const Span& target) const {

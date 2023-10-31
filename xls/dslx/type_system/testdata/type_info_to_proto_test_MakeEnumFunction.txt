@@ -1,4 +1,4 @@
-1:0-1:4: ENUM_DEF :: `enum E : u32 {
+1:0-1:23: ENUM_DEF :: `enum E : u32 {
     A = 42,
 }` :: typeof(E)
 1:5-1:6: NAME_DEF :: `E` :: typeof(E)

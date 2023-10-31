@@ -3122,22 +3122,7 @@ class Module : public AstNode {
   std::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string ToString() const override {
-    // Don't print Proc functions, as they'll be printed as part of the procs
-    // themselves.
-    std::vector<ModuleMember> print_top;
-    for (const auto& member : top_) {
-      if (std::holds_alternative<Function*>(member) &&
-          std::get<Function*>(member)->proc().has_value()) {
-        continue;
-      }
-      print_top.push_back(member);
-    }
-    return absl::StrJoin(print_top, "\n",
-                         [](std::string* out, const ModuleMember& member) {
-                           absl::StrAppend(out, ToAstNode(member)->ToString());
-                         });
-  }
+  std::string ToString() const override;
 
   template <typename T, typename... Args>
   T* Make(Args&&... args) {

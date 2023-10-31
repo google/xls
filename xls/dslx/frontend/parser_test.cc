@@ -1058,11 +1058,15 @@ TEST_F(ParserTest, ParseBlockWithTwoStatements) {
 }
 
 TEST_F(ParserTest, ModuleConstWithEnumInside) {
-  RoundTrip(R"(enum MyEnum : u2 {
+  std::unique_ptr<Module> module = RoundTrip(R"(enum MyEnum : u2 {
     FOO = 0,
     BAR = 1,
 }
 const MY_TUPLE = (MyEnum::FOO, MyEnum::BAR) as (MyEnum, MyEnum);)");
+  ASSERT_NE(module, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(EnumDef * my_enum,
+                           module->GetMemberOrError<EnumDef>("MyEnum"));
+  EXPECT_EQ(my_enum->span().ToString(), "test.x:1:1-4:2");
 }
 
 TEST_F(ParserTest, Struct) {

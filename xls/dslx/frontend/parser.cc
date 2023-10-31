@@ -2532,8 +2532,9 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
   XLS_ASSIGN_OR_RETURN(
       std::vector<EnumMember> entries,
       ParseCommaSeq<EnumMember>(parse_enum_entry, TokenKind::kCBrace));
-  auto* enum_def = module_->Make<EnumDef>(enum_tok.span(), name_def,
-                                          type_annotation, entries, is_public);
+  auto* enum_def =
+      module_->Make<EnumDef>(Span(enum_tok.span().start(), GetPos()), name_def,
+                             type_annotation, entries, is_public);
   bindings.Add(name_def->identifier(), enum_def);
   name_def->set_definer(enum_def);
   return enum_def;
