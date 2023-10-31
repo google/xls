@@ -85,6 +85,33 @@ class ContextNarrowingPassTest : public NarrowingPassTestBase {
   }
 };
 
+TEST_P(NarrowingPassTest, NarrowableNegOneBit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // -1 * -b0000000X
+  auto param = fb.Param("x", p->GetBitsType(1));
+  auto ext = fb.ZeroExtend(param, 32);
+  fb.Negate(ext);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::SignExt(m::BitSlice(ext.node(), /*start=*/0, /*width=*/1)));
+}
+
+TEST_P(NarrowingPassTest, NarrowableNegThreeBit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // -1 * -b00000XXX
+  auto param = fb.Param("x", p->GetBitsType(3));
+  auto ext = fb.ZeroExtend(param, 32);
+  fb.Negate(ext);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::SignExt(m::Neg(m::BitSlice(ext.node(), /*start=*/0, /*width=*/4))));
+}
+
 TEST_P(NarrowingPassTest, UnnarrowableShift) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

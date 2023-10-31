@@ -306,6 +306,44 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   absl::Status HandleULt(CompareOp* lt) override {
     return MaybeNarrowCompare(lt);
   }
+  absl::Status HandleNeg(UnOp* neg) override {
+    // Narrows negate:
+    //
+    //  neg(0b00...00XXX) => signext(neg(0b0XXX))
+    //  neg(0b00...0000X) => signext(0bX)
+    Node* input = neg->operand(UnOp::kArgOperand);
+    int64_t leading_zero = CountLeadingKnownZeros(input, neg);
+    if (leading_zero == 0 || leading_zero == 1) {
+      // Transform is - [00000??] -> signext[-[0??], width] so if there are no
+      // leading zeros or only one we don't get any benefit.
+      return NoChange();
+    }
+    int64_t unknown_segment = input->BitCountOrDie() - leading_zero;
+    if (unknown_segment == 1) {
+      // Bit-extend the Least significant (zero-th) bit.
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_input,
+          neg->function_base()->MakeNode<BitSlice>(
+              neg->loc(), neg->operand(UnOp::kArgOperand), 0, 1));
+      XLS_RETURN_IF_ERROR(
+          neg->ReplaceUsesWithNew<ExtendOp>(narrowed_input,
+                                            neg->BitCountOrDie(), Op::kSignExt)
+              .status());
+      return Change();
+    }
+    // Slice then neg then extend the negated value.
+    XLS_ASSIGN_OR_RETURN(Node * narrowed_input,
+                         neg->function_base()->MakeNode<BitSlice>(
+                             neg->loc(), neg->operand(UnOp::kArgOperand), 0,
+                             unknown_segment + 1));
+    XLS_ASSIGN_OR_RETURN(Node * narrowed_neg,
+                         neg->function_base()->MakeNode<UnOp>(
+                             neg->loc(), narrowed_input, Op::kNeg));
+    XLS_RETURN_IF_ERROR(neg->ReplaceUsesWithNew<ExtendOp>(
+                               narrowed_neg, neg->BitCountOrDie(), Op::kSignExt)
+                            .status());
+    return Change();
+  }
 
   // Try to narrow the operands of comparison operations. Returns true if the
   // given compare operation was narrowed.
@@ -1593,6 +1631,5 @@ std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
       return os << "OptionalContext";
   }
 }
-
 
 }  // namespace xls

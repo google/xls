@@ -57,8 +57,9 @@ class Z3IrTranslatorTest : public IrTestBase {};
 // to be instantiated across a range of different bitwidths. Each individual
 // test may decide how to use this width parameter, e.g., to set the width of
 // a function input.
-class Z3ParameterizedWidthBitVectorIrTranslatorTest : public Z3IrTranslatorTest,
-    public testing::WithParamInterface<int> {
+class Z3ParameterizedWidthBitVectorIrTranslatorTest
+    : public Z3IrTranslatorTest,
+      public testing::WithParamInterface<int> {
  protected:
   int BitWidth() const { return GetParam(); }
 };
@@ -563,10 +564,56 @@ fn f(p: bits[$0]) -> bits[1] {
   ret eq: bits[1] = eq(impl, spec)
 }
 )";
-  const std::string program =
-      absl::Substitute(program_template, BitWidth());
+  const std::string program = absl::Substitute(program_template, BitWidth());
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
+}
+
+TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
+       OneBitNegativeIsSignExtendOneBit) {
+  // Verify that a single bit value negated is the same as that bit
+  // sign-extended to desired length.
+  constexpr std::string_view program_template = R"(
+fn f(p: bits[1]) -> bits[1] {
+  zero: bits[$0] = literal(value=0)
+  conc: bits[$1] = concat(zero, p)
+  nega: bits[$1] = neg(conc)
+  extn: bits[$1] = sign_ext(p, new_bit_count=$1)
+  ret eq: bits[1] = eq(nega, extn)
+}
+)";
+  const std::string program =
+      absl::Substitute(program_template, BitWidth(), BitWidth() + 1);
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
+}
+
+TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
+       ThreeBitNegativeIsSignExtendOneBit) {
+  // Verify that we can transform a negation of a value with many known zero
+  // bits into a negation of the non-zero bits with a single zero bit then
+  // sign-extended to the correct length.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto full_width = BitWidth() + 3;
+  auto param = fb.Param("p", p->GetBitsType(3));
+  auto conc_big = fb.Concat({fb.Literal(UBits(0, BitWidth())), param});
+  auto neg_big = fb.Negate(conc_big);
+  auto conc_small = fb.Concat({fb.Literal(UBits(0, 1)), param});
+  auto neg_small = fb.Negate(conc_small);
+  auto extn_small = fb.SignExtend(neg_small, full_width);
+  fb.Eq(neg_big, extn_small);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
       bool proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -587,8 +634,7 @@ fn f(p: bits[$0]) -> bits[1] {
   ret eq: bits[1] = eq(impl, spec)
 }
 )";
-  const std::string program =
-      absl::Substitute(program_template, BitWidth());
+  const std::string program = absl::Substitute(program_template, BitWidth());
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -598,8 +644,7 @@ fn f(p: bits[$0]) -> bits[1] {
   EXPECT_TRUE(proven_nez);
 }
 
-TEST_F(Z3IrTranslatorTest,
-       XorReduceIsEqualToXorOfBits) {
+TEST_F(Z3IrTranslatorTest, XorReduceIsEqualToXorOfBits) {
   // Define a miter circuit: the implementation performs an `xor_reduce` and the
   // specification checks for inequality with a bitvector of all ones. The
   // outputs should be equal across the full space of inputs.
