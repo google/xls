@@ -81,28 +81,27 @@ pub proc RunLengthDecoder<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
 
   next (tok: token, state: RunLengthDecoderState<SYMBOL_WIDTH, COUNT_WIDTH>) {
     let state_input = DecInData {
-      symbol: state.symbol,
-      count: state.count,
+      symbol_count_pair: (state.symbol, state.count),
       last: state.last
     };
     let recv_next_symbol = (state.count == bits[COUNT_WIDTH]:0);
     let (tok, input) = recv_if(tok, input_r, recv_next_symbol, state_input);
-    let next_count = if input.count == bits[COUNT_WIDTH]:0 {
-        fail!("invalid_count_0", input.count)
+    let next_count = if input.symbol_count_pair.1 == bits[COUNT_WIDTH]:0 {
+        fail!("invalid_count_0", input.symbol_count_pair.1)
     } else {
-        input.count - bits[COUNT_WIDTH]:1
+        input.symbol_count_pair.1 - bits[COUNT_WIDTH]:1
     };
     let done_sending = (next_count == bits[COUNT_WIDTH]:0);
     let send_last = input.last && done_sending;
     let data_tok = send(tok, output_s, DecOutData {
-      symbol: input.symbol,
+      symbol: input.symbol_count_pair.0,
       last: send_last
     });
     if (send_last) {
       zero!<RunLengthDecoderState>()
     } else {
       RunLengthDecoderState {
-        symbol: input.symbol,
+        symbol: input.symbol_count_pair.0,
         count: next_count,
         last: input.last,
       }
@@ -171,13 +170,12 @@ proc RunLengthDecoderTransactionTest {
         in enumerate(TransactionTestStimuli) {
       let last = counter == (array_size(TransactionTestStimuli) - u32:1);
       let data_in = TestDecInData{
-        symbol: stimulus.0,
-        count: stimulus.1,
+        symbol_count_pair: (stimulus.0, stimulus.1),
         last: last
       };
       let tok = send(tok, dec_input_s, data_in);
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, count:{}, last: {}",
-          counter + u32:1, data_in.symbol, data_in.count, data_in.last);
+          counter + u32:1, data_in.symbol_count_pair.0, data_in.symbol_count_pair.1, data_in.last);
       (tok)
     }(tok);
     let TransationTestOutputs: TestSymbol[14] = [
@@ -231,13 +229,11 @@ proc RunLengthDecoderLastAfterLastTest {
   next(tok: token, state: ()) {
     let LastAfterLastTestStimuli: TestDecInData[2] =[
       TestDecInData {
-        symbol: TestSymbol:0x1,
-        count: TestCount:0x1,
+        symbol_count_pair: (TestSymbol:0x1, TestCount:0x1),
         last:true
       },
       TestDecInData {
-        symbol: TestSymbol:0x2,
-        count: TestCount:0x1,
+        symbol_count_pair: (TestSymbol:0x2, TestCount:0x1),
         last:true
       },
     ];
@@ -246,7 +242,7 @@ proc RunLengthDecoderLastAfterLastTest {
         in enumerate(LastAfterLastTestStimuli) {
       let tok = send(tok, dec_input_s, stimulus);
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, count:{}, last: {}",
-          counter + u32:1, stimulus.symbol, stimulus.count, stimulus.last);
+          counter + u32:1, stimulus.symbol_count_pair.0, stimulus.symbol_count_pair.1, stimulus.last);
       (tok)
     }(tok);
     let LastAfterLastTestOutputs: TestDecOutData[2] = [
