@@ -54,7 +54,6 @@ fn test_builtin_max_values() {
     // assert_eq(uN[128]:0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff, uN[128]::MAX);
     assert_eq(MyU128:0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff, MyU128::MAX);
     assert_eq(MyU128:0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff, main());
-    assert_eq(MyU256:
-              0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,
+    assert_eq(MyU256:0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,
               MyU256::MAX);
 }

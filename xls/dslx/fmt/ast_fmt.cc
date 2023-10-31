@@ -281,8 +281,8 @@ DocRef Fmt(const NameRef& n, const Comments& comments, DocArena& arena) {
 DocRef Fmt(const Number& n, const Comments& comments, DocArena& arena) {
   DocRef num_text = arena.MakeText(n.text());
   if (const TypeAnnotation* type = n.type_annotation()) {
-    return ConcatNGroup(arena, {Fmt(*type, comments, arena), arena.colon(),
-                                arena.break0(), num_text});
+    return ConcatNGroup(arena,
+                        {Fmt(*type, comments, arena), arena.colon(), num_text});
   }
   return num_text;
 }
