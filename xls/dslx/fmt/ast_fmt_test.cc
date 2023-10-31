@@ -683,6 +683,12 @@ TEST_F(FunctionFmtTest, LetRhsIsOverlongFor) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, ParametricInvocationWithExpression) {
+  const std::string_view original = R"(fn f() { p<A, u32:42, {A + B}>() })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"p", "A", "B"}));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {

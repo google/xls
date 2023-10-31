@@ -789,6 +789,24 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
       n);
 }
 
+static DocRef FmtParametricArg(const ExprOrType& n, const Comments& comments,
+                               DocArena& arena) {
+  return absl::visit(
+      Visitor{
+          [&](const Expr* n) {
+            DocRef guts = Fmt(*n, comments, arena);
+            if (dynamic_cast<const NameRef*>(n) != nullptr ||
+                dynamic_cast<const ColonRef*>(n) != nullptr ||
+                dynamic_cast<const Number*>(n) != nullptr) {
+              return guts;  // No need for enclosing curlies.
+            }
+            return ConcatN(arena, {arena.ocurl(), guts, arena.ccurl()});
+          },
+          [&](const TypeAnnotation* n) { return Fmt(*n, comments, arena); },
+      },
+      n);
+}
+
 DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces = {
       Fmt(*n.callee(), comments, arena),
@@ -797,7 +815,7 @@ DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
     pieces.push_back(arena.oangle());
     pieces.push_back(FmtJoin<ExprOrType>(
         absl::MakeConstSpan(n.explicit_parametrics()), Joiner::kCommaSpace,
-        FmtExprOrType, comments, arena));
+        FmtParametricArg, comments, arena));
     pieces.push_back(arena.cangle());
   }
   pieces.push_back(arena.oparen());
