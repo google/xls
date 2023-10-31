@@ -359,3 +359,66 @@ pub fn buffer_new<CAPACITY: u32>() -> Buffer<CAPACITY> {
 fn test_buffer_new() {
     assert_eq(buffer_new<u32:32>(), Buffer { content: u32:0, length: u32:0 });
 }
+
+// Example use case
+//
+// The Buffer structure is meant to aggregate data received from the Proc's
+// channels. This data may be collected in multiple evaluations of the next
+// functions. Once the required amount of data is collected, it can be poped-out
+// in chanks of any length. A simple example that shows how the Buffer structure
+// can be used is presented below. It uses the structure to combine several
+// smaller transactions into bigger ones.
+
+proc BufferExampleUsage {
+    input_r: chan<u32> in;
+    output_s: chan<u48> out;
+
+    config(
+        input_r: chan<u32> in,
+        output_s: chan<u48> out
+    ) { (input_r, output_s) }
+
+    init { buffer_new<u32:64>() }
+
+    next(tok: token, buffer: Buffer<u32:64>) {
+        let (tok, recv_data) = recv(tok, input_r);
+        let buffer = buffer_append<u32:64>(buffer, recv_data);
+
+        if buffer.length >= u32:48 {
+            let (buffer, data_to_send) = buffer_fixed_pop<u32:64, u32:48>(buffer);
+            let tok = send(tok, output_s, data_to_send);
+            buffer
+        } else {
+            buffer
+        }
+    }
+}
+
+#[test_proc]
+proc BufferExampleUsageTest {
+    terminator: chan<bool> out;
+    data32_s: chan<u32> out;
+    data48_r: chan<u48> in;
+
+    config(terminator: chan<bool> out) {
+        let (data32_s, data32_r) = chan<u32>;
+        let (data48_s, data48_r) = chan<u48>;
+        spawn BufferExampleUsage(data32_r, data48_s);
+        (terminator, data32_s, data48_r)
+    }
+
+    init {}
+
+    next(tok: token, state: ()) {
+        let tok = send(tok, data32_s, u32:0xDEADBEEF);
+        let tok = send(tok, data32_s, u32:0xBEEFCAFE);
+        let tok = send(tok, data32_s, u32:0xCAFEDEAD);
+
+        let (tok, received_data) = recv(tok, data48_r);
+        assert_eq(received_data, u48:0xCAFE_DEAD_BEEF);
+        let (tok, received_data) = recv(tok, data48_r);
+        assert_eq(received_data, u48:0xCAFE_DEAD_BEEF);
+
+        send(tok, terminator, true);
+    }
+}
