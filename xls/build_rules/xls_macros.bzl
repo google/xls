@@ -522,16 +522,21 @@ def xls_dslx_fmt_test_macro(name, src):
         name: Name of the (diff) test target this will emit.
         src: Source file to auto-format.
     """
+    out = name + ".fmt.x"
     native.genrule(
         name = name + "_dslx_fmt",
         srcs = [src],
-        outs = [name + ".fmt.x"],
+        outs = [out],
         tools = [DEFAULT_DSLX_FMT_TARGET],
         cmd = "$(location %s) $< > $@" % DEFAULT_DSLX_FMT_TARGET,
     )
+    package_name = native.package_name()
+    target = package_name + ":" + out
+    src_file = package_name + "/" + src
+    out_file = package_name + "/" + out
     diff_test(
         name = name,
         file1 = src,
         file2 = ":" + name + "_dslx_fmt",
-        failure_message = "File %s was not canonically auto-formatted" % src,
+        failure_message = "File %s was not canonically auto-formatted; to update, in the top level directory of your WORKSPACE run: bazel build -c opt %s && cp bazel-genfiles/%s %s" % (src_file, target, out_file, src_file),
     )

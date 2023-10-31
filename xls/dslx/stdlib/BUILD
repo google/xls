@@ -36,6 +36,11 @@ xls_dslx_library(
     srcs = ["std.x"],
 )
 
+xls_dslx_fmt_test(
+    name = "std_dslx_autofmt_test",
+    src = "std.x",
+)
+
 xls_dslx_test(
     name = "std_dslx_test",
     srcs = ["std.x"],
