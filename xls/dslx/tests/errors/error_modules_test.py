@@ -966,6 +966,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_mismatch_instantiation_vs_parametric_alias(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/mismatch_instantiation_vs_parametric_alias.x',
+    )
+    self.assertIn('XlsTypeError:', stderr)
+    self.assertIn(
+        'uN[2] vs uN[3]: Mismatch between member and argument types.',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()
