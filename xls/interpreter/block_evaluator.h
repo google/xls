@@ -16,6 +16,7 @@
 #define XLS_INTERPRETER_BLOCK_EVALUATOR_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <random>
 #include <string>
@@ -200,10 +201,26 @@ struct BlockIOResultsAsUint64 {
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
 };
 
+class BlockContinuation;
 class BlockEvaluator {
  public:
   explicit constexpr BlockEvaluator(std::string_view name) : name_(name) {}
   virtual ~BlockEvaluator() = default;
+
+  // Create a new block continuation with all registers initialized to the given
+  // values. This continuation can be used to feed input values in
+  // cycle-by-cycle.
+  virtual absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
+      Block* block,
+      const absl::flat_hash_map<std::string, Value>& initial_registers)
+      const;
+
+  // Create a new block continuation with all registers initialized to zero
+  // values. This continuation can be used to feed input values in
+  // cycle-by-cycle.
+  absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
+      Block* block) const;
+
   // Runs a single cycle of a block with the given register values and input
   // values. Returns the value sent to the output port and the next register
   // state.
@@ -345,6 +362,29 @@ class BlockEvaluator {
 
  protected:
   std::string_view name_;
+};
+
+// A sequence of block runs with preserved registers.
+class BlockContinuation {
+ public:
+  virtual ~BlockContinuation() = default;
+
+  // Get the output-ports as they exist on the current cycle. This is only valid
+  // until the next call to 'RunOneCycle'. The contents are undefined before the
+  // first call to RunOneCycle.
+  virtual const absl::flat_hash_map<std::string, Value>& output_ports() = 0;
+  // Get the registers as they exist on the current cycle. The reference is only
+  // valid until the next call to 'RunOneCycle'.
+  virtual const absl::flat_hash_map<std::string, Value>& registers() = 0;
+  // Get the interpreter events for the last cycle.
+  virtual const InterpreterEvents& events() = 0;
+  // Run a single cycle of the block on the given inputs using the current
+  // register state.
+  virtual absl::Status RunOneCycle(
+      const absl::flat_hash_map<std::string, Value>& inputs) = 0;
+  // Update the registers to the give values.
+  virtual absl::Status SetRegisters(
+      const absl::flat_hash_map<std::string, Value>& regs) = 0;
 };
 
 }  // namespace xls

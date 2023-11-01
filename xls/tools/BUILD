@@ -632,6 +632,7 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:block_evaluator",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:interpreter_proc_runtime",
         "//xls/interpreter:ir_interpreter",
@@ -644,6 +645,7 @@ cc_binary(
         "//xls/ir:register",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
+        "//xls/jit:block_jit",
         "//xls/jit:jit_proc_runtime",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -1200,6 +1202,7 @@ py_test(
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
 

@@ -36,6 +36,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/block.h"
+#include "xls/ir/events.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
 #include "xls/ir/type.h"
@@ -434,6 +435,71 @@ StreamingJitBlockEvaluator::EvaluateChannelizedSequentialBlock(
   }
 
   return block_io_results;
+}
+
+namespace {
+// Helper adapter to implement the interpreter-focused block-continuation api
+// used by eval_proc_main. This holds live all the values needed to run the
+// block-jit.
+class BlockContinuationJitWrapper final : public BlockContinuation {
+ public:
+  BlockContinuationJitWrapper(std::unique_ptr<BlockJitContinuation>&& cont,
+                              std::unique_ptr<BlockJit>&& jit,
+                              std::unique_ptr<JitRuntime>&& runtime)
+      : continuation_(std::move(cont)),
+        jit_(std::move(jit)),
+        runtime_(std::move(runtime)) {}
+  const absl::flat_hash_map<std::string, Value>& output_ports() final {
+    if (!temporary_outputs_) {
+      temporary_outputs_.emplace(continuation_->GetOutputPortsMap());
+    }
+    return *temporary_outputs_;
+  }
+  const absl::flat_hash_map<std::string, Value>& registers() final {
+    if (!temporary_regs_) {
+      temporary_regs_.emplace(continuation_->GetRegistersMap());
+    }
+    return *temporary_regs_;
+  }
+  const InterpreterEvents& events() final {
+    return continuation_->GetEvents();
+  }
+  absl::Status RunOneCycle(
+      const absl::flat_hash_map<std::string, Value>& inputs) final {
+    temporary_outputs_.reset();
+    temporary_regs_.reset();
+    continuation_->ClearEvents();
+    XLS_RETURN_IF_ERROR(continuation_->SetInputPorts(inputs));
+    return jit_->RunOneCycle(*continuation_);
+  }
+  absl::Status SetRegisters(
+      const absl::flat_hash_map<std::string, Value>& regs) final {
+    return continuation_->SetRegisters(regs);
+  }
+
+ private:
+  std::unique_ptr<BlockJitContinuation> continuation_;
+  std::unique_ptr<BlockJit> jit_;
+  std::unique_ptr<JitRuntime> runtime_;
+  // Holder for the data we return out of output_ports so that we can reduce
+  // copying.
+  std::optional<absl::flat_hash_map<std::string, Value>> temporary_outputs_;
+  // Holder for the data we return out of registers so that we can reduce
+  // copying.
+  std::optional<absl::flat_hash_map<std::string, Value>> temporary_regs_;
+};
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<BlockContinuation>>
+StreamingJitBlockEvaluator::NewContinuation(
+    Block* block,
+    const absl::flat_hash_map<std::string, Value>& initial_registers) const {
+  XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
+  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(block, runtime.get()));
+  auto jit_cont = jit->NewContinuation();
+  XLS_RETURN_IF_ERROR(jit_cont->SetRegisters(initial_registers));
+  return std::make_unique<BlockContinuationJitWrapper>(
+      std::move(jit_cont), std::move(jit), std::move(runtime));
 }
 
 }  // namespace xls

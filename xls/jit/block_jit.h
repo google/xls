@@ -263,6 +263,11 @@ class StreamingJitBlockEvaluator : public JitBlockEvaluator {
       absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
       const std::optional<verilog::ResetProto>& reset,
       int64_t seed) const override;
+
+  absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
+      Block* block,
+      const absl::flat_hash_map<std::string, Value>& initial_registers)
+      const override;
 };
 
 static const StreamingJitBlockEvaluator kStreamingJitBlockEvaluator;

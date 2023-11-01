@@ -18,8 +18,9 @@ import textwrap
 
 from absl import logging
 
-from xls.common import runfiles
 from absl.testing import absltest
+from absl.testing import parameterized
+from xls.common import runfiles
 
 EVAL_PROC_MAIN_PATH = runfiles.get_path("xls/tools/eval_proc_main")
 
@@ -348,13 +349,21 @@ BLOCK_MEMORY_SIGNATURE_PATH = runfiles.get_path(
 )
 
 
+def parameterized_block_backends(func):
+  return parameterized.named_parameters(
+      ("block_jit", ["--backend", "block_jit"]),
+      ("block_interpreter", ["--backend", "block_interpreter"]),
+  )(func)
+
+
 def run_command(args):
   """Runs the command described by args and returns the completion object."""
   # Don't use check=True because we want to print stderr/stdout on failure for a
   # better error message.
   # pylint: disable=subprocess-run-check
   comp = subprocess.run(
-      args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+      args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8"
+  )
   if comp.returncode != 0:
     logging.error("Failed to run: %s", " ".join(args))
     logging.error("stderr: %s", comp.stderr)
@@ -363,40 +372,43 @@ def run_command(args):
   return comp
 
 
-class EvalProcTest(absltest.TestCase):
+class EvalProcTest(parameterized.TestCase):
 
   def test_basic(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:42
           bits[64]:101
         """))
-    input_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:10
           bits[64]:6
         """))
-    output_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:62
           bits[64]:127
         """))
-    output_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:55
           bits[64]:55
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "2",
+        "-v=3",
         "--show_trace",
-        "--logtostderr", "--inputs_for_channels",
+        "--logtostderr",
+        "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
-            infile1=input_file.full_path,
-            infile2=input_file_2.full_path), "--expected_outputs_for_channels",
+            infile1=input_file.full_path, infile2=input_file_2.full_path
+        ),
+        "--expected_outputs_for_channels",
         "out_ch={outfile},out_ch_2={outfile2}".format(
-            outfile=output_file.full_path, outfile2=output_file_2.full_path)
+            outfile=output_file.full_path, outfile2=output_file_2.full_path
+        ),
     ]
 
     output = run_command(shared_args + ["--backend", "ir_interpreter"])
@@ -407,36 +419,39 @@ class EvalProcTest(absltest.TestCase):
 
   def test_basic_run_until_completed(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:42
           bits[64]:101
         """))
-    input_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:10
           bits[64]:6
         """))
-    output_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:62
           bits[64]:127
         """))
-    output_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:55
           bits[64]:55
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "-1", "-v=3",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "-1",
+        "-v=3",
         "--show_trace",
-        "--logtostderr", "--inputs_for_channels",
+        "--logtostderr",
+        "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
-            infile1=input_file.full_path,
-            infile2=input_file_2.full_path), "--expected_outputs_for_channels",
+            infile1=input_file.full_path, infile2=input_file_2.full_path
+        ),
+        "--expected_outputs_for_channels",
         "out_ch={outfile},out_ch_2={outfile2}".format(
-            outfile=output_file.full_path, outfile2=output_file_2.full_path)
+            outfile=output_file.full_path, outfile2=output_file_2.full_path
+        ),
     ]
 
     output = run_command(shared_args + ["--backend", "ir_interpreter"])
@@ -447,36 +462,39 @@ class EvalProcTest(absltest.TestCase):
 
   def test_reset_static(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:42
           bits[64]:101
         """))
-    input_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:10
           bits[64]:6
         """))
-    output_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:62
           bits[64]:117
         """))
-    output_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:55
           bits[64]:55
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "1,1", "-v=3",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "1,1",
+        "-v=3",
         "--show_trace",
-        "--logtostderr", "--inputs_for_channels",
+        "--logtostderr",
+        "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
-            infile1=input_file.full_path,
-            infile2=input_file_2.full_path), "--expected_outputs_for_channels",
+            infile1=input_file.full_path, infile2=input_file_2.full_path
+        ),
+        "--expected_outputs_for_channels",
         "out_ch={outfile},out_ch_2={outfile2}".format(
-            outfile=output_file.full_path, outfile2=output_file_2.full_path)
+            outfile=output_file.full_path, outfile2=output_file_2.full_path
+        ),
     ]
 
     output = run_command(shared_args + ["--backend", "ir_interpreter"])
@@ -485,41 +503,46 @@ class EvalProcTest(absltest.TestCase):
     output = run_command(shared_args + ["--backend", "serial_jit"])
     self.assertIn("Proc test_proc", output.stderr)
 
-  def test_block(self):
+  @parameterized_block_backends
+  def test_block(self, backends):
     ir_file = self.create_tempfile(content=BLOCK_IR)
     signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:42
           bits[64]:101
         """))
-    input_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:10
           bits[64]:6
         """))
-    output_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:62
           bits[64]:127
         """))
-    output_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:55
           bits[64]:55
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "--show_trace",
-        "--logtostderr", "--block_signature_proto", signature_file.full_path,
-        "--backend", "block_interpreter", "--inputs_for_channels",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "2",
+        "--show_trace",
+        "--logtostderr",
+        "--block_signature_proto",
+        signature_file.full_path,
+        "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
-            infile1=input_file.full_path,
-            infile2=input_file_2.full_path), "--expected_outputs_for_channels",
+            infile1=input_file.full_path, infile2=input_file_2.full_path
+        ),
+        "--expected_outputs_for_channels",
         "out_ch={outfile},out_ch_2={outfile2}".format(
-            outfile=output_file.full_path, outfile2=output_file_2.full_path),
-        "--show_trace"
-    ]
+            outfile=output_file.full_path, outfile2=output_file_2.full_path
+        ),
+        "--show_trace",
+    ] + backends
 
     output = run_command(shared_args)
     self.assertIn("Cycle[6]: resetting? false", output.stderr)
@@ -527,42 +550,48 @@ class EvalProcTest(absltest.TestCase):
     self.assertIn("trace: rst_n 0", output.stderr)
     self.assertIn("trace: rst_n 1", output.stderr)
 
-  def test_block_run_until_consumed(self):
+  @parameterized_block_backends
+  def test_block_run_until_consumed(self, backends):
     ir_file = self.create_tempfile(content=BLOCK_IR)
     signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
     stats_file = self.create_tempfile(content="")
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:42
           bits[64]:101
         """))
-    input_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:10
           bits[64]:6
         """))
-    output_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:62
           bits[64]:127
         """))
-    output_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:55
           bits[64]:55
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "-1", "--show_trace",
-        "--logtostderr", "--block_signature_proto", signature_file.full_path,
-        "--backend", "block_interpreter", "--inputs_for_channels",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "-1",
+        "--show_trace",
+        "--logtostderr",
+        "--block_signature_proto",
+        signature_file.full_path,
+        "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
-            infile1=input_file.full_path,
-            infile2=input_file_2.full_path), "--expected_outputs_for_channels",
+            infile1=input_file.full_path, infile2=input_file_2.full_path
+        ),
+        "--expected_outputs_for_channels",
         "out_ch={outfile},out_ch_2={outfile2}".format(
-            outfile=output_file.full_path, outfile2=output_file_2.full_path),
-        "--output_stats_path", stats_file.full_path
-    ]
+            outfile=output_file.full_path, outfile2=output_file_2.full_path
+        ),
+        "--output_stats_path",
+        stats_file.full_path,
+    ] + backends
 
     output = run_command(shared_args)
     self.assertIn("Cycle[6]: resetting? false", output.stderr)
@@ -571,55 +600,60 @@ class EvalProcTest(absltest.TestCase):
       stats_content = f.read()
       self.assertIn("6", stats_content)
 
-  def test_block_no_output(self):
+  @parameterized_block_backends
+  def test_block_no_output(self, backend):
     ir_file = self.create_tempfile(content=BLOCK_IR_BROKEN)
     signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:42
           bits[64]:101
         """))
-    input_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:10
           bits[64]:6
         """))
-    output_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:62
           bits[64]:127
         """))
-    output_file_2 = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file_2 = self.create_tempfile(content=textwrap.dedent("""
           bits[64]:55
           bits[64]:55
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "2",
+        "-v=3",
         "--show_trace",
-        "--logtostderr", "--block_signature_proto", signature_file.full_path,
-        "--backend", "block_interpreter", "--inputs_for_channels",
+        "--logtostderr",
+        "--block_signature_proto",
+        signature_file.full_path,
+        "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
-            infile1=input_file.full_path,
-            infile2=input_file_2.full_path), "--expected_outputs_for_channels",
+            infile1=input_file.full_path, infile2=input_file_2.full_path
+        ),
+        "--expected_outputs_for_channels",
         "out_ch={outfile},out_ch_2={outfile2}".format(
-            outfile=output_file.full_path, outfile2=output_file_2.full_path)
-    ]
+            outfile=output_file.full_path, outfile2=output_file_2.full_path
+        ),
+    ] + backend
 
     comp = subprocess.run(
         shared_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         encoding="utf-8",
-        check=False)
+        check=False,
+    )
     self.assertNotEqual(comp.returncode, 0)
     self.assertIn("Block didn't produce output", comp.stderr)
 
   def test_all_channels_in_a_single_file_proc(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           in_ch : {
             bits[64]:42
             bits[64]:101
@@ -629,8 +663,7 @@ class EvalProcTest(absltest.TestCase):
             bits[64]:6
           }
         """))
-    output_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           out_ch : {
             bits[64]:62
             bits[64]:127
@@ -642,10 +675,17 @@ class EvalProcTest(absltest.TestCase):
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "2",
+        "-v=3",
         "--show_trace",
-        "--logtostderr", "--inputs_for_all_channels", input_file.full_path,
-        "--expected_outputs_for_all_channels", output_file.full_path
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
+        "--expected_outputs_for_all_channels",
+        output_file.full_path,
     ]
 
     output = run_command(shared_args + ["--backend", "ir_interpreter"])
@@ -654,11 +694,11 @@ class EvalProcTest(absltest.TestCase):
     output = run_command(shared_args + ["--backend", "serial_jit"])
     self.assertIn("Proc test_proc", output.stderr)
 
-  def test_all_channels_in_a_single_file_block(self):
+  @parameterized_block_backends
+  def test_all_channels_in_a_single_file_block(self, backend):
     ir_file = self.create_tempfile(content=BLOCK_IR)
     signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           in_ch : {
             bits[64]:42
             bits[64]:101
@@ -668,8 +708,7 @@ class EvalProcTest(absltest.TestCase):
             bits[64]:6
           }
         """))
-    output_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           out_ch : {
             bits[64]:62
             bits[64]:127
@@ -681,21 +720,27 @@ class EvalProcTest(absltest.TestCase):
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "2",
+        "-v=3",
         "--show_trace",
-        "--logtostderr", "--block_signature_proto", signature_file.full_path,
-        "--backend", "block_interpreter", "--inputs_for_all_channels",
-        input_file.full_path, "--expected_outputs_for_all_channels",
-        output_file.full_path
-    ]
+        "--logtostderr",
+        "--block_signature_proto",
+        signature_file.full_path,
+        "--inputs_for_all_channels",
+        input_file.full_path,
+        "--expected_outputs_for_all_channels",
+        output_file.full_path,
+    ] + backend
 
     output = run_command(shared_args)
     self.assertIn("Cycle[6]: resetting? false", output.stderr)
 
   def test_output_channels_stdout_display_proc(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           in_ch : {
             bits[64]:42
             bits[64]:101
@@ -707,9 +752,15 @@ class EvalProcTest(absltest.TestCase):
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "2",
+        "-v=3",
         "--show_trace",
-        "--logtostderr", "--inputs_for_all_channels", input_file.full_path
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
     ]
 
     output = run_command(shared_args + ["--backend", "ir_interpreter"])
@@ -724,8 +775,7 @@ class EvalProcTest(absltest.TestCase):
 
   def test_output_channels_with_no_values_stdout_display_proc(self):
     ir_file = self.create_tempfile(content=PROC_IR_CONDITIONAL)
-    input_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           input : {
             bits[8]:42
             bits[8]:42
@@ -735,9 +785,15 @@ class EvalProcTest(absltest.TestCase):
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "4", "-v=3",
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "4",
+        "-v=3",
         "--show_trace",
-        "--logtostderr", "--inputs_for_all_channels", input_file.full_path
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
     ]
 
     output = run_command(shared_args + ["--backend", "ir_interpreter"])
@@ -748,7 +804,8 @@ class EvalProcTest(absltest.TestCase):
     self.assertIn("Proc test_proc", output.stderr)
     self.assertIn("output : {\n}", output.stdout)
 
-  def test_block_memory(self):
+  @parameterized_block_backends
+  def test_block_memory(self, backend):
     ir_file = BLOCK_MEMORY_IR_PATH
     signature_file = BLOCK_MEMORY_SIGNATURE_PATH
     channels_in_ir_file = self.create_tempfile(content=textwrap.dedent("""
@@ -779,8 +836,6 @@ class EvalProcTest(absltest.TestCase):
         channels_in_ir_file,
         "--expected_outputs_for_all_channels",
         channels_out_ir_file,
-        "--backend",
-        "block_interpreter",
         "--block_signature_proto",
         signature_file,
         "--model_memories",
@@ -789,7 +844,7 @@ class EvalProcTest(absltest.TestCase):
         "--show_trace",
         "--ticks",
         "12",
-    ]
+    ] + backend
 
     output = run_command(shared_args)
     self.assertIn(

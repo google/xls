@@ -15,6 +15,7 @@
 #include "xls/interpreter/block_evaluator.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <random>
 #include <string>
@@ -34,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/events.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
@@ -496,6 +498,70 @@ BlockEvaluator::EvaluateChannelizedSequentialBlockWithUint64(
     block_io_result_as_uint64.inputs.push_back(std::move(input_set));
   }
   return block_io_result_as_uint64;
+}
+
+namespace {
+class BaseBlockContinuation final : public BlockContinuation {
+ public:
+  BaseBlockContinuation(Block* block, BlockRunResult&& initial_result,
+                        const BlockEvaluator& evaluator)
+      : block_(block),
+        last_result_(std::move(initial_result)),
+        evaluator_(evaluator) {}
+
+  const absl::flat_hash_map<std::string, Value>& output_ports() final {
+    return last_result_.outputs;
+  }
+
+  const absl::flat_hash_map<std::string, Value>& registers() final {
+    return last_result_.reg_state;
+  }
+
+  const InterpreterEvents& events() final {
+    return last_result_.interpreter_events;
+  }
+
+  absl::Status RunOneCycle(
+      const absl::flat_hash_map<std::string, Value>& inputs) final {
+    XLS_ASSIGN_OR_RETURN(
+        last_result_,
+        evaluator_.EvaluateBlock(inputs, last_result_.reg_state, block_));
+    return absl::OkStatus();
+  }
+
+  absl::Status SetRegisters(
+      const absl::flat_hash_map<std::string, Value>& regs) final {
+    XLS_RET_CHECK_EQ(regs.size(), last_result_.reg_state.size());
+    for (const auto& [key, _] : regs) {
+      XLS_RET_CHECK(last_result_.reg_state.contains(key)) << key;
+    }
+    last_result_.reg_state = regs;
+    return absl::OkStatus();
+  }
+
+ private:
+  Block* block_;
+  BlockRunResult last_result_;
+  const BlockEvaluator& evaluator_;
+};
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<BlockContinuation>>
+BlockEvaluator::NewContinuation(
+    Block* block,
+    const absl::flat_hash_map<std::string, Value>& initial_registers) const {
+  return std::make_unique<BaseBlockContinuation>(
+      block, BlockRunResult{.reg_state = initial_registers}, *this);
+}
+
+absl::StatusOr<std::unique_ptr<BlockContinuation>>
+BlockEvaluator::NewContinuation(Block* block) const {
+  absl::flat_hash_map<std::string, Value> regs;
+  regs.reserve(block->GetRegisters().size());
+  for (const auto reg : block->GetRegisters()) {
+    regs[reg->name()] = ZeroOfType(reg->type());
+  }
+  return NewContinuation(block, regs);
 }
 
 }  // namespace xls

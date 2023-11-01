@@ -47,6 +47,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
@@ -60,6 +61,7 @@
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/jit/block_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/tools/eval_helpers.h"
 
@@ -80,7 +82,8 @@ ABSL_FLAG(std::string, backend, "serial_jit",
           "Backend to use for evaluation. Valid options are:\n"
           " * serial_jit: JIT-backed single-stepping runtime.\n"
           " * ir_interpreter: Interpreter at the IR level.\n"
-          " * block_interpreter: Interpret a block generated from a proc.");
+          " * block_interpreter: Interpret a block generated from a proc.\n"
+          " * block_jit: JIT-backed block execution generated from a proc.");
 ABSL_FLAG(std::string, block_signature_proto, "",
           "Path to textproto file containing signature from codegen");
 ABSL_FLAG(int64_t, max_cycles_no_output, 100,
@@ -541,8 +544,9 @@ static xls::Type* GetPortTypeOrNull(Block* block, std::string_view port_name) {
   return nullptr;
 }
 
-static absl::Status RunBlockInterpreter(
-    Package* package, const std::vector<int64_t>& ticks,
+static absl::Status RunBlock(
+    const BlockEvaluator& continuation_factory, Package* package,
+    const std::vector<int64_t>& ticks,
     const verilog::ModuleSignatureProto& signature,
     const int64_t max_cycles_no_output,
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
@@ -623,6 +627,9 @@ static absl::Status RunBlockInterpreter(
     reg_state[reg->name()] = XsOfType(reg->type());
   }
 
+  XLS_ASSIGN_OR_RETURN(auto continuation,
+                       continuation_factory.NewContinuation(block, reg_state));
+
   int64_t last_output_cycle = 0;
   int64_t matched_outputs = 0;
 
@@ -683,13 +690,13 @@ static absl::Status RunBlockInterpreter(
       XLS_CHECK(info.ready_valid);
       input_set[info.channel_ready] = Value(xls::UBits(1, 1));
     }
-    XLS_ASSIGN_OR_RETURN(xls::BlockRunResult result,
-                         xls::BlockRun(input_set, reg_state, block));
-    reg_state = std::move(result.reg_state);
+    XLS_RETURN_IF_ERROR(continuation->RunOneCycle(input_set));
+    const absl::flat_hash_map<std::string, Value>& outputs =
+        continuation->output_ports();
 
     // Output trace messages
     XLS_RETURN_IF_ERROR(
-        LogInterpreterEvents(block->name(), result.interpreter_events));
+        LogInterpreterEvents(block->name(), continuation->events()));
 
     if (resetting) {
       last_output_cycle = cycle;
@@ -705,8 +712,7 @@ static absl::Status RunBlockInterpreter(
       }
 
       const bool vld_value = input_set.at(info.channel_valid).bits().Get(0);
-      const bool rdy_value =
-          result.outputs.at(info.channel_ready).bits().Get(0);
+      const bool rdy_value = outputs.at(info.channel_ready).bits().Get(0);
 
       std::queue<Value>& queue = channel_value_queues.at(name);
 
@@ -723,8 +729,7 @@ static absl::Status RunBlockInterpreter(
     for (const auto& [name, _] : expected_outputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
 
-      const bool vld_value =
-          result.outputs.at(info.channel_valid).bits().Get(0);
+      const bool vld_value = outputs.at(info.channel_valid).bits().Get(0);
       const bool rdy_value = input_set.at(info.channel_ready).bits().Get(0);
 
       std::queue<Value>& queue = channel_value_queues.at(name);
@@ -736,7 +741,7 @@ static absl::Status RunBlockInterpreter(
                               "list for channel %s",
                               name));
         }
-        const Value& data_value = result.outputs.at(info.channel_data);
+        const Value& data_value = outputs.at(info.channel_data);
         const Value& match_value = queue.front();
         if (show_trace) {
           XLS_LOG(INFO) << "Channel Model: Consuming output for " << name
@@ -764,11 +769,11 @@ static absl::Status RunBlockInterpreter(
             name + std::string(memory_write_data_suffix);
         const std::string wr_en =
             name + std::string(memory_write_enable_suffix);
-        const Value wr_en_val = result.outputs.at(wr_en);
+        const Value wr_en_val = outputs.at(wr_en);
         XLS_CHECK(wr_en_val.IsBits());
         if (wr_en_val.IsAllOnes()) {
-          const Value wr_addr_val = result.outputs.at(wr_addr);
-          const Value wr_data_val = result.outputs.at(wr_data);
+          const Value wr_addr_val = outputs.at(wr_addr);
+          const Value wr_data_val = outputs.at(wr_data);
           XLS_CHECK(wr_addr_val.IsBits());
           XLS_CHECK(wr_data_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, wr_addr_val.bits().ToUint64());
@@ -780,10 +785,10 @@ static absl::Status RunBlockInterpreter(
         const std::string rd_addr =
             name + std::string(memory_read_address_suffix);
         const std::string rd_en = name + std::string(memory_read_enable_suffix);
-        const Value rd_en_val = result.outputs.at(rd_en);
+        const Value rd_en_val = outputs.at(rd_en);
         XLS_CHECK(rd_en_val.IsBits());
         if (rd_en_val.IsAllOnes()) {
-          const Value rd_addr_val = result.outputs.at(rd_addr);
+          const Value rd_addr_val = outputs.at(rd_addr);
           XLS_CHECK(rd_addr_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, rd_addr_val.bits().ToUint64());
           XLS_RETURN_IF_ERROR(model->Read(addr));
@@ -947,7 +952,8 @@ static absl::Status RealMain(
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
 
-  if (backend != "block_interpreter" && !model_memories.empty()) {
+  if (backend != "block_jit" && backend != "block_interpreter" &&
+      !model_memories.empty()) {
     XLS_LOG(QFATAL) << "Only block interpreter supports memory models "
                        "specified to eval_proc_main";
   }
@@ -960,18 +966,33 @@ static absl::Status RealMain(
     return EvaluateProcs(package.get(), /*use_jit=*/false, ticks,
                          inputs_for_channels, expected_outputs_for_channels);
   }
+  if (backend == "block_jit") {
+    verilog::ModuleSignatureProto proto;
+    XLS_CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
+    return RunBlock(kStreamingJitBlockEvaluator, package.get(), ticks, proto,
+                    max_cycles_no_output, inputs_for_channels,
+                    expected_outputs_for_channels, model_memories,
+                    streaming_channel_data_suffix,
+                    streaming_channel_ready_suffix,
+                    streaming_channel_valid_suffix, memory_read_enable_suffix,
+                    memory_read_address_suffix, memory_read_data_suffix,
+                    memory_write_enable_suffix, memory_write_address_suffix,
+                    memory_write_data_suffix, idle_channel_name, random_seed,
+                    prob_input_valid_assert, show_trace, output_stats_path);
+  }
   if (backend == "block_interpreter") {
     verilog::ModuleSignatureProto proto;
     XLS_CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
-    return RunBlockInterpreter(
-        package.get(), ticks, proto, max_cycles_no_output, inputs_for_channels,
-        expected_outputs_for_channels, model_memories,
-        streaming_channel_data_suffix, streaming_channel_ready_suffix,
-        streaming_channel_valid_suffix, memory_read_enable_suffix,
-        memory_read_address_suffix, memory_read_data_suffix,
-        memory_write_enable_suffix, memory_write_address_suffix,
-        memory_write_data_suffix, idle_channel_name, random_seed,
-        prob_input_valid_assert, show_trace, output_stats_path);
+    return RunBlock(kInterpreterBlockEvaluator, package.get(), ticks, proto,
+                    max_cycles_no_output, inputs_for_channels,
+                    expected_outputs_for_channels, model_memories,
+                    streaming_channel_data_suffix,
+                    streaming_channel_ready_suffix,
+                    streaming_channel_valid_suffix, memory_read_enable_suffix,
+                    memory_read_address_suffix, memory_read_data_suffix,
+                    memory_write_enable_suffix, memory_write_address_suffix,
+                    memory_write_data_suffix, idle_channel_name, random_seed,
+                    prob_input_valid_assert, show_trace, output_stats_path);
   }
   XLS_LOG(QFATAL) << "Unknown backend type";
 }
@@ -987,13 +1008,13 @@ int main(int argc, char* argv[]) {
 
   std::string backend = absl::GetFlag(FLAGS_backend);
   if (backend != "serial_jit" && backend != "ir_interpreter" &&
-      backend != "block_interpreter") {
+      backend != "block_interpreter" && backend != "block_jit") {
     XLS_LOG(QFATAL) << "Unrecognized backend choice.";
   }
 
-  if (backend == "block_interpreter" &&
+  if ((backend == "block_interpreter" || backend == "block_jit") &&
       absl::GetFlag(FLAGS_block_signature_proto).empty()) {
-    XLS_LOG(QFATAL) << "Block interpreter requires --block_signature_proto.";
+    XLS_LOG(QFATAL) << "Block evaluation requires --block_signature_proto.";
   }
 
   std::vector<int64_t> ticks;

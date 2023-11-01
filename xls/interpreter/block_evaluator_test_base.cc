@@ -768,7 +768,6 @@ TEST_P(BlockEvaluatorTest, TupleRegister) {
           Pair("o10", Value(UBits(2, 4))), Pair("o11", Value(UBits(3, 8)))));
 }
 
-
 TEST_P(BlockEvaluatorTest, TypeChecksInputs) {
   auto package = CreatePackage();
   BlockBuilder b(TestName(), package.get());
@@ -778,8 +777,8 @@ TEST_P(BlockEvaluatorTest, TypeChecksInputs) {
 
   auto result = evaluator().EvaluateBlock(
       {{"test", Value::Tuple(
-                 {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
-                  Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
+                    {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+                     Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
       {}, block);
 
   RecordProperty("error", result.status().ToString());
@@ -797,12 +796,145 @@ TEST_P(BlockEvaluatorTest, TypeChecksRegister) {
   auto result = evaluator().EvaluateBlock(
       {},
       {{"test", Value::Tuple(
-                 {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
-                  Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
+                    {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+                     Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
       block);
 
   RecordProperty("error", result.status().ToString());
   EXPECT_THAT(result, Not(IsOk()));
+}
+
+TEST_P(BlockEvaluatorTest, SetRegistersContinuation) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue rd1 = b.InsertRegister("s1", x);
+  BValue rd2 = b.InsertRegister("s2", rd1);
+  BValue rd3 = b.InsertRegister("s3", rd2);
+  BValue rd4 = b.InsertRegister("s4", rd3);
+  b.OutputPort("x_out", x);
+  b.OutputPort("v1", rd1);
+  b.OutputPort("v2", rd2);
+  b.OutputPort("v3", rd3);
+  b.OutputPort("v4", rd4);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<int32_t> inputs{1, 2,  3,  4,  5,  6,  7, 8,
+                              9, 10, 11, 12, 13, 14, 15};
+  struct Output {
+    int32_t x_out;  // also value of register s1
+    int32_t v1;     // also value of register s2
+    int32_t v2;     // also value of register s3
+    int32_t v3;     // also value of register s4
+    int32_t v4;
+  };
+  std::vector<Output> outputs{
+      {1, 16, 16, 16, 16},   // after cycle 1
+      {2, 1, 16, 16, 16},    // after cycle 2
+      {3, 2, 1, 16, 16},     // after cycle 3
+      {4, 3, 2, 1, 16},      // after cycle 4
+      {5, 4, 3, 2, 1},       // after cycle 5
+      {6, 5, 4, 3, 2},       // after cycle 6
+      {7, 6, 5, 4, 3},       // after cycle 7
+      {8, 7, 6, 5, 4},       // after cycle 8
+      {9, 8, 7, 6, 5},       // after cycle 9
+      {10, 9, 8, 7, 6},      // after cycle 10
+      {11, 10, 9, 8, 7},     // after cycle 11
+      {12, 11, 10, 9, 8},    // after cycle 12
+      {13, 12, 11, 10, 9},   // after cycle 13
+      {14, 13, 12, 11, 10},  // after cycle 14
+      {15, 14, 13, 12, 11},  // after cycle 15
+  };
+  auto in_it = inputs.cbegin();
+  auto out_it = outputs.cbegin();
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+  Value sixteen = Value(UBits(16, 32));
+  XLS_ASSERT_OK(cont->SetRegisters(
+      {{"s1", sixteen}, {"s2", sixteen}, {"s3", sixteen}, {"s4", sixteen}}));
+  for (; in_it != inputs.cend(); ++in_it, ++out_it) {
+    auto expected = *out_it;
+    XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(*in_it, 32))}}));
+    EXPECT_THAT(
+        cont->output_ports(),
+        UnorderedElementsAre(Pair("x_out", Value(UBits(expected.x_out, 32))),
+                             Pair("v1", Value(UBits(expected.v1, 32))),
+                             Pair("v2", Value(UBits(expected.v2, 32))),
+                             Pair("v3", Value(UBits(expected.v3, 32))),
+                             Pair("v4", Value(UBits(expected.v4, 32)))));
+    EXPECT_THAT(
+        cont->registers(),
+        UnorderedElementsAre(Pair("s1", Value(UBits(expected.x_out, 32))),
+                             Pair("s2", Value(UBits(expected.v1, 32))),
+                             Pair("s3", Value(UBits(expected.v2, 32))),
+                             Pair("s4", Value(UBits(expected.v3, 32)))));
+  }
+}
+
+TEST_P(BlockEvaluatorTest, DelaysContinuation) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue rd1 = b.InsertRegister("s1", x);
+  BValue rd2 = b.InsertRegister("s2", rd1);
+  BValue rd3 = b.InsertRegister("s3", rd2);
+  BValue rd4 = b.InsertRegister("s4", rd3);
+  b.OutputPort("x_out", x);
+  b.OutputPort("v1", rd1);
+  b.OutputPort("v2", rd2);
+  b.OutputPort("v3", rd3);
+  b.OutputPort("v4", rd4);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<int32_t> inputs{1, 2,  3,  4,  5,  6,  7, 8,
+                              9, 10, 11, 12, 13, 14, 15};
+  struct Output {
+    int32_t x_out;  // also value of register s1
+    int32_t v1;     // also value of register s2
+    int32_t v2;     // also value of register s3
+    int32_t v3;     // also value of register s4
+    int32_t v4;
+  };
+  std::vector<Output> outputs{
+      {1, 0, 0, 0, 0},       // after cycle 1
+      {2, 1, 0, 0, 0},       // after cycle 2
+      {3, 2, 1, 0, 0},       // after cycle 3
+      {4, 3, 2, 1, 0},       // after cycle 4
+      {5, 4, 3, 2, 1},       // after cycle 5
+      {6, 5, 4, 3, 2},       // after cycle 6
+      {7, 6, 5, 4, 3},       // after cycle 7
+      {8, 7, 6, 5, 4},       // after cycle 8
+      {9, 8, 7, 6, 5},       // after cycle 9
+      {10, 9, 8, 7, 6},      // after cycle 10
+      {11, 10, 9, 8, 7},     // after cycle 11
+      {12, 11, 10, 9, 8},    // after cycle 12
+      {13, 12, 11, 10, 9},   // after cycle 13
+      {14, 13, 12, 11, 10},  // after cycle 14
+      {15, 14, 13, 12, 11},  // after cycle 15
+  };
+  auto in_it = inputs.cbegin();
+  auto out_it = outputs.cbegin();
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+  for (; in_it != inputs.cend(); ++in_it, ++out_it) {
+    auto expected = *out_it;
+    XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(*in_it, 32))}}));
+    EXPECT_THAT(
+        cont->output_ports(),
+        UnorderedElementsAre(Pair("x_out", Value(UBits(expected.x_out, 32))),
+                             Pair("v1", Value(UBits(expected.v1, 32))),
+                             Pair("v2", Value(UBits(expected.v2, 32))),
+                             Pair("v3", Value(UBits(expected.v3, 32))),
+                             Pair("v4", Value(UBits(expected.v4, 32)))));
+    EXPECT_THAT(
+        cont->registers(),
+        UnorderedElementsAre(Pair("s1", Value(UBits(expected.x_out, 32))),
+                             Pair("s2", Value(UBits(expected.v1, 32))),
+                             Pair("s3", Value(UBits(expected.v2, 32))),
+                             Pair("s4", Value(UBits(expected.v3, 32)))));
+  }
 }
 
 }  // namespace
