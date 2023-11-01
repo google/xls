@@ -16,7 +16,10 @@
 #include <memory>
 
 #include "absl/status/status.h"
+#include "clang/include/clang/AST/DeclTemplate.h"
+#include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/SourceManager.h"
+#include "xls/common/logging/logging.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 
@@ -56,6 +59,8 @@ absl::StatusOr<xlscc_metadata::IntType> Translator::GenerateSyntheticInt(
                          ResolveTypeInstance(ctype));
     struct_type = dynamic_cast<const CStructType*>(resolved.get());
     if (struct_type != nullptr && struct_type->synthetic_int_flag()) {
+      XLS_CHECK(clang::isa<clang::ClassTemplateSpecializationDecl>(
+          inst_type->base()));
       auto special = clang::cast<clang::ClassTemplateSpecializationDecl>(
           inst_type->base());
       const clang::TemplateArgumentList& arguments = special->getTemplateArgs();

@@ -204,7 +204,7 @@ class Adjustment {
   }
 };
 
-#pragma hls_no_tuple ?
+#pragma hls_no_tuple
 template <int Width, int IntegerWidth, bool Signed,
           ac_datatypes::ac_q_mode Quantization = ac_datatypes::AC_TRN,
           ac_datatypes::ac_o_mode Overflow = ac_datatypes::AC_WRAP>

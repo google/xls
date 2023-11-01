@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -1691,6 +1692,26 @@ TEST_F(TranslatorMetadataTest, NoContextCrash) {
     )";
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+}
+
+TEST_F(TranslatorMetadataTest, XlsFixedBitIndexNoCrash) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long long a) {
+      XlsFixed<16, 8, true> x = 0;
+      XlsFixed<16, 8, true> y = 0;
+      x[0] = y[0];
+      return x.to_int();
+    })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<std::string> clang_args,
+                           GetClangArgForIntTest());
+  std::vector<std::string_view> clang_argv(clang_args.begin(),
+                                           clang_args.end());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
+                           SourceToIr(content, nullptr, clang_argv));
 
   XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
                            translator_->GenerateMetadata());

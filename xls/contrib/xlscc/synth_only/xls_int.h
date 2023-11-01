@@ -475,7 +475,7 @@ template <int W, bool S> class XlsInt;
 // TODO(seanhaskell): This class does not contain a reference to an XlsInt
 //   because XLS[cc] doesn't support returning references yet. Instead,
 //   XLS[cc] contains a hack to explicitly handle this case.
-#pragma hls_synthetic_int
+#pragma hls_no_tuple
 struct BitElemRef {
   // template <typename T>
   inline BitElemRef(bool in) : v(in) {}

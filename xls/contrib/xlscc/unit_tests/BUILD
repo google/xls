@@ -189,6 +189,10 @@ cc_test(
 cc_test(
     name = "translator_metadata_test",
     srcs = ["translator_metadata_test.cc"],
+    data = [
+        "//xls/contrib/xlscc:synth_only_headers",
+        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+    ],
     deps = [
         ":unit_test",
         "//xls/common:xls_gunit",
