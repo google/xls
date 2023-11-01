@@ -112,6 +112,12 @@ xls_dslx_opt_ir(
     opt_ir_file = "crc32.opt.ir",
 )
 
+xls_benchmark_ir(
+    name = "crc32_benchmark_ir",
+    src = ":crc32.ir",
+    tags = ["optonly"],
+)
+
 xls_dslx_opt_ir_test(
     name = "crc32_test",
     dep = ":crc32",
@@ -171,6 +177,12 @@ xls_dslx_opt_ir(
     name = "riscv_simple",
     srcs = ["riscv_simple.x"],
     dslx_top = "run_instruction",
+)
+
+xls_benchmark_ir(
+    name = "riscv_simple_benchmark_ir",
+    src = ":riscv_simple.ir",
+    tags = ["optonly"],
 )
 
 xls_dslx_library(
@@ -258,6 +270,18 @@ xls_dslx_test(
     name = "sobel_filter_test",
     srcs = ["sobel_filter.x"],
     deps = [":sobel_filter_dslx"],
+)
+
+xls_dslx_opt_ir(
+    name = "sobel_filter_ir",
+    srcs = ["sobel_filter_benchmark.x"],
+    dslx_top = "apply_stencil_float32_8x8",
+    deps = [":sobel_filter_dslx"],
+)
+
+xls_benchmark_ir(
+    name = "sobel_filter_benchmark_ir",
+    src = ":sobel_filter_ir.ir",
 )
 
 list_filegroup_files(
