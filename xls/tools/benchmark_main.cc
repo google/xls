@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <numeric>
@@ -25,12 +27,18 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/common/exit_status.h"
@@ -38,20 +46,40 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
+#include "xls/ir/block.h"
+#include "xls/ir/events.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/package.h"
+#include "xls/ir/register.h"
+#include "xls/ir/value.h"
+#include "xls/ir/value_helpers.h"
+#include "xls/jit/block_jit.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_runtime.h"
 #include "xls/jit/proc_jit.h"
+#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 
 const char kUsage[] = R"(
@@ -463,87 +491,195 @@ absl::StatusOr<float> CountRate(std::function<void()> f, int64_t duration_ms) {
   return elapsed_ms == 0 ? 0.0f : (1000.0 * call_count) / elapsed_ms;
 }
 
-absl::Status RunInterpeterAndJit(FunctionBase* function_base,
-                                 std::string_view description) {
-  // Run the interpreter/JIT for a fixed amount of time and measure the rate of
-  // calls per second.
-  int64_t kRunDurationMs = 500;
-
-  std::minstd_rand rng_engine;
-  if (function_base->IsFunction()) {
-    Function* function = function_base->AsFunctionOrDie();
-    absl::Time start_jit_compile = absl::Now();
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
-                         FunctionJit::Create(function));
-    std::cout << absl::StreamFormat(
-        "JIT compile time (%s): %dms\n", description,
-        DurationToMs(absl::Now() - start_jit_compile));
-
-    const int64_t kInputCount = 100;
-    std::vector<std::vector<Value>> arg_set(kInputCount);
-    for (std::vector<Value>& args : arg_set) {
-      for (Param* param : function->params()) {
-        args.push_back(RandomValue(param->GetType(), rng_engine));
-      }
+template <typename ParamNode, typename Rng>
+std::vector<std::vector<Value>> GetRandomParams(
+    FunctionBase* function, int64_t input_count,
+    absl::Span<ParamNode* const> params, Rng& rng_engine) {
+  std::vector<std::vector<Value>> arg_set(input_count);
+  for (std::vector<Value>& args : arg_set) {
+    args.reserve(params.size());
+    for (Node* param : params) {
+      args.push_back(RandomValue(param->GetType(), rng_engine));
     }
-
-    // To avoid being dominated by xls::Value conversion to native
-    // format, preconvert the arguments.
-    std::vector<std::vector<std::vector<uint8_t>>> jit_arg_buffers;
-    std::vector<std::vector<uint8_t*>> jit_arg_pointers;
-    for (const std::vector<Value>& args : arg_set) {
-      std::vector<std::vector<uint8_t>> buffers;
-      std::vector<uint8_t*> pointers;
-      for (int64_t i = 0; i < args.size(); ++i) {
-        buffers.push_back(std::vector<uint8_t>(jit->GetArgTypeSize(i), 0));
-        pointers.push_back(buffers.back().data());
-      }
-      jit_arg_buffers.push_back(std::move(buffers));
-      jit_arg_pointers.push_back(pointers);
-      XLS_RETURN_IF_ERROR(jit->runtime()->PackArgs(
-          args, function->GetType()->parameters(), jit_arg_pointers.back()));
-    }
-
-    // The JIT is much faster so run many times.
-    const int64_t kJitRunMultiplier = 1000;
-    InterpreterEvents events;
-    std::vector<uint8_t> result_buffer(jit->GetReturnTypeSize());
-    XLS_ASSIGN_OR_RETURN(
-        float jit_run_rate,
-        CountRate(
-            [&]() -> absl::Status {
-              for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
-                for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
-                  XLS_CHECK_OK(jit->RunWithViews(
-                      pointers, absl::MakeSpan(result_buffer), &events));
-                }
-              }
-              return absl::OkStatus();
-            },
-            kRunDurationMs));
-    std::cout << absl::StreamFormat(
-        "JIT run time (%s): %d Kcalls/s\n", description,
-        static_cast<int64_t>(kInputCount * jit_run_rate));
-
-    XLS_ASSIGN_OR_RETURN(
-        float interpreter_run_rate,
-        CountRate(
-            [&]() -> absl::Status {
-              for (const std::vector<Value>& args : arg_set) {
-                XLS_CHECK_OK(InterpretFunction(function, args).status());
-              }
-              return absl::OkStatus();
-            },
-            kRunDurationMs));
-    std::cout << absl::StreamFormat(
-        "Interpreter run time (%s): %d calls/s\n", description,
-        static_cast<int64_t>(kInputCount * interpreter_run_rate));
-    return absl::OkStatus();
   }
+  return arg_set;
+}
 
-  XLS_RET_CHECK(function_base->IsProc());
-  Proc* proc = function_base->AsProcOrDie();
+struct JitArguments {
+  std::vector<std::vector<std::vector<uint8_t>>> arg_buffers;
+  std::vector<std::vector<uint8_t*>> arg_pointers;
+};
 
+absl::StatusOr<JitArguments> ConvertToJitArguments(
+    const std::vector<std::vector<Value>>& arg_set,
+    absl::Span<Type* const> params, JitRuntime* runtime) {
+  std::vector<std::vector<std::vector<uint8_t>>> arg_buffers;
+  std::vector<std::vector<uint8_t*>> arg_pointers;
+  for (const std::vector<Value>& args : arg_set) {
+    std::vector<std::vector<uint8_t>> buffers;
+    std::vector<uint8_t*> pointers;
+    buffers.reserve(args.size());
+    pointers.reserve(args.size());
+    for (int64_t i = 0; i < args.size(); ++i) {
+      buffers.push_back(
+          std::vector<uint8_t>(runtime->GetTypeByteSize(params[i]), 0));
+      pointers.push_back(buffers.back().data());
+    }
+    arg_buffers.push_back(std::move(buffers));
+    arg_pointers.push_back(pointers);
+    XLS_RETURN_IF_ERROR(runtime->PackArgs(args, params, arg_pointers.back()));
+  }
+  return JitArguments{std::move(arg_buffers), std::move(arg_pointers)};
+}
+
+// Run the interpreter/JIT for a fixed amount of time and measure the rate of
+// calls per second.
+constexpr int64_t kRunDurationMs = 500;
+constexpr int64_t kJitRunMultiplier = 1000;
+
+template <typename Rng>
+absl::Status RunFunctionInterpreterAndJit(Function* function,
+                                          std::string_view description,
+                                          Rng& rng_engine) {
+  absl::Time start_jit_compile = absl::Now();
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
+                       FunctionJit::Create(function));
+  std::cout << absl::StreamFormat(
+      "JIT compile time (%s): %dms\n", description,
+      DurationToMs(absl::Now() - start_jit_compile));
+
+  const int64_t kInputCount = 100;
+  auto arg_set =
+      GetRandomParams(function, kInputCount, function->params(), rng_engine);
+
+  // To avoid being dominated by xls::Value conversion to native
+  // format, preconvert the arguments.
+  XLS_ASSIGN_OR_RETURN(
+      JitArguments jit_args,
+      ConvertToJitArguments(arg_set, function->GetType()->parameters(),
+                            jit->runtime()));
+  auto [jit_arg_buffers, jit_arg_pointers] = std::move(jit_args);
+
+  // The JIT is much faster so run many times.
+  InterpreterEvents events;
+  std::vector<uint8_t> result_buffer(jit->GetReturnTypeSize());
+  XLS_ASSIGN_OR_RETURN(
+      float jit_run_rate,
+      CountRate(
+          [&]() -> absl::Status {
+            for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
+              for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
+                XLS_CHECK_OK(jit->RunWithViews(
+                    pointers, absl::MakeSpan(result_buffer), &events));
+              }
+            }
+            return absl::OkStatus();
+          },
+          kRunDurationMs));
+  std::cout << absl::StreamFormat(
+      "JIT run time (%s): %d Kcalls/s\n", description,
+      static_cast<int64_t>(kInputCount * jit_run_rate));
+
+  XLS_ASSIGN_OR_RETURN(
+      float interpreter_run_rate,
+      CountRate(
+          [&]() -> absl::Status {
+            for (const std::vector<Value>& args : arg_set) {
+              XLS_CHECK_OK(InterpretFunction(function, args).status());
+            }
+            return absl::OkStatus();
+          },
+          kRunDurationMs));
+  std::cout << absl::StreamFormat(
+      "Interpreter run time (%s): %d calls/s\n", description,
+      static_cast<int64_t>(kInputCount * interpreter_run_rate));
+  return absl::OkStatus();
+}
+
+template <typename Rng>
+absl::Status RunBlockInterpreterAndJit(Block* block,
+                                       std::string_view description,
+                                       Rng& rng_engine) {
+  absl::Time start_jit_compile = absl::Now();
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
+                       JitRuntime::Create());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockJit> jit,
+                       BlockJit::Create(block, runtime.get()));
+  std::cout << absl::StreamFormat(
+      "JIT compile time (%s): %dms\n", description,
+      DurationToMs(absl::Now() - start_jit_compile));
+
+  const int64_t kInputCount = 100;
+  std::vector<std::vector<Value>> arg_set =
+      GetRandomParams(block, kInputCount, block->GetInputPorts(), rng_engine);
+  std::vector<absl::flat_hash_map<std::string, Value>> port_set;
+  port_set.reserve(arg_set.size());
+  absl::c_transform(arg_set, std::back_inserter(port_set),
+                    [&](const std::vector<Value>& ports) {
+                      absl::flat_hash_map<std::string, Value> out;
+                      out.reserve(ports.size());
+                      for (int i = 0; i < ports.size(); ++i) {
+                        out[block->GetInputPorts()[i]->name()] = ports[i];
+                      }
+                      return out;
+                    });
+
+  // To avoid being dominated by xls::Value conversion to native
+  // format, preconvert the arguments.
+  std::vector<Type*> input_types;
+  input_types.reserve(block->GetInputPorts().size());
+  absl::c_transform(block->GetInputPorts(), std::back_inserter(input_types),
+                    [](InputPort* v) { return v->GetType(); });
+  XLS_ASSIGN_OR_RETURN(auto jit_args, ConvertToJitArguments(
+                                          arg_set, input_types, runtime.get()));
+  auto [jit_arg_buffers, jit_arg_pointers] = std::move(jit_args);
+
+  // The JIT is much faster so run many times.
+  auto jit_continuation = jit->NewContinuation();
+  XLS_ASSIGN_OR_RETURN(
+      float jit_run_rate,
+      CountRate(
+          [&]() -> absl::Status {
+            for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
+              for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
+                XLS_CHECK_OK(jit_continuation->SetInputPorts(pointers));
+                XLS_CHECK_OK(jit->RunOneCycle(*jit_continuation));
+              }
+            }
+            return absl::OkStatus();
+          },
+          kRunDurationMs));
+  std::cout << absl::StreamFormat(
+      "JIT run time (%s): %d Kcalls/s\n", description,
+      static_cast<int64_t>(kInputCount * jit_run_rate));
+
+  absl::flat_hash_map<std::string, Value> interpreter_regs;
+  interpreter_regs.reserve(block->GetRegisters().size());
+  for (Register* r : block->GetRegisters()) {
+    interpreter_regs[r->name()] = ZeroOfType(r->type());
+  }
+  XLS_ASSIGN_OR_RETURN(
+      float interpreter_run_rate,
+      CountRate(
+          [&]() -> absl::Status {
+            for (const absl::flat_hash_map<std::string, Value>& ports :
+                 port_set) {
+              XLS_CHECK_OK(kInterpreterBlockEvaluator
+                               .EvaluateBlock(ports, interpreter_regs, block)
+                               .status());
+            }
+            return absl::OkStatus();
+          },
+          kRunDurationMs));
+  std::cout << absl::StreamFormat(
+      "Interpreter run time (%s): %d calls/s\n", description,
+      static_cast<int64_t>(kInputCount * interpreter_run_rate));
+  return absl::OkStatus();
+}
+
+template <typename Rng>
+absl::Status RunProcInterpreterAndJit(Proc* proc, std::string_view description,
+                                      Rng& rng_engine) {
   absl::Time start_jit_compile = absl::Now();
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<JitChannelQueueManager> queue_manager,
@@ -557,6 +693,24 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base,
   // TODO(meheff): 2022/5/16 Run the proc as well.
 
   return absl::OkStatus();
+}
+
+absl::Status RunInterpreterAndJit(FunctionBase* function_base,
+                                  std::string_view description) {
+  std::minstd_rand rng_engine;
+  if (function_base->IsFunction()) {
+    Function* function = function_base->AsFunctionOrDie();
+    return RunFunctionInterpreterAndJit(function, description, rng_engine);
+  }
+
+  if (function_base->IsBlock()) {
+    Block* block = function_base->AsBlockOrDie();
+    return RunBlockInterpreterAndJit(block, description, rng_engine);
+  }
+
+  XLS_RET_CHECK(function_base->IsProc());
+  Proc* proc = function_base->AsProcOrDie();
+  return RunProcInterpreterAndJit(proc, description, rng_engine);
 }
 
 absl::Status RealMain(std::string_view path,
@@ -576,7 +730,7 @@ absl::Status RealMain(std::string_view path,
         "Top entity not set for package: %s.", package->name()));
   }
   XLS_RETURN_IF_ERROR(
-      RunInterpeterAndJit(package->GetTop().value(), "unoptimized"));
+      RunInterpreterAndJit(package->GetTop().value(), "unoptimized"));
 
   XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
 
@@ -606,7 +760,11 @@ absl::Status RealMain(std::string_view path,
                                         effective_clock_period_ps));
   XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
 
-  if (clock_period_ps.has_value() || pipeline_stages.has_value()) {
+  XLS_RETURN_IF_ERROR(RunInterpreterAndJit(f, "optimized"));
+
+  const bool benchmark_codegen =
+      clock_period_ps.has_value() || pipeline_stages.has_value();
+  if (benchmark_codegen) {
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         ScheduleAndPrintStats(package.get(), delay_estimator, clock_period_ps,
@@ -627,9 +785,14 @@ absl::Status RealMain(std::string_view path,
     if (f->IsProc()) {
       XLS_RETURN_IF_ERROR(PrintProcInfo(f->AsProcOrDie()));
     }
+    // TODO(allight): 2023-10-30 - Until we're able to codegen procs we cannot
+    // get execution stats for them.
+    if (f->IsFunction()) {
+      XLS_RETURN_IF_ERROR(
+          RunInterpreterAndJit(package->blocks()[0].get(), "block"));
+    }
   }
 
-  XLS_RETURN_IF_ERROR(RunInterpeterAndJit(f, "optimized"));
   return absl::OkStatus();
 }
 
