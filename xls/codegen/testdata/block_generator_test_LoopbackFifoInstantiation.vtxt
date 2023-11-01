@@ -1,0 +1,155 @@
+`include "fifo.v"
+
+module running_sum(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in_data,
+  input wire in_valid,
+  input wire out_ready,
+  output wire [31:0] out_data,
+  output wire out_valid,
+  output wire in_ready
+);
+  wire [31:0] instantiation_output_30;
+  wire instantiation_output_31;
+  wire instantiation_output_47;
+  reg __first_cycle;
+  reg p0_not_first_cycle;
+  reg [31:0] p1_sum;
+  reg p0_valid;
+  reg p1_valid;
+  reg __out_data_has_been_sent_reg;
+  reg __push_data_has_been_sent_reg;
+  wire __push_data_has_sent_or_is_ready;
+  wire __out_data_has_sent_or_is_ready;
+  wire p2_all_active_states_valid;
+  wire __push_valid_buf__1;
+  wire __out_valid_buf__1;
+  wire p2_stage_valid;
+  wire p2_all_active_inputs_valid;
+  wire p2_all_active_outputs_ready;
+  wire p2_all_active_states_ready;
+  wire p1_all_active_states_valid;
+  wire loopback_active_valid;
+  wire literal_76;
+  wire p2_stage_done;
+  wire p2_not_valid;
+  wire p1_stage_valid;
+  wire p1_all_active_inputs_valid;
+  wire p1_all_active_outputs_ready;
+  wire p1_all_active_states_ready;
+  wire p1_enable;
+  wire p1_stage_done;
+  wire __out_valid_buf;
+  wire __out_data_not_has_been_sent;
+  wire __push_valid_buf;
+  wire __push_data_not_has_been_sent;
+  wire p1_data_enable;
+  wire p1_not_valid;
+  wire p0_all_active_states_valid;
+  wire p0_all_active_inputs_valid;
+  wire p0_all_active_outputs_ready;
+  wire p0_all_active_states_ready;
+  wire __out_data_valid_and_not_has_been_sent;
+  wire __push_data_valid_and_not_has_been_sent;
+  wire [31:0] loopback_select;
+  wire p0_enable;
+  wire p0_stage_done;
+  wire __out_data_valid_and_all_active_outputs_ready;
+  wire __out_data_valid_and_ready_txfr;
+  wire __push_data_valid_and_all_active_outputs_ready;
+  wire __push_data_valid_and_ready_txfr;
+  wire [31:0] sum;
+  wire not_first_cycle;
+  wire p0_data_enable;
+  wire lit0;
+  wire __out_data_not_stage_load;
+  wire __out_data_has_been_sent_reg_load_en;
+  wire __push_data_not_stage_load;
+  wire __push_data_has_been_sent_reg_load_en;
+
+  assign __push_data_has_sent_or_is_ready = instantiation_output_47 | __push_data_has_been_sent_reg;
+  assign __out_data_has_sent_or_is_ready = out_ready | __out_data_has_been_sent_reg;
+  assign p2_all_active_states_valid = 1'h1;
+  assign __push_valid_buf__1 = __push_data_has_sent_or_is_ready;
+  assign __out_valid_buf__1 = __out_data_has_sent_or_is_ready;
+  assign p2_stage_valid = p2_all_active_states_valid & p1_valid;
+  assign p2_all_active_inputs_valid = 1'h1;
+  assign p2_all_active_outputs_ready = __push_valid_buf__1 & __out_valid_buf__1;
+  assign p2_all_active_states_ready = 1'h1;
+  assign p1_all_active_states_valid = 1'h1;
+  assign loopback_active_valid = ~p0_not_first_cycle | instantiation_output_31;
+  assign literal_76 = 1'h1;
+  assign p2_stage_done = p2_stage_valid & p2_all_active_inputs_valid & p2_all_active_outputs_ready & p2_all_active_states_ready;
+  assign p2_not_valid = ~p1_valid;
+  assign p1_stage_valid = p1_all_active_states_valid & p0_valid;
+  assign p1_all_active_inputs_valid = in_valid & loopback_active_valid;
+  assign p1_all_active_outputs_ready = 1'h1;
+  assign p1_all_active_states_ready = 1'h1;
+  assign p1_enable = p2_stage_done | p2_not_valid;
+  assign p1_stage_done = p1_stage_valid & p1_all_active_inputs_valid & p1_all_active_outputs_ready & p1_all_active_states_ready;
+  assign __out_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_76;
+  assign __out_data_not_has_been_sent = ~__out_data_has_been_sent_reg;
+  assign __push_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_76;
+  assign __push_data_not_has_been_sent = ~__push_data_has_been_sent_reg;
+  assign p1_data_enable = p1_enable & p1_stage_done;
+  assign p1_not_valid = ~p0_valid;
+  assign p0_all_active_states_valid = 1'h1;
+  assign p0_all_active_inputs_valid = 1'h1;
+  assign p0_all_active_outputs_ready = 1'h1;
+  assign p0_all_active_states_ready = 1'h1;
+  assign __out_data_valid_and_not_has_been_sent = __out_valid_buf & __out_data_not_has_been_sent;
+  assign __push_data_valid_and_not_has_been_sent = __push_valid_buf & __push_data_not_has_been_sent;
+  assign loopback_select = p0_not_first_cycle ? instantiation_output_30 : 32'h0000_0000;
+  assign p0_enable = p1_data_enable | p1_not_valid;
+  assign p0_stage_done = p0_all_active_states_valid & p0_all_active_inputs_valid & p0_all_active_outputs_ready & p0_all_active_states_ready;
+  assign __out_data_valid_and_all_active_outputs_ready = __out_valid_buf & p2_all_active_outputs_ready;
+  assign __out_data_valid_and_ready_txfr = __out_data_valid_and_not_has_been_sent & out_ready;
+  assign __push_data_valid_and_all_active_outputs_ready = __push_valid_buf & p2_all_active_outputs_ready;
+  assign __push_data_valid_and_ready_txfr = __push_data_valid_and_not_has_been_sent & instantiation_output_47;
+  assign sum = loopback_select + in_data;
+  assign not_first_cycle = ~__first_cycle;
+  assign p0_data_enable = p0_enable & p0_stage_done;
+  assign lit0 = 1'h0;
+  assign __out_data_not_stage_load = ~__out_data_valid_and_all_active_outputs_ready;
+  assign __out_data_has_been_sent_reg_load_en = __out_data_valid_and_ready_txfr | __out_data_valid_and_all_active_outputs_ready;
+  assign __push_data_not_stage_load = ~__push_data_valid_and_all_active_outputs_ready;
+  assign __push_data_has_been_sent_reg_load_en = __push_data_valid_and_ready_txfr | __push_data_valid_and_all_active_outputs_ready;
+  always @ (posedge clk) begin
+    if (rst) begin
+      __first_cycle <= 1'h1;
+      p0_not_first_cycle <= 1'h0;
+      p1_sum <= 32'h0000_0000;
+      p0_valid <= 1'h0;
+      p1_valid <= 1'h0;
+      __out_data_has_been_sent_reg <= 1'h0;
+      __push_data_has_been_sent_reg <= 1'h0;
+    end else begin
+      __first_cycle <= p0_data_enable ? lit0 : __first_cycle;
+      p0_not_first_cycle <= p0_data_enable ? not_first_cycle : p0_not_first_cycle;
+      p1_sum <= p1_data_enable ? sum : p1_sum;
+      p0_valid <= p0_enable ? p0_stage_done : p0_valid;
+      p1_valid <= p1_enable ? p1_stage_done : p1_valid;
+      __out_data_has_been_sent_reg <= __out_data_has_been_sent_reg_load_en ? __out_data_not_stage_load : __out_data_has_been_sent_reg;
+      __push_data_has_been_sent_reg <= __push_data_has_been_sent_reg_load_en ? __push_data_not_stage_load : __push_data_has_been_sent_reg;
+    end
+  end
+  // ===== Instantiations
+  xls_fifo_wrapper #(
+    .Width(32'd32),
+    .Depth(32'd1),
+    .EnableBypass(1'd0)
+  ) fifo_loopback (
+    .clk(clk),
+    .rst(rst),
+    .push_data(p1_sum),
+    .push_valid(__push_data_valid_and_not_has_been_sent),
+    .pop_ready(p0_not_first_cycle & p1_data_enable),
+    .pop_data(instantiation_output_30),
+    .pop_valid(instantiation_output_31),
+    .push_ready(instantiation_output_47)
+  );
+  assign out_data = p1_sum;
+  assign out_valid = __out_data_valid_and_not_has_been_sent;
+  assign in_ready = p1_data_enable;
+endmodule

@@ -16,13 +16,18 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -30,6 +35,7 @@
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -37,10 +43,14 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -49,6 +59,7 @@
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_test_base.h"
+#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {
@@ -1014,6 +1025,159 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
   XLS_ASSERT_OK(tb.Run());
 }
 
+TEST_P(BlockGeneratorTest, LoopbackFifoInstantiation) {
+  constexpr std::string_view ir_text = R"(package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan loopback(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, bypass=false, metadata="")
+
+proc running_sum(tkn: token, first_cycle: bits[1], init={1}) {
+  in_recv: (token, bits[32]) = receive(tkn, channel_id=0)
+  in_tkn: token = tuple_index(in_recv, index=0)
+  in_data: bits[32] = tuple_index(in_recv, index=1)
+  lit1: bits[32] = literal(value=1)
+  not_first_cycle: bits[1] = not(first_cycle)
+  loopback_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel_id=2)
+  loopback_tkn: token = tuple_index(loopback_recv, index=0)
+  loopback_data: bits[32] = tuple_index(loopback_recv, index=1)
+  sum: bits[32] = add(loopback_data, in_data)
+  all_recv_tkn: token = after_all(in_tkn, loopback_tkn)
+  out_send: token = send(all_recv_tkn, sum, channel_id=1)
+  loopback_send: token = send(out_send, sum, channel_id=2)
+  lit0: bits[1] = literal(value=0)
+  next (loopback_send, lit0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("running_sum"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          proc, *estimator,
+          SchedulingOptions().pipeline_stages(3).add_constraint(IOConstraint(
+              "loopback", IODirection::kReceive, "loopback", IODirection::kSend,
+              /*minimum_latency=*/1, /*maximum_latency=*/1))));
+
+  CodegenOptions options = codegen_options();
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("running_sum");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.block, options));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.block));
+
+  verilog = absl::StrCat("`include \"fifo.v\"\n\n", verilog);
+
+  VerilogInclude fifo_definition{.relative_path = "fifo.v",
+                                 .verilog_text =
+                                     R"(// simple fifo implementation
+module xls_fifo_wrapper (
+clk, rst,
+push_ready, push_data, push_valid,
+pop_ready,  pop_data,  pop_valid);
+  parameter Width = 32,
+            Depth = 32,
+            EnableBypass = 0;
+  localparam AddrWidth = $clog2(Depth) + 1;
+  input  wire             clk;
+  input  wire             rst;
+  output wire             push_ready;
+  input  wire [Width-1:0] push_data;
+  input  wire             push_valid;
+  input  wire             pop_ready;
+  output wire [Width-1:0] pop_data;
+  output wire             pop_valid;
+
+  // Require depth be 1 and bypass disabled.
+  initial begin
+    if (EnableBypass || Depth != 1) begin
+      $fatal("FIFO configuration not supported.");
+    end
+  end
+
+
+  reg [Width-1:0] mem;
+  reg full;
+
+  assign push_ready = !full;
+  assign pop_valid = full;
+  assign pop_data = mem;
+
+  always @(posedge clk) begin
+    if (rst == 1'b1) begin
+      full <= 1'b0;
+    end else begin
+      if (push_valid && push_ready) begin
+        mem <= push_data;
+        full <= 1'b1;
+      end else if (pop_valid && pop_ready) begin
+        mem <= mem;
+        full <= 1'b0;
+      end else begin
+        mem <= mem;
+        full <= full;
+      end
+    end
+  end
+endmodule
+)"};
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog, {fifo_definition});
+
+  ModuleTestbench tb = NewModuleTestbench(verilog, sig, {fifo_definition});
+  absl::flat_hash_map<std::string, std::optional<Bits>> push_owned_signals;
+  absl::flat_hash_map<std::string, std::optional<Bits>> pop_owned_signals;
+  push_owned_signals["in_valid"] = UBits(0, 1);
+  push_owned_signals["in_data"] = std::nullopt;
+  pop_owned_signals["out_ready"] = UBits(0, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * push_tbt,
+                           tb.CreateThread(push_owned_signals));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * pop_tbt,
+                           tb.CreateThread(pop_owned_signals));
+  SequentialBlock& push_block = push_tbt->MainBlock();
+  SequentialBlock& pop_block = pop_tbt->MainBlock();
+
+  auto push = [&push_block](int64_t data) {
+    push_block.Set("in_valid", 1).Set("in_data", data);
+    push_block.WaitForCycleAfter("in_ready");
+    push_block.Set("in_valid", 0);
+    push_block.NextCycle();
+  };
+  auto pop = [&pop_block](int64_t expected) {
+    pop_block.Set("out_ready", 1)
+        .AtEndOfCycleWhen("out_valid")
+        .ExpectEq("out_valid", 1)
+        .ExpectEq("out_data", expected);
+    pop_block.Set("out_ready", 0);
+    pop_block.NextCycle();
+  };
+
+  for (int64_t i = 0; i < 25; ++i) {
+    push(i);
+    pop((i * (i + 1)) / 2);  // output is the next triangular number.
+  }
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<BlockGeneratorTest>);
@@ -1057,7 +1221,8 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
                           SchedulingOptions().pipeline_stages(1)));
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(true).clock_name("clk");
-  options.reset("rst", false, false, true);
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
   options.streaming_channel_data_suffix("_data");
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");

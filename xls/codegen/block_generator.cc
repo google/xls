@@ -15,32 +15,49 @@
 #include "xls/codegen/block_generator.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
+#include <initializer_list>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_expressions.h"
 #include "xls/codegen/node_representation.h"
+#include "xls/codegen/op_override.h"
 #include "xls/codegen/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace verilog {
@@ -283,7 +300,7 @@ class BlockGenerator {
                                const CodegenOptions& options) {
     XLS_ASSIGN_OR_RETURN(std::optional<ResetProto> reset_proto,
                          GetBlockResetProto(block));
-    std::optional<std::string> clock_name;
+    std::optional<std::string_view> clock_name;
     if (block->GetClockPort().has_value()) {
       clock_name = block->GetClockPort()->name;
     } else if (!block->GetRegisters().empty()) {
@@ -297,8 +314,9 @@ class BlockGenerator {
 
  private:
   BlockGenerator(Block* block, const CodegenOptions& options,
-                 std::optional<std::string> clock_name,
-                 std::optional<ResetProto> reset_proto, VerilogFile* file)
+                 std::optional<std::string_view> clock_name,
+                 const std::optional<ResetProto>& reset_proto,
+                 VerilogFile* file)
       : block_(block),
         options_(options),
         reset_proto_(reset_proto),
@@ -314,7 +332,7 @@ class BlockGenerator {
     if (options_.emit_as_pipeline()) {
       // Emits the block as a sequence of pipeline stages. First reconstruct the
       // stages and emit the stages one-by-one. Emitting as a pipeline is purely
-      // cosmentic relative to the emit_as_pipeline=false option as the Verilog
+      // cosmetic relative to the emit_as_pipeline=false option as the Verilog
       // generated each way is functionally identical.
       XLS_ASSIGN_OR_RETURN(std::vector<Stage> stages,
                            SplitBlockIntoStages(block_));
@@ -674,7 +692,7 @@ class BlockGenerator {
     return absl::OkStatus();
   }
 
-  // Declare a wire in the Verilog module for each output of each instantation
+  // Declare a wire in the Verilog module for each output of each instantiation
   // in the block. These declared outputs can then be used in downstream
   // expressions.
   absl::Status DeclareInstantiationOutputs() {
@@ -688,7 +706,7 @@ class BlockGenerator {
     return absl::OkStatus();
   }
 
-  // Emit each instantation in the block into the separate instantation module
+  // Emit each instantiation in the block into the separate instantiation module
   // section.
   absl::Status EmitInstantiations() {
     // Since instantiations are emitted at the end, and not the pipeline stages
@@ -741,6 +759,47 @@ class BlockGenerator {
                 ->ForeignFunctionData()
                 ->code_template(),
             connections);
+      } else if (xls::FifoInstantiation* fifo_instantiation =
+                     dynamic_cast<FifoInstantiation*>(instantiation)) {
+        std::initializer_list<Connection> parameters{
+            Connection{
+                "Width",
+                mb_.file()->Literal(
+                    UBits(fifo_instantiation->data_type()->GetFlatBitCount(),
+                          32),
+                    SourceInfo(),
+                    /*format=*/FormatPreference::kUnsignedDecimal)},
+            Connection{"Depth",
+                       mb_.file()->Literal(
+                           UBits(fifo_instantiation->fifo_config().depth, 32),
+                           SourceInfo(),
+                           /*format=*/FormatPreference::kUnsignedDecimal)},
+            Connection{
+                "EnableBypass",
+                mb_.file()->Literal(
+                    UBits(fifo_instantiation->fifo_config().bypass ? 1 : 0, 1),
+                    SourceInfo(),
+                    /*format=*/FormatPreference::kUnsignedDecimal)},
+        };
+
+        // Append clock and reset to the front of connections.
+        XLS_RET_CHECK(mb_.reset().has_value());
+        std::vector<Connection> appended_connections{
+            Connection{"clk", mb_.clock()},
+            Connection{"rst", mb_.reset()->signal},
+        };
+        appended_connections.reserve(connections.size() + 2);
+        std::move(connections.begin(), connections.end(),
+                  std::back_inserter(appended_connections));
+        connections = std::move(appended_connections);
+
+        mb_.instantiation_section()->Add<Instantiation>(
+            SourceInfo(), "xls_fifo_wrapper", fifo_instantiation->name(),
+            /*parameters=*/parameters, connections);
+      } else {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Instantiations of kind `%s` are not supported in code generation",
+            InstantiationKindToString(instantiation->kind())));
       }
     }
     return absl::OkStatus();
@@ -778,6 +837,10 @@ absl::Status DfsVisitBlocks(Block* block, absl::flat_hash_set<Block*>& visited,
     }
     if (instantiation->kind() == InstantiationKind::kExtern) {
       // An external block is a leaf from our perspective.
+      continue;
+    }
+    if (instantiation->kind() == InstantiationKind::kFifo) {
+      // A fifo is a leaf from our perspective.
       continue;
     }
 

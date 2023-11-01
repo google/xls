@@ -89,7 +89,7 @@ class Block : public FunctionBase {
   // object is added to the list of ports as a place-holder for the clock which
   // records the port name and position.
   absl::Status AddClockPort(std::string_view name);
-  std::optional<ClockPort> GetClockPort() const { return clock_port_; }
+  const std::optional<ClockPort>& GetClockPort() const { return clock_port_; }
 
   // Add/get a reset port to the block. Reset is represented as an input port,
   // so it will also appear in GetInputPorts().
