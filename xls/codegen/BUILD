@@ -360,6 +360,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
+        "//xls/ir:channel_ops",
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:register",
@@ -391,11 +392,14 @@ cc_library(
     deps = [
         ":codegen_options",
         ":module_signature",
+        "//xls/delay_model:delay_estimator",
         "//xls/ir",
+        "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:value",
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
     ],
 )

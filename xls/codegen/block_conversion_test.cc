@@ -49,6 +49,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
@@ -69,6 +70,7 @@ using status_testing::StatusIs;
 using testing::_;
 using testing::ElementsAre;
 using testing::Ge;
+using testing::HasSubstr;
 using testing::Pair;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
@@ -4418,6 +4420,53 @@ TEST_F(ProcConversionTestFixture, RecvDataFeedingSendPredicate) {
             33, 34, 35, 36, 37, 38, 39, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30,
             29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16)));
   }
+}
+
+TEST_F(ProcConversionTestFixture, LoopbackChannel) {
+  constexpr std::string_view ir_text = R"(package test
+chan loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc loopback_proc(tkn: token, st: bits[32], init={1}) {
+  lit1: bits[32] = literal(value=1)
+  not_first_cycle: bits[1] = ne(st, lit1)
+  loopback_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel_id=0)
+  loopback_tkn: token = tuple_index(loopback_recv, index=0)
+  loopback_data: bits[32] = tuple_index(loopback_recv, index=1)
+  sum: bits[32] = add(loopback_data, st)
+  out_send: token = send(loopback_tkn, sum, channel_id=1)
+  loopback_send: token = send(out_send, sum, channel_id=0)
+  next (loopback_send, sum)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("loopback_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("loopback_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  EXPECT_THAT(unit.block->GetInstantiations(),
+              UnorderedElementsAre(m::Instantiation(HasSubstr("loopback"),
+                                                    InstantiationKind::kFifo)));
+  // TODO(google/xls#1158): add functional test when we have a block IR FIFO
+  // model to evaluate the block with.
 }
 
 }  // namespace

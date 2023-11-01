@@ -21,11 +21,15 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
@@ -57,14 +61,16 @@ using Stage = int64_t;
 // streaming inputs (receive over streaming channel) and streaming outputs (send
 // over streaming channel) in the generated block.
 struct StreamingInput {
-  InputPort* port;
-  InputPort* port_valid;
-  OutputPort* port_ready;
+  // Note that these ports can either be external I/Os or be ports from a FIFO
+  // instantiation.
+  Node* port;
+  Node* port_valid;
+  Node* port_ready;
 
-  // signal_data and signal_valid respresent the internal view of the
-  // streaming input.  These are used (ex. for handling non-blocking receives)
-  // as additional logic are placed between the ports and the pipeline use of
-  // these signals.
+  // signal_data and signal_valid represent the internal view of the streaming
+  // input.  These are used (ex. for handling non-blocking receives) as
+  // additional logic are placed between the ports and the pipeline use of these
+  // signals.
   //
   // Pictorially:
   //      | port_data   | port_valid   | port_ready
@@ -82,15 +88,40 @@ struct StreamingInput {
   Node* signal_valid;
 
   Channel* channel;
+  std::optional<FifoInstantiation*> fifo_instantiation;
   std::optional<Node*> predicate;
+
+  bool IsExternal() const {
+    return port->op() == Op::kInputPort && port_valid->op() == Op::kInputPort &&
+           port_ready->op() == Op::kOutputPort;
+  }
+  bool IsInstantiation() const {
+    return port->op() == Op::kInstantiationOutput &&
+           port_valid->op() == Op::kInstantiationOutput &&
+           port_ready->op() == Op::kInstantiationInput;
+  }
 };
 
 struct StreamingOutput {
-  OutputPort* port;
-  OutputPort* port_valid;
-  InputPort* port_ready;
+  // Note that these ports can either be external I/Os or be ports from a FIFO
+  // instantiation.
+  Node* port;
+  Node* port_valid;
+  Node* port_ready;
   Channel* channel;
+  std::optional<FifoInstantiation*> fifo_instantiation;
   std::optional<Node*> predicate;
+
+  bool IsExternal() const {
+    return port->op() == Op::kOutputPort &&
+           port_valid->op() == Op::kOutputPort &&
+           port_ready->op() == Op::kInputPort;
+  }
+  bool IsInstantiation() const {
+    return port->op() == Op::kInstantiationInput &&
+           port_valid->op() == Op::kInstantiationInput &&
+           port_ready->op() == Op::kInstantiationOutput;
+  }
 };
 
 // Data structures holding the port representing single value inputs/outputs
@@ -207,11 +238,10 @@ struct CodegenPassUnit {
   std::variant<FunctionConversionMetadata, ProcConversionMetadata>
       conversion_metadata;
 
-
   // The signature is generated (and potentially mutated) during the codegen
   // process.
   // TODO(https://github.com/google/xls/issues/410): 2021/04/27 Consider adding
-  // a "block" contruct which corresponds to a verilog module. This block could
+  // a "block" construct which corresponds to a verilog module. This block could
   // hold its own signature. This would help prevent the signature from getting
   // out-of-sync with the IR.
   std::optional<ModuleSignature> signature;

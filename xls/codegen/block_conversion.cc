@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -44,11 +45,14 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
@@ -668,6 +672,22 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
   return ValidPorts{valid_input_port, valid_output_port};
 }
 
+absl::StatusOr<std::string_view> StreamingIOName(Node* node) {
+  switch (node->op()) {
+    case Op::kInputPort:
+      return node->As<InputPort>()->name();
+    case Op::kOutputPort:
+      return node->As<OutputPort>()->name();
+    case Op::kInstantiationInput:
+      return node->As<InstantiationInput>()->port_name();
+    case Op::kInstantiationOutput:
+      return node->As<InstantiationOutput>()->port_name();
+    default:
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Unsupported streaming operation %s.", OpToString(node->op())));
+  }
+}
+
 // Update io channel metadata with latest information from block conversion.
 absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
                                    Block* block) {
@@ -677,11 +697,16 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       XLS_CHECK_NE(input.port_valid, nullptr);
       XLS_CHECK_NE(input.port_ready, nullptr);
       XLS_CHECK_NE(input.channel, nullptr);
+      // Ports are either all external IOs or all from instantiations.
+      XLS_CHECK(input.IsExternal() || input.IsInstantiation());
 
       input.channel->SetBlockName(block->name());
-      input.channel->SetDataPortName(input.port->name());
-      input.channel->SetValidPortName(input.port_valid->name());
-      input.channel->SetReadyPortName(input.port_ready->name());
+      XLS_ASSIGN_OR_RETURN(std::string_view name, StreamingIOName(input.port));
+      input.channel->SetDataPortName(name);
+      XLS_ASSIGN_OR_RETURN(name, StreamingIOName(input.port_valid));
+      input.channel->SetValidPortName(name);
+      XLS_ASSIGN_OR_RETURN(name, StreamingIOName(input.port_ready));
+      input.channel->SetReadyPortName(name);
 
       XLS_CHECK(input.channel->HasCompletedBlockPortNames());
     }
@@ -693,11 +718,16 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       XLS_CHECK_NE(output.port_valid, nullptr);
       XLS_CHECK_NE(output.port_ready, nullptr);
       XLS_CHECK_NE(output.channel, nullptr);
+      // Ports are either all external IOs or all from instantiations.
+      XLS_CHECK(output.IsExternal() || output.IsInstantiation());
 
       output.channel->SetBlockName(block->name());
-      output.channel->SetDataPortName(output.port->name());
-      output.channel->SetValidPortName(output.port_valid->name());
-      output.channel->SetReadyPortName(output.port_ready->name());
+      XLS_ASSIGN_OR_RETURN(std::string_view name, StreamingIOName(output.port));
+      output.channel->SetDataPortName(name);
+      XLS_ASSIGN_OR_RETURN(name, StreamingIOName(output.port_valid));
+      output.channel->SetValidPortName(name);
+      XLS_ASSIGN_OR_RETURN(name, StreamingIOName(output.port_ready));
+      output.channel->SetReadyPortName(name);
 
       XLS_CHECK(output.channel->HasCompletedBlockPortNames());
     }
@@ -742,11 +772,16 @@ static absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
   for (Stage stage = 0; stage < stage_count; ++stage) {
     std::vector<Node*> active_readys;
     for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
-      XLS_ASSIGN_OR_RETURN(
-          streaming_output.port_ready,
-          block->AddInputPort(
-              absl::StrCat(streaming_output.channel->name(), ready_suffix),
-              block->package()->GetBitsType(1)));
+      if (streaming_output.fifo_instantiation.has_value()) {
+        // The ready signal is managed elsewhere for FIFO instantiations.
+        XLS_RET_CHECK_NE(streaming_output.port_ready, nullptr);
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            streaming_output.port_ready,
+            block->AddInputPort(
+                absl::StrCat(streaming_output.channel->name(), ready_suffix),
+                block->package()->GetBitsType(1)));
+      }
 
       if (streaming_output.predicate.has_value()) {
         // Logic for the active ready signal for a Send operation with a
@@ -885,11 +920,19 @@ static absl::Status MakeOutputValidPortsForOutputChannels(
 
       XLS_ASSIGN_OR_RETURN(Node * valid, block->MakeNode<NaryOp>(
                                              SourceInfo(), operands, Op::kAnd));
-      XLS_ASSIGN_OR_RETURN(
-          streaming_output.port_valid,
-          block->AddOutputPort(
-              absl::StrCat(streaming_output.channel->name(), valid_suffix),
-              valid));
+      if (streaming_output.fifo_instantiation.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            streaming_output.port_valid,
+            block->MakeNode<xls::InstantiationInput>(
+                streaming_output.port->loc(), valid,
+                streaming_output.fifo_instantiation.value(), "push_valid"));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            streaming_output.port_valid,
+            block->AddOutputPort(
+                absl::StrCat(streaming_output.channel->name(), valid_suffix),
+                valid));
+      }
     }
   }
 
@@ -914,11 +957,19 @@ static absl::Status MakeOutputReadyPortsForInputChannels(
         XLS_ASSIGN_OR_RETURN(
             ready, block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kAnd));
       }
-      XLS_ASSIGN_OR_RETURN(
-          streaming_input.port_ready,
-          block->AddOutputPort(
-              absl::StrCat(streaming_input.channel->name(), ready_suffix),
-              ready));
+      if (streaming_input.fifo_instantiation.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            streaming_input.port_ready,
+            block->MakeNode<xls::InstantiationInput>(
+                streaming_input.port->loc(), ready,
+                streaming_input.fifo_instantiation.value(), "pop_ready"));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            streaming_input.port_ready,
+            block->AddOutputPort(
+                absl::StrCat(streaming_input.channel->name(), ready_suffix),
+                ready));
+      }
     }
   }
 
@@ -1267,23 +1318,23 @@ static absl::StatusOr<Node*> AddRegisterAfterStreamingInput(
     std::vector<Node*>& valid_nodes) {
   const std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
 
+  XLS_ASSIGN_OR_RETURN(std::string_view port_name, StreamingIOName(input.port));
   if (options.flop_inputs_kind() ==
       CodegenOptions::IOKind::kZeroLatencyBuffer) {
     return AddZeroLatencyBufferToRDVNodes(input.port, input.port_valid,
-                                          input.port_ready, input.port->name(),
+                                          input.port_ready, port_name,
                                           reset_behavior, block, valid_nodes);
   }
 
   if (options.flop_inputs_kind() == CodegenOptions::IOKind::kSkidBuffer) {
     return AddSkidBufferToRDVNodes(input.port, input.port_valid,
-                                   input.port_ready, input.port->name(),
-                                   reset_behavior, block, valid_nodes);
+                                   input.port_ready, port_name, reset_behavior,
+                                   block, valid_nodes);
   }
 
   if (options.flop_inputs_kind() == CodegenOptions::IOKind::kFlop) {
     return AddRegisterToRDVNodes(input.port, input.port_valid, input.port_ready,
-                                 input.port->name(), reset_behavior, block,
-                                 valid_nodes);
+                                 port_name, reset_behavior, block, valid_nodes);
   }
 
   return absl::UnimplementedError(absl::StrFormat(
@@ -1299,11 +1350,15 @@ static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
   // Add buffers before the data/valid output ports and after
   // the ready input port to serve as points where the
   // additional logic from AddRegisterToRDVNodes() can be inserted.
-  std::string data_buf_name = absl::StrFormat("__%s_buf", output.port->name());
-  std::string valid_buf_name =
-      absl::StrFormat("__%s_buf", output.port_valid->name());
-  std::string ready_buf_name =
-      absl::StrFormat("__%s_buf", output.port_ready->name());
+  XLS_ASSIGN_OR_RETURN(std::string_view port_name,
+                       StreamingIOName(output.port));
+  XLS_ASSIGN_OR_RETURN(std::string_view port_valid_name,
+                       StreamingIOName(output.port_valid));
+  XLS_ASSIGN_OR_RETURN(std::string_view port_ready_name,
+                       StreamingIOName(output.port_ready));
+  std::string data_buf_name = absl::StrFormat("__%s_buf", port_name);
+  std::string valid_buf_name = absl::StrFormat("__%s_buf", port_valid_name);
+  std::string ready_buf_name = absl::StrFormat("__%s_buf", port_ready_name);
   XLS_ASSIGN_OR_RETURN(Node * output_port_data_buf,
                        block->MakeNodeWithName<UnOp>(
                            /*loc=*/SourceInfo(), output.port->operand(0),
@@ -1332,18 +1387,18 @@ static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
       CodegenOptions::IOKind::kZeroLatencyBuffer) {
     return AddZeroLatencyBufferToRDVNodes(
         output_port_data_buf, output_port_valid_buf, output_port_ready_buf,
-        output.port->name(), reset_behavior, block, valid_nodes);
+        port_name, reset_behavior, block, valid_nodes);
   }
 
   if (options.flop_outputs_kind() == CodegenOptions::IOKind::kSkidBuffer) {
     return AddSkidBufferToRDVNodes(output_port_data_buf, output_port_valid_buf,
-                                   output_port_ready_buf, output.port->name(),
+                                   output_port_ready_buf, port_name,
                                    reset_behavior, block, valid_nodes);
   }
 
   if (options.flop_outputs_kind() == CodegenOptions::IOKind::kFlop) {
     return AddRegisterToRDVNodes(output_port_data_buf, output_port_valid_buf,
-                                 output_port_ready_buf, output.port->name(),
+                                 output_port_ready_buf, port_name,
                                  reset_behavior, block, valid_nodes);
   }
 
@@ -1573,10 +1628,14 @@ static absl::Status AddOneShotOutputLogic(const CodegenOptions& options,
       // Add an buffers before the valid output ports and after
       // the ready input port to serve as points where the
       // additional logic from AddRegisterToRDVNodes() can be inserted.
-      std::string valid_buf_name =
-          absl::StrFormat("__%s_buf", output.port_valid->name());
-      std::string ready_buf_name =
-          absl::StrFormat("__%s_buf", output.port_ready->name());
+      XLS_ASSIGN_OR_RETURN(std::string_view port_name,
+                           StreamingIOName(output.port));
+      XLS_ASSIGN_OR_RETURN(std::string_view port_valid_name,
+                           StreamingIOName(output.port_valid));
+      XLS_ASSIGN_OR_RETURN(std::string_view port_ready_name,
+                           StreamingIOName(output.port_ready));
+      std::string valid_buf_name = absl::StrFormat("__%s_buf", port_valid_name);
+      std::string ready_buf_name = absl::StrFormat("__%s_buf", port_ready_name);
 
       XLS_ASSIGN_OR_RETURN(
           Node * output_port_valid_buf,
@@ -1594,10 +1653,10 @@ static absl::Status AddOneShotOutputLogic(const CodegenOptions& options,
       XLS_RETURN_IF_ERROR(
           output.port_ready->ReplaceUsesWith(output_port_ready_buf));
 
-      XLS_RETURN_IF_ERROR(AddOneShotLogicToRVNodes(
-          output_port_valid_buf, output_port_ready_buf,
-          streaming_io.all_active_outputs_ready[stage], output.port->name(),
-          options.ResetBehavior(), block));
+      XLS_RETURN_IF_ERROR(
+          AddOneShotLogicToRVNodes(output_port_valid_buf, output_port_ready_buf,
+                                   streaming_io.all_active_outputs_ready[stage],
+                                   port_name, options.ResetBehavior(), block));
     }
   }
 
@@ -1880,6 +1939,38 @@ static absl::Status RemoveDeadTokenNodes(Block* block) {
 // later.
 class CloneNodesIntoBlockHandler {
  public:
+  static absl::StatusOr<absl::flat_hash_set<int64_t>> GetLoopbackChannelIds(
+      Package* p) {
+    XLS_ASSIGN_OR_RETURN(auto nodes_for_channel, ChannelUsers(p));
+    absl::flat_hash_set<int64_t> loopback_channel_ids;
+    for (auto& [chan, nodes] : nodes_for_channel) {
+      if (chan->supported_ops() != ChannelOps::kSendReceive) {
+        continue;
+      }
+      bool saw_send = false;
+      bool saw_receive = false;
+      bool same_fb = true;
+      FunctionBase* fb = nullptr;
+      for (Node* node : nodes) {
+        if (node->Is<Send>()) {
+          saw_send = true;
+        } else if (node->Is<Receive>()) {
+          saw_receive = true;
+        }
+        if (fb == nullptr) {
+          fb = node->function_base();
+        } else {
+          same_fb &= fb == node->function_base();
+        }
+      }
+      if (saw_send && saw_receive && same_fb) {
+        loopback_channel_ids.insert(chan->id());
+      }
+    }
+
+    return loopback_channel_ids;
+  }
+
   // Initialize this object with the proc/function, the block the
   // proc/function should be cloned into, and the stage_count.
   //
@@ -1892,7 +1983,13 @@ class CloneNodesIntoBlockHandler {
         function_base_(proc_or_function),
         token_param_(nullptr),
         options_(options),
-        block_(block) {
+        block_(block),
+        fifo_instantiations_({}) {
+    absl::StatusOr<absl::flat_hash_set<int64_t>>
+        loopback_channel_ids_or_status =
+            GetLoopbackChannelIds(proc_or_function->package());
+    XLS_CHECK_OK(loopback_channel_ids_or_status.status());
+    loopback_channel_ids_ = std::move(loopback_channel_ids_or_status.value());
     if (is_proc_) {
       Proc* proc = function_base_->AsProcOrDie();
       token_param_ = proc->TokenParam();
@@ -1930,12 +2027,51 @@ class CloneNodesIntoBlockHandler {
         } else {
           XLS_ASSIGN_OR_RETURN(next_node, HandleFunctionParam(node));
         }
-      } else if (node->Is<Receive>()) {
+      } else if (IsChannelNode(node)) {
         XLS_RET_CHECK(is_proc_);
-        XLS_ASSIGN_OR_RETURN(next_node, HandleReceiveNode(node, stage));
-      } else if (node->Is<Send>()) {
-        XLS_RET_CHECK(is_proc_);
-        XLS_ASSIGN_OR_RETURN(next_node, HandleSendNode(node, stage));
+        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+
+        if (loopback_channel_ids_.contains(channel->id()) &&
+            channel->kind() == ChannelKind::kStreaming) {
+          StreamingChannel* streaming_channel =
+              down_cast<StreamingChannel*>(channel);
+          XLS_RET_CHECK(streaming_channel->fifo_config().has_value());
+
+          xls::Instantiation* instantiation;
+          auto [itr, inserted] =
+              fifo_instantiations_.insert({channel->id(), nullptr});
+          if (inserted) {
+            std::string inst_name = absl::StrFormat("fifo_%s", channel->name());
+            XLS_ASSIGN_OR_RETURN(
+                instantiation,
+                block_->AddInstantiation(
+                    inst_name,
+                    std::make_unique<xls::FifoInstantiation>(
+                        inst_name, *streaming_channel->fifo_config(),
+                        streaming_channel->type(), streaming_channel->id(),
+                        block_->package())));
+            itr->second = instantiation;
+          } else {
+            instantiation = itr->second;
+          }
+          xls::FifoInstantiation* fifo_instantiation =
+              down_cast<xls::FifoInstantiation*>(instantiation);
+          if (node->Is<Receive>()) {
+            XLS_ASSIGN_OR_RETURN(
+                next_node, HandleFifoReceiveNode(node->As<Receive>(), stage,
+                                                 fifo_instantiation));
+          } else {
+            XLS_ASSIGN_OR_RETURN(next_node,
+                                 HandleFifoSendNode(node->As<Send>(), stage,
+                                                    fifo_instantiation));
+          }
+        } else {
+          if (node->Is<Receive>()) {
+            XLS_ASSIGN_OR_RETURN(next_node, HandleReceiveNode(node, stage));
+          } else {
+            XLS_ASSIGN_OR_RETURN(next_node, HandleSendNode(node, stage));
+          }
+        }
       } else {
         XLS_ASSIGN_OR_RETURN(next_node, HandleGeneralNode(node));
       }
@@ -2256,6 +2392,127 @@ class CloneNodesIntoBlockHandler {
     return next_node;
   }
 
+  absl::StatusOr<Node*> HandleFifoReceiveNode(
+      Receive* receive, int64_t stage, FifoInstantiation* fifo_instantiation) {
+    XLS_ASSIGN_OR_RETURN(Node * data,
+                         block_->MakeNode<xls::InstantiationOutput>(
+                             receive->loc(), fifo_instantiation, "pop_data"));
+    XLS_ASSIGN_OR_RETURN(Node * valid,
+                         block_->MakeNode<xls::InstantiationOutput>(
+                             receive->loc(), fifo_instantiation, "pop_valid"));
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         block_->package()->GetChannel(receive->channel_id()));
+    Node* signal_valid;
+    if (receive->is_blocking()) {
+      signal_valid = valid;
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          Node * literal_1,
+          block_->MakeNode<xls::Literal>(receive->loc(), Value(UBits(1, 1))));
+      signal_valid = literal_1;
+    }
+    StreamingInput streaming_input{.port = data,
+                                   .port_valid = valid,
+                                   .port_ready = nullptr,
+                                   .signal_data = data,
+                                   .signal_valid = signal_valid,
+                                   .channel = channel,
+                                   .fifo_instantiation = fifo_instantiation};
+
+    if (receive->predicate().has_value()) {
+      streaming_input.predicate = node_map_.at(receive->predicate().value());
+    }
+    result_.inputs[stage].push_back(streaming_input);
+    Node* next_token = node_map_.at(receive->token());
+    const SourceInfo& loc = receive->loc();
+    Node* next_node;
+    // If blocking return a tuple of (token, data), and if non-blocking
+    // return a tuple of (token, data, valid).
+    if (receive->is_blocking()) {
+      if (receive->predicate().has_value() && options_.gate_recvs()) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * zero_value,
+            block_->MakeNode<xls::Literal>(loc, ZeroOfType(channel->type())));
+        XLS_ASSIGN_OR_RETURN(
+            Select * select,
+            block_->MakeNodeWithName<Select>(
+                /*loc=*/loc,
+                /*selector=*/node_map_.at(receive->predicate().value()),
+                /*cases=*/std::vector<Node*>({zero_value, data}),
+                /*default_value=*/std::nullopt,
+                /*name=*/absl::StrCat(channel->name(), "_select")));
+        data = select;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          next_node,
+          block_->MakeNode<Tuple>(loc, std::vector<Node*>({next_token, data})));
+    } else {
+      // Receive is non-blocking; we need a zero value to pass through if there
+      // is no valid data.
+      XLS_ASSIGN_OR_RETURN(
+          Node * zero_value,
+          block_->MakeNode<xls::Literal>(loc, ZeroOfType(channel->type())));
+      // Ensure that the output of the receive is zero when the data is not
+      // valid or the predicate is false.
+      if (options_.gate_recvs()) {
+        if (receive->predicate().has_value()) {
+          XLS_ASSIGN_OR_RETURN(
+              NaryOp * and_pred,
+              block_->MakeNode<NaryOp>(
+                  /*loc=*/loc,
+                  /*args=*/
+                  std::initializer_list<Node*>{
+                      node_map_.at(receive->predicate().value()), valid},
+                  /*op=*/Op::kAnd));
+          valid = and_pred;
+        }
+        XLS_ASSIGN_OR_RETURN(
+            Select * select,
+            block_->MakeNodeWithName<Select>(
+                /*loc=*/loc, /*selector=*/valid,
+                /*cases=*/
+                std::initializer_list<Node*>({zero_value, data}),
+                /*default_value=*/std::nullopt,
+                /*name=*/absl::StrCat(channel->name(), "_select")));
+        data = select;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          next_node,
+          block_->MakeNode<Tuple>(
+              loc, std::initializer_list<Node*>({next_token, data, valid})));
+    }
+    return next_node;
+  }
+
+  absl::StatusOr<Node*> HandleFifoSendNode(
+      Send* send, int64_t stage, FifoInstantiation* fifo_instantiation) {
+    XLS_ASSIGN_OR_RETURN(Node * ready,
+                         block_->MakeNode<xls::InstantiationOutput>(
+                             send->loc(), fifo_instantiation, "push_ready"));
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         block_->package()->GetChannel(send->channel_id()));
+    Node* data = node_map_.at(send->data());
+    XLS_ASSIGN_OR_RETURN(
+        Node * port, block_->MakeNode<xls::InstantiationInput>(
+                         send->loc(), data, fifo_instantiation, "push_data"));
+    StreamingOutput streaming_output{.port = port,
+                                     .port_valid = nullptr,
+                                     .port_ready = ready,
+                                     .channel = channel,
+                                     .fifo_instantiation = fifo_instantiation};
+
+    if (send->predicate().has_value()) {
+      streaming_output.predicate = node_map_.at(send->predicate().value());
+    }
+    result_.outputs[stage].push_back(streaming_output);
+    // Map the Send node to the token operand of the Send in the block.
+    XLS_ASSIGN_OR_RETURN(
+        Node * token_buf,
+        block_->MakeNode<UnOp>(
+            /*loc=*/SourceInfo(), node_map_.at(send->token()), Op::kIdentity));
+    return token_buf;
+  }
+
   // Sets the next state value for the state elements with the given indices to
   // `next_state`.
   absl::Status SetNextStateNode(Node* next_state, Stage stage,
@@ -2440,6 +2697,8 @@ class CloneNodesIntoBlockHandler {
   Block* block_;
   StreamingIOPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;
+  absl::flat_hash_set<int64_t> loopback_channel_ids_;
+  absl::flat_hash_map<int64_t, xls::Instantiation*> fifo_instantiations_;
 };
 
 // Adds the nodes in the given schedule to the block. Pipeline registers are
