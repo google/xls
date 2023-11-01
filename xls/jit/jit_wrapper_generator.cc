@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/jit/jit_wrapper_generator.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -448,12 +449,9 @@ class {{class_name}} {
   // Transform "blah/genfiles/xls/foo/bar.h" into "XLS_FOO_BAR_H_"
   std::string header_guard =
       std::string(header_path).substr(std::string(genfiles_path).size() + 1);
-  header_guard = absl::StrReplaceAll(
-      header_guard,
-      {
-          {absl::StrFormat("%c", header_path.preferred_separator), "_"},
-          {".", "_"},
-      });
+  // Only keep reasonable header-macro characters, everything else -> '_'
+  std::transform(header_guard.begin(), header_guard.end(), header_guard.begin(),
+                 [](char c) { return absl::ascii_isalnum(c) ? c : '_'; });
   header_guard = absl::StrCat(absl::AsciiStrToUpper(header_guard), "_");
 
   absl::flat_hash_map<std::string, std::string> substitution_map;
