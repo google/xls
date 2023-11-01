@@ -30,9 +30,12 @@ namespace xls {
 
 // Type alias for the jitted functions implementing XLS FunctionBases. Argument
 // descriptions:
-//   inputs: array of pointers to input buffers (e.g., parameter values).
+//   inputs: array of pointers to input buffers (e.g., parameter values). Note
+//        that for Block* functions specifically the inputs are all the input
+//        ports followed by all the registers.
 //   outputs: array of pointers to output buffers (e.g., function return value,
-//        proc next state values)
+//        proc next state values). Note that for Block* specifically the outputs
+//        are all the output-ports followed by all the new register values.
 //   temp_buffer: heap-allocated scratch space for the JITed funcion. This
 //       buffer hold temporary node values which cannot be stack allocated via
 //       allocas.
@@ -96,6 +99,11 @@ absl::StatusOr<JittedFunctionBase> BuildFunction(Function* xls_function,
 // proc.
 absl::StatusOr<JittedFunctionBase> BuildProcFunction(
     Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit);
+
+// Builds and returns an LLVM IR function implementing the given XLS
+// block.
+absl::StatusOr<JittedFunctionBase> BuildBlockFunction(Block* block,
+                                                      OrcJit& jit);
 
 }  // namespace xls
 

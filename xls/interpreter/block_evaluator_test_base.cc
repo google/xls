@@ -39,11 +39,13 @@
 namespace xls {
 namespace {
 
+using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using testing::ElementsAre;
 using testing::HasSubstr;
 using testing::IsEmpty;
+using testing::Not;
 using testing::Pair;
 using testing::UnorderedElementsAre;
 
@@ -680,6 +682,127 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
 
   EXPECT_THAT(result.interpreter_events.trace_msgs, ElementsAre("x is 3"));
   EXPECT_THAT(result.interpreter_events.assert_msgs, ElementsAre("foo"));
+}
+
+TEST_P(BlockEvaluatorTest, TupleInputOutput) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+
+  Type* type =
+      package->GetTupleType({package->GetTupleType({package->GetBitsType(1),
+                                                    package->GetBitsType(2)}),
+                             package->GetTupleType({package->GetBitsType(4),
+                                                    package->GetBitsType(8)})});
+  BValue x = b.InputPort("x", type);
+  b.OutputPort("o0", b.TupleIndex(x, 0));
+  b.OutputPort("o1", b.TupleIndex(x, 1));
+  b.OutputPort("o00", b.TupleIndex(b.TupleIndex(x, 0), 0));
+  b.OutputPort("o01", b.TupleIndex(b.TupleIndex(x, 0), 1));
+  b.OutputPort("o10", b.TupleIndex(b.TupleIndex(x, 1), 0));
+  b.OutputPort("o11", b.TupleIndex(b.TupleIndex(x, 1), 1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockRunResult result,
+      evaluator().EvaluateBlock(
+          {{"x",
+            Value::Tuple(
+                {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+                 Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
+          {}, block));
+
+  EXPECT_THAT(
+      result.outputs,
+      UnorderedElementsAre(
+          Pair("o0", Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))})),
+          Pair("o00", Value(UBits(0, 1))), Pair("o01", Value(UBits(1, 2))),
+          Pair("o1", Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})),
+          Pair("o10", Value(UBits(2, 4))), Pair("o11", Value(UBits(3, 8)))));
+}
+
+TEST_P(BlockEvaluatorTest, TupleRegister) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+
+  Value all_ones = Value::Tuple(
+      {Value::Tuple({Value(UBits(0b1, 1)), Value(UBits(0b11, 2))}),
+       Value::Tuple({Value(UBits(0b1111, 4)), Value(UBits(0xff, 8))})});
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+  auto x = b.InsertRegister("x", b.Literal(all_ones));
+  b.InsertRegister("o0", b.TupleIndex(x, 0));
+  b.InsertRegister("o00", b.TupleIndex(b.TupleIndex(x, 0), 0));
+  b.InsertRegister("o01", b.TupleIndex(b.TupleIndex(x, 0), 1));
+  b.InsertRegister("o1", b.TupleIndex(x, 1));
+  b.InsertRegister("o10", b.TupleIndex(b.TupleIndex(x, 1), 0));
+  b.InsertRegister("o11", b.TupleIndex(b.TupleIndex(x, 1), 1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  RecordProperty("ir", block->DumpIr());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockRunResult result,
+      evaluator().EvaluateBlock(
+          {},
+          {
+              {"x",
+               Value::Tuple(
+                   {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+                    Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})},
+              {"o0", all_ones.element(0)},
+              {"o1", all_ones.element(1)},
+              {"o00", all_ones.element(0).element(0)},
+              {"o01", all_ones.element(0).element(1)},
+              {"o10", all_ones.element(1).element(0)},
+              {"o11", all_ones.element(1).element(1)},
+          },
+          block));
+
+  EXPECT_THAT(
+      result.reg_state,
+      UnorderedElementsAre(
+          Pair("x", all_ones),
+          Pair("o0", Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))})),
+          Pair("o00", Value(UBits(0, 1))), Pair("o01", Value(UBits(1, 2))),
+          Pair("o1", Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})),
+          Pair("o10", Value(UBits(2, 4))), Pair("o11", Value(UBits(3, 8)))));
+}
+
+
+TEST_P(BlockEvaluatorTest, TypeChecksInputs) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  b.InputPort("test", package->GetBitsType(32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  auto result = evaluator().EvaluateBlock(
+      {{"test", Value::Tuple(
+                 {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+                  Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
+      {}, block);
+
+  RecordProperty("error", result.status().ToString());
+  EXPECT_THAT(result, Not(IsOk()));
+}
+
+TEST_P(BlockEvaluatorTest, TypeChecksRegister) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+  b.InsertRegister("test", b.Literal(UBits(0, 32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  auto result = evaluator().EvaluateBlock(
+      {},
+      {{"test", Value::Tuple(
+                 {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+                  Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
+      block);
+
+  RecordProperty("error", result.status().ToString());
+  EXPECT_THAT(result, Not(IsOk()));
 }
 
 }  // namespace

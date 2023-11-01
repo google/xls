@@ -14,15 +14,21 @@
 #ifndef XLS_JIT_IR_BUILDER_VISITOR_H_
 #define XLS_JIT_IR_BUILDER_VISITOR_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Function.h"
+#include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/Value.h"
 #include "xls/ir/node.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -118,11 +124,24 @@ struct NodeFunction {
   bool has_metadata_args;
 };
 
+// Information about the layout of the 'metadata' args that can be optionally
+// requested for node functions.
+class JitCompilationMetadata {
+ public:
+  virtual ~JitCompilationMetadata() = default;
+  // Get the value of the node 'n' in the input arguments at base_ptr. The
+  // base_ptr point to the full input array.
+  virtual absl::StatusOr<llvm::Value*> GetInputBufferFrom(
+      Node* n, llvm::Value* base_ptr, llvm::IRBuilder<>& builder) const = 0;
+  // Is 'node' an input and therefore in the global input metadata.
+  virtual bool IsInputNode(Node* n) const = 0;
+};
+
 // Create an llvm::Function implementing `node`. `output_arg_count` is the
 // number of output buffer arguments (see NodeFunction above).
-absl::StatusOr<NodeFunction> CreateNodeFunction(Node* node,
-                                                int64_t output_arg_count,
-                                                JitBuilderContext& jit_context);
+absl::StatusOr<NodeFunction> CreateNodeFunction(
+    Node* node, int64_t output_arg_count,
+    const JitCompilationMetadata& metadata, JitBuilderContext& jit_context);
 
 // Constructs a call to memcpy from `src` to `tgt` of `size` bytes.
 llvm::Value* LlvmMemcpy(llvm::Value* tgt, llvm::Value* src, int64_t size,

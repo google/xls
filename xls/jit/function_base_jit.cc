@@ -14,6 +14,8 @@
 #include "xls/jit/function_base_jit.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -22,20 +24,40 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/Instructions.h"
 #include "llvm/include/llvm/IR/Type.h"
 #include "llvm/include/llvm/IR/Value.h"
+#include "llvm/include/llvm/Support/Casting.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/call_graph.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/register.h"
+#include "xls/ir/type.h"
 #include "xls/jit/ir_builder_visitor.h"
+#include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls {
 namespace {
@@ -100,7 +122,7 @@ void UnpoisonBuffer(llvm::Value* buffer, int64_t size,
 // `input_args` are the Nodes whose values are passed in the `inputs` function
 // argument. `output_args` are Nodes whose values are written out to buffers
 // indicated by the `outputs` function argument.
-class LlvmFunctionWrapper {
+class LlvmFunctionWrapper final : public JitCompilationMetadata {
  public:
   struct FunctionArg {
     std::string name;
@@ -156,7 +178,9 @@ class LlvmFunctionWrapper {
 
   // Returns whether `node` is one of the nodes whose value is passed in via the
   // `inputs` function argument.
-  bool IsInputNode(Node* node) const { return input_indices_.contains(node); }
+  bool IsInputNode(Node* node) const final {
+    return input_indices_.contains(node);
+  }
 
   // Returns the index within the array passed into the `input` function
   // argument corresponding to `node`. CHECK fails if `node` is not an input
@@ -170,9 +194,21 @@ class LlvmFunctionWrapper {
                                        &builder);
   }
 
+  absl::StatusOr<llvm::Value*> GetInputBufferFrom(
+      Node* node, llvm::Value* base_ptr,
+      llvm::IRBuilder<>& builder) const final {
+    XLS_RET_CHECK(IsInputNode(node));
+    return LoadPointerFromPointerArray(GetInputArgIndex(node), base_ptr,
+                                       &builder);
+  }
+
   // Returns whether `node` is one of the nodes whose value should be written to
   // one of the output buffers passed in via the `inputs` function argument.
   bool IsOutputNode(Node* node) const { return output_indices_.contains(node); }
+  bool IsOutputPortOrRegister(Node* node) const {
+    return IsOutputNode(node) &&
+           (node->Is<OutputPort>() || node->Is<RegisterWrite>());
+  }
 
   // Returns the index(es) within the array passed into the `output` function
   // argument corresponding to `node`. `node` must be an output node.
@@ -298,6 +334,8 @@ class BufferAllocator {
 
  private:
   void AllocateTempBuffer(Node* node) {
+    XLS_CHECK(!node->Is<RegisterWrite>());
+    XLS_CHECK(!node->Is<OutputPort>());
     XLS_CHECK(!temp_block_offsets_.contains(node));
     int64_t offset = current_offset_;
     int64_t node_size = type_converter_->GetTypeByteSize(node->GetType());
@@ -459,6 +497,15 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
   return partitions;
 }
 
+// Get the type this node outputs into the functions return value.
+Type* OutputType(const Node* node) {
+  if (node->Is<RegisterWrite>() || node->Is<OutputPort>()) {
+    // Operand 0 is the data we write to the register/port
+    return node->operand(0)->GetType();
+  }
+  return node->GetType();
+}
+
 // Builds an LLVM function of the given `name` which executes the given set of
 // nodes. The signature of the partition function is the same as the jitted
 // function implementing a FunctionBase (i.e., `JitFunctionType`). A partition
@@ -527,7 +574,8 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
         for (llvm::Value* output_buffer : wrapper.GetOutputBuffers(node, b)) {
           LlvmMemcpy(
               output_buffer, input_buffer,
-              jit_context.type_converter().GetTypeByteSize(node->GetType()), b);
+              jit_context.type_converter().GetTypeByteSize(OutputType(node)),
+              b);
         }
       }
       continue;
@@ -540,11 +588,15 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       output_buffers = wrapper.GetOutputBuffers(node, b);
     } else if (allocator.GetAllocationKind(node) ==
                AllocationKind::kTempBlock) {
+      XLS_RET_CHECK(!node->Is<RegisterWrite>());
+      XLS_RET_CHECK(!node->Is<OutputPort>());
       output_buffers = {
           wrapper.GetOffsetIntoTempBuffer(allocator.GetOffset(node), b)};
     } else if (allocator.GetAllocationKind(node) == AllocationKind::kAlloca) {
       // `node` is used exclusively inside this partition (not an input, output,
       // nor has a temp buffer). Allocate a buffer on the stack with alloca.
+      XLS_RET_CHECK(!node->Is<RegisterWrite>());
+      XLS_RET_CHECK(!node->Is<OutputPort>());
       output_buffers = {b.CreateAlloca(
           jit_context.type_converter().ConvertToLlvmType(node->GetType()))};
     } else {
@@ -560,7 +612,7 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     // Create the function which computes the node value.
     XLS_ASSIGN_OR_RETURN(
         NodeFunction node_function,
-        CreateNodeFunction(node, output_buffers.size(), jit_context));
+        CreateNodeFunction(node, output_buffers.size(), wrapper, jit_context));
 
     // Gather the operand values to be passed to the node function.
     std::vector<llvm::Value*> operand_buffers;
@@ -650,6 +702,16 @@ absl::Status AllocateBuffers(absl::Span<const Partition> partitions,
 // Returns the nodes which comprise the inputs to a jitted function implementing
 // `function_base`. These nodes are passed in via the `inputs` argument.
 std::vector<Node*> GetJittedFunctionInputs(FunctionBase* function_base) {
+  if (function_base->IsBlock()) {
+    Block* block = function_base->AsBlockOrDie();
+    std::vector<Node*> out;
+    out.reserve(block->GetInputPorts().size() + block->GetRegisters().size());
+    absl::c_copy(block->GetInputPorts(), std::back_inserter(out));
+    absl::c_transform(
+        block->GetRegisters(), std::back_inserter(out),
+        [&](Register* r) -> Node* { return *block->GetRegisterRead(r); });
+    return out;
+  }
   std::vector<Node*> inputs(function_base->params().begin(),
                             function_base->params().end());
   return inputs;
@@ -663,7 +725,16 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
     Function* f = function_base->AsFunctionOrDie();
     return {f->return_value()};
   }
-  XLS_CHECK(function_base->IsProc());
+  if (function_base->IsBlock()) {
+    Block* block = function_base->AsBlockOrDie();
+    std::vector<Node*> out;
+    out.reserve(block->GetOutputPorts().size() + block->GetRegisters().size());
+    absl::c_copy(block->GetOutputPorts(), std::back_inserter(out));
+    absl::c_transform(
+        block->GetRegisters(), std::back_inserter(out),
+        [&](Register* r) -> Node* { return *block->GetRegisterWrite(r); });
+    return out;
+  }
   // The outputs of a proc are the next state values.
   Proc* proc = function_base->AsProcOrDie();
   std::vector<Node*> outputs;
@@ -811,7 +882,7 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
           index, wrapper.GetOutputsArg(), builder.get());
       UnpoisonBuffer(
           output_buffer,
-          jit_context.type_converter().GetTypeByteSize(output->GetType()),
+          jit_context.type_converter().GetTypeByteSize(OutputType(output)),
           builder.get());
     }
   }
@@ -1093,7 +1164,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
   for (int64_t i = 0; i < outputs.size(); ++i) {
     Node* output = outputs[i];
     llvm::Value* output_buffer = wrapper.entry_builder().CreateAlloca(
-        jit_context.type_converter().ConvertToLlvmType(output->GetType()));
+        jit_context.type_converter().ConvertToLlvmType(OutputType(output)));
     llvm::Value* gep = wrapper.entry_builder().CreateGEP(
         pointer_array_type, output_arg_array,
         {
@@ -1127,13 +1198,13 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
         i, wrapper.GetOutputsArg(), &wrapper.entry_builder());
 
     XLS_RETURN_IF_ERROR(PackValue(
-        unpacked_output_buffer, packed_output_buffer, output->GetType(),
+        unpacked_output_buffer, packed_output_buffer, OutputType(output),
         /*bit_offset=*/0, jit_context.type_converter(),
         &wrapper.entry_builder()));
 
     UnpoisonBuffer(
         packed_output_buffer,
-        jit_context.type_converter().GetPackedTypeByteSize(output->GetType()),
+        jit_context.type_converter().GetPackedTypeByteSize(OutputType(output)),
         &wrapper.entry_builder());
   }
 
@@ -1200,9 +1271,9 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
   }
   for (const Node* output : GetJittedFunctionOutputs(xls_function)) {
     jitted_function.output_buffer_sizes.push_back(
-        jit_context.type_converter().GetTypeByteSize(output->GetType()));
+        jit_context.type_converter().GetTypeByteSize(OutputType(output)));
     jitted_function.packed_output_buffer_sizes.push_back(
-        jit_context.type_converter().GetPackedTypeByteSize(output->GetType()));
+        jit_context.type_converter().GetPackedTypeByteSize(OutputType(output)));
   }
   jitted_function.temp_buffer_size = allocator.size();
 
@@ -1231,6 +1302,13 @@ absl::StatusOr<JittedFunctionBase> BuildProcFunction(
     Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit) {
   JitBuilderContext jit_context(orc_jit, queue_mgr);
   return BuildFunctionAndDependencies(proc, jit_context,
+                                      /*build_packed_wrapper=*/false);
+}
+
+absl::StatusOr<JittedFunctionBase> BuildBlockFunction(Block* block,
+                                                      OrcJit& jit) {
+  JitBuilderContext jit_context(jit);
+  return BuildFunctionAndDependencies(block, jit_context,
                                       /*build_packed_wrapper=*/false);
 }
 

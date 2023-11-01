@@ -27,7 +27,10 @@
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/IR/BasicBlock.h"
 #include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
@@ -35,11 +38,13 @@
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/IR/Type.h"
+#include "llvm/include/llvm/IR/Value.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/block.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
@@ -52,7 +57,6 @@
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
-#include "xls/jit/orc_jit.h"
 
 namespace xls {
 
@@ -643,20 +647,22 @@ class NodeIrContext {
   static absl::StatusOr<NodeIrContext> Create(
       Node* node, absl::Span<const std::string> operand_names,
       int64_t output_arg_count, bool include_wrapper_args,
-      JitBuilderContext& jit_context);
+      const JitCompilationMetadata& metadata, JitBuilderContext& jit_context);
 
   // Completes the LLVM function by adding a return statement with the given
   // result (or pointer to result). If `exit_builder` is specified then it is
-  // used to build the return statement. Otherwise `entry_builder()` is used.
+  // used to build the return statement. therwise `entry_builder()` is used.
   // If `return_value` is not specified then false is returned by the node
   // function.
   void FinalizeWithValue(llvm::Value* result,
                          std::optional<llvm::IRBuilder<>*> exit_builder,
-                         std::optional<llvm::Value*> return_value);
+                         std::optional<llvm::Value*> return_value,
+                         std::optional<Type*> result_type = std::nullopt);
   void FinalizeWithPointerToValue(
       llvm::Value* result_buffer,
       std::optional<llvm::IRBuilder<>*> exit_builder,
-      std::optional<llvm::Value*> return_value);
+      std::optional<llvm::Value*> return_value,
+      std::optional<Type*> result_type = std::nullopt);
 
   Node* node() const { return node_; }
   LlvmTypeConverter& type_converter() const {
@@ -678,6 +684,11 @@ class NodeIrContext {
   // the operand ptr. If `builder` is not specified then the entry builder is
   // used.
   llvm::Value* LoadOperand(int64_t i, llvm::IRBuilder<>* builder = nullptr);
+
+  // Loads the given global input argument. This may only be called if the
+  // wrapper args were included.
+  absl::StatusOr<llvm::Value*> LoadGlobalInput(
+      Node* input, llvm::IRBuilder<>* builder = nullptr);
 
   // Returns the pointer to the `i-th` operand of `node_`. `builder` is the
   // builder used to construct any IR required to get the operand ptr. If
@@ -724,13 +735,16 @@ class NodeIrContext {
 
  private:
   NodeIrContext(Node* node, bool has_metadata_args,
+                const JitCompilationMetadata& metadata,
                 JitBuilderContext& jit_context)
       : node_(node),
         has_metadata_args_(has_metadata_args),
+        metadata_(metadata),
         jit_context_(jit_context) {}
 
   Node* node_;
   bool has_metadata_args_;
+  const JitCompilationMetadata& metadata_;
   JitBuilderContext& jit_context_;
 
   llvm::Function* llvm_function_;
@@ -754,24 +768,27 @@ class NodeIrContext {
 absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     Node* node, absl::Span<const std::string> operand_names,
     int64_t output_arg_count, bool include_wrapper_args,
-    JitBuilderContext& jit_context) {
+    const JitCompilationMetadata& metadata, JitBuilderContext& jit_context) {
   XLS_RET_CHECK_GT(output_arg_count, 0);
-  NodeIrContext nc(node, include_wrapper_args, jit_context);
+  NodeIrContext nc(node, include_wrapper_args, metadata, jit_context);
 
   // Deduplicate the operands. If an operand appears more than once in the IR
   // node, map them to a single argument in the llvm Function for the mode.
   absl::flat_hash_map<Node*, int64_t> operand_to_operand_index;
-  for (int64_t i = 0; i < node->operand_count(); ++i) {
-    Node* operand = node->operand(i);
-    operand_to_operand_index[operand] = i;
+  int64_t operand_count = 0;
+  auto add_operand = [&](Node* operand) {
+    operand_to_operand_index[operand] = operand_count++;
     if (ShouldMaterializeAtUse(operand)) {
-      continue;
+      return;
     }
     if (nc.operand_to_arg_.contains(operand)) {
-      continue;
+      return;
     }
     nc.operand_to_arg_[operand] = nc.operand_args_.size();
     nc.operand_args_.push_back(operand);
+  };
+  for (Node* operand : node->operands()) {
+    add_operand(operand);
   }
   int64_t param_count = nc.operand_args_.size() + output_arg_count;
   if (include_wrapper_args) {
@@ -826,6 +843,30 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
   return nc;
 }
 
+absl::StatusOr<llvm::Value*> NodeIrContext::LoadGlobalInput(
+    Node* input, llvm::IRBuilder<>* builder) {
+  XLS_RET_CHECK(has_metadata_args_);
+  XLS_RET_CHECK(metadata_.IsInputNode(input));
+  // XLS_RET_CHECK(this->GetInputPtrsArg())
+  if (ShouldMaterializeAtUse(input)) {
+    // If the operand is a bits constant, just return the constant as an
+    // optimization.
+    XLS_RET_CHECK(input->Is<Literal>())
+        << "cannot materialize " << input->ToStringWithOperandTypes();
+    return type_converter()
+        .ToLlvmConstant(input->GetType(), input->As<Literal>()->value())
+        .value();
+  }
+  llvm::IRBuilder<>& b = builder == nullptr ? entry_builder() : *builder;
+  llvm::Type* input_type = type_converter().ConvertToLlvmType(input->GetType());
+  llvm::Value* global_input = GetInputPtrsArg();
+  XLS_ASSIGN_OR_RETURN(llvm::Value * input_ptr,
+                       metadata_.GetInputBufferFrom(input, global_input, b));
+  llvm::Value* load = b.CreateLoad(input_type, input_ptr);
+  load->setName(input->GetName());
+  return load;
+}
+
 llvm::Value* NodeIrContext::LoadOperand(int64_t i, llvm::IRBuilder<>* builder) {
   Node* operand = node()->operand(i);
 
@@ -871,10 +912,12 @@ llvm::Value* NodeIrContext::GetOperandPtr(int64_t i,
 
 void NodeIrContext::FinalizeWithValue(
     llvm::Value* result, std::optional<llvm::IRBuilder<>*> exit_builder,
-    std::optional<llvm::Value*> return_value) {
+    std::optional<llvm::Value*> return_value,
+    std::optional<Type*> return_type) {
   llvm::IRBuilder<>* b =
       exit_builder.has_value() ? exit_builder.value() : &entry_builder();
-  result = type_converter().ClearPaddingBits(result, node()->GetType(), *b);
+  result = type_converter().ClearPaddingBits(
+      result, return_type.value_or(node()->GetType()), *b);
   if (GetOutputPtrs().empty()) {
     b->CreateRet(b->getFalse());
     return;
@@ -886,13 +929,16 @@ void NodeIrContext::FinalizeWithValue(
 
 void NodeIrContext::FinalizeWithPointerToValue(
     llvm::Value* result_buffer, std::optional<llvm::IRBuilder<>*> exit_builder,
-    std::optional<llvm::Value*> return_value) {
+    std::optional<llvm::Value*> return_value,
+    std::optional<Type*> result_type) {
   llvm::IRBuilder<>* b =
       exit_builder.has_value() ? exit_builder.value() : &entry_builder();
   for (int64_t i = 0; i < output_ptrs_.size(); ++i) {
     if (output_ptrs_[i] != result_buffer) {
       LlvmMemcpy(output_ptrs_[i], result_buffer,
-                 type_converter().GetTypeByteSize(node()->GetType()), *b);
+                 type_converter().GetTypeByteSize(
+                     result_type.value_or(node()->GetType())),
+                 *b);
     }
   }
   b->CreateRet(return_value.has_value() ? *return_value : b->getFalse());
@@ -902,13 +948,19 @@ void NodeIrContext::FinalizeWithPointerToValue(
 class IrBuilderVisitor : public DfsVisitorWithDefault {
  public:
   //  `output_arg_count` is the number of output arguments for the LLVM function
-  IrBuilderVisitor(int64_t output_arg_count, JitBuilderContext& jit_context)
-      : output_arg_count_(output_arg_count), jit_context_(jit_context) {}
+  IrBuilderVisitor(int64_t output_arg_count,
+                   const JitCompilationMetadata& metadata,
+                   JitBuilderContext& jit_context)
+      : output_arg_count_(output_arg_count),
+        metadata_(metadata),
+        jit_context_(jit_context) {}
 
   NodeIrContext ConsumeNodeIrContext() { return std::move(*node_context_); }
 
   absl::Status DefaultHandler(Node* node) override;
 
+  absl::Status HandleRegisterWrite(RegisterWrite* write) override;
+  absl::Status HandleOutputPort(OutputPort* write) override;
   absl::Status HandleAdd(BinOp* binop) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* op) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
@@ -1027,11 +1079,13 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status FinalizeNodeIrContextWithValue(
       NodeIrContext&& node_context, llvm::Value* result,
       std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt,
-      std::optional<llvm::Value*> return_value = std::nullopt);
+      std::optional<llvm::Value*> return_value = std::nullopt,
+      std::optional<Type*> result_type = std::nullopt);
   absl::Status FinalizeNodeIrContextWithPointerToValue(
       NodeIrContext&& node_context, llvm::Value* result_buffer,
       std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt,
-      std::optional<llvm::Value*> return_value = std::nullopt);
+      std::optional<llvm::Value*> return_value = std::nullopt,
+      std::optional<Type*> result_type = std::nullopt);
 
   llvm::Value* MaybeAsSigned(llvm::Value* v, Type* xls_type,
                              llvm::IRBuilder<>& builder, bool is_signed) {
@@ -1063,6 +1117,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
                            llvm::Value* user_data);
 
   int64_t output_arg_count_;
+  const JitCompilationMetadata& metadata_;
   JitBuilderContext& jit_context_;
   std::optional<NodeIrContext> node_context_;
 };
@@ -1070,6 +1125,155 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
 absl::Status IrBuilderVisitor::DefaultHandler(Node* node) {
   return absl::UnimplementedError(
       absl::StrCat("Unhandled node: ", node->ToString()));
+}
+
+absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
+  XLS_RET_CHECK(write->function_base()->IsBlock())
+      << "Register-write in non-block function.";
+  XLS_ASSIGN_OR_RETURN(Node * paired_read,
+                       write->function_base()->AsBlockOrDie()->GetRegisterRead(
+                           write->GetRegister()));
+  std::vector<std::string> names{"data"};
+  names.reserve(write->operand_count() + 1);
+  if (write->load_enable()) {
+    names.push_back("load_enable");
+  }
+  if (write->reset()) {
+    names.push_back("reset");
+  }
+  XLS_ASSIGN_OR_RETURN(
+      NodeIrContext node_context,
+      NewNodeIrContext(
+          write, names,
+          /*include_wrapper_args=*/write->load_enable().has_value()));
+  llvm::Function* function = node_context.llvm_function();
+  llvm::Type* return_type =
+      type_converter()->ConvertToLlvmType(write->data()->GetType());
+
+  llvm::BasicBlock* current_step =
+      node_context.entry_builder().GetInsertBlock();
+  // llvm::Value* output_buffer = node_context.GetOutputPtr(0);
+  // entry:
+  //   (reset present):       if reset == active { goto reset; }
+  //   (load_enable present): if !load_enable { goto noload; }
+  //   goto write_data;
+  // reset:
+  //   ret_data_reset := <reset_constant>
+  //   goto return_value
+  // noload:
+  //   ret_data_noload := <old value>
+  //   goto return_value
+  // write_data:
+  //   ret_data_write := <data>
+  //   goto return_value
+  // return_value:
+  //   result := PHI(ret_data_reset, ret_data_noload, ret_data_write)
+  //   return result
+  std::optional<llvm::BasicBlock*> return_value_block =
+      write->reset() || write->load_enable()
+          ? std::make_optional(
+                llvm::BasicBlock::Create(ctx(), "return_value", function))
+          : std::nullopt;
+  std::optional<llvm::Constant*> reset_value;
+  std::optional<llvm::Value*> no_load_enable_value;
+  std::optional<llvm::BasicBlock*> reset_selected;
+  std::optional<llvm::BasicBlock*> no_load_enable_selected;
+  if (write->reset()) {
+    XLS_RET_CHECK(write->GetRegister()->reset())
+        << "reset argument without reset behavior set";
+    reset_selected =
+        llvm::BasicBlock::Create(ctx(), "reset_selected", function);
+    llvm::BasicBlock* no_reset_selected =
+        llvm::BasicBlock::Create(ctx(), "value_not_being_reset", function);
+    llvm::IRBuilder<> current_step_builder(current_step);
+    llvm::IRBuilder<> reset_selected_builder(*reset_selected);
+    XLS_ASSIGN_OR_RETURN(int64_t op_idx, write->reset_operand_number());
+    auto reset_state = node_context.LoadOperand(op_idx, &current_step_builder);
+    if (write->GetRegister()->reset()->active_low) {
+      // current_step_builder.CreateCondBr(reset_state, *reset_selected,
+      //                                   no_reset_selected);
+      current_step_builder.CreateCondBr(reset_state, no_reset_selected,
+                                        *reset_selected);
+    } else {
+      current_step_builder.CreateCondBr(reset_state, *reset_selected,
+                                        no_reset_selected);
+      // current_step_builder.CreateCondBr(reset_state, no_reset_selected,
+      //                                   *reset_selected);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        reset_value,
+        type_converter()->ToLlvmConstant(
+            return_type, write->GetRegister()->reset()->reset_value));
+    reset_selected_builder.CreateBr(*return_value_block);
+
+    current_step = no_reset_selected;
+  }
+  if (write->load_enable()) {
+    no_load_enable_selected =
+        llvm::BasicBlock::Create(ctx(), "no_load_enable_selected", function);
+    llvm::BasicBlock* load_enable_selected =
+        llvm::BasicBlock::Create(ctx(), "load_enabled", function);
+    llvm::IRBuilder<> no_load_enable_builder(*no_load_enable_selected);
+    llvm::IRBuilder<> current_step_builder(current_step);
+    auto load_enable_state = node_context.LoadOperand(
+        write->load_enable_operand_number().value(), &current_step_builder);
+    // the original value is at operand_count+1
+    XLS_ASSIGN_OR_RETURN(
+        no_load_enable_value,
+        node_context.LoadGlobalInput(paired_read, &no_load_enable_builder));
+    current_step_builder.CreateCondBr(load_enable_state, load_enable_selected,
+                                      *no_load_enable_selected);
+    no_load_enable_builder.CreateBr(*return_value_block);
+
+    current_step = load_enable_selected;
+  }
+  llvm::Value* result_value;
+  if (write->load_enable() || write->reset()) {
+    llvm::IRBuilder<> current_step_builder(current_step);
+    // need a phi.
+    llvm::IRBuilder<> return_block_builder(*return_value_block);
+    auto phi = return_block_builder.CreatePHI(
+        return_type, write->load_enable() && write->reset() ? 3 : 2,
+        absl::StrFormat("ONE_OF__WRITE%s%s",
+                        write->load_enable() ? "_ORIGINAL" : "",
+                        write->reset() ? "_RESET" : ""));
+    phi->addIncoming(node_context.LoadOperand(RegisterWrite::kDataOperand,
+                                              &current_step_builder),
+                     current_step);
+    if (write->load_enable()) {
+      phi->addIncoming(*no_load_enable_value, *no_load_enable_selected);
+    }
+    if (write->reset()) {
+      phi->addIncoming(*reset_value, *reset_selected);
+    }
+    result_value = phi;
+    current_step_builder.CreateBr(*return_value_block);
+    current_step = *return_value_block;
+  } else {
+    llvm::IRBuilder<> current_step_builder(current_step);
+    result_value = node_context.LoadOperand(RegisterWrite::kDataOperand,
+                                            &current_step_builder);
+  }
+
+  llvm::IRBuilder<> current_step_builder(current_step);
+  return FinalizeNodeIrContextWithValue(
+      std::move(node_context), result_value, &current_step_builder,
+      /*return_value=*/current_step_builder.getFalse(),
+      /*result_type=*/write->data()->GetType());
+}
+
+absl::Status IrBuilderVisitor::HandleOutputPort(OutputPort* write) {
+  XLS_RET_CHECK(write->function_base()->IsBlock())
+      << "output-port in non-block function.";
+  XLS_ASSIGN_OR_RETURN(
+      NodeIrContext node_context,
+      NewNodeIrContext(write, {"data"}, /*include_wrapper_args=*/false));
+  auto value = node_context.LoadOperand(OutputPort::kOperandOperand);
+  return FinalizeNodeIrContextWithValue(
+      std::move(node_context), value, /*exit_builder=*/std::nullopt,
+      /*return_value=*/std::nullopt,
+      /*result_type=*/write->operand(0)->GetType());
 }
 
 absl::Status IrBuilderVisitor::HandleAdd(BinOp* binop) {
@@ -2723,14 +2927,16 @@ absl::StatusOr<NodeIrContext> IrBuilderVisitor::NewNodeIrContext(
     Node* node, absl::Span<const std::string> operand_names,
     bool include_wrapper_args) {
   return NodeIrContext::Create(node, operand_names, output_arg_count_,
-                               include_wrapper_args, jit_context_);
+                               include_wrapper_args, metadata_, jit_context_);
 }
 
 absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithValue(
     NodeIrContext&& node_context, llvm::Value* result,
     std::optional<llvm::IRBuilder<>*> exit_builder,
-    std::optional<llvm::Value*> return_value) {
-  node_context.FinalizeWithValue(result, exit_builder, return_value);
+    std::optional<llvm::Value*> return_value,
+    std::optional<Type*> result_type) {
+  node_context.FinalizeWithValue(result, exit_builder, return_value,
+                                 result_type);
   node_context_.emplace(std::move(node_context));
   return absl::OkStatus();
 }
@@ -2738,9 +2944,10 @@ absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithValue(
 absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithPointerToValue(
     NodeIrContext&& node_context, llvm::Value* result_buffer,
     std::optional<llvm::IRBuilder<>*> exit_builder,
-    std::optional<llvm::Value*> return_value) {
+    std::optional<llvm::Value*> return_value,
+    std::optional<Type*> result_type) {
   node_context.FinalizeWithPointerToValue(result_buffer, exit_builder,
-                                          return_value);
+                                          return_value, result_type);
   node_context_.emplace(std::move(node_context));
   return absl::OkStatus();
 }
@@ -3031,8 +3238,9 @@ llvm::Value* LlvmMemcpy(llvm::Value* tgt, llvm::Value* src, int64_t size,
 }
 
 absl::StatusOr<NodeFunction> CreateNodeFunction(
-    Node* node, int64_t output_arg_count, JitBuilderContext& jit_context) {
-  IrBuilderVisitor visitor(output_arg_count, jit_context);
+    Node* node, int64_t output_arg_count,
+    const JitCompilationMetadata& metadata, JitBuilderContext& jit_context) {
+  IrBuilderVisitor visitor(output_arg_count, metadata, jit_context);
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
   NodeIrContext node_context = visitor.ConsumeNodeIrContext();
   return NodeFunction{.node = node,
