@@ -478,6 +478,7 @@ cc_library(
         "//xls/common:casts",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:type",
@@ -555,7 +556,9 @@ proto_library(
     deps = [
         ":xls_metrics_proto",
         "//xls/ir:channel_proto",
+        "//xls/ir:foreign_function_data_proto",
         "//xls/ir:xls_type_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
     ],
 )
 
@@ -742,6 +745,8 @@ cc_test(
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",

@@ -563,6 +563,38 @@ TEST(ModuleSignatureTest, RamPortInterface1R1W) {
             DirectionProto::DIRECTION_OUTPUT);
 }
 
+TEST(ModuleSignatureTest, FifoInstantiation) {
+  Package p(TestName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * loopback_channel,
+      p.CreateStreamingChannel(
+          "loopback_channel", ChannelOps::kSendReceive,
+          p.GetTupleType({p.GetBitsType(32)}), /*initial_values=*/{},
+          /*fifo_config=*/FifoConfig{.depth = 10, .bypass = false},
+          /*flow_control=*/FlowControl::kReadyValid));
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddFifoInstantiation(&p, "fifo_inst", "loopback_channel",
+                         loopback_channel->type(),
+                         *loopback_channel->fifo_config());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  EXPECT_EQ(signature.instantiations().size(), 1);
+  EXPECT_TRUE(signature.instantiations().at(0).has_fifo_instantiation());
+  const FifoInstantiationProto& inst =
+      signature.instantiations().at(0).fifo_instantiation();
+  EXPECT_EQ(inst.instance_name(), "fifo_inst");
+  EXPECT_EQ(inst.channel_name(), "loopback_channel");
+  EXPECT_EQ(inst.fifo_config().width(), 32);
+  EXPECT_EQ(inst.fifo_config().depth(), 10);
+  EXPECT_EQ(inst.fifo_config().bypass(), false);
+  EXPECT_THAT(p.GetTypeFromProto(inst.type()),
+              IsOkAndHolds(m::Type("(bits[32])")));
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

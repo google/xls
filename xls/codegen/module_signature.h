@@ -108,6 +108,24 @@ class ModuleSignatureBuilder {
       std::optional<std::string_view> ready_port_name =
           std::optional<std::string_view>());
 
+  struct NameAndType {
+    std::string_view name;
+    Type* type;
+  };
+  struct FifoPorts {
+    std::string_view push_ready_name;
+    NameAndType push_data;
+    std::string_view push_valid_name;
+    std::string_view pop_ready_name;
+    NameAndType pop_data;
+    std::string_view pop_valid_name;
+  };
+
+  ModuleSignatureBuilder& AddFifoInstantiation(
+      Package* package, std::string_view instance_name,
+      std::optional<std::string_view> channel_name, const Type* data_type,
+      FifoConfig fifo_config);
+
   // Remove a streaming channel from the interface.
   absl::Status RemoveStreamingChannel(std::string_view name);
 
@@ -199,6 +217,10 @@ class ModuleSignature {
 
   absl::Span<const RamProto> rams() { return rams_; }
 
+  absl::Span<const InstantiationProto> instantiations() {
+    return instantiations_;
+  }
+
   // Returns the total number of bits of the data input/outputs.
   int64_t TotalDataInputBits() const;
   int64_t TotalDataOutputBits() const;
@@ -259,6 +281,9 @@ class ModuleSignature {
 
   // Like the channels above, duplicate rams to enable a convenience method.
   std::vector<RamProto> rams_;
+
+  // Duplicate instantiations to enable a convenience method.
+  std::vector<InstantiationProto> instantiations_;
 
   // Map from port name to channel name.
   absl::flat_hash_map<std::string, std::string> port_name_to_channel_name;

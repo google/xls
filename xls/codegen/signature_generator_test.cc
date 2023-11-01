@@ -14,8 +14,11 @@
 
 #include "xls/codegen/signature_generator.h"
 
+#include <memory>
 #include <optional>
+#include <string_view>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
@@ -29,15 +32,20 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 
+namespace m = ::xls::op_matchers;
+
 namespace xls {
 namespace verilog {
 namespace {
+using status_testing::IsOkAndHolds;
 
 TEST(SignatureGeneratorTest, CombinationalBlock) {
   Package package("test");
@@ -300,6 +308,88 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_EQ(ch.ready_port_name(), "out_streaming_ready");
     EXPECT_EQ(ch.valid_port_name(), "out_streaming_valid");
   }
+}
+
+TEST(SignatureGeneratorTest, BlockWithFifoInstantiationNoChannel) {
+  constexpr std::string_view ir_text =R"(package test
+
+block my_block(in: bits[32], out: (bits[32])) {
+  in: bits[32] = input_port(name=in)
+  instantiation my_inst(data_type=(bits[32]), depth=3, bypass=false, kind=fifo)
+  in_inst_input: () = instantiation_input(in, instantiation=my_inst, port_name=push_data)
+  pop_data_inst_output: (bits[32]) = instantiation_output(instantiation=my_inst, port_name=pop_data)
+  out_output_port: () = output_port(pop_data_inst_output, name=out)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * my_block, p->GetBlock("my_block"));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, my_block, std::nullopt));
+  ASSERT_EQ(sig.instantiations().size(), 1);
+  ASSERT_TRUE(sig.instantiations()[0].has_fifo_instantiation());
+  const FifoInstantiationProto& instantiation =
+      sig.instantiations()[0].fifo_instantiation();
+  EXPECT_EQ(instantiation.instance_name(), "my_inst");
+  EXPECT_FALSE(instantiation.has_channel_name());
+  EXPECT_THAT(p->GetTypeFromProto(instantiation.type()),
+              IsOkAndHolds(m::Type("(bits[32])")));
+  EXPECT_EQ(instantiation.fifo_config().depth(), 3);
+  EXPECT_FALSE(instantiation.fifo_config().bypass());
+}
+
+TEST(SignatureGeneratorTest, BlockWithFifoInstantiationWithChannel) {
+  constexpr std::string_view ir_text =R"(package test
+chan a(bits[32], id=0, ops=send_only, fifo_depth=3, bypass=false, kind=streaming, flow_control=ready_valid, metadata="")
+
+proc needed_to_verify(tok: token, state: (), init={()}) {
+  literal0: bits[32] = literal(value=32)
+  send_tok: token = send(tok, literal0, channel_id=0)
+  next(send_tok, state)
+}
+
+block my_block(in: bits[32], out: (bits[32])) {
+  in: bits[32] = input_port(name=in)
+  instantiation my_inst(data_type=(bits[32]), depth=3, bypass=false, channel_id=0, kind=fifo)
+  in_inst_input: () = instantiation_input(in, instantiation=my_inst, port_name=push_data)
+  pop_data_inst_output: (bits[32]) = instantiation_output(instantiation=my_inst, port_name=pop_data)
+  out_output_port: () = output_port(pop_data_inst_output, name=out)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * my_block, p->GetBlock("my_block"));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, my_block, std::nullopt));
+  ASSERT_EQ(sig.instantiations().size(), 1);
+  ASSERT_TRUE(sig.instantiations()[0].has_fifo_instantiation());
+  const FifoInstantiationProto& instantiation =
+      sig.instantiations()[0].fifo_instantiation();
+  EXPECT_EQ(instantiation.instance_name(), "my_inst");
+  EXPECT_TRUE(instantiation.has_channel_name());
+  EXPECT_EQ(instantiation.channel_name(), "a");
+  EXPECT_THAT(p->GetTypeFromProto(instantiation.type()),
+              IsOkAndHolds(m::Type("(bits[32])")));
+  EXPECT_EQ(instantiation.fifo_config().depth(), 3);
+  EXPECT_FALSE(instantiation.fifo_config().bypass());
 }
 
 }  // namespace

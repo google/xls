@@ -16,8 +16,10 @@ syntax = "proto3";
 
 package xls.verilog;
 
+import "google/api/field_behavior.proto";
 import "xls/codegen/xls_metrics.proto";
 import "xls/ir/channel.proto";
+import "xls/ir/foreign_function_data.proto";
 import "xls/ir/xls_type.proto";
 
 enum DirectionProto {
@@ -224,6 +226,33 @@ message ResetProto {
   optional bool reset_data_path = 4;
 }
 
+message BlockInstantiationProto {
+  ModuleSignatureProto block_signature = 1;
+}
+
+message ExternInstantiationProto {
+  optional string module_name = 1;
+  repeated PortProto data_ports = 2;
+  optional ForeignFunctionData foreign_function_data = 3;
+}
+
+message FifoInstantiationProto {
+  optional string instance_name = 1 [(google.api.field_behavior) = REQUIRED];
+  // May not be set if the FIFO instantiation doesn't come from a channel.
+  optional string channel_name = 2 [(google.api.field_behavior) = OPTIONAL];
+  optional FifoConfigProto fifo_config = 3
+      [(google.api.field_behavior) = REQUIRED];
+  optional TypeProto type = 4 [(google.api.field_behavior) = REQUIRED];
+}
+
+message InstantiationProto {
+  oneof instantiation_oneof {
+    BlockInstantiationProto block_instantiation = 3;
+    ExternInstantiationProto extern_instantiation = 4;
+    FifoInstantiationProto fifo_instantiation = 5;
+  }
+}
+
 message ModuleSignatureProto {
   // Name of the module.
   optional string module_name = 1;
@@ -259,4 +288,6 @@ message ModuleSignatureProto {
   //                file that consolidates all metrics throughout
   //                an xls flow.
   optional XlsMetricsProto metrics = 11;
+
+  repeated InstantiationProto instantiations = 14;
 }

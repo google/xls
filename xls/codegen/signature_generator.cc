@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -28,9 +29,11 @@
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -107,7 +110,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     }
 
     // Adds information on channels.
-    const Package* p = block->package();
+    Package* p = block->package();
     for (const Channel* const ch : p->channels()) {
       if (ch->GetBlockName() != block->name()) {
         continue;
@@ -133,6 +136,21 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
       } else {
         b.AddSingleValueChannel(ch->name(), ch->supported_ops(),
                                 ch->GetDataPortName().value());
+      }
+    }
+    for (const ::xls::Instantiation* instantiation :
+         block->GetInstantiations()) {
+      if (instantiation->kind() == ::xls::InstantiationKind::kFifo) {
+        const FifoInstantiation* fifo =
+            down_cast<const FifoInstantiation*>(instantiation);
+        std::optional<std::string_view> channel_name;
+        if (fifo->channel_id().has_value()) {
+          XLS_ASSIGN_OR_RETURN(Channel * ch,
+                               p->GetChannel(*fifo->channel_id()));
+          channel_name = ch->name();
+        }
+        b.AddFifoInstantiation(p, fifo->name(), channel_name, fifo->data_type(),
+                               fifo->fifo_config());
       }
     }
   }
