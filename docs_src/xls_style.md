@@ -97,6 +97,13 @@ in the XLS project, with the relevant Google style guides
     those parts of the codebase. Elsewhere, especially with IR `Node` types,
     `down_cast<>` should be used instead.
 
+*   Prefer `std::string_view` to `absl::string_view`. `absl::string_view` mainly
+    differs from `std::string_view` in construction from nullptr, which our
+    usage/callers do not depend upon. This decision lets us switch over to the
+    more consistent end-state sooner. Although the style guide recommends we
+    prefer `absl::string_view` for now, the rationale for why does not really
+    apply to us and their target end state is clear.
+
 ### Functions
 
 *   Short or easily-explained argument lists (as defined by the developer) can
