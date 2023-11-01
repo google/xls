@@ -15,9 +15,12 @@
 #include "xls/ir/verifier.h"
 
 #include <string>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -550,6 +553,34 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
   XLS_ASSERT_OK(VerifyPackage(p.get()));
   XLS_ASSERT_OK(VerifyBlock(FindBlock("my_block", p.get())));
+}
+
+TEST_F(VerifierTest, BlockWithFifoInstantiation) {
+  constexpr std::string_view ir_text_fmt = R"(package test_package
+
+block my_block(push_valid: bits[1], push_data: bits[1], push_ready: bits[1], out:bits[32]) {
+  push_valid: bits[1] = input_port(name=push_valid)
+  push_data: bits[1] = input_port(name=push_data)
+  instantiation my_inst(data_type=bits[32], depth=$0, bypass=true, kind=fifo)
+  push_valid_inst_input: () = instantiation_input(push_valid, instantiation=my_inst, port_name=push_valid)
+  push_data_inst_input: () = instantiation_input(push_data, instantiation=my_inst, port_name=push_data)
+  push_ready_inst_output: bits[1] = instantiation_output(instantiation=my_inst, port_name=push_ready)
+  pop_data_inst_output: bits[32] = instantiation_output(instantiation=my_inst, port_name=pop_data)
+  push_ready_output_port: () = output_port(push_ready_inst_output, name=push_ready)
+  out_output_port: () = output_port(pop_data_inst_output, name=out)
+}
+)";
+  // Set fifo depth to 3.
+  std::string valid_ir_text = absl::Substitute(ir_text_fmt, 3);
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(valid_ir_text));
+  XLS_ASSERT_OK(VerifyPackage(p.get()));
+
+  // depth < 0 is invalid.
+  std::string invalid_ir_text = absl::Substitute(ir_text_fmt, -3);
+  XLS_ASSERT_OK_AND_ASSIGN(p, ParsePackageNoVerify(invalid_ir_text));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected fifo depth >= 0, got -3")));
 }
 
 }  // namespace

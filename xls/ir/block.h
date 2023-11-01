@@ -15,6 +15,7 @@
 #ifndef XLS_IR_BLOCK_H_
 #define XLS_IR_BLOCK_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -23,6 +24,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/nodes.h"
@@ -133,6 +135,13 @@ class Block : public FunctionBase {
   absl::StatusOr<BlockInstantiation*> AddBlockInstantiation(
       std::string_view name, Block* instantiated_block);
 
+  // Add an instantiation of a FIFO to this block. InstantiationInput and
+  // InstantiationOutput operations must be later added to connect the
+  // instantiation to the data-flow graph.
+  absl::StatusOr<FifoInstantiation*> AddFifoInstantiation(
+      std::string_view name, FifoConfig fifo_config, Type* data_type,
+      std::optional<int64_t> channel_id = std::nullopt);
+
   absl::StatusOr<Instantiation*> AddInstantiation(
       std::string_view name, std::unique_ptr<Instantiation> instantiation);
 
@@ -150,15 +159,15 @@ class Block : public FunctionBase {
   // error if no such one exists.
   absl::StatusOr<Instantiation*> GetInstantiation(std::string_view name) const;
 
-  // Returns the instantation inputs/outputs associated with the given
+  // Returns the instantiation inputs/outputs associated with the given
   // instantiation.
   absl::Span<InstantiationInput* const> GetInstantiationInputs(
       Instantiation* instantiation) const;
   absl::Span<InstantiationOutput* const> GetInstantiationOutputs(
       Instantiation* instantiation) const;
 
-  // Returns true if the given block-scoped construct (register or instantation)
-  // is owned by this block.
+  // Returns true if the given block-scoped construct (register or
+  // instantiation) is owned by this block.
   bool IsOwned(Register* reg) const {
     return registers_.contains(reg->name()) &&
            registers_.at(reg->name()).get() == reg;

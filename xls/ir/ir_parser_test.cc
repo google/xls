@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/casts.h"
 #include "xls/common/source_location.h"
@@ -3229,6 +3230,41 @@ file_number 0 "fake_file.x"
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
               "Attributes are not supported on file number declarations.")));
+}
+
+TEST(IrParserTest, ParseValidFifoInstantiation) {
+  constexpr std::string_view ir_text = R"(package test
+
+block my_block(in: bits[32], out: bits[32]) {
+  in: bits[32] = input_port(name=in)
+  instantiation my_inst(data_type=bits[32], depth=3, bypass=true, kind=fifo)
+  in_inst_input: () = instantiation_input(in, instantiation=my_inst, port_name=push_data)
+  pop_data_inst_output: bits[32] = instantiation_output(instantiation=my_inst, port_name=pop_data)
+  out_output_port: () = output_port(pop_data_inst_output, name=out)
+}
+)";
+  XLS_EXPECT_OK(Parser::ParsePackage(ir_text));
+}
+
+TEST(IrParserTest, ParseInvalidFifoInstantiation) {
+  for (std::string_view inst_args :
+       {"data_type=bits[32], depth=3", "data_type=bits[32], bypass=true",
+        "depth=3, bypass=true"}) {
+    std::string ir_text = absl::StrFormat(R"(package test
+
+block my_block(in: bits[32], out: bits[32]) {
+  in: bits[32] = input_port(name=in)
+  instantiation my_inst(%s, kind=fifo)
+  in_inst_input: () = instantiation_input(in, instantiation=my_inst, port_name=push_data)
+  pop_data_inst_output: bits[32] = instantiation_output(instantiation=my_inst, port_name=pop_data)
+  out_output_port: () = output_port(pop_data_inst_output, name=out)
+}
+)",
+                                          inst_args);
+    EXPECT_THAT(Parser::ParsePackage(ir_text),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Instantiated fifo must specify")));
+  }
 }
 
 }  // namespace xls

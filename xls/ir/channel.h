@@ -61,6 +61,11 @@ struct FifoConfig {
     proto.set_bypass(bypass);
     return proto;
   }
+
+  std::string ToString() const {
+    return absl::StrFormat("FifoConfig{ depth: %d, bypass: %d }", depth,
+                           bypass);
+  }
 };
 
 std::string ChannelKindToString(ChannelKind kind);

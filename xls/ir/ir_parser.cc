@@ -1368,19 +1368,103 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
     return absl::OkStatus();
   };
 
+  std::optional<Type*> data_type;
+  handlers["data_type"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(data_type, ParseType(block->package()));
+    return absl::OkStatus();
+  };
+
+  std::optional<int64_t> depth;
+  handlers["depth"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token depth_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(depth, depth_token.GetValueInt64());
+    return absl::OkStatus();
+  };
+
+  std::optional<bool> bypass;
+  handlers["bypass"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token bypass_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(bypass, bypass_token.GetValueBool());
+    return absl::OkStatus();
+  };
+
+  std::optional<int64_t> channel_id;
+  handlers["channel_id"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token channel_id_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(channel_id, channel_id_token.GetValueInt64());
+    return absl::OkStatus();
+  };
+
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers,
                                             /*mandatory_keywords=*/{"kind"}));
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
 
-  if (kind.value() == InstantiationKind::kBlock) {
-    if (!instantiated_block.has_value()) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Instantiated block not specified @ %s",
-                          instantiation_name.pos().ToHumanString()));
+  struct Field {
+    bool should_have = false;
+    bool does_have = false;
+    std::string name;
+    static Field MustHave(bool has_value, std::string field_name) {
+      return Field{.should_have = true,
+                   .does_have = has_value,
+                   .name = std::move(field_name)};
     }
+
+    static Field MustNotHave(bool has_value, std::string field_name) {
+      return Field{.should_have = false,
+                   .does_have = has_value,
+                   .name = std::move(field_name)};
+    }
+  };
+  auto check_fields = [&instantiation_name](
+                          absl::Span<Field const> fields,
+                          std::string_view instantiation) -> absl::Status {
+    for (const auto& field : fields) {
+      if (!field.should_have && field.does_have) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Instantiated %s must not specify %s @ %s.", instantiation,
+            field.name, instantiation_name.pos().ToHumanString()));
+      }
+      if (field.should_have && !field.does_have) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Instantiated %s must specify %s @ %s.", instantiation, field.name,
+            instantiation_name.pos().ToHumanString()));
+      }
+    }
+    return absl::OkStatus();
+  };
+
+  if (kind.value() == InstantiationKind::kBlock) {
+    XLS_RETURN_IF_ERROR(check_fields(
+        {
+            Field::MustNotHave(data_type.has_value(), "data_type"),
+            Field::MustNotHave(depth.has_value(), "depth"),
+            Field::MustNotHave(bypass.has_value(), "bypass"),
+            Field::MustNotHave(channel_id.has_value(), "channel_id"),
+            Field::MustHave(instantiated_block.has_value(),
+                            "instantiated_block"),
+        },
+        "block"));
     return block->AddBlockInstantiation(instantiation_name.value(),
                                         instantiated_block.value());
+  }
+
+  if (kind.value() == InstantiationKind::kFifo) {
+    XLS_RETURN_IF_ERROR(check_fields(
+        {
+            Field::MustNotHave(instantiated_block.has_value(), "block"),
+            Field::MustHave(data_type.has_value(), "data_type"),
+            Field::MustHave(depth.has_value(), "depth"),
+            Field::MustHave(bypass.has_value(), "bypass"),
+        },
+        "fifo"));
+    return block->AddFifoInstantiation(
+        instantiation_name.value(),
+        FifoConfig{.depth = depth.value(), .bypass = bypass.value()},
+        *data_type, channel_id);
   }
 
   return absl::InvalidArgumentError(

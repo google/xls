@@ -15,6 +15,7 @@
 #include "xls/ir/block.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <limits>
 #include <memory>
@@ -28,18 +29,27 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 
@@ -471,7 +481,7 @@ Node* Block::AddNodeInternal(std::unique_ptr<Node> node) {
 }
 
 absl::Status Block::RemoveNode(Node* n) {
-  // Simliar to parameters in xls::Functions, input and output ports are also
+  // Similar to parameters in xls::Functions, input and output ports are also
   // also stored separately as vectors for easy access and to indicate ordering.
   // Fix up these vectors prior to removing the node.
   if (n->Is<InputPort>() || n->Is<OutputPort>()) {
@@ -585,6 +595,18 @@ absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(
       AddInstantiation(name, std::make_unique<BlockInstantiation>(
                                  name, instantiated_block)));
   return down_cast<BlockInstantiation*>(instantiation.value());
+}
+
+absl::StatusOr<FifoInstantiation*> Block::AddFifoInstantiation(
+    std::string_view name, FifoConfig fifo_config, Type* data_type,
+    std::optional<int64_t> channel_id) {
+  XLS_RET_CHECK(package()->IsOwnedType(data_type));
+  XLS_ASSIGN_OR_RETURN(
+      absl::StatusOr<Instantiation*> instantiation,
+      AddInstantiation(
+          name, std::make_unique<FifoInstantiation>(
+                    name, fifo_config, data_type, channel_id, package())));
+  return down_cast<FifoInstantiation*>(instantiation.value());
 }
 
 absl::StatusOr<Instantiation*> Block::AddInstantiation(

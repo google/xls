@@ -481,6 +481,7 @@ cc_library(
         "verifier.h",
     ],
     deps = [
+        ":bits",
         ":caret",
         ":channel",
         ":channel_cc_proto",
@@ -682,6 +683,7 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -801,6 +803,8 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
     ],
 )
 

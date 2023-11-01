@@ -23,31 +23,42 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/fileno.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "re2/re2.h"
 
@@ -1434,7 +1445,7 @@ absl::Status VerifyNodeIdUnique(Node* node, absl::flat_hash_set<int64_t>* ids) {
   return absl::OkStatus();
 }
 
-// Verify common invariants to function-level constucts.
+// Verify common invariants to function-level constructs.
 absl::Status VerifyFunctionBase(FunctionBase* function) {
   XLS_VLOG(2) << absl::StreamFormat("Verifying function %s:", function->name());
   XLS_VLOG_LINES(4, function->DumpIr());
@@ -1578,7 +1589,7 @@ absl::Status VerifyTokenConnectivity(Node* source_token, Node* sink_token,
   return absl::OkStatus();
 }
 
-// Verify various invariants about the channels owned by the given pacakge.
+// Verify various invariants about the channels owned by the given package.
 absl::Status VerifyChannels(Package* package, bool codegen) {
   // Verify unique ids.
   absl::flat_hash_map<int64_t, Channel*> channels_by_id;
@@ -1796,7 +1807,7 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
 
-  // A Proc has a single token parameter and zero or more state paramers.
+  // A Proc has a single token parameter and zero or more state parameters.
   XLS_RET_CHECK_EQ(proc->params().size(), proc->GetStateElementCount() + 1);
 
   XLS_RET_CHECK_EQ(proc->param(0), proc->TokenParam());
@@ -2001,6 +2012,43 @@ static absl::Status VerifyExternInstantiation(
   return VerifyForeignFunctionTemplate(fun);
 }
 
+static absl::Status VerifyFifoInstantiation(Package* package,
+                                            FifoInstantiation* instantiation) {
+  if (instantiation->fifo_config().depth < 0) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Expected fifo depth >= 0, got %d",
+                        instantiation->fifo_config().depth));
+  }
+  if (instantiation->channel_id().has_value()) {
+    XLS_ASSIGN_OR_RETURN(Channel * channel,
+                         package->GetChannel(*instantiation->channel_id()));
+    if (channel->kind() != ChannelKind::kStreaming) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected channel %s (with FIFO instantiation %s) to "
+                          "be streaming, got %s",
+                          channel->name(), instantiation->name(),
+                          ChannelKindToString(channel->kind())));
+    }
+    StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
+    if (!streaming_channel->fifo_config().has_value()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected channel %s with fifo instantiation %s to "
+                          "have a fifo config",
+                          channel->name(), instantiation->name()));
+    }
+    // TODO(google/xls#1173): don't replicate fifo configs in the signature.
+    if (streaming_channel->fifo_config() != instantiation->fifo_config()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Expected channel %s with fifo instantiation %s to have the same "
+          "fifo config (%s != %s)",
+          channel->name(), instantiation->name(),
+          streaming_channel->fifo_config()->ToString(),
+          instantiation->fifo_config().ToString()));
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::Status VerifyBlock(Block* block, bool codegen) {
   XLS_VLOG(4) << "Verifying block:\n";
   XLS_VLOG_LINES(4, block->DumpIr());
@@ -2102,7 +2150,7 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
   for (Instantiation* instantiation : block->GetInstantiations()) {
     switch (instantiation->kind()) {
       case InstantiationKind::kBlock:
-        // Verify each instantiation is a block instantation and the block is
+        // Verify each instantiation is a block instantiation and the block is
         // owned the package.
         XLS_RETURN_IF_ERROR(VerifyBlockInstantiation(
             down_cast<BlockInstantiation*>(instantiation), block));
@@ -2111,9 +2159,13 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
         XLS_RETURN_IF_ERROR(VerifyExternInstantiation(
             down_cast<ExternInstantiation*>(instantiation)));
         break;
+      case InstantiationKind::kFifo:
+        XLS_RETURN_IF_ERROR(VerifyFifoInstantiation(
+            block->package(), down_cast<FifoInstantiation*>(instantiation)));
+        break;
       default:
         XLS_RET_CHECK_FAIL()
-            << "Only block or ffi instantiations are supported: "
+            << "Only block, ffi, and fifo instantiations are supported: "
             << instantiation->ToString();
     }
   }

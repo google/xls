@@ -15,6 +15,7 @@
 #include "xls/ir/instantiation.h"
 
 #include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -22,10 +23,14 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "re2/re2.h"
 
@@ -139,6 +144,61 @@ absl::StatusOr<InstantiationPort> ExternInstantiation::GetOutputPort(
 std::string ExternInstantiation::ToString() const {
   return absl::StrFormat("instantiation %s(foreign_function=%s, kind=extern)",
                          name(), function_->name());
+}
+
+FifoInstantiation::FifoInstantiation(std::string_view inst_name,
+                                     FifoConfig fifo_config, Type* data_type,
+                                     std::optional<int64_t> channel_id,
+                                     Package* package)
+    : Instantiation(inst_name, InstantiationKind::kFifo),
+      fifo_config_(fifo_config),
+      data_type_(data_type),
+      channel_id_(channel_id),
+      package_(package) {
+  XLS_CHECK(package->IsOwnedType(data_type));
+}
+
+absl::StatusOr<InstantiationPort> FifoInstantiation::GetInputPort(
+    std::string_view name) {
+  if (name == "push_data") {
+    return InstantiationPort{std::string{name}, data_type()};
+  }
+  if (name == "push_valid") {
+    return InstantiationPort{std::string{name}, package_->GetBitsType(1)};
+  }
+  if (name == "pop_ready") {
+    return InstantiationPort{std::string{name}, package_->GetBitsType(1)};
+  }
+  return absl::NotFoundError(
+      absl::Substitute("No such input port `$0`: must be one of push_data, "
+                       "push_valid, or pop_ready.",
+                       name));
+}
+
+absl::StatusOr<InstantiationPort> FifoInstantiation::GetOutputPort(
+    std::string_view name) {
+  if (name == "pop_data") {
+    return InstantiationPort{std::string{name}, data_type()};
+  }
+  if (name == "pop_valid") {
+    return InstantiationPort{std::string{name}, package_->GetBitsType(1)};
+  }
+  if (name == "push_ready") {
+    return InstantiationPort{std::string{name}, package_->GetBitsType(1)};
+  }
+  return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));
+}
+
+std::string FifoInstantiation::ToString() const {
+  std::string channel_str;
+  if (channel_id_.has_value()) {
+    channel_str = absl::StrFormat("channel_id=%d, ", *channel_id_);
+  }
+
+  return absl::StrFormat(
+      "instantiation %s(data_type=%s, depth=%d, bypass=%s, %skind=fifo)",
+      name(), data_type_->ToString(), fifo_config_.depth,
+      fifo_config_.bypass ? "true" : "false", channel_str);
 }
 
 }  // namespace xls

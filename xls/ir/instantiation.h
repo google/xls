@@ -15,11 +15,15 @@
 #ifndef XLS_IR_INSTANTIATION_H_
 #define XLS_IR_INSTANTIATION_H_
 
+#include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -27,7 +31,7 @@ namespace xls {
 class Block;
 class Function;
 
-enum class InstantiationKind {
+enum class InstantiationKind : uint8_t {
   // Instantiation of an IR block in the same package.
   kBlock,
 
@@ -108,6 +112,28 @@ class ExternInstantiation : public Instantiation {
 
  private:
   Function* function_;
+};
+
+class FifoInstantiation : public Instantiation {
+ public:
+  FifoInstantiation(std::string_view inst_name, FifoConfig fifo_config,
+                    Type* data_type, std::optional<int64_t> channel_id,
+                    Package* package);
+
+  absl::StatusOr<InstantiationPort> GetInputPort(std::string_view name) final;
+  absl::StatusOr<InstantiationPort> GetOutputPort(std::string_view name) final;
+
+  const FifoConfig& fifo_config() const { return fifo_config_; }
+  Type* data_type() const { return data_type_; }
+  std::optional<int64_t> channel_id() const { return channel_id_; }
+
+  std::string ToString() const final;
+
+ private:
+  FifoConfig fifo_config_;
+  Type* data_type_;
+  std::optional<int64_t> channel_id_;
+  Package* package_;
 };
 
 }  // namespace xls
