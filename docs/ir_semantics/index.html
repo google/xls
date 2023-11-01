@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.4">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.7">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.bd3936ea.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.4b4a2bd9.min.css">
       
       
 
@@ -3036,12 +3036,11 @@
 </ul>
 </div>
 <p>The XLS IR is a pure dataflow-oriented IR that has the static-single-assignment
-property, but is specialized for generating circuitry.
-The aim is to create effective circuit designs through
-a "lifted" understanding of the high-level operations and their semantics,
-instead of trying to reverse all relevant properties via dependence analysis,
-which often cannot take advantage of high level knowledge that the designer
-holds in their mind at design time.</p>
+property, but is specialized for generating circuitry. The aim is to create
+effective circuit designs through a "lifted" understanding of the high-level
+operations and their semantics, instead of trying to reverse all relevant
+properties via dependence analysis, which often cannot take advantage of high
+level knowledge that the designer holds in their mind at design time.</p>
 <p>This document describes the semantics of the XLS intermediate representation
 (IR) including data types, operations, and textual representation.</p>
 <h2 id="data-types">Data types</h2>
@@ -3124,6 +3123,12 @@ port is represented with a <code>input_port</code> or <code>output_port</code> o
 arbitrarily-typed. Each register must have a single <code>register_write</code> and a
 single <code>register_read</code> operation for writing and reading the register
 respectively.</p>
+<p>Each register may optionally specify its reset behavior. The reset can be
+specified to occur either synchronously or asynchronously and either on the
+<code>reset</code> signal of the associated <code>register_write</code> being active-high or
+active-low. If specified the reset value must match the type of the register. If
+no reset behavior is specified then the <code>reset</code> argument of <code>register_write</code>
+must be unset.</p>
 <h4 id="instantiation">Instantiation</h4>
 <p>An instantiation is a block-scoped construct that represents a module
 instantiation at the Verilog level. The instantiated object can be another
@@ -4082,8 +4087,8 @@ are ignored. Examples:</p>
 </table>
 <h4 id="dynamic_bit_slice"><strong><code>dynamic_bit_slice</code></strong></h4>
 <p>Slices a contiguous range of bits from a bits-typed operand, with variable
-starting index but fixed width. Out-of-bounds slicing is supported by
-treating all out-of-bounds bits as having value 0.</p>
+starting index but fixed width. Out-of-bounds slicing is supported by treating
+all out-of-bounds bits as having value 0.</p>
 <p><strong>Syntax</strong></p>
 <div class="highlight"><pre><span></span><code>result = dynamic_bit_slice(operand, start, width=&lt;width&gt;)
 </code></pre></div>
@@ -4110,8 +4115,8 @@ treating all out-of-bounds bits as having value 0.</p>
 </tr>
 </tbody>
 </table>
-<p><code>start</code> can be of arbitrary bit width. It will be interpreted
-as an unsigned integer.</p>
+<p><code>start</code> can be of arbitrary bit width. It will be interpreted as an unsigned
+integer.</p>
 <p><strong>Keyword arguments</strong></p>
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
@@ -4329,12 +4334,12 @@ significant bit in the output) is only set if no bits in the input are set.</p>
 <p>Examples:</p>
 <ul>
 <li><code>one_hot(0b0011, lsb_prio=true)</code> =&gt; <code>0b00001</code> -- note that an extra MSb has
-  been appended to the output to potentially represent the "all zeros" case.</li>
+    been appended to the output to potentially represent the "all zeros" case.</li>
 <li><code>one_hot(0b0111, lsb_prio=false)</code> =&gt; <code>0b00100</code>.</li>
 <li><code>one_hot(0b00, lsb_prio=false)</code> =&gt; <code>0b100</code>.</li>
-<li><code>one_hot(0b00, lsb_prio=true)</code> =&gt; <code>0b100</code> -- note the output for <code>one_hot</code> is
-  the same for the all-zeros case regardless of whether <code>lsb_prio</code> is true or
-  false.</li>
+<li><code>one_hot(0b00, lsb_prio=true)</code> =&gt; <code>0b100</code> -- note the output for <code>one_hot</code>
+    is the same for the all-zeros case regardless of whether <code>lsb_prio</code> is true
+    or false.</li>
 </ul>
 <p>This operation is useful for constructing match or switch operation semantics
 where a condition is matched against an ordered set of cases and the first match
@@ -4497,8 +4502,8 @@ unnecessary and subsequently eliminate them.</p>
 </tr>
 </tbody>
 </table>
-<p>The result is the first case <code>case_{i}</code> for which the corresponding
-bit <code>i</code> is set in the selector. If the selector is known to be one-hot, then the
+<p>The result is the first case <code>case_{i}</code> for which the corresponding bit <code>i</code> is
+set in the selector. If the selector is known to be one-hot, then the
 <code>priority_sel()</code> operation is equivalent to a <code>one_hot_sel()</code>.</p>
 <h4 id="invoke"><strong><code>invoke</code></strong></h4>
 <p>Invokes a function. The return value for the invoked function is the result
@@ -4933,10 +4938,9 @@ otherwise the result is a zero value of the type of the data operand (i.e., the
 value is gated off). A helpful mnemonic is to think of this as analogous to an
 <code>AND</code> gate: if the condition is <code>true</code>, the value passes through, otherwise it's
 zeroed.</p>
-<p>This operation can reduce switching and may be used in
-power optimizations. This is intended for use in operand gating for power
-reduction, and the compiler may ultimately use it to perform register-level
-load-enable gating.</p>
+<p>This operation can reduce switching and may be used in power optimizations. This
+is intended for use in operand gating for power reduction, and the compiler may
+ultimately use it to perform register-level load-enable gating.</p>
 <p>The operation is considered side-effecting to prevent removal of the operation
 when the gated result (condition is false) is not observable. The 'side-effect'
 of this operation is the effect it can have on power consumption.</p>
@@ -5068,8 +5072,35 @@ port is the data operand.</p>
 
 <h4 id="register_write"><strong><code>register_write</code></strong></h4>
 <p>Writes a value to a register.</p>
-<p>The write to the register may be conditioned upon an optional load-enable
-and/or reset signal. The register is defined on the block.</p>
+<p>The write to the register may be conditioned upon an optional load-enable and/or
+reset signal. The register is defined on the block.</p>
+<p>If <code>reset</code> is given the <code>register</code> associated with this read <strong>must</strong> have a
+reset behavior set.</p>
+<p>If the <code>reset</code> value matches the reset-active value of the register then the
+<code>reset_value</code> of the register is written and the <code>data</code> is ignored.</p>
+<p>If the <code>load_enable</code> argument is present the register will only be written if
+the argument evaluates to <code>1</code>, remaining unchanged otherwise (i.e. if present it
+is equivalent to <code>register_write.REG(sel(load_enable, {register_read.REG,
+data}))</code>).</p>
+<p>The <code>reset</code> and <code>load_enable</code> arguments affect the value written according to
+the following table.</p>
+<p>| <code>Register</code> reset      | <code>reset</code> value | <code>load_enable</code> value | new value     | {.sortable}
+: behavior              :               :                     :               :
+| --------------------- | ------------- | ------------------- | ------------- |
+| <code>active_low == false</code> | <code>false</code> / <code>0</code> | not present         | <code>data</code>        |
+| <code>active_low == false</code> | <code>true</code> / <code>1</code>  | not present         | <code>reset_value</code> |
+| <code>active_low == true</code>  | <code>false</code> / <code>0</code> | not present         | <code>reset_value</code> |
+| <code>active_low == true</code>  | <code>true</code> / <code>1</code>  | not present         | <code>data</code>        |
+| <code>active_low == false</code> | <code>false</code> / <code>0</code> | <code>true</code> / <code>1</code>        | <code>data</code>        |
+| <code>active_low == false</code> | <code>true</code> / <code>1</code>  | <code>true</code> / <code>1</code>        | <code>reset_value</code> |
+| <code>active_low == true</code>  | <code>false</code> / <code>0</code> | <code>true</code> / <code>1</code>        | <code>reset_value</code> |
+| <code>active_low == true</code>  | <code>true</code> / <code>1</code>  | <code>true</code> / <code>1</code>        | <code>data</code>        |
+| <code>active_low == false</code> | <code>false</code> / <code>0</code> | <code>false</code> / <code>0</code>       | No change     |
+| <code>active_low == false</code> | <code>true</code> / <code>1</code>  | <code>false</code> / <code>0</code>       | <code>reset_value</code> |
+| <code>active_low == true</code>  | <code>false</code> / <code>0</code> | <code>false</code> / <code>0</code>       | <code>reset_value</code> |
+| <code>active_low == true</code>  | <code>true</code> / <code>1</code>  | <code>false</code> / <code>0</code>       | No change     |
+| not present           | not present   | <code>true</code> / <code>1</code>        | <code>data</code>        |
+| not present           | not present   | <code>false</code> / <code>0</code>       | No change     |</p>
 <p><strong>Syntax</strong></p>
 <div class="highlight"><pre><span></span><code>result = register_write(data, load_enable=&lt;load_enable&gt;, reset=&lt;reset&gt;, register=&lt;register_name&gt;)
 </code></pre></div>
@@ -5290,7 +5321,7 @@ instantiated object.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.94c44541.min.js"></script>
+      <script src="../assets/javascripts/bundle.aecac24b.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

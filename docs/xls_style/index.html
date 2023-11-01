@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.4">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.7">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.bd3936ea.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.4b4a2bd9.min.css">
       
       
 
@@ -1469,6 +1469,26 @@
     IR nodes
   </a>
   
+    <nav class="md-nav" aria-label="IR nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#class-hierarchy-and-oop-design" class="md-nav__link">
+    Class Hierarchy and OOP Design
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#passing-node-types" class="md-nav__link">
+    Passing Node Types
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -1956,6 +1976,26 @@
     IR nodes
   </a>
   
+    <nav class="md-nav" aria-label="IR nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#class-hierarchy-and-oop-design" class="md-nav__link">
+    Class Hierarchy and OOP Design
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#passing-node-types" class="md-nav__link">
+    Passing Node Types
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -2125,6 +2165,74 @@ const Thing&amp; thing = thing_or.value();
 </li>
 </ul>
 <h3 id="ir-nodes">IR nodes</h3>
+<h4 id="class-hierarchy-and-oop-design">Class Hierarchy and OOP Design</h4>
+<p>A frequently asked question about XLS's design is how the IR class hierarchy
+gels with Google style guide recommendations. This section is intended to
+provide a rationale for "tagging" leaf node types and for using
+<code>node-&gt;Is&lt;NodeType&gt;()</code> and <code>switch (node-&gt;op())</code> to form categories of node
+types instead of a class inheritance taxonomy.</p>
+<p>The base type <code>Node</code> encapsulates an element that takes input operands and
+produces an output, along with some metadata like type, name, and references to
+source locations. Each IR node (e.g. <code>add</code>, <code>send</code>, <code>concat</code>, etc.) extends
+directly from <code>Node</code>.</p>
+<p>Each <code>Node</code> defines <code>op()</code> and <code>Is&lt;NodeType&gt;()</code> methods which are more
+performant alternatives to C++'s RTTI. For example,</p>
+<div class="highlight"><pre><span></span><code>if (node-&gt;Is&lt;Send&gt;()) {
+  return node-&gt;As&lt;Send&gt;()-&gt;channel_id();  // As&lt;Send&gt;() is down_cast&lt;Send*&gt;()
+}
+</code></pre></div>
+<p>or</p>
+<div class="highlight"><pre><span></span><code>switch (node-&gt;op()) {
+  case Op::kSend:
+    return down_cast&lt;Send*&gt;(node)-&gt;channel_id();
+  // case Op:: ...
+}
+</code></pre></div>
+<p>are common patterns on IR nodes.</p>
+<p>In many contexts, this code would be a cry for better abstractions- some
+reasonable ideas include:</p>
+<ol>
+<li>A <code>virtual std::optional&lt;int64_t&gt; Node::channel_id()</code> (or
+    <code>absl::StatusOr&lt;int64_t&gt;</code>) implementation.</li>
+<li>A subclass or mixin trait like <code>ChannelNode</code> that extends <code>Node</code> for <code>Send</code>
+    to derive.</li>
+<li>A visitor that implements similar functionality outside of the class
+    hierarchy.</li>
+</ol>
+<p>These ideas are generally not a good fit for IR nodes. The first idea's main
+problem is that there are a lot of node types and the base class will become
+huge if it needs to contain every property of each type of node. Furthermore,
+the base class will be difficult to reason about without more structure- e.g.
+does a node with a <code>channel_id</code> sometimes, always, or never also have a
+<code>predicate</code>?</p>
+<p>The second idea seems to address the problems of the first, but it is not clear
+how to design a useful type hierarchy for IR nodes. The subset of nodes we care
+about is very context dependent. The examples above invite a <code>ChannelNode</code>
+abstraction, but other places in the code might care about unary vs. n-ary ops,
+or ops that produce bare values vs. tuples, or some other way to group nodes. We
+can find ourselves facing the first idea's complexity explosion if we make a
+mixin trait for each pass, and there aren't good ways to inject mixin traits for
+each compilation unit.</p>
+<p>The third idea of using a visitor (or, similarly, a typeclass) is used in the
+XLS codebase at times, but mostly where there's some well-defined behavior for
+most kinds of nodes. If you want to pluck out an ad-hoc subset of nodes, you
+need to make a new kind of visitor for that subset and it ends up being similar
+to the code above. In the limit, you might need all arbitrary combinations which
+will lead to too many visitor types to maintain centrally.</p>
+<p>Using <code>node-&gt;Is&lt;NodeType&gt;()</code> or <code>switch (node-&gt;op())</code> are concise and readable
+ways for the common task of operating on a new category of nodes. The typical
+OOP tools we'd often use instead don't map well to the needs of an IR, so we
+discourage adding to the base type or type hierarchy of IR nodes. We encourage
+gathering categories that are reused in
+<a href="https://github.com/google/xls/tree/main/xls/ir/node_util.h">node_util.h</a>.</p>
+<p>It's also worth noting that <code>node-&gt;op()</code>, <code>node-&gt;Is&lt;NodeType&gt;()</code>,
+<code>node-&gt;As&lt;NodeType&gt;()</code>, and <code>down_cast&lt;NodeType*&gt;(node)</code> are more performant
+than C++ RTTI and <code>dynamic_cast&lt;&gt;</code>. C++ RTTI is not designed to be cheap and if
+we used <code>dynamic_cast&lt;&gt;</code> instead of our own tags + <code>down_cast&lt;&gt;</code>, we expect that
+would perform significantly worse. Performance is not the primary rationale for
+the design decision discussed above, but the knock-on performance effects
+further support the decision.</p>
+<h4 id="passing-node-types">Passing Node Types</h4>
 <ul>
 <li>Unlike most data, IR elements should be passed as non-const pointers, even
     when expected to be const (which would usually indicate passing them as
@@ -2207,7 +2315,7 @@ really went wrong.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.94c44541.min.js"></script>
+      <script src="../assets/javascripts/bundle.aecac24b.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

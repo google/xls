@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.4">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.7">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.bd3936ea.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.4b4a2bd9.min.css">
       
       
 
@@ -2411,12 +2411,11 @@ optimizer or the XLS-generated LLVM program has undefined behavior.</p>
 higher, and the assembly is dumped at level 3 or higher. For example:</p>
 <div class="highlight"><pre><span></span><code>  eval_ir_main -v=3 --logtostderr --random_inputs=1 sample.opt.ir
 </code></pre></div>
-<p>Extract the unoptimized LLVM IR to file to enable working with it in isolation.
-Copy the text following <code>Unoptimized module IR:</code> or <code>Optimized module IR:</code>
-depending upon whether or not the unoptimized or optimized IR is desired. Copy
-into <code>sample.ll</code>. Execute the following command to remove the logging prefix
-text.</p>
-<div class="highlight"><pre><span></span><code>sed -i &#39;s/^.*\] //g&#39; sample.ll
+<p>You can also send the optimized or unoptimized IR or asm to a file with the
+<code>--llvm_jit_ir_output=&lt;file&gt;</code>, <code>--llvm_jit_opt_ir_output=&lt;file&gt;</code> and
+<code>--llvm_jit_asm_output=&lt;file&gt;</code> flags.</p>
+<p>For example:</p>
+<div class="highlight"><pre><span></span><code>  eval_ir_main --random_inputs=1 sample.opt.ir --llvm_jit_ir_output=sample.ll
 </code></pre></div>
 <h5 id="building-llvm-tools">Building LLVM tools</h5>
 <p>The various LLVM tools such as <code>opt</code> and <code>lli</code> can be built with:</p>
@@ -2451,6 +2450,9 @@ XLS-generated function.</p>
 <p>The LLVM tool <code>opt</code> optimizes the LLVM IR and can be piped to <code>lli</code> like so:</p>
 <div class="highlight"><pre><span></span><code>  opt sample.ll --O2 | lli
 </code></pre></div>
+<p>The LLVM IR can also compiled to an object file using <code>llc</code> and driven using a
+C/C++ test harness. The directory <code>xls/fuzzer/debug</code> includes a script and
+example demonstrating how to run JIT-generated LLVM IR in this manner.</p>
 <h5 id="running-llvm-code-generation">Running LLVM code generation</h5>
 <p>If the bug occurs during LLVM code generation (lowering of LLVM IR to object
 code) the LLVM tool <code>llc</code> may be used to reproduce the problem. <code>llc</code> takes LLVM
@@ -2479,7 +2481,7 @@ help isolate the problem:</p>
 outputs is required.</p>
 <h3 id="filing-an-llvm-bug">Filing an LLVM bug</h3>
 <p>If the fuzzer problem is due to a crash or miscompile by LLVM, file an LLVM bug
-<a href="https://github.com/llvm/llvm-project/issues">here</a>.  Example LLVM bugs found by
+<a href="https://github.com/llvm/llvm-project/issues">here</a>. Example LLVM bugs found by
 the fuzzer: <a href="https://github.com/llvm/llvm-project/issues/61127">1</a>,
 <a href="https://github.com/llvm/llvm-project/issues/61038">2</a>.</p>
 <p>Although the internal Google mirror of LLVM is updated frequently, prior to
@@ -2578,7 +2580,7 @@ rm<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</spa
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.94c44541.min.js"></script>
+      <script src="../assets/javascripts/bundle.aecac24b.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
