@@ -113,6 +113,90 @@ in the XLS project, with the relevant Google style guides
 
 ### IR nodes
 
+#### Class Hierarchy and OOP Design
+
+A frequently asked question about XLS's design is how the IR class hierarchy
+gels with Google style guide recommendations. This section is intended to
+provide a rationale for "tagging" leaf node types and for using
+`node->Is<NodeType>()` and `switch (node->op())` to form categories of node
+types instead of a class inheritance taxonomy.
+
+The base type `Node` encapsulates an element that takes input operands and
+produces an output, along with some metadata like type, name, and references to
+source locations. Each IR node (e.g. `add`, `send`, `concat`, etc.) extends
+directly from `Node`.
+
+Each `Node` defines `op()` and `Is<NodeType>()` methods which are more
+performant alternatives to C++'s RTTI. For example,
+
+```
+if (node->Is<Send>()) {
+  return node->As<Send>()->channel_id();  // As<Send>() is down_cast<Send*>()
+}
+```
+
+or
+
+```
+switch (node->op()) {
+  case Op::kSend:
+    return down_cast<Send*>(node)->channel_id();
+  // case Op:: ...
+}
+```
+
+are common patterns on IR nodes.
+
+In many contexts, this code would be a cry for better abstractions- some
+reasonable ideas include:
+
+1.  A `virtual std::optional<int64_t> Node::channel_id()` (or
+    `absl::StatusOr<int64_t>`) implementation.
+2.  A subclass or mixin trait like `ChannelNode` that extends `Node` for `Send`
+    to derive.
+3.  A visitor that implements similar functionality outside of the class
+    hierarchy.
+
+These ideas are generally not a good fit for IR nodes. The first idea's main
+problem is that there are a lot of node types and the base class will become
+huge if it needs to contain every property of each type of node. Furthermore,
+the base class will be difficult to reason about without more structure- e.g.
+does a node with a `channel_id` sometimes, always, or never also have a
+`predicate`?
+
+The second idea seems to address the problems of the first, but it is not clear
+how to design a useful type hierarchy for IR nodes. The subset of nodes we care
+about is very context dependent. The examples above invite a `ChannelNode`
+abstraction, but other places in the code might care about unary vs. n-ary ops,
+or ops that produce bare values vs. tuples, or some other way to group nodes. We
+can find ourselves facing the first idea's complexity explosion if we make a
+mixin trait for each pass, and there aren't good ways to inject mixin traits for
+each compilation unit.
+
+The third idea of using a visitor (or, similarly, a typeclass) is used in the
+XLS codebase at times, but mostly where there's some well-defined behavior for
+most kinds of nodes. If you want to pluck out an ad-hoc subset of nodes, you
+need to make a new kind of visitor for that subset and it ends up being similar
+to the code above. In the limit, you might need all arbitrary combinations which
+will lead to too many visitor types to maintain centrally.
+
+Using `node->Is<NodeType>()` or `switch (node->op())` are concise and readable
+ways for the common task of operating on a new category of nodes. The typical
+OOP tools we'd often use instead don't map well to the needs of an IR, so we
+discourage adding to the base type or type hierarchy of IR nodes. We encourage
+gathering categories that are reused in
+[node_util.h](https://github.com/google/xls/tree/main/xls/ir/node_util.h).
+
+It's also worth noting that `node->op()`, `node->Is<NodeType>()`,
+`node->As<NodeType>()`, and `down_cast<NodeType*>(node)` are more performant
+than C++ RTTI and `dynamic_cast<>`. C++ RTTI is not designed to be cheap and if
+we used `dynamic_cast<>` instead of our own tags + `down_cast<>`, we expect that
+would perform significantly worse. Performance is not the primary rationale for
+the design decision discussed above, but the knock-on performance effects
+further support the decision.
+
+#### Passing Node Types
+
 *   Unlike most data, IR elements should be passed as non-const pointers, even
     when expected to be const (which would usually indicate passing them as
     const references). Experience has shown that IR elements often develop
