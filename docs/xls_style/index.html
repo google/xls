@@ -2152,6 +2152,14 @@ const Thing&amp; thing = thing_or.value();
     those parts of the codebase. Elsewhere, especially with IR <code>Node</code> types,
     <code>down_cast&lt;&gt;</code> should be used instead.</li>
 </ul>
+<ul>
+<li>Prefer <code>std::string_view</code> to <code>absl::string_view</code>. <code>absl::string_view</code> mainly
+    differs from <code>std::string_view</code> in construction from nullptr, which our
+    usage/callers do not depend upon. This decision lets us switch over to the
+    more consistent end-state sooner. Although the style guide recommends we
+    prefer <code>absl::string_view</code> for now, the rationale for why does not really
+    apply to us and their target end state is clear.</li>
+</ul>
 <h3 id="functions">Functions</h3>
 <ul>
 <li>Short or easily-explained argument lists (as defined by the developer) can
