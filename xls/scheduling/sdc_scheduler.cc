@@ -24,7 +24,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -67,25 +66,6 @@ absl::StatusOr<DelayMap> ComputeNodeDelays(
                          delay_estimator.GetOperationDelayInPs(node));
   }
   return result;
-}
-
-// All transitive children (operands, operands of operands, etc.) of the given
-// node.
-absl::btree_set<Node*, Node::NodeIdLessThan> Descendants(Node* root) {
-  std::vector<Node*> stack;
-  stack.push_back(root);
-  absl::btree_set<Node*, Node::NodeIdLessThan> discovered;
-  while (!stack.empty()) {
-    Node* popped = stack.back();
-    stack.pop_back();
-    if (!discovered.contains(popped)) {
-      discovered.insert(popped);
-      for (Node* child : popped->operands()) {
-        stack.push_back(child);
-      }
-    }
-  }
-  return discovered;
 }
 
 // Compute all-pairs longest distance between all nodes in `f`. The distance
