@@ -16,6 +16,7 @@
 #define XLS_IR_VALUE_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -27,6 +28,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/xls_type.pb.h"
+#include "xls/ir/xls_value.pb.h"
 
 namespace xls {
 
@@ -112,6 +114,17 @@ class Value {
   explicit Value(Bits bits)
       : kind_(ValueKind::kBits), payload_(std::move(bits)) {}
 
+  // Convert a ValueProto back to a value.
+  //
+  // If any bits element has a bit-count of more than max_bit_size the
+  // conversion will fail. Default to rejecting 1GiB or larger bits values.
+  // This limit is not for any correctness reason (if you want to have gigabytes
+  // of binary data that's fine) but just to change weird OOM crashes when fed
+  // with fuzzed/corrupted data into more debuggable Status errors. Set this to
+  // std::number_limits<int64_t>::max() to disable the check.
+  static absl::StatusOr<Value> FromProto(
+      const ValueProto& proto, int64_t max_bit_size = int64_t{1} << 33);
+
   // Serializes the contents of this value as bits in the buffer.
   void FlattenTo(BitPushBuffer* buffer) const;
 
@@ -156,6 +169,9 @@ class Value {
 
   // Returns the type of the Value as a type proto.
   absl::StatusOr<TypeProto> TypeAsProto() const;
+
+  // Returns this Value as a ValueProto.
+  absl::StatusOr<ValueProto> AsProto() const;
 
   // Returns true if 'other' has the same type as this Value.
   bool SameTypeAs(const Value& other) const;

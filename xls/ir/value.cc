@@ -14,19 +14,29 @@
 
 #include "xls/ir/value.h"
 
+#include <cstdint>
+#include <cstring>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bit_push_buffer.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/xls_value.pb.h"
 
 namespace xls {
 
@@ -310,6 +320,108 @@ bool Value::SameTypeAs(const Value& other) const {
       break;
   }
   XLS_LOG(FATAL) << "Invalid value encountered: " << ValueKindToString(kind());
+}
+
+absl::StatusOr<ValueProto> Value::AsProto() const {
+  ValueProto v;
+  switch (kind()) {
+    case ValueKind::kBits: {
+      ValueProto::Bits* proto_bits = v.mutable_bits();
+      proto_bits->set_bit_count(bits().bit_count());
+      std::vector<uint8_t> bytes = bits().ToBytes();
+      proto_bits->mutable_data()->resize(bytes.size());
+      memcpy(proto_bits->mutable_data()->data(), bytes.data(), bytes.size());
+      break;
+    }
+    case ValueKind::kTuple: {
+      ValueProto::Tuple* tuple = v.mutable_tuple();
+      for (const Value& e : elements()) {
+        XLS_ASSIGN_OR_RETURN(*tuple->add_elements(), e.AsProto());
+      }
+      break;
+    }
+    case ValueKind::kArray: {
+      ValueProto::Array* array = v.mutable_array();
+      for (const Value& e : elements()) {
+        XLS_ASSIGN_OR_RETURN(*array->add_elements(), e.AsProto());
+      }
+      break;
+    }
+    case ValueKind::kToken:
+      v.mutable_token();
+      break;
+    case ValueKind::kInvalid:
+      return absl::InternalError("Cannot serialize an invalid value");
+  }
+  return v;
+}
+
+namespace {
+absl::Span<const uint8_t> StrToU8Span(const std::string& s) {
+  return absl::Span<const uint8_t>(reinterpret_cast<const uint8_t*>(s.data()),
+                                   s.size());
+}
+}  // namespace
+
+absl::StatusOr<Value> Value::FromProto(const ValueProto& proto,
+                                       int64_t max_bit_size) {
+  switch (proto.variant_case()) {
+    case ValueProto::kBits: {
+      if (proto.bits().bit_count() <= 0) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Bit count must be at least 1 but was %d",
+                            proto.bits().bit_count()));
+      }
+      if (proto.bits().bit_count() >= max_bit_size) {
+        return absl::InternalError(absl::StrFormat(
+            "Bit value is too large with %d bits", proto.bits().bit_count()));
+      }
+      std::string data_copy;
+      absl::Span<const uint8_t> data;
+      int64_t byte_size = CeilOfRatio(proto.bits().bit_count(), int64_t{8});
+      if (byte_size == proto.bits().data().size()) {
+        data = StrToU8Span(proto.bits().data());
+      } else {
+        data_copy = proto.bits().data();
+        data_copy.resize(byte_size, '\0');
+        data = StrToU8Span(data_copy);
+      }
+      return Value(Bits::FromBytes(data, proto.bits().bit_count()));
+    }
+    case ValueProto::kTuple: {
+      std::vector<Value> values;
+      values.reserve(proto.tuple().elements_size());
+      for (const ValueProto& e : proto.tuple().elements()) {
+        XLS_ASSIGN_OR_RETURN(Value element, Value::FromProto(e));
+        values.push_back(element);
+      }
+      return Value::TupleOwned(std::move(values));
+    }
+    case ValueProto::kToken: {
+      return Value::Token();
+    }
+    case ValueProto::kArray: {
+      if (proto.array().elements_size() == 0) {
+        return absl::InvalidArgumentError("empty arrays are not supported.");
+      }
+      std::vector<Value> values;
+      values.reserve(proto.array().elements_size());
+      for (const ValueProto& e : proto.array().elements()) {
+        XLS_ASSIGN_OR_RETURN(Value element, Value::FromProto(e));
+        values.push_back(element);
+        if (values.size() != 1 && !values.front().SameTypeAs(values.back())) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Multiple different value types in array. Value %s does not "
+              "match %s",
+              values.back().ToString(), values.front().ToString()));
+        }
+      }
+      return Value::ArrayOwned(std::move(values));
+    }
+    case ValueProto::VARIANT_NOT_SET:
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Unpopulated value proto: %v", proto.DebugString()));
+  }
 }
 
 absl::StatusOr<TypeProto> Value::TypeAsProto() const {

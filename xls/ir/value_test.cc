@@ -14,15 +14,29 @@
 
 #include "xls/ir/value.h"
 
+#include <cstdint>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+#include "google/protobuf/text_format.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/package.h"
+#include "xls/ir/ir_parser.h"
+#include "xls/ir/xls_value.pb.h"
 
 namespace xls {
+namespace {
 
-using ::testing::HasSubstr;
+using status_testing::IsOkAndHolds;
+using testing::HasSubstr;
+MATCHER_P(EqualsProto, expected, "") {
+  return google::protobuf::util::MessageDifferencer::Equals(arg, expected);
+}
 
 TEST(ValueTest, ToHumanString) {
   Value bits_value(UBits(42, 33));
@@ -37,8 +51,8 @@ TEST(ValueTest, ToHumanString) {
                            Value::Array({array_value, array_value}));
   EXPECT_EQ(nested_array_value.ToHumanString(), "[[3, 4, 5], [3, 4, 5]]");
 
-  Value tuple_value = Value::Tuple(
-      {array_value, Value(UBits(42, 8)), Value(UBits(123, 8))});
+  Value tuple_value =
+      Value::Tuple({array_value, Value(UBits(42, 8)), Value(UBits(123, 8))});
   EXPECT_EQ(tuple_value.ToHumanString(), "([3, 4, 5], 42, 123)");
 
   Value token_value = Value::Token();
@@ -329,5 +343,323 @@ TEST(ValueTest, XBitsArrayWrongSizes) {
   EXPECT_THAT(v0.status().message(),
               HasSubstr("elements of arrays should have consistent size."));
 }
+
+TEST(ValueTest, ToProtoBits) {
+  {
+    std::string_view expected_txt = R"pb(
+      bits { bit_count: 8, data: "A" }
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    Value v(UBits('A', 8));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+
+  // endianness
+  {
+    std::string_view expected_txt = R"pb(
+      bits { bit_count: 24, data: "ABC" }
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    Value v(UBits(0x434241, 24));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+
+  // >64 bits
+  {
+    std::string_view expected_txt = R"pb(
+      bits { bit_count: 256, data: "ABCDHIJKLMNOPQRSTUVWXYZABCDEFHIJ" }
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value v, Parser::ParseTypedValue(
+                     "bits[256]:0x4a49_4846_4544_4342_415a_5958_5756_5554_5352_"
+                     "5150_4f4e_4d4c_4b4a_4948_4443_4241"));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+
+  // half-byte
+  {
+    std::string_view expected_txt = R"pb(
+      bits { bit_count: 7, data: "A" }
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    Value v(UBits(0x41, 7));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+}
+
+TEST(ValueTest, ToProtoToken) {
+  std::string_view expected_txt = R"pb(
+    token {}
+  )pb";
+  ValueProto expected;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+  Value v = Value::Token();
+
+  EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+}
+
+TEST(ValueTest, ToProtoTuple) {
+  // standard
+  {
+    std::string_view expected_txt = R"pb(
+      tuple {
+        elements { bits { bit_count: 8, data: "A" } }
+        elements { bits { bit_count: 7, data: "B" } }
+      }
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    Value v(Value::Tuple({Value(UBits('A', 8)), Value(UBits('B', 7))}));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+  // empty
+  {
+    std::string_view expected_txt = R"pb(
+      tuple {}
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    Value v(Value::Tuple({}));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+  // tuple in tuple
+  {
+    std::string_view expected_txt = R"pb(
+      tuple {
+        elements { tuple { elements { bits { bit_count: 8, data: "A" } } } }
+        elements { bits { bit_count: 8, data: "B" } }
+      }
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    Value v(Value::Tuple(
+        {Value::Tuple({Value(UBits('A', 8))}), Value(UBits('B', 8))}));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+}
+
+TEST(ValueTest, ToProtoArray) {
+  // standard
+  {
+    std::string_view expected_txt = R"pb(
+      array {
+        elements { bits { bit_count: 8, data: "A" } }
+        elements { bits { bit_count: 8, data: "B" } }
+      }
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value v, Value::Array({Value(UBits('A', 8)), Value(UBits('B', 8))}));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+  // tuple in array
+  {
+    std::string_view expected_txt = R"pb(
+      array {
+        elements { tuple { elements { bits { bit_count: 8, data: "A" } } } }
+        elements { tuple { elements { bits { bit_count: 8, data: "B" } } } }
+      }
+    )pb";
+    ValueProto expected;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(expected_txt, &expected));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value v, Value::Array({Value::Tuple({Value(UBits('A', 8))}),
+                               Value::Tuple({Value(UBits('B', 8))})}));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(expected)));
+  }
+}
+
+TEST(ValueTest, FromProtoBits) {
+  // normal
+  {
+    std::string_view source_txt = R"pb(
+      bits { bit_count: 8, data: "A" }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    Value v(UBits(0x41, 8));
+
+    EXPECT_THAT(Value::FromProto(source), IsOkAndHolds(v));
+  }
+
+  // partial byte
+  {
+    std::string_view source_txt = R"pb(
+      bits { bit_count: 7, data: "A" }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    Value v(UBits(0x41, 7));
+
+    EXPECT_THAT(Value::FromProto(source), IsOkAndHolds(v));
+  }
+  // Extend with zeros
+  {
+    std::string_view source_txt = R"pb(
+      bits { bit_count: 256, data: "A" }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    Value v(UBits(0x41, 256));
+
+    EXPECT_THAT(Value::FromProto(source), IsOkAndHolds(v));
+  }
+
+  // ignore extra
+  {
+    std::string_view source_txt = R"pb(
+      bits { bit_count: 8, data: "AZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    Value v(UBits(0x41, 8));
+
+    EXPECT_THAT(Value::FromProto(source), IsOkAndHolds(v));
+  }
+}
+
+TEST(ValueTest, FromProtoToken) {
+  std::string_view source_txt = R"pb(
+    token {}
+  )pb";
+  ValueProto source;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+  Value v = Value::Token();
+
+  EXPECT_THAT(Value::FromProto(source), IsOkAndHolds(v));
+}
+
+TEST(ValueTest, FromProtoTuple) {
+  // standard
+  {
+    std::string_view source_txt = R"pb(
+      tuple {
+        elements { bits { bit_count: 8, data: "A" } }
+        elements { bits { bit_count: 7, data: "B" } }
+      }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    Value v(Value::Tuple({Value(UBits('A', 8)), Value(UBits('B', 7))}));
+
+    EXPECT_THAT(Value::FromProto(source), IsOkAndHolds(v));
+  }
+  // empty
+  {
+    std::string_view source_txt = R"pb(
+      tuple {}
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    Value v(Value::Tuple({}));
+
+    EXPECT_THAT(Value::FromProto(source), IsOkAndHolds(v));
+  }
+  // tuple in tuple
+  {
+    std::string_view source_txt = R"pb(
+      tuple {
+        elements { tuple { elements { bits { bit_count: 8, data: "A" } } } }
+        elements { bits { bit_count: 8, data: "B" } }
+      }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    Value v(Value::Tuple(
+        {Value::Tuple({Value(UBits('A', 8))}), Value(UBits('B', 8))}));
+
+    EXPECT_THAT(Value::FromProto(source), IsOkAndHolds(v));
+  }
+}
+
+TEST(ValueTest, FromProtoArray) {
+  // standard
+  {
+    std::string_view source_txt = R"pb(
+      array {
+        elements { bits { bit_count: 8, data: "A" } }
+        elements { bits { bit_count: 8, data: "B" } }
+      }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value v, Value::Array({Value(UBits('A', 8)), Value(UBits('B', 8))}));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(source)));
+  }
+  // tuple in array
+  {
+    std::string_view source_txt = R"pb(
+      array {
+        elements { tuple { elements { bits { bit_count: 8, data: "A" } } } }
+        elements { tuple { elements { bits { bit_count: 8, data: "B" } } } }
+      }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value v, Value::Array({Value::Tuple({Value(UBits('A', 8))}),
+                               Value::Tuple({Value(UBits('B', 8))})}));
+
+    EXPECT_THAT(v.AsProto(), IsOkAndHolds(EqualsProto(source)));
+  }
+  // No empty
+  {
+    std::string_view source_txt = R"pb(
+      array {}
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    EXPECT_THAT(Value::FromProto(source),
+                status_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+  }
+  // No type-mismatch
+  {
+    std::string_view source_txt = R"pb(
+      array {
+        elements { tuple { elements { bits { bit_count: 8, data: "A" } } } }
+        elements { tuple { elements { bits { bit_count: 7, data: "B" } } } }
+      }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    EXPECT_THAT(Value::FromProto(source),
+                status_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+  }
+}
+
+void ProtoValueRoundTripWorks(const ValueProto& v) {
+  auto value = Value::FromProto(v, /*max_bit_size=*/1 << 16);
+  if (!value.ok()) {
+    // Don't bother with protos with invalid arrays and such.
+    return;
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(ValueProto proto, value->AsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(Value restored, Value::FromProto(proto));
+  XLS_ASSERT_OK_AND_ASSIGN(ValueProto proto2, restored.AsProto());
+  ASSERT_THAT(proto2, EqualsProto(proto));
+  ASSERT_EQ(*value, restored);
+}
+
+FUZZ_TEST(ValueProto, ProtoValueRoundTripWorks)
+    .WithDomains(fuzztest::Arbitrary<ValueProto>());
+}  // namespace
 
 }  // namespace xls

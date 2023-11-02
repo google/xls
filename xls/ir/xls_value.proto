@@ -1,0 +1,57 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+// A reasonably efficent representation of an xls::Value as a protobuf.
+message ValueProto {
+  // A unsigned, arbitrary width bit value
+  message Bits {
+    // How many bits are in this value.
+    int64 bit_count = 1;
+    // The data making up the bit value. This must be in the same byte-order
+    // that xls::Bits stores the value internally and is not nessecarially
+    // stable across releases, machines, or even builds. Currently on supported
+    // amd64 targets this is in little-endian order (i.e. data[0] has the
+    // least-significant 8 bits, data[1] has the next 8 least-significant bits,
+    // etc). Any bits after bit_count are ignored. If this is not long enough to
+    // hold bit_count bits, all missing bits are considered to be '0'.
+    bytes data = 2;
+  }
+
+  // A tuple with arbitrarially typed elements.
+  message Tuple {
+    // The elements of the tuple in the order they appear in the proto.
+    repeated ValueProto elements = 1;
+  }
+
+  // A singleton token value
+  message Token {}
+
+  // An array with a number of same-typed elements.
+  message Array {
+    // The elements of the array. It is an error if these do not all have the
+    // same type.
+    repeated ValueProto elements = 1;
+  }
+
+  oneof variant {
+    Bits bits = 1;
+    Tuple tuple = 2;
+    Token token = 3;
+    Array array = 4;
+  }
+}

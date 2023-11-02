@@ -813,14 +813,18 @@ cc_library(
     srcs = ["value.cc"],
     hdrs = ["value.h"],
     deps = [
+        ":bit_push_buffer",
         ":bits",
         ":bits_ops",
         ":format_preference",
         ":xls_type_cc_proto",
+        ":xls_value_cc_proto",
+        "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -849,11 +853,16 @@ cc_test(
     srcs = ["value_test.cc"],
     deps = [
         ":bits",
-        ":ir",
+        ":ir_parser",
         ":value",
+        ":xls_value_cc_proto",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//fuzztest",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -1238,6 +1247,24 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/strings:str_format",
     ],
+)
+
+proto_library(
+    name = "xls_value_proto",
+    srcs = ["xls_value.proto"],
+    visibility = ["//xls:xls_users"],
+)
+
+cc_proto_library(
+    name = "xls_value_cc_proto",
+    visibility = ["//xls:xls_users"],
+    deps = [":xls_value_proto"],
+)
+
+py_proto_library(
+    name = "xls_value_py_pb2",
+    visibility = ["//xls:xls_users"],
+    deps = [":xls_value_proto"],
 )
 
 proto_library(
