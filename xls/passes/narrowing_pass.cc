@@ -452,7 +452,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         case Op::kZeroExt:
           // subtract 1 because zero extend's extra bits do not match old msb.
           // Take max with 0 in case new_bit_count == old_bit_count.
-          return std::max(0l, n->As<ExtendOp>()->new_bit_count() -
+          return std::max(int64_t{0}, n->As<ExtendOp>()->new_bit_count() -
                                   n->operand(0)->BitCountOrDie() - 1);
         default:
           return 0;

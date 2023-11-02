@@ -297,7 +297,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
     for (int64_t presence = 0b0001; presence < 0b1000; presence <<= 1) {
       for (bool negate : {false, true}) {
         add(TruthTable(UBits(presence, /*bit_count=*/3),
-                       UBits(negate ? presence : 0LL, /*bit_count=*/3),
+                       UBits(negate ? presence : int64_t{0}, /*bit_count=*/3),
                        std::nullopt));
       }
     }
