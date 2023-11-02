@@ -1,0 +1,40 @@
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# See also: https://github.com/marketplace/actions/bazel-action
+
+name: Nightly MacOS
+on:
+  schedule:
+    # Nightly at midnight -- uses UTC, so 7am.
+    - cron:  '0 7 * * *'
+  # This lets us trigger manually from the UI.
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Bazel Build (opt)
+    runs-on:
+      labels: macos-latest-xlarge
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Mount Bazel Cache
+        uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          # Create/use a cache called bazel-cache-macos-<commit hash>
+          # and read the latest cache with prefix bazel-cache-macos-
+          # if it doesn't already exist.
+          key: bazel-cache-macos-${{ github.sha }}
+          restore-keys: bazel-cache-macos-
+
+      - name: Install bazelisk
+        run: |
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.18.0/bazelisk-darwin-arm64"
+          mkdir -p "${GITHUB_WORKSPACE}/bin/"
+          mv bazelisk-darwin-arm64 "${GITHUB_WORKSPACE}/bin/bazel"
+          chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
+
+      - name: Bazel Build Tools (opt)
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
