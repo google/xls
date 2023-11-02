@@ -134,7 +134,7 @@ def _xls_toolchain_impl(ctx):
         ctx.attr._xls_ir_eval_tool,
         ctx.attr._xls_opt_ir_tool,
     ]
-    files = depset(transitive = [t.files for t in targets])
+    files = depset(transitive = [t.files for t in targets if t != None])
     return DefaultInfo(files = files, runfiles = ctx.runfiles(transitive_files = files))
 
 xls_toolchain = rule(

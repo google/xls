@@ -527,9 +527,12 @@ def xls_dslx_fmt_test_macro(name, src):
         name = name + "_dslx_fmt",
         srcs = [src],
         outs = [out],
-        tools = [DEFAULT_DSLX_FMT_TARGET],
-        cmd = "$(location %s) $< > $@" % DEFAULT_DSLX_FMT_TARGET,
+        tools = [Label(DEFAULT_DSLX_FMT_TARGET)],
+        cmd = "$(location %s) $< > $@" % Label(DEFAULT_DSLX_FMT_TARGET),
     )
+
+    # TODO(tedhong): 2023-11-02, adjust package_name depending on the WORKSPACE
+    # the target is in.
     package_name = native.package_name()
     target = package_name + ":" + out
     src_file = package_name + "/" + src
