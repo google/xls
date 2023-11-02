@@ -470,6 +470,68 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       return Change();
     }
 
+    // If both MSBs are known, a signed comparison can be reduced to a narrower
+    // unsigned comparison.
+    if (IsSignedCompare(compare) &&
+        query_engine.IsMsbKnown(compare->operand(0)) &&
+        query_engine.IsMsbKnown(compare->operand(1))) {
+      bool op0_msb = query_engine.GetKnownMsb(compare->operand(0));
+      bool op1_msb = query_engine.GetKnownMsb(compare->operand(1));
+      // Other passes handle comparisons with differing known MSBs.
+      if (op0_msb == op1_msb) {
+        XLS_RET_CHECK(compare->op() != Op::kEq && compare->op() != Op::kNe)
+            << "Eq/Ne should already have been narrowed.";
+        // Trim the MSB.
+        int64_t new_bit_width = compare->operand(0)->BitCountOrDie() - 1;
+        XLS_VLOG(3) << absl::StreamFormat(
+            "Narrowing %v with known msbs into unsigned compare with slice "
+            "[%d:%d].",
+            *compare, 0, new_bit_width);
+        XLS_ASSIGN_OR_RETURN(
+            Node * narrowed_lhs,
+            compare->function_base()->MakeNode<BitSlice>(
+                compare->loc(), compare->operand(0), 0, new_bit_width));
+        XLS_ASSIGN_OR_RETURN(
+            Node * narrowed_rhs,
+            compare->function_base()->MakeNode<BitSlice>(
+                compare->loc(), compare->operand(1), 0, new_bit_width));
+        Node* new_lhs;
+        Node* new_rhs;
+        // If MSBs are 1, we are comparing negative numbers and need to reverse
+        // the order in the new unsigned op.
+        if (op0_msb) {
+          new_lhs = narrowed_rhs;
+          new_rhs = narrowed_lhs;
+        } else {
+          new_lhs = narrowed_lhs;
+          new_rhs = narrowed_rhs;
+        }
+        Op unsigned_op;
+        switch (compare->op()) {
+          case Op::kSGe:
+            unsigned_op = Op::kUGe;
+            break;
+          case Op::kSGt:
+            unsigned_op = Op::kUGt;
+            break;
+          case Op::kSLe:
+            unsigned_op = Op::kULe;
+            break;
+          case Op::kSLt:
+            unsigned_op = Op::kULt;
+            break;
+          default:
+            return absl::InternalError(absl::StrFormat(
+                "Unexpected comparison op %s", OpToString(compare->op())));
+        }
+        XLS_RETURN_IF_ERROR(
+            compare
+                ->ReplaceUsesWithNew<CompareOp>(new_lhs, new_rhs, unsigned_op)
+                .status());
+        return Change();
+      }
+    }
+
     return NoChange();
   }
 

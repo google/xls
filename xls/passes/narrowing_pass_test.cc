@@ -647,6 +647,30 @@ TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithSignExtend) {
                                    /*width=*/20))));
 }
 
+TEST_P(NarrowingPassTest, SignedCompareWithKnownMSBs) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x_gt_y = fb.SGt(fb.Concat({fb.Literal(Value(UBits(0, 1))),
+                                    fb.Param("x", p->GetBitsType(17))}),
+                         fb.Literal(Value(UBits(0, 18))));
+  BValue a_lt_b = fb.SLt(fb.Literal(Value(UBits(0x80000ull, 20))),
+                         fb.Concat({fb.Literal(Value(UBits(1, 1))),
+                                    fb.Param("a", p->GetBitsType(19))}));
+  fb.Concat({x_gt_y, a_lt_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(
+                  // BitSlice slices out the literal
+                  m::UGt(m::BitSlice(m::Concat(m::Literal(0), m::Param("x")),
+                                     /*start=*/0, /*width=*/17),
+                         m::BitSlice(m::Literal(0))),
+                  // BitSlice slices out the literal
+                  m::ULt(m::BitSlice(m::Concat(m::Literal(1), m::Param("a")),
+                                     /*start=*/0, /*width=*/19),
+                         m::BitSlice(m::Literal(0x80000ull)))));
+}
+
 TEST_P(NarrowingPassTest, AddWithLeadingZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
