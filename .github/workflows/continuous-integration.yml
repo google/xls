@@ -18,19 +18,11 @@ on:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-20.04-64core
             bazelisk-platform: linux-amd64
             bazelisk-version: v1.18.0
-          - runner: macos-latest-xlarge
-            bazelisk-platform: darwin-arm64
-            bazelisk-version: v1.18.0
-    name: Bazel Build (opt) [${{ matrix.runner }}]
+    name: Bazel Build (opt)
     runs-on:
-      labels: ${{ matrix.runner }}
+      labels: ubuntu-20.04-64core
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
@@ -42,27 +34,25 @@ jobs:
           # Create/use a cache called bazel-cache-20_04-<commit hash>
           # and read the latest cache with prefix bazel-cache-20_04-
           # if it doesn't already exist.
-          key: bazel-cache-20_04-${{ matrix.runner }}-${{ github.sha }}
-          restore-keys: bazel-cache-20_04-${{ matrix.runner }}-
+          key: bazel-cache-20_04-${{ github.sha }}
+          restore-keys: bazel-cache-20_04-
 
       - name: Install bazelisk
         run: |
-          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/${{ matrix.bazelisk-version }}/bazelisk-${{ matrix.bazelisk-platform }}"
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.18.0/bazelisk-linux-amd64"
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
-          mv bazelisk-${{ matrix.bazelisk-platform }} "${GITHUB_WORKSPACE}/bin/bazel"
+          mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
 
       - name: Bazel fetch
         # Let's fetch all WORKSPACE artifacts to see if they can resolve fully
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" fetch //...
-        if: matrix.runner == 'ubuntu-20.04-64core'
 
-      - name: Bazel Build Tools  (opt)
+      - name: Bazel Build Tools (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" build -c opt --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
 
       - name: Bazel Test All (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=errors -- //xls/...
-        if: matrix.runner == 'ubuntu-20.04-64core'
