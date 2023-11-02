@@ -16,7 +16,6 @@
 #define XLS_PASSES_NODE_DEPENDENCY_ANALYSIS_H_
 
 #include <cstdint>
-#include <functional>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
@@ -35,8 +34,9 @@ class DependencyBitmap {
  public:
   DependencyBitmap(const DependencyBitmap&) = default;
   DependencyBitmap(DependencyBitmap&&) = default;
-  DependencyBitmap& operator=(const DependencyBitmap&) = default;
-  DependencyBitmap& operator=(DependencyBitmap&&) = default;
+  // Deleted because bitmap_ is const reference.
+  DependencyBitmap& operator=(const DependencyBitmap&) = delete;
+  DependencyBitmap& operator=(DependencyBitmap&&) = delete;
 
   const InlineBitmap& bitmap() const { return bitmap_; }
   const absl::flat_hash_map<Node*, int64_t>& node_indices() const {
