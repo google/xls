@@ -361,7 +361,6 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
   };
 
   std::vector<DocRef> lhs_pieces;
-
   if (WeakerThan(lhs_precedence, op_precedence)) {
     // We have to parenthesize the LHS.
     emit(lhs, /*parens=*/true, lhs_pieces);
@@ -382,10 +381,7 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
     emit(lhs, /*parens=*/false, lhs_pieces);
   }
 
-  lhs_pieces.push_back(arena.space());
-  lhs_pieces.push_back(arena.MakeText(BinopKindFormat(n.binop_kind())));
-
-  DocRef lhs_ref = ConcatNGroup(arena, lhs_pieces);
+  DocRef lhs_ref = ConcatN(arena, lhs_pieces);
 
   std::vector<DocRef> rhs_pieces;
   if (WeakerThan(rhs.GetPrecedence(), op_precedence)) {
@@ -394,13 +390,20 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
     emit(rhs, /*parens=*/false, rhs_pieces);
   }
 
-  std::vector<DocRef> top_pieces = {
-      lhs_ref,
-      arena.break1(),
-      ConcatNGroup(arena, rhs_pieces),
-  };
+  // Note: we associate the operator with the RHS in a group so that chained
+  // binary operations can appropriately pack into lines -- if we associate with
+  // the left hand term then when we enter break mode the nested RHS terms all
+  // end up on their own lines. See `ModuleFmtTest.NestedBinopLogicalOr` for a
+  // case study.
+  DocRef rhs_ref = ConcatN(arena, rhs_pieces);
+  rhs_ref = ConcatNGroup(
+      arena, {arena.space(), arena.MakeText(BinopKindFormat(n.binop_kind())),
+              arena.break1(), rhs_ref});
 
-  return ConcatNGroup(arena, top_pieces);
+  return ConcatN(arena, {
+                            lhs_ref,
+                            rhs_ref,
+                        });
 }
 
 // Note: if a comment doc is emitted (i.e. return value has_value()) it does not

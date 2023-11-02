@@ -1609,5 +1609,24 @@ pub fn extract_bits
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, NestedBinopLogicalOr) {
+  const std::string_view kProgram =
+      R"(// Define some arbitrary constants at various identifier widths.
+const AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA = true;
+const BBBBBBBBBBBBBBBBBBBBBBB = true;
+const CCCCCCCCCCCCCCCCCCCCCCC = true;
+
+fn f() -> bool {
+    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ||
+    BBBBBBBBBBBBBBBBBBBBBBB || CCCCCCCCCCCCCCCCCCCCCCC
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

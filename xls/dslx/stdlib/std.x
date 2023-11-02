@@ -670,8 +670,7 @@ pub fn extract_bits
         // N + fixed_shift - 1 are zero's.
         let upper_bits = uN[checked_cast<u32>(smax(s32:0,
                                                    N as s32 + fixed_shift as s32 -
-                                                   to_exclusive as s32 -
-                                                   s32:1))]:0;
+                                                   to_exclusive as s32 - s32:1))]:0;
 
         if fixed_shift < from_inclusive {
             // The bits extracted start within or after the middle span.
@@ -832,8 +831,7 @@ pub fn umul_with_overflow
 
     let narrowed_result = partial_narrowed_result[0:V as s32];
     let overflow_detected = or_reduce(x0y0_c) || or_reduce(x0y1_c) || or_reduce(x1y0_c) ||
-                            or_reduce(x1y1_c) ||
-                            or_reduce(partial_narrowed_result[V as s32:]) ||
+                            or_reduce(x1y1_c) || or_reduce(partial_narrowed_result[V as s32:]) ||
                             overflow_narrowed_result_upper_sum;
 
     (overflow_detected, narrowed_result)
