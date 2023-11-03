@@ -17,12 +17,17 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
+#include "absl/types/span.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/file/temp_file.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
@@ -71,10 +76,23 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
       SubprocessErrorAsStatus(InvokeSubprocess(args_vec)));
 }
 
+void AppendMacroDefinitionsToArgs(
+    absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions,
+    std::vector<std::string>& args) {
+  for (const VerilogSimulator::MacroDefinition& macro : macro_definitions) {
+    if (macro.value.has_value()) {
+      args.push_back(absl::StrFormat("-D%s=%s", macro.name, *macro.value));
+    } else {
+      args.push_back(absl::StrFormat("-D%s", macro.name));
+    }
+  }
+}
+
 class IcarusVerilogSimulator : public VerilogSimulator {
  public:
   absl::StatusOr<std::pair<std::string, std::string>> Run(
       std::string_view text, FileType file_type,
+      absl::Span<const MacroDefinition> macro_definitions,
       absl::Span<const VerilogInclude> includes) const override {
     if (file_type == FileType::kSystemVerilog) {
       return absl::UnimplementedError(
@@ -90,16 +108,17 @@ class IcarusVerilogSimulator : public VerilogSimulator {
     XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
 
     XLS_CHECK_OK(SetUpIncludes(temp_dir, includes));
-    XLS_RETURN_IF_ERROR(
-        InvokeIverilog({top_v_path, "-o", temp_out.path().string(), "-I",
-                        temp_dir.string()})
-            .status());
+    std::vector<std::string> args = {top_v_path, "-o", temp_out.path().string(),
+                                     "-I", temp_dir.string()};
+    AppendMacroDefinitionsToArgs(macro_definitions, args);
+    XLS_RETURN_IF_ERROR(InvokeIverilog(args).status());
 
     return InvokeVvp({temp_out.path().string()});
   }
 
   absl::Status RunSyntaxChecking(
       std::string_view text, FileType file_type,
+      absl::Span<const MacroDefinition> macro_definitions,
       absl::Span<const VerilogInclude> includes) const override {
     if (file_type == FileType::kSystemVerilog) {
       return absl::UnimplementedError(
@@ -115,10 +134,11 @@ class IcarusVerilogSimulator : public VerilogSimulator {
     XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
 
     XLS_CHECK_OK(SetUpIncludes(temp_dir, includes));
-    XLS_RETURN_IF_ERROR(
-        InvokeIverilog({top_v_path, "-o", temp_out.path().string(), "-I",
-                        temp_dir.string()})
-            .status());
+
+    std::vector<std::string> args = {top_v_path, "-o", temp_out.path().string(),
+                                     "-I", temp_dir.string()};
+    AppendMacroDefinitionsToArgs(macro_definitions, args);
+    XLS_RETURN_IF_ERROR(InvokeIverilog(args).status());
 
     return absl::OkStatus();
   }

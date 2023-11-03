@@ -35,8 +35,9 @@ namespace verilog {
 
 absl::Status VerilogTestBase::ValidateVerilog(
     std::string_view text, absl::Span<const VerilogInclude> includes) {
-  return GetDefaultVerilogSimulator().RunSyntaxChecking(text, GetFileType(),
-                                                        includes);
+  return GetDefaultVerilogSimulator().RunSyntaxChecking(
+      text, GetFileType(),
+      /*macro_definitions=*/{}, includes);
 }
 
 void VerilogTestBase::ExpectVerilogEqual(

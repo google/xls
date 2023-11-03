@@ -1255,7 +1255,8 @@ absl::Status ModuleTestbench::Run() {
 
   std::pair<std::string, std::string> stdout_stderr;
   XLS_ASSIGN_OR_RETURN(stdout_stderr,
-                       simulator_->Run(verilog_text, file_type_, includes_));
+                       simulator_->Run(verilog_text, file_type_,
+                                       /*macro_definitions=*/{}, includes_));
 
   XLS_VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
   XLS_VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;

@@ -24,9 +24,11 @@ cc_test(
         ":verilog_simulator",
         ":verilog_simulators",
         ":verilog_test_base",
+        "//xls/codegen:vast",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
     ],
 )
 

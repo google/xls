@@ -15,7 +15,9 @@
 #ifndef XLS_SIMULATION_VERILOG_SIMULATOR_H_
 #define XLS_SIMULATION_VERILOG_SIMULATOR_H_
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -45,20 +47,38 @@ class VerilogSimulator {
  public:
   virtual ~VerilogSimulator() = default;
 
+  // Abstraction representing a macro definition (tick define). Passing in a
+  // MacroDefinition is equivalent to the following if value is specified:
+  //   `define NAME VALUE
+  // or the following if value is std::nullopt:
+  //   `define NAME
+  struct MacroDefinition {
+    std::string name;
+    std::optional<std::string> value;
+  };
+
   // Runs the simulator with the given Verilog text as input and returns the
   // stdout/stderr as a string pair.
   absl::StatusOr<std::pair<std::string, std::string>> Run(
       std::string_view text, FileType file_type) const;
+  absl::StatusOr<std::pair<std::string, std::string>> Run(
+      std::string_view text, FileType file_type,
+      absl::Span<const MacroDefinition> macro_definitions) const;
   virtual absl::StatusOr<std::pair<std::string, std::string>> Run(
       std::string_view text, FileType file_type,
+      absl::Span<const MacroDefinition> macro_definitions,
       absl::Span<const VerilogInclude> includes) const = 0;
 
   // Runs the simulator to check the Verilog syntax. Does not run simulation.
-  virtual absl::Status RunSyntaxChecking(
-      std::string_view text, FileType file_type,
-      absl::Span<const VerilogInclude> includes) const = 0;
   absl::Status RunSyntaxChecking(std::string_view text,
                                  FileType file_type) const;
+  absl::Status RunSyntaxChecking(
+      std::string_view text, FileType file_type,
+      absl::Span<const MacroDefinition> macro_definitions) const;
+  virtual absl::Status RunSyntaxChecking(
+      std::string_view text, FileType file_type,
+      absl::Span<const MacroDefinition> macro_definitions,
+      absl::Span<const VerilogInclude> includes) const = 0;
 
   // Simulation runner harness: runs the given Verilog text using the verilog
   // simulator infrastructure and returns observations of data values that arose
