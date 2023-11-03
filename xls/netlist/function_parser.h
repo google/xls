@@ -22,8 +22,10 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 namespace xls {
@@ -33,8 +35,8 @@ namespace function {
 // Represents a single token in a cell group "function" attribute.
 class Token {
  public:
-  // The "kind" of the token; the lexographic element it represents.
-  enum class Kind {
+  // The "kind" of the token; the lexicographic element it represents.
+  enum class Kind : uint8_t {
     kIdentifier,
     kOpenParen,
     kCloseParen,
@@ -55,7 +57,7 @@ class Token {
 
   Token(Kind kind, int64_t pos,
         std::optional<std::string> payload = std::nullopt)
-      : kind_(kind), pos_(pos), payload_(payload) {}
+      : kind_(kind), pos_(pos), payload_(std::move(payload)) {}
 
   Kind kind() { return kind_; }
   int64_t pos() { return pos_; }
@@ -104,7 +106,7 @@ class Ast {
  public:
   // Since our grammer is so simple, we'll squish all AST node types into one
   // enum.
-  enum class Kind {
+  enum class Kind : uint8_t {
     kIdentifier,
     kLiteralZero,
     kLiteralOne,
@@ -124,19 +126,19 @@ class Ast {
 
   static Ast Not(Ast expr, int64_t pos) {
     Ast ast(Kind::kNot, pos);
-    ast.children_.push_back(expr);
+    ast.children_.push_back(std::move(expr));
     return ast;
   }
 
   static Ast BinOp(Kind kind, Ast lhs, Ast rhs, int64_t pos) {
     Ast ast(kind, pos);
-    ast.children_.push_back(lhs);
-    ast.children_.push_back(rhs);
+    ast.children_.push_back(std::move(lhs));
+    ast.children_.push_back(std::move(rhs));
     return ast;
   }
 
   Ast(Kind kind, int64_t pos, std::string name = "")
-      : kind_(kind), pos_(pos), name_(name) {}
+      : kind_(kind), name_(std::move(name)) {}
 
   Kind kind() const { return kind_; }
   std::string name() const { return name_; }
@@ -144,7 +146,6 @@ class Ast {
 
  private:
   Kind kind_;
-  int64_t pos_;
   std::string name_;
   std::vector<Ast> children_;
 };
