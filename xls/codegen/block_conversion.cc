@@ -672,16 +672,20 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
   return ValidPorts{valid_input_port, valid_output_port};
 }
 
-absl::StatusOr<std::string_view> StreamingIOName(Node* node) {
+absl::StatusOr<std::string> StreamingIOName(Node* node) {
   switch (node->op()) {
     case Op::kInputPort:
-      return node->As<InputPort>()->name();
+      return std::string{node->As<InputPort>()->name()};
     case Op::kOutputPort:
-      return node->As<OutputPort>()->name();
+      return std::string{node->As<OutputPort>()->name()};
     case Op::kInstantiationInput:
-      return node->As<InstantiationInput>()->port_name();
+      return absl::StrCat(
+          node->As<InstantiationInput>()->instantiation()->name(), "_",
+          node->As<InstantiationInput>()->port_name());
     case Op::kInstantiationOutput:
-      return node->As<InstantiationOutput>()->port_name();
+      return absl::StrCat(
+          node->As<InstantiationOutput>()->instantiation()->name(), "_",
+          node->As<InstantiationOutput>()->port_name());
     default:
       return absl::InvalidArgumentError(absl::StrFormat(
           "Unsupported streaming operation %s.", OpToString(node->op())));
@@ -701,7 +705,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       XLS_CHECK(input.IsExternal() || input.IsInstantiation());
 
       input.channel->SetBlockName(block->name());
-      XLS_ASSIGN_OR_RETURN(std::string_view name, StreamingIOName(input.port));
+      XLS_ASSIGN_OR_RETURN(std::string name, StreamingIOName(input.port));
       input.channel->SetDataPortName(name);
       XLS_ASSIGN_OR_RETURN(name, StreamingIOName(input.port_valid));
       input.channel->SetValidPortName(name);
@@ -722,7 +726,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       XLS_CHECK(output.IsExternal() || output.IsInstantiation());
 
       output.channel->SetBlockName(block->name());
-      XLS_ASSIGN_OR_RETURN(std::string_view name, StreamingIOName(output.port));
+      XLS_ASSIGN_OR_RETURN(std::string name, StreamingIOName(output.port));
       output.channel->SetDataPortName(name);
       XLS_ASSIGN_OR_RETURN(name, StreamingIOName(output.port_valid));
       output.channel->SetValidPortName(name);
@@ -1318,7 +1322,7 @@ static absl::StatusOr<Node*> AddRegisterAfterStreamingInput(
     std::vector<Node*>& valid_nodes) {
   const std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
 
-  XLS_ASSIGN_OR_RETURN(std::string_view port_name, StreamingIOName(input.port));
+  XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(input.port));
   if (options.flop_inputs_kind() ==
       CodegenOptions::IOKind::kZeroLatencyBuffer) {
     return AddZeroLatencyBufferToRDVNodes(input.port, input.port_valid,
@@ -1350,11 +1354,10 @@ static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
   // Add buffers before the data/valid output ports and after
   // the ready input port to serve as points where the
   // additional logic from AddRegisterToRDVNodes() can be inserted.
-  XLS_ASSIGN_OR_RETURN(std::string_view port_name,
-                       StreamingIOName(output.port));
-  XLS_ASSIGN_OR_RETURN(std::string_view port_valid_name,
+  XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(output.port));
+  XLS_ASSIGN_OR_RETURN(std::string port_valid_name,
                        StreamingIOName(output.port_valid));
-  XLS_ASSIGN_OR_RETURN(std::string_view port_ready_name,
+  XLS_ASSIGN_OR_RETURN(std::string port_ready_name,
                        StreamingIOName(output.port_ready));
   std::string data_buf_name = absl::StrFormat("__%s_buf", port_name);
   std::string valid_buf_name = absl::StrFormat("__%s_buf", port_valid_name);
@@ -1628,11 +1631,10 @@ static absl::Status AddOneShotOutputLogic(const CodegenOptions& options,
       // Add an buffers before the valid output ports and after
       // the ready input port to serve as points where the
       // additional logic from AddRegisterToRDVNodes() can be inserted.
-      XLS_ASSIGN_OR_RETURN(std::string_view port_name,
-                           StreamingIOName(output.port));
-      XLS_ASSIGN_OR_RETURN(std::string_view port_valid_name,
+      XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(output.port));
+      XLS_ASSIGN_OR_RETURN(std::string port_valid_name,
                            StreamingIOName(output.port_valid));
-      XLS_ASSIGN_OR_RETURN(std::string_view port_ready_name,
+      XLS_ASSIGN_OR_RETURN(std::string port_ready_name,
                            StreamingIOName(output.port_ready));
       std::string valid_buf_name = absl::StrFormat("__%s_buf", port_valid_name);
       std::string ready_buf_name = absl::StrFormat("__%s_buf", port_ready_name);

@@ -4422,7 +4422,7 @@ TEST_F(ProcConversionTestFixture, RecvDataFeedingSendPredicate) {
   }
 }
 
-TEST_F(ProcConversionTestFixture, LoopbackChannel) {
+TEST_F(ProcConversionTestFixture, SingleLoopbackChannel) {
   constexpr std::string_view ir_text = R"(package test
 chan loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
@@ -4465,6 +4465,62 @@ proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   EXPECT_THAT(unit.block->GetInstantiations(),
               UnorderedElementsAre(m::Instantiation(HasSubstr("loopback"),
                                                     InstantiationKind::kFifo)));
+  // TODO(google/xls#1158): add functional test when we have a block IR FIFO
+  // model to evaluate the block with.
+}
+
+TEST_F(ProcConversionTestFixture, MultipleLoopbackChannel) {
+  constexpr std::string_view ir_text = R"(package test
+chan loopback0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
+chan loopback1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
+chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc loopback_proc(tkn: token, st: bits[32], init={1}) {
+  lit1: bits[32] = literal(value=1)
+  not_first_cycle: bits[1] = ne(st, lit1)
+  loopback0_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel_id=0)
+  loopback0_tkn: token = tuple_index(loopback0_recv, index=0)
+  loopback0_data: bits[32] = tuple_index(loopback0_recv, index=1)
+  loopback1_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel_id=1)
+  loopback1_tkn: token = tuple_index(loopback1_recv, index=0)
+  loopback1_data: bits[32] = tuple_index(loopback1_recv, index=1)
+  sum: bits[32] = add(loopback0_data, loopback1_data)
+  loopback_tkn: token = after_all(loopback0_tkn, loopback1_tkn)
+  out_send: token = send(loopback_tkn, sum, channel_id=2)
+  loopback0_send: token = send(out_send, sum, channel_id=0)
+  loopback1_send: token = send(out_send, sum, channel_id=1)
+  loopback_send: token = after_all(loopback0_send, loopback1_send)
+  next (loopback_send, sum)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("loopback_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("loopback_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  EXPECT_THAT(
+      unit.block->GetInstantiations(),
+      UnorderedElementsAre(
+          m::Instantiation(HasSubstr("loopback0"), InstantiationKind::kFifo),
+          m::Instantiation(HasSubstr("loopback1"), InstantiationKind::kFifo)));
   // TODO(google/xls#1158): add functional test when we have a block IR FIFO
   // model to evaluate the block with.
 }
