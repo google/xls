@@ -137,8 +137,8 @@ class ModuleSimulator {
       std::optional<ReadyValidHoldoffs> holdoffs = std::nullopt) const;
 
  private:
-  // Returns a map of the signal name to its deasserted value.
-  absl::flat_hash_map<std::string, Bits> DeassertControlSignals() const;
+  // Returns the control input ports and their deasserted values.
+  std::vector<DutInput> DeassertControlSignals() const;
 
   struct ProcTestbench {
     std::unique_ptr<ModuleTestbench> testbench;

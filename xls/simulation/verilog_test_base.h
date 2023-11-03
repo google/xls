@@ -135,11 +135,12 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
 
   // Returns a module testbench for testing the given verilog and signature. The
   // underlying simulator and file type is determined by the test parameters.
-  ModuleTestbench NewModuleTestbench(
+  absl::StatusOr<std::unique_ptr<ModuleTestbench>> NewModuleTestbench(
       std::string_view verilog_text, const ModuleSignature& signature,
       absl::Span<const VerilogInclude> includes = {}) {
-    return ModuleTestbench(verilog_text, GetFileType(), signature,
-                           GetSimulator(), includes);
+    return ModuleTestbench::CreateFromVerilogText(verilog_text, GetFileType(),
+                                                  signature, GetSimulator(),
+                                                  /*reset_dut=*/true, includes);
   }
 
   ModuleSimulator NewModuleSimulator(

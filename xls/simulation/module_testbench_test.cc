@@ -15,13 +15,12 @@
 #include "xls/simulation/module_testbench.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
@@ -29,6 +28,8 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/source_location.h"
+#include "xls/simulation/module_testbench_thread.h"
+#include "xls/simulation/testbench_signal_capture.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -172,9 +173,11 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineZeroThreads) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineThreeThreadsWithDoneSignal) {
@@ -186,18 +189,21 @@ TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineThreeThreadsWithDoneSignal) {
   reset_proto.set_asynchronous(false);
   reset_proto.set_active_low(false);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk", reset_proto);
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           ModuleTestbench::CreateFromVastModule(
+                               m, GetSimulator(), "clk", reset_proto));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * operand_0,
-      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
-          {"operand_0", std::nullopt}}));
+      tb->CreateThread("operand_0 driver", {DutInput{.port_name = "operand_0",
+                                                     .initial_value = IsX()}}));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * operand_1,
-      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
-          {"operand_1", std::nullopt}}));
+      tb->CreateThread("operand_1 driver", {DutInput{.port_name = "operand_1",
+                                                     .initial_value = IsX()}}));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * result,
-      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{}));
+      tb->CreateThread("result capture", /*dut_inputs=*/{}));
   operand_0->MainBlock().Set("operand_0", 0x21);
   operand_1->MainBlock().Set("operand_1", 0x21);
   operand_0->MainBlock().NextCycle().Set("operand_0", 0x32);
@@ -216,9 +222,9 @@ TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineThreeThreadsWithDoneSignal) {
   result->MainBlock().AtEndOfCycle().ExpectEq("out", 0xaa);
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 tb.GenerateVerilog());
+                                 tb->GenerateVerilog());
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest,
@@ -231,22 +237,23 @@ TEST_P(ModuleTestbenchTest,
   reset_proto.set_asynchronous(false);
   reset_proto.set_active_low(false);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk", reset_proto);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleTestbenchThread * operand_0,
-      tb.CreateThread(
-          absl::flat_hash_map<std::string, std::optional<Bits>>{
-              {"operand_0", std::nullopt}},
-          /*emit_done_signal=*/false));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleTestbenchThread * operand_1,
-      tb.CreateThread(
-          absl::flat_hash_map<std::string, std::optional<Bits>>{
-              {"operand_1", std::nullopt}},
-          /*emit_done_signal=*/false));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           ModuleTestbench::CreateFromVastModule(
+                               m, GetSimulator(), "clk", reset_proto));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * operand_0,
+                           tb->CreateThread("operand_0 driver",
+                                            {DutInput{.port_name = "operand_0",
+                                                      .initial_value = IsX()}},
+                                            /*wait_until_done=*/false));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * operand_1,
+                           tb->CreateThread("operand_1 driver",
+                                            {DutInput{.port_name = "operand_1",
+                                                      .initial_value = IsX()}},
+                                            /*wait_until_done=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * result,
-      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{}));
+      tb->CreateThread("result capture", /*dut_inputs=*/{}));
   operand_0->MainBlock().Set("operand_0", 0x21);
   operand_1->MainBlock().Set("operand_1", 0x21);
   operand_0->MainBlock().NextCycle().Set("operand_0", 0x32);
@@ -265,17 +272,23 @@ TEST_P(ModuleTestbenchTest,
   result->MainBlock().AtEndOfCycle().ExpectEq("out", 0xaa);
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 tb.GenerateVerilog());
+                                 tb->GenerateVerilog());
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThread("input driver",
+                       /*dut_inputs=*/{DutInput{.port_name = "in",
+                                                .initial_value = IsX()}}));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("in", 0xabcd);
   seq.AtEndOfCycle().ExpectX("out");
@@ -285,15 +298,22 @@ TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
   seq.SetX("in");
   seq.AtEndOfCycle().ExpectEq("out", 0x1122);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest, WhenXAndWhenNotX) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeConcatModule(&f, /*width=*/8);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThread(
+          "input driver",
+          /*dut_inputs=*/{DutInput{.port_name = "a", .initial_value = IsX()},
+                          DutInput{.port_name = "b", .initial_value = IsX()}}));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("a", 0x12);
   seq.Set("b", 0x34);
@@ -306,7 +326,7 @@ TEST_P(ModuleTestbenchTest, WhenXAndWhenNotX) {
   // trigger WhenX.
   seq.AtEndOfCycleWhenX("out").ExpectX("out");
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
@@ -318,8 +338,14 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
   Bits input2 = bits_ops::Concat(
       {UBits(0xffffff000aaaaabbULL, 64), UBits(0x1122334455667788ULL, 64)});
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThread("input driver",
+                       /*dut_inputs=*/{DutInput{.port_name = "in",
+                                                .initial_value = IsX()}}));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("in", input1);
   seq.NextCycle().Set("in", input2);
@@ -328,7 +354,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
   seq.SetX("in");
   seq.AtEndOfCycle().ExpectEq("out", input2);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
@@ -337,8 +363,14 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
 
   // Drive the pipeline with a valid value, then X, then another valid
   // value.
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThread("input driver",
+                       /*dut_inputs=*/{DutInput{.port_name = "in",
+                                                .initial_value = IsX()}}));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("in", 42);
   seq.NextCycle().SetX("in");
@@ -348,15 +380,21 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
   seq.AdvanceNCycles(3);
   seq.AtEndOfCycle().ExpectEq("out", 1234);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThread("input driver",
+                       /*dut_inputs=*/{DutInput{.port_name = "in",
+                                                .initial_value = IsX()}}));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("in", 42);
   seq.NextCycle().Set("in", 1234);
@@ -366,7 +404,7 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
   seq.AtEndOfCycle().ExpectEq("out", 7);
 
   EXPECT_THAT(
-      tb.Run(),
+      tb->Run(),
       StatusIs(absl::StatusCode::kFailedPrecondition,
                ContainsRegex("module_testbench_test.cc@[0-9]+: expected "
                              "output `out`, instance #2, recurrence 0 to have "
@@ -411,8 +449,12 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
   Bits out0_captured;
   Bits out1_captured;
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
+                           tb->CreateThreadDrivingAllInputs(
+                               "input driver", /*initial_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("x", 10);
   seq.Set("y", 123);
@@ -425,7 +467,7 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
   seq.Set("x", 0);
   seq.NextCycle();
   seq.AtEndOfCycle().ExpectEq("out0", 0xff);
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 
   EXPECT_EQ(out0_captured, UBits(245, 8));
   EXPECT_EQ(out1_captured, UBits(134, 8));
@@ -439,12 +481,16 @@ TEST_P(ModuleTestbenchTest, TestTimeout) {
   m->Add<ContinuousAssignment>(SourceInfo(), out,
                                f.PlainLiteral(0, SourceInfo()));
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
+                           tb->CreateThread("main",
+                                            /*dut_inputs=*/{}));
   SequentialBlock& seq = tbt->MainBlock();
   seq.WaitForCycleAfter("out");
 
-  EXPECT_THAT(tb.Run(),
+  EXPECT_THAT(tb->Run(),
               StatusIs(absl::StatusCode::kDeadlineExceeded,
                        HasSubstr("Simulation exceeded maximum length")));
 }
@@ -453,43 +499,55 @@ TEST_P(ModuleTestbenchTest, TracesFound) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoMessageModule(&f);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
+                           tb->CreateThread("main",
+                                            /*dut_inputs=*/{}));
   SequentialBlock& seq = tbt->MainBlock();
   tbt->ExpectTrace("This is the first message.");
   tbt->ExpectTrace("This is the second message.");
   seq.NextCycle();
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest, TracesNotFound) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoMessageModule(&f);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
+                           tb->CreateThread("main",
+                                            /*dut_inputs=*/{}));
   SequentialBlock& seq = tbt->MainBlock();
   tbt->ExpectTrace("This is the missing message.");
   seq.NextCycle();
 
-  EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
-                                 HasSubstr("This is the missing message.")));
+  EXPECT_THAT(tb->Run(), StatusIs(absl::StatusCode::kNotFound,
+                                  HasSubstr("This is the missing message.")));
 }
 
 TEST_P(ModuleTestbenchTest, TracesOutOfOrder) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoMessageModule(&f);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
+                           tb->CreateThread("main",
+                                            /*dut_inputs=*/{}));
   SequentialBlock& seq = tbt->MainBlock();
   tbt->ExpectTrace("This is the second message.");
   tbt->ExpectTrace("This is the first message.");
   seq.NextCycle();
 
-  EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
-                                 HasSubstr("This is the first message.")));
+  EXPECT_THAT(tb->Run(), StatusIs(absl::StatusCode::kNotFound,
+                                  HasSubstr("This is the first message.")));
 }
 
 TEST_P(ModuleTestbenchTest, AssertTest) {
@@ -516,8 +574,13 @@ TEST_P(ModuleTestbenchTest, AssertTest) {
       "my_label", "`a` must be less than `b`!");
 
   {
-    ModuleTestbench tb(m, GetSimulator(), "clk");
-    XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<ModuleTestbench> tb,
+        ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleTestbenchThread * tbt,
+        tb->CreateThreadDrivingAllInputs("input driver",
+                                         /*initial_value=*/ZeroOrX::kX));
     SequentialBlock& seq = tbt->MainBlock();
     seq.Set("a", 42);
     seq.Set("b", 100);
@@ -525,27 +588,40 @@ TEST_P(ModuleTestbenchTest, AssertTest) {
     seq.Set("a", 200);
     seq.Set("b", 300);
     seq.NextCycle();
-    XLS_ASSERT_OK(tb.Run());
+
+    ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                   tb->GenerateVerilog());
+
+    XLS_ASSERT_OK(tb->Run());
   }
   {
-    ModuleTestbench tb(m, GetSimulator(), "clk");
-    XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<ModuleTestbench> tb,
+        ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleTestbenchThread * tbt,
+        tb->CreateThreadDrivingAllInputs("input driver",
+                                         /*initial_value=*/ZeroOrX::kX));
     SequentialBlock& seq = tbt->MainBlock();
     seq.Set("a", 100);
     seq.Set("b", 10);
-    EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kAborted,
-                                   HasSubstr("`a` must be less than `b`")));
+    EXPECT_THAT(tb->Run(), StatusIs(absl::StatusCode::kAborted,
+                                    HasSubstr("`a` must be less than `b`")));
   }
 }
 
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatN) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
-  ModuleTestbench tb(m, GetSimulator(), "clk");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
-      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
-          {"reset", UBits(1, 1)}, {"in", UBits(0, 16)}}));
+      tb->CreateThread(
+          "input driver",
+          {DutInput{.port_name = "reset", .initial_value = UBits(1, 1)},
+           DutInput{.port_name = "in", .initial_value = UBits(0, 16)}}));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     seq.Set("reset", 0).Set("in", 1).NextCycle();
@@ -556,10 +632,9 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatN) {
   }
 
   std::vector<Bits> output;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleTestbenchThread * output_thread,
-      tb.CreateThread(/*owned_signals_to_drive=*/absl::flat_hash_map<
-                      std::string, std::optional<Bits>>()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                           tb->CreateThread("output capture",
+                                            /*dut_inputs=*/{}));
   {
     SequentialBlock& seq = output_thread->MainBlock();
     SequentialBlock& loop = seq.Repeat(10);
@@ -567,9 +642,9 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatN) {
   }
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 tb.GenerateVerilog());
+                                 tb->GenerateVerilog());
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 
   EXPECT_THAT(output, ElementsAre(UBits(0, 16), UBits(0, 16), UBits(1, 16),
                                   UBits(2, 16), UBits(3, 16), UBits(4, 16),
@@ -580,11 +655,15 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatN) {
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatZeroTimes) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
-  ModuleTestbench tb(m, GetSimulator(), "clk");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
-      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
-          {"reset", UBits(1, 1)}, {"in", UBits(0, 16)}}));
+      tb->CreateThread(
+          "input driver",
+          {DutInput{.port_name = "reset", .initial_value = UBits(1, 1)},
+           DutInput{.port_name = "in", .initial_value = UBits(0, 16)}}));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     seq.Set("reset", 0).Set("in", 1).NextCycle();
@@ -595,17 +674,16 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatZeroTimes) {
   }
 
   std::vector<Bits> output;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleTestbenchThread * output_thread,
-      tb.CreateThread(/*owned_signals_to_drive=*/absl::flat_hash_map<
-                      std::string, std::optional<Bits>>()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                           tb->CreateThread("output capture",
+                                            /*dut_inputs=*/{}));
   {
     SequentialBlock& seq = output_thread->MainBlock();
     SequentialBlock& loop = seq.Repeat(0);
     loop.AtEndOfCycle().CaptureMultiple("out", &output);
   }
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 
   EXPECT_TRUE(output.empty());
 }
@@ -613,21 +691,22 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatZeroTimes) {
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithExpectations) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
-  ModuleTestbench tb(m, GetSimulator(), "clk");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
-      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
-          {"reset", UBits(1, 1)}, {"in", UBits(42, 16)}}));
+      tb->CreateThreadDrivingAllInputs("input driver",
+                                       /*initial_value=*/ZeroOrX::kZero));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     seq.Set("reset", 0).Set("in", 42).NextCycle();
   }
 
   std::vector<Bits> output;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleTestbenchThread * output_thread,
-      tb.CreateThread(/*owned_signals_to_drive=*/absl::flat_hash_map<
-                      std::string, std::optional<Bits>>()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                           tb->CreateThread("output capture",
+                                            /*dut_inputs=*/{}));
   {
     SequentialBlock& seq = output_thread->MainBlock();
     // Advance a couple cycles to wait for the initial values to drain.
@@ -636,7 +715,7 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithExpectations) {
     loop.AtEndOfCycle().ExpectEq("out", UBits(42, 16));
   }
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 
   EXPECT_TRUE(output.empty());
 }
@@ -644,11 +723,13 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithExpectations) {
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithFailedExpectations) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
-  ModuleTestbench tb(m, GetSimulator(), "clk");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
-      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
-          {"reset", UBits(1, 1)}, {"in", UBits(42, 16)}}));
+      tb->CreateThreadDrivingAllInputs("input driver",
+                                       /*initial_value=*/ZeroOrX::kZero));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     seq.Set("reset", 0).Set("in", 42).AdvanceNCycles(5);
@@ -656,10 +737,9 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithFailedExpectations) {
   }
 
   std::vector<Bits> output;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleTestbenchThread * output_thread,
-      tb.CreateThread(/*owned_signals_to_drive=*/absl::flat_hash_map<
-                      std::string, std::optional<Bits>>()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                           tb->CreateThread("output capture",
+                                            /*dut_inputs=*/{}));
   {
     SequentialBlock& seq = output_thread->MainBlock();
     // Advance a couple cycles to wait for the initial values to drain.
@@ -669,7 +749,7 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithFailedExpectations) {
   }
 
   EXPECT_THAT(
-      tb.Run(),
+      tb->Run(),
       StatusIs(absl::StatusCode::kFailedPrecondition,
                ContainsRegex("module_testbench_test.cc@[0-9]+: expected "
                              "output `out`, instance #0, recurrence 5 to have "
@@ -681,13 +761,16 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithFailedExpectations) {
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatForever) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
-  ModuleTestbench tb(m, GetSimulator(), "clk");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
-      tb.CreateThread(
-          absl::flat_hash_map<std::string, std::optional<Bits>>{
-              {"reset", UBits(1, 1)}, {"in", UBits(0, 16)}},
-          /*emit_done_signal=*/false));
+      tb->CreateThread(
+          "input driver",
+          {DutInput{.port_name = "reset", .initial_value = UBits(1, 1)},
+           DutInput{.port_name = "in", .initial_value = UBits(0, 16)}},
+          /*wait_until_done=*/false));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     seq.Set("reset", 0).NextCycle();
@@ -697,10 +780,9 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatForever) {
   }
 
   std::vector<Bits> output;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleTestbenchThread * output_thread,
-      tb.CreateThread(/*owned_signals_to_drive=*/absl::flat_hash_map<
-                      std::string, std::optional<Bits>>()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                           tb->CreateThread("output capture",
+                                            /*dut_inputs=*/{}));
   {
     SequentialBlock& seq = output_thread->MainBlock();
     SequentialBlock& loop = seq.Repeat(10);
@@ -708,14 +790,79 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatForever) {
   }
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 tb.GenerateVerilog());
+                                 tb->GenerateVerilog());
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 
   EXPECT_THAT(output, ElementsAre(UBits(0, 16), UBits(0, 16), UBits(0, 16),
                                   UBits(2, 16), UBits(3, 16), UBits(2, 16),
                                   UBits(3, 16), UBits(2, 16), UBits(3, 16),
                                   UBits(2, 16)));
+}
+
+TEST_P(ModuleTestbenchTest, DuplicateThreadNames) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+
+  XLS_ASSERT_OK(tb->CreateThread("same name", {}).status());
+  EXPECT_THAT(tb->CreateThread("same name", {}).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Already a thread named `same name`")));
+}
+
+TEST_P(ModuleTestbenchTest, InputPortsDrivenByTwoThreads) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+
+  XLS_ASSERT_OK(tb->CreateThread("thread1", {DutInput{.port_name = "in",
+                                                      .initial_value = IsX()}})
+                    .status());
+  EXPECT_THAT(
+      tb->CreateThread("thread2",
+                       {DutInput{.port_name = "in", .initial_value = IsX()}})
+          .status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("`in` is already being drive by thread `thread1`; "
+                         "cannot also be drive by thread `thread2`")));
+}
+
+TEST_P(ModuleTestbenchTest, InvalidInputPortName) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  EXPECT_THAT(
+      tb->CreateThread("thread", {DutInput{.port_name = "not_an_input",
+                                           .initial_value = IsX()}})
+          .status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("`not_an_input` is not a input port on the DUT")));
+}
+
+TEST_P(ModuleTestbenchTest, DrivingInvalidInputPort) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
+  SequentialBlock& seq = tbt->MainBlock();
+  EXPECT_DEATH(seq.Set("not_a_port", 10),
+               HasSubstr("'not_a_port' is not a signal that thread `main is "
+                         "designated to drive"));
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestbenchTestInstantiation, ModuleTestbenchTest,

@@ -14,7 +14,6 @@
 
 #include "xls/simulation/module_testbench.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -26,9 +25,11 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -41,12 +42,14 @@
 #include "xls/common/source_location.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/source_location.h"
+#include "xls/simulation/module_testbench_thread.h"
+#include "xls/simulation/testbench_metadata.h"
+#include "xls/simulation/testbench_signal_capture.h"
 #include "xls/simulation/verilog_simulator.h"
 #include "xls/tools/verilog_include.h"
 #include "re2/re2.h"
@@ -58,11 +61,6 @@ namespace {
 // The number of cycles that the design under test (DUT) is being reset.
 static constexpr int64_t kResetCycles = 5;
 
-// Clock period in Verilog time units. Must be even number greater than 3.
-static constexpr int64_t kClockPeriod = 10;
-static_assert(kClockPeriod > 3);
-static_assert(kClockPeriod % 2 == 0);
-
 // Upper limit on the length of simulation. Simulation terminates with
 // $finish after this many cycles. This is to avoid test timeouts in cases
 // that the simulation logic does not terminate.
@@ -71,631 +69,9 @@ static constexpr int64_t kSimulationCycleLimit = 10000;
 static_assert(kResetCycles < kSimulationCycleLimit,
               "Reset cycles must be less than the simulation cycle limit.");
 
-// Name of the testbench internal signal which is asserted in the last cycle
-// that the DUT is in reset. This can be used to trigger the driving of signals
-// for the first cycle out of reset.
-static constexpr std::string_view kLastResetCycleSignal =
-    "__last_cycle_of_reset";
-
 std::string GetTimeoutMessage() {
   return absl::StrFormat("ERROR: timeout, simulation ran too long (%d cycles).",
                          kSimulationCycleLimit);
-}
-
-std::string ToString(const xabsl::SourceLocation& loc) {
-  return absl::StrFormat("%s:%d", loc.file_name(), loc.line());
-}
-
-// Emits a Verilog delay statement (e.g., `#42;`).
-void EmitDelay(StatementBlock* statement_block, int32_t amount) {
-  statement_block->Add<DelayStatement>(
-      SourceInfo(),
-      statement_block->file()->PlainLiteral(amount, SourceInfo()));
-}
-
-// Emits a Verilog statement which waits for the clock posedge.
-void WaitForClockPosEdge(LogicRef* clk, StatementBlock* statement_block) {
-  VerilogFile& file = *statement_block->file();
-  Expression* posedge_clk = file.Make<PosEdge>(SourceInfo(), clk);
-  statement_block->Add<EventControl>(SourceInfo(), posedge_clk);
-}
-
-// Insert statements into statement block which delay the simulation for the
-// given number of cycles. Regardless of delay, simulation resumes one time unit
-// after the posedge of the clock.
-void WaitNCycles(LogicRef* clk, StatementBlock* statement_block,
-                 int64_t n_cycles) {
-  XLS_CHECK_GT(n_cycles, 0);
-  XLS_CHECK_NE(statement_block, nullptr);
-  VerilogFile& file = *statement_block->file();
-  Expression* posedge_clk = file.Make<PosEdge>(SourceInfo(), clk);
-  if (n_cycles == 1) {
-    WaitForClockPosEdge(clk, statement_block);
-  } else {
-    verilog::RepeatStatement* repeat_statement =
-        statement_block->Add<verilog::RepeatStatement>(
-            SourceInfo(),
-            file.PlainLiteral(static_cast<int32_t>(n_cycles), SourceInfo()));
-    repeat_statement->statements()->Add<EventControl>(SourceInfo(),
-                                                      posedge_clk);
-  }
-  EmitDelay(statement_block, 1);
-}
-
-// Emit $display statements into the given block which print the value of the
-// given signals.
-void EmitDisplayStatements(
-    absl::Span<const SignalCapture> signal_captures,
-    StatementBlock* statement_block,
-    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
-  for (const SignalCapture& signal_capture : signal_captures) {
-    statement_block->Add<Display>(
-        SourceInfo(),
-        std::vector<Expression*>{
-            statement_block->file()->Make<QuotedString>(
-                SourceInfo(), absl::StrFormat("%%t OUTPUT %s = %d'h%%0x (#%d)",
-                                              signal_capture.signal.name,
-                                              signal_capture.signal.width,
-                                              signal_capture.instance_id)),
-            statement_block->file()->Make<SystemFunctionCall>(SourceInfo(),
-                                                              "time"),
-            signal_refs.at(signal_capture.signal.name)});
-  }
-}
-
-// Emits Verilog implementing the given action.
-void EmitAction(
-    const Action& action, StatementBlock* statement_block, LogicRef* clk,
-    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
-  // Inserts a delay which waits until one unit before the clock
-  // posedge. Assumes that simulation is currently one time unit after posedge
-  // of clock which is the point at which every action starts.
-  auto delay_to_right_before_posedge = [&](StatementBlock* sb) {
-    EmitDelay(sb, kClockPeriod - 2);
-  };
-  VerilogFile& file = *statement_block->file();
-  statement_block->Add<BlankLine>(SourceInfo());
-  Visitor visitor{
-      [&](const AdvanceCycle& a) {
-        statement_block->Add<Comment>(
-            SourceInfo(), absl::StrFormat("Wait %d cycle(s).", a.amount));
-        if (a.amount > 1) {
-          WaitNCycles(clk, statement_block, a.amount - 1);
-        }
-        if (a.end_of_cycle_event != nullptr &&
-            !a.end_of_cycle_event->signal_captures().empty()) {
-          // Capture signals one time unit before posedge of the clock.
-          delay_to_right_before_posedge(statement_block);
-          EmitDisplayStatements(a.end_of_cycle_event->signal_captures(),
-                                statement_block, signal_refs);
-        }
-        WaitForClockPosEdge(clk, statement_block);
-        EmitDelay(statement_block, 1);
-      },
-      [&](const SetSignal& s) {
-        if (s.value.bit_count() > 0) {
-          statement_block->Add<BlockingAssignment>(
-              SourceInfo(), signal_refs.at(s.signal_name),
-              file.Literal(s.value, SourceInfo()));
-        }
-      },
-      [&](const SetSignalX& s) {
-        if (s.width > 0) {
-          statement_block->Add<BlockingAssignment>(
-              SourceInfo(), signal_refs.at(s.signal_name),
-              file.Make<XSentinel>(SourceInfo(), s.width));
-        }
-      },
-      [&](const WaitForSignals& w) {
-        // WaitForSignal waits until the signal equals a certain value at the
-        // posedge of the clock. Use a while loop to sample every cycle at
-        // the posedge of the clock.
-        // TODO(meheff): If we switch to SystemVerilog this is better handled
-        // using a clocking block.
-        statement_block->Add<Comment>(SourceInfo(), w.comment);
-        Expression* cond = w.any_or_all == AnyOrAll::kAll
-                               ? file.Literal1(1, SourceInfo())
-                               : file.Literal1(0, SourceInfo());
-        for (const SignalValue& signal_value : w.signal_values) {
-          Expression* element;
-          if (std::holds_alternative<Bits>(signal_value.value)) {
-            element = file.Equals(
-                signal_refs.at(signal_value.signal_name),
-                file.Literal(std::get<Bits>(signal_value.value), SourceInfo()),
-                SourceInfo());
-          } else if (std::holds_alternative<IsX>(signal_value.value)) {
-            // To test whether any bit is X do an XOR reduce of the bits. If any
-            // bit is X the result will be X.
-            element = file.EqualsX(
-                file.XorReduce(signal_refs.at(signal_value.signal_name),
-                               SourceInfo()),
-                SourceInfo());
-          } else {
-            XLS_CHECK(std::holds_alternative<IsNotX>(signal_value.value));
-            // To test whether all bits are not X do an XOR reduce of the
-            // bits and test that it does not equal X.
-            element = file.NotEqualsX(
-                file.XorReduce(signal_refs.at(signal_value.signal_name),
-                               SourceInfo()),
-                SourceInfo());
-          }
-          cond = w.any_or_all == AnyOrAll::kAll
-                     ? file.LogicalAnd(cond, element, SourceInfo())
-                     : file.LogicalOr(cond, element, SourceInfo());
-        }
-        // Always sample signals on the posedge of the clock minus one unit.
-        delay_to_right_before_posedge(statement_block);
-        auto whle = statement_block->Add<WhileStatement>(
-            SourceInfo(), file.LogicalNot(cond, SourceInfo()));
-        // Test condition once per clock right before the posedge.
-        EmitDelay(whle->statements(), kClockPeriod);
-
-        // Currently at the posedge of the clock minus one unit. Emit any
-        // display statements.
-        if (w.end_of_cycle_event != nullptr) {
-          EmitDisplayStatements(w.end_of_cycle_event->signal_captures(),
-                                statement_block, signal_refs);
-        }
-
-        // Every action should terminate one unit after the posedge of the
-        // clock.
-        WaitForClockPosEdge(clk, statement_block);
-        EmitDelay(statement_block, 1);
-      }};
-  absl::visit(visitor, action);
-}
-
-}  // namespace
-
-TestbenchMetadata::TestbenchMetadata(const ModuleSignature& signature) {
-  dut_module_name_ = signature.module_name();
-
-  auto add_input_signal = [&](std::string_view name, int64_t width) {
-    XLS_CHECK_OK(AddSignal(name, width, TestbenchSignalType::kInputPort));
-  };
-  auto add_output_signal = [&](std::string_view name, int64_t width) {
-    XLS_CHECK_OK(AddSignal(name, width, TestbenchSignalType::kOutputPort));
-  };
-
-  if (signature.proto().has_clock_name()) {
-    clk_name_ = signature.proto().clock_name();
-    add_input_signal(signature.proto().clock_name(), 1);
-  }
-  if (signature.proto().has_reset()) {
-    reset_proto_ = signature.proto().reset();
-    add_input_signal(signature.proto().reset().name(), 1);
-  }
-
-  for (const PortProto& port : signature.data_inputs()) {
-    add_input_signal(port.name(), port.width());
-  }
-  for (const PortProto& port : signature.data_outputs()) {
-    add_output_signal(port.name(), port.width());
-  }
-
-  if (signature.proto().has_pipeline() &&
-      signature.proto().pipeline().has_pipeline_control()) {
-    // Module has pipeline register control.
-    if (signature.proto().pipeline().pipeline_control().has_valid()) {
-      // Add the valid input and optional valid output signals.
-      const ValidProto& valid =
-          signature.proto().pipeline().pipeline_control().valid();
-      add_input_signal(valid.input_name(), 1);
-      if (!valid.output_name().empty()) {
-        add_output_signal(valid.output_name(), 1);
-      }
-    } else {
-      XLS_CHECK(!signature.proto().pipeline().pipeline_control().has_manual())
-          << "Manual register control not supported";
-    }
-  }
-}
-
-absl::Status TestbenchMetadata::CheckIsReadableSignal(
-    std::string_view name) const {
-  if (!signals_by_name_.contains(name)) {
-    return absl::NotFoundError(absl::StrFormat(
-        "`%s` is not a signal of module `%s`", name, dut_module_name()));
-  }
-  if (clk_name_.has_value() && clk_name_.value() == name) {
-    return absl::InternalError(
-        absl::StrFormat("Clock signal `%s` is readable", name));
-  }
-  return absl::OkStatus();
-}
-
-absl::Status TestbenchMetadata::AddSignal(std::string_view name, int64_t width,
-                                          TestbenchSignalType type) {
-  XLS_RET_CHECK(!signals_by_name_.contains(name))
-      << absl::StrFormat("Signal `%s` already exists", name);
-  signals_.push_back(
-      TestbenchSignal{.name = std::string{name}, .width = width, .type = type});
-  signals_by_name_[name] = signals_.size() - 1;
-  return absl::OkStatus();
-}
-
-SequentialBlock& SequentialBlock::NextCycle() { return AdvanceNCycles(1); }
-
-SequentialBlock& SequentialBlock::AdvanceNCycles(int64_t n_cycles) {
-  statements_.push_back(AdvanceCycle{n_cycles});
-  return *this;
-}
-
-SequentialBlock& SequentialBlock::WaitForCycleAfter(
-    std::string_view signal_name) {
-  XLS_CHECK_EQ(metadata_->GetSignalWidth(signal_name), 1);
-  statements_.push_back(WaitForSignals{
-      .any_or_all = AnyOrAll::kAll,
-      .signal_values = {SignalValue{std::string(signal_name), UBits(1, 1)}},
-      .comment = absl::StrFormat("Wait for cycle after `%s` is asserted",
-                                 signal_name)});
-  return *this;
-}
-
-SequentialBlock& SequentialBlock::WaitForCycleAfterNot(
-    std::string_view signal_name) {
-  XLS_CHECK_EQ(metadata_->GetSignalWidth(signal_name), 1);
-  statements_.push_back(WaitForSignals{
-      .any_or_all = AnyOrAll::kAll,
-      .signal_values = {SignalValue{std::string(signal_name), UBits(0, 1)}},
-      .comment = absl::StrFormat("Wait for cycle after `%s` is de-asserted",
-                                 signal_name)});
-  return *this;
-}
-
-SequentialBlock& SequentialBlock::WaitForCycleAfterX(
-    std::string_view signal_name) {
-  statements_.push_back(WaitForSignals{
-      .any_or_all = AnyOrAll::kAll,
-      .signal_values = {SignalValue{std::string(signal_name), IsX()}},
-      .comment =
-          absl::StrFormat("Wait for cycle after `%s` is X", signal_name)});
-  return *this;
-}
-
-SequentialBlock& SequentialBlock::WaitForCycleAfterNotX(
-    std::string_view signal_name) {
-  statements_.push_back(WaitForSignals{
-      .any_or_all = AnyOrAll::kAll,
-      .signal_values = {SignalValue{std::string(signal_name), IsNotX()}},
-      .comment =
-          absl::StrFormat("Wait for cycle after `%s` is not X", signal_name)});
-  return *this;
-}
-
-SequentialBlock& SequentialBlock::WaitForCycleAfterAll(
-    absl::Span<const std::string> signal_names) {
-  std::vector<SignalValue> signal_values;
-  for (const std::string& name : signal_names) {
-    signal_values.push_back(SignalValue{std::string(name), UBits(1, 1)});
-  }
-  statements_.push_back(WaitForSignals{
-      .any_or_all = AnyOrAll::kAll,
-      .signal_values = signal_values,
-      .comment = absl::StrFormat("Wait for cycle after all asserted: %s",
-                                 absl::StrJoin(signal_names, ", "))});
-  return *this;
-}
-
-SequentialBlock& SequentialBlock::WaitForCycleAfterAny(
-    absl::Span<const std::string> signal_names) {
-  std::vector<SignalValue> signal_values;
-  for (const std::string& name : signal_names) {
-    signal_values.push_back(SignalValue{std::string(name), UBits(1, 1)});
-  }
-  statements_.push_back(WaitForSignals{
-      .any_or_all = AnyOrAll::kAny,
-      .signal_values = signal_values,
-      .comment = absl::StrFormat("Wait for cycle after any asserted: %s",
-                                 absl::StrJoin(signal_names, ", "))});
-  return *this;
-}
-
-SequentialBlock& SequentialBlock::Set(std::string_view signal_name,
-                                      const Bits& value) {
-  CheckCanDriveSignal(signal_name);
-  statements_.push_back(SetSignal{std::string(signal_name), value});
-  return *this;
-}
-
-SequentialBlock& SequentialBlock::Set(std::string_view signal_name,
-                                      uint64_t value) {
-  CheckCanDriveSignal(signal_name);
-  return Set(signal_name, UBits(value, metadata_->GetSignalWidth(signal_name)));
-}
-
-SequentialBlock& SequentialBlock::SetX(std::string_view signal_name) {
-  CheckCanDriveSignal(signal_name);
-  statements_.push_back(SetSignalX{std::string(signal_name),
-                                   metadata_->GetSignalWidth(signal_name)});
-  return *this;
-}
-
-SignalCapture SignalCaptureManager::Capture(const TestbenchSignal& signal,
-                                            Bits* bits) {
-  int64_t instance = signal_captures_.size();
-  signal_captures_.push_back(
-      SignalCapture{.signal = signal, .action = bits, .instance_id = instance});
-  return signal_captures_.back();
-}
-
-SignalCapture SignalCaptureManager::CaptureMultiple(
-    const TestbenchSignal& signal, std::vector<Bits>* values) {
-  int64_t instance = signal_captures_.size();
-  signal_captures_.push_back(SignalCapture{
-      .signal = signal, .action = values, .instance_id = instance});
-  return signal_captures_.back();
-}
-
-SignalCapture SignalCaptureManager::ExpectEq(const TestbenchSignal& signal,
-                                             const Bits& bits,
-                                             xabsl::SourceLocation loc) {
-  int64_t instance = signal_captures_.size();
-  signal_captures_.push_back(SignalCapture{
-      .signal = signal,
-      .action = TestbenchExpectation{.expected = bits, .loc = loc},
-      .instance_id = instance});
-  return signal_captures_.back();
-}
-
-SignalCapture SignalCaptureManager::ExpectX(const TestbenchSignal& signal,
-                                            xabsl::SourceLocation loc) {
-  int64_t instance = signal_captures_.size();
-  signal_captures_.push_back(SignalCapture{
-      .signal = signal,
-      .action = TestbenchExpectation{.expected = IsX(), .loc = loc},
-      .instance_id = instance});
-  return signal_captures_.back();
-}
-
-EndOfCycleEvent& EndOfCycleEvent::Capture(std::string_view signal_name,
-                                          Bits* value) {
-  XLS_CHECK_OK(metadata_->CheckIsReadableSignal(signal_name));
-  if (metadata_->GetSignalWidth(signal_name) > 0) {
-    signal_captures_.push_back(
-        capture_manager_->Capture(metadata_->GetSignal(signal_name), value));
-  }
-  return *this;
-}
-
-EndOfCycleEvent& EndOfCycleEvent::CaptureMultiple(std::string_view signal_name,
-                                                  std::vector<Bits>* values) {
-  XLS_CHECK_OK(metadata_->CheckIsReadableSignal(signal_name));
-  if (metadata_->GetSignalWidth(signal_name) > 0) {
-    signal_captures_.push_back(capture_manager_->CaptureMultiple(
-        metadata_->GetSignal(signal_name), values));
-  }
-  return *this;
-}
-
-EndOfCycleEvent& EndOfCycleEvent::ExpectEq(std::string_view signal_name,
-                                           const Bits& expected,
-                                           xabsl::SourceLocation loc) {
-  XLS_CHECK_OK(metadata_->CheckIsReadableSignal(signal_name));
-  if (metadata_->GetSignalWidth(signal_name) > 0) {
-    signal_captures_.push_back(capture_manager_->ExpectEq(
-        metadata_->GetSignal(signal_name), expected, loc));
-  }
-  return *this;
-}
-
-EndOfCycleEvent& EndOfCycleEvent::ExpectEq(std::string_view signal_name,
-                                           uint64_t expected,
-                                           xabsl::SourceLocation loc) {
-  XLS_CHECK_OK(metadata_->CheckIsReadableSignal(signal_name));
-  return ExpectEq(signal_name,
-                  UBits(expected, metadata_->GetSignalWidth(signal_name)), loc);
-}
-
-EndOfCycleEvent& EndOfCycleEvent::ExpectX(std::string_view signal_name,
-                                          xabsl::SourceLocation loc) {
-  XLS_CHECK_OK(metadata_->CheckIsReadableSignal(signal_name));
-  if (metadata_->GetSignalWidth(signal_name) > 0) {
-    signal_captures_.push_back(
-        capture_manager_->ExpectX(metadata_->GetSignal(signal_name), loc));
-  }
-  return *this;
-}
-
-EndOfCycleEvent& SequentialBlock::AtEndOfCycle() {
-  AdvanceCycle advance_cycle{
-      .amount = 1,
-      .end_of_cycle_event =
-          std::make_unique<EndOfCycleEvent>(metadata_, capture_manager_)};
-  EndOfCycleEvent* end_of_cycle_event = advance_cycle.end_of_cycle_event.get();
-  statements_.push_back(std::move(advance_cycle));
-  return *end_of_cycle_event;
-}
-
-EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenSignalsEq(
-    AnyOrAll any_or_all, std::vector<SignalValue> signal_values,
-    std::string_view comment) {
-  WaitForSignals wait_for_signals{
-      .any_or_all = any_or_all,
-      .signal_values = std::move(signal_values),
-      .end_of_cycle_event =
-          std::make_unique<EndOfCycleEvent>(metadata_, capture_manager_),
-      .comment = std::string{comment}};
-  EndOfCycleEvent* end_of_cycle_event =
-      wait_for_signals.end_of_cycle_event.get();
-  statements_.push_back(std::move(wait_for_signals));
-  return *end_of_cycle_event;
-}
-
-EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhen(
-    std::string_view signal_name) {
-  XLS_CHECK_EQ(metadata_->GetSignalWidth(signal_name), 1);
-  return AtEndOfCycleWhenSignalsEq(
-      AnyOrAll::kAll, {SignalValue{std::string(signal_name), UBits(1, 1)}},
-      absl::StrFormat("Wait for `%s` to be asserted and capture output",
-                      signal_name));
-}
-
-EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenNot(
-    std::string_view signal_name) {
-  XLS_CHECK_EQ(metadata_->GetSignalWidth(signal_name), 1);
-  return AtEndOfCycleWhenSignalsEq(
-      AnyOrAll::kAll, {SignalValue{std::string(signal_name), UBits(0, 1)}},
-      absl::StrFormat("Wait for `%s` to be de-asserted and capture output",
-                      signal_name));
-}
-
-EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenAll(
-    absl::Span<const std::string> signal_names) {
-  std::vector<SignalValue> signal_values;
-  for (const std::string& name : signal_names) {
-    signal_values.push_back(SignalValue{std::string(name), UBits(1, 1)});
-  }
-  return AtEndOfCycleWhenSignalsEq(
-      AnyOrAll::kAll, signal_values,
-      absl::StrFormat("Wait for all asserted (and capture output): %s",
-                      absl::StrJoin(signal_names, ", ")));
-}
-
-EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenAny(
-    absl::Span<const std::string> signal_names) {
-  std::vector<SignalValue> signal_values;
-  for (const std::string& name : signal_names) {
-    signal_values.push_back(SignalValue{std::string(name), UBits(1, 1)});
-  }
-  return AtEndOfCycleWhenSignalsEq(
-      AnyOrAll::kAny, signal_values,
-      absl::StrFormat("Wait for any asserted (and capture output): %s",
-                      absl::StrJoin(signal_names, ", ")));
-}
-
-EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenX(
-    std::string_view signal_name) {
-  return AtEndOfCycleWhenSignalsEq(
-      AnyOrAll::kAll, {SignalValue{std::string(signal_name), IsX()}},
-      absl::StrFormat("Wait for `%s` to be X and capture output", signal_name));
-}
-
-EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenNotX(
-    std::string_view signal_name) {
-  return AtEndOfCycleWhenSignalsEq(
-      AnyOrAll::kAll, {SignalValue{std::string(signal_name), IsNotX()}},
-      absl::StrFormat("Wait for `%s` to be not X and capture output",
-                      signal_name));
-}
-
-void SequentialBlock::CheckCanDriveSignal(std::string_view name) {
-  XLS_CHECK(driven_signal_names_.contains(name)) << absl::StrFormat(
-      "'%s' is not a signal that the thread is designated to drive.", name);
-}
-
-SequentialBlock& SequentialBlock::RepeatForever() {
-  statements_.push_back(
-      RepeatStatement{.count = std::nullopt,
-                      .sequential_block = std::make_unique<SequentialBlock>(
-                          metadata_, driven_signal_names_, capture_manager_)});
-  return *std::get<RepeatStatement>(statements_.back()).sequential_block;
-}
-SequentialBlock& SequentialBlock::Repeat(int64_t count) {
-  statements_.push_back(
-      RepeatStatement{.count = count,
-                      .sequential_block = std::make_unique<SequentialBlock>(
-                          metadata_, driven_signal_names_, capture_manager_)});
-  return *std::get<RepeatStatement>(statements_.back()).sequential_block;
-}
-
-void SequentialBlock::Emit(
-    StatementBlock* statement_block, LogicRef* clk,
-    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
-  VerilogFile& file = *statement_block->file();
-  for (const Statement& statement : statements_) {
-    if (std::holds_alternative<Action>(statement)) {
-      EmitAction(std::get<Action>(statement), statement_block, clk,
-                 signal_refs);
-    } else {
-      const RepeatStatement& repeat_statement =
-          std::get<RepeatStatement>(statement);
-      if (repeat_statement.count.has_value()) {
-        verilog::RepeatStatement* verilog_statement =
-            statement_block->Add<verilog::RepeatStatement>(
-                SourceInfo(),
-                file.PlainLiteral(
-                    static_cast<int32_t>(repeat_statement.count.value()),
-                    SourceInfo()));
-        repeat_statement.sequential_block->Emit(verilog_statement->statements(),
-                                                clk, signal_refs);
-      } else {
-        verilog::WhileStatement* while_statement =
-            statement_block->Add<verilog::WhileStatement>(
-                SourceInfo(), file.PlainLiteral(1, SourceInfo()));
-        repeat_statement.sequential_block->Emit(while_statement->statements(),
-                                                clk, signal_refs);
-      }
-    }
-  }
-}
-
-ModuleTestbenchThread::ModuleTestbenchThread(
-    const TestbenchMetadata* metadata, SignalCaptureManager* capture_manager,
-    absl::Span<const DrivenSignal> driven_signals,
-    std::optional<std::string> done_signal_name)
-    : metadata_(XLS_DIE_IF_NULL(metadata)),
-      capture_manager_(capture_manager),
-      driven_signals_(driven_signals.begin(), driven_signals.end()),
-      done_signal_name_(std::move(done_signal_name)) {
-  for (const DrivenSignal& signal : driven_signals) {
-    driven_signal_names_.insert(signal.signal_name);
-  }
-  main_block_ = std::make_unique<SequentialBlock>(
-      metadata, driven_signal_names_, capture_manager);
-}
-
-ModuleTestbenchThread& ModuleTestbenchThread::ExpectTrace(
-    std::string_view trace_message) {
-  expected_traces_.push_back(std::string(trace_message));
-  return *this;
-}
-
-void ModuleTestbenchThread::EmitInto(
-    StructuredProcedure* procedure, LogicRef* clk,
-    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
-  XLS_CHECK_NE(procedure, nullptr);
-
-  // Some values must be initialize after a reset, for example control signals.
-  for (const DrivenSignal& driven_signal : driven_signals_) {
-    if (std::holds_alternative<Bits>(driven_signal.initial_value)) {
-      EmitAction(SetSignal{driven_signal.signal_name,
-                           std::get<Bits>(driven_signal.initial_value)},
-                 procedure->statements(), clk, signal_refs);
-    } else {
-      EmitAction(
-          SetSignalX{driven_signal.signal_name,
-                     metadata_->GetSignalWidth(driven_signal.signal_name)},
-          procedure->statements(), clk, signal_refs);
-    }
-  }
-
-  // All actions assume they start at one time unit after the posedge of the
-  // clock. This can be done with the advance one cycle action.
-  EmitAction(AdvanceCycle{.amount = 1, .end_of_cycle_event = nullptr},
-             procedure->statements(), clk, signal_refs);
-
-  // The thread must wait for reset (if present). Specifically, the thread waits
-  // until the last cycle of reset before emitting the actions. This enables the
-  // first action (e.g., Set) to occur in the first cycle out of reset.
-  if (metadata_->reset_proto().has_value()) {
-    EmitAction(
-        WaitForSignals{.any_or_all = AnyOrAll::kAll,
-                       .signal_values = {SignalValue{
-                           .signal_name = std::string{kLastResetCycleSignal},
-                           .value = UBits(1, 1)}},
-                       .end_of_cycle_event = nullptr,
-                       .comment = "Wait for last cycle of reset"},
-        procedure->statements(), clk, signal_refs);
-  }
-  // All actions occur one time unit after the pos edge of the clock.
-  main_block_->Emit(procedure->statements(), clk, signal_refs);
-
-  // The last statement must be to assert the done signal of the thread.
-  if (done_signal_name_.has_value()) {
-    EmitAction(SetSignal{done_signal_name_.value(), UBits(1, 1)},
-               procedure->statements(), clk, signal_refs);
-  }
 }
 
 static absl::StatusOr<ModuleSignature> GenerateModuleSignature(
@@ -725,98 +101,166 @@ static absl::StatusOr<ModuleSignature> GenerateModuleSignature(
   return b.Build();
 }
 
-ModuleTestbench::ModuleTestbench(Module* module,
-                                 const VerilogSimulator* simulator,
-                                 std::optional<std::string_view> clk_name,
-                                 std::optional<ResetProto> reset,
-                                 absl::Span<const VerilogInclude> includes)
-    : ModuleTestbench(
-          module->file()->Emit(),
-          module->file()->use_system_verilog() ? FileType::kSystemVerilog
-                                               : FileType::kVerilog,
-          GenerateModuleSignature(module, clk_name, std::move(reset)).value(),
-          simulator, includes) {}
+// Returns all of the DUT inputs for the DUT described by `metadata`. Excludes
+// clock and optionally reset.
+std::vector<DutInput> GetAllDutInputs(const TestbenchMetadata& metadata,
+                                      ZeroOrX initial_values,
+                                      bool exclude_reset) {
+  std::vector<DutInput> dut_inputs;
+  auto get_initial_value = [&](int64_t width) {
+    return initial_values == ZeroOrX::kZero ? BitsOrX{UBits(0, width)}
+                                            : BitsOrX{IsX()};
+  };
+  for (const std::string& port : metadata.dut_input_ports()) {
+    // Exclude the clock as an input and reset if `exclude_reset` is true.
+    if ((metadata.clk_name().has_value() &&
+         metadata.clk_name().value() == port) ||
+        (exclude_reset && metadata.reset_proto().has_value() &&
+         metadata.reset_proto()->name() == port)) {
+      continue;
+    }
+    dut_inputs.push_back(DutInput{
+        .port_name = port,
+        .initial_value = get_initial_value(metadata.GetPortWidth(port))});
+  }
+  return dut_inputs;
+}
+
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<ModuleTestbench>>
+ModuleTestbench::CreateFromVastModule(
+    Module* module, const VerilogSimulator* simulator,
+    std::optional<std::string_view> clk_name,
+    const std::optional<ResetProto>& reset,
+    absl::Span<const VerilogInclude> includes) {
+  XLS_ASSIGN_OR_RETURN(ModuleSignature signature,
+                       GenerateModuleSignature(module, clk_name, reset));
+  TestbenchMetadata metadata(signature);
+  auto tb = absl::WrapUnique(new ModuleTestbench(
+      module->file()->Emit(),
+      module->file()->use_system_verilog() ? FileType::kSystemVerilog
+                                           : FileType::kVerilog,
+      simulator, metadata, /*reset_dut=*/reset.has_value(), includes));
+  XLS_RETURN_IF_ERROR(tb->CreateInitialThreads());
+  return std::move(tb);
+}
+
+absl::StatusOr<std::unique_ptr<ModuleTestbench>>
+ModuleTestbench::CreateFromVerilogText(
+    std::string_view verilog_text, FileType file_type,
+    const ModuleSignature& signature, const VerilogSimulator* simulator,
+    bool reset_dut, absl::Span<const VerilogInclude> includes) {
+  TestbenchMetadata metadata(signature);
+  auto tb = absl::WrapUnique(new ModuleTestbench(
+      verilog_text, file_type, simulator, metadata, reset_dut, includes));
+  XLS_RETURN_IF_ERROR(tb->CreateInitialThreads());
+  return std::move(tb);
+}
 
 ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
                                  FileType file_type,
-                                 const ModuleSignature& signature,
                                  const VerilogSimulator* simulator,
+                                 const TestbenchMetadata& metadata,
+                                 bool reset_dut,
                                  absl::Span<const VerilogInclude> includes)
     : verilog_text_(verilog_text),
       file_type_(file_type),
       simulator_(simulator),
+      metadata_(metadata),
+      reset_dut_(reset_dut),
       includes_(includes.begin(), includes.end()),
-      metadata_(signature) {
-  if (metadata_.reset_proto().has_value()) {
-    XLS_CHECK_OK(metadata_.AddInternalSignal(kLastResetCycleSignal, 1));
+      capture_manager_(&metadata_) {}
+
+absl::Status ModuleTestbench::CreateInitialThreads() {
+  // Global reset controller. If a reset is present, the threads will wait
+  // on this reset prior to starting their execution.
+  if (reset_dut_ && metadata_.reset_proto().has_value()) {
+    uint64_t reset_asserted_value =
+        metadata_.reset_proto()->active_low() ? 0 : 1;
+    uint64_t reset_unasserted_value =
+        metadata_.reset_proto()->active_low() ? 1 : 0;
+
+    XLS_ASSIGN_OR_RETURN(
+        ModuleTestbenchThread * reset_thread,
+        CreateThread("reset_controller",
+                     {DutInput{std::string{metadata_.reset_proto()->name()},
+                               UBits(reset_asserted_value, 1)}},
+                     /*wait_until_done=*/false, /*wait_for_reset=*/false));
+    reset_thread->DeclareInternalSignal(kLastResetCycleSignal, 1, UBits(0, 1));
+    SequentialBlock& seq = reset_thread->MainBlock();
+    seq.AdvanceNCycles(kResetCycles - 1);
+    seq.Set(kLastResetCycleSignal, UBits(1, 1)).NextCycle();
+    seq.Set(kLastResetCycleSignal, UBits(0, 1))
+        .Set(metadata_.reset_proto()->name(), reset_unasserted_value);
   }
+
+  {
+    XLS_ASSIGN_OR_RETURN(ModuleTestbenchThread * watchdog_thread,
+                         CreateThread("watchdog",
+                                      /*dut_inputs=*/{},
+                                      /*wait_until_done=*/false,
+                                      /*wait_for_reset=*/false));
+    SequentialBlock& seq = watchdog_thread->MainBlock();
+    seq.AdvanceNCycles(kSimulationCycleLimit);
+    seq.Display(GetTimeoutMessage());
+    seq.Finish();
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<ModuleTestbenchThread*>
+ModuleTestbench::CreateThreadDrivingAllInputs(std::string_view thread_name,
+                                              ZeroOrX initial_value,
+                                              bool wait_until_done) {
+  return CreateThread(thread_name,
+                      GetAllDutInputs(metadata_, initial_value,
+                                      /*exclude_reset=*/reset_dut_),
+                      wait_until_done,
+                      /*wait_for_reset=*/true);
 }
 
 absl::StatusOr<ModuleTestbenchThread*> ModuleTestbench::CreateThread(
-    std::optional<absl::flat_hash_map<std::string, std::optional<Bits>>>
-        owned_signals_to_drive,
-    bool emit_done_signal) {
-  std::vector<DrivenSignal> driven_signals;
-  std::optional<std::string> done_signal_name = std::nullopt;
-  if (emit_done_signal) {
-    done_signal_name = absl::StrFormat("__is_thread_%d_done", threads_.size());
-    XLS_RETURN_IF_ERROR(
-        metadata_.AddInternalSignal(done_signal_name.value(), /*width=*/1));
+    std::string_view thread_name, absl::Span<const DutInput> dut_inputs,
+    bool wait_until_done) {
+  return CreateThread(thread_name, dut_inputs, wait_until_done,
+                      /*wait_for_reset=*/true);
+}
+
+absl::StatusOr<ModuleTestbenchThread*> ModuleTestbench::CreateThread(
+    std::string_view thread_name, absl::Span<const DutInput> dut_inputs,
+    bool wait_until_done, bool wait_for_reset) {
+  //  Verify thread name is unique.
+  for (const std::unique_ptr<ModuleTestbenchThread>& t : threads_) {
+    if (thread_name == t->name()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Already a thread named `%s`", thread_name));
+    }
   }
-  if (owned_signals_to_drive.has_value()) {
-    for (auto [name, initial_value] : owned_signals_to_drive.value()) {
-      driven_signals.push_back(
-          DrivenSignal{.signal_name = name,
-                       .initial_value = initial_value.has_value()
-                                            ? BitsOrX(initial_value.value())
-                                            : BitsOrX(IsX())});
+  for (const DutInput& dut_input : dut_inputs) {
+    // Verify port_name is valid.
+    if (!metadata_.HasInputPortNamed(dut_input.port_name)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "`%s` is not a input port on the DUT", dut_input.port_name));
     }
-    // Threads always drive their own done signal.
-    if (done_signal_name.has_value()) {
-      driven_signals.push_back(
-          DrivenSignal{.signal_name = done_signal_name.value(),
-                       .initial_value = UBits(0, 1)});
-    }
-  } else {
-    // No owned signals specified. This thread is responsible for driving all
-    // inputs.
-    XLS_RET_CHECK(thread_owned_signals_.empty())
-        << "ModuleTestbenchThread cannot drive all inputs as some inputs are "
-           "being driven by existing threads.";
-    for (const TestbenchSignal& signal : metadata_.signals()) {
-      if (metadata_.IsClock(signal.name) ||
-          signal.type == TestbenchSignalType::kOutputPort) {
-        continue;
-      }
-      BitsOrX initial_value = IsX();
-      // Initial value of the done signal must be zero for the testbench to work
-      // properly.
-      if (done_signal_name.has_value() &&
-          signal.name == done_signal_name.value()) {
-        initial_value = UBits(0, 1);
-      }
-      driven_signals.push_back(DrivenSignal{.signal_name = signal.name,
-                                            .initial_value = initial_value});
+    if (claimed_dut_inputs_.contains(dut_input.port_name)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "`%s` is already being drive by thread `%s`; cannot also be drive by "
+          "thread `%s`",
+          dut_input.port_name,
+          claimed_dut_inputs_.at(dut_input.port_name)->name(), thread_name));
     }
   }
 
-  for (const DrivenSignal& driven_signal : driven_signals) {
-    auto [it, inserted] =
-        thread_owned_signals_.insert(driven_signal.signal_name);
-    XLS_RET_CHECK(inserted) << absl::StreamFormat(
-        "%s is being already being driven by an existing thread",
-        driven_signal.signal_name);
+  auto testbench_thread = std::make_unique<ModuleTestbenchThread>(
+      thread_name, &metadata_, &capture_manager_, dut_inputs, wait_until_done,
+      wait_for_reset);
+  for (const DutInput& dut_input : dut_inputs) {
+    claimed_dut_inputs_[dut_input.port_name] = testbench_thread.get();
   }
 
-  // The driven signals were constructed from a map. Given them a deterministic
-  // order.
-  std::sort(driven_signals.begin(), driven_signals.end(),
-            [](const DrivenSignal& a, const DrivenSignal& b) {
-              return a.signal_name < b.signal_name;
-            });
-
-  threads_.push_back(std::make_unique<ModuleTestbenchThread>(
-      &metadata_, &capture_manager_, driven_signals, done_signal_name));
+  threads_.push_back(std::move(testbench_thread));
   return threads_.back().get();
 }
 
@@ -979,7 +423,7 @@ absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
     if (std::holds_alternative<std::vector<Bits>*>(signal_capture.action)) {
       // Capture multiple instances of the same signal.
       XLS_RETURN_IF_ERROR(RecordCapturedBitsVector(
-          signal_capture.signal.name, signal_capture.instance_id, outputs,
+          signal_capture.signal_name, signal_capture.instance_id, outputs,
           std::get<std::vector<Bits>*>(signal_capture.action)));
       continue;
     }
@@ -987,7 +431,7 @@ absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
     if (std::holds_alternative<Bits*>(signal_capture.action)) {
       // Capture a single instance of a signal.
       XLS_RETURN_IF_ERROR(RecordCapturedBits(
-          signal_capture.signal.name, signal_capture.instance_id, outputs,
+          signal_capture.signal_name, signal_capture.instance_id, outputs,
           std::get<Bits*>(signal_capture.action)));
       continue;
     }
@@ -996,7 +440,7 @@ absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
     XLS_RET_CHECK(
         std::holds_alternative<TestbenchExpectation>(signal_capture.action));
     XLS_RETURN_IF_ERROR(CheckCapturedSignalAgainstExpectation(
-        signal_capture.signal.name, signal_capture.instance_id,
+        signal_capture.signal_name, signal_capture.instance_id,
         std::get<TestbenchExpectation>(signal_capture.action), outputs));
   }
 
@@ -1015,39 +459,45 @@ absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
   return absl::OkStatus();
 }
 
-std::string ModuleTestbench::GenerateVerilog() {
+std::string ModuleTestbench::GenerateVerilog() const {
   VerilogFile file(file_type_);
   Module* m = file.AddModule("testbench", SourceInfo());
 
   LogicRef* clk = nullptr;
   absl::flat_hash_map<std::string, LogicRef*> signal_refs;
   std::vector<Connection> connections;
-  for (const TestbenchSignal& signal : metadata_.signals()) {
-    if (signal.width == 0) {
+
+  // Create a `reg` for each DUT input port.
+  for (const std::string& port_name : metadata_.dut_input_ports()) {
+    if (metadata_.GetPortWidth(port_name) == 0) {
       // Skip zero-width inputs (e.g., empty tuples) as these have no actual
       // port in the Verilog module.
       continue;
     }
-    LogicRef* ref;
-    if (signal.type == TestbenchSignalType::kInputPort) {
-      ref =
-          m->AddReg(signal.name, file.BitVectorType(signal.width, SourceInfo()),
-                    SourceInfo());
-    } else if (signal.type == TestbenchSignalType::kOutputPort) {
-      ref = m->AddWire(signal.name,
-                       file.BitVectorType(signal.width, SourceInfo()),
-                       SourceInfo());
-    } else {
-      // Internal signal. This should not be connected to the DUT instantiation.
-      XLS_CHECK(signal.type == TestbenchSignalType::kInternal);
-      continue;
-    }
-    signal_refs[signal.name] = ref;
-    connections.push_back(Connection{signal.name, ref});
-
-    if (metadata_.IsClock(signal.name)) {
+    LogicRef* ref = m->AddReg(
+        port_name,
+        file.BitVectorType(metadata_.GetPortWidth(port_name), SourceInfo()),
+        SourceInfo());
+    signal_refs[port_name] = ref;
+    if (metadata_.IsClock(port_name)) {
       clk = ref;
     }
+    connections.push_back(Connection{port_name, ref});
+  }
+
+  // Create a `wire` for each DUT output port.
+  for (const std::string& port_name : metadata_.dut_output_ports()) {
+    if (metadata_.GetPortWidth(port_name) == 0) {
+      // Skip zero-width inputs (e.g., empty tuples) as these have no actual
+      // port in the Verilog module.
+      continue;
+    }
+    LogicRef* ref = m->AddWire(
+        port_name,
+        file.BitVectorType(metadata_.GetPortWidth(port_name), SourceInfo()),
+        SourceInfo());
+    signal_refs[port_name] = ref;
+    connections.push_back(Connection{port_name, ref});
   }
 
   // If DUT has no clock, create a clock reg (not connected to the DUT) as the
@@ -1062,20 +512,6 @@ std::string ModuleTestbench::GenerateVerilog() {
   m->Add<Instantiation>(
       SourceInfo(), metadata_.dut_module_name(), kInstantiationName,
       /*parameters=*/absl::Span<const Connection>(), connections);
-
-  std::vector<LogicRef*> done_signal_refs;
-  std::vector<std::string> done_signal_names;
-  for (const auto& thread : threads_) {
-    if (!thread->done_signal_name().has_value()) {
-      continue;
-    }
-    LogicRef* ref =
-        m->AddReg(thread->done_signal_name().value(),
-                  file.BitVectorType(1, SourceInfo()), SourceInfo());
-    done_signal_names.push_back(thread->done_signal_name().value());
-    done_signal_refs.push_back(ref);
-    signal_refs[thread->done_signal_name().value()] = ref;
-  }
 
   {
     // Generate the clock. It has a frequency of ten time units. Start clk at 0
@@ -1092,51 +528,6 @@ std::string ModuleTestbench::GenerateVerilog() {
             SourceInfo(), file.PlainLiteral(kClockPeriod / 2, SourceInfo()),
             file.Make<BlockingAssignment>(SourceInfo(), clk,
                                           file.LogicalNot(clk, SourceInfo()))));
-  }
-
-  {
-    // Global reset controller. If a reset is present, the threads will wait
-    // on this reset prior to starting their execution.
-    if (metadata_.reset_proto().has_value()) {
-      m->Add<BlankLine>(SourceInfo());
-      m->Add<Comment>(SourceInfo(), "Reset generator.");
-      LogicRef* last_cycle_of_reset =
-          m->AddReg(kLastResetCycleSignal, file.BitVectorType(1, SourceInfo()),
-                    SourceInfo());
-      signal_refs[kLastResetCycleSignal] = last_cycle_of_reset;
-      LogicRef* reset = signal_refs.at(metadata_.reset_proto()->name());
-      Expression* zero = file.Literal(UBits(0, 1), SourceInfo());
-      Expression* one = file.Literal(UBits(1, 1), SourceInfo());
-      Expression* reset_start_value =
-          metadata_.reset_proto()->active_low() ? zero : one;
-      Expression* reset_end_value =
-          metadata_.reset_proto()->active_low() ? one : zero;
-      Initial* initial = m->Add<Initial>(SourceInfo());
-      initial->statements()->Add<BlockingAssignment>(SourceInfo(), reset,
-                                                     reset_start_value);
-      initial->statements()->Add<BlockingAssignment>(SourceInfo(),
-                                                     last_cycle_of_reset, zero);
-      WaitNCycles(clk, initial->statements(), kResetCycles - 1);
-      initial->statements()->Add<BlockingAssignment>(SourceInfo(),
-                                                     last_cycle_of_reset, one);
-      WaitNCycles(clk, initial->statements(), 1);
-      initial->statements()->Add<BlockingAssignment>(SourceInfo(), reset,
-                                                     reset_end_value);
-      initial->statements()->Add<BlockingAssignment>(SourceInfo(),
-                                                     last_cycle_of_reset, zero);
-    }
-  }
-
-  {
-    // Add a watchdog which stops the simulation after a long time.
-    m->Add<BlankLine>(SourceInfo());
-    m->Add<Comment>(SourceInfo(), "Watchdog timer.");
-    Initial* initial = m->Add<Initial>(SourceInfo());
-    WaitNCycles(clk, initial->statements(), kSimulationCycleLimit);
-    initial->statements()->Add<Display>(
-        SourceInfo(), std::vector<Expression*>{file.Make<QuotedString>(
-                          SourceInfo(), GetTimeoutMessage())});
-    initial->statements()->Add<Finish>(SourceInfo());
   }
 
   {
@@ -1179,58 +570,56 @@ std::string ModuleTestbench::GenerateVerilog() {
     initial->statements()->Add<Monitor>(SourceInfo(), monitor_args);
   }
 
+  // Emit threads.
+  std::vector<LogicRef*> thread_done_signals;
   int64_t thread_number = 0;
   for (const auto& thread : threads_) {
-    // TODO(vmirian) : Consider lowering the thread to an 'always' block.
     m->Add<BlankLine>(SourceInfo());
-    std::vector<std::string> driven_signal_names;
-    for (const DrivenSignal& driven_signal : thread->driven_signals()) {
-      driven_signal_names.push_back(driven_signal.signal_name);
+    std::vector<std::string> dut_input_names;
+    for (const DutInput& dut_input : thread->dut_inputs()) {
+      dut_input_names.push_back(dut_input.port_name);
     }
     m->Add<Comment>(
         SourceInfo(),
-        absl::StrFormat("Thread %d. Drives signals: %s", thread_number,
-                        driven_signal_names.empty()
+        absl::StrFormat("Thread `%s`. Drives signals: %s", thread->name(),
+                        dut_input_names.empty()
                             ? "<none>"
-                            : absl::StrJoin(driven_signal_names, ", ")));
-    Initial* initial = m->Add<Initial>(SourceInfo());
-    thread->EmitInto(initial, clk, signal_refs);
+                            : absl::StrJoin(dut_input_names, ", ")));
+    thread->EmitInto(m, clk, &signal_refs);
+    if (thread->done_signal_name().has_value()) {
+      thread_done_signals.push_back(
+          signal_refs.at(thread->done_signal_name().value()));
+    }
     ++thread_number;
   }
+
   {
     // Add a finish statement when all threads are complete.
     m->Add<BlankLine>(SourceInfo());
     m->Add<Comment>(SourceInfo(), "Thread completion monitor.");
-
     Initial* initial = m->Add<Initial>(SourceInfo());
-
-    // All actions assume they start one unit after the clock posedge.
-    WaitForClockPosEdge(clk, initial->statements());
-    EmitDelay(initial->statements(), 1);
-
-    if (metadata_.reset_proto().has_value()) {
-      EmitAction(
-          WaitForSignals{
-              .any_or_all = AnyOrAll::kAll,
-              .signal_values = {SignalValue{
-                  .signal_name = metadata_.reset_proto()->name(),
-                  .value =
-                      UBits(metadata_.reset_proto()->active_low() ? 1 : 0, 1)}},
-              .end_of_cycle_event = nullptr,
-              .comment = "Wait for reset deasserted"},
-          initial->statements(), clk, signal_refs);
+    Expression* posedge_clk = file.Make<PosEdge>(SourceInfo(), clk);
+    if (!thread_done_signals.empty()) {
+      // Sample at one cycle before clock posedge.
+      initial->statements()->Add<EventControl>(SourceInfo(), posedge_clk);
+      initial->statements()->Add<DelayStatement>(
+          SourceInfo(), file.PlainLiteral(kClockPeriod - 1, SourceInfo()));
+      Expression* all_done = thread_done_signals.front();
+      for (int64_t i = 1; i < thread_done_signals.size(); ++i) {
+        all_done =
+            file.LogicalAnd(all_done, thread_done_signals[i], SourceInfo());
+      }
+      auto whle = initial->statements()->Add<WhileStatement>(
+          SourceInfo(), file.LogicalNot(all_done, SourceInfo()));
+      whle->statements()->Add<EventControl>(SourceInfo(), posedge_clk);
+      whle->statements()->Add<DelayStatement>(
+          SourceInfo(), file.PlainLiteral(kClockPeriod - 1, SourceInfo()));
     }
-    std::vector<SignalValue> done_signal_values;
-    done_signal_values.reserve(done_signal_names.size());
-    for (const std::string& done_signal : done_signal_names) {
-      done_signal_values.push_back(
-          SignalValue{.signal_name = done_signal, .value = UBits(1, 1)});
-    }
-    EmitAction(WaitForSignals{.any_or_all = AnyOrAll::kAll,
-                              .signal_values = done_signal_values,
-                              .end_of_cycle_event = nullptr,
-                              .comment = "Wait for all threads to complete"},
-               initial->statements(), clk, signal_refs);
+
+    initial->statements()->Add<EventControl>(SourceInfo(), posedge_clk);
+    initial->statements()->Add<DelayStatement>(
+        SourceInfo(), file.PlainLiteral(1, SourceInfo()));
+
     initial->statements()->Add<Finish>(SourceInfo());
   }
 

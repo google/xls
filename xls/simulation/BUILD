@@ -64,6 +64,7 @@ cc_library(
     hdrs = ["module_simulator.h"],
     deps = [
         ":module_testbench",
+        ":module_testbench_thread",
         ":verilog_simulator",
         "//xls/codegen:flattening",
         "//xls/codegen:module_signature",
@@ -73,7 +74,6 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
-        "//xls/ir:bits_ops",
         "//xls/ir:value",
         "//xls/tools:eval_helpers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -119,11 +119,13 @@ cc_library(
     srcs = ["module_testbench.cc"],
     hdrs = ["module_testbench.h"],
     deps = [
+        ":module_testbench_thread",
+        ":testbench_metadata",
+        ":testbench_signal_capture",
         ":verilog_simulator",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
         "//xls/common:source_location",
-        "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -136,6 +138,7 @@ cc_library(
         "//xls/tools:verilog_include",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -154,6 +157,8 @@ cc_test(
     ]),
     deps = [
         ":module_testbench",
+        ":module_testbench_thread",
+        ":testbench_signal_capture",
         ":verilog_test_base",
         "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:vast",
@@ -288,5 +293,53 @@ cc_library(
     deps = [
         "//xls/common/logging",
         "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
+    name = "testbench_metadata",
+    srcs = ["testbench_metadata.cc"],
+    hdrs = ["testbench_metadata.h"],
+    deps = [
+        "//xls/codegen:module_signature",
+        "//xls/common/logging",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "testbench_signal_capture",
+    srcs = ["testbench_signal_capture.cc"],
+    hdrs = ["testbench_signal_capture.h"],
+    deps = [
+        ":testbench_metadata",
+        "//xls/common:source_location",
+        "//xls/common/logging",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "module_testbench_thread",
+    srcs = ["module_testbench_thread.cc"],
+    hdrs = ["module_testbench_thread.h"],
+    deps = [
+        ":testbench_metadata",
+        ":testbench_signal_capture",
+        "//xls/codegen:vast",
+        "//xls/common:visitor",
+        "//xls/common/logging",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:number_parser",
+        "//xls/ir:source_location",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )

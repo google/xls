@@ -30,23 +30,11 @@ module testbench;
     .in(in),
     .out(out)
   );
-  reg __is_thread_0_done;
-  reg __is_thread_1_done;
 
   // Clock generator.
   initial begin
     clk = 0;
     forever #5 clk = !clk;
-  end
-
-  // Watchdog timer.
-  initial begin
-    repeat (10000) begin
-      @(posedge clk);
-    end
-    #1;
-    $display("ERROR: timeout, simulation ran too long (10000 cycles).");
-    $finish;
   end
 
   // Monitor for input/output ports.
@@ -58,56 +46,61 @@ module testbench;
     $monitor("%t reset: %d in: %d out: %d", $time, reset, in, out);
   end
 
-  // Thread 0. Drives signals: __is_thread_0_done, in, reset
+  // Thread `watchdog`. Drives signals: <none>
   initial begin
-    __is_thread_0_done = 1'h0;
-
-    in = 16'h0000;
-
-    reset = 1'h1;
-
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-
-    reset = 1'h0;
-
-    in = 16'h0001;
-
-    // Wait 1 cycle(s).
+    // Wait 10000 cycle(s).
+    repeat (9999) begin
+      @(posedge clk);
+    end
+    #1;
     @(posedge clk);
     #1;
-
-    in = 16'h0002;
-
-    // Wait 1 cycle(s).
-    @(posedge clk);
-    #1;
-
-    in = 16'h0003;
-
-    // Wait 1 cycle(s).
-    @(posedge clk);
-    #1;
-
-    in = 16'h0004;
-
-    // Wait 1 cycle(s).
-    @(posedge clk);
-    #1;
-
-    in = 16'h0005;
-
-    // Wait 1 cycle(s).
-    @(posedge clk);
-    #1;
-
-    __is_thread_0_done = 1'h1;
+    $display("ERROR: timeout, simulation ran too long (10000 cycles).");
+    $finish;
   end
 
-  // Thread 1. Drives signals: __is_thread_1_done
+  // Thread `input driver`. Drives signals: reset, in
+  reg __thread_input_driver_done;
   initial begin
-    __is_thread_1_done = 1'h0;
+    reset = 1'h1;
+    in = 16'h0000;
+    __thread_input_driver_done = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    reset = 1'h0;
+    in = 16'h0001;
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    in = 16'h0002;
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    in = 16'h0003;
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    in = 16'h0004;
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    in = 16'h0005;
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    __thread_input_driver_done = 1'h1;
+  end
+
+  // Thread `output capture`. Drives signals: <none>
+  reg __thread_output_capture_done;
+  initial begin
+    __thread_output_capture_done = 1'h0;
 
     // Wait 1 cycle(s).
     @(posedge clk);
@@ -120,18 +113,16 @@ module testbench;
       #1;
     end
 
-    __is_thread_1_done = 1'h1;
+    __thread_output_capture_done = 1'h1;
   end
 
   // Thread completion monitor.
   initial begin
     @(posedge clk);
-    #1;
-
-    // Wait for all threads to complete
-    #8;
-    while (!(1'h1 && __is_thread_0_done == 1'h1 && __is_thread_1_done == 1'h1)) begin
-      #10;
+    #9;
+    while (!(__thread_input_driver_done && __thread_output_capture_done)) begin
+      @(posedge clk);
+      #9;
     end
     @(posedge clk);
     #1;

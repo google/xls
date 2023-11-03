@@ -41,6 +41,7 @@
 #include "xls/ir/value.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
+#include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -714,14 +715,18 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
       IsOkAndHolds(Value(UBits(50, 8))));
 
   // The out of bounds value should return the highest index value.
-  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
-                     GetSimulator());
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVerilogText(result.verilog_text, GetFileType(),
+                                             result.signature, GetSimulator()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("A", UBits(0xabcdef, 24));
   seq.Set("index", UBits(42, 8));
   seq.AtEndOfCycle().ExpectEq("out", 0xab);
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
@@ -754,14 +759,18 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
       IsOkAndHolds(Value(UBits(50, 8))));
 
   // The out of bounds value should return X.
-  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
-                     GetSimulator());
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVerilogText(result.verilog_text, GetFileType(),
+                                             result.signature, GetSimulator()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("A", UBits(0xabcdef, 24));
   seq.Set("index", UBits(3, 8));
   seq.AtEndOfCycle().ExpectX("out");
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(CombinationalGeneratorTest, TwoDArray) {

@@ -14,14 +14,20 @@
 
 #include "xls/tools/wrap_io.h"
 
+#include <memory>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/source_location.h"
 #include "xls/simulation/module_testbench.h"
+#include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/verilog_test_base.h"
 #include "xls/tools/ice40_io_strategy.h"
 #include "xls/tools/null_io_strategy.h"
@@ -89,8 +95,12 @@ TEST_P(WrapIOTest, WrapIOIncrement8b) {
   EXPECT_NE(m, nullptr);
   XLS_VLOG(1) << file.Emit();
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
+                           tb->CreateThreadDrivingAllInputs(
+                               "main", /*initial_value=*/ZeroOrX::kZero));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("byte_out_ready", 0).Set("byte_in_valid", 1).Set("byte_in", 42);
   seq.WaitForCycleAfter("byte_in_ready");
@@ -98,7 +108,7 @@ TEST_P(WrapIOTest, WrapIOIncrement8b) {
   seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 43);
   seq.Set("byte_out_ready", 0);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, WrapIONot16b) {
@@ -125,8 +135,12 @@ TEST_P(WrapIOTest, WrapIONot16b) {
   EXPECT_NE(m, nullptr);
   XLS_VLOG(1) << file.Emit();
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("byte_out_ready", 0).Set("byte_in_valid", 1);
   seq.Set("byte_in", 0x12).WaitForCycleAfter("byte_in_ready");
@@ -141,15 +155,19 @@ TEST_P(WrapIOTest, WrapIONot16b) {
   seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0xed);
   seq.Set("byte_out_ready", 0);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, InputShiftRegisterTest) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            InputShiftRegisterModule(/*bit_count=*/16, &file));
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("clear", 1);
 
@@ -171,7 +189,7 @@ TEST_P(WrapIOTest, InputShiftRegisterTest) {
   seq.NextCycle();
   seq.AtEndOfCycle().ExpectEq("done", 0);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, OneByteShiftRegisterTest) {
@@ -179,8 +197,12 @@ TEST_P(WrapIOTest, OneByteShiftRegisterTest) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            InputShiftRegisterModule(/*bit_count=*/8, &file));
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("clear", 1);
 
@@ -201,7 +223,7 @@ TEST_P(WrapIOTest, OneByteShiftRegisterTest) {
   seq.NextCycle().Set("write_en", 0);
   seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 123);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, ThreeBitShiftRegisterTest) {
@@ -209,8 +231,12 @@ TEST_P(WrapIOTest, ThreeBitShiftRegisterTest) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            InputShiftRegisterModule(/*bit_count=*/3, &file));
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("clear", 1);
 
@@ -230,7 +256,7 @@ TEST_P(WrapIOTest, ThreeBitShiftRegisterTest) {
   seq.NextCycle().Set("write_en", 0);
   seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out", 3);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, OddBitWidthShiftRegisterTest) {
@@ -239,8 +265,12 @@ TEST_P(WrapIOTest, OddBitWidthShiftRegisterTest) {
   // in first.
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            InputShiftRegisterModule(/*bit_count=*/57, &file));
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("clear", 1);
 
@@ -259,15 +289,19 @@ TEST_P(WrapIOTest, OddBitWidthShiftRegisterTest) {
   seq.AtEndOfCycle().ExpectEq("done", 1).ExpectEq("data_out",
                                                   0x1234567890abcdeULL);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, InputResetModuleTest) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputResetModule(&file));
 
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("rst_n_in", 0);
   seq.AdvanceNCycles(5);
@@ -300,7 +334,7 @@ TEST_P(WrapIOTest, InputResetModuleTest) {
   seq.NextCycle().Set("rst_n_in", 0);
   seq.AtEndOfCycle().ExpectEq("rst_n_out", 0);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, InputControllerForSimpleComputation) {
@@ -315,8 +349,12 @@ TEST_P(WrapIOTest, InputControllerForSimpleComputation) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputControllerModule(signature, &file));
 
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("rst_n_in", 0);
   seq.AdvanceNCycles(5);
@@ -327,7 +365,7 @@ TEST_P(WrapIOTest, InputControllerForSimpleComputation) {
   seq.AtEndOfCycleWhen("data_out_valid").ExpectEq("data_out", 0x1234);
   seq.AtEndOfCycle().ExpectEq("data_out_valid", 0);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, InputControllerResetControlCode) {
@@ -344,8 +382,12 @@ TEST_P(WrapIOTest, InputControllerResetControlCode) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputControllerModule(signature, &file));
 
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("rst_n_in", 0);
   seq.AdvanceNCycles(5);
@@ -366,7 +408,7 @@ TEST_P(WrapIOTest, InputControllerResetControlCode) {
   seq.AtEndOfCycleWhen("data_out_valid").ExpectEq("data_out", 0x1234);
   seq.AtEndOfCycle().ExpectEq("data_out_valid", 0);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, InputControllerEscapedCharacters) {
@@ -382,8 +424,12 @@ TEST_P(WrapIOTest, InputControllerEscapedCharacters) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputControllerModule(signature, &file));
 
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("rst_n_in", 0);
   seq.AdvanceNCycles(5);
@@ -406,7 +452,7 @@ TEST_P(WrapIOTest, InputControllerEscapedCharacters) {
                 (static_cast<uint16_t>(IOControlCode::kEscape) << 8) |
                     IOControlCode::kReset);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, InputControllerWideInput) {
@@ -420,8 +466,12 @@ TEST_P(WrapIOTest, InputControllerWideInput) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputControllerModule(signature, &file));
 
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("data_out_ready", 0).Set("byte_in_valid", 0);
   seq.Set("rst_n_in", 0);
@@ -450,7 +500,7 @@ TEST_P(WrapIOTest, InputControllerWideInput) {
   seq.Set("data_out_ready", 0);
   seq.AtEndOfCycleWhen("data_out_valid")
       .ExpectEq("data_out", 0x1234567890abcdefULL);
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 TEST_P(WrapIOTest, OutputControllerForSimpleComputation) {
@@ -465,8 +515,12 @@ TEST_P(WrapIOTest, OutputControllerForSimpleComputation) {
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            OutputControllerModule(signature, &file));
 
-  ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("byte_out_ready", 0).Set("data_in_valid", 1);
   seq.Set("rst_n", 0);
@@ -488,7 +542,7 @@ TEST_P(WrapIOTest, OutputControllerForSimpleComputation) {
   seq.AtEndOfCycleWhen("byte_out_valid").ExpectEq("byte_out", 0x12);
   seq.Set("byte_out_ready", 1).NextCycle().Set("byte_out_ready", 0);
 
-  XLS_EXPECT_OK(tb.Run());
+  XLS_EXPECT_OK(tb->Run());
 }
 
 // Iverilog hangs when simulating some of these tests.

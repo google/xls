@@ -42,22 +42,11 @@ module testbench;
     .operand_0_rdy(operand_0_rdy),
     .operand_1_rdy(operand_1_rdy)
   );
-  reg __is_thread_3_done;
 
   // Clock generator.
   initial begin
     clk = 0;
     forever #5 clk = !clk;
-  end
-
-  // Watchdog timer.
-  initial begin
-    repeat (10000) begin
-      @(posedge clk);
-    end
-    #1;
-    $display("ERROR: timeout, simulation ran too long (10000 cycles).");
-    $finish;
   end
 
   // Monitor for input/output ports.
@@ -69,20 +58,32 @@ module testbench;
     $monitor("%t operand_0: %d operand_0_vld: %d operand_1: %d operand_1_vld: %d result_rdy: %d result: %d result_vld: %d operand_0_rdy: %d operand_1_rdy: %d", $time, operand_0, operand_0_vld, operand_1, operand_1_vld, result_rdy, result, result_vld, operand_0_rdy, operand_1_rdy);
   end
 
-  // Thread 0. Drives signals: operand_0, operand_0_vld
+  // Thread `watchdog`. Drives signals: <none>
+  initial begin
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    // Wait 10000 cycle(s).
+    repeat (9999) begin
+      @(posedge clk);
+    end
+    #1;
+    @(posedge clk);
+    #1;
+    $display("ERROR: timeout, simulation ran too long (10000 cycles).");
+    $finish;
+  end
+
+  // Thread `operand_0 driver`. Drives signals: operand_0, operand_0_vld
   initial begin
     operand_0 = 32'dx;
-
     operand_0_vld = 1'h0;
 
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-
     operand_0 = 32'h0000_0029;
-
     operand_0_vld = 1'h1;
-
     // Wait for cycle after `operand_0_rdy` is asserted
     #8;
     while (!(1'h1 && operand_0_rdy == 1'h1)) begin
@@ -90,11 +91,8 @@ module testbench;
     end
     @(posedge clk);
     #1;
-
     operand_0 = 32'h0000_0020;
-
     operand_0_vld = 1'h1;
-
     // Wait for cycle after `operand_0_rdy` is asserted
     #8;
     while (!(1'h1 && operand_0_rdy == 1'h1)) begin
@@ -102,26 +100,20 @@ module testbench;
     end
     @(posedge clk);
     #1;
-
     operand_0_vld = 1'h0;
-
     operand_0 = 32'dx;
   end
 
-  // Thread 1. Drives signals: operand_1, operand_1_vld
+  // Thread `operand_1 driver`. Drives signals: operand_1, operand_1_vld
   initial begin
     operand_1 = 32'dx;
-
     operand_1_vld = 1'h0;
 
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-
     operand_1 = 32'h0000_0001;
-
     operand_1_vld = 1'h1;
-
     // Wait for cycle after `operand_1_rdy` is asserted
     #8;
     while (!(1'h1 && operand_1_rdy == 1'h1)) begin
@@ -129,11 +121,8 @@ module testbench;
     end
     @(posedge clk);
     #1;
-
     operand_1 = 32'h0000_0020;
-
     operand_1_vld = 1'h1;
-
     // Wait for cycle after `operand_1_rdy` is asserted
     #8;
     while (!(1'h1 && operand_1_rdy == 1'h1)) begin
@@ -141,31 +130,28 @@ module testbench;
     end
     @(posedge clk);
     #1;
-
     operand_1_vld = 1'h0;
-
     operand_1 = 32'dx;
   end
 
-  // Thread 2. Drives signals: result_rdy
+  // Thread `result driver`. Drives signals: result_rdy
   initial begin
     result_rdy = 1'h0;
 
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-
     result_rdy = 1'h1;
   end
 
-  // Thread 3. Drives signals: __is_thread_3_done
+  // Thread `output result capture`. Drives signals: <none>
+  reg __thread_output_result_capture_done;
   initial begin
-    __is_thread_3_done = 1'h0;
+    __thread_output_result_capture_done = 1'h0;
 
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-
     // Wait for all asserted (and capture output): result_vld, result_rdy
     #8;
     while (!(1'h1 && result_vld == 1'h1 && result_rdy == 1'h1)) begin
@@ -174,7 +160,6 @@ module testbench;
     $display("%t OUTPUT result = 32'h%0x (#0)", $time, result);
     @(posedge clk);
     #1;
-
     // Wait for all asserted (and capture output): result_vld, result_rdy
     #8;
     while (!(1'h1 && result_vld == 1'h1 && result_rdy == 1'h1)) begin
@@ -184,18 +169,16 @@ module testbench;
     @(posedge clk);
     #1;
 
-    __is_thread_3_done = 1'h1;
+    __thread_output_result_capture_done = 1'h1;
   end
 
   // Thread completion monitor.
   initial begin
     @(posedge clk);
-    #1;
-
-    // Wait for all threads to complete
-    #8;
-    while (!(1'h1 && __is_thread_3_done == 1'h1)) begin
-      #10;
+    #9;
+    while (!__thread_output_result_capture_done) begin
+      @(posedge clk);
+      #9;
     end
     @(posedge clk);
     #1;

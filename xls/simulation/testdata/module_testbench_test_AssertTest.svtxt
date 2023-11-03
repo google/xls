@@ -1,34 +1,20 @@
 module test_module(
   input wire clk,
-  input wire reset,
-  input wire [15:0] in,
-  output wire [15:0] out
+  input wire [31:0] a,
+  input wire [31:0] b
 );
-  reg [15:0] p0;
-  reg [15:0] p1;
-  always @ (posedge clk) begin
-    if (reset) begin
-      p0 <= 16'h0000;
-      p1 <= 16'h0000;
-    end else begin
-      p0 <= in;
-      p1 <= p0;
-    end
-  end
-  assign out = p1;
+  my_label: assert property (@(posedge clk) disable iff ($isunknown(a) || $isunknown(b)) a < b) else $fatal(0, "`a` must be less than `b`!");
 endmodule
 
 
 module testbench;
   reg clk;
-  reg reset;
-  reg [15:0] in;
-  wire [15:0] out;
+  reg [31:0] a;
+  reg [31:0] b;
   test_module dut (
     .clk(clk),
-    .reset(reset),
-    .in(in),
-    .out(out)
+    .a(a),
+    .b(b)
   );
 
   // Clock generator.
@@ -43,7 +29,7 @@ module testbench;
     $display("Signals driven one time unit after rising clock.");
     $display("Signals sampled one time unit before rising clock.");
     $display("Starting simulation. Monitor output:");
-    $monitor("%t reset: %d in: %d out: %d", $time, reset, in, out);
+    $monitor("%t a: %d b: %d", $time, a, b);
   end
 
   // Thread `watchdog`. Drives signals: <none>
@@ -62,54 +48,35 @@ module testbench;
     $finish;
   end
 
-  // Thread `input driver`. Drives signals: reset, in
+  // Thread `input driver`. Drives signals: a, b
+  reg __thread_input_driver_done;
   initial begin
-    reset = 1'h1;
-    in = 16'h0000;
+    a = 32'dx;
+    b = 32'dx;
+    __thread_input_driver_done = 1'h0;
 
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-    reset = 1'h0;
+    a = 32'h0000_002a;
+    b = 32'h0000_0064;
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-    while (1) begin
-      in = 16'h0002;
-      // Wait 1 cycle(s).
-      @(posedge clk);
-      #1;
-      in = 16'h0003;
-      // Wait 1 cycle(s).
-      @(posedge clk);
-      #1;
-    end
-  end
-
-  // Thread `output capture`. Drives signals: <none>
-  reg __thread_output_capture_done;
-  initial begin
-    __thread_output_capture_done = 1'h0;
-
+    a = 32'h0000_00c8;
+    b = 32'h0000_012c;
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-    repeat (10) begin
-      // Wait 1 cycle(s).
-      #8;
-      $display("%t OUTPUT out = 16'h%0x (#0)", $time, out);
-      @(posedge clk);
-      #1;
-    end
 
-    __thread_output_capture_done = 1'h1;
+    __thread_input_driver_done = 1'h1;
   end
 
   // Thread completion monitor.
   initial begin
     @(posedge clk);
     #9;
-    while (!__thread_output_capture_done) begin
+    while (!__thread_input_driver_done) begin
       @(posedge clk);
       #9;
     end

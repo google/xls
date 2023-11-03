@@ -31,13 +31,15 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/flattening.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
+#include "xls/ir/value.h"
 #include "xls/simulation/module_testbench.h"
+#include "xls/simulation/module_testbench_thread.h"
 #include "xls/tools/eval_helpers.h"
 
 namespace xls {
@@ -52,15 +54,6 @@ ModuleSimulator::BitsMap ValueMapToBitsMap(
     outputs[pair.first] = FlattenValueToBits(pair.second);
   }
   return outputs;
-}
-
-absl::flat_hash_map<std::string, std::optional<Bits>> InitValuesToX(
-    absl::Span<const ModuleSimulator::BitsMap> inputs) {
-  absl::flat_hash_map<std::string, std::optional<Bits>> init_values;
-  for (const auto& [name, _] : inputs.front()) {
-    init_values[name] = std::nullopt;
-  }
-  return init_values;
 }
 
 // Converts a list of IR Value to a list of IR Bits.
@@ -158,21 +151,24 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
                                const ChannelProto& channel_proto,
                                absl::Span<const ValidHoldoff> valid_holdoffs,
                                ModuleTestbench& tb) {
-  absl::flat_hash_map<std::string, std::optional<Bits>> owned_signals_to_drive;
+  std::vector<DutInput> dut_inputs;
   std::string_view data_port_name = channel_proto.data_port_name();
-  owned_signals_to_drive[data_port_name] = std::nullopt;
+  dut_inputs.push_back(DutInput{.port_name = std::string{data_port_name},
+                                .initial_value = IsX()});
   std::optional<std::string> valid_port_name;
   std::optional<std::string> ready_port_name;
   if (channel_proto.has_valid_port_name()) {
     valid_port_name = channel_proto.valid_port_name();
-    owned_signals_to_drive[valid_port_name.value()] = UBits(0, 1);
+    dut_inputs.push_back(DutInput{.port_name = valid_port_name.value(),
+                                  .initial_value = UBits(0, 1)});
   }
   if (channel_proto.has_ready_port_name()) {
     ready_port_name = channel_proto.ready_port_name();
   }
   XLS_ASSIGN_OR_RETURN(
       ModuleTestbenchThread * tbt,
-      tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/false));
+      tb.CreateThread(absl::StrFormat("%s driver", channel_proto.name()),
+                      dut_inputs, /*wait_until_done=*/false));
   SequentialBlock& seq_block = tbt->MainBlock();
   for (int64_t input_number = 0; input_number < inputs.size(); ++input_number) {
     const Bits& value = inputs[input_number];
@@ -210,11 +206,13 @@ absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
   if (channel_proto.has_ready_port_name()) {
     std::string_view ready_port_name = channel_proto.ready_port_name();
     // Create a separate thread to drive ready and any necessary holdoffs
-    absl::flat_hash_map<std::string, std::optional<Bits>> signals_to_drive;
-    signals_to_drive[ready_port_name] = UBits(0, 1);
+    std::vector<DutInput> dut_inputs = {
+        DutInput{.port_name = std::string{ready_port_name},
+                 .initial_value = UBits(0, 1)}};
     XLS_ASSIGN_OR_RETURN(
         ModuleTestbenchThread * ready_tbt,
-        tb.CreateThread(signals_to_drive, /*emit_done_signal=*/false));
+        tb.CreateThread(absl::StrFormat("%s driver", channel_proto.name()),
+                        dut_inputs, /*wait_until_done=*/false));
     // Collapse consecutive 0's in the ready holdoff sequence into a single
     // multi-cycle assertion of ready. E.g., the sequence {7, 0, 0, 42, 0}
     // should lower to:
@@ -244,10 +242,10 @@ absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
   }
 
   // Create thread for capturing outputs. This thread drives no signals.
-  XLS_ASSIGN_OR_RETURN(
-      ModuleTestbenchThread * tbt,
-      tb.CreateThread(/*owned_signals_to_drive=*/
-                      absl::flat_hash_map<std::string, std::optional<Bits>>()));
+  XLS_ASSIGN_OR_RETURN(ModuleTestbenchThread * tbt,
+                       tb.CreateThread(absl ::StrFormat("output %s capture",
+                                                        channel_proto.name()),
+                                       /*dut_inputs=*/{}));
   std::vector<std::string> flow_control_signals;
   if (channel_proto.has_valid_port_name()) {
     flow_control_signals.push_back(channel_proto.valid_port_name());
@@ -272,18 +270,19 @@ absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
 
 }  // namespace
 
-absl::flat_hash_map<std::string, Bits> ModuleSimulator::DeassertControlSignals()
-    const {
-  absl::flat_hash_map<std::string, Bits> control_signals;
+std::vector<DutInput> ModuleSimulator::DeassertControlSignals() const {
+  std::vector<DutInput> dut_inputs;
   if (signature_.proto().has_pipeline() &&
       signature_.proto().pipeline().has_pipeline_control()) {
     const PipelineControl& pipeline_control =
         signature_.proto().pipeline().pipeline_control();
     if (pipeline_control.has_valid()) {
-      control_signals[pipeline_control.valid().input_name()] = UBits(0, 1);
+      dut_inputs.push_back(
+          DutInput{.port_name = pipeline_control.valid().input_name(),
+                   .initial_value = UBits(0, 1)});
     }
   }
-  return control_signals;
+  return dut_inputs;
 }
 
 absl::StatusOr<ModuleSimulator::BitsMap> ModuleSimulator::RunFunction(
@@ -314,7 +313,8 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
       const auto& input = inputs[i];
       XLS_VLOG(1) << "  Set " << i << ":";
       for (const auto& pair : input) {
-        XLS_VLOG(1) << "    " << pair.first << " : " << pair.second;
+        XLS_VLOG(1) << "    " << pair.first << " : "
+                    << pair.second.ToDebugString();
       }
     }
   }
@@ -333,23 +333,20 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     return absl::InvalidArgumentError("Expected clock in signature");
   }
 
-  ModuleTestbench tb(verilog_text_, file_type_, signature_, simulator_,
-                     includes_);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ModuleTestbench> tb,
+                       ModuleTestbench::CreateFromVerilogText(
+                           verilog_text_, file_type_, signature_, simulator_,
+                           /*reset_dut=*/true, includes_));
 
   // Drive any control signals to an unasserted state so the all control inputs
   // are non-X when the device comes out of reset.
-  absl::flat_hash_map<std::string, Bits> control_signals =
-      DeassertControlSignals();
-
-  absl::flat_hash_map<std::string, std::optional<Bits>>
-      init_values_after_reset = InitValuesToX(inputs);
-
-  for (const auto& [name, bit_value] : control_signals) {
-    init_values_after_reset[name] = bit_value;
+  std::vector<DutInput> dut_inputs = DeassertControlSignals();
+  for (const auto& [name, _] : inputs.front()) {
+    dut_inputs.push_back(DutInput{name, IsX()});
   }
 
   XLS_ASSIGN_OR_RETURN(ModuleTestbenchThread * tbt,
-                       tb.CreateThread(init_values_after_reset));
+                       tb->CreateThread("input driver", dut_inputs));
   SequentialBlock& seq_block = tbt->MainBlock();
 
   // Drive data inputs. Values are flattened before using.
@@ -466,7 +463,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
         "Unsupported interface: ", signature_.proto().interface_oneof_case()));
   }
 
-  XLS_RETURN_IF_ERROR(tb.Run());
+  XLS_RETURN_IF_ERROR(tb->Run());
 
   // Transfer outputs to an ArgumentSet for return.
   std::vector<BitsMap> outputs(inputs.size());
@@ -481,7 +478,8 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     for (int64_t i = 0; i < outputs.size(); ++i) {
       XLS_VLOG(1) << "  Set " << i << ":";
       for (const auto& pair : outputs[i]) {
-        XLS_VLOG(1) << "    " << pair.first << " : " << pair.second;
+        XLS_VLOG(1) << "    " << pair.first << " : "
+                    << pair.second.ToDebugString();
       }
     }
   }
@@ -586,8 +584,10 @@ ModuleSimulator::CreateProcTestbench(
     return absl::InvalidArgumentError("Expected clock in signature");
   }
 
-  auto tb = std::make_unique<ModuleTestbench>(
-      verilog_text_, file_type_, signature_, simulator_, includes_);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ModuleTestbench> tb,
+                       ModuleTestbench::CreateFromVerilogText(
+                           verilog_text_, file_type_, signature_, simulator_,
+                           /*reset_dut=*/true, includes_));
 
   int64_t max_channel_reads = 0;
   for (const auto& [_, read_count] : output_channel_counts) {

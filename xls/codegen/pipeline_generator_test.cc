@@ -34,6 +34,7 @@
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
+#include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -64,6 +65,17 @@ class TestDelayEstimator : public DelayEstimator {
     }
   }
 };
+
+absl::StatusOr<ModuleSignature> StripResetFromSignature(
+    const ModuleSignature& signature) {
+  ModuleSignatureProto proto = signature.proto();
+  proto.clear_reset();
+  PortProto* reset_as_data_port = proto.add_data_ports();
+  reset_as_data_port->set_direction(DIRECTION_INPUT);
+  reset_as_data_port->set_name(signature.proto().reset().name());
+  reset_as_data_port->set_width(1);
+  return ModuleSignature::FromProto(proto);
+}
 
 class PipelineGeneratorTest : public VerilogTestBase {};
 
@@ -672,9 +684,13 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
                                .valid_control("in_valid", "out_valid")
                                .use_system_verilog(UseSystemVerilog())));
 
-  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
-                     GetSimulator());
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVerilogText(result.verilog_text, GetFileType(),
+                                             result.signature, GetSimulator()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("in_valid", 0);
   seq.AtEndOfCycleWhenNotX("out_valid").ExpectEq("out_valid", 0);
@@ -704,7 +720,7 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
     seq.AtEndOfCycle().ExpectEq("out", kExpected).ExpectEq("out_valid", 0);
   }
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
@@ -763,18 +779,16 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
 
     // We directly manipulate the reset line so strip reset from the signature
     // and add a regular port so the testbench does not drive the reset line.
-    ModuleSignatureProto proto = result.signature.proto();
-    proto.clear_reset();
-    PortProto* reset_as_data_port = proto.add_data_ports();
-    reset_as_data_port->set_direction(DIRECTION_INPUT);
-    reset_as_data_port->set_name(kResetSignal);
-    reset_as_data_port->set_width(1);
     XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature resetless_signature,
-                             ModuleSignature::FromProto(proto));
+                             StripResetFromSignature(result.signature));
 
-    ModuleTestbench tb(result.verilog_text, GetFileType(), resetless_signature,
-                       GetSimulator());
-    XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                             ModuleTestbench::CreateFromVerilogText(
+                                 result.verilog_text, GetFileType(),
+                                 resetless_signature, GetSimulator()));
+    XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
+                             tb->CreateThreadDrivingAllInputs(
+                                 "main", /*initial_value=*/ZeroOrX::kX));
     SequentialBlock& seq = tbt->MainBlock();
     // One cycle after reset the output control signal should be zero.
     seq.Set(kResetSignal, kAssertReset).Set("in_valid", 0);
@@ -815,7 +829,7 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
       seq.AtEndOfCycle().ExpectEq("out", kExpected).ExpectEq("out_valid", 0);
     }
 
-    XLS_ASSERT_OK(tb.Run());
+    XLS_ASSERT_OK(tb->Run());
   }
 }
 
@@ -1032,9 +1046,18 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
                      reset_proto.active_low(), reset_proto.reset_data_path())
               .use_system_verilog(UseSystemVerilog())));
 
-  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
-                     GetSimulator());
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  // We directly manipulate the reset line so strip reset from the signature
+  // and add a regular port so the testbench does not drive the reset line.
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature resetless_signature,
+                           StripResetFromSignature(result.signature));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           ModuleTestbench::CreateFromVerilogText(
+                               result.verilog_text, GetFileType(),
+                               resetless_signature, GetSimulator()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("in_valid", 0).Set("rst", 1);
   seq.NextCycle();
@@ -1059,8 +1082,8 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
   seq.AtEndOfCycle().ExpectEq("out_valid", 0);
   seq.AtEndOfCycle().ExpectEq("out_valid", 0);
 
-  // Now change the input and observe that the output never changes (because we
-  // don't correspondingly set input_valid).
+  // Now change the input and observe that the output never changes (because
+  // we don't correspondingly set input_valid).
   seq.Set("z", 7);
   int64_t latency = result.signature.proto().pipeline().latency();
   ASSERT_GT(latency, 0);
@@ -1078,7 +1101,7 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
     seq.AtEndOfCycle().ExpectEq("out", 0);
   }
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(PipelineGeneratorTest, IIGreaterThanOne) {

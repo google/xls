@@ -58,6 +58,8 @@
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
+#include "xls/simulation/module_testbench_thread.h"
+#include "xls/simulation/testbench_signal_capture.h"
 #include "xls/simulation/verilog_test_base.h"
 #include "xls/tools/verilog_include.h"
 
@@ -147,8 +149,11 @@ TEST_P(BlockGeneratorTest, AandB) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle().ExpectX("sum");
@@ -159,7 +164,7 @@ TEST_P(BlockGeneratorTest, AandB) {
   seq.Set("a", 0x11ff).Set("b", 0x77bb);
   seq.AtEndOfCycle().ExpectEq("sum", 0x11bb);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, PipelinedAandB) {
@@ -202,8 +207,11 @@ TEST_P(BlockGeneratorTest, PipelinedAandB) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle().ExpectX("sum");
@@ -224,7 +232,7 @@ TEST_P(BlockGeneratorTest, PipelinedAandB) {
   seq.AtEndOfCycle().ExpectEq("sum", 0);
   seq.AtEndOfCycle().ExpectEq("sum", 0x11bb);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, PipelinedAandBNoReset) {
@@ -255,8 +263,11 @@ TEST_P(BlockGeneratorTest, PipelinedAandBNoReset) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle().ExpectX("sum");
@@ -269,7 +280,7 @@ TEST_P(BlockGeneratorTest, PipelinedAandBNoReset) {
   seq.AdvanceNCycles(2);
   seq.AtEndOfCycle().ExpectEq("sum", 0x11bb);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, Accumulator) {
@@ -301,8 +312,11 @@ TEST_P(BlockGeneratorTest, Accumulator) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.Set("in", 0).Set("rst_n", 0);
@@ -322,7 +336,7 @@ TEST_P(BlockGeneratorTest, Accumulator) {
   seq.Set("rst_n", 1);
   seq.AtEndOfCycle().ExpectEq("out", 10);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
@@ -611,8 +625,11 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
                            GenerateVerilog(block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
                            GenerateSignature(codegen_options("clk"), block));
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   // Set inputs to zero and disable load-enables.
@@ -643,7 +660,7 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
   seq.NextCycle();
   seq.AtEndOfCycle().ExpectEq("a_out", 101).ExpectEq("b_out", 201);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, GatedBitsType) {
@@ -800,8 +817,11 @@ TEST_P(BlockGeneratorTest, InstantiatedBlock) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle().ExpectX("out");
@@ -813,7 +833,7 @@ TEST_P(BlockGeneratorTest, InstantiatedBlock) {
   seq.Set("x", 100).Set("y", 42);
   seq.AtEndOfCycle().ExpectEq("out", 120);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, InstantiatedBlockWithClockButNoClock) {
@@ -866,8 +886,11 @@ TEST_P(BlockGeneratorTest, InstantiatedBlockWithClock) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle().ExpectX("out");
@@ -882,7 +905,7 @@ TEST_P(BlockGeneratorTest, InstantiatedBlockWithClock) {
   seq.AtEndOfCycle().ExpectEq("out", 102);
   seq.Set("x", 0);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
@@ -931,8 +954,11 @@ TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle()
@@ -956,7 +982,7 @@ TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
       .ExpectEq("y_minus_x", 0xffff9675)
       .ExpectEq("x_minus_x", 0);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
@@ -1004,8 +1030,11 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt, tb.CreateThread());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle().ExpectX("j_minus_k").ExpectX("k_minus_j");
@@ -1022,7 +1051,7 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
       .ExpectEq("j_minus_k", 0x698b)
       .ExpectEq("k_minus_j", 0xffff9675);
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(BlockGeneratorTest, LoopbackFifoInstantiation) {
@@ -1142,16 +1171,18 @@ endmodule
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog, {fifo_definition});
 
-  ModuleTestbench tb = NewModuleTestbench(verilog, sig, {fifo_definition});
-  absl::flat_hash_map<std::string, std::optional<Bits>> push_owned_signals;
-  absl::flat_hash_map<std::string, std::optional<Bits>> pop_owned_signals;
-  push_owned_signals["in_valid"] = UBits(0, 1);
-  push_owned_signals["in_data"] = std::nullopt;
-  pop_owned_signals["out_ready"] = UBits(0, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * push_tbt,
-                           tb.CreateThread(push_owned_signals));
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * pop_tbt,
-                           tb.CreateThread(pop_owned_signals));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig, {fifo_definition}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * push_tbt,
+      tb->CreateThread(
+          "push",
+          {DutInput{.port_name = "in_valid", .initial_value = UBits(0, 1)},
+           DutInput{.port_name = "in_data", .initial_value = IsX()}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * pop_tbt,
+      tb->CreateThread("pop", {DutInput{.port_name = "out_ready",
+                                        .initial_value = UBits(0, 1)}}));
   SequentialBlock& push_block = push_tbt->MainBlock();
   SequentialBlock& pop_block = pop_tbt->MainBlock();
 
@@ -1175,7 +1206,7 @@ endmodule
     pop((i * (i + 1)) / 2);  // output is the next triangular number.
   }
 
-  XLS_ASSERT_OK(tb.Run());
+  XLS_ASSERT_OK(tb->Run());
 }
 
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
