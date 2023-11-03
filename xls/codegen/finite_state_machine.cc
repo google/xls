@@ -24,7 +24,9 @@
 #include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 namespace verilog {
@@ -513,8 +515,9 @@ absl::Status FsmBuilder::Build() {
   module_->AddModuleMember(state_local_param_);
 
   Expression* initial_state_value = states_.front().state_value();
-  DataType* type = file_->Make<DataType>(SourceInfo(), /*width=*/state_bits,
-                                         /*is_signed=*/false);
+  DataType* type =
+      file_->Make<BitVectorType>(SourceInfo(), /*width=*/state_bits,
+                                 /*is_signed=*/false);
   LogicRef* state =
       module_->AddReg("state", type, SourceInfo(), initial_state_value);
   LogicRef* state_next =

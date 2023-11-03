@@ -23,12 +23,14 @@
 #include <variant>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/indent.h"
 #include "xls/common/logging/logging.h"
@@ -37,6 +39,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 namespace verilog {
@@ -161,32 +164,28 @@ std::string Include::Emit(LineInfo* line_info) const {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
-DataType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
-                                             const SourceInfo& loc,
-                                             bool is_signed) {
-  return Make<DataType>(loc, PlainLiteral(bit_count, loc), is_signed);
+BitVectorType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
+                                                  const SourceInfo& loc,
+                                                  bool is_signed) {
+  return Make<verilog::BitVectorType>(
+      loc, PlainLiteral(static_cast<int32_t>(bit_count), loc), is_signed);
 }
 
 DataType* VerilogFile::BitVectorType(int64_t bit_count, const SourceInfo& loc,
                                      bool is_signed) {
   XLS_CHECK_GT(bit_count, 0);
-  if (bit_count == 1) {
-    if (is_signed) {
-      return Make<DataType>(loc, /*width=*/nullptr, /*is_signed=*/true);
-    }
-    return Make<DataType>(loc);
+  if (bit_count == 1 && !is_signed) {
+    return ScalarType(loc);
   }
   return BitVectorTypeNoScalar(bit_count, loc, is_signed);
 }
 
-DataType* VerilogFile::PackedArrayType(int64_t element_bit_count,
-                                       absl::Span<const int64_t> dims,
-                                       const SourceInfo& loc, bool is_signed) {
+PackedArrayType* VerilogFile::PackedArrayType(int64_t element_bit_count,
+                                              absl::Span<const int64_t> dims,
+                                              const SourceInfo& loc,
+                                              bool is_signed) {
   XLS_CHECK_GT(element_bit_count, 0);
   std::vector<Expression*> dim_exprs;
-  for (int64_t d : dims) {
-    dim_exprs.push_back(PlainLiteral(d, loc));
-  }
   // For packed arrays we always use a bitvector (non-scalar) for the element
   // type when the element bit width is 1. For example, if element bit width is
   // one and dims is {42} we generate the following type:
@@ -195,25 +194,20 @@ DataType* VerilogFile::PackedArrayType(int64_t element_bit_count,
   //   reg [41:0] foo;
   // Which would generate invalid verilog if we index into an element
   // (e.g. foo[2][0]) because scalars are not indexable.
-  return Make<DataType>(
-      loc, PlainLiteral(element_bit_count, loc), /*packed_dims=*/dim_exprs,
-      /*unpacked_dims=*/std::vector<Expression*>(), is_signed);
+  return Make<verilog::PackedArrayType>(loc, element_bit_count, dims,
+                                        is_signed);
 }
 
-DataType* VerilogFile::UnpackedArrayType(int64_t element_bit_count,
-                                         absl::Span<const int64_t> dims,
-                                         const SourceInfo& loc,
-                                         bool is_signed) {
+UnpackedArrayType* VerilogFile::UnpackedArrayType(
+    int64_t element_bit_count, absl::Span<const int64_t> dims,
+    const SourceInfo& loc, bool is_signed) {
   XLS_CHECK_GT(element_bit_count, 0);
   std::vector<Expression*> dim_exprs;
   for (int64_t d : dims) {
-    dim_exprs.push_back(PlainLiteral(d, loc));
+    dim_exprs.push_back(PlainLiteral(static_cast<int32_t>(d), loc));
   }
-  return Make<DataType>(
-      loc,
-      element_bit_count == 1 ? nullptr : PlainLiteral(element_bit_count, loc),
-      /*packed_dims=*/std::vector<Expression*>(),
-      /*unpacked_dims=*/dim_exprs, is_signed);
+  DataType* element_type = BitVectorType(element_bit_count, loc, is_signed);
+  return Make<verilog::UnpackedArrayType>(loc, element_type, dims);
 }
 
 std::string VerilogFile::Emit(LineInfo* line_info) const {
@@ -387,6 +381,14 @@ LogicRef* Module::AddWire(std::string_view name, DataType* type,
       loc, section->Add<WireDef>(loc, name, std::move(type)));
 }
 
+LogicRef* Module::AddInteger(std::string_view name, const SourceInfo& loc,
+                             ModuleSection* section) {
+  if (section == nullptr) {
+    section = &top_;
+  }
+  return file()->Make<LogicRef>(loc, section->Add<IntegerDef>(loc, name));
+}
+
 ParameterRef* Module::AddParameter(std::string_view name, Expression* rhs,
                                    const SourceInfo& loc) {
   Parameter* param = AddModuleMember(file()->Make<Parameter>(loc, name, rhs));
@@ -458,17 +460,130 @@ static std::string WidthToLimit(LineInfo* line_info, Expression* expr) {
   return width_minus_one->Emit(line_info);
 }
 
-std::string DataType::EmitWithIdentifier(LineInfo* line_info,
-                                         std::string_view identifier) const {
+std::string ScalarType::EmitWithIdentifier(LineInfo* line_info,
+                                           std::string_view identifier) const {
+  LineInfoStart(line_info, this);
+  LineInfoEnd(line_info, this);
+  return absl::StrFormat(" %s", identifier);
+}
+
+std::string IntegerType::EmitWithIdentifier(LineInfo* line_info,
+                                            std::string_view identifier) const {
+  LineInfoStart(line_info, this);
+  LineInfoEnd(line_info, this);
+  return absl::StrFormat(" %s", identifier);
+}
+
+BitVectorType::BitVectorType(int64_t width, bool is_signed, VerilogFile* file,
+                             const SourceInfo& loc)
+    : DataType(file, loc),
+      width_(file->PlainLiteral(static_cast<int32_t>(width), loc)),
+      is_signed_(is_signed) {}
+
+absl::StatusOr<int64_t> BitVectorType::WidthAsInt64() const {
+  if (!width_->IsLiteral()) {
+    return absl::FailedPreconditionError("Width is not a literal: " +
+                                         width_->Emit(nullptr));
+  }
+  return width_->AsLiteralOrDie()->bits().ToUint64();
+}
+
+absl::StatusOr<int64_t> BitVectorType::FlatBitCountAsInt64() const {
+  return WidthAsInt64();
+}
+
+std::string BitVectorType::EmitWithIdentifier(
+    LineInfo* line_info, std::string_view identifier) const {
+  LineInfoStart(line_info, this);
+  std::string result = absl::StrFormat("%s [%s:0]", is_signed_ ? " signed" : "",
+                                       WidthToLimit(line_info, width_));
+  absl::StrAppend(&result, " ", identifier);
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+PackedArrayType::PackedArrayType(int64_t width,
+                                 absl::Span<const int64_t> packed_dims,
+                                 bool is_signed, VerilogFile* file,
+                                 const SourceInfo& loc)
+    : DataType(file, loc),
+      width_(file->PlainLiteral(static_cast<int32_t>(width), loc)),
+      is_signed_(is_signed) {
+  XLS_CHECK(!packed_dims.empty());
+  for (int64_t dim : packed_dims) {
+    packed_dims_.push_back(file->PlainLiteral(static_cast<int32_t>(dim), loc));
+  }
+}
+
+absl::StatusOr<int64_t> PackedArrayType::WidthAsInt64() const {
+  if (!width_->IsLiteral()) {
+    return absl::FailedPreconditionError("Width is not a literal: " +
+                                         width_->Emit(nullptr));
+  }
+  return width_->AsLiteralOrDie()->bits().ToUint64();
+}
+
+absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, WidthAsInt64());
+  for (Expression* dim : packed_dims()) {
+    if (!dim->IsLiteral()) {
+      return absl::FailedPreconditionError(
+          "Packed dimension is not a literal:" + dim->Emit(nullptr));
+    }
+    XLS_ASSIGN_OR_RETURN(int64_t dim_size,
+                         dim->AsLiteralOrDie()->bits().ToUint64());
+    bit_count = bit_count * dim_size;
+  }
+  return bit_count;
+}
+
+std::string PackedArrayType::EmitWithIdentifier(
+    LineInfo* line_info, std::string_view identifier) const {
   LineInfoStart(line_info, this);
   std::string result = is_signed_ ? " signed" : "";
-  if (width_ != nullptr) {
-    absl::StrAppendFormat(&result, " [%s:0]", WidthToLimit(line_info, width()));
-  }
+  absl::StrAppendFormat(&result, " [%s:0]", WidthToLimit(line_info, width_));
   for (Expression* dim : packed_dims()) {
     absl::StrAppendFormat(&result, "[%s:0]", WidthToLimit(line_info, dim));
   }
   absl::StrAppend(&result, " ", identifier);
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+UnpackedArrayType::UnpackedArrayType(DataType* element_type,
+                                     absl::Span<const int64_t> unpacked_dims,
+                                     VerilogFile* file, const SourceInfo& loc)
+    : DataType(file, loc), element_type_(element_type) {
+  XLS_CHECK(!unpacked_dims.empty());
+  XLS_CHECK(dynamic_cast<UnpackedArrayType*>(element_type) == nullptr);
+  for (int64_t dim : unpacked_dims) {
+    unpacked_dims_.push_back(
+        file->PlainLiteral(static_cast<int32_t>(dim), loc));
+  }
+}
+
+absl::StatusOr<int64_t> UnpackedArrayType::WidthAsInt64() const {
+  return element_type_->FlatBitCountAsInt64();
+}
+
+absl::StatusOr<int64_t> UnpackedArrayType::FlatBitCountAsInt64() const {
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, element_type_->FlatBitCountAsInt64());
+  for (Expression* dim : unpacked_dims()) {
+    if (!dim->IsLiteral()) {
+      return absl::FailedPreconditionError(
+          "Packed dimension is not a literal:" + dim->Emit(nullptr));
+    }
+    XLS_ASSIGN_OR_RETURN(int64_t dim_size,
+                         dim->AsLiteralOrDie()->bits().ToUint64());
+    bit_count = bit_count * dim_size;
+  }
+  return bit_count;
+}
+
+std::string UnpackedArrayType::EmitWithIdentifier(
+    LineInfo* line_info, std::string_view identifier) const {
+  LineInfoStart(line_info, this);
+  std::string result = element_type_->EmitWithIdentifier(line_info, identifier);
   for (Expression* dim : unpacked_dims()) {
     // In SystemVerilog unpacked arrays can be specified using only the size
     // rather than a range.
@@ -480,42 +595,6 @@ std::string DataType::EmitWithIdentifier(LineInfo* line_info,
   }
   LineInfoEnd(line_info, this);
   return result;
-}
-
-absl::StatusOr<int64_t> DataType::WidthAsInt64() const {
-  if (width() == nullptr) {
-    // No width indicates a single-bit signal.
-    return 1;
-  }
-
-  if (!width()->IsLiteral()) {
-    return absl::FailedPreconditionError("Width is not a literal: " +
-                                         width()->Emit(nullptr));
-  }
-  return width()->AsLiteralOrDie()->bits().ToUint64();
-}
-
-absl::StatusOr<int64_t> DataType::FlatBitCountAsInt64() const {
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count, WidthAsInt64());
-  for (Expression* dim : packed_dims()) {
-    if (!dim->IsLiteral()) {
-      return absl::FailedPreconditionError(
-          "Packed dimension is not a literal:" + dim->Emit(nullptr));
-    }
-    XLS_ASSIGN_OR_RETURN(int64_t dim_size,
-                         dim->AsLiteralOrDie()->bits().ToUint64());
-    bit_count = bit_count * dim_size;
-  }
-  for (Expression* dim : unpacked_dims()) {
-    if (!dim->IsLiteral()) {
-      return absl::FailedPreconditionError(
-          "Unpacked dimension is not a literal:" + dim->Emit(nullptr));
-    }
-    XLS_ASSIGN_OR_RETURN(int64_t dim_size,
-                         dim->AsLiteralOrDie()->bits().ToUint64());
-    bit_count = bit_count * dim_size;
-  }
-  return bit_count;
 }
 
 std::string Def::Emit(LineInfo* line_info) const {
@@ -535,6 +614,9 @@ std::string Def::EmitNoSemi(LineInfo* line_info) const {
     case DataKind::kLogic:
       kind_str = "logic";
       break;
+    case DataKind::kInteger:
+      kind_str = "integer";
+      break;
   }
   std::string result = absl::StrCat(
       kind_str, data_type()->EmitWithIdentifier(line_info, GetName()));
@@ -543,6 +625,35 @@ std::string Def::EmitNoSemi(LineInfo* line_info) const {
 }
 
 std::string RegDef::Emit(LineInfo* line_info) const {
+  std::string result = Def::EmitNoSemi(line_info);
+  if (init_ != nullptr) {
+    absl::StrAppend(&result, " = ", init_->Emit(line_info));
+  }
+  absl::StrAppend(&result, ";");
+  return result;
+}
+
+std::string LogicDef::Emit(LineInfo* line_info) const {
+  std::string result = Def::EmitNoSemi(line_info);
+  if (init_ != nullptr) {
+    absl::StrAppend(&result, " = ", init_->Emit(line_info));
+  }
+  absl::StrAppend(&result, ";");
+  return result;
+}
+
+IntegerDef::IntegerDef(std::string_view name, VerilogFile* file,
+                       const SourceInfo& loc)
+    : Def(name, DataKind::kInteger, file->IntegerType(loc), file, loc),
+      init_(nullptr) {}
+
+IntegerDef::IntegerDef(std::string_view name, DataType* data_type,
+                       Expression* init, VerilogFile* file,
+                       const SourceInfo& loc)
+    : Def(name, DataKind::kInteger, file->IntegerType(loc), file, loc),
+      init_(init) {}
+
+std::string IntegerDef::Emit(LineInfo* line_info) const {
   std::string result = Def::EmitNoSemi(line_info);
   if (init_ != nullptr) {
     absl::StrAppend(&result, " = ", init_->Emit(line_info));

@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
@@ -183,47 +184,19 @@ class Statement : public VastNode {
   using VastNode::VastNode;
 };
 
-// Represents the width, packed and unpacked array dimensions (if any), and
-// signedness of a net/variable/argument/etc in Verilog.
+// Represents the data type of a net/variable/argument/etc in Verilog.
 class DataType : public VastNode {
  public:
-  // Constructor for a scalar type where no range is specified. Example:
-  //   wire foo;
-  explicit DataType(VerilogFile* file, const SourceInfo& loc)
-      : VastNode(file, loc), width_(nullptr), is_signed_(false) {}
+  DataType(VerilogFile* file, const SourceInfo& loc) : VastNode(file, loc) {}
 
-  // Construct for an potentially signed bit vector type. Example:
-  //   signed wire [7:0] foo;
-  DataType(Expression* width, bool is_signed, VerilogFile* file,
-           const SourceInfo& loc)
-      : VastNode(file, loc), width_(width), is_signed_(is_signed) {}
+  // Returns whether this is a scalar signal type (for example, "wire foo").
+  virtual bool IsScalar() const { return false; }
 
-  // Full featured constructor for an arbitrary type including array types.
-  // Width is the width of the innermost dimension.  The type may have packed
-  // dims, unpacked dims, or both. Packed arrays are only supported in
-  // SystemVerilog. For example, the width is 8, packed dims are {4, 43}, and
-  // unpacked dims are {123} for the following example:
-  //   wire [7:0][3:0][42:0] foo [123];
-  DataType(Expression* width, absl::Span<Expression* const> packed_dims,
-           absl::Span<Expression* const> unpacked_dims, bool is_signed,
-           VerilogFile* file, const SourceInfo& loc)
-      : VastNode(file, loc),
-        width_(width),
-        packed_dims_(packed_dims.begin(), packed_dims.end()),
-        unpacked_dims_(unpacked_dims.begin(), unpacked_dims.end()),
-        is_signed_(is_signed) {}
-
-  // Returns whether this is a scalar signal type (a definition without a
-  // range, e.g. "wire foo").
-  bool IsScalar() const {
-    return width() == nullptr && packed_dims().empty() &&
-           unpacked_dims().empty();
-  }
-  // Returns the width of the def (not counting packed dimensions) as an
-  // int64_t. Returns an error if this is not possible because the width is not
-  // a literal. For example, the width of the following def is 8:
+  // Returns the width of the def (not counting packed or unpacked dimensions)
+  // as an int64_t. Returns an error if this is not possible because the width
+  // is not a literal. For example, the width of the following def is 8:
   //   wire [7:0][3:0][42:0] foo;
-  absl::StatusOr<int64_t> WidthAsInt64() const;
+  virtual absl::StatusOr<int64_t> WidthAsInt64() const = 0;
 
   // Return flattened bit count of the def (total width of the def including
   // packed dimensions). For example, the following has a flat bit count of
@@ -231,22 +204,13 @@ class DataType : public VastNode {
   //   wire [7:0][3:0][4:0] foo;
   // Returns an error if this computation is not possible because the width or a
   // packed dimension is not a literal.
-  absl::StatusOr<int64_t> FlatBitCountAsInt64() const;
+  virtual absl::StatusOr<int64_t> FlatBitCountAsInt64() const = 0;
 
   // Returns the width expression for the type. Scalars (e.g.,
-  // "wire foo;") have a nullptr width expression.
-  Expression* width() const { return width_; }
+  // "wire foo;") and integers return std::nullopt.
+  virtual std::optional<Expression*> width() const = 0;
 
-  // Returns the packed dimensions for the type. For example, the net type for
-  // "wire [7:0][42:0][3:0] foo;" has {43, 4} as the packed dimensoins.
-  absl::Span<Expression* const> packed_dims() const { return packed_dims_; }
-
-  // Returns the packed dimensions for the type. For example, the net type for
-  // "wire [7:0][42:0] foo [123][7];" has {123, 7} as the packed
-  // dimensions.
-  absl::Span<Expression* const> unpacked_dims() const { return unpacked_dims_; }
-
-  bool is_signed() const { return is_signed_; }
+  virtual bool is_signed() const { return false; }
 
   std::string Emit(LineInfo* line_info) const override {
     XLS_LOG(FATAL) << "EmitWithIdentifier should be called rather than emit";
@@ -261,18 +225,144 @@ class DataType : public VastNode {
   //
   // This method is required rather than simply Emit because an identifier
   // string is nested within the string describing the type.
+  virtual std::string EmitWithIdentifier(LineInfo* line_info,
+                                         std::string_view identifier) const = 0;
+};
+
+// Represents a scalar type. Example:
+//   wire foo;
+class ScalarType : public DataType {
+ public:
+  ScalarType(VerilogFile* file, const SourceInfo& loc) : DataType(file, loc) {}
+
+  bool IsScalar() const override { return true; }
+  absl::StatusOr<int64_t> WidthAsInt64() const override { return 1; }
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override { return 1; }
+  std::optional<Expression*> width() const override { return std::nullopt; }
   std::string EmitWithIdentifier(LineInfo* line_info,
-                                 std::string_view identifier) const;
+                                 std::string_view identifier) const override;
+};
+
+// Represents an integer type. Example:
+//   integer foo;
+class IntegerType : public DataType {
+ public:
+  IntegerType(VerilogFile* file, const SourceInfo& loc) : DataType(file, loc) {}
+
+  bool IsScalar() const override { return false; }
+  absl::StatusOr<int64_t> WidthAsInt64() const override {
+    return absl::InvalidArgumentError("Cannot get width of integer types");
+  }
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override {
+    return absl::InvalidArgumentError(
+        "Cannot get flat bit count of integer types");
+  }
+  std::optional<Expression*> width() const override { return std::nullopt; }
+  std::string EmitWithIdentifier(LineInfo* line_info,
+                                 std::string_view identifier) const override;
+};
+
+// Represents a bit-vector type. Example:
+//   reg[7:0] foo;
+class BitVectorType : public DataType {
+ public:
+  BitVectorType(Expression* width, bool is_signed, VerilogFile* file,
+                const SourceInfo& loc)
+      : DataType(file, loc), width_(width), is_signed_(is_signed) {}
+  BitVectorType(int64_t width, bool is_signed, VerilogFile* file,
+                const SourceInfo& loc);
+
+  bool IsScalar() const override { return false; }
+  absl::StatusOr<int64_t> WidthAsInt64() const override;
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
+  std::optional<Expression*> width() const override { return width_; }
+  bool is_signed() const override { return is_signed_; }
+  std::string EmitWithIdentifier(LineInfo* line_info,
+                                 std::string_view identifier) const override;
 
  private:
   Expression* width_;
-  std::vector<Expression*> packed_dims_;
-  std::vector<Expression*> unpacked_dims_;
   bool is_signed_;
 };
 
-// The kind of a net/variable.
-enum class DataKind { kReg, kWire, kLogic };
+// Represents a packed array of bit-vectors type. Example:
+//   wire [7:0][42:0][3:0] foo;
+class PackedArrayType : public DataType {
+ public:
+  PackedArrayType(Expression* width, absl::Span<Expression* const> packed_dims,
+                  bool is_signed, VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc),
+        width_(width),
+        is_signed_(is_signed),
+        packed_dims_(packed_dims.begin(), packed_dims.end()) {
+    XLS_CHECK(!packed_dims.empty());
+  }
+  PackedArrayType(int64_t width, absl::Span<const int64_t> packed_dims,
+                  bool is_signed, VerilogFile* file, const SourceInfo& loc);
+
+  bool IsScalar() const override { return false; }
+  absl::StatusOr<int64_t> WidthAsInt64() const override;
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
+  std::optional<Expression*> width() const override { return width_; }
+  bool is_signed() const override { return is_signed_; }
+  std::string EmitWithIdentifier(LineInfo* line_info,
+                                 std::string_view identifier) const override;
+
+  // Returns the packed dimensions for the type. For example, the net type for
+  // "wire [7:0][42:0][3:0] foo;" has {43, 4} as the packed dimensions. The
+  // inner-most dimension is not included as that is considered for type
+  // purposes as the underlying array element type ("wire [7:0]"). The ordering
+  // of indices matches the order in which they are emitted in the emitted
+  // Verilog.
+  absl::Span<Expression* const> packed_dims() const { return packed_dims_; }
+
+ private:
+  Expression* width_;
+  bool is_signed_;
+  std::vector<Expression*> packed_dims_;
+};
+
+// Represents an unpacked array of bit-vectors or packed array types. Example:
+//   wire [7:0][42:0][3:0] foo [1:0];
+// Where [1:0] is the unpacked array dimensions.
+class UnpackedArrayType : public DataType {
+ public:
+  UnpackedArrayType(DataType* element_type,
+                    absl::Span<Expression* const> unpacked_dims,
+                    VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc),
+        element_type_(element_type),
+        unpacked_dims_(unpacked_dims.begin(), unpacked_dims.end()) {
+    XLS_CHECK(!unpacked_dims.empty());
+    XLS_CHECK(dynamic_cast<UnpackedArrayType*>(element_type) == nullptr);
+  }
+  UnpackedArrayType(DataType* element_type,
+                    absl::Span<const int64_t> packed_dims, VerilogFile* file,
+                    const SourceInfo& loc);
+
+  bool IsScalar() const override { return false; }
+  absl::StatusOr<int64_t> WidthAsInt64() const override;
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
+  std::optional<Expression*> width() const override {
+    return element_type_->width();
+  }
+  bool is_signed() const override { return element_type_->is_signed(); }
+  std::string EmitWithIdentifier(LineInfo* line_info,
+                                 std::string_view identifier) const override;
+
+  // Returns the unpacked dimensions for the type. For example, the net type for
+  // "wire [7:0][42:0] foo [123][7];" has {123, 7} as the unpacked
+  // dimensions.
+  absl::Span<Expression* const> unpacked_dims() const { return unpacked_dims_; }
+
+ private:
+  DataType* element_type_;
+  std::vector<Expression*> unpacked_dims_;
+};
+
+// The kind of a net/variable. kReg, kWire, kLogic can be arbitrarily
+// typed. kInteger definitions can only be of IntegerType.
+enum class DataKind : int8_t { kReg, kWire, kLogic, kInteger };
 
 // Represents the definition of a variable or net.
 class Def : public Statement {
@@ -339,6 +429,20 @@ class LogicDef : public Def {
   LogicDef(std::string_view name, DataType* data_type, Expression* init,
            VerilogFile* file, const SourceInfo& loc)
       : Def(name, DataKind::kLogic, data_type, file, loc), init_(init) {}
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ protected:
+  Expression* init_;
+};
+
+// Integer variable definition.Example:
+//   integer foo;
+class IntegerDef : public Def {
+ public:
+  IntegerDef(std::string_view name, VerilogFile* file, const SourceInfo& loc);
+  IntegerDef(std::string_view name, DataType* data_type, Expression* init,
+             VerilogFile* file, const SourceInfo& loc);
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -1543,6 +1647,8 @@ class Module : public VastNode {
                    ModuleSection* section = nullptr);
   LogicRef* AddWire(std::string_view name, DataType* type,
                     const SourceInfo& loc, ModuleSection* section = nullptr);
+  LogicRef* AddInteger(std::string_view name, const SourceInfo& loc,
+                       ModuleSection* section = nullptr);
 
   ParameterRef* AddParameter(std::string_view name, Expression* rhs,
                              const SourceInfo& loc);
@@ -1808,7 +1914,15 @@ class VerilogFile {
 
   // Returns a scalar type. Example:
   //   wire foo;
-  DataType* ScalarType(const SourceInfo& loc) { return Make<DataType>(loc); }
+  DataType* ScalarType(const SourceInfo& loc) {
+    return Make<verilog::ScalarType>(loc);
+  }
+
+  // Returns an integer type. Example:
+  //   integer foo;
+  DataType* IntegerType(const SourceInfo& loc) {
+    return Make<verilog::IntegerType>(loc);
+  }
 
   // Returns a bit vector type for widths greater than one, and a scalar type
   // for a width of one. The motivation for this special case is avoiding types
@@ -1822,20 +1936,23 @@ class VerilogFile {
   //
   // Generally BitVectorType() should be preferred, this is for use in
   // special-case Verilog operation contexts that cannot use scalars.
-  DataType* BitVectorTypeNoScalar(int64_t bit_count, const SourceInfo& loc,
-                                  bool is_signed = false);
+  verilog::BitVectorType* BitVectorTypeNoScalar(int64_t bit_count,
+                                                const SourceInfo& loc,
+                                                bool is_signed = false);
 
   // Returns a packed array type. Example:
   //   wire [7:0][41:0][122:0] foo;
-  DataType* PackedArrayType(int64_t element_bit_count,
-                            absl::Span<const int64_t> dims,
-                            const SourceInfo& loc, bool is_signed = false);
+  verilog::PackedArrayType* PackedArrayType(int64_t element_bit_count,
+                                            absl::Span<const int64_t> dims,
+                                            const SourceInfo& loc,
+                                            bool is_signed = false);
 
   // Returns an unpacked array type. Example:
   //   wire [7:0] foo[42][123];
-  DataType* UnpackedArrayType(int64_t element_bit_count,
-                              absl::Span<const int64_t> dims,
-                              const SourceInfo& loc, bool is_signed = false);
+  verilog::UnpackedArrayType* UnpackedArrayType(int64_t element_bit_count,
+                                                absl::Span<const int64_t> dims,
+                                                const SourceInfo& loc,
+                                                bool is_signed = false);
 
   verilog::Cover* Cover(LogicRef* clk, Expression* condition,
                         std::string_view label, const SourceInfo& loc) {

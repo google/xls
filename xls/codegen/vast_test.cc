@@ -64,7 +64,7 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_EQ(scalar->EmitWithIdentifier(&line_info, "foo"), " foo");
   EXPECT_THAT(scalar->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(scalar->FlatBitCountAsInt64(), IsOkAndHolds(1));
-  EXPECT_EQ(scalar->width(), nullptr);
+  EXPECT_EQ(scalar->width(), std::nullopt);
   EXPECT_FALSE(scalar->is_signed());
   EXPECT_EQ(line_info.LookupNode(scalar),
             std::make_optional(std::vector<LineSpan>{LineSpan(0, 0)}));
@@ -74,14 +74,13 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_EQ(u1->EmitWithIdentifier(nullptr, "foo"), " foo");
   EXPECT_THAT(u1->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(u1->FlatBitCountAsInt64(), IsOkAndHolds(1));
-  EXPECT_EQ(u1->width(), nullptr);
+  EXPECT_EQ(u1->width(), std::nullopt);
   EXPECT_FALSE(u1->is_signed());
 
   DataType* s1 = f.BitVectorType(1, SourceInfo(), /*is_signed=*/true);
-  EXPECT_EQ(s1->EmitWithIdentifier(nullptr, "foo"), " signed foo");
+  EXPECT_EQ(s1->EmitWithIdentifier(nullptr, "foo"), " signed [0:0] foo");
   EXPECT_THAT(s1->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(s1->FlatBitCountAsInt64(), IsOkAndHolds(1));
-  EXPECT_EQ(s1->width(), nullptr);
   EXPECT_TRUE(s1->is_signed());
 
   DataType* u2 = f.BitVectorType(2, SourceInfo());
@@ -130,12 +129,12 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_FALSE(unpacked_array->is_signed());
 
   // Bit vector type with non-literal range.
-  DataType* bv =
-      f.Make<DataType>(SourceInfo(),
-                       /*width=*/
-                       f.Mul(f.PlainLiteral(10, SourceInfo()),
-                             f.PlainLiteral(5, SourceInfo()), SourceInfo()),
-                       /*is_signed=*/false);
+  DataType* bv = f.Make<BitVectorType>(
+      SourceInfo(),
+      /*width=*/
+      f.Mul(f.PlainLiteral(10, SourceInfo()), f.PlainLiteral(5, SourceInfo()),
+            SourceInfo()),
+      /*is_signed=*/false);
   EXPECT_EQ(bv->EmitWithIdentifier(nullptr, "foo"), " [10 * 5 - 1:0] foo");
   EXPECT_THAT(bv->WidthAsInt64(),
               StatusIs(absl::StatusCode::kFailedPrecondition,
@@ -163,8 +162,8 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
       module->AddReg("r2", f.BitVectorType(2, SourceInfo()), SourceInfo());
   LogicRef* r1_init = module->AddReg(
       "r1_init",
-      f.Make<DataType>(SourceInfo(), f.PlainLiteral(1, SourceInfo()),
-                       /*is_signed=*/false),
+      f.Make<BitVectorType>(SourceInfo(), f.PlainLiteral(1, SourceInfo()),
+                            /*is_signed=*/false),
       SourceInfo(), f.PlainLiteral(1, SourceInfo()));
   LogicRef* s =
       module->AddReg("s", f.BitVectorType(42, SourceInfo()), SourceInfo());
@@ -173,14 +172,13 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
                      f.Literal(123, 42, SourceInfo()));
   LogicRef* t = module->AddReg(
       "t",
-      f.Make<DataType>(
+      f.Make<PackedArrayType>(
           SourceInfo(),
           /*width=*/f.PlainLiteral(42, SourceInfo()), /*packed_dims=*/
           std::vector<Expression*>(
               {f.PlainLiteral(8, SourceInfo()),
                f.Add(f.PlainLiteral(8, SourceInfo()),
                      f.PlainLiteral(42, SourceInfo()), SourceInfo())}),
-          /*unpacked_dims=*/std::vector<Expression*>(),
           /*is_signed=*/false),
       SourceInfo());
   LogicRef* signed_foo = module->AddReg(
@@ -194,7 +192,7 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
       module->AddWire("y", f.BitVectorType(1, SourceInfo()), SourceInfo());
   LogicRef* z = module->AddWire(
       "z",
-      f.Make<DataType>(
+      f.Make<PackedArrayType>(
           SourceInfo(),
           f.Mul(f.PlainLiteral(3, SourceInfo()),
                 f.PlainLiteral(3, SourceInfo()), SourceInfo()),
@@ -203,9 +201,9 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
               {f.PlainLiteral(8, SourceInfo()),
                f.Add(f.PlainLiteral(8, SourceInfo()),
                      f.PlainLiteral(42, SourceInfo()), SourceInfo())}),
-          /*unpacked_dims=*/std::vector<Expression*>(),
           /*is_signed=*/true),
       SourceInfo());
+  LogicRef* i = module->AddInteger("i", SourceInfo());
 
   VastNode* assign = module->Add<ContinuousAssignment>(
       SourceInfo(), b_ref,
@@ -227,11 +225,12 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
   wire x;
   wire y;
   wire signed [3 * 3 - 1:0][7:0][8 + 42 - 1:0] z;
+  integer i;
   assign b = {a, a, a, a};
 endmodule)");
 
   EXPECT_EQ(line_info.LookupNode(module).value(),
-            std::vector<LineSpan>{LineSpan(0, 16)});
+            std::vector<LineSpan>{LineSpan(0, 17)});
   EXPECT_EQ(line_info.LookupNode(a_ref->def()).value(),
             std::vector<LineSpan>{LineSpan(1, 1)});
   EXPECT_EQ(line_info.LookupNode(b_ref->def()).value(),
@@ -258,8 +257,10 @@ endmodule)");
             std::vector<LineSpan>{LineSpan(13, 13)});
   EXPECT_EQ(line_info.LookupNode(z->def()).value(),
             std::vector<LineSpan>{LineSpan(14, 14)});
-  EXPECT_EQ(line_info.LookupNode(assign).value(),
+  EXPECT_EQ(line_info.LookupNode(i->def()).value(),
             std::vector<LineSpan>{LineSpan(15, 15)});
+  EXPECT_EQ(line_info.LookupNode(assign).value(),
+            std::vector<LineSpan>{LineSpan(16, 16)});
 }
 
 TEST_P(VastTest, ModuleWithUnpackedArrayRegWithSize) {
@@ -296,16 +297,18 @@ TEST_P(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
   LogicRef* out_ref =
       module->AddOutput("out", f.BitVectorType(64, SourceInfo()), SourceInfo());
-  DataType* array_type = f.Make<DataType>(
+  DataType* element_type = f.Make<PackedArrayType>(
       SourceInfo(),
       /*width=*/f.PlainLiteral(4, SourceInfo()),
       /*packed_dims=*/
       std::vector<Expression*>(
           {f.PlainLiteral(42, SourceInfo()), f.PlainLiteral(7, SourceInfo())}),
+      /*is_signed=*/false);
+  DataType* array_type = f.Make<UnpackedArrayType>(
+      SourceInfo(), element_type,
       /*unpacked_dims=*/
       std::vector<Expression*>(
-          {f.PlainLiteral(8, SourceInfo()), f.PlainLiteral(64, SourceInfo())}),
-      /*is_signed=*/false);
+          {f.PlainLiteral(8, SourceInfo()), f.PlainLiteral(64, SourceInfo())}));
   LogicRef* arr_ref = module->AddReg("arr", array_type, SourceInfo());
   module->Add<ContinuousAssignment>(
       SourceInfo(), out_ref,
@@ -895,9 +898,10 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   LocalParamItemRef* state_bits =
       m->Add<LocalParam>(SourceInfo())
           ->AddItem("StateBits", f.Literal(2, 2, SourceInfo()), SourceInfo());
-  m->AddReg("state",
-            f.Make<DataType>(SourceInfo(), state_bits, /*is_signed=*/false),
-            SourceInfo(), idle);
+  m->AddReg(
+      "state",
+      f.Make<BitVectorType>(SourceInfo(), state_bits, /*is_signed=*/false),
+      SourceInfo(), idle);
 
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top;
@@ -1340,7 +1344,7 @@ TEST_P(VastTest, VerilogFunctionWithScalarReturn) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   VerilogFunction* func = m->Add<VerilogFunction>(
-      SourceInfo(), "func", f.Make<DataType>(SourceInfo()));
+      SourceInfo(), "func", f.Make<ScalarType>(SourceInfo()));
   func->AddStatement<BlockingAssignment>(SourceInfo(), func->return_value_ref(),
                                          f.PlainLiteral(1, SourceInfo()));
 
@@ -1412,14 +1416,13 @@ TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
   DataType* return_type =
       f.PackedArrayType(6, {3, 33}, SourceInfo(), /*is_signed=*/true);
   DataType* foo_type = f.BitVectorType(1, SourceInfo());
-  DataType* bar_type = f.Make<DataType>(
+  DataType* bar_type = f.Make<PackedArrayType>(
       SourceInfo(),
       /*width=*/
       f.Add(f.PlainLiteral(6, SourceInfo()), f.PlainLiteral(6, SourceInfo()),
             SourceInfo()),
       /*packed_dims=*/
       std::vector<Expression*>({f.PlainLiteral(111, SourceInfo())}),
-      /*unpacked_dims=*/std::vector<Expression*>(),
       /*is_signed=*/true);
   DataType* baz_type = f.BitVectorType(33, SourceInfo(), /*is_signed=*/true);
 
