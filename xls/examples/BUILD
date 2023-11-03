@@ -14,11 +14,14 @@
 
 # Build rules for XLS examples.
 
-load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
     "xls_benchmark_ir",
+    "xls_dslx_fmt_test",
     "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
@@ -29,9 +32,7 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
-load("@rules_hdl//verilog:providers.bzl", "verilog_library")
-load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
-load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -550,6 +551,83 @@ xls_ir_verilog(
 verilog_library(
     name = "delay",
     srcs = [":delay.sv"],
+    tags = ["DSLX"],
+)
+
+synthesize_rtl(
+    name = "delay_verilog_synth",
+    standard_cells = "@org_theopenroadproject_asap7//:asap7_rvt_1x",
+    tags = ["manual"],
+    top_module = "delay_top",
+    deps = [":delay"],
+)
+
+benchmark_synth(
+    name = "delay_benchmark_synth",
+    synth_target = ":delay_verilog_synth",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
+    name = "delay_loopback_channel_dslx",
+    srcs = ["delay_loopback_channel.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "delay_loopback_channel_fmt_test",
+    src = "delay_loopback_channel.x",
+)
+
+xls_dslx_test(
+    name = "delay_loopback_channel_test",
+    library = ":delay_loopback_channel_dslx",
+)
+
+xls_dslx_ir(
+    name = "delay_loopback_channel_ir",
+    dslx_top = "Delay",
+    ir_file = "delay_loopback_channel.ir",
+    library = ":delay_loopback_channel_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "delay_loopback_channel_opt_ir",
+    src = "delay_loopback_channel.ir",
+)
+
+xls_benchmark_ir(
+    name = "delay_loopback_channel_benchmark_ir",
+    src = ":delay_loopback_channel_opt_ir.opt.ir",
+)
+
+xls_ir_verilog(
+    name = "delay_loopback_channel_sv",
+    src = ":delay_loopback_channel_opt_ir.opt.ir",
+    codegen_args = {
+        "module_name": "delay_top",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+    },
+    verilog_file = "delay_loopback_channel.sv",
+)
+
+verilog_library(
+    name = "delay_loopback_channel",
+    srcs = [":delay_loopback_channel.sv"],
+    tags = ["DSLX_LOOPBACK"],
 )
 
 xls_dslx_library(
