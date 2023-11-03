@@ -1781,7 +1781,7 @@ static bool AreGroupedMembers(const ModuleMember& above,
 
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
-  std::optional<Pos> last_member_pos;
+  std::optional<Pos> last_entity_pos;
   for (size_t i = 0; i < n.top().size(); ++i) {
     const auto& member = n.top()[i];
 
@@ -1801,16 +1801,17 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
     // member we're about the process, we need to emit them.
     std::optional<Span> member_span = node->GetSpan();
     XLS_CHECK(member_span.has_value()) << node->GetNodeTypeName();
-    Pos member_start = member_span->start();
+    const Pos& member_start = member_span->start();
+    const Pos& member_limit = member_span->limit();
 
     // Check the start of this member is >= the last member limit.
-    if (last_member_pos.has_value()) {
-      XLS_CHECK_GE(member_start, last_member_pos.value()) << node->ToString();
+    if (last_entity_pos.has_value()) {
+      XLS_CHECK_GE(member_start, last_entity_pos.value()) << node->ToString();
     }
 
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
-            EmitCommentsBetween(last_member_pos, member_start, comments, arena,
+            EmitCommentsBetween(last_entity_pos, member_start, comments, arena,
                                 &last_comment_span)) {
       pieces.push_back(comments_doc.value());
       pieces.push_back(arena.hard_line());
@@ -1826,14 +1827,30 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
     }
 
     // Check the last member position is monotonically increasing.
-    if (last_member_pos.has_value()) {
-      XLS_CHECK_GT(member_span->limit(), last_member_pos.value());
+    if (last_entity_pos.has_value()) {
+      XLS_CHECK_GT(member_span->limit(), last_entity_pos.value());
     }
-
-    last_member_pos = member_span->limit();
 
     // Here we actually emit the formatted member.
     pieces.push_back(Fmt(member, comments, arena));
+
+    // Now we reflect the emission of the member.
+    last_entity_pos = member_span->limit();
+
+    // See if there are inline comments after the statement.
+    const Pos next_line(member_limit.filename(), member_limit.lineno() + 1, 0);
+    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
+            last_entity_pos, next_line, comments, arena, &last_comment_span)) {
+      XLS_VLOG(3) << "Saw after-statement comment: "
+                  << arena.ToDebugString(comments_doc.value())
+                  << " last_comment_span: " << last_comment_span.value();
+      pieces.push_back(arena.space());
+      pieces.push_back(arena.space());
+      pieces.push_back(arena.MakeAlign(comments_doc.value()));
+
+      last_entity_pos = AdjustCommentLimit(last_comment_span.value(), arena,
+                                           comments_doc.value());
+    }
 
     if (i + 1 == n.top().size()) {
       // For the last module member we just put a trailing newline at EOF.
@@ -1852,10 +1869,10 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   }
 
   if (std::optional<Pos> last_data_limit = comments.last_data_limit();
-      last_data_limit.has_value() && last_member_pos < last_data_limit) {
+      last_data_limit.has_value() && last_entity_pos < last_data_limit) {
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
-            EmitCommentsBetween(last_member_pos, last_data_limit.value(),
+            EmitCommentsBetween(last_entity_pos, last_data_limit.value(),
                                 comments, arena, &last_comment_span)) {
       pieces.push_back(comments_doc.value());
       pieces.push_back(arena.hard_line());
