@@ -609,16 +609,39 @@ cc_library(
     hdrs = ["eval_helpers.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":proc_channel_values_cc_proto",
         "//xls/common:indent",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
+        "//xls/ir:xls_value_cc_proto",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_googlesource_code_re2//:re2",
+    ],
+)
+
+cc_test(
+    name = "eval_helpers_test",
+    srcs = ["eval_helpers_test.cc"],
+    deps = [
+        ":eval_helpers",
+        ":proc_channel_values_cc_proto",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -650,6 +673,7 @@ cc_binary(
         "//xls/ir:value_helpers",
         "//xls/jit:block_jit",
         "//xls/jit:jit_proc_runtime",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",
@@ -925,6 +949,19 @@ py_test(
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
+)
+
+proto_library(
+    name = "proc_channel_values_proto",
+    srcs = ["proc_channel_values.proto"],
+    visibility = ["//xls:xls_users"],
+    deps = ["//xls/ir:xls_value_proto"],
+)
+
+cc_proto_library(
+    name = "proc_channel_values_cc_proto",
+    visibility = ["//xls:xls_users"],
+    deps = [":proc_channel_values_proto"],
 )
 
 proto_library(

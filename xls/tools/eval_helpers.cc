@@ -15,21 +15,31 @@
 #include "xls/tools/eval_helpers.h"
 
 #include <cstdint>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/indent.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_value.pb.h"
+#include "xls/tools/proc_channel_values.pb.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -137,5 +147,55 @@ ParseChannelValuesFromFile(std::string_view filename_with_all_channel,
   XLS_ASSIGN_OR_RETURN(std::string content,
                        GetFileContents(filename_with_all_channel));
   return ParseChannelValues(content, max_values_count);
+}
+
+absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+ParseChannelValuesFromProto(const ProcChannelValuesProto& values,
+                            std::optional<const int64_t> max_values_count) {
+  absl::flat_hash_map<std::string, std::vector<Value>> results;
+  results.reserve(values.channels_size());
+  for (const ProcChannelValuesProto::Channel& c : values.channels()) {
+    std::vector<Value>& channel_vec = results[c.name()];
+    channel_vec.reserve(c.entry_size());
+    int64_t cnt = 0;
+    for (const ValueProto& iv : c.entry()) {
+      XLS_ASSIGN_OR_RETURN(Value v, Value::FromProto(iv));
+      channel_vec.push_back(v);
+      if (++cnt == max_values_count) {
+        break;
+      }
+    }
+  }
+  return results;
+}
+
+absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+ParseChannelValuesFromProtoFile(std::string_view filename_with_all_channel,
+                                std::optional<const int64_t> max_values_count) {
+  ProcChannelValuesProto pcv;
+  XLS_ASSIGN_OR_RETURN(std::string content,
+                       GetFileContents(filename_with_all_channel));
+  XLS_RET_CHECK(pcv.ParseFromString(content));
+  return ParseChannelValuesFromProto(pcv, max_values_count);
+}
+
+absl::StatusOr<ProcChannelValuesProto> ChannelValuesToProto(
+    const absl::flat_hash_map<std::string, std::vector<Value>>& channel_map) {
+  ProcChannelValuesProto pcv;
+  using ChannelMap = absl::flat_hash_map<std::string, std::vector<Value>>;
+  std::vector<ChannelMap::const_pointer> sorted;
+  sorted.reserve(channel_map.size());
+  absl::c_transform(channel_map, std::back_inserter(sorted),
+                    [](const auto& p) { return &p; });
+  absl::c_sort(sorted, [](auto* l, auto* r) { return l->first < r->first; });
+  for (ChannelMap::const_pointer key_value : sorted) {
+    const auto& [name, values] = *key_value;
+    ProcChannelValuesProto::Channel* chan = pcv.add_channels();
+    chan->set_name(name);
+    for (const Value& v : values) {
+      XLS_ASSIGN_OR_RETURN(*chan->add_entry(), v.AsProto());
+    }
+  }
+  return pcv;
 }
 }  // namespace xls

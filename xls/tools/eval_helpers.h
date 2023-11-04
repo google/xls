@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/value.h"
+#include "xls/tools/proc_channel_values.pb.h"
 
 namespace xls {
 
@@ -93,6 +94,30 @@ absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromFile(
     std::string_view filename_with_all_channel,
     std::optional<const int64_t> max_values_count = std::nullopt);
+
+// The function returns a channels-to-values map representation of the contents
+// of the proto. The max_values_count denotes the maximum number of values for a
+// channel. If more values then 'max_values_count' are included the extra are
+// ignored.
+absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+ParseChannelValuesFromProto(
+    const ProcChannelValuesProto& values,
+    std::optional<const int64_t> max_values_count = std::nullopt);
+
+// The function returns a channels-to-values map representation of the contents
+// of the proto. The max_values_count denotes the maximum number of values for a
+// channel. If more values then 'max_values_count' are included the extra are
+// ignored.
+absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+ParseChannelValuesFromProtoFile(
+    std::string_view filename_with_all_channel,
+    std::optional<const int64_t> max_values_count = std::nullopt);
+
+// Convert a map of channel-name -> channel values into a ProcChannelValuesProto
+// proto. This is the inverse of ParseChannelValuesFromProto.
+absl::StatusOr<ProcChannelValuesProto>
+ChannelValuesToProto(
+    const absl::flat_hash_map<std::string, std::vector<Value>>& channel_map);
 
 }  // namespace xls
 

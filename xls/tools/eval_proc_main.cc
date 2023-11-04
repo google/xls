@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
@@ -112,8 +113,8 @@ ABSL_FLAG(
     "where CHANNEL_NAME is the name of the channel and VALUE is one XLS Value "
     "in human-readable form. There is one VALUE per line. There may be zero or "
     "more occurences of VALUE for a channel. The file may contain one or more "
-    "channels. Either 'inputs_for_channels' or 'inputs_for_all_channels' can "
-    "be defined.");
+    "channels. One of 'inputs_for_channels', 'inputs_for_all_channels', or "
+    "'proto_inputs_for_all_channels' can be defined.");
 ABSL_FLAG(
     std::string, expected_outputs_for_all_channels, "",
     "Path to file containing outputs for all channels.\n"
@@ -126,9 +127,18 @@ ABSL_FLAG(
     "more occurences of VALUE for a channel. The file may contain one or more "
     "channels. Either 'expected_outputs_for_channels' or "
     "'expected_outputs_for_all_channels' can be defined.\n"
-    "For procs, when 'expected_outputs_for_channels' or "
-    "'expected_outputs_for_all_channels' are not specified the values of all "
-    "the channel are displayed on stdout.");
+    "For procs, when 'expected_outputs_for_channels', "
+    "'expected_outputs_for_all_channels' or "
+    "'expected_proto_outputs_for_all_channels' are not specified the values of "
+    "all the channel are displayed on stdout.");
+ABSL_FLAG(
+    std::string, proto_inputs_for_all_channels, "",
+    "Path to ProcChannelValuesProto binary proto containing inputs for all "
+    "channels.");
+ABSL_FLAG(
+    std::string, expected_proto_outputs_for_all_channels, "",
+    "Path to file containing ProcChannelValuesProto binary proto of outputs "
+    "for all channels.");
 ABSL_FLAG(std::string, streaming_channel_data_suffix, "_data",
           "Suffix to data signals for streaming channels.");
 ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
@@ -902,6 +912,8 @@ static absl::Status RealMain(
     const std::vector<std::string>& model_memories_text,
     const std::string& inputs_for_all_channels_text,
     const std::string& expected_outputs_for_all_channels_text,
+    const std::string& proto_inputs_for_all_channels,
+    const std::string& expected_proto_outputs_for_all_channels,
     std::string_view streaming_channel_data_suffix,
     std::string_view streaming_channel_ready_suffix,
     std::string_view streaming_channel_valid_suffix,
@@ -928,6 +940,10 @@ static absl::Status RealMain(
     XLS_ASSIGN_OR_RETURN(
         inputs_for_channels,
         ParseChannelValuesFromFile(inputs_for_all_channels_text, total_ticks));
+  } else if (!proto_inputs_for_all_channels.empty()) {
+    XLS_ASSIGN_OR_RETURN(inputs_for_channels,
+                         ParseChannelValuesFromProtoFile(
+                             proto_inputs_for_all_channels, total_ticks));
   }
 
   absl::flat_hash_map<std::string, std::vector<Value>>
@@ -941,6 +957,11 @@ static absl::Status RealMain(
         expected_outputs_for_channels,
         ParseChannelValuesFromFile(expected_outputs_for_all_channels_text,
                                    total_ticks));
+  } else if (!expected_proto_outputs_for_all_channels.empty()) {
+    XLS_ASSIGN_OR_RETURN(
+        expected_outputs_for_channels,
+        ParseChannelValuesFromProtoFile(expected_proto_outputs_for_all_channels,
+                                        total_ticks));
   }
 
   absl::flat_hash_map<std::string, std::pair<int64_t, Value>> model_memories;
@@ -1030,16 +1051,27 @@ int main(int argc, char* argv[]) {
     XLS_LOG(QFATAL) << "--ticks must be specified.";
   }
 
-  if (!absl::GetFlag(FLAGS_inputs_for_channels).empty() &&
-      !absl::GetFlag(FLAGS_inputs_for_all_channels).empty()) {
-    XLS_LOG(QFATAL) << "One of --inputs_for_channels and "
-                       "--inputs_for_all_channels must be set.";
+  if (absl::c_count(
+          absl::Span<const bool>{
+              absl::GetFlag(FLAGS_inputs_for_channels).empty() &&
+              absl::GetFlag(FLAGS_inputs_for_all_channels).empty() &&
+              absl::GetFlag(FLAGS_proto_inputs_for_all_channels).empty()},
+          false) > 1) {
+    XLS_LOG(QFATAL) << "Only one of --inputs_for_channels, "
+                       "--inputs_for_all_channels, and "
+                       "--proto_inputs_for_all_channels must be set.";
   }
 
-  if (!absl::GetFlag(FLAGS_expected_outputs_for_channels).empty() &&
-      !absl::GetFlag(FLAGS_expected_outputs_for_all_channels).empty()) {
-    XLS_LOG(QFATAL) << "One of --expected_outputs_for_channels and "
-                       "--expected_outputs_for_all_channels must be set.";
+  if (absl::c_count(
+          absl::Span<const bool>{
+              absl::GetFlag(FLAGS_expected_outputs_for_channels).empty() &&
+              absl::GetFlag(FLAGS_expected_outputs_for_all_channels).empty() &&
+              absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels)
+                  .empty()},
+          false) > 1) {
+    XLS_LOG(QFATAL) << "Only one of --expected_outputs_for_channels, "
+                       "--expected_outputs_for_all_channels, and "
+                       "--expected_proto_outputs_for_all_channels must be set.";
   }
 
   return xls::ExitStatus(xls::RealMain(
@@ -1050,6 +1082,8 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_model_memories),
       absl::GetFlag(FLAGS_inputs_for_all_channels),
       absl::GetFlag(FLAGS_expected_outputs_for_all_channels),
+      absl::GetFlag(FLAGS_proto_inputs_for_all_channels),
+      absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels),
       absl::GetFlag(FLAGS_streaming_channel_data_suffix),
       absl::GetFlag(FLAGS_streaming_channel_ready_suffix),
       absl::GetFlag(FLAGS_streaming_channel_valid_suffix),
