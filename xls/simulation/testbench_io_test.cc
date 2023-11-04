@@ -25,8 +25,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
 #include "xls/common/file/named_pipe.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/logging.h"
@@ -35,7 +33,7 @@
 #include "xls/common/thread.h"
 #include "xls/common/undeclared_outputs.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
+#include "xls/ir/bits_ops.h"  // IWYU pragma: keep for Node AbslStringify()
 #include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 #include "xls/simulation/verilog_test_base.h"
@@ -98,9 +96,6 @@ endmodule
 
 class TestbenchIoTest : public VerilogTestBase {
  public:
-  // The length of time in ms to delay starting the simulator.
-  static constexpr int64_t kSimulatorDelayMs = 1000;
-
   absl::StatusOr<std::pair<std::string, std::string>> RunSimulator(
       std::string_view verilog) {
     XLS_VLOG(1) << "Starting simulator.";
