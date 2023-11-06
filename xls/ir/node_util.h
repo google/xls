@@ -132,16 +132,31 @@ inline bool IsNotOf(const Node* node, const Node* inverted) {
 absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64_t const> indices);
 
 // And-reduces the trailing (least significant) "bit_count" bits of node.
+// If `source_info` is provided, will set all generated nodes to have the given
+// `source_info`; otherwise, will use `node->loc()`.
 //
-// TODO(b/150557922): Create a dedicated opcode for and-reductions of multi-bit
-// values.
-absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64_t bit_count);
+// If bit_count == 0, returns a literal 1.
+absl::StatusOr<Node*> AndReduceTrailing(
+    Node* node, int64_t bit_count,
+    const std::optional<SourceInfo>& source_info = std::nullopt);
 
 // Or-reduces the leading (most significant) "bit_count" bits of node.
+// If `source_info` is provided, will set all generated nodes to have the given
+// `source_info`.
 //
-// TODO(b/150557922): Create a dedicated opcode for or-reductions of multi-bit
-// values.
-absl::StatusOr<Node*> OrReduceLeading(Node* node, int64_t bit_count);
+// If bit_count == 0, returns a literal 0.
+absl::StatusOr<Node*> OrReduceLeading(
+    Node* node, int64_t bit_count,
+    const std::optional<SourceInfo>& source_info = std::nullopt);
+
+// Nor-reduces the leading (most significant) "bit_count" bits of node.
+// If `source_info` is provided, will set all generated nodes to have the given
+// `source_info`.
+//
+// If bit_count == 0, returns a literal 1.
+absl::StatusOr<Node*> NorReduceLeading(
+    Node* node, int64_t bit_count,
+    const std::optional<SourceInfo>& source_info = std::nullopt);
 
 // And-reduce the given operands if needed. If there are 2+ operands, returns an
 // N-ary AND of them; if there is 1 operand, returns that operand; and if there

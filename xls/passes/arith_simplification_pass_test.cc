@@ -1220,10 +1220,24 @@ TEST_F(ArithSimplificationPassTest, ULtMask) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::Nor(m::Or(m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/1),
-                   m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/1)),
-             m::And(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/1),
-                    m::BitSlice(m::Param("x"), /*start=*/1, /*width=*/1))));
+      m::Nor(
+          m::OrReduce(m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/2)),
+          m::AndReduce(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/2))));
+}
+
+TEST_F(ArithSimplificationPassTest, ULeMask) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn f(x: bits[4]) -> bits[1] {
+      literal.1: bits[4] = literal(value=0b0011)
+      ret result: bits[1] = ule(x, literal.1)
+    }
+)",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Not(m::OrReduce(
+                  m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/2))));
 }
 
 TEST_F(ArithSimplificationPassTest, UGtMask) {
@@ -1236,9 +1250,25 @@ TEST_F(ArithSimplificationPassTest, UGtMask) {
 )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Or(m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/1),
-                    m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/1)));
+  EXPECT_THAT(f->return_value(), m::OrReduce(m::BitSlice(
+                                     m::Param("x"), /*start=*/2, /*width=*/2)));
+}
+
+TEST_F(ArithSimplificationPassTest, UGeMask) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn f(x: bits[4]) -> bits[1] {
+      literal.1: bits[4] = literal(value=0b0011)
+      ret result: bits[1] = uge(x, literal.1)
+    }
+)",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Or(
+          m::OrReduce(m::BitSlice(m::Param("x"), /*start=*/2, /*width=*/2)),
+          m::AndReduce(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/2))));
 }
 
 TEST_F(ArithSimplificationPassTest, UGtMaskAllOnes) {

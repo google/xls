@@ -312,6 +312,69 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesFailsWithDependentReplacement) {
                        HasSubstr("Replacement index 1 (lhs) depends on")));
 }
 
+TEST_F(NodeUtilTest, AndReduceTrailing) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  b.Param("a", p.GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Param * a, f->GetParamByName("a"));
+
+  EXPECT_THAT(AndReduceTrailing(a, 2),
+              IsOkAndHolds(m::AndReduce(m::BitSlice(a, 0, 2))));
+}
+
+TEST_F(NodeUtilTest, AndReduceTrailingEmpty) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  b.Param("a", p.GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Param * a, f->GetParamByName("a"));
+
+  EXPECT_THAT(AndReduceTrailing(a, 0), IsOkAndHolds(m::Literal(UBits(1, 1))));
+}
+
+TEST_F(NodeUtilTest, OrReduceLeading) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  b.Param("a", p.GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Param * a, f->GetParamByName("a"));
+
+  EXPECT_THAT(OrReduceLeading(a, 2),
+              IsOkAndHolds(m::OrReduce(m::BitSlice(a, 6, 2))));
+}
+
+TEST_F(NodeUtilTest, OrReduceLeadingEmpty) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  b.Param("a", p.GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Param * a, f->GetParamByName("a"));
+
+  EXPECT_THAT(OrReduceLeading(a, 0), IsOkAndHolds(m::Literal(UBits(0, 1))));
+}
+
+TEST_F(NodeUtilTest, NorReduceLeading) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  b.Param("a", p.GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Param * a, f->GetParamByName("a"));
+
+  EXPECT_THAT(NorReduceLeading(a, 2),
+              IsOkAndHolds(m::Not(m::OrReduce(m::BitSlice(a, 6, 2)))));
+}
+
+TEST_F(NodeUtilTest, NorReduceLeadingEmpty) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  b.Param("a", p.GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Param * a, f->GetParamByName("a"));
+
+  EXPECT_THAT(NorReduceLeading(a, 0), IsOkAndHolds(m::Literal(UBits(1, 1))));
+}
+
 TEST_F(NodeUtilTest, NaryAndWithNoInputs) {
   Package p("my_package");
   FunctionBuilder b(TestName(), &p);

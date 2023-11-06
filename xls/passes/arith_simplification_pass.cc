@@ -1114,31 +1114,61 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
-  // A ULt or UGt comparison against a literal mask of LSBs (e.g., 0b0001111)
-  // can be simplified:
+  // An unsigned comparison against a literal mask of LSBs (e.g., 0b0001111) can
+  // be simplified:
   //
-  //   x < 0b0001111  =>  or_reduce(msb_slice(x)) NOR and_reduce(lsb_slice(x))
-  //   x > 0b0001111  =>  or_reduce(msb_slice(x))
+  //    x < 0b0001111  =>  or_reduce(msb_slice(x)) NOR and_reduce(lsb_slice(x))
+  //    x > 0b0001111  =>  or_reduce(msb_slice(x))
+  //
+  //   x <= 0b0001111  =>  nor_reduce(msb_slice(x))
+  //   x >= 0b0001111  =>  or_reduce(msb_slice(x)) OR and_reduce(lsb_slice(x))
   int64_t leading_zeros, trailing_ones;
   if (NarrowingEnabled(opt_level) && IsBitsCompare(n) &&
       IsLiteralMask(n->operand(1), &leading_zeros, &trailing_ones)) {
     XLS_VLOG(2) << "Found comparison to literal mask; leading zeros: "
                 << leading_zeros << " trailing ones: " << trailing_ones
                 << " :: " << n;
-    if (n->op() == Op::kULt) {
-      XLS_ASSIGN_OR_RETURN(Node * or_red,
-                           OrReduceLeading(n->operand(0), leading_zeros));
-      XLS_ASSIGN_OR_RETURN(Node * and_trail,
-                           AndReduceTrailing(n->operand(0), trailing_ones));
-      std::vector<Node*> args = {or_red, and_trail};
-      XLS_RETURN_IF_ERROR(
-          n->ReplaceUsesWithNew<NaryOp>(args, Op::kNor).status());
-      return true;
-    } else if (n->op() == Op::kUGt) {
-      XLS_ASSIGN_OR_RETURN(Node * or_red,
-                           OrReduceLeading(n->operand(0), leading_zeros));
-      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(or_red));
-      return true;
+    switch (n->op()) {
+      case Op::kULt: {
+        XLS_ASSIGN_OR_RETURN(
+            Node * or_red,
+            OrReduceLeading(n->operand(0), leading_zeros, n->loc()));
+        XLS_ASSIGN_OR_RETURN(
+            Node * and_trail,
+            AndReduceTrailing(n->operand(0), trailing_ones, n->loc()));
+        std::vector<Node*> args = {or_red, and_trail};
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<NaryOp>(args, Op::kNor).status());
+        return true;
+      }
+      case Op::kUGt: {
+        XLS_ASSIGN_OR_RETURN(
+            Node * or_red,
+            OrReduceLeading(n->operand(0), leading_zeros, n->loc()));
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(or_red));
+        return true;
+      }
+      case Op::kULe: {
+        XLS_ASSIGN_OR_RETURN(
+            Node * nor_red,
+            NorReduceLeading(n->operand(0), leading_zeros, n->loc()));
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(nor_red));
+        return true;
+      }
+      case Op::kUGe: {
+        XLS_ASSIGN_OR_RETURN(
+            Node * or_red,
+            OrReduceLeading(n->operand(0), leading_zeros, n->loc()));
+        XLS_ASSIGN_OR_RETURN(
+            Node * and_trail,
+            AndReduceTrailing(n->operand(0), trailing_ones, n->loc()));
+        std::vector<Node*> args = {or_red, and_trail};
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<NaryOp>(args, Op::kOr).status());
+        return true;
+      }
+      default:
+        break;
     }
   }
 

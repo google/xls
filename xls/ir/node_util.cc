@@ -38,6 +38,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
@@ -108,39 +109,59 @@ absl::StatusOr<Node*> GatherBits(Node* node,
   return f->MakeNode<Concat>(node->loc(), slices);
 }
 
-absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64_t bit_count) {
+absl::StatusOr<Node*> AndReduceTrailing(
+    Node* node, int64_t bit_count,
+    const std::optional<SourceInfo>& source_info) {
+  SourceInfo loc = source_info.value_or(node->loc());
   FunctionBase* f = node->function_base();
   // Reducing zero bits should return one (identity of AND).
   if (bit_count == 0) {
-    return f->MakeNode<Literal>(node->loc(), Value(UBits(1, 1)));
-  }
-  std::vector<Node*> bits;
-  for (int64_t i = 0; i < bit_count; ++i) {
-    XLS_ASSIGN_OR_RETURN(
-        Node * bit,
-        f->MakeNode<BitSlice>(node->loc(), node, /*start=*/i, /*width=*/1));
-    bits.push_back(bit);
-  }
-  return f->MakeNode<NaryOp>(node->loc(), bits, Op::kAnd);
-}
-
-absl::StatusOr<Node*> OrReduceLeading(Node* node, int64_t bit_count) {
-  FunctionBase* f = node->function_base();
-  // Reducing zero bits should return zero (identity of OR).
-  if (bit_count == 0) {
-    return f->MakeNode<Literal>(node->loc(), Value(UBits(0, 1)));
+    return f->MakeNode<Literal>(loc, Value(UBits(1, 1)));
   }
   const int64_t width = node->BitCountOrDie();
   XLS_CHECK_LE(bit_count, width);
-  std::vector<Node*> bits;
-  for (int64_t i = 0; i < bit_count; ++i) {
-    XLS_ASSIGN_OR_RETURN(
-        Node * bit,
-        f->MakeNode<BitSlice>(node->loc(), node,
-                              /*start=*/width - bit_count + i, /*width=*/1));
-    bits.push_back(bit);
+  XLS_ASSIGN_OR_RETURN(
+      Node * bit_slice,
+      f->MakeNode<BitSlice>(loc, node, /*start=*/0, /*width=*/bit_count));
+  return f->MakeNode<BitwiseReductionOp>(loc, bit_slice, Op::kAndReduce);
+}
+
+absl::StatusOr<Node*> OrReduceLeading(
+    Node* node, int64_t bit_count,
+    const std::optional<SourceInfo>& source_info) {
+  SourceInfo loc = source_info.value_or(node->loc());
+  FunctionBase* f = node->function_base();
+  // Reducing zero bits should return zero (identity of OR).
+  if (bit_count == 0) {
+    return f->MakeNode<Literal>(loc, Value(UBits(0, 1)));
   }
-  return f->MakeNode<NaryOp>(node->loc(), bits, Op::kOr);
+  const int64_t width = node->BitCountOrDie();
+  XLS_CHECK_LE(bit_count, width);
+  XLS_ASSIGN_OR_RETURN(Node * bit_slice,
+                       f->MakeNode<BitSlice>(loc, node,
+                                             /*start=*/width - bit_count,
+                                             /*width=*/bit_count));
+  return f->MakeNode<BitwiseReductionOp>(loc, bit_slice, Op::kOrReduce);
+}
+
+absl::StatusOr<Node*> NorReduceLeading(
+    Node* node, int64_t bit_count,
+    const std::optional<SourceInfo>& source_info) {
+  SourceInfo loc = source_info.value_or(node->loc());
+  FunctionBase* f = node->function_base();
+  // Reducing zero bits returns one (documented convention).
+  if (bit_count == 0) {
+    return f->MakeNode<Literal>(loc, Value(UBits(1, 1)));
+  }
+  const int64_t width = node->BitCountOrDie();
+  XLS_CHECK_LE(bit_count, width);
+  XLS_ASSIGN_OR_RETURN(Node * bit_slice,
+                       f->MakeNode<BitSlice>(loc, node,
+                                             /*start=*/width - bit_count,
+                                             /*width=*/bit_count));
+  XLS_ASSIGN_OR_RETURN(Node * reduced, f->MakeNode<BitwiseReductionOp>(
+                                           loc, bit_slice, Op::kOrReduce));
+  return f->MakeNode<UnOp>(loc, reduced, Op::kNot);
 }
 
 absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
