@@ -15,6 +15,7 @@
 #include "xls/passes/arith_simplification_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <tuple>
@@ -25,10 +26,13 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/big_int.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -927,6 +931,25 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     XLS_VLOG(2) << "FOUND: replace ashr by constant with signext(slice(x))";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<ExtendOp>(slice, bit_count, Op::kSignExt)
+            .status());
+    return true;
+  }
+
+  // Any shift right of a constant 1 can be replaced by a test for equality with
+  // zero (followed by a zero extension), since
+  //   (1 >> x) = 1 if x == 0,
+  //              0 otherwise.
+  if ((n->op() == Op::kShra || n->op() == Op::kShrl) &&
+      IsLiteralUnsignedOne(n->operand(0))) {
+    XLS_VLOG(2) << "FOUND: shift right of constant 1";
+    Node* x = n->operand(1);
+    XLS_ASSIGN_OR_RETURN(Literal * zero,
+                         n->function_base()->MakeNode<Literal>(
+                             n->loc(), Value(UBits(0, x->BitCountOrDie()))));
+    XLS_ASSIGN_OR_RETURN(Node * test, n->function_base()->MakeNode<CompareOp>(
+                                          n->loc(), x, zero, Op::kEq));
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<ExtendOp>(test, n->BitCountOrDie(), Op::kZeroExt)
             .status());
     return true;
   }

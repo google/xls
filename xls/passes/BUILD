@@ -372,8 +372,11 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:big_int",
+        "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:value",
         "//xls/ir:value_helpers",
     ],
 )

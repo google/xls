@@ -793,6 +793,34 @@ TEST_F(ArithSimplificationPassTest, CompareBoolAgainstZero) {
   EXPECT_THAT(f->return_value(), m::Not(m::Param()));
 }
 
+TEST_F(ArithSimplificationPassTest, ArithmeticShiftRightOfConstantOne) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x:bits[10]) -> bits[42] {
+        literal.1: bits[42] = literal(value=1)
+        ret result: bits[42] = shra(literal.1, x)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Shra());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ZeroExt(m::Eq(m::Param(), m::Literal(0))));
+}
+
+TEST_F(ArithSimplificationPassTest, LogicalShiftRightOfConstantOne) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x:bits[10]) -> bits[42] {
+        literal.1: bits[42] = literal(value=1)
+        ret result: bits[42] = shrl(literal.1, x)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Shrl());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ZeroExt(m::Eq(m::Param(), m::Literal(0))));
+}
+
 TEST_F(ArithSimplificationPassTest, DoubleNegation) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
