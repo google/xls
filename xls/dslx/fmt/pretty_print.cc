@@ -339,7 +339,7 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
   std::string payload = absl::visit(
       Visitor{
           [&](const std::string& p) -> std::string {
-            return absl::StrFormat("std::string{\"%s\"}", absl::CEscape(p));
+            return absl::StrFormat("\"%s\"", absl::CEscape(p));
           },
           [&](const HardLine& p) -> std::string { return "HardLine"; },
           [&](const FlatChoice& p) -> std::string {
@@ -375,7 +375,10 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
           },
       },
       value);
-  return absl::StrFormat("Doc{%s, %s}", RequirementToString(flat_requirement),
+  return absl::StrFormat("Doc{%s, %s}",
+                         std::holds_alternative<int64_t>(flat_requirement)
+                             ? absl::StrCat(std::get<int64_t>(flat_requirement))
+                             : "inf",
                          payload);
 }
 

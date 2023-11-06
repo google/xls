@@ -28,6 +28,8 @@ TEST(PrettyPrintTest, OneTextDoc) {
   EXPECT_EQ(PrettyPrint(arena, ref, 1), "hi");
   EXPECT_EQ(PrettyPrint(arena, ref, 2), "hi");
   EXPECT_EQ(PrettyPrint(arena, ref, 3), "hi");
+
+  EXPECT_EQ(arena.ToDebugString(ref), "Doc{2, \"hi\"}");
 }
 
 TEST(PrettyPrintTest, EmptyConcatIsEmptyString) {
@@ -35,6 +37,18 @@ TEST(PrettyPrintTest, EmptyConcatIsEmptyString) {
   DocRef ref = ConcatN(arena, {});
   EXPECT_EQ(PrettyPrint(arena, ref, 0), "");
   EXPECT_EQ(PrettyPrint(arena, ref, 1), "");
+
+  EXPECT_EQ(arena.ToDebugString(ref), "Doc{0, \"\"}");
+}
+
+TEST(PrettyPrintTest, ConcatOfEmpty) {
+  DocArena arena;
+  DocRef ref = arena.MakeConcat(arena.empty(), arena.empty());
+  EXPECT_EQ(PrettyPrint(arena, ref, 0), "");
+  EXPECT_EQ(PrettyPrint(arena, ref, 1), "");
+
+  EXPECT_EQ(arena.ToDebugString(ref),
+            "Doc{0, Concat{Doc{0, \"\"}, Doc{0, \"\"}}}");
 }
 
 TEST(PrettyPrintTest, OneHardLineDoc) {

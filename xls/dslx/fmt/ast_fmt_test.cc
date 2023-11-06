@@ -693,6 +693,19 @@ TEST_F(FunctionFmtTest, ParametricInvocationWithExpression) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, LetWith100Chars) {
+  const std::string_view original = R"(fn f(integer_part: s9) {
+    let integer_part = if input_fraction_in_upper_half {
+        integer_part + s9:1
+    } else {
+        integer_part
+    };
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           DoFmt(original, {"input_fraction_in_upper_half"}));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, SliceExprOverlong) {
   const std::string_view original = R"(fn f() {
     if a {

@@ -523,8 +523,9 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
   const Pos start_entity_pos = n.span().start().BumpCol();
   Pos last_entity_pos = start_entity_pos;
 
-  std::vector<DocRef> nested;
+  std::vector<DocRef> statements;
   for (size_t i = 0; i < n.statements().size(); ++i) {
+    std::vector<DocRef> stmt_pieces;
     const Statement* stmt = n.statements()[i];
 
     // Get the start position for the statement.
@@ -547,11 +548,11 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       // retain it in the output (i.e. in paragraph style).
       if (last_entity_pos != start_entity_pos &&
           last_entity_pos.lineno() + 1 < last_comment_span->start().lineno()) {
-        nested.push_back(arena.hard_line());
+        stmt_pieces.push_back(arena.hard_line());
       }
 
-      nested.push_back(comments_doc.value());
-      nested.push_back(arena.hard_line());
+      stmt_pieces.push_back(comments_doc.value());
+      stmt_pieces.push_back(arena.hard_line());
 
       last_entity_pos = AdjustCommentLimit(last_comment_span.value(), arena,
                                            comments_doc.value());
@@ -559,7 +560,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       // See if we want a line break between the comment we just emitted and the
       // statement we're about to emit.
       if (last_entity_pos.lineno() + 1 < stmt_start.lineno()) {
-        nested.push_back(arena.hard_line());
+        stmt_pieces.push_back(arena.hard_line());
       }
 
     } else {  // No comments to emit ahead of the statement.
@@ -568,20 +569,23 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       // If there's a line break between the last entity and this statement, we
       // retain it in the output (i.e. in paragraph style).
       if (last_entity_pos.lineno() + 1 < stmt_start.lineno()) {
-        nested.push_back(arena.hard_line());
+        stmt_pieces.push_back(arena.hard_line());
       }
     }
 
     // Here we emit the formatted statement.
-    nested.push_back(Fmt(*stmt, comments, arena));
+    std::vector<DocRef> stmt_semi = {Fmt(*stmt, comments, arena)};
 
     // Now we reflect the emission of the statement.
     last_entity_pos = stmt_limit;
 
     bool last_stmt = i + 1 == n.statements().size();
     if (!last_stmt || n.trailing_semi()) {
-      nested.push_back(arena.semi());
+      stmt_semi.push_back(arena.semi());
     }
+
+    stmt_pieces.push_back(ConcatNGroup(arena, stmt_semi));
+    statements.push_back(ConcatN(arena, stmt_pieces));
 
     // See if there are inline comments after the statement.
     const Pos next_line(stmt_limit.filename(), stmt_limit.lineno() + 1, 0);
@@ -590,16 +594,16 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       XLS_VLOG(3) << "Saw after-statement comment: "
                   << arena.ToDebugString(comments_doc.value())
                   << " last_comment_span: " << last_comment_span.value();
-      nested.push_back(arena.space());
-      nested.push_back(arena.space());
-      nested.push_back(arena.MakeAlign(comments_doc.value()));
+      statements.push_back(arena.space());
+      statements.push_back(arena.space());
+      statements.push_back(arena.MakeAlign(comments_doc.value()));
 
       last_entity_pos = AdjustCommentLimit(last_comment_span.value(), arena,
                                            comments_doc.value());
     }
 
     if (!last_stmt) {
-      nested.push_back(arena.hard_line());
+      statements.push_back(arena.hard_line());
     }
   }
 
@@ -615,14 +619,14 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     // If there's a line break between the last entity and this comment, we
     // retain it in the output (i.e. in paragraph style).
     if (last_entity_pos.lineno() + 1 < last_comment_span->start().lineno()) {
-      nested.push_back(arena.hard_line());
+      statements.push_back(arena.hard_line());
     }
 
-    nested.push_back(arena.hard_line());
-    nested.push_back(comments_doc.value());
+    statements.push_back(arena.hard_line());
+    statements.push_back(comments_doc.value());
   }
 
-  top.push_back(arena.MakeNest(ConcatN(arena, nested)));
+  top.push_back(arena.MakeNest(ConcatN(arena, statements)));
   if (add_curls) {
     top.push_back(arena.hard_line());
     top.push_back(arena.ccurl());
@@ -989,12 +993,12 @@ DocRef Fmt(const String& n, const Comments& comments, DocArena& arena) {
 static DocRef MakeConditionalTestGroup(const Conditional& n,
                                        const Comments& comments,
                                        DocArena& arena) {
-  return ConcatNGroup(
+  return ConcatN(
       arena, {
                  arena.Make(Keyword::kIf),
-                 arena.break1(),
+                 arena.space(),
                  FmtExpr(*n.test(), comments, arena, /*suppress_parens=*/true),
-                 arena.break1(),
+                 arena.space(),
                  arena.ocurl(),
              });
 }
@@ -1065,7 +1069,7 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
   pieces.push_back(arena.break1());
   pieces.push_back(arena.ccurl());
-  return ConcatNGroup(arena, pieces);
+  return ConcatN(arena, pieces);
 }
 
 DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
