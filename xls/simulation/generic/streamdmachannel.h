@@ -67,7 +67,8 @@ class StreamDmaChannel : public IActive, public IIRQ {
         dma_finished_(false),
         dma_discard_(true),
         irq_(0),
-        bus_master_port_(bus_master_port) {
+        bus_master_port_(bus_master_port),
+        bytes_in_current_xfer_(0) {
     this->element_size_ = endpoint_->GetElementSize();
   }
 
@@ -102,7 +103,11 @@ class StreamDmaChannel : public IActive, public IIRQ {
  protected:
   std::unique_ptr<IDmaEndpoint> endpoint_;
   virtual absl::Status UpdateReadFromEmulator();
+  template <typename T>
+  absl::StatusOr<T> UpdateReadFromEmulatorHelper();
   virtual absl::Status UpdateWriteToEmulator();
+  template <typename T>
+  absl::Status UpdateWriteToEmulatorHelper(T payload);
 
  private:
   friend class StreamDmaChannelPrivateAccess;
@@ -120,6 +125,10 @@ class StreamDmaChannel : public IActive, public IIRQ {
   uint64_t irq_;
   uint64_t element_size_;
   IMasterPort* bus_master_port_;
+
+  uint64_t bytes_in_current_xfer_;
+  uint64_t bytes_transferred_in_current_xfer_;
+  IDmaEndpoint::Payload current_xfer_;
 };
 
 }  // namespace xls::simulation::generic

@@ -292,27 +292,24 @@ TEST_P(StreamManagerTest, DoubleReadAdjacentStreams) {
     if (i < sizeof(uint16_t)) {
       XLS_LOG(INFO) << "Reading 16 bits at offset -" << i;
       XLS_EXPECT_OK(res = sm->ReadU16AtAddress(params.base + s2_offset - i));
-      uint16_t expected16 =
-          Payload64Tail(payload64, i) |
-          (StreamManager::ctrl_reg_DIR_ << BytesToBits(i));
+      uint16_t expected16 = Payload64Tail(payload64, i) |
+                            (StreamManager::ctrl_reg_DIR_ << BytesToBits(i));
       XLS_LOG(INFO) << "  expected: " << ToHex(expected16);
       EXPECT_EQ(res.value(), expected16);
     }
     if (i < sizeof(uint32_t)) {
       XLS_LOG(INFO) << "Reading 32 bits at offset -" << i;
       XLS_EXPECT_OK(res = sm->ReadU32AtAddress(params.base + s2_offset - i));
-      uint32_t expected32 =
-          Payload64Tail(payload64, i) |
-          (StreamManager::ctrl_reg_DIR_ << BytesToBits(i));
+      uint32_t expected32 = Payload64Tail(payload64, i) |
+                            (StreamManager::ctrl_reg_DIR_ << BytesToBits(i));
       XLS_LOG(INFO) << "  expected: " << ToHex(expected32);
       EXPECT_EQ(res.value(), expected32);
     }
     if (i < sizeof(uint64_t)) {
       XLS_LOG(INFO) << "Reading 64 bits at offset -" << i;
       XLS_EXPECT_OK(res = sm->ReadU64AtAddress(params.base + s2_offset - i));
-      uint64_t expected64 =
-          Payload64Tail(payload64, i) |
-          (StreamManager::ctrl_reg_DIR_ << BytesToBits(i));
+      uint64_t expected64 = Payload64Tail(payload64, i) |
+                            (StreamManager::ctrl_reg_DIR_ << BytesToBits(i));
       XLS_LOG(INFO) << "  expected: " << ToHex(expected64);
       EXPECT_EQ(res.value(), expected64);
     }

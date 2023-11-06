@@ -304,6 +304,55 @@ TEST_F(StreamDmaChannelReadTest, PeripheralAccessTest) {
   XLS_EXPECT_OK(this->dma_channel_.Update());
 }
 
+TEST_F(StreamDmaChannelReadTest, BackPressureOnTransfer) {
+  MakeStreamReady(this->proxy_.GetChannel());
+  uint64_t transfer_length = 0x3FFC;
+  this->dma_channel_.SetMaxTransferLength(transfer_length);
+  this->proxy_.SetDmaDiscard(false);
+  this->proxy_.SetDmaRun(true);
+  {
+    InSequence s;
+    EXPECT_CALL(
+        this->bus_master_port_,
+        RequestWrite(Eq(0), Eq(0x8BADF00DDEADBEEFULL), Eq(AccessWidth::QWORD)))
+        .Times(1)
+        .WillOnce(Return(absl::OkStatus()));
+    EXPECT_CALL(this->bus_master_port_,
+                RequestWrite(Eq(8), Eq(0xEFULL), Eq(AccessWidth::BYTE)))
+        .Times(3)
+        .WillRepeatedly(Return(absl::UnavailableError("MasterPort locked")));
+    EXPECT_CALL(this->bus_master_port_,
+                RequestWrite(Eq(8), Eq(0xEFULL), Eq(AccessWidth::BYTE)))
+        .Times(1)
+        .WillOnce(Return(absl::OkStatus()));
+    EXPECT_CALL(this->bus_master_port_,
+                RequestWrite(Eq(9), Eq(0xBEULL), Eq(AccessWidth::BYTE)))
+        .Times(1);
+    EXPECT_CALL(this->bus_master_port_,
+                RequestWrite(Eq(10), Eq(0xADULL), Eq(AccessWidth::BYTE)))
+        .Times(1);
+    EXPECT_CALL(this->bus_master_port_,
+                RequestWrite(Eq(11), Eq(0xDEULL), Eq(AccessWidth::BYTE)))
+        .Times(1);
+    EXPECT_CALL(this->bus_master_port_,
+                RequestWrite(Eq(12), Eq(0x0DULL), Eq(AccessWidth::BYTE)))
+        .Times(1);
+    EXPECT_CALL(this->bus_master_port_,
+                RequestWrite(Eq(13), Eq(0xF0ULL), Eq(AccessWidth::BYTE)))
+        .Times(1);
+    EXPECT_CALL(this->bus_master_port_,
+                RequestWrite(Eq(14), Eq(0xADULL), Eq(AccessWidth::BYTE)))
+        .Times(1);
+  }
+  EXPECT_THAT(this->proxy_.InternalUpdate(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(this->proxy_.InternalUpdate(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(this->proxy_.InternalUpdate(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnavailable));
+  XLS_EXPECT_OK(this->proxy_.InternalUpdate());
+}
+
 TEST_F(StreamDmaChannelReadTest, DiscardTest) {
   MakeStreamReady(this->proxy_.GetChannel());
   uint64_t transfer_length = 0x3FFC;
@@ -350,6 +399,44 @@ TEST_F(StreamDmaChannelWriteTest, PeripheralAccessTest) {
     }
   }
   XLS_EXPECT_OK(this->dma_channel_.Update());
+  IStreamMock<120, false>* channel =
+      dynamic_cast<IStreamMock<120, false>*>(this->proxy_.GetChannel());
+  EXPECT_NE(channel, nullptr);
+  EXPECT_EQ(channel->fifo().size(), 1);
+  EXPECT_EQ(channel->fifo().front(),
+            (std::array<uint8_t, 15>{0xEF, 0xBE, 0xAD, 0xDE, 0x0D, 0xF0, 0xAD,
+                                     0x8B}));
+}
+
+TEST_F(StreamDmaChannelWriteTest, BackPressureOnTransfer) {
+  MakeStreamReady(this->proxy_.GetChannel());
+  uint64_t transfer_length = 15;
+  this->dma_channel_.SetMaxTransferLength(transfer_length);
+  this->proxy_.SetDmaRun(true);
+  {
+    InSequence s;
+    EXPECT_CALL(this->bus_master_port_,
+                RequestRead(Eq(0), Eq(AccessWidth::QWORD)))
+        .Times(1)
+        .WillOnce(Return(0x8BADF00DDEADBEEFULL));
+    EXPECT_CALL(this->bus_master_port_,
+                RequestRead(Eq(8), Eq(AccessWidth::BYTE)))
+        .Times(3)
+        .WillRepeatedly(Return(absl::UnavailableError("MasterPort locked")));
+    for (int i = 8; i < 15; ++i) {
+      EXPECT_CALL(this->bus_master_port_,
+                  RequestRead(Eq(i), Eq(AccessWidth::BYTE)))
+          .Times(1)
+          .WillOnce(Return(0));
+    }
+  }
+  EXPECT_THAT(this->proxy_.InternalUpdate(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(this->proxy_.InternalUpdate(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_THAT(this->proxy_.InternalUpdate(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnavailable));
+  XLS_EXPECT_OK(this->proxy_.InternalUpdate());
   IStreamMock<120, false>* channel =
       dynamic_cast<IStreamMock<120, false>*>(this->proxy_.GetChannel());
   EXPECT_NE(channel, nullptr);

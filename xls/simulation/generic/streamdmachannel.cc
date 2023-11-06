@@ -94,49 +94,75 @@ static AccessWidth AccessOfWidthPow(uint64_t pow2) {
   return AccessWidth::BYTE;
 }
 
+template <typename T>
+absl::Status StreamDmaChannel::UpdateWriteToEmulatorHelper(T payload) {
+  constexpr uint64_t access_width_log = []() -> uint64_t {
+    uint64_t log_width = 0;
+    while ((sizeof(T) & (1ull << log_width)) == 0) {
+      ++log_width;
+    }
+    return log_width;
+  }();
+  absl::Status data_sent_successfully = bus_master_port_->RequestWrite(
+      transfer_base_address_ + transferred_length_, payload,
+      AccessOfWidthPow(access_width_log));
+  XLS_LOG(WARNING) << data_sent_successfully;
+  if (!data_sent_successfully.ok()) {
+    return data_sent_successfully;
+  } else {
+    transferred_length_ += sizeof(T);
+    bytes_transferred_in_current_xfer_ += sizeof(T);
+    return absl::OkStatus();
+  }
+}
+
 absl::Status StreamDmaChannel::UpdateWriteToEmulator() {
-  while (endpoint_->IsReady() && transferred_length_ < max_transfer_length_) {
-    XLS_ASSIGN_OR_RETURN(auto xfer, endpoint_->Read());
-    auto n_received = xfer.data.size();
-    XLS_CHECK_EQ(n_received % element_size_, 0);
-    uint64_t n_bytes_to_transfer =
-        std::min(n_received, max_transfer_length_ - transferred_length_);
-    if (dma_discard_) {
-      // Discard mode
-      transferred_length_ += n_bytes_to_transfer;
-    } else {
-      if (n_bytes_to_transfer != n_received) {
+  while ((endpoint_->IsReady() || bytes_in_current_xfer_ != 0) &&
+         transferred_length_ < max_transfer_length_) {
+    if (bytes_in_current_xfer_ == 0) {
+      XLS_ASSIGN_OR_RETURN(current_xfer_, endpoint_->Read());
+      bytes_transferred_in_current_xfer_ = 0;
+      auto n_received = current_xfer_.data.size();
+      XLS_CHECK_EQ(n_received % element_size_, 0);
+      bytes_in_current_xfer_ =
+          std::min(n_received, max_transfer_length_ - transferred_length_);
+      if (bytes_in_current_xfer_ != n_received) {
         XLS_LOG(WARNING) << absl::StreamFormat(
             "Endpoint returned %u bytes, but only %u will be transferred to "
             "the memory to obey the max DMA transfer size set by the user. "
             "Data will be lost.",
-            n_received, n_bytes_to_transfer);
+            n_received, bytes_in_current_xfer_);
       }
+    }
+    if (dma_discard_) {
+      // Discard mode
+      transferred_length_ += bytes_in_current_xfer_;
+      bytes_in_current_xfer_ = 0;
+    } else {
       // Where possible, use 64-bit DMA accesses
-      uint64_t quotient = n_bytes_to_transfer / sizeof(uint64_t);
-      for (uint64_t i = 0; i < quotient; ++i) {
+      uint64_t start_position =
+          bytes_transferred_in_current_xfer_ / sizeof(uint64_t);
+      uint64_t quotient = bytes_in_current_xfer_ / sizeof(uint64_t);
+      for (uint64_t i = start_position; i < quotient; ++i) {
         // u8[8]<->u64 cast has to be done in native endianness
         uint64_t payload;
-        memcpy(&payload, xfer.data.data() + i * sizeof(uint64_t),
+        memcpy(&payload, current_xfer_.data.data() + i * sizeof(uint64_t),
                sizeof(uint64_t));
-        bus_master_port_->RequestWrite(
-            transfer_base_address_ + transferred_length_, payload,
-            AccessWidth::QWORD);
-        transferred_length_ += sizeof(uint64_t);
+        XLS_RETURN_IF_ERROR(UpdateWriteToEmulatorHelper(payload));
       }
 
       // Handle remaining bytes using 8-bit accesses
-      for (uint64_t i = sizeof(uint64_t) * quotient; i < n_bytes_to_transfer;
+      for (uint64_t i = sizeof(uint64_t) * quotient; i < bytes_in_current_xfer_;
            ++i) {
-        bus_master_port_->RequestWrite(
-            transfer_base_address_ + transferred_length_, xfer.data[i],
-            AccessWidth::BYTE);
-        transferred_length_ += sizeof(uint8_t);
+        XLS_RETURN_IF_ERROR(UpdateWriteToEmulatorHelper(current_xfer_.data[i]));
       }
     }
+
+    // Transfer finished
+    bytes_in_current_xfer_ = 0;
     // If last element was signalled by the endpoint, signal the end of the DMA
     // transfer
-    if (xfer.last) {
+    if (current_xfer_.last) {
       dma_finished_ = true;
       irq_ |= kReceivedLastIrq;
       break;
@@ -145,51 +171,81 @@ absl::Status StreamDmaChannel::UpdateWriteToEmulator() {
   return absl::OkStatus();
 }
 
+template <typename T>
+absl::StatusOr<T> StreamDmaChannel::UpdateReadFromEmulatorHelper() {
+  constexpr uint64_t access_width_log = []() -> uint64_t {
+    uint64_t log_width = 0;
+    while ((sizeof(T) & (1ull << log_width)) == 0) {
+      ++log_width;
+    }
+    return log_width;
+  }();
+  absl::StatusOr<T> data_read = bus_master_port_->RequestRead(
+      transfer_base_address_ + transferred_length_,
+      AccessOfWidthPow(access_width_log));
+  if (data_read.ok()) {
+    transferred_length_ += sizeof(T);
+    bytes_transferred_in_current_xfer_ += sizeof(T);
+  }
+  return data_read;
+}
+
 absl::Status StreamDmaChannel::UpdateReadFromEmulator() {
   while (endpoint_->IsReady() && transferred_length_ < max_transfer_length_) {
-    uint64_t max_bytes_per_transfer =
-        element_size_ * endpoint_->GetMaxElementsPerTransfer();
-    uint64_t n_bytes_to_transfer = std::min(
-        max_bytes_per_transfer, max_transfer_length_ - transferred_length_);
-
-    IDmaEndpoint::Payload xfer{};
+    if (bytes_in_current_xfer_ == 0) {
+      bytes_transferred_in_current_xfer_ = 0;
+      uint64_t max_bytes_per_transfer =
+          element_size_ * endpoint_->GetMaxElementsPerTransfer();
+      bytes_in_current_xfer_ = std::min(
+          max_bytes_per_transfer, max_transfer_length_ - transferred_length_);
+    }
 
     // Where possible, use 64-bit DMA accesses
-    uint64_t quotient = n_bytes_to_transfer / sizeof(uint64_t);
-    for (uint64_t i = 0; i < quotient; ++i) {
-      auto resp = bus_master_port_->RequestRead(
-          transfer_base_address_ + transferred_length_, AccessWidth::QWORD);
-      uint64_t payload = resp.value();
+    uint64_t start_position =
+        bytes_transferred_in_current_xfer_ / sizeof(uint64_t);
+    uint64_t quotient = bytes_in_current_xfer_ / sizeof(uint64_t);
+    for (uint64_t i = start_position; i < quotient; ++i) {
+      XLS_ASSIGN_OR_RETURN(uint64_t payload,
+                           UpdateReadFromEmulatorHelper<uint64_t>());
       // u8[8]<->u64 cast has to be done in native endianness
-      xfer.data.resize(xfer.data.size() + sizeof(uint64_t));
-      memcpy(xfer.data.data() + sizeof(uint64_t) * i, &payload,
+      current_xfer_.data.resize(current_xfer_.data.size() + sizeof(uint64_t));
+      memcpy(current_xfer_.data.data() + sizeof(uint64_t) * i, &payload,
              sizeof(uint64_t));
-      transferred_length_ += sizeof(uint64_t);
     }
     // Handle remaining bytes using 8-bit accesses
-    for (uint64_t i = sizeof(uint64_t) * quotient; i < n_bytes_to_transfer;
+    for (uint64_t i = sizeof(uint64_t) * quotient; i < bytes_in_current_xfer_;
          ++i) {
-      auto resp = bus_master_port_->RequestRead(
-          transfer_base_address_ + transferred_length_, AccessWidth::BYTE);
-      uint8_t payload = resp.value();
-      xfer.data.push_back(payload);
-      transferred_length_ += sizeof(uint8_t);
+      XLS_ASSIGN_OR_RETURN(uint8_t payload,
+                           UpdateReadFromEmulatorHelper<uint8_t>());
+      current_xfer_.data.push_back(payload);
     }
     // Set 'last' flag
     if (transferred_length_ >= max_transfer_length_) {
-      xfer.last = true;
+      current_xfer_.last = true;
     }
-    XLS_RETURN_IF_ERROR(endpoint_->Write(std::move(xfer)));
+    if (bytes_in_current_xfer_ != 0 &&
+        bytes_in_current_xfer_ == bytes_transferred_in_current_xfer_) {
+      XLS_RETURN_IF_ERROR(endpoint_->Write(std::move(current_xfer_)));
+      bytes_in_current_xfer_ = 0;
+    }
   }
   return absl::OkStatus();
 }
 
 absl::Status StreamDmaChannel::Update() {
   if (dma_run_ && !dma_finished_) {
+    absl::Status res;
     if (endpoint_->IsReadStream()) {
-      XLS_RETURN_IF_ERROR(UpdateWriteToEmulator());
+      res = UpdateWriteToEmulator();
     } else {
-      XLS_RETURN_IF_ERROR(UpdateReadFromEmulator());
+      res = UpdateReadFromEmulator();
+    }
+    // Check Update's result.
+    // Update should return either Ok, meaning that all data was transferred,
+    // or Unavailable, when master port is stuck and can't ingest more data.
+    // All other return codes are treated as errors.
+    if (!(res.ok() || IsUnavailable(res))) {
+      return res;
     }
     // If all the requested data has been transferred, or the transfer has been
     // prematurely marked as complete by the Update function, signal the end of
