@@ -1877,17 +1877,35 @@ absl::Status IrBuilderVisitor::HandleDecode(Decode* decode) {
                        NewNodeIrContext(decode, {"operand"}));
   llvm::IRBuilder<>& b = node_context.entry_builder();
   llvm::Value* input = node_context.LoadOperand(0);
-
   llvm::Type* result_type =
       type_converter()->ConvertToLlvmType(decode->GetType());
+
+  llvm::Value* index = input;
+  if (index->getType()->getIntegerBitWidth() <
+      Bits::MinBitCountUnsigned(decode->width())) {
+    // Extend index so it's comparable to decode->width().
+    index =
+        b.CreateZExt(input, type_converter()->GetLlvmBitsType(
+                                Bits::MinBitCountUnsigned(decode->width())));
+  }
+
+  llvm::Value* shift = input;
+  // Make sure shift has the same type as our result.
+  if (shift->getType()->getIntegerBitWidth() <
+      result_type->getIntegerBitWidth()) {
+    shift = b.CreateZExt(shift, result_type);
+  } else if (shift->getType()->getIntegerBitWidth() >
+             result_type->getIntegerBitWidth()) {
+    shift = b.CreateTrunc(shift, result_type);
+  }
+
   // If the input value is greater than this op's width, then return 0.
   // In that case, the shl will produce a poison value, but it'll be unused.
-  llvm::Value* cast_input = b.CreateZExt(input, result_type);
   llvm::Value* overflow = b.CreateICmpUGE(
-      cast_input, llvm::ConstantInt::get(result_type, decode->width()));
+      index, llvm::ConstantInt::get(index->getType(), decode->width()));
   llvm::Value* result = b.CreateSelect(
       overflow, llvm::ConstantInt::get(result_type, 0),
-      b.CreateShl(llvm::ConstantInt::get(result_type, 1), cast_input));
+      b.CreateShl(llvm::ConstantInt::get(result_type, 1), shift));
 
   return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }

@@ -3057,12 +3057,68 @@ TEST_P(IrEvaluatorTestBase, Decode) {
   EXPECT_THAT(RunWithUint64sNoEvents(function, {7}), IsOkAndHolds(128));
 }
 
+TEST_P(IrEvaluatorTestBase, DecodeAfterZeroExtension) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
+  package test
+
+  top fn main(x: bits[2]) -> bits[8] {
+    zero_ext.1: bits[3] = zero_ext(x, new_bit_count=3)
+    ret decode.2: bits[8] = decode(zero_ext.1, width=8)
+  }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {0}), IsOkAndHolds(1));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {1}), IsOkAndHolds(2));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {2}), IsOkAndHolds(4));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {3}), IsOkAndHolds(8));
+}
+
 TEST_P(IrEvaluatorTestBase, NarrowedDecode) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
   top fn main(x: bits[3]) -> bits[5] {
     ret decode.1: bits[5] = decode(x, width=5)
+  }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {0}), IsOkAndHolds(1));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {1}), IsOkAndHolds(2));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {2}), IsOkAndHolds(4));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {3}), IsOkAndHolds(8));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {4}), IsOkAndHolds(16));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {5}), IsOkAndHolds(0));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {6}), IsOkAndHolds(0));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {7}), IsOkAndHolds(0));
+}
+
+// Tests decode where the output is narrower than the input.
+TEST_P(IrEvaluatorTestBase, ExtremelyNarrowedDecode) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
+  package test
+
+  top fn main(x: bits[3]) -> bits[2] {
+    ret decode.1: bits[2] = decode(x, width=2)
+  }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {0}), IsOkAndHolds(1));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {1}), IsOkAndHolds(2));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {2}), IsOkAndHolds(0));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {3}), IsOkAndHolds(0));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {4}), IsOkAndHolds(0));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {5}), IsOkAndHolds(0));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {6}), IsOkAndHolds(0));
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {7}), IsOkAndHolds(0));
+}
+
+TEST_P(IrEvaluatorTestBase, ExtremelyNarrowedDecodeAfterZeroExtension) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
+  package test
+
+  top fn main(x: bits[3]) -> bits[5] {
+    zero_ext.1: bits[42] = zero_ext(x, new_bit_count=42)
+    ret decode.2: bits[5] = decode(zero_ext.1, width=5)
   }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
