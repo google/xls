@@ -935,12 +935,26 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
+  // An arithmetic shift-right of a 1-bit value is a no-op.
+  if (n->op() == Op::kShra && n->operand(0)->BitCountOrDie() == 1) {
+    XLS_VLOG(2) << "FOUND: arithmetic shift-right of 1-bit value";
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
+  }
+
   // Any shift right of a constant 1 can be replaced by a test for equality with
   // zero (followed by a zero extension), since
+  //
   //   (1 >> x) = 1 if x == 0,
   //              0 otherwise.
+  //
+  // ... as long as it's not an arithmetic shift-right of bits[1]:1.
   if ((n->op() == Op::kShra || n->op() == Op::kShrl) &&
       IsLiteralUnsignedOne(n->operand(0))) {
+    // Make absolutely sure we're not dealing with an arithmetic shift-right of
+    // bits[1]:1. (For correctness, that case must be handled first.)
+    XLS_RET_CHECK(n->op() != Op::kShra || n->operand(0)->BitCountOrDie() > 1);
+
     XLS_VLOG(2) << "FOUND: shift right of constant 1";
     Node* x = n->operand(1);
     XLS_ASSIGN_OR_RETURN(Literal * zero,
@@ -948,9 +962,13 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
                              n->loc(), Value(UBits(0, x->BitCountOrDie()))));
     XLS_ASSIGN_OR_RETURN(Node * test, n->function_base()->MakeNode<CompareOp>(
                                           n->loc(), x, zero, Op::kEq));
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<ExtendOp>(test, n->BitCountOrDie(), Op::kZeroExt)
-            .status());
+    if (n->BitCountOrDie() == 1) {
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(test));
+    } else {
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<ExtendOp>(
+                               test, n->BitCountOrDie(), Op::kZeroExt)
+                              .status());
+    }
     return true;
   }
 
@@ -1017,8 +1035,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //
   //   shift(x, K) = shift(x, width(x)) for all K >= width(x).
   //
-  // This transformation can be performed for any value of LIMIT greater than or
-  // equal to width(x).
+  // This transformation can be performed for any value of LIMIT greater than
+  // or equal to width(x).
   if (n->op() == Op::kShll || n->op() == Op::kShrl || n->op() == Op::kShra) {
     std::optional<ClampExpr> clamp_expr = MatchClampUpperLimit(n->operand(1));
     if (clamp_expr.has_value() &&
@@ -1114,11 +1132,11 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
-  // An unsigned comparison against a literal mask of LSBs (e.g., 0b0001111) can
-  // be simplified:
+  // An unsigned comparison against a literal mask of LSBs (e.g., 0b0001111)
+  // can be simplified:
   //
-  //    x < 0b0001111  =>  or_reduce(msb_slice(x)) NOR and_reduce(lsb_slice(x))
-  //    x > 0b0001111  =>  or_reduce(msb_slice(x))
+  //    x < 0b0001111  =>  or_reduce(msb_slice(x)) NOR
+  //    and_reduce(lsb_slice(x)) x > 0b0001111  =>  or_reduce(msb_slice(x))
   //
   //   x <= 0b0001111  =>  nor_reduce(msb_slice(x))
   //   x >= 0b0001111  =>  or_reduce(msb_slice(x)) OR and_reduce(lsb_slice(x))
