@@ -708,6 +708,18 @@ TEST_F(FunctionFmtTest, LetRhsIsOverlongFor) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, ForWithArrayInitValue) {
+  const std::string_view original =
+      R"(fn f() -> bool[4] {
+    for (idx, accum) in range(u32:0, REALLY_LONG_NAME_HERE) {
+        accum
+    }(bool[4]:[true, false, true, false]);
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           DoFmt(original, {"range", "REALLY_LONG_NAME_HERE"}));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, ParametricInvocationWithExpression) {
   const std::string_view original = R"(fn f() { p<A, u32:42, {A + B}>() })";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"p", "A", "B"}));
@@ -1667,6 +1679,23 @@ TEST(ModuleFmtTest, ModuleConstantsWithInlineComments) {
       R"(pub const MOL = u32:42;  // may be important
 
 const TWO_TO_FIFTH = u32:32;  // 2^5
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+// If the array constant is placed on a single line it is overly long -- we
+// check that we smear it across multiple lines to stay within 100 chars.
+TEST(ModuleFmtTest, OverLongArrayConstant) {
+  const std::string_view kProgram = R"(// Top of module comment.
+const W_A0 = u32:32;
+const NUM_PIECES = u32:8;
+pub const A0 = sN[W_A0][NUM_PIECES]:[
+    111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111
+];
 )";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,

@@ -324,7 +324,7 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.break0());
   pieces.push_back(arena.cbracket());
 
-  return ConcatNGroup(arena, pieces);
+  return ConcatN(arena, pieces);
 }
 
 DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
@@ -714,9 +714,9 @@ DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
                                  /*force_multiline=*/true));
   body_pieces.push_back(arena.hard_line());
   body_pieces.push_back(arena.ccurl());
-  body_pieces.push_back(arena.oparen());
-  body_pieces.push_back(Fmt(*n.init(), comments, arena));
-  body_pieces.push_back(arena.cparen());
+  body_pieces.push_back(ConcatNGroup(
+      arena,
+      {arena.oparen(), Fmt(*n.init(), comments, arena), arena.cparen()}));
 
   return arena.MakeConcat(ConcatNGroup(arena, pieces),
                           ConcatN(arena, body_pieces));
@@ -1655,11 +1655,12 @@ static DocRef Fmt(const ConstantDef& n, const Comments& comments,
   leader_pieces.push_back(arena.equals());
   leader_pieces.push_back(arena.space());
 
-  std::vector<DocRef> pieces;
-  pieces.push_back(ConcatNGroup(arena, leader_pieces));
-  pieces.push_back(Fmt(*n.value(), comments, arena));
-  pieces.push_back(arena.semi());
-  return ConcatNGroup(arena, pieces);
+  DocRef lhs = ConcatNGroup(arena, leader_pieces);
+  DocRef rhs = ConcatNGroup(arena, {
+                                       Fmt(*n.value(), comments, arena),
+                                       arena.semi(),
+                                   });
+  return arena.MakeConcat(lhs, rhs);
 }
 
 static DocRef FmtEnumMember(const EnumMember& n, const Comments& comments,
