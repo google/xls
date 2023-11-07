@@ -861,12 +861,40 @@ DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
 
   pieces.push_back(arena.hard_line());
 
-  for (const MatchArm* arm : n.arms()) {
-    pieces.push_back(arena.MakeNest(Fmt(*arm, comments, arena)));
-    pieces.push_back(arena.comma());
-    pieces.push_back(arena.hard_line());
+  std::vector<DocRef> nested;
+
+  Pos last_member_pos = n.matched()->span().limit();
+
+  for (size_t i = 0; i < n.arms().size(); ++i) {
+    const MatchArm* arm = n.arms()[i];
+    const Pos& member_start = arm->span().start();
+
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc =
+            EmitCommentsBetween(last_member_pos, member_start, comments, arena,
+                                &last_comment_span)) {
+      nested.push_back(comments_doc.value());
+      nested.push_back(arena.hard_line());
+
+      // If the comment abuts the member we don't put a newline in
+      // between, we assume the comment is associated with the member.
+      if (last_comment_span->limit().lineno() != member_start.lineno()) {
+        nested.push_back(arena.hard_line());
+      }
+    }
+
+    nested.push_back(Fmt(*arm, comments, arena));
+    nested.push_back(arena.comma());
+
+    if (i + 1 != n.arms().size()) {
+      nested.push_back(arena.hard_line());
+    }
+
+    last_member_pos = arm->span().limit();
   }
 
+  pieces.push_back(arena.MakeNest(ConcatN(arena, nested)));
+  pieces.push_back(arena.hard_line());
   pieces.push_back(arena.ccurl());
   return ConcatN(arena, pieces);
 }

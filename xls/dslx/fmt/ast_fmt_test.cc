@@ -467,6 +467,27 @@ TEST_F(FunctionFmtTest, MatchMultiPattern) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, MatchWithCommentsOnArms) {
+  const std::string_view original = R"(fn f(b:bool)->u32{match b{
+  // comment on first arm
+  true|false=>u32:42,
+  // comment on second arm
+  _=>u32:64
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(b: bool) -> u32 {
+    match b {
+        // comment on first arm
+        true | false => u32:42,
+        // comment on second arm
+        _ => u32:64,
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, ZeroMacro) {
   const std::string_view original = "fn f()->u32{zero!<u32>()}";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"zero!"}));
