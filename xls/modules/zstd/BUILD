@@ -126,7 +126,7 @@ xls_dslx_library(
     ],
     deps = [
         ":buffer_dslx",
-    ]
+    ],
 )
 
 xls_dslx_test(
@@ -165,8 +165,52 @@ xls_dslx_library(
 )
 
 xls_dslx_test(
-    name = "zstd_frame_header_dslx_test",
-    library = ":zstd_frame_header_dslx",
+    name = "frame_header_dslx_test",
+    library = ":frame_header_dslx",
+)
+
+xls_dslx_library(
+    name = "frame_header_test_dslx",
+    srcs = [
+        "frame_header_test.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+        ":frame_header_dslx",
+    ],
+)
+
+cc_test(
+    name = "frame_header_cc_test",
+    srcs = [
+        "frame_header_test.cc",
+    ],
+    data = [
+        ":frame_header_test_dslx",
+    ],
+    shard_count = 50,
+    deps = [
+        ":data_generator",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:ir_converter",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@com_github_facebook_zstd//:zstd",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_fuzztest//fuzztest",
+        "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
+        "@com_google_googletest//:gtest",
+    ],
 )
 
 xls_dslx_verilog(
