@@ -3899,7 +3899,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     return GenerateIR_Call(call, loc);
   }
   if (auto charlit = clang::dyn_cast<const clang::CharacterLiteral>(expr)) {
-    if (charlit->getKind() != clang::CharacterLiteral::CharacterKind::Ascii) {
+    if (charlit->getKind() != clang::CharacterLiteralKind::Ascii) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Unimplemented character literaly type %i",
                        static_cast<int>(charlit->getKind())));
