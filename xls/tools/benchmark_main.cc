@@ -130,6 +130,11 @@ ABSL_FLAG(bool, use_context_narrowing_analysis, false,
           "Use context sensitive narrowing analysis. This is somewhat slower "
           "but might produce better results in some circumstances by using "
           "usage context to narrow values more aggressively.");
+ABSL_FLAG(std::optional<int64_t>, worst_case_throughput, std::nullopt,
+          "Allow scheduling a pipeline with worst-case throughput no slower "
+          "than once per N cycles. If unspecified, enforce throughput 1. Note: "
+          "a higher value for --worst_case_throughput *decreases* the "
+          "worst-case throughput, since this controls inverse throughput.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
@@ -318,7 +323,8 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
     Package* package, const DelayEstimator& delay_estimator,
     std::optional<int64_t> clock_period_ps,
     std::optional<int64_t> pipeline_stages,
-    std::optional<int64_t> clock_margin_percent) {
+    std::optional<int64_t> clock_margin_percent,
+    std::optional<int64_t> worst_case_throughput) {
   SchedulingPassOptions options;
   options.delay_estimator = &delay_estimator;
   if (clock_period_ps.has_value()) {
@@ -329,6 +335,9 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   }
   if (clock_margin_percent.has_value()) {
     options.scheduling_options.clock_margin_percent(*clock_margin_percent);
+  }
+  if (worst_case_throughput.has_value()) {
+    options.scheduling_options.worst_case_throughput(*worst_case_throughput);
   }
 
   std::optional<FunctionBase*> top = package->GetTop();
@@ -716,7 +725,8 @@ absl::Status RunInterpreterAndJit(FunctionBase* function_base,
 absl::Status RealMain(std::string_view path,
                       std::optional<int64_t> clock_period_ps,
                       std::optional<int64_t> pipeline_stages,
-                      std::optional<int64_t> clock_margin_percent) {
+                      std::optional<int64_t> clock_margin_percent,
+                      std::optional<int64_t> worst_case_throughput) {
   XLS_VLOG(1) << "Reading contents at path: " << path;
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
@@ -768,7 +778,8 @@ absl::Status RealMain(std::string_view path,
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         ScheduleAndPrintStats(package.get(), delay_estimator, clock_period_ps,
-                              pipeline_stages, clock_margin_percent));
+                              pipeline_stages, clock_margin_percent,
+                              worst_case_throughput));
 
     // Only print codegen info for functions.
     //
@@ -820,6 +831,7 @@ int main(int argc, char** argv) {
   if (absl::GetFlag(FLAGS_clock_margin_percent) > 0) {
     clock_margin_percent = absl::GetFlag(FLAGS_clock_margin_percent);
   }
-  return xls::ExitStatus(xls::RealMain(positional_arguments[0], clock_period_ps,
-                                       pipeline_stages, clock_margin_percent));
+  return xls::ExitStatus(xls::RealMain(
+      positional_arguments[0], clock_period_ps, pipeline_stages,
+      clock_margin_percent, absl::GetFlag(FLAGS_worst_case_throughput)));
 }

@@ -438,6 +438,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "convert_array_index_to_select",
         "scheduling_options_proto",
         "use_context_narrowing_analysis",
+        "worst_case_throughput",
     )
 
     benchmark_ir_args = append_default_to_args(
