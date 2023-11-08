@@ -1932,6 +1932,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "//xls/solvers:z3_pass_equivalence",
     ],
 )
 

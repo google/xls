@@ -47,6 +47,46 @@ cc_test(
 )
 
 cc_library(
+    name = "z3_pass_equivalence",
+    srcs = ["z3_pass_equivalence.cc"],
+    hdrs = ["z3_pass_equivalence.h"],
+    deps = [
+        ":z3_ir_translator",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+    ],
+)
+
+cc_test(
+    name = "z3_pass_equivalence_test",
+    srcs = ["z3_pass_equivalence_test.cc"],
+    deps = [
+        ":z3_pass_equivalence",
+        "@com_google_absl//absl/status",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+    ],
+)
+
+cc_library(
     name = "z3_ir_translator",
     srcs = ["z3_ir_translator.cc"],
     hdrs = ["z3_ir_translator.h"],

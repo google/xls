@@ -34,6 +34,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_pass_equivalence.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -78,12 +79,41 @@ class NarrowingPassTest
   NarrowingPass::AnalysisType analysis() const override { return GetParam(); }
 };
 
+class NarrowingPassSemanticsTest : public NarrowingPassTest {
+ public:
+  void TestTransformIsEquivalent(Function* f) {
+    EXPECT_THAT(solvers::z3::TryProveEquivalence(
+                    f,
+                    [&](auto package, auto function) {
+                      return NarrowingPassTest::Run(package).status();
+                    }),
+                IsOkAndHolds(true))
+        << "Pass changed meaning of function";
+  }
+  void TestTransformIsEquivalent(FunctionBuilder& fb) {
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    TestTransformIsEquivalent(f);
+  }
+};
+
 class ContextNarrowingPassTest : public NarrowingPassTestBase {
  protected:
   NarrowingPass::AnalysisType analysis() const override {
     return NarrowingPass::AnalysisType::kRangeWithContext;
   }
 };
+
+TEST_P(NarrowingPassSemanticsTest, NarrowSub) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(4));
+  auto y = fb.Param("y", p->GetBitsType(4));
+  auto x_wide = fb.ZeroExtend(x, 32);
+  // y_wide is always larger than x
+  auto y_wide = fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), 32);
+  fb.Subtract(y_wide, x_wide);
+  TestTransformIsEquivalent(fb);
+}
 
 TEST_P(NarrowingPassTest, NarrowableNegOneBit) {
   auto p = CreatePackage();
@@ -98,6 +128,15 @@ TEST_P(NarrowingPassTest, NarrowableNegOneBit) {
               m::SignExt(m::BitSlice(ext.node(), /*start=*/0, /*width=*/1)));
 }
 
+TEST_P(NarrowingPassSemanticsTest, NarrowableNegThreeBit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // -1 * -b00000XXX
+  auto param = fb.Param("x", p->GetBitsType(3));
+  auto ext = fb.ZeroExtend(param, 32);
+  fb.Negate(ext);
+  TestTransformIsEquivalent(fb);
+}
 TEST_P(NarrowingPassTest, NarrowableNegThreeBit) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -120,6 +159,15 @@ TEST_P(NarrowingPassTest, UnnarrowableShift) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::Shra(m::Param("in"), m::Param("amt")));
+}
+
+TEST_P(NarrowingPassSemanticsTest, NarrowableShift) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Shll(
+      fb.Param("in", p->GetBitsType(32)),
+      fb.ZeroExtend(fb.Param("amt", p->GetBitsType(3)), /*new_bit_count=*/123));
+  TestTransformIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, NarrowableShift) {
@@ -259,6 +307,15 @@ TEST_P(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {
                              m::SMul(m::Param("lhs"), m::Param("rhs"))))));
 }
 
+TEST_P(NarrowingPassSemanticsTest, MultiplyOperandsWiderThanResult) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u42 = p->GetBitsType(42);
+  fb.UMul(fb.Param("lhs", u17), fb.Param("rhs", u42), /*result_width=*/9);
+  TestTransformIsEquivalent(fb);
+}
+
 TEST_P(NarrowingPassTest, MultiplyOperandsWiderThanResult) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -273,6 +330,16 @@ TEST_P(NarrowingPassTest, MultiplyOperandsWiderThanResult) {
                     m::BitSlice(m::Param("lhs"), /*start=*/0, /*width=*/9)),
               AllOf(m::Type("bits[9]"),
                     m::BitSlice(m::Param("rhs"), /*start=*/0, /*width=*/9))));
+}
+
+TEST_P(NarrowingPassSemanticsTest, ExtendedUMulOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  fb.UMul(fb.ZeroExtend(fb.Param("lhs", u17), 32),
+          fb.SignExtend(fb.Param("rhs", u17), 54),
+          /*result_width=*/62);
+  TestTransformIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, ExtendedUMulOperands) {
@@ -990,6 +1057,13 @@ TEST_F(ContextNarrowingPassTest, KnownSmallAdd) {
 
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
+    testing::Values(NarrowingPass::AnalysisType::kBdd,
+                    NarrowingPass::AnalysisType::kRange,
+                    NarrowingPass::AnalysisType::kRangeWithContext),
+    testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(
+    NarrowingPassSemanticsTestInstantiation, NarrowingPassSemanticsTest,
     testing::Values(NarrowingPass::AnalysisType::kBdd,
                     NarrowingPass::AnalysisType::kRange,
                     NarrowingPass::AnalysisType::kRangeWithContext),
