@@ -575,6 +575,60 @@ fn f(p: bits[$0]) -> bits[1] {
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
+       KnownNegativeSubIsNarrowable) {
+  // Verify that a subtract that is known-negative is same as narrowed sub
+  // extended with 1s
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto full_width = BitWidth() + 4;
+  BValue x = fb.Param("x", p->GetBitsType(BitWidth()));
+  BValue y = fb.Param("y", p->GetBitsType(BitWidth()));
+  auto x_wide = fb.ZeroExtend(x, full_width);
+  // y_wide is always larger than x
+  auto y_wide =
+      fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), full_width);
+  auto full_sub = fb.Subtract(x_wide, y_wide);
+  auto narrow_sub =
+      fb.Concat({fb.Literal(Bits::AllOnes(3)),
+                 fb.Subtract(fb.BitSlice(x_wide, 0, BitWidth() + 1),
+                             fb.BitSlice(y_wide, 0, BitWidth() + 1))});
+  fb.Eq(narrow_sub, full_sub);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
+}
+
+TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
+       KnownPositiveSubIsNarrowable) {
+  // Verify that a subtract that is known-positive is same as narrowed sub
+  // zero-extended.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto full_width = BitWidth() + 4;
+  BValue x = fb.Param("x", p->GetBitsType(BitWidth()));
+  BValue y = fb.Param("y", p->GetBitsType(BitWidth()));
+  auto x_wide = fb.ZeroExtend(x, full_width);
+  // y_wide is always larger than x
+  auto y_wide =
+      fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), full_width);
+  auto full_sub = fb.Subtract(y_wide, x_wide);
+  auto narrow_sub =
+      fb.ZeroExtend(fb.Subtract(fb.BitSlice(y_wide, 0, BitWidth() + 1),
+                                fb.BitSlice(x_wide, 0, BitWidth() + 1)),
+                    full_width);
+  fb.Eq(narrow_sub, full_sub);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
+}
+
+TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
        OneBitNegativeIsSignExtendOneBit) {
   // Verify that a single bit value negated is the same as that bit
   // sign-extended to desired length.

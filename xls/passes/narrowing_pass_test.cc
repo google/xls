@@ -25,6 +25,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
@@ -113,6 +114,26 @@ TEST_P(NarrowingPassSemanticsTest, NarrowSub) {
   auto y_wide = fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), 32);
   fb.Subtract(y_wide, x_wide);
   TestTransformIsEquivalent(fb);
+}
+
+TEST_P(NarrowingPassTest, NarrowableSubPositive) {
+  if (analysis() == NarrowingPass::AnalysisType::kBdd) {
+    GTEST_SKIP() << "BDD Unable to determine sign of subtraction";
+  }
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(4));
+  auto y = fb.Param("y", p->GetBitsType(4));
+  auto x_wide = fb.ZeroExtend(x, 32);
+  // y_wide is always larger than x
+  auto y_wide = fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), 32);
+  fb.Subtract(y_wide, x_wide);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ZeroExt(m::Sub(m::BitSlice(y_wide.node(), /*start=*/0, /*width=*/5),
+                        m::BitSlice(x_wide.node(), /*start=*/0, /*width=*/5))));
 }
 
 TEST_P(NarrowingPassTest, NarrowableNegOneBit) {

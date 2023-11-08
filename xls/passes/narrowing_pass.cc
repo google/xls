@@ -468,7 +468,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
           // subtract 1 because zero extend's extra bits do not match old msb.
           // Take max with 0 in case new_bit_count == old_bit_count.
           return std::max(int64_t{0}, n->As<ExtendOp>()->new_bit_count() -
-                                  n->operand(0)->BitCountOrDie() - 1);
+                                          n->operand(0)->BitCountOrDie() - 1);
         default:
           return 0;
       }
@@ -787,6 +787,50 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return NoChange();
   }
 
+  // TODO(allight): 2023-11-08: We could simplify this and add by recognizing
+  // when the leading bits match on both sides and just doing a sign extend.
+  // i.e. lhs[MSB] = lhs[MSB-1] = ... and rhs[MSB] = rhs[MSB-1] = ...,
+  absl::Status HandleSub(BinOp* sub) override {
+    XLS_VLOG(3) << "Trying to narrow sub: " << sub->ToString();
+    XLS_RET_CHECK_EQ(sub->op(), Op::kSub);
+
+    Node* lhs = sub->operand(0);
+    Node* rhs = sub->operand(1);
+    const int64_t bit_count = sub->BitCountOrDie();
+    if (lhs->BitCountOrDie() != rhs->BitCountOrDie()) {
+      return NoChange();
+    }
+    // Figure out how many known bits we have.
+    int64_t leading_zeros = CountLeadingKnownZeros(sub, /*user=*/std::nullopt);
+    int64_t leading_ones = CountLeadingKnownOnes(sub, /*user=*/std::nullopt);
+    if (leading_zeros == 0 && leading_ones == 0) {
+      return NoChange();
+    }
+    bool is_one = leading_ones != 0;
+    int64_t known_leading = is_one ? leading_ones : leading_zeros;
+    int64_t required_bits = bit_count - known_leading;
+    XLS_ASSIGN_OR_RETURN(Node * new_lhs, MaybeNarrow(lhs, required_bits));
+    XLS_ASSIGN_OR_RETURN(Node * new_rhs, MaybeNarrow(rhs, required_bits));
+    XLS_ASSIGN_OR_RETURN(Node * new_sub,
+                         sub->function_base()->MakeNode<BinOp>(
+                             sub->loc(), new_lhs, new_rhs, Op::kSub));
+    if (is_one) {
+      // XLS_ASSIGN_OR_RETURN(
+      //     Node * all_ones,
+      //     sub->function_base()->MakeNode<Literal>(
+      //         sub->loc(), Value(Bits::AllOnes(known_leading))));
+      // XLS_RETURN_IF_ERROR(sub->ReplaceUsesWithNew<Concat>(
+      //                            absl::MakeConstSpan({all_ones, new_sub}))
+      //                         .status());
+      // TODO(allight) 2023-11-08: We should extend range analysis to catch
+      // known-negative results. Until we do though this is dead code.
+      return NoChange();
+    }
+    XLS_RETURN_IF_ERROR(
+        sub->ReplaceUsesWithNew<ExtendOp>(new_sub, bit_count, Op::kZeroExt)
+            .status());
+    return Change();
+  }
   absl::Status HandleAdd(BinOp* add) override {
     XLS_VLOG(3) << "Trying to narrow add: " << add->ToString();
 
@@ -915,8 +959,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
     }
 
-    // Sign-extended operands of signed multiplies can be narrowed by replacing
-    // the operand of the multiply with the value before sign-extension.
+    // Sign-extended operands of signed multiplies can be narrowed by
+    // replacing the operand of the multiply with the value before
+    // sign-extension.
     if (mul->op() == Op::kSMul || is_sign_agnostic) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<Node*> operand0,
@@ -962,7 +1007,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         array_type = array_type->element_type()->AsArrayOrDie();
       }
 
-      // Compute the minimum number of bits required to index the entire array.
+      // Compute the minimum number of bits required to index the entire
+      // array.
       int64_t array_size = array_type->AsArrayOrDie()->size();
       int64_t min_index_width =
           std::max(int64_t{1}, Bits::MinBitCountUnsigned(array_size - 1));
@@ -971,14 +1017,14 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         const Bits& bits_index = index->As<Literal>()->value().bits();
         Bits new_bits_index = bits_index;
         if (bits_ops::UGreaterThanOrEqual(bits_index, array_size)) {
-          // Index is out-of-bounds. Replace with a (potentially narrower) index
-          // equal to the first out-of-bounds element.
+          // Index is out-of-bounds. Replace with a (potentially narrower)
+          // index equal to the first out-of-bounds element.
           new_bits_index =
               UBits(array_size, Bits::MinBitCountUnsigned(array_size));
         } else if (bits_index.bit_count() > min_index_width) {
-          // Index is in-bounds and is wider than necessary to index the entire
-          // array. Replace with a literal which is perfectly sized (width) to
-          // index the whole array.
+          // Index is in-bounds and is wider than necessary to index the
+          // entire array. Replace with a literal which is perfectly sized
+          // (width) to index the whole array.
           XLS_ASSIGN_OR_RETURN(int64_t int_index, bits_index.ToUint64());
           new_bits_index = UBits(int_index, min_index_width);
         }
@@ -1048,10 +1094,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
         result_bit_count, lhs_bit_count, rhs_bit_count);
 
-    // If both elements of the mulp tuple are immediately added, the mulp result
-    // can be unconditionally narrowed to the sum of the operand widths, the add
-    // replaced with a narrowed add, and the result of the addition zero/sign
-    // extended.
+    // If both elements of the mulp tuple are immediately added, the mulp
+    // result can be unconditionally narrowed to the sum of the operand
+    // widths, the add replaced with a narrowed add, and the result of the
+    // addition zero/sign extended.
     if (std::optional<BinOp*> add_immediately_after =
             PartialMultiplyImmediateSum(mul);
         result_bit_count > lhs_bit_count + rhs_bit_count &&
@@ -1120,8 +1166,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
     }
 
-    // Sign-extended operands of signed multiplies can be narrowed by replacing
-    // the operand of the multiply with the value before sign-extension.
+    // Sign-extended operands of signed multiplies can be narrowed by
+    // replacing the operand of the multiply with the value before
+    // sign-extension.
     if (mul->op() == Op::kSMulp || is_sign_agnostic) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<Node*> operand0,
@@ -1147,16 +1194,17 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
  private:
   // Return the number of leading known zeros in the given nodes values when
-  // used as an argument to 'user'. 'user' must not be null.
-  int64_t CountLeadingKnownZeros(Node* node, Node* user) const {
+  // used as an argument to 'user'. If user is std::nullopt the context isn't
+  // used.
+  int64_t CountLeadingKnownZeros(Node* node, std::optional<Node*> user) const {
     XLS_CHECK(node->GetType()->IsBits());
-    XLS_CHECK_NE(user, nullptr);
+    XLS_CHECK(user != nullptr);
     int64_t leading_zeros = 0;
     const QueryEngine& node_query_engine =
         specialized_query_engine_.ForNode(node);
     const std::optional<const QueryEngine*> user_query_engine =
-        analysis_ == AnalysisType::kRangeWithContext
-            ? std::make_optional(&specialized_query_engine_.ForNode(user))
+        analysis_ == AnalysisType::kRangeWithContext && user.has_value()
+            ? std::make_optional(&specialized_query_engine_.ForNode(*user))
             : std::nullopt;
     auto is_user_zero = [&](const TreeBitLocation& tbl) {
       if (user_query_engine) {
@@ -1174,17 +1222,18 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return leading_zeros;
   }
 
-  // Return the number of leading known ones in the given nodes values when the
-  // nodes value is used as an argument to 'user'. 'user' must not be null.
-  int64_t CountLeadingKnownOnes(Node* node, Node* user) const {
+  // Return the number of leading known ones in the given nodes values when
+  // the nodes value is used as an argument to 'user'. 'user' must not be
+  // null.
+  int64_t CountLeadingKnownOnes(Node* node, std::optional<Node*> user) const {
     XLS_CHECK(node->GetType()->IsBits());
-    XLS_CHECK_NE(user, nullptr);
+    XLS_CHECK(user != nullptr);
     int64_t leading_ones = 0;
     const QueryEngine& node_query_engine =
         specialized_query_engine_.ForNode(node);
     const std::optional<const QueryEngine*> user_query_engine =
-        analysis_ == AnalysisType::kRangeWithContext
-            ? std::make_optional(&specialized_query_engine_.ForNode(user))
+        analysis_ == AnalysisType::kRangeWithContext && user.has_value()
+            ? std::make_optional(&specialized_query_engine_.ForNode(*user))
             : std::nullopt;
     auto is_user_one = [&](const TreeBitLocation& tbl) {
       if (user_query_engine) {
@@ -1243,8 +1292,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     // The dimension of the multidimensional array, truncated to the number of
     // indexes we are indexing on.
-    // For example, if the array has shape [5, 7, 3, 2] and we index with [i, j]
-    // then this will contain [5, 7].
+    // For example, if the array has shape [5, 7, 3, 2] and we index with [i,
+    // j] then this will contain [5, 7].
     std::vector<int64_t> dimension;
 
     // The interval set that each index lives in.
@@ -1273,7 +1322,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
     }
 
-    // Return early to avoid generating too much code if the index space is big.
+    // Return early to avoid generating too much code if the index space is
+    // big.
     {
       int64_t index_space_size = 1;
       for (const IntervalSet& index_interval_set : index_intervals) {
@@ -1302,8 +1352,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     // This vector contains one element per case in the ultimate OneHotSelect.
     std::vector<Node*> cases;
-    // This vector contains one one-bit Node per case in the OneHotSelect, which
-    // will be concatenated together to form the selector.
+    // This vector contains one one-bit Node per case in the OneHotSelect,
+    // which will be concatenated together to form the selector.
     std::vector<Node*> conditions;
 
     // Reserve the right amount of space in `cases` and `conditions`.
@@ -1424,7 +1474,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
   // If it exists, returns the unique add immediately following a mulp.
   std::optional<BinOp*> PartialMultiplyImmediateSum(PartialProductOp* mul) {
-    // Check for two tuple_index users, one for index=0 and another for index=1.
+    // Check for two tuple_index users, one for index=0 and another for
+    // index=1.
     if (mul->users().size() != 2) {
       return std::nullopt;
     }
