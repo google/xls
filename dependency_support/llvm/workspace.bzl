@@ -20,9 +20,9 @@ load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 def repo():
     """Initialize the llvm-project repository."""
 
-    # Updated 2023/09/15 to match internal version.
-    LLVM_COMMIT = "3d51010a3350660160981c6b8e624dcc87c208a3"
-    LLVM_SHA256 = "efbca707a6eb1c714b849de120309070eef282660c0f4be5b68efef62cc95cf5"
+    # Updated 2023/11/08 to match internal version.
+    LLVM_COMMIT = "f9404a1b57a5e6050138ceeea327cfd2a4c84f06"
+    LLVM_SHA256 = "bb49bb40979d18995cb933327d6594af63a2ffbfa6c44547bfa6fc047ec3c3d0"
 
     maybe(
         http_archive,
