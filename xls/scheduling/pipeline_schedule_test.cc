@@ -1061,6 +1061,87 @@ TEST_F(PipelineScheduleTest,
                              HasSubstr("--worst_case_throughput=3"))));
 }
 
+TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthAndIndividualSlack) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue delay = pb.MinDelay(send, /*delay=*/2);
+  BValue rcv = pb.Receive(ch_in, /*token=*/delay);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0),
+                            {pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data")}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, *delay_estimator,
+          SchedulingOptions().pipeline_stages(1).failure_behavior(
+              SchedulingFailureBehavior{
+                  .explain_infeasibility = true,
+                  .infeasible_per_state_backedge_slack_pool = 2.0})),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("--pipeline_stages=3"),
+                     HasSubstr("looking at paths between state and rcv_data "
+                               "(needs 2 additional slack)"))));
+}
+
+TEST_F(PipelineScheduleTest,
+       SuggestIncreasedPipelineLengthWorstCaseThroughtputAndIndividualSlack) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out0,
+      package.CreateStreamingChannel("out0", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out1,
+      package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state0 = pb.StateElement("state0", Value(Bits(32)));
+  BValue state1 = pb.StateElement("state1", Value(Bits(32)));
+
+  BValue send0 = pb.Send(ch_out0, pb.GetTokenParam(), state0);
+  BValue send1 = pb.Send(ch_out1, pb.GetTokenParam(), state1);
+  BValue delay0 = pb.MinDelay(send0, /*delay=*/2);
+  BValue delay1 = pb.MinDelay(send1, /*delay=*/1);
+  BValue rcv = pb.Receive(ch_in, /*token=*/pb.AfterAll({delay0, delay1}));
+  BValue rcv_data = pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc,
+      pb.Build(pb.TupleIndex(rcv, 0), {rcv_data, pb.Add(rcv_data, state1)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, *delay_estimator,
+          SchedulingOptions().pipeline_stages(1).failure_behavior(
+              SchedulingFailureBehavior{
+                  .explain_infeasibility = true,
+                  .infeasible_per_state_backedge_slack_pool = 2.0})),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("--pipeline_stages=3"),
+                     HasSubstr("--worst_case_throughput=2"),
+                     HasSubstr("looking at paths between state0 and rcv_data "
+                               "(needs 1 additional slack)"))));
+}
+
 TEST_F(PipelineScheduleTest, SuggestIncreasedClockPeriodWhenNecessary) {
   Package package = Package(TestName());
 

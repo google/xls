@@ -75,7 +75,8 @@ class SDCSchedulingModel {
       const operations_research::math_opt::VariableMap<double>& variable_values)
       const;
 
-  absl::Status AddSlackVariables();
+  absl::Status AddSlackVariables(
+      std::optional<double> infeasible_per_state_backedge_slack_pool);
 
   operations_research::math_opt::Model& UnderlyingModel() { return model_; }
   const operations_research::math_opt::Model& UnderlyingModel() const {
@@ -190,7 +191,11 @@ class SDCSchedulingModel {
                       operations_research::math_opt::LinearConstraint>
       timing_constraint_;
 
-  std::optional<operations_research::math_opt::Variable> backedge_slack_;
+  std::optional<operations_research::math_opt::Variable> shared_backedge_slack_;
+
+  absl::flat_hash_map<std::pair<Node*, Node*>,
+                      operations_research::math_opt::Variable>
+      node_backedge_slack_;
 
   struct SlackPair {
     operations_research::math_opt::Variable min;
@@ -213,12 +218,17 @@ class SDCScheduler {
   // the constraint matrix is totally unimodular, this ILP problem can be solved
   // by LP.
   //
+  // If `pipeline_stages` is not specified, the solver will use the smallest
+  // feasible value.
+  //
+  // If the problem is infeasible, `failure_behavior` configures what will be
+  // done. If configured to do so, the scheduler will reformulate the problem
+  // with slack variables and give actionable feedback on how to update the
+  // design to be feasible to schedule.
+  //
   // With `check_feasibility = true`, the objective function will be constant,
   // and the LP solver will merely attempt to show that the generated set of
   // constraints is feasible, rather than find an register-optimal schedule.
-  //
-  // If `pipeline_stages` is not specified, the solver will use the smallest
-  // feasible value.
   //
   // References:
   //   - Cong, Jason, and Zhiru Zhang. "An efficient and versatile scheduling
@@ -229,7 +239,8 @@ class SDCScheduler {
   //   Design (ICCAD). IEEE, 2013.
   absl::StatusOr<ScheduleCycleMap> Schedule(
       std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
-      bool check_feasibility = false, bool explain_infeasibility = true);
+      SchedulingFailureBehavior failure_behavior,
+      bool check_feasibility = false);
 
  private:
   SDCScheduler(FunctionBase* f, DelayMap delay_map);
@@ -237,7 +248,7 @@ class SDCScheduler {
 
   absl::Status BuildError(
       const operations_research::math_opt::SolveResult& result,
-      bool explain_infeasibility);
+      SchedulingFailureBehavior failure_behavior);
 
   FunctionBase* f_;
   DelayMap delay_map_;
@@ -245,30 +256,6 @@ class SDCScheduler {
   SDCSchedulingModel model_;
   std::unique_ptr<operations_research::math_opt::IncrementalSolver> solver_;
 };
-
-// Schedule to minimize the total pipeline registers using SDC scheduling
-// the constraint matrix is totally unimodular, this ILP problem can be solved
-// by LP.
-//
-// With `check_feasibility = true`, the objective function will be constant, and
-// the LP solver will merely attempt to show that the generated set of
-// constraints is feasible, rather than find an register-optimal schedule.
-//
-// If `pipeline_stages` is not specified, the solver will use the smallest
-// feasible value.
-//
-// References:
-//   - Cong, Jason, and Zhiru Zhang. "An efficient and versatile scheduling
-//   algorithm based on SDC formulation." 2006 43rd ACM/IEEE Design Automation
-//   Conference. IEEE, 2006.
-//   - Zhang, Zhiru, and Bin Liu. "SDC-based modulo scheduling for pipeline
-//   synthesis." 2013 IEEE/ACM International Conference on Computer-Aided Design
-//   (ICCAD). IEEE, 2013.
-absl::StatusOr<ScheduleCycleMap> SDCSchedule(
-    FunctionBase* f, std::optional<int64_t> pipeline_stages,
-    int64_t clock_period_ps, const DelayEstimator& delay_estimator,
-    absl::Span<const SchedulingConstraint> constraints,
-    bool check_feasibility = false, bool explain_infeasibility = true);
 
 }  // namespace xls
 

@@ -264,15 +264,16 @@ absl::Status RefineDelayEstimations(
 
 absl::Status BuildError(IterativeSDCSchedulingModel &model,
                         const math_opt::SolveResult &result,
-                        bool explain_infeasibility) {
+                        SchedulingFailureBehavior failure_behavior) {
   XLS_CHECK_NE(result.termination.reason,
                math_opt::TerminationReason::kOptimal);
 
-  if (explain_infeasibility &&
+  if (failure_behavior.explain_infeasibility &&
       (result.termination.reason == math_opt::TerminationReason::kInfeasible ||
        result.termination.reason ==
            math_opt::TerminationReason::kInfeasibleOrUnbounded)) {
-    XLS_RETURN_IF_ERROR(model.AddSlackVariables());
+    XLS_RETURN_IF_ERROR(model.AddSlackVariables(
+        failure_behavior.infeasible_per_state_backedge_slack_pool));
     XLS_ASSIGN_OR_RETURN(
         math_opt::SolveResult result_with_slack,
         math_opt::Solve(model.UnderlyingModel(), math_opt::SolverType::kGlop));
@@ -368,13 +369,12 @@ static absl::Status UpdateStats(
   return absl::OkStatus();
 }
 
-
-
 absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
     FunctionBase *f, std::optional<int64_t> pipeline_stages,
     int64_t clock_period_ps, DelayManager &delay_manager,
     absl::Span<const SchedulingConstraint> constraints,
-    const IterativeSDCSchedulingOptions &options, bool explain_infeasibility) {
+    const IterativeSDCSchedulingOptions &options,
+    const SchedulingFailureBehavior failure_behavior) {
   XLS_VLOG(3) << "SDCScheduler()";
   XLS_VLOG(3) << "  pipeline stages = "
               << (pipeline_stages.has_value()
@@ -442,7 +442,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
       if (result_with_minimized_pipeline_length.termination.reason !=
           math_opt::TerminationReason::kOptimal) {
         return BuildError(model, result_with_minimized_pipeline_length,
-                          explain_infeasibility);
+                          failure_behavior);
       }
       XLS_ASSIGN_OR_RETURN(
           min_pipeline_length,
@@ -458,7 +458,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
         math_opt::Solve(model.UnderlyingModel(), math_opt::SolverType::kGlop));
 
     if (result.termination.reason != math_opt::TerminationReason::kOptimal) {
-      return BuildError(model, result, explain_infeasibility);
+      return BuildError(model, result, failure_behavior);
     }
 
     // Extract scheduling results to the cycle map.

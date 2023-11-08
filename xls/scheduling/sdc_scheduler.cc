@@ -582,7 +582,12 @@ absl::StatusOr<int64_t> SDCSchedulingModel::ExtractPipelineLength(
   return static_cast<int64_t>(std::round(last_stage)) + 1;
 }
 
-absl::Status SDCSchedulingModel::AddSlackVariables() {
+absl::Status SDCSchedulingModel::AddSlackVariables(
+    std::optional<double> infeasible_per_state_backedge_slack_pool) {
+  if (infeasible_per_state_backedge_slack_pool.has_value()) {
+    XLS_RET_CHECK_GT(*infeasible_per_state_backedge_slack_pool, 0)
+        << "infeasible_per_state_backedge_slack_pool must be positive";
+  }
   // Add slack variables to all relevant constraints.
 
   // First, remove the upper bound on pipeline length, but try to minimize it
@@ -597,11 +602,28 @@ absl::Status SDCSchedulingModel::AddSlackVariables() {
   // specified.
   if (Proc* proc = dynamic_cast<Proc*>(func_);
       proc != nullptr && !backedge_constraint_.empty()) {
-    backedge_slack_ = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
-                                         "backedge_slack");
-    model_.AddToObjective((1 << 10) * *backedge_slack_);
+    double backedge_slack_objective_scale = static_cast<double>(1 << 10);
+    shared_backedge_slack_ = model_.AddVariable(
+        0.0, kInfinity, /*is_integer=*/false, "backedge_slack");
+    model_.AddToObjective(
+        (backedge_slack_objective_scale * shared_backedge_slack_.value()));
     for (auto& [nodes, constraint] : backedge_constraint_) {
-      AddUpperBoundSlack(constraint, backedge_slack_);
+      AddUpperBoundSlack(constraint, shared_backedge_slack_);
+      if (infeasible_per_state_backedge_slack_pool.has_value()) {
+        auto [itr, inserted] = node_backedge_slack_.try_emplace(
+            nodes,
+            model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
+                               absl::StrFormat("%v_to_%v_backedge_slack",
+                                               *nodes.first, *nodes.second)));
+        XLS_RET_CHECK(inserted);
+        operations_research::math_opt::Variable& node_to_node_slack =
+            itr->second;
+        model_.AddToObjective(
+            backedge_slack_objective_scale /
+            infeasible_per_state_backedge_slack_pool.value() *
+            node_to_node_slack);
+        AddUpperBoundSlack(constraint, node_to_node_slack);
+      }
     }
   }
 
@@ -643,8 +665,8 @@ absl::Status SDCSchedulingModel::ExtractError(
     suggestions.push_back(
         absl::StrCat("`--pipeline_stages=", new_pipeline_length, "`"));
   }
-  if (func_->IsProc() && backedge_slack_.has_value()) {
-    double backedge_slack = variable_values.at(*backedge_slack_);
+  if (func_->IsProc() && shared_backedge_slack_.has_value()) {
+    double backedge_slack = variable_values.at(*shared_backedge_slack_);
     if (backedge_slack > 0.001) {
       int64_t new_backedge_length =
           func_->AsProcOrDie()->GetInitiationInterval().value_or(1) +
@@ -652,6 +674,16 @@ absl::Status SDCSchedulingModel::ExtractError(
       problems.push_back("full throughput");
       suggestions.push_back(
           absl::StrCat("`--worst_case_throughput=", new_backedge_length, "`"));
+    }
+    for (const auto& [nodes, node_backedge_var] : node_backedge_slack_) {
+      double node_backedge = variable_values.at(node_backedge_var);
+      if (node_backedge > 0.001) {
+        problems.push_back("full throughput");
+        suggestions.push_back(absl::StrFormat(
+            "looking at paths between %v and %v (needs %d additional slack)",
+            *nodes.first, *nodes.second,
+            static_cast<int64_t>(std::ceil(node_backedge))));
+      }
     }
   }
   if (!problems.empty()) {
@@ -874,16 +906,18 @@ absl::Status SDCScheduler::AddConstraints(
   return absl::OkStatus();
 }
 
-absl::Status SDCScheduler::BuildError(const math_opt::SolveResult& result,
-                                      bool explain_infeasibility) {
+absl::Status SDCScheduler::BuildError(
+    const math_opt::SolveResult& result,
+    SchedulingFailureBehavior failure_behavior) {
   XLS_CHECK_NE(result.termination.reason,
                math_opt::TerminationReason::kOptimal);
 
-  if (explain_infeasibility &&
+  if (failure_behavior.explain_infeasibility &&
       (result.termination.reason == math_opt::TerminationReason::kInfeasible ||
        result.termination.reason ==
            math_opt::TerminationReason::kInfeasibleOrUnbounded)) {
-    XLS_RETURN_IF_ERROR(model_.AddSlackVariables());
+    XLS_RETURN_IF_ERROR(model_.AddSlackVariables(
+        failure_behavior.infeasible_per_state_backedge_slack_pool));
     XLS_ASSIGN_OR_RETURN(math_opt::SolveResult result_with_slack,
                          solver_->Solve());
     if (result_with_slack.termination.reason ==
@@ -907,7 +941,7 @@ absl::Status SDCScheduler::BuildError(const math_opt::SolveResult& result,
 
 absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
     std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
-    bool check_feasibility, bool explain_infeasibility) {
+    SchedulingFailureBehavior failure_behavior, bool check_feasibility) {
   model_.SetClockPeriod(clock_period_ps);
 
   model_.SetPipelineLength(pipeline_stages);
@@ -920,7 +954,7 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
     if (result_with_minimized_pipeline_length.termination.reason !=
         math_opt::TerminationReason::kOptimal) {
       return BuildError(result_with_minimized_pipeline_length,
-                        explain_infeasibility);
+                        failure_behavior);
     }
     XLS_ASSIGN_OR_RETURN(
         const int64_t min_pipeline_length,
@@ -941,26 +975,7 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
        result.termination.reason == math_opt::TerminationReason::kFeasible)) {
     return model_.ExtractResult(result.variable_values());
   }
-  return BuildError(result, explain_infeasibility);
-}
-
-absl::StatusOr<ScheduleCycleMap> SDCSchedule(
-    FunctionBase* f, std::optional<int64_t> pipeline_stages,
-    int64_t clock_period_ps, const DelayEstimator& delay_estimator,
-    absl::Span<const SchedulingConstraint> constraints, bool check_feasibility,
-    bool explain_infeasibility) {
-  XLS_VLOG(3) << "SDCScheduler()";
-  XLS_VLOG(3) << "  pipeline stages = "
-              << (pipeline_stages.has_value()
-                      ? absl::StrCat(pipeline_stages.value())
-                      : "(unspecified)");
-  XLS_VLOG_LINES(4, f->DumpIr());
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SDCScheduler> scheduler,
-                       SDCScheduler::Create(f, delay_estimator));
-  XLS_RETURN_IF_ERROR(scheduler->AddConstraints(constraints));
-  return scheduler->Schedule(pipeline_stages, clock_period_ps,
-                             check_feasibility, explain_infeasibility);
+  return BuildError(result, failure_behavior);
 }
 
 }  // namespace xls

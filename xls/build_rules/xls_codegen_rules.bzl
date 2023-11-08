@@ -296,6 +296,8 @@ def xls_ir_verilog_impl(ctx, src):
         "io_constraints",
         "receives_first_sends_last",
         "mutual_exclusion_z3_rlimit",
+        "explain_infeasibility",
+        "infeasible_per_state_backedge_slack_pool",
         "use_fdo",
         "fdo_iteration_number",
         "fdo_delay_driven_path_number",

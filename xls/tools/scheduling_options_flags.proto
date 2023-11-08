@@ -16,6 +16,15 @@ syntax = "proto3";
 
 package xls;
 
+import "google/api/field_behavior.proto";
+
+message SchedulingFailureBehaviorProto {
+  optional bool explain_infeasibility = 1
+      [(google.api.field_behavior) = REQUIRED];
+  optional double infeasible_per_state_backedge_slack_pool = 2
+      [(google.api.field_behavior) = OPTIONAL];
+}
+
 // Flags passed to the benchmark_codegen_main, codegen_main,
 // and sched_printer_main binary.
 //
@@ -33,6 +42,7 @@ message SchedulingOptionsFlagsProto {
   repeated string io_constraints = 9;
   optional bool receives_first_sends_last = 10;
   optional int64 mutual_exclusion_z3_rlimit = 11;
+  optional SchedulingFailureBehaviorProto failure_behavior = 23;
   optional bool use_fdo = 22;
   optional int64 fdo_iteration_number = 12;
   optional int64 fdo_delay_driven_path_number = 13;

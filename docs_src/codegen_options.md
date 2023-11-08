@@ -87,6 +87,19 @@ control the scheduler.
     example of the use of this, see
     [this example](https://github.com/google/xls/tree/main/xls/examples/constraint.x) and
     the associated BUILD rule.
+-   `explain_infeasibility` configures what to do if scheduling fails. If set,
+    the scheduling problem is reformulated with extra slack variables in an
+    attempt to explain why scheduling failed.
+-   `infeasible_per_state_backedge_slack_pool` If specified, the specified
+    value must be > 0. Setting this configures how the scheduling problem is
+    reformulated in the case that scheduling fails. If specified, this value
+    will cause the reformulated problem to include per-state backedge slack
+    variables, which increases the complexity. This value scales the objective
+    such that adding slack to the per-state backedge is preferred up until total
+    slack reaches the pool size, after which adding slack to the shared backedge
+    slack variable is preferred. Increasing this value should give more specific
+    information about how much slack each failing backedge needs at the cost of
+    less actionable and harder to understand output.
 
 # Feedback-driven Optimization (FDO) Options
 

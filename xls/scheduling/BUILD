@@ -77,6 +77,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/ir",
+        "//xls/tools:scheduling_options_flags_cc_proto",
     ],
 )
 

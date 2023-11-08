@@ -178,6 +178,7 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 absl::StatusOr<int64_t> FindMinimumClockPeriod(
     FunctionBase* f, std::optional<int64_t> pipeline_stages,
     const DelayEstimator& delay_estimator, SDCScheduler& scheduler,
+    SchedulingFailureBehavior failure_behavior,
     std::optional<int64_t> target_clock_period_ps = std::nullopt) {
   XLS_VLOG(4) << "FindMinimumClockPeriod()";
   XLS_VLOG(4) << "  pipeline stages = "
@@ -209,24 +210,27 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
                                     optimistic_clk_period_ps,
                                     pessimistic_clk_period_ps);
 
-  // Check that it is in fact possible to schedule this function at all; if not,
-  // return a useful error.
+  // Check that it is in fact possible to
+  // schedule this function at all; if not, return a useful error.
   XLS_RETURN_IF_ERROR(scheduler
                           .Schedule(pipeline_stages, pessimistic_clk_period_ps,
-                                    /*check_feasibility=*/true,
-                                    /*explain_infeasibility=*/true)
+                                    failure_behavior,
+                                    /*check_feasibility=*/true)
                           .status())
           .SetPrepend()
       << absl::StrFormat("Impossible to schedule %s %s as specified; ",
                          (f->IsProc() ? "proc" : "function"), f->name());
 
+  // Don't waste time explaining infeasibility for the failing points in the
+  // search.
+  failure_behavior.explain_infeasibility = false;
   int64_t min_clk_period_ps = BinarySearchMinTrue(
       optimistic_clk_period_ps, pessimistic_clk_period_ps,
       [&](int64_t clk_period_ps) {
         return scheduler
             .Schedule(pipeline_stages, clk_period_ps,
-                      /*check_feasibility=*/true,
-                      /*explain_infeasibility=*/false)
+                      failure_behavior,
+                      /*check_feasibility=*/true)
             .ok();
       },
       BinarySearchAssumptions::kEndKnownTrue);
@@ -291,7 +295,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     XLS_ASSIGN_OR_RETURN(
         clock_period_ps,
         FindMinimumClockPeriod(f, options.pipeline_stages(), input_delay_added,
-                               *sdc_scheduler));
+                               *sdc_scheduler, options.failure_behavior()));
 
     if (options.period_relaxation_percent().has_value()) {
       int64_t relaxation_percent = options.period_relaxation_percent().value();
@@ -323,9 +327,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
       DelayManager delay_manager(f, delay_estimator);
       XLS_ASSIGN_OR_RETURN(
-          cycle_map, ScheduleByIterativeSDC(
-                         f, options.pipeline_stages(), clock_period_ps,
-                         delay_manager, options.constraints(), isdc_options));
+          cycle_map,
+          ScheduleByIterativeSDC(f, options.pipeline_stages(), clock_period_ps,
+                                 delay_manager, options.constraints(),
+                                 isdc_options, options.failure_behavior()));
 
       // Use delay manager for scheduling timing verification.
       auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
@@ -340,7 +345,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     }
 
     absl::StatusOr<ScheduleCycleMap> schedule_cycle_map =
-        sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps);
+        sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps,
+                                options.failure_behavior());
     if (!schedule_cycle_map.ok()) {
       if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
         // The scheduler was able to explain the failure; report it up.
@@ -358,7 +364,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
           int64_t target_clock_period_ps = clock_period_ps + 1;
           absl::StatusOr<int64_t> min_clock_period_ps = FindMinimumClockPeriod(
               f, options.pipeline_stages(), input_delay_added, *sdc_scheduler,
-              target_clock_period_ps);
+              options.failure_behavior(), target_clock_period_ps);
           if (min_clock_period_ps.ok()) {
             // Just increasing the clock period suffices.
             return absl::InvalidArgumentError(absl::StrFormat(
@@ -384,12 +390,18 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
         // Check if just increasing the clock period would have helped.
         XLS_ASSIGN_OR_RETURN(int64_t pessimistic_clock_period_ps,
                              ComputeCriticalPath(f, input_delay_added));
+        // Make a copy of failure behavior with explain_feasibility true- we
+        // always want to produce an error message because this we are
+        // re-running the scheduler for its error message.
+        SchedulingFailureBehavior pessimistic_failure_behavior =
+            options.failure_behavior();
+        pessimistic_failure_behavior.explain_infeasibility = true;
         absl::Status pessimistic_status =
             sdc_scheduler
                 ->Schedule(options.pipeline_stages(),
                            pessimistic_clock_period_ps,
-                           /*check_feasibility=*/true,
-                           /*explain_infeasibility=*/true)
+                           pessimistic_failure_behavior,
+                           /*check_feasibility=*/true)
                 .status();
         if (pessimistic_status.ok()) {
           // Just increasing the clock period suffices.

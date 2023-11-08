@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -89,6 +90,22 @@ ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
           "Resource limit for solver in mutual exclusion pass");
 ABSL_FLAG(std::string, scheduling_options_proto, "",
           "Path to a protobuf containing all scheduling options args.");
+ABSL_FLAG(bool, explain_infeasibility, true,
+          "If scheduling fails, re-run scheduling with extra slack variables "
+          "in an attempt to explain why scheduling failed.");
+ABSL_FLAG(
+    std::optional<double>, infeasible_per_state_backedge_slack_pool,
+    std::nullopt,
+    "If specified, the specified value must be > 0. Setting this configures "
+    "how the scheduling problem is reformulated in the case that it fails. If "
+    "specified, this value will cause the reformulated problem to include "
+    "per-state backedge slack variables, which increases the complexity. "
+    "This value scales the objective such that adding slack to the per-state "
+    "backedge is preferred up until total slack reaches the pool size, after "
+    "which adding slack to the shared backedge slack variable is preferred. "
+    "Increasing this value should give more specific information about how "
+    "much slack each failing backedge needs at the cost of less actionable and "
+    "harder to understand output.");
 ABSL_FLAG(bool, use_fdo, false,
           "Use FDO (feedback-directed optimization) for pipeline scheduling. "
           "If 'false', then all 'fdo_*' options are ignored.");
@@ -162,6 +179,22 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(fdo_synthesis_libraries);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
+
+  // Failure behavior is a nested message, so handle directly instead of using
+  // POPULATE_FLAG().
+  any_flags_set |= FLAGS_explain_infeasibility.IsSpecifiedOnCommandLine();
+  SchedulingFailureBehaviorProto* failure_behavior =
+      proto.mutable_failure_behavior();
+  failure_behavior->set_explain_infeasibility(
+      absl::GetFlag(FLAGS_explain_infeasibility));
+  std::optional<double> infeasible_per_state_backedge_slack_pool =
+      absl::GetFlag(FLAGS_infeasible_per_state_backedge_slack_pool);
+  if (infeasible_per_state_backedge_slack_pool.has_value()) {
+    any_flags_set |= true;
+    failure_behavior->set_infeasible_per_state_backedge_slack_pool(
+        *infeasible_per_state_backedge_slack_pool);
+  }
+
   return any_flags_set;
 }
 
@@ -284,6 +317,11 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
         }
       }
     }
+  }
+
+  if (proto.has_failure_behavior()) {
+    scheduling_options.failure_behavior(
+        SchedulingFailureBehavior::FromProto(proto.failure_behavior()));
   }
 
   // The following fdo_* have valid default value init in scheduling_options.

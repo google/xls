@@ -967,6 +967,7 @@ cc_proto_library(
 proto_library(
     name = "scheduling_options_flags_proto",
     srcs = ["scheduling_options_flags.proto"],
+    deps = ["@com_google_googleapis//google/api:field_behavior_proto"],
 )
 
 py_proto_library(
