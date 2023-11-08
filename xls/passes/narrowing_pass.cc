@@ -418,7 +418,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       return NoChange();
     }
     if (matched_leading_bits > 0 || matched_trailing_bits > 0) {
-      std::optional<Op> new_op;
+      // In most cases, we narrow to the same op.
+      Op new_op = compare->op();
       // Signed comparisons can be narrowed to unsigned comparisons if operands
       // have known-equal MSBs.
       // If we're only trimming LSBs, keep the operation the same.

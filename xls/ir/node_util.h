@@ -304,7 +304,7 @@ inline absl::StatusOr<Op> SignedCompareToUnsigned(Op op) {
       return Op::kULt;
     default:
       return absl::InternalError(
-          absl::StrFormat("Unexpected comparison op %s", OpToString(op)));
+          absl::StrFormat("Unexpected comparison op %v", op));
   }
 }
 
