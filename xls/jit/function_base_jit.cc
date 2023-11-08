@@ -69,7 +69,7 @@ llvm::Value* LoadPointerFromPointerArray(int64_t index,
                                          llvm::IRBuilder<>* builder) {
   llvm::LLVMContext& context = builder->getContext();
   llvm::Type* pointer_array_type =
-      llvm::ArrayType::get(llvm::Type::getInt8PtrTy(context), 0);
+      llvm::ArrayType::get(llvm::PointerType::getUnqual(context), 0);
   llvm::Value* gep = builder->CreateGEP(
       pointer_array_type, pointer_array,
       {
@@ -1136,7 +1136,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
   llvm::Value* input_arg_array = wrapper.entry_builder().CreateAlloca(
       llvm::ArrayType::get(llvm::PointerType::get(*context, 0), inputs.size()));
   llvm::Type* pointer_array_type =
-      llvm::ArrayType::get(llvm::Type::getInt8PtrTy(*context), 0);
+      llvm::ArrayType::get(llvm::PointerType::getUnqual(*context), 0);
   for (int64_t i = 0; i < inputs.size(); ++i) {
     Node* input = inputs[i];
     llvm::Value* input_buffer = wrapper.entry_builder().CreateAlloca(
