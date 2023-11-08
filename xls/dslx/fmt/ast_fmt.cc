@@ -1829,8 +1829,14 @@ static bool AreGroupedMembers(const ModuleMember& above,
 
   const auto* above_member = std::get<MemberT*>(above);
   const auto* below_member = std::get<MemberT*>(below);
-  return above_member->span().start().lineno() + 1 ==
-         below_member->span().start().lineno();
+  const Pos& above_limit = above_member->span().limit();
+  // Note: if the column number is 0 in the limit, it's an exclusive limit, so
+  // really the last character /inclusive/ is on the prior line. This is what
+  // this ternary is about.
+  int64_t above_effective_lineno = above_limit.colno() == 0
+                                       ? above_limit.lineno() - 1
+                                       : above_limit.lineno();
+  return above_effective_lineno + 1 == below_member->span().start().lineno();
 }
 
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {

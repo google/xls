@@ -929,6 +929,34 @@ TEST(ModuleFmtTest, ConstantDefArrayEllipsis) {
   EXPECT_EQ(got, kProgram);
 }
 
+// We want these arrays to not have e.g. extra newlines introduced between them,
+// since they are abutted.
+TEST(ModuleFmtTest, ConstantDefMultipleArray) {
+  const std::string_view kProgram = R"(// Module level comment.
+const W_A0 = u32:32;
+const W_A1 = u32:32;
+const W_A2 = u32:32;
+const NUM_PIECES = u32:16;
+
+pub const A2 = sN[W_A2][NUM_PIECES]:[
+    11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 111, 111, 111, 111, 111
+];
+pub const A1 = sN[W_A1][NUM_PIECES]:[
+    1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 11111, 11111,
+    11111,
+];
+pub const A0 = sN[W_A0][NUM_PIECES]:[
+    111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111,
+    111111, 111111, 111111, 111111,
+];
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 TEST(ModuleFmtTest, EnumDefTwoValues) {
   const std::string_view kInputProgram = "pub enum MyEnum:u32{A=1,B=2}\n";
   std::vector<CommentData> comments;

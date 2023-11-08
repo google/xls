@@ -982,9 +982,11 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings& bindings) {
     return std::get<EllipsisSentinel>(e).span;
   };
 
-  XLS_ASSIGN_OR_RETURN(std::vector<ExprOrEllipsis> members,
-                       ParseCommaSeq<ExprOrEllipsis>(
-                           parse_ellipsis_or_expression, {TokenKind::kCBrack}));
+  Pos cbrack_pos;
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<ExprOrEllipsis> members,
+      ParseCommaSeq<ExprOrEllipsis>(parse_ellipsis_or_expression,
+                                    {TokenKind::kCBrack}, &cbrack_pos));
   std::vector<Expr*> exprs;
   bool has_trailing_ellipsis = false;
   for (int64_t i = 0; i < members.size(); ++i) {
@@ -1002,7 +1004,7 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings& bindings) {
     }
   }
 
-  Span span(start_tok.span().start(), GetPos());
+  Span span(start_tok.span().start(), cbrack_pos);
   if (std::all_of(exprs.begin(), exprs.end(), IsConstant)) {
     return module_->Make<ConstantArray>(span, std::move(exprs),
                                         has_trailing_ellipsis);
@@ -1990,8 +1992,11 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
-  Span span(start_pos, GetPos());
+  Pos limit_pos;
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, /*start_pos=*/nullptr,
+                                       "after constant definition",
+                                       &limit_pos));
+  Span span(start_pos, limit_pos);
   auto* result = module_->Make<ConstantDef>(span, name_def, annotated_type,
                                             expr, is_public);
   name_def->set_definer(result);
