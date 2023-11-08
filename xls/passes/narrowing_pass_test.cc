@@ -480,9 +480,11 @@ TEST_P(NarrowingPassTest, LeadingZerosSignedCompare) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::SGt(
-          m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0, /*width=*/24),
-          m::BitSlice(m::ZeroExt(m::Param("rhs")), /*start=*/0, /*width=*/24)));
+      // Signed comparison with zero-extended operands becomes an unsigned
+      // comparison.
+      m::UGt(
+          m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0, /*width=*/23),
+          m::BitSlice(m::ZeroExt(m::Param("rhs")), /*start=*/0, /*width=*/23)));
 }
 
 TEST_P(NarrowingPassTest, LeadingOnesOfSignedCompare) {
@@ -494,9 +496,11 @@ TEST_P(NarrowingPassTest, LeadingOnesOfSignedCompare) {
                     fb.Param("rhs", p->GetBitsType(15))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::SLe(m::BitSlice(m::Concat(), /*start=*/0, /*width=*/16),
-                     m::BitSlice(m::Concat(), /*start=*/0, /*width=*/16)));
+  EXPECT_THAT(
+      f->return_value(),
+      // Signed comparison with known equal MSB becomes unsigned comparison.
+      m::ULe(m::BitSlice(m::Concat(), /*start=*/0, /*width=*/15),
+             m::BitSlice(m::Concat(), /*start=*/0, /*width=*/15)));
 }
 
 TEST_P(NarrowingPassTest, SignExtendedOperandsOfSignedCompare) {
@@ -549,12 +553,14 @@ TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithLiteral) {
   EXPECT_THAT(
       f->return_value(),
       // The bit-slices would be removed later by the optimization pipeline.
-      m::Concat(m::SGt(m::BitSlice(m::ZeroExt(m::Param("x")),
-                                   /*start=*/0, /*width=*/18),
-                       m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/18)),
-                m::SLt(m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/18),
+      // Signed comparison with zero-extended operands becomes unsigned
+      // comparison.
+      m::Concat(m::UGt(m::BitSlice(m::ZeroExt(m::Param("x")),
+                                   /*start=*/0, /*width=*/17),
+                       m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/17)),
+                m::ULt(m::BitSlice(m::Literal(0), /*start=*/0, /*width=*/17),
                        m::BitSlice(m::ZeroExt(m::Param("y")), /*start=*/0,
-                                   /*width=*/18))));
+                                   /*width=*/17))));
 }
 
 TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithSignExtend) {
@@ -653,22 +659,28 @@ TEST_P(NarrowingPassTest, SignedCompareWithKnownMSBs) {
   BValue x_gt_y = fb.SGt(fb.Concat({fb.Literal(Value(UBits(0, 1))),
                                     fb.Param("x", p->GetBitsType(17))}),
                          fb.Literal(Value(UBits(0, 18))));
-  BValue a_lt_b = fb.SLt(fb.Literal(Value(UBits(0x80000ull, 20))),
+  BValue lit_lt_a = fb.SLt(fb.Literal(Value(UBits(0x80000ull, 20))),
+                         fb.Concat({fb.Literal(Value(UBits(2, 2))),
+                                    fb.Param("a", p->GetBitsType(18))}));
+  BValue lit_lt_b = fb.SLt(fb.Literal(Value(UBits(0x80000ull, 20))),
                          fb.Concat({fb.Literal(Value(UBits(1, 1))),
-                                    fb.Param("a", p->GetBitsType(19))}));
-  fb.Concat({x_gt_y, a_lt_b});
+                                    fb.Param("b", p->GetBitsType(19))}));
+  fb.Concat({x_gt_y, lit_lt_a, lit_lt_b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Concat(
-                  // BitSlice slices out the literal
-                  m::UGt(m::BitSlice(m::Concat(m::Literal(0), m::Param("x")),
-                                     /*start=*/0, /*width=*/17),
-                         m::BitSlice(m::Literal(0))),
-                  // BitSlice slices out the literal
-                  m::ULt(m::BitSlice(m::Concat(m::Literal(1), m::Param("a")),
-                                     /*start=*/0, /*width=*/19),
-                         m::BitSlice(m::Literal(0x80000ull)))));
+  EXPECT_THAT(
+      f->return_value(),
+      // Signed comparisons with known-equal MSBs become unsigned comparisons.
+      m::Concat(m::UGt(m::BitSlice(m::Concat(m::Literal(0), m::Param("x")),
+                                   /*start=*/0, /*width=*/17),
+                       m::BitSlice(m::Literal(0))),
+                m::ULt(m::BitSlice(m::Literal(0x80000ull)),
+                       m::BitSlice(m::Concat(m::Literal(2), m::Param("a")),
+                                   /*start=*/0, /*width=*/18)),
+                m::ULt(m::BitSlice(m::Literal(0x80000ull)),
+                       m::BitSlice(m::Concat(m::Literal(1), m::Param("b")),
+                                   /*start=*/0,
+                                   /*width=*/19))));
 }
 
 TEST_P(NarrowingPassTest, AddWithLeadingZeros) {

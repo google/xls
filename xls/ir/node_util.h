@@ -292,6 +292,22 @@ inline absl::StatusOr<Op> ReverseComparisonOp(Op op) {
   }
 }
 
+inline absl::StatusOr<Op> SignedCompareToUnsigned(Op op) {
+  switch (op) {
+    case Op::kSGe:
+      return Op::kUGe;
+    case Op::kSGt:
+      return Op::kUGt;
+    case Op::kSLe:
+      return Op::kULe;
+    case Op::kSLt:
+      return Op::kULt;
+    default:
+      return absl::InternalError(
+          absl::StrFormat("Unexpected comparison op %s", OpToString(op)));
+  }
+}
+
 absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
     Package* package);
 
