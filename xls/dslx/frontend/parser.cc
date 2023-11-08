@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -1300,7 +1301,11 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
     }
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kFatArrow));
     XLS_ASSIGN_OR_RETURN(Expr * rhs, ParseExpression(arm_bindings));
+
+    // The span of the match arm is from the start of the pattern to the end of
+    // the RHS expression.
     Span span(patterns[0]->span().start(), rhs->span().limit());
+
     arms.push_back(module_->Make<MatchArm>(span, std::move(patterns), rhs));
     XLS_ASSIGN_OR_RETURN(bool dropped_comma, TryDropToken(TokenKind::kComma));
     must_end = !dropped_comma;

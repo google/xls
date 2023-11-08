@@ -488,6 +488,37 @@ TEST_F(FunctionFmtTest, MatchWithCommentsOnArms) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, MatchWithCommentOnNonBlockExpression) {
+  const std::string_view original = R"(fn f(x: u32) -> u32 {
+    match x {
+        _ =>  // some comment on conditional
+            if true { u32:42 } else { u32:64 },
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+// As above but the comment starts on the next line -- we canonicalize it to be
+// next to the arrow as above.
+TEST_F(FunctionFmtTest, MatchWithCommentOnNonBlockExpressionSecondaryLine) {
+  const std::string_view original = R"(fn f(x: u32) -> u32 {
+    match x {
+        _ =>
+            // some comment on conditional
+            if true { u32:42 } else { u32:64 },
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want = R"(fn f(x: u32) -> u32 {
+    match x {
+        _ =>  // some comment on conditional
+            if true { u32:42 } else { u32:64 },
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, ZeroMacro) {
   const std::string_view original = "fn f()->u32{zero!<u32>()}";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"zero!"}));

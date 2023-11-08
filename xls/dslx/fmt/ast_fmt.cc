@@ -839,17 +839,36 @@ static DocRef FmtNameDefTreePtr(const NameDefTree* n, const Comments& comments,
   return Fmt(*n, comments, arena);
 }
 
-static DocRef Fmt(const MatchArm& n, const Comments& comments,
-                  DocArena& arena) {
+static DocRef FmtMatchArm(const MatchArm& n, const Comments& comments,
+                          DocArena& arena) {
   std::vector<DocRef> pieces;
   pieces.push_back(
       FmtJoin<const NameDefTree*>(n.patterns(), Joiner::kSpaceBarBreak,
                                   FmtNameDefTreePtr, comments, arena));
   pieces.push_back(arena.space());
   pieces.push_back(arena.fat_arrow());
-  pieces.push_back(arena.space());
-  pieces.push_back(Fmt(*n.expr(), comments, arena));
-  return ConcatNGroup(arena, pieces);
+
+  const Pos& rhs_start = n.expr()->span().start();
+
+  DocRef rhs_doc = arena.MakeGroup(Fmt(*n.expr(), comments, arena));
+
+  // Check for a comment between the arrow position and the RHS expression. This
+  // can be needed when the RHS is not a block but an expression decorated with
+  // a comment as if it were a block.
+  std::optional<Span> last_comment_span;
+  if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
+          n.span().start(), rhs_start, comments, arena, &last_comment_span)) {
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.space());
+    pieces.push_back(comments_doc.value());
+    pieces.push_back(arena.hard_line());
+    pieces.push_back(arena.MakeNest(rhs_doc));
+  } else {
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.MakeGroup(rhs_doc));
+  }
+
+  return ConcatN(arena, pieces);
 }
 
 DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
@@ -867,6 +886,8 @@ DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
 
   for (size_t i = 0; i < n.arms().size(); ++i) {
     const MatchArm* arm = n.arms()[i];
+
+    // Note: the match arm member starts at the first pattern match.
     const Pos& member_start = arm->span().start();
 
     std::optional<Span> last_comment_span;
@@ -883,7 +904,7 @@ DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
       }
     }
 
-    nested.push_back(Fmt(*arm, comments, arena));
+    nested.push_back(FmtMatchArm(*arm, comments, arena));
     nested.push_back(arena.comma());
 
     if (i + 1 != n.arms().size()) {
