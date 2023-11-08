@@ -677,6 +677,15 @@ pub fn is_pow2<N: u32>(x: uN[N]) -> bool
 
 Returns true when x is a non-zero power-of-two.
 
+#### `std::?add`
+
+```dslx-snippet
+pub fn uadd<N: u32, M: u32, R: u32 = umax(N,M) + 1>(x: uN[N], y: uN[M]) -> uN[R]
+pub fn sadd<N: u32, M: u32, R: u32 = umax(N,M) + 1>(x: sN[N], y: sN[M]) -> sN[R]
+```
+
+Returns sum of `x` (`N` bits) and `y` (`M` bits) as a `umax(N,M)+1` bit value.
+
 #### `std::?mul`
 
 ```dslx-snippet

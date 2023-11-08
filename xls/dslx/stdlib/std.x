@@ -86,6 +86,92 @@ fn unsigned_max_value_test() {
     assert_eq(u32:0xffffffff, unsigned_max_value<u32:32>());
 }
 
+// Returns the maximum of two signed integers.
+pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x > y { x } else { y } }
+
+#[test]
+fn smax_test() {
+    assert_eq(s2:0, smax(s2:0, s2:0));
+    assert_eq(s2:1, smax(s2:-1, s2:1));
+    assert_eq(s7:-3, smax(s7:-3, s7:-6));
+}
+
+// Returns the maximum of two unsigned integers.
+pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x > y { x } else { y } }
+
+#[test]
+fn umax_test() {
+    assert_eq(u1:1, umax(u1:1, u1:0));
+    assert_eq(u1:1, umax(u1:1, u1:1));
+    assert_eq(u2:3, umax(u2:3, u2:2));
+}
+
+// Returns the maximum of two signed integers.
+pub fn smin<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x < y { x } else { y } }
+
+#[test]
+fn smin_test() {
+    assert_eq(s1:0, smin(s1:0, s1:0));
+    assert_eq(s1:-1, smin(s1:0, s1:1));
+    assert_eq(s1:-1, smin(s1:1, s1:0));
+    assert_eq(s1:-1, smin(s1:1, s1:1));
+
+    assert_eq(s2:-2, smin(s2:0, s2:-2));
+    assert_eq(s2:-1, smin(s2:0, s2:-1));
+    assert_eq(s2:0, smin(s2:0, s2:0));
+    assert_eq(s2:0, smin(s2:0, s2:1));
+
+    assert_eq(s2:-2, smin(s2:1, s2:-2));
+    assert_eq(s2:-1, smin(s2:1, s2:-1));
+    assert_eq(s2:0, smin(s2:1, s2:0));
+    assert_eq(s2:1, smin(s2:1, s2:1));
+
+    assert_eq(s2:-2, smin(s2:-2, s2:-2));
+    assert_eq(s2:-2, smin(s2:-2, s2:-1));
+    assert_eq(s2:-2, smin(s2:-2, s2:0));
+    assert_eq(s2:-2, smin(s2:-2, s2:1));
+
+    assert_eq(s2:-2, smin(s2:-1, s2:-2));
+    assert_eq(s2:-1, smin(s2:-1, s2:-1));
+    assert_eq(s2:-1, smin(s2:-1, s2:0));
+    assert_eq(s2:-1, smin(s2:-1, s2:1));
+}
+
+// Returns the minimum of two unsigned integers.
+pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x < y { x } else { y } }
+
+#[test]
+fn umin_test() {
+    assert_eq(u1:0, umin(u1:1, u1:0));
+    assert_eq(u1:1, umin(u1:1, u1:1));
+    assert_eq(u2:2, umin(u2:3, u2:2));
+}
+
+// Returns unsigned add of x (N bits) and y (M bits) as a max(N,M)+1 bit value.
+pub fn uadd<N: u32, M: u32, R: u32 = {umax(N, M) + u32:1}>(x: uN[N], y: uN[M]) -> uN[R] {
+    (x as uN[R]) + (y as uN[R])
+}
+
+// Returns signed add of x (N bits) and y (M bits) as a max(N,M)+1 bit value.
+pub fn sadd<N: u32, M: u32, R: u32 = {umax(N, M) + u32:1}>(x: sN[N], y: sN[M]) -> sN[R] {
+    (x as sN[R]) + (y as sN[R])
+}
+
+#[test]
+fn uadd_test() {
+    assert_eq(u4:4, uadd(u3:2, u3:2));
+    assert_eq(u4:0b0100, uadd(u3:0b011, u3:0b001));
+    assert_eq(u4:0b1110, uadd(u3:0b111, u3:0b111));
+}
+
+#[test]
+fn sadd_test() {
+    assert_eq(s4:4, sadd(s3:2, s3:2));
+    assert_eq(s4:0, sadd(s3:1, s3:-1));
+    assert_eq(s4:0b0100, sadd(s3:0b011, s2:0b01));
+    assert_eq(s4:-8, sadd(s3:-4, s3:-4));
+}
+
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
 pub fn umul<N: u32, M: u32, R: u32 = {N + M}>(x: uN[N], y: uN[M]) -> uN[R] {
     (x as uN[R]) * (y as uN[R])
@@ -97,16 +183,16 @@ pub fn smul<N: u32, M: u32, R: u32 = {N + M}>(x: sN[N], y: sN[M]) -> sN[R] {
 }
 
 #[test]
-fn smul_test() {
-    assert_eq(s6:4, smul(s3:2, s3:2));
-    assert_eq(s4:0b1111, smul(s2:0b11, s2:0b01));
-}
-
-#[test]
 fn umul_test() {
     assert_eq(u6:4, umul(u3:2, u3:2));
     assert_eq(u4:0b0011, umul(u2:0b11, u2:0b01));
     assert_eq(u4:0b1001, umul(u2:0b11, u2:0b11));
+}
+
+#[test]
+fn smul_test() {
+    assert_eq(s6:4, smul(s3:2, s3:2));
+    assert_eq(s4:0b1111, smul(s2:0b11, s2:0b01));
 }
 
 // Calculate x / y one bit at a time. This is an alternative to using
@@ -308,67 +394,6 @@ pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { (x >> y) | (x << ((N as
 fn rrot_test() {
     assert_eq(bits[3]:0b101, rrot(bits[3]:0b011, bits[3]:1));
     assert_eq(bits[3]:0b011, rrot(bits[3]:0b110, bits[3]:1));
-}
-
-// Returns the maximum of two signed integers.
-pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x > y { x } else { y } }
-
-#[test]
-fn smax_test() {
-    assert_eq(s2:0, smax(s2:0, s2:0));
-    assert_eq(s2:1, smax(s2:-1, s2:1));
-    assert_eq(s7:-3, smax(s7:-3, s7:-6));
-}
-
-// Returns the maximum of two unsigned integers.
-pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x > y { x } else { y } }
-
-#[test]
-fn umax_test() {
-    assert_eq(u1:1, umax(u1:1, u1:0));
-    assert_eq(u1:1, umax(u1:1, u1:1));
-    assert_eq(u2:3, umax(u2:3, u2:2));
-}
-
-// Returns the maximum of two signed integers.
-pub fn smin<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x < y { x } else { y } }
-
-#[test]
-fn smin_test() {
-    assert_eq(s1:0, smin(s1:0, s1:0));
-    assert_eq(s1:-1, smin(s1:0, s1:1));
-    assert_eq(s1:-1, smin(s1:1, s1:0));
-    assert_eq(s1:-1, smin(s1:1, s1:1));
-
-    assert_eq(s2:-2, smin(s2:0, s2:-2));
-    assert_eq(s2:-1, smin(s2:0, s2:-1));
-    assert_eq(s2:0, smin(s2:0, s2:0));
-    assert_eq(s2:0, smin(s2:0, s2:1));
-
-    assert_eq(s2:-2, smin(s2:1, s2:-2));
-    assert_eq(s2:-1, smin(s2:1, s2:-1));
-    assert_eq(s2:0, smin(s2:1, s2:0));
-    assert_eq(s2:1, smin(s2:1, s2:1));
-
-    assert_eq(s2:-2, smin(s2:-2, s2:-2));
-    assert_eq(s2:-2, smin(s2:-2, s2:-1));
-    assert_eq(s2:-2, smin(s2:-2, s2:0));
-    assert_eq(s2:-2, smin(s2:-2, s2:1));
-
-    assert_eq(s2:-2, smin(s2:-1, s2:-2));
-    assert_eq(s2:-1, smin(s2:-1, s2:-1));
-    assert_eq(s2:-1, smin(s2:-1, s2:0));
-    assert_eq(s2:-1, smin(s2:-1, s2:1));
-}
-
-// Returns the minimum of two unsigned integers.
-pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x < y { x } else { y } }
-
-#[test]
-fn umin_test() {
-    assert_eq(u1:0, umin(u1:1, u1:0));
-    assert_eq(u1:1, umin(u1:1, u1:1));
-    assert_eq(u2:2, umin(u2:3, u2:2));
 }
 
 // Returns `floor(log2(x))`, with one exception:
@@ -614,7 +639,7 @@ fn test_to_unsigned() {
 // occurs if the result does not fit within a uN[V].
 //
 // Example usage:
-//  let result : (bool, u16) = uadd_with_overflow_detection<u32:16>(x, y);
+//  let result : (bool, u16) = uadd_with_overflow<u32:16>(x, y);
 //
 pub fn uadd_with_overflow
     <V: u32, N: u32, M: u32, MAX_N_M: u32 = {umax(N, M)}, MAX_N_M_V: u32 = {umax(MAX_N_M, V)}>
