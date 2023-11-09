@@ -497,8 +497,8 @@ static std::string GenerateWrapperSource(
 
 namespace {{wrapper_namespace}} {
 
-constexpr const char ir_text[] = R"({{ir_text}}
-)";
+constexpr const char ir_text[] = R"original_ir({{ir_text}}
+)original_ir";
 
 absl::StatusOr<std::unique_ptr<{{class_name}}>> {{class_name}}::Create() {
   XLS_ASSIGN_OR_RETURN(auto package, xls::ParsePackage(ir_text, /*filename=*/std::nullopt));
