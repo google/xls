@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn add_one<E:u32, F:u32, G:u32 = {E+F}>(lhs: bits[E]) -> bits[G] {
-  (lhs as uN[F] + uN[F]:1) as uN[G]
+fn add_one<E: u32, F: u32, G: u32 = {E + F}>(lhs: bits[E]) -> bits[G] {
+    (lhs as uN[F] + uN[F]:1) as uN[G]
 }
 
 #[test]
 fn generic() {
-  let actual: u3 = add_one<u32:1, {u32:1 + u32:1}>(u1:1);
-  assert_eq(u3:2, actual)
+    let actual: u3 = add_one<u32:1, {u32:1 + u32:1}>(u1:1);
+    assert_eq(u3:2, actual)
 }

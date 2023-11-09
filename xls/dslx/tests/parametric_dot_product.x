@@ -15,32 +15,21 @@
 // Example given for regression in https://github.com/google/xls/issues/305
 
 fn clog2<N: u32>(x: bits[N]) -> bits[N] {
-  if x >= bits[N]:1 {
-    (N as bits[N]) - clz(x-bits[N]:1)
-  } else {
-    bits[N]:0
-  }
+    if x >= bits[N]:1 { (N as bits[N]) - clz(x - bits[N]:1) } else { bits[N]:0 }
 }
 
-fn func(a: u32) -> u32 {
-  clog2<u32:32>(a)
-}
+fn func(a: u32) -> u32 { clog2<u32:32>(a) }
 
-fn dot_product<BITCOUNT: u32, LENGTH: u32,
-               IDX_BITS: u32 = {func(LENGTH+u32:1)}>
+fn dot_product<BITCOUNT: u32, LENGTH: u32, IDX_BITS: u32 = {func(LENGTH + u32:1)}>
     (a: bits[BITCOUNT][LENGTH], b: bits[BITCOUNT][LENGTH]) -> bits[BITCOUNT] {
-  for(idx, acc): (bits[IDX_BITS], bits[BITCOUNT])
-      in range(bits[IDX_BITS]:0 , LENGTH as bits[IDX_BITS]) {
-    let partial_product = a[idx] * b[idx];
-    acc + partial_product
-  }(u32:0)
+    for (idx, acc): (bits[IDX_BITS], bits[BITCOUNT]) in
+        range(bits[IDX_BITS]:0, LENGTH as bits[IDX_BITS]) {
+        let partial_product = a[idx] * b[idx];
+        acc + partial_product
+    }(u32:0)
 }
 
-fn main(a: u32[4], b: u32[4]) -> u32 {
-  dot_product(a, b)
-}
+fn main(a: u32[4], b: u32[4]) -> u32 { dot_product(a, b) }
 
 #[test]
-fn test_main() {
-  assert_eq(u32:20, main(u32[4]:[0, 1, 2, 3], u32[4]:[1, 2, 3, 4]))
-}
+fn test_main() { assert_eq(u32:20, main(u32[4]:[0, 1, 2, 3], u32[4]:[1, 2, 3, 4])) }
