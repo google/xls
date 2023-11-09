@@ -890,6 +890,9 @@ DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
     // Note: the match arm member starts at the first pattern match.
     const Pos& member_start = arm->span().start();
 
+    const Pos& member_limit = arm->span().limit();
+
+    // See if there are comments above the match arm.
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
             EmitCommentsBetween(last_member_pos, member_start, comments, arena,
@@ -907,11 +910,21 @@ DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
     nested.push_back(FmtMatchArm(*arm, comments, arena));
     nested.push_back(arena.comma());
 
+    last_member_pos = arm->span().limit();
+
+    // See if there are inline comments after the arm.
+    const Pos next_line(member_limit.filename(), member_limit.lineno() + 1, 0);
+    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
+            last_member_pos, next_line, comments, arena, &last_comment_span)) {
+      nested.push_back(arena.space());
+      nested.push_back(arena.space());
+      nested.push_back(arena.MakeAlign(comments_doc.value()));
+      last_member_pos = last_comment_span->limit();
+    }
+
     if (i + 1 != n.arms().size()) {
       nested.push_back(arena.hard_line());
     }
-
-    last_member_pos = arm->span().limit();
   }
 
   pieces.push_back(arena.MakeNest(ConcatN(arena, nested)));

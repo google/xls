@@ -488,6 +488,23 @@ TEST_F(FunctionFmtTest, MatchWithCommentsOnArms) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, MatchWithInlineCommentsOnArms) {
+  const std::string_view original = R"(fn f(b:bool)->u32{match b{
+  true|false=>u32:42,// comment on first arm
+  _=>u32:64,// comment on second arm
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(b: bool) -> u32 {
+    match b {
+        true | false => u32:42,  // comment on first arm
+        _ => u32:64,  // comment on second arm
+    }
+})";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, MatchWithCommentOnNonBlockExpression) {
   const std::string_view original = R"(fn f(x: u32) -> u32 {
     match x {
