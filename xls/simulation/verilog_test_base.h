@@ -31,10 +31,13 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/source_location.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
+#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {
@@ -173,12 +176,17 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
 
   // Validates the given verilog text by running it through the verilog
   // simulator. No functional testing is performed.
-  absl::Status ValidateVerilog(std::string_view text,
-                               absl::Span<const VerilogInclude> includes = {});
+  absl::Status ValidateVerilog(
+      std::string_view text,
+      absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions =
+          {},
+      absl::Span<const VerilogInclude> includes = {});
 
   // EXPECTs that the given strings are equal and are valid Verilog. The
-  // includes are used for validating the verilog.
+  // includes and macro definitions are used for validating the verilog.
   void ExpectVerilogEqual(std::string_view expected, std::string_view actual,
+                          absl::Span<const VerilogSimulator::MacroDefinition>
+                              macro_definitions = {},
                           absl::Span<const VerilogInclude> includes = {});
 
   // EXPECTs that the given text is equal to the golden reference file
@@ -194,6 +202,8 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
   //
   void ExpectVerilogEqualToGoldenFile(
       const std::filesystem::path& golden_file_path, std::string_view text,
+      absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions =
+          {},
       absl::Span<const VerilogInclude> includes = {},
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 

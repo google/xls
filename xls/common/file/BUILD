@@ -185,6 +185,7 @@ cc_library(
     hdrs = ["named_pipe.h"],
     deps = [
         ":file_descriptor",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
@@ -200,7 +201,9 @@ cc_test(
         ":filesystem",
         ":named_pipe",
         ":temp_directory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "//xls/common:thread",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

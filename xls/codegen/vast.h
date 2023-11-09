@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
@@ -852,10 +853,10 @@ class TemplateInstantiation : public Instantiation {
   std::string template_text_;
 };
 
-// Represents a reference to an already-defined macro.
+// Represents a reference to an already-defined macro. For example: `MY_MACRO.
 class MacroRef : public Expression {
  public:
-  MacroRef(std::string name, VerilogFile* file, const SourceInfo& loc)
+  MacroRef(std::string_view name, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), name_(name) {}
 
   std::string Emit(LineInfo* line_info) const override;

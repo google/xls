@@ -36,6 +36,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/simulation/testbench_metadata.h"
 #include "xls/simulation/testbench_signal_capture.h"
+#include "xls/simulation/testbench_stream.h"
 
 namespace xls {
 namespace verilog {
@@ -77,13 +78,24 @@ void WaitNCycles(LogicRef* clk, StatementBlock* statement_block,
   EmitDelay(statement_block, 1);
 }
 
-// Emit $display statements into the given block which print the value of the
-// given signals.
-void EmitDisplayStatements(
+// Emit $display statements and file I/O into the given block which sample the
+// value of the given signals.
+void EmitSignalCaptures(
     absl::Span<const SignalCapture> signal_captures,
     StatementBlock* statement_block,
-    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
+    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs,
+    const absl::flat_hash_map<std::string, VastStreamEmitter>&
+        stream_emitters) {
   for (const SignalCapture& signal_capture : signal_captures) {
+    if (std::holds_alternative<const TestbenchStream*>(signal_capture.action)) {
+      const TestbenchStream* stream =
+          std::get<const TestbenchStream*>(signal_capture.action);
+      XLS_CHECK_GT(stream->width, 0);
+      stream_emitters.at(stream->name)
+          .EmitWrite(statement_block,
+                     signal_refs.at(signal_capture.signal_name));
+      continue;
+    }
     if (signal_capture.signal_width == 0) {
       // Zero-width signals are not actually represented in the Verilog though
       // they may appear in the module signature. Call $display to print a
@@ -115,9 +127,11 @@ void EmitDisplayStatements(
 }
 
 // Emits Verilog implementing the given action.
-void EmitAction(
-    const Action& action, StatementBlock* statement_block, LogicRef* clk,
-    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
+void EmitAction(const Action& action, StatementBlock* statement_block,
+                LogicRef* clk,
+                const absl::flat_hash_map<std::string, LogicRef*>& signal_refs,
+                const absl::flat_hash_map<std::string, VastStreamEmitter>&
+                    stream_emitters) {
   // Inserts a delay which waits until one unit before the clock
   // posedge. Assumes that simulation is currently one time unit after posedge
   // of clock which is the point at which every action starts.
@@ -136,8 +150,8 @@ void EmitAction(
             !a.end_of_cycle_event->signal_captures().empty()) {
           // Capture signals one time unit before posedge of the clock.
           delay_to_right_before_posedge(statement_block);
-          EmitDisplayStatements(a.end_of_cycle_event->signal_captures(),
-                                statement_block, signal_refs);
+          EmitSignalCaptures(a.end_of_cycle_event->signal_captures(),
+                             statement_block, signal_refs, stream_emitters);
         }
         WaitForClockPosEdge(clk, statement_block);
         EmitDelay(statement_block, 1);
@@ -155,6 +169,13 @@ void EmitAction(
               SourceInfo(), signal_refs.at(s.signal_name),
               file.Make<XSentinel>(SourceInfo(), s.width));
         }
+      },
+      [&](const SetSignalFromStream& s) {
+        statement_block->Add<Comment>(
+            SourceInfo(),
+            absl::StrFormat("Reading value from stream `%s`", s.stream->name));
+        stream_emitters.at(s.stream->name)
+            .EmitRead(statement_block, signal_refs.at(s.signal_name));
       },
       [&](const WaitForSignals& w) {
         // WaitForSignal waits until the signal equals a certain value at the
@@ -203,8 +224,8 @@ void EmitAction(
         // Currently at the posedge of the clock minus one unit. Emit any
         // display statements.
         if (w.end_of_cycle_event != nullptr) {
-          EmitDisplayStatements(w.end_of_cycle_event->signal_captures(),
-                                statement_block, signal_refs);
+          EmitSignalCaptures(w.end_of_cycle_event->signal_captures(),
+                             statement_block, signal_refs, stream_emitters);
         }
 
         // Every action should terminate one unit after the posedge of the
@@ -331,6 +352,13 @@ SequentialBlock& SequentialBlock::SetX(std::string_view signal_name) {
   return *this;
 }
 
+SequentialBlock& SequentialBlock::ReadFromStreamAndSet(
+    std::string_view signal_name, const TestbenchStream* stream) {
+  testbench_thread_->CheckCanDriveSignal(signal_name);
+  statements_.push_back(SetSignalFromStream{std::string(signal_name), stream});
+  return *this;
+}
+
 EndOfCycleEvent& SequentialBlock::AtEndOfCycle() {
   AdvanceCycle advance_cycle{
       .amount = 1,
@@ -436,12 +464,14 @@ void SequentialBlock::Finish() { statements_.push_back(FinishAction()); }
 
 void SequentialBlock::Emit(
     StatementBlock* statement_block, LogicRef* clk,
-    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
+    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs,
+    const absl::flat_hash_map<std::string, VastStreamEmitter>&
+        stream_emitters) {
   VerilogFile& file = *statement_block->file();
   for (const Statement& statement : statements_) {
     if (std::holds_alternative<Action>(statement)) {
-      EmitAction(std::get<Action>(statement), statement_block, clk,
-                 signal_refs);
+      EmitAction(std::get<Action>(statement), statement_block, clk, signal_refs,
+                 stream_emitters);
     } else {
       const RepeatStatement& repeat_statement =
           std::get<RepeatStatement>(statement);
@@ -452,14 +482,14 @@ void SequentialBlock::Emit(
                 file.PlainLiteral(
                     static_cast<int32_t>(repeat_statement.count.value()),
                     SourceInfo()));
-        repeat_statement.sequential_block->Emit(verilog_statement->statements(),
-                                                clk, signal_refs);
+        repeat_statement.sequential_block->Emit(
+            verilog_statement->statements(), clk, signal_refs, stream_emitters);
       } else {
         verilog::WhileStatement* while_statement =
             statement_block->Add<verilog::WhileStatement>(
                 SourceInfo(), file.PlainLiteral(1, SourceInfo()));
-        repeat_statement.sequential_block->Emit(while_statement->statements(),
-                                                clk, signal_refs);
+        repeat_statement.sequential_block->Emit(
+            while_statement->statements(), clk, signal_refs, stream_emitters);
       }
     }
   }
@@ -506,7 +536,9 @@ void ModuleTestbenchThread::DeclareInternalSignal(
 
 void ModuleTestbenchThread::EmitInto(
     Module* m, LogicRef* clk,
-    absl::flat_hash_map<std::string, LogicRef*>* signal_refs) {
+    absl::flat_hash_map<std::string, LogicRef*>* signal_refs,
+    const absl::flat_hash_map<std::string, VastStreamEmitter>&
+        stream_emitters) {
   for (const TestbenchSignal& signal : internal_signals_) {
     (*signal_refs)[signal.name] = m->AddReg(
         signal.name, m->file()->BitVectorType(signal.width, SourceInfo()),
@@ -521,20 +553,20 @@ void ModuleTestbenchThread::EmitInto(
     if (std::holds_alternative<Bits>(dut_input.initial_value)) {
       EmitAction(SetSignal{dut_input.port_name,
                            std::get<Bits>(dut_input.initial_value)},
-                 procedure->statements(), clk, *signal_refs);
+                 procedure->statements(), clk, *signal_refs, stream_emitters);
     } else {
       EmitAction(SetSignalX{dut_input.port_name,
                             metadata_->GetPortWidth(dut_input.port_name)},
-                 procedure->statements(), clk, *signal_refs);
+                 procedure->statements(), clk, *signal_refs, stream_emitters);
     }
   }
   for (const TestbenchSignal& signal : internal_signals_) {
     if (std::holds_alternative<Bits>(signal.initial_value)) {
       EmitAction(SetSignal{signal.name, std::get<Bits>(signal.initial_value)},
-                 procedure->statements(), clk, *signal_refs);
+                 procedure->statements(), clk, *signal_refs, stream_emitters);
     } else {
       EmitAction(SetSignalX{signal.name, signal.width}, procedure->statements(),
-                 clk, *signal_refs);
+                 clk, *signal_refs, stream_emitters);
     }
   }
 
@@ -543,7 +575,7 @@ void ModuleTestbenchThread::EmitInto(
   // All actions assume they start at one time unit after the posedge of the
   // clock. This can be done with the advance one cycle action.
   EmitAction(AdvanceCycle{.amount = 1, .end_of_cycle_event = nullptr},
-             procedure->statements(), clk, *signal_refs);
+             procedure->statements(), clk, *signal_refs, stream_emitters);
 
   // The thread must wait for reset (if present and specified). Specifically,
   // the thread waits until the last cycle of reset before emitting the actions.
@@ -557,10 +589,11 @@ void ModuleTestbenchThread::EmitInto(
                            .value = UBits(1, 1)}},
                        .end_of_cycle_event = nullptr,
                        .comment = "Wait for last cycle of reset"},
-        procedure->statements(), clk, *signal_refs);
+        procedure->statements(), clk, *signal_refs, stream_emitters);
   }
   // All actions occur one time unit after the pos edge of the clock.
-  main_block_->Emit(procedure->statements(), clk, *signal_refs);
+  main_block_->Emit(procedure->statements(), clk, *signal_refs,
+                    stream_emitters);
 
   // The last statement must be to assert the done signal of the thread.
   if (done_signal_.has_value()) {

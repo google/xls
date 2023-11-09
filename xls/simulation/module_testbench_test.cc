@@ -17,11 +17,15 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/matchers.h"
@@ -30,6 +34,8 @@
 #include "xls/ir/source_location.h"
 #include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/testbench_signal_capture.h"
+#include "xls/simulation/testbench_stream.h"
+#include "xls/simulation/verilog_simulator.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -43,6 +49,54 @@ using ::testing::HasSubstr;
 
 constexpr char kTestName[] = "module_testbench_test";
 constexpr char kTestdataPath[] = "xls/simulation/testdata";
+
+// Functor for generating sequential values starting an an optional offset for
+// use with testbench streams.
+class SequentialProducer {
+ public:
+  SequentialProducer(int64_t width, int64_t input_count,
+                     int64_t starting_offset = 0)
+      : width_(width),
+        input_count_(input_count),
+        starting_offset_(starting_offset),
+        count_(0) {}
+
+  std::optional<Bits> operator()() const {
+    if (count_ >= input_count_) {
+      return std::nullopt;
+    }
+    Bits result = UBits(starting_offset_ + count_, width_);
+    ++count_;
+    return result;
+  }
+
+ private:
+  int64_t width_;
+  int64_t input_count_;
+  int64_t starting_offset_;
+  // The testbench stream API takes a absl::FunctionRef which is a const
+  // reference so make this field mutable.
+  mutable int64_t count_;
+};
+
+// Functor for consuming and EXPECT_EQ'ing values read from a testbench stream.
+class SequentialConsumer {
+ public:
+  explicit SequentialConsumer(int64_t starting_offset = 0)
+      : starting_offset_(starting_offset), count_(0) {}
+
+  absl::Status operator()(const Bits& bits) const {
+    EXPECT_EQ(bits.ToUint64().value(), starting_offset_ + count_);
+    ++count_;
+    return absl::OkStatus();
+  }
+
+ private:
+  int64_t starting_offset_;
+  // The testbench stream API takes a absl::FunctionRef which is a const
+  // reference so make this field mutable.
+  mutable int64_t count_;
+};
 
 class ModuleTestbenchTest : public VerilogTestBase {
  protected:
@@ -863,6 +917,278 @@ TEST_P(ModuleTestbenchTest, DrivingInvalidInputPort) {
   EXPECT_DEATH(seq.Set("not_a_port", 10),
                HasSubstr("'not_a_port' is not a signal that thread `main is "
                          "designated to drive"));
+}
+
+TEST_P(ModuleTestbenchTest, StreamingIo) {
+  constexpr int64_t kInputCount = 100000;
+  constexpr int64_t kWidth = 32;
+
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f, kWidth);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(
+          m, GetSimulator(), "clk", /*reset=*/std::nullopt,
+          /*includes=*/{}, /*simulation_cycle_limit=*/kInputCount + 10));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const TestbenchStream* input_stream,
+                           tb->CreateInputStream("my_input", kWidth));
+  XLS_ASSERT_OK_AND_ASSIGN(const TestbenchStream* output_stream,
+                           tb->CreateOutputStream("my_output", kWidth));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * input_thread,
+      tb->CreateThreadDrivingAllInputs("input", /*initial_value=*/ZeroOrX::kX));
+  {
+    SequentialBlock& seq = input_thread->MainBlock();
+    SequentialBlock& loop = seq.Repeat(kInputCount);
+    loop.ReadFromStreamAndSet("in", input_stream).NextCycle();
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                           tb->CreateThread("output",
+                                            /*dut_inputs=*/{}));
+  {
+    SequentialBlock& seq = output_thread->MainBlock();
+    seq.NextCycle().NextCycle();
+    SequentialBlock& loop = seq.Repeat(kInputCount);
+    loop.AtEndOfCycle().CaptureAndWriteToStream("out", output_stream);
+  }
+
+  ExpectVerilogEqualToGoldenFile(
+      GoldenFilePath(kTestName, kTestdataPath), tb->GenerateVerilog(),
+      /*macro_definitions=*/
+      {
+          VerilogSimulator::MacroDefinition{input_stream->path_macro_name,
+                                            "\"/tmp/my_input\""},
+          VerilogSimulator::MacroDefinition{output_stream->path_macro_name,
+                                            "\"/tmp/my_output\""},
+      });
+
+  XLS_ASSERT_OK(tb->RunWithStreamingIo(
+      {{input_stream->name, SequentialProducer(kWidth, kInputCount)}},
+      {{output_stream->name, SequentialConsumer()}}));
+}
+
+TEST_P(ModuleTestbenchTest, CycleLimit) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f);
+
+  {
+    // Default cycle limit.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<ModuleTestbench> tb,
+        ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleTestbenchThread * tbt,
+        tb->CreateThread("input driver",
+                         /*dut_inputs=*/{DutInput{.port_name = "in",
+                                                  .initial_value = IsX()}}));
+    SequentialBlock& seq = tbt->MainBlock();
+    seq.Set("in", 42);
+    seq.AdvanceNCycles(kDefaultSimulationCycleLimit);
+
+    EXPECT_THAT(tb->Run(),
+                StatusIs(absl::StatusCode::kDeadlineExceeded,
+                         HasSubstr("Simulation exceeded maximum length")));
+  }
+
+  {
+    // Custom cycle limit.
+    constexpr int64_t kCycleLimit = 100;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<ModuleTestbench> tb,
+        ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk",
+                                              /*reset=*/std::nullopt,
+                                              /*includes=*/{}, kCycleLimit));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleTestbenchThread * tbt,
+        tb->CreateThread("input driver",
+                         /*dut_inputs=*/{DutInput{.port_name = "in",
+                                                  .initial_value = IsX()}}));
+    SequentialBlock& seq = tbt->MainBlock();
+    seq.Set("in", 42);
+    seq.AdvanceNCycles(kCycleLimit);
+
+    EXPECT_THAT(tb->Run(),
+                StatusIs(absl::StatusCode::kDeadlineExceeded,
+                         HasSubstr("Simulation exceeded maximum length")));
+  }
+}
+
+TEST_P(ModuleTestbenchTest, StreamingIoWithError) {
+  constexpr int64_t kInputCount = 10;
+
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f, 32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(
+          m, GetSimulator(), "clk", /*reset=*/std::nullopt,
+          /*includes=*/{}, /*simulation_cycle_limit=*/kInputCount + 10));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const TestbenchStream* input_stream,
+                           tb->CreateInputStream("my_input", 32));
+  XLS_ASSERT_OK_AND_ASSIGN(const TestbenchStream* output_stream,
+                           tb->CreateOutputStream("my_output", 32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * input_thread,
+      tb->CreateThreadDrivingAllInputs("input", /*initial_value=*/ZeroOrX::kX));
+  {
+    SequentialBlock& seq = input_thread->MainBlock();
+    SequentialBlock& loop = seq.Repeat(kInputCount);
+    loop.ReadFromStreamAndSet("in", input_stream).NextCycle();
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                           tb->CreateThread("output",
+                                            /*dut_inputs=*/{}));
+  {
+    SequentialBlock& seq = output_thread->MainBlock();
+    seq.NextCycle().NextCycle();
+    SequentialBlock& loop = seq.Repeat(kInputCount);
+    loop.AtEndOfCycle().CaptureAndWriteToStream("out", output_stream);
+  }
+
+  int64_t i = 0;
+  auto producer = [&]() -> std::optional<Bits> {
+    if (i == kInputCount) {
+      return std::nullopt;
+    }
+    Bits bits = UBits(i, 32);
+    ++i;
+    return bits;
+  };
+
+  int64_t out_i = 0;
+  auto consumer = [&](const Bits& bits) -> absl::Status {
+    absl::Status status =
+        absl::InternalError(absl::StrFormat("My failure %d.", out_i));
+    ++out_i;
+    return status;
+  };
+
+  EXPECT_THAT(
+      tb->RunWithStreamingIo({{input_stream->name, producer}},
+                             {{output_stream->name, consumer}}),
+      StatusIs(absl::StatusCode::kInternal, HasSubstr("My failure 0.")));
+}
+
+TEST_P(ModuleTestbenchTest, StreamingIoProducesX) {
+  constexpr int64_t kInputCount = 10;
+
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f, 32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(
+          m, GetSimulator(), "clk", /*reset=*/std::nullopt,
+          /*includes=*/{}, /*simulation_cycle_limit=*/kInputCount + 10));
+
+  XLS_ASSERT_OK(
+      tb->CreateThread("input driver",
+                       /*dut_inputs=*/{DutInput{.port_name = "in",
+                                                .initial_value = IsX()}})
+          .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(const TestbenchStream* output_stream,
+                           tb->CreateOutputStream("my_output", 32));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                           tb->CreateThread("output",
+                                            /*dut_inputs=*/{}));
+  {
+    SequentialBlock& seq = output_thread->MainBlock();
+    seq.NextCycle().NextCycle();
+    SequentialBlock& loop = seq.Repeat(kInputCount);
+    loop.AtEndOfCycle().CaptureAndWriteToStream("out", output_stream);
+  }
+
+  auto consumer = [&](const Bits& bits) -> absl::Status {
+    EXPECT_FALSE(true) << "The consumer function should not be called because "
+                          "all values are X";
+    return absl::OkStatus();
+  };
+
+  EXPECT_THAT(tb->RunWithStreamingIo({}, {{output_stream->name, consumer}}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Stream `my_output` produced an X value")));
+}
+
+TEST_P(ModuleTestbenchTest, StreamingIoMultipleInputOutput) {
+  constexpr int64_t kInputCount = 10;
+  constexpr int64_t kWidth = 16;
+  constexpr int64_t kNumPorts = 3;
+
+  VerilogFile f = NewVerilogFile();
+
+  // Build a module with kNumPorts input and output ports. Each input port
+  // passes its value through to the corresponding output port.
+  Module* m = f.AddModule("test_module", SourceInfo());
+  m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
+  std::vector<LogicRef*> input_ports;
+  std::vector<LogicRef*> output_ports;
+  for (int64_t i = 0; i < kNumPorts; ++i) {
+    input_ports.push_back(m->AddInput(absl::StrCat("in", i),
+                                      f.BitVectorType(kWidth, SourceInfo()),
+                                      SourceInfo()));
+    output_ports.push_back(m->AddOutput(absl::StrCat("out", i),
+                                        f.BitVectorType(kWidth, SourceInfo()),
+                                        SourceInfo()));
+    m->Add<ContinuousAssignment>(SourceInfo(), output_ports.back(),
+                                 input_ports.back());
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
+
+  std::vector<const TestbenchStream*> input_streams;
+  for (int64_t i = 0; i < kNumPorts; ++i) {
+    std::string port = absl::StrCat("in", i);
+    XLS_ASSERT_OK_AND_ASSIGN(const TestbenchStream* input_stream,
+                             tb->CreateInputStream(port, kWidth));
+    input_streams.push_back(input_stream);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleTestbenchThread * input_thread,
+        tb->CreateThread(port, {DutInput{port, UBits(0, kWidth)}}));
+    SequentialBlock& seq = input_thread->MainBlock();
+    SequentialBlock& loop = seq.Repeat(kInputCount);
+    loop.ReadFromStreamAndSet(port, input_stream).NextCycle();
+  }
+
+  std::vector<const TestbenchStream*> output_streams;
+  for (int64_t i = 0; i < kNumPorts; ++i) {
+    std::string port = absl::StrCat("out", i);
+    XLS_ASSERT_OK_AND_ASSIGN(const TestbenchStream* output_stream,
+                             tb->CreateOutputStream(port, kWidth));
+    output_streams.push_back(output_stream);
+    XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * output_thread,
+                             tb->CreateThread(port, {}));
+    SequentialBlock& seq = output_thread->MainBlock();
+    SequentialBlock& loop = seq.Repeat(kInputCount);
+    loop.AtEndOfCycle().CaptureAndWriteToStream(port, output_stream);
+  }
+
+  // Create stream producers and consumers.
+  absl::flat_hash_map<std::string, TestbenchStreamThread::Producer>
+      producer_map;
+  absl::flat_hash_map<std::string, TestbenchStreamThread::Consumer>
+      consumer_map;
+  // The maps only hold a view of the functors. Store the actual functors here
+  // in vectors with stable pointers.
+  std::vector<std::unique_ptr<SequentialProducer>> producers;
+  std::vector<std::unique_ptr<SequentialConsumer>> consumers;
+  for (int64_t i = 0; i < kNumPorts; ++i) {
+    // Give each producer/consumer pair a different starting offset for
+    // generating/checking sequences.
+    int64_t starting_offset = 123 * i;
+    producers.push_back(std::make_unique<SequentialProducer>(
+        kWidth, kInputCount, starting_offset));
+    producer_map.insert({input_streams[i]->name, *producers.back()});
+    consumers.push_back(std::make_unique<SequentialConsumer>(starting_offset));
+    consumer_map.insert({output_streams[i]->name, *consumers.back()});
+  }
+
+  XLS_ASSERT_OK(tb->RunWithStreamingIo(producer_map, consumer_map));
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestbenchTestInstantiation, ModuleTestbenchTest,

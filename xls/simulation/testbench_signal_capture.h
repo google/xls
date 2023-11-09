@@ -26,6 +26,7 @@
 #include "xls/common/source_location.h"
 #include "xls/ir/bits.h"
 #include "xls/simulation/testbench_metadata.h"
+#include "xls/simulation/testbench_stream.h"
 
 namespace xls {
 namespace verilog {
@@ -47,7 +48,8 @@ struct TestbenchExpectation {
 // Single (Bits*) or multiple (std::vector<Bits>*) values can be captured as an
 // action.
 using SignalCaptureAction =
-    std::variant<TestbenchExpectation, Bits*, std::vector<Bits>*>;
+    std::variant<TestbenchExpectation, Bits*, std::vector<Bits>*,
+                 const TestbenchStream*>;
 
 // Represents a single instance of a signal capture. Each corresponds to a
 // particular $display statement in the testbench.
@@ -83,6 +85,8 @@ class SignalCaptureManager {
                          xabsl::SourceLocation loc);
   SignalCapture ExpectX(std::string_view signal_name,
                         xabsl::SourceLocation loc);
+  SignalCapture CaptureAndWriteToStream(std::string_view signal_name,
+                                        const TestbenchStream* stream);
 
   absl::Span<const SignalCapture> signal_captures() const {
     return signal_captures_;
@@ -120,6 +124,10 @@ class EndOfCycleEvent {
   // used in blocks from `RepeatForever` and `Repeat` calls.
   EndOfCycleEvent& CaptureMultiple(std::string_view signal_name,
                                    std::vector<Bits>* values);
+
+  // Captures the given signal and writes it to the given stream.
+  EndOfCycleEvent& CaptureAndWriteToStream(std::string_view signal_name,
+                                           const TestbenchStream* stream);
 
   // Expects the given signal is the given value (or X). An error is returned
   // during Run if this expectation is not met.

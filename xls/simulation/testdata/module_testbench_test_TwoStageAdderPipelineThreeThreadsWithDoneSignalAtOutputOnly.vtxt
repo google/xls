@@ -77,8 +77,8 @@ module testbench;
     // Wait 1 cycle(s).
     @(posedge clk);
     #1;
-    // Wait 10000 cycle(s).
-    repeat (9999) begin
+    // Wait 10005 cycle(s).
+    repeat (10004) begin
       @(posedge clk);
     end
     #1;

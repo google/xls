@@ -22,6 +22,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/ir/bits.h"
+#include "xls/simulation/testbench_stream.h"
 
 namespace xls {
 namespace verilog {
@@ -46,6 +47,18 @@ SignalCapture SignalCaptureManager::CaptureMultiple(
       SignalCapture{.signal_name = std::string{signal_name},
                     .signal_width = metadata().GetPortWidth(signal_name),
                     .action = values,
+                    .instance_id = instance});
+  return signal_captures_.back();
+}
+
+SignalCapture SignalCaptureManager::CaptureAndWriteToStream(
+    std::string_view signal_name, const TestbenchStream* stream) {
+  XLS_CHECK(metadata().HasPortNamed(signal_name));
+  int64_t instance = signal_captures_.size();
+  signal_captures_.push_back(
+      SignalCapture{.signal_name = std::string{signal_name},
+                    .signal_width = stream->width,
+                    .action = stream,
                     .instance_id = instance});
   return signal_captures_.back();
 }
@@ -92,6 +105,13 @@ EndOfCycleEvent& EndOfCycleEvent::CaptureMultiple(std::string_view signal_name,
                                                   std::vector<Bits>* values) {
   signal_captures_.push_back(
       capture_manager_->CaptureMultiple(signal_name, values));
+  return *this;
+}
+
+EndOfCycleEvent& EndOfCycleEvent::CaptureAndWriteToStream(
+    std::string_view signal_name, const TestbenchStream* stream) {
+  signal_captures_.push_back(
+      capture_manager_->CaptureAndWriteToStream(signal_name, stream));
   return *this;
 }
 

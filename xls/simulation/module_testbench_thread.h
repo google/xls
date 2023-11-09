@@ -26,10 +26,10 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/simulation/testbench_metadata.h"
 #include "xls/simulation/testbench_signal_capture.h"
+#include "xls/simulation/testbench_stream.h"
 
 namespace xls {
 namespace verilog {
@@ -59,6 +59,13 @@ struct SetSignalX {
   int64_t width;
 };
 
+// Drives the module input from a value popped from a stream (read
+// desctructively).
+struct SetSignalFromStream {
+  std::string signal_name;
+  const TestbenchStream* stream;
+};
+
 // Waits for signals to equal a certain value.
 enum class AnyOrAll : int8_t { kAny, kAll };
 struct SignalValue {
@@ -84,8 +91,9 @@ struct DisplayAction {
 // Emits a $finish statement to terminate the simulation.
 struct FinishAction {};
 
-using Action = std::variant<AdvanceCycle, SetSignal, SetSignalX, WaitForSignals,
-                            DisplayAction, FinishAction>;
+using Action =
+    std::variant<AdvanceCycle, SetSignal, SetSignalX, SetSignalFromStream,
+                 WaitForSignals, DisplayAction, FinishAction>;
 
 class ModuleTestbenchThread;
 
@@ -105,6 +113,10 @@ class SequentialBlock {
   SequentialBlock& Set(std::string_view signal_name, const Bits& value);
   SequentialBlock& Set(std::string_view signal_name, uint64_t value);
   SequentialBlock& SetX(std::string_view signal_name);
+
+  // Reads a value from the given stream and sets `signal_name` to it.
+  SequentialBlock& ReadFromStreamAndSet(std::string_view signal_name,
+                                        const TestbenchStream* stream);
 
   // Advances the simulation the given number of cycles.
   SequentialBlock& AdvanceNCycles(int64_t n_cycles);
@@ -165,7 +177,9 @@ class SequentialBlock {
   void Finish();
 
   void Emit(StatementBlock* statement_block, LogicRef* clk,
-            const absl::flat_hash_map<std::string, LogicRef*>& signal_refs);
+            const absl::flat_hash_map<std::string, LogicRef*>& signal_refs,
+            const absl::flat_hash_map<std::string, VastStreamEmitter>&
+                stream_emitters);
 
  private:
   // Returns the EndOfCycleEvent when any (all) of the given signals have the
@@ -244,7 +258,9 @@ class ModuleTestbenchThread {
 
   // Emit the thread contents into the verilog file with the contents specified.
   void EmitInto(Module* m, LogicRef* clk,
-                absl::flat_hash_map<std::string, LogicRef*>* signal_refs);
+                absl::flat_hash_map<std::string, LogicRef*>* signal_refs,
+                const absl::flat_hash_map<std::string, VastStreamEmitter>&
+                    stream_emitters);
 
   absl::Span<const DutInput> dut_inputs() const { return dut_inputs_; }
   const TestbenchMetadata& metadata() const { return *metadata_; }

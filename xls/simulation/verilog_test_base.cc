@@ -14,46 +14,48 @@
 
 #include "xls/simulation/verilog_test_base.h"
 
-#include <cstdlib>
 #include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/file/filesystem.h"
+#include "absl/types/span.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
+#include "xls/simulation/verilog_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
+#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {
 
 absl::Status VerilogTestBase::ValidateVerilog(
-    std::string_view text, absl::Span<const VerilogInclude> includes) {
+    std::string_view text,
+    absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions,
+    absl::Span<const VerilogInclude> includes) {
   return GetDefaultVerilogSimulator().RunSyntaxChecking(
-      text, GetFileType(),
-      /*macro_definitions=*/{}, includes);
+      text, GetFileType(), macro_definitions, includes);
 }
 
 void VerilogTestBase::ExpectVerilogEqual(
     std::string_view expected, std::string_view actual,
+    absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions,
     absl::Span<const VerilogInclude> includes) {
   XLS_VLOG_LINES(1, absl::StrCat("Actual Verilog:\n", actual));
   XLS_VLOG_LINES(1, absl::StrCat("Expected Verilog:\n", expected));
   EXPECT_EQ(expected, actual);
-  XLS_EXPECT_OK(ValidateVerilog(actual, includes));
+  XLS_EXPECT_OK(ValidateVerilog(actual, macro_definitions, includes));
 }
 
 void VerilogTestBase::ExpectVerilogEqualToGoldenFile(
     const std::filesystem::path& golden_file_path, std::string_view text,
+    absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions,
     absl::Span<const VerilogInclude> includes, xabsl::SourceLocation loc) {
   ExpectEqualToGoldenFile(golden_file_path, text, loc);
-  XLS_EXPECT_OK(ValidateVerilog(text, includes));
+  XLS_EXPECT_OK(ValidateVerilog(text, macro_definitions, includes));
 }
 
 std::filesystem::path VerilogTestBase::GoldenFilePath(

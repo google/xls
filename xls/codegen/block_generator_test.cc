@@ -745,7 +745,8 @@ endmodule
 )";
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 verilog, {hardmultp_definition});
+                                 verilog, /*macro_definitions=*/{},
+                                 {hardmultp_definition});
 }
 
 TEST_P(BlockGeneratorTest, GatedSingleBitType) {
@@ -1169,7 +1170,8 @@ endmodule
 )"};
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 verilog, {fifo_definition});
+                                 verilog, /*macro_definitions=*/{},
+                                 {fifo_definition});
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
                            NewModuleTestbench(verilog, sig, {fifo_definition}));

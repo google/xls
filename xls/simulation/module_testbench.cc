@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <string>
@@ -28,6 +29,7 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -37,6 +39,7 @@
 #include "absl/types/variant.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
@@ -50,6 +53,7 @@
 #include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/testbench_metadata.h"
 #include "xls/simulation/testbench_signal_capture.h"
+#include "xls/simulation/testbench_stream.h"
 #include "xls/simulation/verilog_simulator.h"
 #include "xls/tools/verilog_include.h"
 #include "re2/re2.h"
@@ -61,17 +65,9 @@ namespace {
 // The number of cycles that the design under test (DUT) is being reset.
 static constexpr int64_t kResetCycles = 5;
 
-// Upper limit on the length of simulation. Simulation terminates with
-// $finish after this many cycles. This is to avoid test timeouts in cases
-// that the simulation logic does not terminate.
-static constexpr int64_t kSimulationCycleLimit = 10000;
-
-static_assert(kResetCycles < kSimulationCycleLimit,
-              "Reset cycles must be less than the simulation cycle limit.");
-
-std::string GetTimeoutMessage() {
+std::string GetTimeoutMessage(int64_t cycle_limit) {
   return absl::StrFormat("ERROR: timeout, simulation ran too long (%d cycles).",
-                         kSimulationCycleLimit);
+                         cycle_limit);
 }
 
 static absl::StatusOr<ModuleSignature> GenerateModuleSignature(
@@ -133,7 +129,8 @@ ModuleTestbench::CreateFromVastModule(
     Module* module, const VerilogSimulator* simulator,
     std::optional<std::string_view> clk_name,
     const std::optional<ResetProto>& reset,
-    absl::Span<const VerilogInclude> includes) {
+    absl::Span<const VerilogInclude> includes,
+    std::optional<int64_t> simulation_cycle_limit) {
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature,
                        GenerateModuleSignature(module, clk_name, reset));
   TestbenchMetadata metadata(signature);
@@ -141,7 +138,8 @@ ModuleTestbench::CreateFromVastModule(
       module->file()->Emit(),
       module->file()->use_system_verilog() ? FileType::kSystemVerilog
                                            : FileType::kVerilog,
-      simulator, metadata, /*reset_dut=*/reset.has_value(), includes));
+      simulator, metadata, /*reset_dut=*/reset.has_value(), includes,
+      simulation_cycle_limit));
   XLS_RETURN_IF_ERROR(tb->CreateInitialThreads());
   return std::move(tb);
 }
@@ -150,10 +148,12 @@ absl::StatusOr<std::unique_ptr<ModuleTestbench>>
 ModuleTestbench::CreateFromVerilogText(
     std::string_view verilog_text, FileType file_type,
     const ModuleSignature& signature, const VerilogSimulator* simulator,
-    bool reset_dut, absl::Span<const VerilogInclude> includes) {
+    bool reset_dut, absl::Span<const VerilogInclude> includes,
+    std::optional<int64_t> simulation_cycle_limit) {
   TestbenchMetadata metadata(signature);
-  auto tb = absl::WrapUnique(new ModuleTestbench(
-      verilog_text, file_type, simulator, metadata, reset_dut, includes));
+  auto tb = absl::WrapUnique(
+      new ModuleTestbench(verilog_text, file_type, simulator, metadata,
+                          reset_dut, includes, simulation_cycle_limit));
   XLS_RETURN_IF_ERROR(tb->CreateInitialThreads());
   return std::move(tb);
 }
@@ -163,19 +163,22 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
                                  const VerilogSimulator* simulator,
                                  const TestbenchMetadata& metadata,
                                  bool reset_dut,
-                                 absl::Span<const VerilogInclude> includes)
+                                 absl::Span<const VerilogInclude> includes,
+                                 std::optional<int64_t> simulation_cycle_limit)
     : verilog_text_(verilog_text),
       file_type_(file_type),
       simulator_(simulator),
       metadata_(metadata),
       reset_dut_(reset_dut),
       includes_(includes.begin(), includes.end()),
+      simulation_cycle_limit_(simulation_cycle_limit),
       capture_manager_(&metadata_) {}
 
 absl::Status ModuleTestbench::CreateInitialThreads() {
   // Global reset controller. If a reset is present, the threads will wait
   // on this reset prior to starting their execution.
-  if (reset_dut_ && metadata_.reset_proto().has_value()) {
+  bool has_reset_thread = reset_dut_ && metadata_.reset_proto().has_value();
+  if (has_reset_thread) {
     uint64_t reset_asserted_value =
         metadata_.reset_proto()->active_low() ? 0 : 1;
     uint64_t reset_unasserted_value =
@@ -195,15 +198,16 @@ absl::Status ModuleTestbench::CreateInitialThreads() {
         .Set(metadata_.reset_proto()->name(), reset_unasserted_value);
   }
 
-  {
+  if (simulation_cycle_limit_.has_value()) {
     XLS_ASSIGN_OR_RETURN(ModuleTestbenchThread * watchdog_thread,
                          CreateThread("watchdog",
                                       /*dut_inputs=*/{},
                                       /*wait_until_done=*/false,
                                       /*wait_for_reset=*/false));
     SequentialBlock& seq = watchdog_thread->MainBlock();
-    seq.AdvanceNCycles(kSimulationCycleLimit);
-    seq.Display(GetTimeoutMessage());
+    seq.AdvanceNCycles(simulation_cycle_limit_.value() +
+                       (has_reset_thread ? kResetCycles : 0));
+    seq.Display(GetTimeoutMessage(simulation_cycle_limit_.value()));
     seq.Finish();
   }
 
@@ -409,10 +413,12 @@ static absl::Status CheckCapturedSignalAgainstExpectation(
 absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
     std::string_view stdout_str) const {
   // Check for timeout.
-  if (absl::StrContains(stdout_str, GetTimeoutMessage())) {
+  if (simulation_cycle_limit_.has_value() &&
+      absl::StrContains(stdout_str,
+                        GetTimeoutMessage(simulation_cycle_limit_.value()))) {
     return absl::DeadlineExceededError(
         absl::StrFormat("Simulation exceeded maximum length of %d cycles.",
-                        kSimulationCycleLimit));
+                        simulation_cycle_limit_.value()));
   }
 
   absl::flat_hash_map<int64_t, std::vector<BitsOrX>> outputs;
@@ -420,6 +426,9 @@ absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
 
   for (const SignalCapture& signal_capture :
        capture_manager_.signal_captures()) {
+    if (std::holds_alternative<const TestbenchStream*>(signal_capture.action)) {
+      continue;
+    }
     if (std::holds_alternative<std::vector<Bits>*>(signal_capture.action)) {
       // Capture multiple instances of the same signal.
       XLS_RETURN_IF_ERROR(RecordCapturedBitsVector(
@@ -530,6 +539,27 @@ std::string ModuleTestbench::GenerateVerilog() const {
                                           file.LogicalNot(clk, SourceInfo()))));
   }
 
+  // Create emitters for emitting Verilog code for handling file I/O. Add any
+  // declarations for handling IO to/from streams. And emit code to open files.
+  absl::flat_hash_map<std::string, VastStreamEmitter> stream_emitters;
+  if (!streams_.empty()) {
+    m->Add<BlankLine>(SourceInfo());
+    m->Add<Comment>(SourceInfo(),
+                    "Variable declarations for supporting streaming I/O.");
+    // Declare variables required for performing IO.
+    for (const std::unique_ptr<TestbenchStream>& stream : streams_) {
+      stream_emitters.insert(
+          {stream->name, VastStreamEmitter::Create(*stream, m)});
+    }
+
+    m->Add<BlankLine>(SourceInfo());
+    m->Add<Comment>(SourceInfo(), "Open files for I/O.");
+    Initial* initial = m->Add<Initial>(SourceInfo());
+    for (const std::unique_ptr<TestbenchStream>& stream : streams_) {
+      stream_emitters.at(stream->name).EmitOpen(initial->statements());
+    }
+  }
+
   {
     // Add a monitor statement which prints out all the port values.
     m->Add<BlankLine>(SourceInfo());
@@ -572,7 +602,6 @@ std::string ModuleTestbench::GenerateVerilog() const {
 
   // Emit threads.
   std::vector<LogicRef*> thread_done_signals;
-  int64_t thread_number = 0;
   for (const auto& thread : threads_) {
     m->Add<BlankLine>(SourceInfo());
     std::vector<std::string> dut_input_names;
@@ -585,12 +614,11 @@ std::string ModuleTestbench::GenerateVerilog() const {
                         dut_input_names.empty()
                             ? "<none>"
                             : absl::StrJoin(dut_input_names, ", ")));
-    thread->EmitInto(m, clk, &signal_refs);
+    thread->EmitInto(m, clk, &signal_refs, stream_emitters);
     if (thread->done_signal_name().has_value()) {
       thread_done_signals.push_back(
           signal_refs.at(thread->done_signal_name().value()));
     }
-    ++thread_number;
   }
 
   {
@@ -620,6 +648,11 @@ std::string ModuleTestbench::GenerateVerilog() const {
     initial->statements()->Add<DelayStatement>(
         SourceInfo(), file.PlainLiteral(1, SourceInfo()));
 
+    // Close any open files.
+    for (const std::unique_ptr<TestbenchStream>& stream : streams_) {
+      stream_emitters.at(stream->name).EmitClose(initial->statements());
+    }
+
     initial->statements()->Add<Finish>(SourceInfo());
   }
 
@@ -638,20 +671,124 @@ std::vector<std::string> ModuleTestbench::GatherExpectedTraces() const {
   return expected_traces;
 }
 
-absl::Status ModuleTestbench::Run() {
+absl::Status ModuleTestbench::Run() const {
+  XLS_VLOG(1) << "ModuleTestbench::Run()";
+  if (!streams_.empty()) {
+    return absl::InvalidArgumentError(
+        "Testbenches with streaming IO should be run with RunWithStreamingIO");
+  }
   std::string verilog_text = GenerateVerilog();
   XLS_VLOG_LINES(3, verilog_text);
-
   std::pair<std::string, std::string> stdout_stderr;
   XLS_ASSIGN_OR_RETURN(stdout_stderr,
                        simulator_->Run(verilog_text, file_type_,
                                        /*macro_definitions=*/{}, includes_));
+  XLS_VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
+  XLS_VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;
+  const std::string& stdout_str = stdout_stderr.first;
+  return CaptureOutputsAndCheckExpectations(stdout_str);
+}
+
+absl::Status ModuleTestbench::RunWithStreamingIo(
+    const absl::flat_hash_map<std::string, TestbenchStreamThread::Producer>&
+        input_producers,
+    const absl::flat_hash_map<std::string, TestbenchStreamThread::Consumer>&
+        output_consumers) const {
+  XLS_VLOG(1) << "ModuleTestbench::RunWithStreamingIo()";
+
+  // Verify all inputs and output consumer/producers are there.
+  for (const std::unique_ptr<TestbenchStream>& stream : streams_) {
+    if (stream->direction == TestbenchStreamDirection::kInput) {
+      if (!input_producers.contains(stream->name)) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Missing producer for input stream `%s`", stream->name));
+      }
+    } else {
+      if (!output_consumers.contains(stream->name)) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Missing consumer for output stream `%s`", stream->name));
+      }
+    }
+  }
+  if (input_producers.size() + output_consumers.size() > streams_.size()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Too many producers/consumers specified (%d). Expected %d.",
+        input_producers.size() + output_consumers.size(), streams_.size()));
+  }
+
+  std::string verilog_text = GenerateVerilog();
+  XLS_VLOG_LINES(3, verilog_text);
+
+  XLS_ASSIGN_OR_RETURN(TempDirectory temp_dir, TempDirectory::Create());
+  std::vector<VerilogSimulator::MacroDefinition> macro_definitions;
+
+  std::vector<TestbenchStreamThread> stream_threads;
+  stream_threads.reserve(streams_.size());
+  for (const std::unique_ptr<TestbenchStream>& stream : streams_) {
+    std::filesystem::path stream_path = temp_dir.path() / stream->name;
+    XLS_ASSIGN_OR_RETURN(TestbenchStreamThread thread,
+                         TestbenchStreamThread::Create(*stream, stream_path));
+    stream_threads.push_back(std::move(thread));
+    if (stream->direction == TestbenchStreamDirection::kInput) {
+      stream_threads.back().RunInputStream(input_producers.at(stream->name));
+    } else {
+      stream_threads.back().RunOutputStream(output_consumers.at(stream->name));
+    }
+    macro_definitions.push_back(VerilogSimulator::MacroDefinition{
+        stream->path_macro_name,
+        absl::StrFormat("\"%s\"", stream_path.string())});
+  }
+  XLS_VLOG(1) << "Starting simulation.";
+  std::pair<std::string, std::string> stdout_stderr;
+  XLS_ASSIGN_OR_RETURN(
+      stdout_stderr,
+      simulator_->Run(verilog_text, file_type_, macro_definitions, includes_));
+
+  XLS_VLOG(1) << "Simulation done.";
+
+  for (TestbenchStreamThread& thread : stream_threads) {
+    XLS_RETURN_IF_ERROR(thread.Join());
+  }
 
   XLS_VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
   XLS_VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;
 
   const std::string& stdout_str = stdout_stderr.first;
   return CaptureOutputsAndCheckExpectations(stdout_str);
+}
+
+static std::string GetPipePathMacroName(std::string_view stream_name) {
+  return absl::StrFormat("__%s_PIPE_PATH", absl::AsciiStrToUpper(stream_name));
+}
+
+absl::StatusOr<const TestbenchStream*> ModuleTestbench::CreateInputStream(
+    std::string_view name, int64_t width) {
+  if (stream_names_.contains(name)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Already a I/O stream named `%s`", name));
+  }
+  stream_names_.insert(std::string{name});
+  streams_.push_back(absl::WrapUnique(
+      new TestbenchStream{.name = std::string{name},
+                          .direction = TestbenchStreamDirection::kInput,
+                          .path_macro_name = GetPipePathMacroName(name),
+                          .width = width}));
+  return streams_.back().get();
+}
+
+absl::StatusOr<const TestbenchStream*> ModuleTestbench::CreateOutputStream(
+    std::string_view name, int64_t width) {
+  if (stream_names_.contains(name)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Already a I/O stream named `%s`", name));
+  }
+  stream_names_.insert(std::string{name});
+  streams_.push_back(absl::WrapUnique(
+      new TestbenchStream{.name = std::string{name},
+                          .direction = TestbenchStreamDirection::kOutput,
+                          .path_macro_name = GetPipePathMacroName(name),
+                          .width = width}));
+  return streams_.back().get();
 }
 
 }  // namespace verilog

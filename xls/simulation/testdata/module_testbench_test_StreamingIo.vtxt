@@ -1,0 +1,147 @@
+module test_module(
+  input wire clk,
+  input wire [31:0] in,
+  output wire [31:0] out
+);
+  reg [31:0] p0;
+  reg [31:0] p1;
+  always @ (posedge clk) begin
+    p0 <= in;
+    p1 <= p0;
+  end
+  assign out = p1;
+endmodule
+
+
+module testbench;
+  reg clk;
+  reg [31:0] in;
+  wire [31:0] out;
+  test_module dut (
+    .clk(clk),
+    .in(in),
+    .out(out)
+  );
+
+  // Clock generator.
+  initial begin
+    clk = 0;
+    forever #5 clk = !clk;
+  end
+
+  // Variable declarations for supporting streaming I/O.
+  integer __my_input_fd;
+  integer __my_input_cnt;
+  integer __my_input_errno;
+  reg [2047:0] __my_input_error_str;
+  integer __my_output_fd;
+  integer __my_output_cnt;
+  integer __my_output_errno;
+  reg [2047:0] __my_output_error_str;
+
+  // Open files for I/O.
+  initial begin
+    __my_input_fd = $fopen(`__MY_INPUT_PIPE_PATH, "r");
+    if (__my_input_fd == 0) begin
+      __my_input_errno = $ferror(__my_input_fd, __my_input_error_str);
+      $display("FAILED: cannot open file for stream `my_input` [errno %d]: %s", __my_input_errno, __my_input_error_str);
+      $finish;
+    end
+    __my_output_fd = $fopen(`__MY_OUTPUT_PIPE_PATH, "w");
+    if (__my_output_fd == 0) begin
+      __my_output_errno = $ferror(__my_output_fd, __my_output_error_str);
+      $display("FAILED: cannot open file for stream `my_output` [errno %d]: %s", __my_output_errno, __my_output_error_str);
+      $finish;
+    end
+  end
+
+  // Monitor for input/output ports.
+  initial begin
+    $display("Clock rises at 5, 15, 25, ....");
+    $display("Signals driven one time unit after rising clock.");
+    $display("Signals sampled one time unit before rising clock.");
+    $display("Starting simulation. Monitor output:");
+    $monitor("%t in: %d out: %d", $time, in, out);
+  end
+
+  // Thread `watchdog`. Drives signals: <none>
+  initial begin
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    // Wait 100010 cycle(s).
+    repeat (100009) begin
+      @(posedge clk);
+    end
+    #1;
+    @(posedge clk);
+    #1;
+    $display("ERROR: timeout, simulation ran too long (100010 cycles).");
+    $finish;
+  end
+
+  // Thread `input`. Drives signals: in
+  reg __thread_input_done;
+  initial begin
+    in = 32'dx;
+    __thread_input_done = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    repeat (100000) begin
+      // Reading value from stream `my_input`
+      __my_input_cnt = $fscanf(__my_input_fd, "%x\n", in);
+      if (__my_input_cnt == 0) begin
+        $display("FAILED: $fscanf of file for stream `my_input` failed.");
+        $finish;
+      end
+      // Wait 1 cycle(s).
+      @(posedge clk);
+      #1;
+    end
+
+    __thread_input_done = 1'h1;
+  end
+
+  // Thread `output`. Drives signals: <none>
+  reg __thread_output_done;
+  initial begin
+    __thread_output_done = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+    repeat (100000) begin
+      // Wait 1 cycle(s).
+      #8;
+      $fwriteh(__my_output_fd, out);
+      $fwrite(__my_output_fd, "\n");
+      @(posedge clk);
+      #1;
+    end
+
+    __thread_output_done = 1'h1;
+  end
+
+  // Thread completion monitor.
+  initial begin
+    @(posedge clk);
+    #9;
+    while (!(__thread_input_done && __thread_output_done)) begin
+      @(posedge clk);
+      #9;
+    end
+    @(posedge clk);
+    #1;
+    $fclose(__my_input_fd);
+    $fclose(__my_output_fd);
+    $finish;
+  end
+endmodule

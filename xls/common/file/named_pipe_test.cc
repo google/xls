@@ -14,12 +14,17 @@
 
 #include "xls/common/file/named_pipe.h"
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
+#include <optional>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/logging.h"
@@ -70,6 +75,44 @@ TEST(NamedPipeTest, MultipleReadAndWrite) {
     EXPECT_THAT(fr.ReadLine(),
                 IsOkAndHolds(Optional(absl::StrFormat("Line #%d", i))));
   }
+}
+
+TEST(NamedPipeTest, PipeImmediatelyClosedOnWriteEnd) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
+  std::filesystem::path path = temp_dir.path() / "the_pipe";
+  XLS_ASSERT_OK_AND_ASSIGN(NamedPipe pipe, NamedPipe::Create(path));
+
+  Thread write_thread(
+      [&pipe]() { FileLineWriter fw = pipe.OpenForWriting().value(); });
+  XLS_ASSERT_OK_AND_ASSIGN(FileLineReader fr, pipe.OpenForReading());
+
+  EXPECT_THAT(fr.ReadLine(), IsOkAndHolds(std::nullopt));
+  write_thread.Join();
+}
+
+TEST(NamedPipeTest, FullBuffer) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
+  std::filesystem::path path = temp_dir.path() / "the_pipe";
+  XLS_ASSERT_OK_AND_ASSIGN(NamedPipe pipe, NamedPipe::Create(path));
+  // Write a sufficiently large number of values to fill the pipe buffer.
+  constexpr int64_t kCount = 1'000'000;
+
+  Thread write_thread([&pipe]() {
+    FileLineWriter fw = pipe.OpenForWriting().value();
+    for (int64_t i = 0; i < kCount; ++i) {
+      XLS_CHECK_OK(fw.WriteLine(absl::StrFormat("Line #%d", i)));
+    }
+  });
+
+  // Wait for some amount of time for the pipe buffer to fill.
+  absl::SleepFor(absl::Seconds(5));
+
+  XLS_ASSERT_OK_AND_ASSIGN(FileLineReader fr, pipe.OpenForReading());
+  for (int64_t i = 0; i < kCount; ++i) {
+    EXPECT_THAT(fr.ReadLine(),
+                IsOkAndHolds(Optional(absl::StrFormat("Line #%d", i))));
+  }
+  write_thread.Join();
 }
 
 TEST(NamedPipeTest, EmptyLines) {

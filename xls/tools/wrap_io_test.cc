@@ -67,7 +67,8 @@ TEST_P(WrapIOTest, Ice40WrapIOIdentity32b) {
 
   XLS_VLOG(1) << file.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 file.Emit(), includes);
+                                 file.Emit(), /*macro_definitions=*/{},
+                                 includes);
 }
 
 TEST_P(WrapIOTest, WrapIOIncrement8b) {
