@@ -1165,7 +1165,8 @@ and the fact that DSLX considers this valid may change in the
 
 ### Unary Expressions
 
-DSLX supports three types of unary expressions:
+DSLX supports two types of unary expressions with type signature
+`(xN[N]) -> xN[N]`:
 
 *   bit-wise not (the `!` operator)
 *   negate (the `-` operator, computes the two's complement negation)
@@ -1177,8 +1178,10 @@ binary expressions. A category where both operands to the expression must be of
 the same bit type (i.e., not arrays or tuples), and a category where the
 operands can be of arbitrary bit types (i.e. shift expressions).
 
-*   shift-right (`>>`)
-*   shift-left (`<<`)
+#### Expressions with operands of the same type.
+
+The following expressions have type signature `(xN[N], xN[N]) -> xN[N]`.
+
 *   bit-wise or (`|`)
 *   bit-wise and (`&`)
 *   add (`+`)
@@ -1188,14 +1191,28 @@ operands can be of arbitrary bit types (i.e. shift expressions).
 *   logical or (`||`)
 *   logical and (`&&`)
 
+Things like
+[`std::smul`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+smul%22) are
+convenient helpers when you are working with mixed widths. Because these
+expressions return the same type as the operands, if you want a carry you need
+to widen the inputs (e.g.
+[`std::uadd_with_overflow`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+uadd_with_overflow%22)
+). The optimizer will narrow the operands and produce efficient hardware,
+especially with trivial zero-/sign-extended operands like `std::smul` and
+`std::uadd_with_overflow`.
+
 #### Shift Expressions
 
-Shift expressions include: shift-right (logical) and shift-left. These are
-binary operations that don't require the same type on the left and right hand
-side. The right hand side must be unsigned, but it does not need to be the same
-type or width as the left hand side, i.e. the type signature for these
-operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a literal
-value it does not need to be type annotated. For example:
+Shift expressions include:
+
+*   shift-right logical (`>>`)
+*   shift-left (`<<`)
+
+These are binary operations that don't require the same type on the left and
+right hand side. The right hand side must be unsigned, but it does not need to
+be the same type or width as the left hand side, i.e. the type signature for
+these operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a
+literal value it does not need to be type annotated. For example:
 
 ```dslx
 fn shr_two(x: s32) -> s32 {
