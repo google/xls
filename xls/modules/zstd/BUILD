@@ -140,6 +140,15 @@ xls_dslx_test(
     library = ":magic_dslx",
 )
 
+cc_library(
+    name = "zstd_test_data_generator",
+    srcs = ["zstd_test_data_generator.cc"],
+    hdrs = ["zstd_test_data_generator.h"],
+    data = [
+        "@com_github_facebook_zstd//:decodecorpus",
+    ],
+)
+
 xls_dslx_library(
     name = "frame_header_dslx",
     srcs = [
