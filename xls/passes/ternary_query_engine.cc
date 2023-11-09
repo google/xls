@@ -15,18 +15,23 @@
 #include "xls/passes/ternary_query_engine.h"
 
 #include <algorithm>
-#include <limits>
+#include <cstdint>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_node_evaluator.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
-#include "xls/ir/dfs_visitor.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/op.h"
+#include "xls/ir/ternary.h"
+#include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_evaluator.h"
 
 namespace xls {
@@ -42,27 +47,6 @@ static bool IsExpensiveToEvaluate(Node* node) {
   return (node->op() == Op::kShrl || node->op() == Op::kShra ||
           node->op() == Op::kShll) &&
          node->GetType()->GetFlatBitCount() > 256;
-}
-
-static Bits TernaryVectorToKnownBits(
-    const TernaryEvaluator::Vector& ternary_vector) {
-  // Use InlinedVector to avoid std::vector<bool> specialization madness.
-  absl::InlinedVector<bool, 1> bits(ternary_vector.size());
-  for (int64_t i = 0; i < bits.size(); ++i) {
-    bits[i] = (ternary_vector[i] == TernaryValue::kKnownOne ||
-               ternary_vector[i] == TernaryValue::kKnownZero);
-  }
-  return Bits(bits);
-}
-
-static Bits TernaryVectorToValueBits(
-    const TernaryEvaluator::Vector& ternary_vector) {
-  // Use InlinedVector to avoid std::vector<bool> specialization madness.
-  absl::InlinedVector<bool, 1> bits(ternary_vector.size());
-  for (int64_t i = 0; i < bits.size(); ++i) {
-    bits[i] = ternary_vector[i] == TernaryValue::kKnownOne;
-  }
-  return Bits(bits);
 }
 
 absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
@@ -102,9 +86,9 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
         bits_values_[node] = Bits(values.at(node).size());
       }
       Bits combined_known_bits = bits_ops::Or(
-          known_bits_[node], TernaryVectorToKnownBits(values.at(node)));
+          known_bits_[node], ternary_ops::ToKnownBits(values.at(node)));
       Bits combined_bits_values = bits_ops::Or(
-          bits_values_[node], TernaryVectorToValueBits(values.at(node)));
+          bits_values_[node], ternary_ops::ToKnownBitsValues(values.at(node)));
       if ((combined_known_bits != known_bits_[node]) ||
           (combined_bits_values != bits_values_[node])) {
         rf = ReachedFixpoint::Changed;

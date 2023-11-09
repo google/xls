@@ -616,15 +616,20 @@ cc_library(
     deps = [
         ":query_engine",
         ":ternary_evaluator",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:abstract_node_evaluator",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:op",
+        "//xls/ir:ternary",
+        "//xls/ir:type",
     ],
 )
 
@@ -1690,6 +1695,7 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:ternary",
     ],
 )
 

@@ -18,10 +18,18 @@
 #include <optional>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "absl/types/variant.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
