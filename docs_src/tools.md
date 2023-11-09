@@ -176,9 +176,34 @@ BOM_KIND_COMPARISON,ne,25,1,1
 
 ## [`dslx_fmt`](https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc)
 
-**WIP / EXPERIMENTAL** auto-formatter for DSLX code (i.e. `.x` files). Not yet
-recommended for use / in development, but being built up with analogous
-capability to rustfmt / clang-format.
+Auto-formatter for DSLX code (i.e. `.x` files). This is analogous to rustfmt /
+clang-format.
+
+To format a file in-place, use the `-i` flag:
+
+```
+$ bazel build -c opt //xls/dslx:dslx_fmt
+$ echo 'fn f(x:u32)->u32{x}' > /tmp/my_file.x
+$ ./bazel-bin/xls/dslx/dslx_fmt -i /tmp/my_file.x
+$ cat /tmp/my_file.x
+fn f(x: u32) -> u32 { x }
+```
+
+Without the `-i` flag the formatted result is given in the standard output from
+the tool and the input file path remains unchanged.
+
+**Note:** there is also a Bazel build construct to ensure files remain
+auto-formatted using the latest `dslx_fmt` results:
+
+```
+xls_dslx_fmt_test(
+    name = "my_file_dslx_fmt_test",
+    src = "my_file.x",
+)
+```
+
+Also see the
+[Bazel rule documentation for `xls_dslx_fmt_test`](https://google.github.io/xls/bazel_rules_macros/#xls_dslx_fmt_test).
 
 ## [`proto_to_dslx_main`](https://github.com/google/xls/tree/main/xls/tools/proto_to_dslx_main.cc)
 
