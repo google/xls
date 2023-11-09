@@ -18,8 +18,6 @@ on:
 
 jobs:
   build:
-            bazelisk-platform: linux-amd64
-            bazelisk-version: v1.18.0
     name: Bazel Build (opt)
     runs-on:
       labels: ubuntu-20.04-64core
