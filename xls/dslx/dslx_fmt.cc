@@ -16,6 +16,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -54,9 +55,14 @@ const char* kUsage = R"(
 Formats the DSLX source code present inside of a `.x` file.
 )";
 
-absl::Status RealMain(const std::filesystem::path& path,
+absl::Status RealMain(std::string_view input_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       bool in_place, const std::string& mode) {
+  if (input_path == "-") {
+    input_path = "/dev/stdin";
+  }
+  std::filesystem::path path = input_path;
+
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path.c_str()));
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
 
