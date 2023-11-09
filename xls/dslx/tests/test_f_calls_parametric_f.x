@@ -12,20 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn p<N: u32>(_: bits[N]) -> u8 {
-  N as u8
-}
+fn p<N: u32>(_: bits[N]) -> u8 { N as u8 }
 
 fn main() -> u8 {
-  match false {
-    // TODO(cdleary): 2020-08-05 Turn this match arm into a wildcard match when
-    // https://github.com/google/xls/issues/75 is resolved.
-    false => p(u8:0),
-    _ => u8:0
-  }
+    match false {
+        // TODO(cdleary): 2020-08-05 Turn this match arm into a wildcard match when
+        // https://github.com/google/xls/issues/75 is resolved.
+        false => p(u8:0),
+        _ => u8:0,
+    }
 }
 
 #[test]
-fn main_test() {
-  assert_eq(u8:8, main())
-}
+fn main_test() { assert_eq(u8:8, main()) }

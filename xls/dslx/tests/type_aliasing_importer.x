@@ -18,13 +18,11 @@ import xls.dslx.tests.mod_struct_point
 
 type Point = mod_struct_point::Point;
 
-fn main() -> Point {
-  Point{x: u32:42, y: u32:64}
-}
+fn main() -> Point { Point { x: u32:42, y: u32:64 } }
 
 #[test]
 fn main_test() {
-  let p: Point = main();
-  assert_eq(p.x, u32:42);
-  assert_eq(p.y, u32:64);
+    let p: Point = main();
+    assert_eq(p.x, u32:42);
+    assert_eq(p.y, u32:64);
 }

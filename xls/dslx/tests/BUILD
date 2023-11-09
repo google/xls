@@ -398,8 +398,6 @@ xls_dslx_library(
 dslx_lang_test(
     name = "type_aliasing_importer",
     dslx_deps = [":mod_struct_point_dslx"],
-    # TODO(leary): 2023-10-20 Somehow this is manifesting a colon-ref.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -609,8 +607,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "parametric_with_comparison",
-    # TODO(leary): 2023-10-20 Parametric on instantiation side missing {} delimiters.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -690,8 +686,6 @@ xls_dslx_library(
 dslx_lang_test(
     name = "mod_importer_struct_of_enum",
     dslx_deps = [":mod_imported_struct_of_enum_dslx"],
-    # TODO(leary): 2023-10-20 Somehow this is manifesting a colon-ref.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -702,8 +696,6 @@ dslx_lang_test(
 dslx_lang_test(
     name = "mod_struct_importer",
     dslx_deps = [":mod_imported_dslx"],
-    # TODO(leary): 2023-10-20 Somehow this is manifesting a colon-ref.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -765,8 +757,6 @@ xls_dslx_library(
 dslx_lang_test(
     name = "mod_typedef_importer",
     dslx_deps = [":mod_imported_aliases_dslx"],
-    # TODO(leary): 2023-10-20 Somehow this is manifesting a colon-ref.
-    test_autofmt = False,
 )
 
 dslx_lang_test(name = "array_ellipsis")
@@ -821,13 +811,10 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "test_f_calls_parametric_f",
-    # TODO(leary): 2023-10-20 Deletes comment on match arm.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
     name = "array_concat",
-    test_autofmt = True,
 )
 
 dslx_lang_test(name = "for_up_to_const")

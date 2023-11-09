@@ -17,12 +17,10 @@ import xls.dslx.tests.mod_imported_struct_of_enum
 type MyEnum2 = mod_imported_struct_of_enum::MyEnum;
 type MyStruct2 = mod_imported_struct_of_enum::MyStruct;
 
-fn main(x: u8) -> MyStruct2 {
-  MyStruct2 { x: x as MyEnum2 }
-}
+fn main(x: u8) -> MyStruct2 { MyStruct2 { x: x as MyEnum2 } }
 
 #[test]
 fn main_test() {
-  let s: MyStruct2 = main(u8:42);
-  assert_eq(s.x, MyEnum2::FOO)
+    let s: MyStruct2 = main(u8:42);
+    assert_eq(s.x, MyEnum2::FOO)
 }
