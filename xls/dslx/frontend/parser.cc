@@ -1822,8 +1822,9 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
         }
 
         if (!NameUniquer::IsValidIdentifier(label->text())) {
-          return ParseErrorStatus(
-              span, "A fail! label must be a valid Verilog identifier.");
+          return ParseErrorStatus(label->span(),
+                                  "The label parameter to fail!() must be a "
+                                  "valid Verilog identifier.");
         }
         XLS_RETURN_IF_ERROR(
             bindings.AddFailLabel(label->text(), label->span()));

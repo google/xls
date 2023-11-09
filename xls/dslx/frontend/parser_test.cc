@@ -1989,4 +1989,28 @@ fn test_f() {
       << module_or.status();
 }
 
+TEST(ParserErrorTest, FailLabelVerilogIdentifierConstraintReported) {
+  constexpr std::string_view kProgram = R"(
+fn will_fail(x:u32) -> u32 {
+   fail!("not a proper label", x)
+}
+)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+
+  // Check expected message
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("The label parameter to fail!() must be a valid Verilog")))
+      << module_or.status();
+
+  // Highlight span of the label parameter
+  EXPECT_THAT(module_or.status(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           HasSubstr("test.x:3:10-3:30")))
+      << module_or.status();
+}
+
 }  // namespace xls::dslx
