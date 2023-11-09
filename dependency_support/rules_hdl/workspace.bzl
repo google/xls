@@ -28,10 +28,17 @@ def repo():
             "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.8.0/rules_pkg-0.8.0.tar.gz",
         ],
     )
+    # Required to support rules_hdl.
+    http_archive(
+	name = "rules_7zip",
+	strip_prefix = "rules_7zip-e00b15d3cb76b78ddc1c15e7426eb1d1b7ddaa3e",
+	urls = ["https://github.com/zaucy/rules_7zip/archive/e00b15d3cb76b78ddc1c15e7426eb1d1b7ddaa3e.zip"],
+	sha256 = "fd9e99f6ccb9e946755f9bc444abefbdd1eedb32c372c56dcacc7eb486aed178",
+    )
 
-    # Commit on 2023-10-04 -- Merge pull request #196 from mithro/openroad-upgrade
-    git_hash = "64688e60b06b5e3bcf277468d9afdc1fa0a7b98c"
-    archive_sha256 = "2643614fa0625500284937012af7df74579ccd2298559231f7e78328dce15d6d"
+    # Commit on 2023-11-09 -- Merge pull request #206 from mithro/asap7-improve
+    git_hash = "53a8adf1ea50ab7be80869b1b38fc386fa32de7a"
+    archive_sha256 = "75dd9100ca00ecbed9a9672560e3f40ae19498ff26dc546c2b2730b73d5c783a"
 
     maybe(
         http_archive,

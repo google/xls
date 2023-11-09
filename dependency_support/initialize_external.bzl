@@ -27,6 +27,7 @@ load("@rules_hdl//toolchains/cpython:cpython_toolchain.bzl", rules_hdl_register_
 load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
 load("@rules_python//python:pip.bzl", "pip_parse")
 load("@rules_python//python:repositories.bzl", "py_repositories")
+load("@rules_7zip//:setup.bzl", "setup_7zip")
 
 def initialize_external_repositories():
     """Calls set-up methods for external repositories that require that."""
@@ -35,6 +36,7 @@ def initialize_external_repositories():
     rules_hdl_register_cpython_repository()
     rules_hdl_init(python_interpreter_target = python_interpreter_target)
     rules_hdl_dependency_support()
+    setup_7zip()
     rules_closure_dependencies()
     rules_closure_toolchains()
     rules_proto_dependencies()
