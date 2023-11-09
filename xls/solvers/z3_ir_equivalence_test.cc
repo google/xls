@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_pass_equivalence.h"
+#include "xls/solvers/z3_ir_equivalence.h"
 
 #include <memory>
 
@@ -31,9 +31,11 @@
 
 namespace xls::solvers::z3 {
 namespace {
+
 using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
-using testing::Not;
+
+using ::testing::Not;
 
 class EquivalenceTest : public IrTestBase {};
 
@@ -58,18 +60,18 @@ TEST_F(EquivalenceTest, EquivalentTransformIsEquivalent) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(
       TryProveEquivalence(f,
-                        [](Package* p, Function* f) -> absl::Status {
-                          // Reverse all the binary operations
-                          for (Node* n : TopoSort(f)) {
-                            if (n->Is<BinOp>()) {
-                              XLS_RETURN_IF_ERROR(
-                                  n->ReplaceUsesWithNew<BinOp>(
-                                       n->operand(1), n->operand(0), n->op())
-                                      .status());
+                          [](Package* p, Function* f) -> absl::Status {
+                            // Reverse all the binary operations
+                            for (Node* n : TopoSort(f)) {
+                              if (n->Is<BinOp>()) {
+                                XLS_RETURN_IF_ERROR(
+                                    n->ReplaceUsesWithNew<BinOp>(
+                                         n->operand(1), n->operand(0), n->op())
+                                        .status());
+                              }
                             }
-                          }
-                          return absl::OkStatus();
-                        }),
+                            return absl::OkStatus();
+                          }),
       IsOkAndHolds(true));
 }
 
@@ -82,18 +84,18 @@ TEST_F(EquivalenceTest, EquivalentArrayTransformIsEquivalent) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(
       TryProveEquivalence(f,
-                        [](Package* p, Function* f) -> absl::Status {
-                          // Reverse all the binary operations
-                          for (Node* n : TopoSort(f)) {
-                            if (n->Is<BinOp>()) {
-                              XLS_RETURN_IF_ERROR(
-                                  n->ReplaceUsesWithNew<BinOp>(
-                                       n->operand(1), n->operand(0), n->op())
-                                      .status());
+                          [](Package* p, Function* f) -> absl::Status {
+                            // Reverse all the binary operations
+                            for (Node* n : TopoSort(f)) {
+                              if (n->Is<BinOp>()) {
+                                XLS_RETURN_IF_ERROR(
+                                    n->ReplaceUsesWithNew<BinOp>(
+                                         n->operand(1), n->operand(0), n->op())
+                                        .status());
+                              }
                             }
-                          }
-                          return absl::OkStatus();
-                        }),
+                            return absl::OkStatus();
+                          }),
       IsOkAndHolds(true));
 }
 
@@ -106,18 +108,18 @@ TEST_F(EquivalenceTest, EquivalentBitsTransformIsEquivalent) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(
       TryProveEquivalence(f,
-                        [](Package* p, Function* f) -> absl::Status {
-                          // Reverse all the binary operations
-                          for (Node* n : TopoSort(f)) {
-                            if (n->Is<BinOp>()) {
-                              XLS_RETURN_IF_ERROR(
-                                  n->ReplaceUsesWithNew<BinOp>(
-                                       n->operand(1), n->operand(0), n->op())
-                                      .status());
+                          [](Package* p, Function* f) -> absl::Status {
+                            // Reverse all the binary operations
+                            for (Node* n : TopoSort(f)) {
+                              if (n->Is<BinOp>()) {
+                                XLS_RETURN_IF_ERROR(
+                                    n->ReplaceUsesWithNew<BinOp>(
+                                         n->operand(1), n->operand(0), n->op())
+                                        .status());
+                              }
                             }
-                          }
-                          return absl::OkStatus();
-                        }),
+                            return absl::OkStatus();
+                          }),
       IsOkAndHolds(true));
 }
 
@@ -130,18 +132,18 @@ TEST_F(EquivalenceTest, NonEquivalentTransform) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(
       TryProveEquivalence(f,
-                        [](Package* p, Function* f) -> absl::Status {
-                          // Reverse all the binary operations
-                          for (Node* n : TopoSort(f)) {
-                            if (n->Is<BinOp>()) {
-                              XLS_RETURN_IF_ERROR(
-                                  n->ReplaceUsesWithNew<BinOp>(
-                                       n->operand(1), n->operand(0), n->op())
-                                      .status());
+                          [](Package* p, Function* f) -> absl::Status {
+                            // Reverse all the binary operations
+                            for (Node* n : TopoSort(f)) {
+                              if (n->Is<BinOp>()) {
+                                XLS_RETURN_IF_ERROR(
+                                    n->ReplaceUsesWithNew<BinOp>(
+                                         n->operand(1), n->operand(0), n->op())
+                                        .status());
+                              }
                             }
-                          }
-                          return absl::OkStatus();
-                        }),
+                            return absl::OkStatus();
+                          }),
       IsOkAndHolds(false));
 }
 
@@ -153,9 +155,9 @@ TEST_F(EquivalenceTest, DetectsReturnTypeChange) {
   fb.Tuple({fb.UDiv(x, y), fb.Subtract(x, y), fb.UMod(x, y)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(TryProveEquivalence(f,
-                                [](Package* p, Function* f) -> absl::Status {
-                                  return f->set_return_value(f->param(0));
-                                }),
+                                  [](Package* p, Function* f) -> absl::Status {
+                                    return f->set_return_value(f->param(0));
+                                  }),
               Not(IsOk()));
 }
 
@@ -169,9 +171,9 @@ TEST_F(EquivalenceTest, DetectsParamShift) {
   fb.Tuple({fb.UDiv(x, y), fb.Subtract(x, y), fb.UMod(x, y)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(TryProveEquivalence(f,
-                                [](Package* p, Function* f) -> absl::Status {
-                                  return f->MoveParamToIndex(f->param(2), 0);
-                                }),
+                                  [](Package* p, Function* f) -> absl::Status {
+                                    return f->MoveParamToIndex(f->param(2), 0);
+                                  }),
               Not(IsOk()));
 }
 

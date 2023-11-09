@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/solvers/z3_pass_equivalence.h"
+#include "xls/solvers/z3_ir_equivalence.h"
 
 #include <cstdint>
 #include <functional>

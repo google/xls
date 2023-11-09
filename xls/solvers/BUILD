@@ -47,9 +47,9 @@ cc_test(
 )
 
 cc_library(
-    name = "z3_pass_equivalence",
-    srcs = ["z3_pass_equivalence.cc"],
-    hdrs = ["z3_pass_equivalence.h"],
+    name = "z3_ir_equivalence",
+    srcs = ["z3_ir_equivalence.cc"],
+    hdrs = ["z3_ir_equivalence.h"],
     deps = [
         ":z3_ir_translator",
         "@com_google_absl//absl/algorithm:container",
@@ -70,10 +70,10 @@ cc_library(
 )
 
 cc_test(
-    name = "z3_pass_equivalence_test",
-    srcs = ["z3_pass_equivalence_test.cc"],
+    name = "z3_ir_equivalence_test",
+    srcs = ["z3_ir_equivalence_test.cc"],
     deps = [
-        ":z3_pass_equivalence",
+        ":z3_ir_equivalence",
         "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

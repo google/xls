@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SOLVERS_Z3_PASS_EQUIVALENCE_H_
-#define XLS_SOLVERS_Z3_PASS_EQUIVALENCE_H_
+#ifndef XLS_SOLVERS_Z3_IR_EQUIVALENCE_H_
+#define XLS_SOLVERS_Z3_IR_EQUIVALENCE_H_
 
 #include <functional>
 
@@ -51,4 +51,4 @@ absl::StatusOr<bool> TryProveEquivalence(
 
 }  // namespace xls::solvers::z3
 
-#endif  // XLS_SOLVERS_Z3_PASS_EQUIVALENCE_H_
+#endif  // XLS_SOLVERS_Z3_IR_EQUIVALENCE_H_
