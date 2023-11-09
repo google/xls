@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/base/config.h"  // IWYU pragma: keep
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -70,15 +71,72 @@ bool ShouldMaterializeAtUse(Node* node) {
 
 namespace {
 
+// Abstraction representing a value carried across iterations of the loop.
+struct LoopCarriedValue {
+  std::string name;
+  llvm::Value* initial_value;
+};
+
 // Abstraction representing a simple loop in LLVM.
+//
+// Loop structure is:
+//
+//   basic_block: // BB from constructor arg `builder`
+//     ...
+//     br preheader:
+//
+//   preheader:
+//     index = phi(0, next_index)
+//     cond = eq(index, loop_count)
+//     br(cond, exit, body)
+//
+//   body:
+//     ...
+//     next_index = index + 1
+//     br preheader
+//
+//   exit:
+//     ...
 class LlvmIrLoop {
  public:
+  // Creates a simple loop in LLVM IR which iterates `loop_count` times.
+  //
+  // `loop_carried_values` are values which are carried across loop iterations.
+  // LoopCarriedValue defines a variable name and initial value. When finalized,
+  // the next-iteration value is specified. Loop carried values are defined in
+  // the preheader:
+  //
+  //   basic_block:
+  //     init_value = ...
+  //     ...
+  //
+  //   preheader:
+  //     my_variable = phi(init_value, next_my_variable)
+  //     ...
+  //     br(cond, exit, body)
+  //
+  //   body:
+  //     ...
+  //     next_my_variable = ...
+  //     br preheader
+  //
+  //   exit:
+  //     ...
+
   LlvmIrLoop(int64_t loop_count, llvm::IRBuilder<>& builder, int64_t stride = 1,
-             llvm::BasicBlock* insert_before = nullptr);
+             llvm::BasicBlock* insert_before = nullptr,
+             absl::Span<const LoopCarriedValue> loop_carried_values = {});
   ~LlvmIrLoop() { XLS_CHECK(finalized_); }
 
   // Index value ranging from 0 ... (N-1) * stride. Type is i64.
   llvm::Value* index() { return index_; }
+
+  // Returns llvm::Value* for the loop-carried value with the given name. This
+  // value can be used in the body of the loop and in the exit block of the
+  // loop.
+  llvm::Value* GetLoopCarriedValue(std::string_view name) const {
+    return loop_carried_values_phis_.at(name);
+  }
 
   // Builders for the loop body block and the exit block.
   llvm::IRBuilder<>& body_builder() { return *body_builder_; }
@@ -97,12 +155,29 @@ class LlvmIrLoop {
   // `final_body_block_builder` if specified is the builder for the final basic
   // block in the loop body. If not specified, then `body_builder` will be
   // used. This builder will be used to construct the back edge of the loop.
-  void Finalize(std::optional<llvm::IRBuilder<>*> final_body_block_builder =
-                    std::nullopt) {
+  //
+  // `next_loop_carried_values` should contain an entry for each
+  // LoopCarriedValue passed into the constructor. The entry in the map is the
+  // loop-carried value of the variable in the next iteration of the loop.
+  void Finalize(
+      std::optional<llvm::IRBuilder<>*> final_body_block_builder = std::nullopt,
+      const absl::flat_hash_map<std::string, llvm::Value*>&
+          next_loop_carried_values = {}) {
     XLS_CHECK(!finalized_);
+
     llvm::IRBuilder<>* b = final_body_block_builder.has_value()
                                ? final_body_block_builder.value()
                                : body_builder_.get();
+    for (const LoopCarriedValue& loop_carried_value : loop_carried_values_) {
+      XLS_CHECK(next_loop_carried_values.contains(loop_carried_value.name))
+          << absl::StrFormat(
+                 "No next value specified for loop-carried value `%s`",
+                 loop_carried_value.name);
+      loop_carried_values_phis_.at(loop_carried_value.name)
+          ->addIncoming(next_loop_carried_values.at(loop_carried_value.name),
+                        b->GetInsertBlock());
+    }
+
     llvm::Value* next_index = b->CreateAdd(index_, b->getInt64(stride_));
     next_index->setName("next_index");
     b->CreateBr(preheader_block_);
@@ -113,6 +188,8 @@ class LlvmIrLoop {
  private:
   // The stride of the loop.
   int64_t stride_;
+
+  std::vector<LoopCarriedValue> loop_carried_values_;
 
   // Preheader basic block. The preheader looks like:
   //
@@ -132,13 +209,18 @@ class LlvmIrLoop {
   // anywhere in the preheader or body.
   llvm::PHINode* index_;
 
+  // Phi nodes for loop-carried values. Indexed by name.
+  absl::flat_hash_map<std::string, llvm::PHINode*> loop_carried_values_phis_;
+
   bool finalized_ = false;
 };
 
-// Creates a simple loop in LLVM IR which interates `loop_count` times.
 LlvmIrLoop::LlvmIrLoop(int64_t loop_count, llvm::IRBuilder<>& builder,
-                       int64_t stride, llvm::BasicBlock* insert_before)
-    : stride_(stride) {
+                       int64_t stride, llvm::BasicBlock* insert_before,
+                       absl::Span<const LoopCarriedValue> loop_carried_values)
+    : stride_(stride),
+      loop_carried_values_(loop_carried_values.begin(),
+                           loop_carried_values.end()) {
   llvm::Function* function = builder.GetInsertBlock()->getParent();
   llvm::LLVMContext& context = builder.getContext();
   llvm::BasicBlock* entry_block = builder.GetInsertBlock();
@@ -154,11 +236,22 @@ LlvmIrLoop::LlvmIrLoop(int64_t loop_count, llvm::IRBuilder<>& builder,
 
   builder.CreateBr(preheader_block_);
 
+  constexpr std::string_view kIndexName = "index";
   llvm::Value* init_index = preheader_builder->getInt64(0);
-  llvm::Value* index_limit = preheader_builder->getInt64(loop_count * stride);
-
   index_ = preheader_builder->CreatePHI(llvm::Type::getInt64Ty(context), 2);
   index_->setName("index");
+
+  for (const LoopCarriedValue& loop_carried_value : loop_carried_values_) {
+    XLS_CHECK_NE(loop_carried_value.name, kIndexName) << absl::StrFormat(
+        "Name `%s` is reserved for the loop index.", kIndexName);
+    llvm::PHINode* phi = preheader_builder->CreatePHI(
+        loop_carried_value.initial_value->getType(), 2);
+    phi->setName(loop_carried_value.name);
+    phi->addIncoming(loop_carried_value.initial_value, entry_block);
+    loop_carried_values_phis_[loop_carried_value.name] = phi;
+  }
+
+  llvm::Value* index_limit = preheader_builder->getInt64(loop_count * stride);
   llvm::Value* loop_done = preheader_builder->CreateICmpEQ(index_, index_limit);
   loop_done->setName("loop_done");
   preheader_builder->CreateCondBr(loop_done, exit_builder_->GetInsertBlock(),
@@ -2066,25 +2159,35 @@ absl::Status IrBuilderVisitor::HandleEncode(Encode* encode) {
 
   llvm::Type* result_type =
       type_converter()->ConvertToLlvmType(encode->GetType());
-  llvm::Value* result = llvm::ConstantInt::get(result_type, 0);
-
   llvm::Value* result_zero = llvm::ConstantInt::get(result_type, 0);
+
+  const std::string kResultName = "result";
+  LlvmIrLoop loop(encode->operand(0)->BitCountOrDie(), b, /*stride=*/1,
+                  /*insert_before=*/nullptr,
+                  {LoopCarriedValue{kResultName, result_zero}});
+  llvm::Value* result = loop.GetLoopCarriedValue(kResultName);
 
   // For each bit in the input, if it's set, bitwise-OR its [numeric] value
   // with the result.
-  for (int i = 0; i < input_type->getIntegerBitWidth(); ++i) {
-    llvm::Value* bit_set =
-        b.CreateICmpEQ(b.CreateAnd(input, input_one), input_one);
+  llvm::Value* index_as_input_type = loop.body_builder().CreateZExtOrTrunc(
+      loop.index(), input_type, "index_as_input_type");
+  llvm::Value* index_as_result_type = loop.body_builder().CreateZExtOrTrunc(
+      loop.index(), result_type, "index_as_result_type");
 
-    // Chained select, i.e., a = (b ? c : (d ? e : (...))), etc.
-    llvm::Value* or_value = b.CreateSelect(
-        bit_set, llvm::ConstantInt::get(result_type, i), result_zero);
-    result = b.CreateOr(result, or_value);
+  llvm::Value* one_hot_mask = loop.body_builder().CreateShl(
+      input_one, index_as_input_type, "one_hot_mask");
+  llvm::Value* bit_set = loop.body_builder().CreateICmpEQ(
+      loop.body_builder().CreateAnd(input, one_hot_mask), one_hot_mask,
+      "bit_is_set");
+  llvm::Value* or_value = loop.body_builder().CreateSelect(
+      bit_set, index_as_result_type, result_zero);
+  llvm::Value* next_result =
+      loop.body_builder().CreateOr(result, or_value, "next_result");
 
-    input = b.CreateLShr(input, input_one);
-  }
-
-  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  loop.Finalize(/*final_body_block_builder=*/std::nullopt,
+                {{kResultName, next_result}});
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result,
+                                        &loop.exit_builder());
 }
 
 absl::Status IrBuilderVisitor::HandleEq(CompareOp* eq) {

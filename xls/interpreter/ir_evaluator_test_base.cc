@@ -3166,6 +3166,40 @@ TEST_P(IrEvaluatorTestBase, Encode) {
   }
 }
 
+TEST_P(IrEvaluatorTestBase, WideEncode) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
+  package test
+
+  top fn main(x: bits[100]) -> bits[7] {
+    ret encode.1: bits[7] = encode(x)
+  }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
+  EXPECT_THAT(RunWithUint64sNoEvents(function, {0}), IsOkAndHolds(0));
+
+  EXPECT_THAT(RunWithNoEvents(
+                  function, {Parser::ParseTypedValue("bits[100]:0x0").value()}),
+              IsOkAndHolds(Value(UBits(0, 7))));
+  EXPECT_THAT(RunWithNoEvents(
+                  function, {Parser::ParseTypedValue(
+                                 "bits[100]:0x8_0000_0000_0000_0000_0000_0000")
+                                 .value()}),
+              IsOkAndHolds(Value(UBits(99, 7))));
+  EXPECT_THAT(RunWithNoEvents(
+                  function, {Parser::ParseTypedValue("bits[100]:0x1").value()}),
+              IsOkAndHolds(Value(UBits(0, 7))));
+  EXPECT_THAT(
+      RunWithNoEvents(function, {Parser::ParseTypedValue(
+                                     "bits[100]:0x1000_0000_0000_0000_0000")
+                                     .value()}),
+      IsOkAndHolds(Value(UBits(76, 7))));
+  EXPECT_THAT(
+      RunWithNoEvents(
+          function,
+          {Parser::ParseTypedValue("bits[100]:0x10_0040_0008_0300").value()}),
+      IsOkAndHolds(Value(UBits(0x3f, 7))));
+}
+
 TEST_P(IrEvaluatorTestBase, RunMismatchedType) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
