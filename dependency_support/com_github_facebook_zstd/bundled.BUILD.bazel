@@ -49,3 +49,42 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
 )
+
+# NOTE: Required because of direct zstd_compress.c include in decodecorpus sources
+cc_library(
+    name = "decodecorpus_includes",
+    hdrs = [
+        "lib/compress/zstd_compress.c",
+    ],
+)
+
+cc_binary(
+    name = "decodecorpus",
+    srcs = [
+        "tests/decodecorpus.c",
+    ] + glob(
+        [
+            "programs/*.c",
+            "programs/*.h",
+        ],
+        exclude = [
+            "programs/zstdcli.c",
+        ],
+    ),
+    deps = [
+        ":zstd",
+        ":decodecorpus_includes",
+    ],
+    includes = [
+        "lib/",
+        "lib/common/",
+        "lib/compress/",
+        "lib/dictBuilder/",
+        "lib/deprecated/",
+        "programs/",
+    ],
+    local_defines = [
+        "XXH_NAMESPACE=ZSTD_",
+    ],
+    visibility = ["//visibility:public"],
+)

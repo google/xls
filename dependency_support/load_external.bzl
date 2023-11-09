@@ -297,4 +297,6 @@ def load_external_repositories():
         strip_prefix = "zstd-1.4.7",
         urls = ["https://github.com/facebook/zstd/releases/download/v1.4.7/zstd-1.4.7.tar.gz"],
         build_file = "@//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
+        # Modify decodecorpus to allow generation of zstd frame headers only
+        patches = ["@com_google_xls//dependency_support/com_github_facebook_zstd:decodecorpus.patch"],
     )
