@@ -73,6 +73,15 @@ fn signed_min_value_test() {
     assert_eq(s17:-65536, signed_min_value<u32:17>());
 }
 
+pub fn unsigned_min_value<N: u32>() -> uN[N] { zero!<uN[N]>() }
+
+#[test]
+fn unsigned_min_value_test() {
+    assert_eq(u8:0, unsigned_min_value<u32:8>());
+    assert_eq(u16:0, unsigned_min_value<u32:16>());
+    assert_eq(u17:0, unsigned_min_value<u32:17>());
+}
+
 // Returns the maximum unsigned value contained in N bits.
 pub fn unsigned_max_value<N: u32, N_PLUS_ONE: u32 = {N + u32:1}>() -> uN[N] {
     ((uN[N_PLUS_ONE]:1 << N) - uN[N_PLUS_ONE]:1) as uN[N]
