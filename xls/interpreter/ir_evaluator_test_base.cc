@@ -26,6 +26,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -4132,6 +4133,19 @@ TEST_P(IrEvaluatorTestBase, ConcatWithZeroWidth) {
   EXPECT_THAT(RunWithUint64sNoEvents(f, {42}), 42);
   EXPECT_THAT(RunWithUint64sNoEvents(f, {0}), 0);
   EXPECT_THAT(RunWithUint64sNoEvents(f, {0x12345678}), 0x12345678);
+}
+
+TEST_P(IrEvaluatorTestBase, DecodeWithWideInput) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto x = b.Param("x", p->GetBitsType(32));
+  auto extended_x = b.SignExtend(x, 128);
+  b.Decode(extended_x, /*width=*/64);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(RunWithUint64sNoEvents(f, {42}), uint64_t{1} << 42);
+  EXPECT_THAT(RunWithUint64sNoEvents(f, {0}), 1);
+  EXPECT_THAT(
+      RunWithUint64sNoEvents(f, {absl::bit_cast<uint32_t>(int32_t{-64})}), 0);
 }
 
 }  // namespace

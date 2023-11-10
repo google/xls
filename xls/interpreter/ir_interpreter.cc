@@ -279,10 +279,10 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
 }
 
 absl::Status IrInterpreter::HandleDecode(Decode* decode) {
-  XLS_ASSIGN_OR_RETURN(int64_t input_value,
-                       ResolveAsBits(decode->operand(0)).ToUint64());
-  if (input_value < decode->BitCountOrDie()) {
-    return SetBitsResult(decode, Bits::PowerOfTwo(/*set_bit_index=*/input_value,
+  Bits index_bits = ResolveAsBits(decode->operand(0));
+  if (bits_ops::ULessThan(index_bits, decode->BitCountOrDie())) {
+    XLS_ASSIGN_OR_RETURN(int64_t index, index_bits.ToUint64());
+    return SetBitsResult(decode, Bits::PowerOfTwo(/*set_bit_index=*/index,
                                                   decode->BitCountOrDie()));
   }
   return SetBitsResult(decode, Bits(decode->BitCountOrDie()));
