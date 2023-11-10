@@ -21,23 +21,31 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/solvers/z3_ir_equivalence.h"
 
 namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
 
+constexpr absl::Duration kProverTimeout = absl::Seconds(10);
+
 using status_testing::IsOkAndHolds;
+using ::xls::solvers::z3::TryProveEquivalence;
+
+using ::testing::AllOf;
 
 class BitSliceSimplificationPassTest : public IrTestBase {
  protected:
@@ -367,6 +375,49 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftRightDoesNotEndAtMsb) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::BitSlice(m::Shrl()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedDecode) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.BitSlice(fb.Decode(fb.Param("amt", u32), /*width=*/32), /*start=*/0,
+              /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              AllOf(m::Decode(m::Param("amt")), m::Type("bits[10]")));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedDecodeMultipleUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue decode = fb.Decode(fb.Param("amt", u32), /*width=*/32);
+  fb.Add(decode, decode);
+  fb.BitSlice(decode, /*start=*/0, /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::BitSlice(AllOf(m::Decode(), m::Type(u32))));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedDecodeStartNonzero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  fb.BitSlice(fb.Decode(fb.Param("amt", u32), /*width=*/32), /*start=*/12,
+              /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::BitSlice(AllOf(m::Decode(), m::Type(u32))));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedOhs) {

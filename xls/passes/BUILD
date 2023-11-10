@@ -311,11 +311,13 @@ cc_library(
     deps = [
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits_ops",
+        "//xls/ir:op",
     ],
 )
 
@@ -1543,6 +1545,7 @@ cc_test(
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -1550,9 +1553,11 @@ cc_test(
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "//xls/solvers:z3_ir_equivalence",
     ],
 )
 

@@ -19,11 +19,14 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls {
@@ -282,6 +285,19 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
     XLS_RETURN_IF_ERROR(bit_slice
                             ->ReplaceUsesWithNew<BinOp>(
                                 sliced_to_shift, shift_amount, shift->op())
+                            .status());
+    return true;
+  }
+
+  // Combine slices with decode if the slice starts at zero. Only perform this
+  // if the slice is the sole user.
+  if (bit_slice->start() == 0 && operand->op() == Op::kDecode &&
+      operand->users().size() == 1) {
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Replacing bitslice(decode(s)) => decode(s): %s", bit_slice->GetName());
+    XLS_RETURN_IF_ERROR(bit_slice
+                            ->ReplaceUsesWithNew<Decode>(operand->operand(0),
+                                                         bit_slice->width())
                             .status());
     return true;
   }
