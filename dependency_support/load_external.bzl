@@ -77,9 +77,9 @@ def load_external_repositories():
         name = "boringssl",
         # Commit date: 2023-09-25
         # Note for updating: we need to use a commit from the main-with-bazel branch.
-        strip_prefix = "boringssl-50132857d4724991db6de99dc272acd223ed52df",
-        sha256 = "73370e90e50b61f6485b0fd0034f4e4297764f03faceb3e9d97b6e2e27b915c0",
-        urls = ["https://github.com/google/boringssl/archive/50132857d4724991db6de99dc272acd223ed52df.zip"],
+        strip_prefix = "boringssl-365c992b59b11b3b091dba4335c198a335a8a6ec",
+        sha256 = "5ae86c05434095360b7f676a1d1c95d42cbeb9c7da96b43e34d1bd04df30817d",
+        urls = ["https://github.com/google/boringssl/archive/365c992b59b11b3b091dba4335c198a335a8a6ec.zip"],
     )
 
     # Commit on 2023-02-09
