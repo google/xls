@@ -783,6 +783,37 @@ fn f(p: bits[1]) -> bits[2] {
   EXPECT_TRUE(proven_nez);
 }
 
+TEST_F(Z3IrTranslatorTest, DecodeZeroIsNotZero) {
+  const std::string program = R"(
+fn f(x: bits[2]) -> bits[1] {
+  z: bits[2] = xor(x, x)
+  ret result: bits[1] = decode(z, width=1)
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(bool proven_ez, TryProve(f, f->return_value(),
+                                                    Predicate::NotEqualToZero(),
+                                                    absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_ez);
+}
+
+TEST_F(Z3IrTranslatorTest, DecodeWithOverflowedIndexIsZero) {
+  const std::string program = R"(
+fn f(x: bits[2]) -> bits[1] {
+  literal.1: bits[2] = literal(value=0b10)
+  or.2: bits[2] = or(x, literal.1)
+  ret result: bits[1] = decode(or.2, width=1)
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
+                                absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
+}
+
 TEST_F(Z3IrTranslatorTest, EncodeZeroIsZero) {
   const std::string program = R"(
 fn f(x: bits[2]) -> bits[1] {

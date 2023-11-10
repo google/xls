@@ -798,6 +798,10 @@ absl::Status IrTranslator::HandleUnary(Node* op, FnT f) {
   return seh.status();
 }
 
+absl::Status IrTranslator::HandleDecode(Decode* decode) {
+  return HandleUnaryViaAbstractEval(decode);
+}
+
 absl::Status IrTranslator::HandleEncode(Encode* encode) {
   return HandleUnaryViaAbstractEval(encode);
 }

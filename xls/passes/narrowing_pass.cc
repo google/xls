@@ -787,6 +787,58 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return NoChange();
   }
 
+  absl::Status HandleDecode(Decode* decode) override {
+    // Narrow the index operand of decode operations if the index has leading
+    // zeros.
+    Node* index = decode->operand(0);
+
+    int64_t leading_zeros = CountLeadingKnownZeros(index, /*user=*/decode);
+    if (leading_zeros == 0) {
+      return NoChange();
+    }
+
+    if (leading_zeros == index->BitCountOrDie()) {
+      // Index is zero; result is 1.
+      XLS_RETURN_IF_ERROR(decode
+                              ->ReplaceUsesWithNew<Literal>(
+                                  Value(UBits(1, decode->BitCountOrDie())))
+                              .status());
+      return Change();
+    }
+
+    // Prune the leading zeros from the index.
+    XLS_ASSIGN_OR_RETURN(Node * narrowed_index,
+                         decode->function_base()->MakeNode<BitSlice>(
+                             decode->loc(), index, /*start=*/0,
+                             /*width=*/index->BitCountOrDie() - leading_zeros));
+
+    // Decode doesn't automatically zero-extend past the last bit the input
+    // could code for, so we limit the width to what it finds acceptable, then
+    // zero-extend afterwards.
+    int64_t result_width = decode->BitCountOrDie();
+    int64_t new_decode_width = result_width;
+
+    // Any index with >= 63 bits can't be full-decoded, so we don't need to
+    // limit the width in this case.
+    constexpr int64_t kMaxFullDecodeWidth = 63;
+    if (narrowed_index->BitCountOrDie() < kMaxFullDecodeWidth) {
+      new_decode_width = std::min(
+          new_decode_width, int64_t{1} << narrowed_index->BitCountOrDie());
+    }
+    XLS_ASSIGN_OR_RETURN(Decode * narrowed_decode,
+                         decode->function_base()->MakeNode<Decode>(
+                             decode->loc(), narrowed_index, new_decode_width));
+    if (new_decode_width == result_width) {
+      XLS_RETURN_IF_ERROR(decode->ReplaceUsesWith(narrowed_decode));
+    } else {
+      XLS_RETURN_IF_ERROR(decode
+                              ->ReplaceUsesWithNew<ExtendOp>(
+                                  narrowed_decode, result_width, Op::kZeroExt)
+                              .status());
+    }
+    return Change();
+  }
+
   // TODO(allight): 2023-11-08: We could simplify this and add by recognizing
   // when the leading bits match on both sides and just doing a sign extend.
   // i.e. lhs[MSB] = lhs[MSB-1] = ... and rhs[MSB] = rhs[MSB-1] = ...,

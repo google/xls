@@ -471,6 +471,10 @@ inline ::testing::Matcher<const ::xls::Node*> Literal(const Bits& bits) {
 inline ::testing::Matcher<const ::xls::Node*> Literal(uint64_t value) {
   return ::xls::op_matchers::LiteralMatcher(value);
 }
+inline ::testing::Matcher<const ::xls::Node*> Literal(uint64_t value,
+                                                      int64_t width) {
+  return ::xls::op_matchers::LiteralMatcher(Value(UBits(value, width)));
+}
 
 inline ::testing::Matcher<const ::xls::Node*> Literal(
     std::string_view value_str) {

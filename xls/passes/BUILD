@@ -1928,6 +1928,7 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
