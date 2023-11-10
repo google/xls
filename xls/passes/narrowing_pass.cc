@@ -753,6 +753,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
                   shift->op() == Op::kShra);
     int64_t leading_zeros =
         CountLeadingKnownZeros(shift->operand(1), /*user=*/shift);
+    if (leading_zeros == 0) {
+      return NoChange();
+    }
+
     if (leading_zeros == shift->operand(1)->BitCountOrDie()) {
       // Shift amount is zero. Replace with (slice of) input operand of shift.
       if (shift->BitCountOrDie() == shift->operand(0)->BitCountOrDie()) {
@@ -770,21 +774,19 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
       return Change();
     }
-    if (leading_zeros > 0) {
-      // Prune the leading zeros from the shift amount.
-      XLS_ASSIGN_OR_RETURN(
-          Node * narrowed_shift_amount,
-          shift->function_base()->MakeNode<BitSlice>(
-              shift->loc(), shift->operand(1), /*start=*/0,
-              /*width=*/shift->operand(1)->BitCountOrDie() - leading_zeros));
-      XLS_RETURN_IF_ERROR(shift
-                              ->ReplaceUsesWithNew<BinOp>(shift->operand(0),
-                                                          narrowed_shift_amount,
-                                                          shift->op())
-                              .status());
-      return Change();
-    }
-    return NoChange();
+
+    // Prune the leading zeros from the shift amount.
+    XLS_ASSIGN_OR_RETURN(
+        Node * narrowed_shift_amount,
+        shift->function_base()->MakeNode<BitSlice>(
+            shift->loc(), shift->operand(1), /*start=*/0,
+            /*width=*/shift->operand(1)->BitCountOrDie() - leading_zeros));
+    XLS_RETURN_IF_ERROR(shift
+                            ->ReplaceUsesWithNew<BinOp>(shift->operand(0),
+                                                        narrowed_shift_amount,
+                                                        shift->op())
+                            .status());
+    return Change();
   }
 
   absl::Status HandleDecode(Decode* decode) override {
