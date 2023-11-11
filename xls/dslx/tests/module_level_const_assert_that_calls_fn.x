@@ -12,16 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn f(x: u32) -> u32 {
-  x + u32:1
-}
+fn f(x: u32) -> u32 { x + u32:1 }
 
 // Call a (non-parametric) fn.
 const_assert!(f(u32:42) == u32:43);
 
-fn add_one<P: u32>() -> u32 {
-  P + u32:1
-}
+fn add_one<P: u32>() -> u32 { P + u32:1 }
 
 // Call a parametric fn.
 const_assert!(add_one<u32:42>() == u32:43);

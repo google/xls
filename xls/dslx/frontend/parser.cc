@@ -49,6 +49,7 @@
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/scanner_keywords.inc"
 #include "xls/dslx/frontend/token.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function.h"
@@ -248,6 +249,8 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   while (!AtEof()) {
     XLS_ASSIGN_OR_RETURN(bool peek_is_eof, PeekTokenIs(TokenKind::kEof));
     if (peek_is_eof) {
+      XLS_VLOG(3) << "Parser saw EOF token for module " << module_->name()
+                  << ", stopping.";
       break;
     }
 
@@ -341,7 +344,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
       // the error lambda.
       XLS_RETURN_IF_ERROR(
           module_->AddTop(const_assert, /*make_collision_error=*/nullptr));
-      break;
+      continue;
     }
 
     auto top_level_error = [peek] {
@@ -408,6 +411,10 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         return top_level_error();
     }
   }
+
+  // Ensure we've consumed all tokens when we're done parsing, as a
+  // post-condition.
+  XLS_RET_CHECK(AtEof());
 
   XLS_RETURN_IF_ERROR(VerifyParentage(module_.get()));
   auto result = std::move(module_);

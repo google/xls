@@ -989,6 +989,8 @@ std::optional<ModuleMember*> Module::FindMemberWithName(
       if (std::get<Import*>(member)->identifier() == target) {
         return &member;
       }
+    } else if (std::holds_alternative<ConstAssert*>(member)) {
+      continue;  // These have no name / binding.
     } else {
       XLS_LOG(FATAL) << "Unhandled module member variant: "
                      << ToAstNode(member)->GetNodeTypeName();

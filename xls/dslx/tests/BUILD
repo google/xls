@@ -99,8 +99,6 @@ dslx_lang_test(
     name = "module_level_const_assert_that_calls_fn",
     # No meaningful entry point to convert.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Deleting contents after first constexpr?!
-    test_autofmt = False,
 )
 
 dslx_lang_test(
