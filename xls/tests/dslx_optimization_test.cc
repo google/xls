@@ -207,7 +207,7 @@ fn main(idx: u4, update: u32, original: bits[320]) -> bits[320] {
   EXPECT_EQ(OpCount(entry, {Op::kUGt, Op::kUGe, Op::kULt, Op::kULe}), 0);
 
   // The original has five shifts. Verify that only four remain.
-  EXPECT_EQ(OpCount(entry, {Op::kShll, Op::kShrl, Op::kShra}), 4);
+  EXPECT_EQ(OpCount(entry, {Op::kShll, Op::kDecode, Op::kShrl, Op::kShra}), 4);
 }
 
 TEST_F(DslxOptimizationTest, ReceiveZeroDefaultValue) {

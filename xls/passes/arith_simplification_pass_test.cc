@@ -1627,5 +1627,44 @@ TEST_F(ArithSimplificationPassTest, EqNeZeroWidthTypes) {
   EXPECT_THAT(f->return_value(), m::Tuple(m::Literal(1), m::Literal(0)));
 }
 
+TEST_F(ArithSimplificationPassTest, ShiftLeftOfOne) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Shll(fb.Literal(UBits(1, 32)), fb.Param("x", p->GetBitsType(8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              AllOf(m::Decode(m::Param("x")), m::Type("bits[32]")));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, ShiftLeftOfPowerOfTwo) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Shll(fb.Literal(UBits(32, 32)), fb.Param("x", p->GetBitsType(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              AllOf(m::Concat(m::BitSlice(m::ZeroExt(m::Decode(m::Param("x"))),
+                                          /*start=*/0, /*width=*/27),
+                              m::Literal(0, /*width=*/5)),
+                    m::Type("bits[32]")));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
 }  // namespace
 }  // namespace xls
