@@ -20,7 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
-#include "xls/common/bits_util.h"
+#include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/function.h"
@@ -30,13 +30,17 @@
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/solvers/z3_ir_equivalence.h"
 
 namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
 
+constexpr absl::Duration kProverTimeout = absl::Seconds(10);
+
 using status_testing::IsOkAndHolds;
+using ::xls::solvers::z3::TryProveEquivalence;
 
 class ArithSimplificationPassTest : public IrTestBase {
  protected:
@@ -846,6 +850,27 @@ TEST_F(ArithSimplificationPassTest, ArithmeticShiftRightOfOneBitOne) {
   EXPECT_THAT(f->return_value(), m::Shra());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(1));
+}
+
+TEST_F(ArithSimplificationPassTest, OneBitDecode) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x:bits[10]) -> bits[1] {
+        ret result: bits[1] = decode(x, width=1)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Decode());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Literal(0)));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
 }
 
 TEST_F(ArithSimplificationPassTest, DoubleNegation) {

@@ -131,7 +131,7 @@ cc_test(
         ":dce_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:bits_util",
+        "@com_google_absl//absl/time",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -140,6 +140,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/solvers:z3_ir_equivalence",
     ],
 )
 

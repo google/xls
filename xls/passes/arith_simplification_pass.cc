@@ -972,6 +972,20 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
+  // A 1-wide decode can be simplified to a test for equality with zero; any
+  // other index results in zero output.
+  if (n->op() == Op::kDecode && n->BitCountOrDie() == 1) {
+    XLS_VLOG(2) << "FOUND: 1-wide decode";
+    XLS_ASSIGN_OR_RETURN(
+        Literal * zero,
+        n->function_base()->MakeNode<Literal>(
+            n->loc(), Value(UBits(0, n->operand(0)->BitCountOrDie()))));
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<CompareOp>(n->operand(0), zero, Op::kEq)
+            .status());
+    return true;
+  }
+
   // Pattern: Double negative.
   //   -(-expr)
   if (n->op() == Op::kNeg && n->operand(0)->op() == Op::kNeg) {
