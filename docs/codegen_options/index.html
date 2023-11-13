@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.7">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.8">
     
     
       
@@ -1963,6 +1963,19 @@ control the scheduler.</p>
     example of the use of this, see
     <a href="https://github.com/google/xls/tree/main/xls/examples/constraint.x">this example</a> and
     the associated BUILD rule.</li>
+<li><code>explain_infeasibility</code> configures what to do if scheduling fails. If set,
+    the scheduling problem is reformulated with extra slack variables in an
+    attempt to explain why scheduling failed.</li>
+<li><code>infeasible_per_state_backedge_slack_pool</code> If specified, the specified
+    value must be &gt; 0. Setting this configures how the scheduling problem is
+    reformulated in the case that scheduling fails. If specified, this value
+    will cause the reformulated problem to include per-state backedge slack
+    variables, which increases the complexity. This value scales the objective
+    such that adding slack to the per-state backedge is preferred up until total
+    slack reaches the pool size, after which adding slack to the shared backedge
+    slack variable is preferred. Increasing this value should give more specific
+    information about how much slack each failing backedge needs at the cost of
+    less actionable and harder to understand output.</li>
 </ul>
 <h1 id="feedback-driven-optimization-fdo-options">Feedback-driven Optimization (FDO) Options</h1>
 <p>The following flags control the feedback-driven optimizations in XLS. For now,
@@ -2248,7 +2261,7 @@ response-receive are scheduled to match the RAM's latency.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.aecac24b.min.js"></script>
+      <script src="../assets/javascripts/bundle.81fa17fe.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
