@@ -23,11 +23,13 @@
 #include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/solvers/z3_ir_equivalence.h"
@@ -1459,6 +1461,70 @@ TEST_F(ArithSimplificationPassTest, GuardedShiftOperationLowLimit) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Select()));
+}
+
+TEST_F(ArithSimplificationPassTest, GuardedDecode) {
+  // Test that a decode index clamped to the decode's width has the clamp
+  // removed.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue index = fb.Param("index", p->GetBitsType(32));
+  BValue limit = fb.Literal(Value(UBits(100, 32)));
+  BValue clamped_index =
+      fb.Select(fb.UGt(index, limit), /*on_true=*/limit, /*on_false=*/index);
+  fb.Decode(clamped_index, /*width=*/100);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  EXPECT_THAT(f->return_value(), m::Decode(m::Select()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Decode(m::Param("index")));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, GuardedDecodeHighLimit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue index = fb.Param("index", p->GetBitsType(32));
+  // Set a clamp limit higher than the width of the decode, the end result is
+  // the same as if the limit were the decode width.
+  BValue limit = fb.Literal(Value(UBits(1234, 32)));
+  BValue clamped_index =
+      fb.Select(fb.UGt(index, limit), /*on_true=*/limit, /*on_false=*/index);
+  fb.Decode(clamped_index, /*width=*/100);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  EXPECT_THAT(f->return_value(), m::Decode(m::Select()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Decode(m::Param("index")));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, GuardedDecodeLowLimit) {
+  // Test that a decode index clamped to a value less that the decode's width
+  // does not have the clamp removed.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue index = fb.Param("index", p->GetBitsType(32));
+  BValue limit = fb.Literal(Value(UBits(99, 32)));
+  BValue clamped_index =
+      fb.Select(fb.UGt(index, limit), /*on_true=*/limit, /*on_false=*/index);
+  fb.Decode(clamped_index, /*width=*/100);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(f->return_value(), m::Decode(m::Select()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Decode(m::Select()));
 }
 
 TEST_F(ArithSimplificationPassTest, EqAggregateType) {

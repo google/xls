@@ -1077,6 +1077,17 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
       return true;
     }
   }
+  // This also applies to decode(clamp(amt, LIMIT)), since decode(x) == 1 << x.
+  if (n->op() == Op::kDecode) {
+    std::optional<ClampExpr> clamp_expr = MatchClampUpperLimit(n->operand(0));
+    if (clamp_expr.has_value() &&
+        bits_ops::UGreaterThanOrEqual(clamp_expr->upper_limit,
+                                      n->BitCountOrDie())) {
+      XLS_VLOG(2) << "FOUND: Removal of unnecessary decode guard";
+      XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(0, clamp_expr->node));
+      return true;
+    }
+  }
 
   // If either x or y is zero width:
   //   [US]Mul(x, y) => 0
