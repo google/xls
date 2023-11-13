@@ -986,6 +986,22 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
+  // A 2-wide decode with a 1-bit operand can be simplified to:
+  //   decode(operand:u1) => concat(operand, not(operand)).
+  // 1-wide decodes should be handled above, and no wider decode is allowed for
+  // a 1-bit operand.
+  if (n->op() == Op::kDecode && n->operand(0)->BitCountOrDie() == 1 &&
+      n->BitCountOrDie() == 2) {
+    XLS_VLOG(2) << "FOUND: decode of 1-bit operand";
+    XLS_ASSIGN_OR_RETURN(
+        Node * not_operand,
+        n->function_base()->MakeNode<UnOp>(n->loc(), n->operand(0), Op::kNot));
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<Concat>(
+                             std::vector<Node*>({n->operand(0), not_operand}))
+                            .status());
+    return true;
+  }
+
   // Pattern: Double negative.
   //   -(-expr)
   if (n->op() == Op::kNeg && n->operand(0)->op() == Op::kNeg) {

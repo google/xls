@@ -873,6 +873,28 @@ TEST_F(ArithSimplificationPassTest, OneBitDecode) {
               IsOkAndHolds(true));
 }
 
+TEST_F(ArithSimplificationPassTest, DecodeOfOneBit) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x:bits[1]) -> bits[2] {
+        ret result: bits[2] = decode(x, width=2)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Decode());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Param("x"), m::Not(m::Param("x"))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
 TEST_F(ArithSimplificationPassTest, DoubleNegation) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
