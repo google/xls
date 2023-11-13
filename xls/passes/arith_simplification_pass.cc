@@ -1055,6 +1055,42 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
       }
     }
   }
+  // This also applies to decode, though we may need to zero-extend the result
+  // if the argument gets too small.
+  //
+  //   decode({0, b}) => zero_ext(decode(b))
+  if (n->op() == Op::kDecode && n->operand(0)->Is<Concat>() &&
+      IsLiteralZero(n->operand(0)->As<Concat>()->operand(0))) {
+    Concat* concat = n->operand(0)->As<Concat>();
+    Node* new_index;
+    if (concat->operand_count() == 1) {
+      new_index = concat->operand(0);
+    } else if (concat->operand_count() == 2) {
+      new_index = concat->operand(1);
+    } else {
+      XLS_ASSIGN_OR_RETURN(new_index,
+                           n->function_base()->MakeNode<Concat>(
+                               concat->loc(), concat->operands().subspan(1)));
+    }
+    XLS_VLOG(2) << "FOUND: Removal of zext of decode index";
+
+    int64_t n_width = n->BitCountOrDie();
+    int64_t operand_width = new_index->BitCountOrDie();
+
+    int64_t decode_width = n_width;
+    if (operand_width < 63) {
+      // We can't decode to something wider than 2**(n_bit_count) bits...
+      // so we decode to exactly 2**(n_bit_count) bits, and resize after.
+      decode_width = std::min(int64_t{1} << operand_width, n_width);
+    }
+    XLS_ASSIGN_OR_RETURN(Node * decoded,
+                         n->function_base()->MakeNode<Decode>(
+                             n->loc(), new_index, decode_width));
+    XLS_ASSIGN_OR_RETURN(
+        decoded, NarrowOrExtend(decoded, /*n_is_signed=*/false, n_width));
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(decoded));
+    return true;
+  }
 
   // Guards to prevent overshifting can be removed:
   //

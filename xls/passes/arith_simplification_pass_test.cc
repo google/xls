@@ -44,6 +44,8 @@ constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 using status_testing::IsOkAndHolds;
 using ::xls::solvers::z3::TryProveEquivalence;
 
+using ::testing::AllOf;
+
 class ArithSimplificationPassTest : public IrTestBase {
  protected:
   ArithSimplificationPassTest() = default;
@@ -1382,6 +1384,58 @@ TEST_F(ArithSimplificationPassTest, ShiftByConcatWithZeroValueAndOthers) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Shll(m::Param("x"), m::Concat(m::Param("y"), m::Param("z"))));
+}
+
+TEST_F(ArithSimplificationPassTest, DecodeTrivialConcat) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Decode(fb.Concat({fb.Literal(Value(UBits(0, 32)))}),
+            /*width=*/128);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              AllOf(m::Decode(m::Literal(/*value=*/0, /*width=*/32)),
+                    m::Type("bits[128]")));
+}
+
+TEST_F(ArithSimplificationPassTest, DecodeConcatWithZeroValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Decode(fb.Concat({fb.Literal(Value(UBits(0, 24))),
+                       fb.Param("y", p->GetBitsType(8))}),
+            /*width=*/128);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              AllOf(m::Decode(m::Param("y")), m::Type("bits[128]")));
+}
+
+TEST_F(ArithSimplificationPassTest, DecodeConcatWithZeroValueAndOthers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Decode(fb.Concat({fb.Literal(Value(UBits(0, 16))),
+                       fb.Param("y", p->GetBitsType(8)),
+                       fb.Param("z", p->GetBitsType(8))}),
+            /*width=*/128);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              AllOf(m::Decode(m::Concat(m::Param("y"), m::Param("z"))),
+                    m::Type("bits[128]")));
+}
+
+TEST_F(ArithSimplificationPassTest, DecodeNarrowedConcatWithZeroValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Decode(fb.Concat({fb.Literal(Value(UBits(0, 24))),
+                       fb.Param("y", p->GetBitsType(8))}),
+            /*width=*/1024);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      AllOf(m::ZeroExt(AllOf(m::Decode(m::Param("y")), m::Type("bits[256]"))),
+            m::Type("bits[1024]")));
 }
 
 TEST_F(ArithSimplificationPassTest, GuardedShiftOperation) {
