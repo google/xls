@@ -16,12 +16,12 @@
 
 #include <memory>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
+#include "xls/common/logging/logging.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/proc_evaluator_test_base.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
@@ -31,8 +31,8 @@ namespace xls {
 namespace {
 
 JitRuntime* GetJitRuntime() {
-  static auto jit_runtime =
-      std::make_unique<JitRuntime>(OrcJit::CreateDataLayout().value());
+  static auto jit_runtime = std::make_unique<JitRuntime>(
+      OrcJit::CreateDataLayout(/*aot_specification=*/false).value());
   return jit_runtime.get();
 }
 

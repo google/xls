@@ -30,7 +30,6 @@
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/events.h"
-#include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/nodes.h"
@@ -70,8 +69,9 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
   auto jit = absl::WrapUnique(new FunctionJit(xls_function));
   XLS_ASSIGN_OR_RETURN(jit->orc_jit_,
                        OrcJit::Create(opt_level, emit_object_code, observer));
-  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
-                       OrcJit::CreateDataLayout());
+  XLS_ASSIGN_OR_RETURN(
+      llvm::DataLayout data_layout,
+      OrcJit::CreateDataLayout(/*aot_specification=*/emit_object_code));
   jit->jit_runtime_ = std::make_unique<JitRuntime>(data_layout);
   XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
                        BuildFunction(xls_function, *jit->orc_jit_));

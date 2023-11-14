@@ -40,8 +40,9 @@ JitRuntime::JitRuntime(llvm::DataLayout data_layout)
           std::make_unique<LlvmTypeConverter>(context_.get(), data_layout_)) {}
 
 /* static */ absl::StatusOr<std::unique_ptr<JitRuntime>> JitRuntime::Create() {
-  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
-                       xls::OrcJit::CreateDataLayout());
+  XLS_ASSIGN_OR_RETURN(
+      llvm::DataLayout data_layout,
+      xls::OrcJit::CreateDataLayout(/*aot_specification=*/false));
   return std::make_unique<JitRuntime>(data_layout);
 }
 

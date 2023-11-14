@@ -18,11 +18,11 @@
 // disk.
 
 #include <iostream>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -196,9 +196,11 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
 
 {{close_ns}}
 )~";
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit,
+                       OrcJit::Create(/*opt_level=*/OrcJit::kDefaultOptLevel,
+                                      /*emit_object_code=*/true));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
-                       orc_jit->CreateDataLayout());
+                       OrcJit::CreateDataLayout(/*aot_specification=*/true));
   LlvmTypeConverter type_converter(orc_jit->GetContext(), data_layout);
 
   absl::flat_hash_map<std::string, std::string> substitution_map;
@@ -255,7 +257,7 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
   return absl::StrReplaceAll(kTemplate, substitution_map);
 }
 
-absl::Status RealMain(const std::string& input_ir_path, std::string top,
+absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
                       const std::string& output_object_path,
                       const std::string& output_header_path,
                       const std::string& output_source_path,
@@ -296,8 +298,7 @@ absl::Status RealMain(const std::string& input_ir_path, std::string top,
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
   std::string input_ir_path = absl::GetFlag(FLAGS_input);
-  XLS_QCHECK(!input_ir_path.empty())
-      << "--input must be specified." << std::endl;
+  XLS_QCHECK(!input_ir_path.empty()) << "--input must be specified.";
 
   std::string top = absl::GetFlag(FLAGS_top);
 

@@ -22,6 +22,7 @@
 #include <string_view>
 #include <system_error>  // NOLINT
 #include <utility>
+#include <vector>
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
@@ -30,6 +31,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm-c/Target.h"
+#include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/StringExtras.h"
 #include "llvm/include/llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/include/llvm/Analysis/LoopAnalysisManager.h"
@@ -43,6 +45,8 @@
 #include "llvm/include/llvm/Passes/OptimizationLevel.h"
 #include "llvm/include/llvm/Passes/PassBuilder.h"
 #include "llvm/include/llvm/Support/CodeGen.h"
+#include "llvm/include/llvm/TargetParser/SubtargetFeature.h"
+#include "llvm/include/llvm/TargetParser/X86TargetParser.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
@@ -205,15 +209,16 @@ absl::StatusOr<std::unique_ptr<OrcJit>> OrcJit::Create(int64_t opt_level,
   return std::move(jit);
 }
 
-/* static */ absl::StatusOr<llvm::DataLayout> OrcJit::CreateDataLayout() {
+/* static */ absl::StatusOr<llvm::DataLayout> OrcJit::CreateDataLayout(
+    bool aot_specification) {
   absl::call_once(once, OnceInit);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> target_machine,
-                       CreateTargetMachine());
+                       CreateTargetMachine(aot_specification));
   return target_machine->createDataLayout();
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
-OrcJit::CreateTargetMachine() {
+OrcJit::CreateTargetMachine(bool aot_specification) {
   auto error_or_target_builder =
       llvm::orc::JITTargetMachineBuilder::detectHost();
   if (!error_or_target_builder) {
@@ -223,6 +228,38 @@ OrcJit::CreateTargetMachine() {
   }
 
   error_or_target_builder->setRelocationModel(llvm::Reloc::Model::PIC_);
+  if (aot_specification) {
+    // In ahead-of-time compilation we're compiling on machines we are not
+    // immediately about to run on, where runtime machines may have
+    // heterogeneous specifications vs the compilation machine. We assume a
+    // baseline level of compatibility for all machines XLS compilations might
+    // run on.
+    switch (error_or_target_builder->getTargetTriple().getArch()) {
+      case llvm::Triple::x86_64: {
+        const std::string kBaselineCpu = "haswell";
+        error_or_target_builder->setCPU(kBaselineCpu);
+        // Clear out the existing features.
+        error_or_target_builder->getFeatures() = llvm::SubtargetFeatures();
+        // Add in features available on our "baseline" CPU.
+        llvm::SmallVector<llvm::StringRef, 32> target_cpu_features;
+        llvm::X86::getFeaturesForCPU(kBaselineCpu, target_cpu_features,
+                                     /*NeedPlus=*/true);
+        std::vector<std::string> features(target_cpu_features.begin(),
+                                          target_cpu_features.end());
+        error_or_target_builder->addFeatures(features);
+        break;
+      }
+      case llvm::Triple::aarch64:
+        return absl::UnimplementedError(
+            "Support AOT feature flag setting for aarch64 compilation.");
+      default:
+        return absl::InvalidArgumentError(
+            "Compiling on unrecognized host architecture for AOT "
+            "compilation: " +
+            std::string{
+                error_or_target_builder->getTargetTriple().getArchName()});
+    }
+  }
   auto error_or_target_machine = error_or_target_builder->createTargetMachine();
   if (!error_or_target_machine) {
     return absl::InternalError(
@@ -233,7 +270,7 @@ OrcJit::CreateTargetMachine() {
 }
 
 absl::Status OrcJit::Init() {
-  XLS_ASSIGN_OR_RETURN(target_machine_, CreateTargetMachine());
+  XLS_ASSIGN_OR_RETURN(target_machine_, CreateTargetMachine(emit_object_code_));
   if (XLS_VLOG_IS_ON(1)) {
     std::string triple = target_machine_->getTargetTriple().normalize();
     std::string cpu = target_machine_->getTargetCPU().str();

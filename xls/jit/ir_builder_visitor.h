@@ -47,8 +47,9 @@ class JitBuilderContext {
       std::optional<JitChannelQueueManager*> queue_mgr = std::nullopt)
       : module_(orc_jit.NewModule("__module")),
         orc_jit_(orc_jit),
-        type_converter_(orc_jit.GetContext(),
-                        orc_jit.CreateDataLayout().value()),
+        type_converter_(
+            orc_jit.GetContext(),
+            OrcJit::CreateDataLayout(orc_jit.emit_object_code()).value()),
         queue_manager_(queue_mgr) {}
 
   llvm::Module* module() const { return module_.get(); }

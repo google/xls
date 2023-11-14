@@ -14,6 +14,7 @@
 
 #include "xls/jit/type_layout.h"
 
+#include <cstdint>
 #include <memory>
 #include <random>
 #include <string>
@@ -21,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
@@ -42,8 +44,9 @@ class TypeLayoutTest : public IrTestBase {};
 
 TypeLayout CreateTypeLayout(Type* type) {
   std::unique_ptr<OrcJit> orc_jit = OrcJit::Create().value();
-  LlvmTypeConverter type_converter(orc_jit->GetContext(),
-                                   orc_jit->CreateDataLayout().value());
+  LlvmTypeConverter type_converter(
+      orc_jit->GetContext(),
+      orc_jit->CreateDataLayout(/*aot_specification=*/false).value());
   return type_converter.CreateTypeLayout(type);
 }
 

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <memory>
 #include <random>
 #include <vector>
@@ -23,6 +24,7 @@
 #include "xls/ir/value.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
+#include "xls/jit/type_layout.h"
 
 namespace xls {
 namespace {
@@ -45,8 +47,9 @@ const char* kValueTypes[] = {
 
 static TypeLayout CreateTypeLayout(Type* type) {
   std::unique_ptr<OrcJit> orc_jit = OrcJit::Create().value();
-  LlvmTypeConverter type_converter(orc_jit->GetContext(),
-                                   orc_jit->CreateDataLayout().value());
+  LlvmTypeConverter type_converter(
+      orc_jit->GetContext(),
+      orc_jit->CreateDataLayout(/*aot_specification=*/false).value());
   return type_converter.CreateTypeLayout(type);
 }
 

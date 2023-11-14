@@ -47,6 +47,7 @@ cc_binary(
         ":function_jit",
         ":llvm_type_converter",
         ":orc_jit",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -346,6 +347,8 @@ cc_test(
     srcs = ["jit_channel_queue_test.cc"],
     deps = [
         ":jit_channel_queue",
+        ":jit_runtime",
+        ":orc_jit",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -402,7 +405,6 @@ cc_library(
     srcs = ["orc_jit.cc"],
     hdrs = ["orc_jit.h"],
     deps = [
-        ":llvm_type_converter",
         ":observer",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -424,6 +426,7 @@ cc_library(
         "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:TargetParser",
         "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:ir_headers",
@@ -562,6 +565,7 @@ cc_binary(
     deps = [
         ":llvm_type_converter",
         ":orc_jit",
+        ":type_layout",
         "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:ir_parser",
@@ -606,6 +610,7 @@ cc_test(
         ":llvm_type_converter",
         ":orc_jit",
         ":type_layout",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common:bits_util",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -630,7 +635,7 @@ cc_test(
         ":proc_jit",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
+        "//xls/common/logging",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:proc_evaluator",
         "//xls/interpreter:proc_evaluator_test_base",

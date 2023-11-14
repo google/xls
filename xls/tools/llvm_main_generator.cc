@@ -141,7 +141,7 @@ static absl::Status RealMain(const std::string& input_path,
   XLS_ASSIGN_OR_RETURN(Type * xls_output_type,
                        Parser::ParseType(xls_output_type_string, &package));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
-                       OrcJit::CreateDataLayout());
+                       OrcJit::CreateDataLayout(/*aot_specification=*/true));
 
   LlvmTypeConverter type_converter(&context, data_layout);
   llvm::Type* base_output_type =

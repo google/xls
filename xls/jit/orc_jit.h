@@ -15,6 +15,7 @@
 #ifndef XLS_JIT_ORC_JIT_H_
 #define XLS_JIT_ORC_JIT_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -37,13 +38,15 @@ namespace xls {
 // interface.
 class OrcJit {
  public:
+  static constexpr int64_t kDefaultOptLevel = 3;
+
   ~OrcJit();
   // Create an LLVM ORC JIT instance which compiles at the given optimization
   // level. If `emit_object_code` is true then `GetObjectCode` can be called
   // after compilation to get the object code. Calls functions on the given
   // observer as compilation proceeds.
   static absl::StatusOr<std::unique_ptr<OrcJit>> Create(
-      int64_t opt_level = 3, bool emit_object_code = false,
+      int64_t opt_level = kDefaultOptLevel, bool emit_object_code = false,
       JitObserver* observer = nullptr);
 
   void SetJitObserver(JitObserver* o) { jit_observer_ = o; }
@@ -68,14 +71,17 @@ class OrcJit {
   const std::vector<uint8_t>& GetObjectCode() { return object_code_; }
 
   // Creates and returns a data layout object.
-  static absl::StatusOr<llvm::DataLayout> CreateDataLayout();
+  static absl::StatusOr<llvm::DataLayout> CreateDataLayout(
+      bool aot_specification);
+
+  bool emit_object_code() const { return emit_object_code_; }
 
  private:
   OrcJit(int64_t opt_level, bool emit_object_code);
   absl::Status Init();
 
   static absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
-  CreateTargetMachine();
+  CreateTargetMachine(bool aot_specification);
 
   // Method which optimizes the given module. Used within the JIT to form an IR
   // transform layer.

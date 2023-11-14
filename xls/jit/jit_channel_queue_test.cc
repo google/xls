@@ -24,6 +24,8 @@
 #include "xls/interpreter/channel_queue_test_base.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
+#include "xls/jit/jit_runtime.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls {
 namespace {
@@ -32,8 +34,8 @@ using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
 JitRuntime* GetJitRuntime() {
-  static auto jit_runtime =
-      std::make_unique<JitRuntime>(OrcJit::CreateDataLayout().value());
+  static auto jit_runtime = std::make_unique<JitRuntime>(
+      OrcJit::CreateDataLayout(/*aot_specification=*/false).value());
   return jit_runtime.get();
 }
 
