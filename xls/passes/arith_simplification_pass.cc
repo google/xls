@@ -1395,45 +1395,6 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     }
   }
 
-  // A shift-left of a power of two can be replaced by a decode operation and a
-  // shift-left by a literal, since
-  //   (2**K) << N == (1 << K) << N
-  //               == (1 << N) << K
-  //               == decode(N) << K.
-  //
-  // Another pass will simplify the shift-left by a literal to a concat & slice
-  // (see above).
-  if (n->op() == Op::kShll && n->operand(0)->Is<Literal>()) {
-    Literal* lhs_literal = n->operand(0)->As<Literal>();
-    const Bits& lhs = lhs_literal->value().bits();
-    if (lhs.IsPowerOfTwo()) {
-      XLS_VLOG(2) << "FOUND: shift left of power of two";
-      int64_t k = lhs.CountTrailingZeros();
-      int64_t n_bit_count = n->operand(1)->BitCountOrDie();
-      int64_t decode_width = lhs.bit_count();
-      if (n_bit_count < 63) {
-        // We can't decode to something wider than 2**(n_bit_count) bits...
-        // so we decode to exactly 2**(n_bit_count) bits, and resize after.
-        decode_width = std::min(int64_t{1} << n_bit_count, decode_width);
-      }
-      XLS_ASSIGN_OR_RETURN(Node * decoded,
-                           n->function_base()->MakeNode<Decode>(
-                               n->loc(), n->operand(1), decode_width));
-      XLS_ASSIGN_OR_RETURN(
-          decoded,
-          NarrowOrExtend(decoded, /*n_is_signed=*/false, lhs.bit_count()));
-      if (k > 0) {
-        XLS_ASSIGN_OR_RETURN(Literal * shift,
-                             n->function_base()->MakeNode<Literal>(
-                                 n->loc(), Value(UBits(k, 64))));
-        XLS_ASSIGN_OR_RETURN(decoded, n->function_base()->MakeNode<BinOp>(
-                                          n->loc(), decoded, shift, Op::kShll));
-      }
-      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(decoded));
-      return true;
-    }
-  }
-
   return false;
 }
 
