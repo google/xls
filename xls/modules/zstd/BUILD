@@ -135,11 +135,22 @@ xls_dslx_test(
 )
 
 cc_library(
-    name = "zstd_test_data_generator",
-    srcs = ["zstd_test_data_generator.cc"],
-    hdrs = ["zstd_test_data_generator.h"],
+    name = "data_generator",
+    srcs = ["data_generator.cc"],
+    hdrs = ["data_generator.h"],
     data = [
         "@com_github_facebook_zstd//:decodecorpus",
+    ],
+    deps = [
+        "//xls/common:subprocess",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
