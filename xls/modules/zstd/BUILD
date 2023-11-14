@@ -424,3 +424,19 @@ place_and_route(
     synthesized_rtl = ":rle_block_dec_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "block_header_dslx",
+    srcs = [
+        "block_header.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "block_header_dslx_test",
+    library = ":block_header_dslx",
+)
