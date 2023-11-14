@@ -449,3 +449,19 @@ place_and_route(
     target_die_utilization_percentage = "10",
     tags = ["manual"],
 )
+
+xls_dslx_library(
+    name = "block_header_dslx",
+    srcs = [
+        "block_header.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "block_header_dslx_test",
+    library = ":block_header_dslx",
+)
