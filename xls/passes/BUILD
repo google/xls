@@ -126,10 +126,12 @@ cc_test(
 cc_test(
     name = "arith_simplification_pass_test",
     srcs = ["arith_simplification_pass_test.cc"],
+    shard_count = 10,
     deps = [
         ":arith_simplification_pass",
         ":dce_pass",
         ":optimization_pass",
+        ":pass_base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
         "//xls/common:xls_gunit",
@@ -141,6 +143,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence",
     ],
@@ -371,10 +374,12 @@ cc_library(
     deps = [
         ":optimization_pass",
         ":pass_base",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
         "//xls/ir",
         "//xls/ir:big_int",
         "//xls/ir:bits",

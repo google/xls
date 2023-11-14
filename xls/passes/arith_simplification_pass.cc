@@ -19,15 +19,19 @@
 #include <functional>
 #include <optional>
 #include <tuple>
+#include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -1007,6 +1011,130 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   if (n->op() == Op::kNeg && n->operand(0)->op() == Op::kNeg) {
     XLS_VLOG(2) << "FOUND: Double negative";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)->operand(0)));
+    return true;
+  }
+
+  // We can eliminate negations that are only used in signed comparisons to
+  // literals or other negations, at minimal cost.
+  //
+  // NOTE: This is expected to reduce delay in other scenarios too, but we
+  //       currently have no way to model the tradeoff between area & delay, so
+  //       we only do this where we can fully eliminate one negation.
+  auto is_removable_negate = [](Node* node) {
+    return node->op() == Op::kNeg &&
+           !node->function_base()->HasImplicitUse(node) &&
+           absl::c_all_of(node->users(), [](Node* user) {
+             return IsSignedCompare(user) &&
+                    user->operand(0)->op() == Op::kNeg &&
+                    (user->operand(1)->Is<Literal>() ||
+                     user->operand(1)->op() == Op::kNeg);
+           });
+  };
+
+  // Pattern: Signed comparison of negated operands
+  //   eq(-lhs, -rhs)  =>  eq(lhs, rhs)
+  //   ne(-lhs, -rhs)  =>  ne(lhs, rhs)
+  //    (-lhs < -rhs)  =>  (lhs > rhs) XOR (lhs != MIN) XOR (rhs != MIN)
+  //    (-lhs > -rhs)  =>  (lhs < rhs) XOR (lhs != MIN) XOR (rhs != MIN)
+  //   (-lhs <= -rhs)  =>  (lhs >= rhs) XOR (lhs != MIN) XOR (rhs != MIN)
+  //   (-lhs >= -rhs)  =>  (lhs <= rhs) XOR (lhs != MIN) XOR (rhs != MIN)
+  if (IsBitsCompare(n) && IsSignedCompare(n) &&
+      n->operand(0)->op() == Op::kNeg && n->operand(1)->op() == Op::kNeg &&
+      (is_removable_negate(n->operand(0)) ||
+       is_removable_negate(n->operand(1)))) {
+    XLS_VLOG(2)
+        << "FOUND: Signed comparison of negated operands with no other use";
+    Node* lhs = n->operand(0)->operand(0);
+    Node* rhs = n->operand(1)->operand(0);
+
+    Node* equivalent;
+    XLS_ASSIGN_OR_RETURN(Op reversed_op, ReverseComparisonOp(n->op()));
+    XLS_ASSIGN_OR_RETURN(Node * reversed_cmp,
+                         n->function_base()->MakeNode<CompareOp>(
+                             n->loc(), lhs, rhs, reversed_op));
+    if (n->op() == Op::kEq || n->op() == Op::kNe) {
+      equivalent = reversed_cmp;
+    } else {
+      XLS_RET_CHECK_EQ(n->operand(0)->BitCountOrDie(),
+                       n->operand(1)->BitCountOrDie());
+      const int64_t bit_count = n->operand(0)->BitCountOrDie();
+      InlineBitmap hi_bit(bit_count);
+      hi_bit.Set(bit_count - 1);
+      XLS_ASSIGN_OR_RETURN(
+          Literal * min_value,
+          n->function_base()->MakeNode<Literal>(
+              n->loc(), Value(Bits::FromBitmap(std::move(hi_bit)))));
+      XLS_ASSIGN_OR_RETURN(Node * lhs_not_min,
+                           n->function_base()->MakeNode<CompareOp>(
+                               n->loc(), lhs, min_value, Op::kNe));
+      XLS_ASSIGN_OR_RETURN(Node * rhs_not_min,
+                           n->function_base()->MakeNode<CompareOp>(
+                               n->loc(), rhs, min_value, Op::kNe));
+      XLS_ASSIGN_OR_RETURN(
+          equivalent,
+          n->function_base()->MakeNode<NaryOp>(
+              n->loc(),
+              std::vector<Node*>{reversed_cmp, lhs_not_min, rhs_not_min},
+              Op::kXor));
+    }
+
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(equivalent));
+    return true;
+  }
+
+  // Pattern: Signed comparison of negation to literal
+  //   eq(-expr, K)  =>  eq(expr, -K)
+  //   ne(-expr, K)  =>  ne(expr, -K)
+  //    (-expr < K)  =>  (expr > -K) XOR (expr != MIN) XOR (K != MIN)
+  //    (-expr > K)  =>  (expr < -K) XOR (expr != MIN) XOR (K != MIN)
+  //   (-expr <= K)  =>  (expr >= -K) XOR (expr != MIN) XOR (K != MIN)
+  //   (-expr >= K)  =>  (expr <= -K) XOR (expr != MIN) XOR (K != MIN)
+  //
+  // Canonicalization puts the literal on the right for comparisons.
+  if (IsBitsCompare(n) && IsSignedCompare(n) &&
+      n->operand(0)->op() == Op::kNeg && n->operand(1)->Is<Literal>() &&
+      is_removable_negate(n->operand(0))) {
+    XLS_VLOG(2) << "FOUND: Signed comparison of negation to literal";
+    Node* expr = n->operand(0)->operand(0);
+    Literal* k = n->operand(1)->As<Literal>();
+
+    Bits neg_k_bits = bits_ops::Negate(k->value().bits());
+    XLS_ASSIGN_OR_RETURN(Literal * neg_k, n->function_base()->MakeNode<Literal>(
+                                              k->loc(), Value(neg_k_bits)));
+
+    Node* equivalent;
+    XLS_ASSIGN_OR_RETURN(Op reversed_op, ReverseComparisonOp(n->op()));
+    XLS_ASSIGN_OR_RETURN(Node * reversed_cmp,
+                         n->function_base()->MakeNode<CompareOp>(
+                             n->loc(), expr, neg_k, reversed_op));
+    if (n->op() == Op::kEq || n->op() == Op::kNe) {
+      equivalent = reversed_cmp;
+    } else {
+      XLS_RET_CHECK_EQ(n->operand(0)->BitCountOrDie(), k->BitCountOrDie());
+      const int64_t bit_count = n->operand(0)->BitCountOrDie();
+      InlineBitmap hi_bit(bit_count);
+      hi_bit.Set(bit_count - 1);
+      Bits min_value_bits = Bits::FromBitmap(std::move(hi_bit));
+
+      Node* x;  // x := (expr != MIN) XOR (K != MIN)...
+                // but since k is known at compile time, we fold the answer in.
+      XLS_ASSIGN_OR_RETURN(Literal * min_value,
+                           n->function_base()->MakeNode<Literal>(
+                               n->loc(), Value(min_value_bits)));
+      if (k->value().bits() != min_value_bits) {
+        XLS_ASSIGN_OR_RETURN(x, n->function_base()->MakeNode<CompareOp>(
+                                    n->loc(), expr, min_value, Op::kEq));
+      } else {
+        XLS_ASSIGN_OR_RETURN(x, n->function_base()->MakeNode<CompareOp>(
+                                    n->loc(), expr, min_value, Op::kNe));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          equivalent,
+          n->function_base()->MakeNode<NaryOp>(
+              n->loc(), std::vector<Node*>{reversed_cmp, x}, Op::kXor));
+    }
+
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(equivalent));
     return true;
   }
 

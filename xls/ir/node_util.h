@@ -257,6 +257,10 @@ inline absl::StatusOr<Op> InvertComparisonOp(Op op) {
       return Op::kUGt;
     case Op::kULt:
       return Op::kUGe;
+    case Op::kEq:
+      return Op::kNe;
+    case Op::kNe:
+      return Op::kEq;
     default:
       return absl::InvalidArgumentError(
           absl::StrFormat("%v is not a comparison operation", op));
@@ -286,6 +290,10 @@ inline absl::StatusOr<Op> ReverseComparisonOp(Op op) {
       return Op::kSLe;
     case Op::kSGt:
       return Op::kSLt;
+    case Op::kEq:
+      return Op::kEq;
+    case Op::kNe:
+      return Op::kNe;
     default:
       return absl::InvalidArgumentError(
           absl::StrFormat("%v is not a comparison operation", op));

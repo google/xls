@@ -14,7 +14,9 @@
 
 #include "xls/passes/arith_simplification_pass.h"
 
+#include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <string>
 
 #include "gmock/gmock.h"
@@ -28,10 +30,13 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 
 namespace m = ::xls::op_matchers;
@@ -90,6 +95,501 @@ TEST_F(ArithSimplificationPassTest, DoubleNeg) {
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param());
+}
+
+TEST_F(ArithSimplificationPassTest, CompareEqNegated) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[1] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        ret result: bits[1] = eq(neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(f->return_value(), m::Eq(m::Neg(), m::Neg()));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Param("y")));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareEqNegatedConstant) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8]) -> bits[1] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        ret result: bits[1] = eq(neg_x, k)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Eq(m::Neg(), m::Literal(3)));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Literal(253)));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithOneUsedElsewhere) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[9] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        cmp:bits[1] = eq(neg1, neg2)
+        ret result: bits[9] = concat(cmp, neg1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::Eq(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x"))));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Concat(m::Eq(m::Param("x"), m::Param("y")),
+                                           m::Neg(m::Param("x"))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithBothUsedElsewhere) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[17] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        cmp:bits[1] = eq(neg1, neg2)
+        ret result: bits[17] = concat(cmp, neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::Eq(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x")), m::Neg(m::Param("y"))));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::Eq(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x")), m::Neg(m::Param("y"))));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareEqNegatedConstantWithOtherUse) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8]) -> bits[9] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        cmp:bits[1] = eq(neg_x, k)
+        ret result: bits[9] = concat(cmp, neg_x)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Eq(m::Neg(m::Param("x")), m::Literal(3)),
+                        m::Neg(m::Param("x"))));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Eq(m::Neg(m::Param("x")), m::Literal(3)),
+                        m::Neg(m::Param("x"))));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareNeNegated) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[1] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        ret result: bits[1] = ne(neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Ne(m::Neg(), m::Neg()));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Ne(m::Param("x"), m::Param("y")));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareNeNegatedConstant) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8]) -> bits[1] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        ret result: bits[1] = ne(neg_x, k)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Ne(m::Neg(), m::Literal(3)));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Ne(m::Param("x"), m::Literal(253)));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareNeNegatedWithOneUsedElsewhere) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[9] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        cmp:bits[1] = ne(neg1, neg2)
+        ret result: bits[9] = concat(cmp, neg1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::Ne(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x"))));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Concat(m::Ne(m::Param("x"), m::Param("y")),
+                                           m::Neg(m::Param("x"))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareNeNegatedWithBothUsedElsewhere) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[17] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        cmp:bits[1] = ne(neg1, neg2)
+        ret result: bits[17] = concat(cmp, neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::Ne(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x")), m::Neg(m::Param("y"))));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::Ne(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x")), m::Neg(m::Param("y"))));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareNeNegatedConstantWithOtherUse) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8]) -> bits[9] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        cmp:bits[1] = ne(neg_x, k)
+        ret result: bits[9] = concat(cmp, neg_x)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Ne(m::Neg(m::Param("x")), m::Literal(3)),
+                        m::Neg(m::Param("x"))));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Ne(m::Neg(m::Param("x")), m::Literal(3)),
+                        m::Neg(m::Param("x"))));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareSignedLtNegated) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[1] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        ret result: bits[1] = slt(neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::SLt(m::Neg(), m::Neg()));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::SGt(m::Param("x"), m::Param("y")),
+                                        m::Ne(m::Param(), m::Literal(128)),
+                                        m::Ne(m::Param(), m::Literal(128))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareSignedLtNegatedConstant) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[1] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        ret result: bits[1] = slt(neg_x, k)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::SLt(m::Neg(), m::Literal(3)));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::SGt(m::Param("x"), m::Literal(253)),
+                                        m::Eq(m::Param(), m::Literal(128))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest,
+       CompareSignedLtNegatedWithOneUsedElsewhere) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[9] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        cmp:bits[1] = slt(neg1, neg2)
+        ret result: bits[9] = concat(cmp, neg1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::SLt(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x"))));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Xor(m::SGt(m::Param("x"), m::Param("y")),
+                               m::Ne(m::Param("x"), m::Literal(128)),
+                               m::Ne(m::Param("y"), m::Literal(128))),
+                        m::Neg(m::Param("x"))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest,
+       CompareSignedLtNegatedWithBothUsedElsewhere) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[17] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        cmp:bits[1] = slt(neg1, neg2)
+        ret result: bits[17] = concat(cmp, neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::SLt(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x")), m::Neg(m::Param("y"))));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(f->return_value(),
+              m::Concat(m::SLt(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
+                        m::Neg(m::Param("x")), m::Neg(m::Param("y"))));
+}
+
+TEST_F(ArithSimplificationPassTest,
+       CompareSignedLtNegatedConstantWithOtherUse) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8]) -> bits[9] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        cmp:bits[1] = slt(neg_x, k)
+        ret result: bits[9] = concat(cmp, neg_x)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::SLt(m::Neg(m::Param("x")), m::Literal(3)),
+                        m::Neg(m::Param("x"))));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::SLt(m::Neg(m::Param("x")), m::Literal(3)),
+                        m::Neg(m::Param("x"))));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareSignedGtNegated) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[1] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        ret result: bits[1] = sgt(neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::SGt(m::Neg(), m::Neg()));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::SLt(m::Param("x"), m::Param("y")),
+                                        m::Ne(m::Param(), m::Literal(128)),
+                                        m::Ne(m::Param(), m::Literal(128))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareSignedGtNegatedConstant) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[1] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        ret result: bits[1] = sgt(neg_x, k)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::SGt(m::Neg(), m::Literal(3)));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::SLt(m::Param("x"), m::Literal(253)),
+                                        m::Eq(m::Param(), m::Literal(128))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareSignedLeNegated) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[1] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        ret result: bits[1] = sle(neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::SLe(m::Neg(), m::Neg()));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::SGe(m::Param("x"), m::Param("y")),
+                                        m::Ne(m::Param(), m::Literal(128)),
+                                        m::Ne(m::Param(), m::Literal(128))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareSignedLeNegatedConstant) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8]) -> bits[1] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        ret result: bits[1] = sle(neg_x, k)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::SLe(m::Neg(), m::Literal(3)));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::SGe(m::Param("x"), m::Literal(253)),
+                                        m::Eq(m::Param(), m::Literal(128))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareSignedGeNegated) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8], y:bits[8]) -> bits[1] {
+        neg1:bits[8] = neg(x)
+        neg2:bits[8] = neg(y)
+        ret result: bits[1] = sge(neg1, neg2)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::SGe(m::Neg(), m::Neg()));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::SLe(m::Param("x"), m::Param("y")),
+                                        m::Ne(m::Param(), m::Literal(128)),
+                                        m::Ne(m::Param(), m::Literal(128))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, CompareSignedGeNegatedConstant) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn compare_neg(x:bits[8]) -> bits[1] {
+        neg_x:bits[8] = neg(x)
+        k:bits[8] = literal(value=3)
+        ret result: bits[1] = sge(neg_x, k)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::SGe(m::Neg(), m::Literal(3)));
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::SLe(m::Param("x"), m::Literal(253)),
+                                        m::Eq(m::Param(), m::Literal(128))));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy0) {
