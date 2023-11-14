@@ -216,7 +216,7 @@ def _xls_cc_ir_impl(ctx):
 
     # Append to user defines.
     xlscc_args["defines"] = (
-        xlscc_args.get("defines", "") + "__SYNTHESIS__," +
+        xlscc_args.get("defines", "") + "__SYNTHESIS__,__xlscc__," +
         "__AC_OVERRIDE_OVF_UPDATE_BODY=,__AC_OVERRIDE_OVF_UPDATE2_BODY="
     )
 
