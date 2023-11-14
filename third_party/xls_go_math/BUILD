@@ -55,6 +55,8 @@ xls_eval_ir_test(
 xls_benchmark_ir(
     name = "fpexp_32_benchmark_ir",
     src = ":fpexp_32.ir",
+    # TODO: Takes >15m for synthesis; too long for routine benchmarks.
+    synthesize = False,
 )
 
 cc_xls_ir_jit_wrapper(
@@ -125,6 +127,8 @@ xls_eval_ir_test(
 xls_benchmark_ir(
     name = "fp_sincos_32_benchmark_ir",
     src = ":fp_sincos_32.ir",
+    # TODO: Hits OOM issues during synthesis; should get this fixed.
+    synthesize = False,
 )
 
 cc_xls_ir_jit_wrapper(
@@ -187,6 +191,8 @@ xls_eval_ir_test(
 xls_benchmark_ir(
     name = "fp_trig_reduce_benchmark_ir",
     src = ":fp_trig_reduce.ir",
+    # TODO: Takes >15m for synthesis; too long for routine benchmarks.
+    synthesize = False,
 )
 
 cc_xls_ir_jit_wrapper(

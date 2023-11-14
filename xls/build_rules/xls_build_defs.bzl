@@ -45,7 +45,6 @@ load(
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
     _get_mangled_ir_symbol = "get_mangled_ir_symbol",
-    _xls_benchmark_ir = "xls_benchmark_ir",
     _xls_eval_ir_test = "xls_eval_ir_test",
     _xls_ir_equivalence_test = "xls_ir_equivalence_test",
 )
@@ -60,6 +59,7 @@ load(
     _xls_dslx_fmt_test_macro = "xls_dslx_fmt_test_macro",
     _xls_dslx_opt_ir_macro = "xls_dslx_opt_ir_macro",
     _xls_dslx_verilog_build_and_test = "xls_dslx_verilog_build_and_test",
+    _xls_full_benchmark_ir_macro = "xls_full_benchmark_ir_macro",
     _xls_synthesis_metrics = "xls_synthesis_metrics",
 )
 load(
@@ -81,7 +81,7 @@ xls_dslx_library = _xls_dslx_library
 xls_dslx_test = _xls_dslx_test
 
 get_mangled_ir_symbol = _get_mangled_ir_symbol
-xls_benchmark_ir = _xls_benchmark_ir
+xls_benchmark_ir = _xls_full_benchmark_ir_macro
 xls_ir_equivalence_test = _xls_ir_equivalence_test
 xls_ir_cc_library = _xls_ir_cc_library_macro
 xls_eval_ir_test = _xls_eval_ir_test

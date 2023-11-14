@@ -16,6 +16,8 @@
 This module contains build macros for XLS.
 """
 
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load(
@@ -23,6 +25,7 @@ load(
     "append_xls_ir_verilog_generated_files",
     "get_xls_ir_verilog_generated_files",
     "validate_verilog_filename",
+    "xls_ir_verilog",
 )
 load(
     "//xls/build_rules:xls_common_rules.bzl",
@@ -33,11 +36,16 @@ load(
     "enable_generated_file_wrapper",
 )
 load(
+    "//xls/build_rules:xls_ir_macros.bzl",
+    _xls_ir_opt_ir_macro = "xls_ir_opt_ir_macro",
+)
+load(
     "//xls/build_rules:xls_ir_rules.bzl",
     "append_xls_dslx_ir_generated_files",
     "append_xls_ir_opt_ir_generated_files",
     "get_xls_dslx_ir_generated_files",
     "get_xls_ir_opt_ir_generated_files",
+    "xls_benchmark_ir",
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
@@ -542,4 +550,143 @@ def xls_dslx_fmt_test_macro(name, src):
         file1 = src,
         file2 = ":" + name + "_dslx_fmt",
         failure_message = "File %s was not canonically auto-formatted; to update, in the top level directory of your WORKSPACE run: bazel build -c opt %s && cp bazel-genfiles/%s %s" % (src_file, target, out_file, src_file),
+    )
+
+def xls_full_benchmark_ir_macro(
+        name,
+        src,
+        synthesize = True,
+        codegen_args = {},
+        benchmark_ir_args = {},
+        standard_cells = None,
+        **kwargs):
+    """Executes the benchmark tool on an IR file.
+
+Examples:
+
+1. A file as the source.
+
+    ```
+    xls_benchmark_ir(
+        name = "a_benchmark",
+        src = "a.ir",
+    )
+    ```
+
+1. An xls_ir_opt_ir target as the source.
+
+    ```
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = "a.ir",
+    )
+
+
+    xls_benchmark_ir(
+        name = "a_benchmark",
+        src = ":a_opt_ir",
+    )
+    ```
+
+    Args:
+        name: A unique name for this target.
+        src: The IR source file for the rule. A single source file must be provided. The file must
+          have a '.ir' extension.
+        benchmark_ir_args: Arguments of the benchmark IR tool. For details on the arguments, refer
+          to the benchmark_main application at //xls/tools/benchmark_main.cc.
+        scheduling_options_proto: Protobuf filename of scheduling arguments to the benchmark IR
+          tool. For details on the arguments, refer to the benchmark_main application at
+          //xls/tools/benchmark_main.cc.
+        top: The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top'
+          argument of the IR tool/application.
+    """
+    xls_benchmark_ir(
+        name = name,
+        src = src,
+        benchmark_ir_args = benchmark_ir_args,
+        **kwargs
+    )
+    if not synthesize:
+        return
+
+    SHARED_FLAGS = (
+        "top",
+    )
+    IR_OPT_FLAGS = (
+        "ir_dump_path",
+        "run_only_passes",
+        "skip_passes",
+        "opt_level",
+        "convert_array_index_to_select",
+        "inline_procs",
+        "use_context_narrowing_analysis",
+    )
+    opt_ir_args = {
+        k: v
+        for k, v in benchmark_ir_args.items()
+        if k in IR_OPT_FLAGS or k in SHARED_FLAGS
+    }
+    benchmark_ir_codegen_args = {
+        k: v
+        for k, v in benchmark_ir_args.items()
+        if k not in IR_OPT_FLAGS or k in SHARED_FLAGS
+    }
+
+    opt_ir_target = name + ".default_asap7.opt_ir"
+    _xls_ir_opt_ir_macro(
+        name = opt_ir_target,
+        src = src,
+        opt_ir_args = opt_ir_args,
+    )
+
+    # Add default codegen args
+    full_codegen_args = {
+        "delay_model": "asap7",
+        "generator": "pipeline",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "reset_data_path": "false",
+        "use_system_verilog": "false",
+        "module_name": name + "_default_asap7",
+    }
+    full_codegen_args.update(benchmark_ir_codegen_args)
+    full_codegen_args.update(codegen_args)
+    if "clock_period_ps" in full_codegen_args:
+        full_codegen_args.pop("pipeline_stages")
+    codegen_args = full_codegen_args
+
+    if standard_cells == None:
+        # Use default standard cells for the given delay model; supports SKY130 and ASAP7.
+        if codegen_args["delay_model"] == "sky130":
+            standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"
+        else:
+            standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt"
+
+    codegen_target = name + ".default_asap7.codegen"
+    verilog_file = codegen_target + ".v"
+    xls_ir_verilog(
+        name = codegen_target,
+        src = ":{}.opt.ir".format(opt_ir_target),
+        codegen_args = codegen_args,
+        verilog_file = verilog_file,
+    )
+    verilog_target = name + ".default_asap7.verilog"
+    verilog_library(
+        name = verilog_target,
+        srcs = [
+            ":" + verilog_file,
+        ],
+    )
+    synth_target = name + ".default_asap7.synth"
+    synthesize_rtl(
+        name = synth_target,
+        standard_cells = standard_cells,
+        top_module = codegen_args["module_name"],
+        deps = [
+            ":" + verilog_target,
+        ],
+    )
+    benchmark_synth(
+        name = name + ".default_asap7.benchmark_synth",
+        synth_target = ":" + synth_target,
     )

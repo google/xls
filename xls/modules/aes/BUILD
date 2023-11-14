@@ -251,6 +251,8 @@ cc_library(
 xls_benchmark_ir(
     name = "aes_ctr_benchmark_ir",
     src = ":aes_ctr.ir",
+    # TODO: Hits OOM issues during synthesis; should get this fixed.
+    synthesize = False,
 )
 
 xls_benchmark_ir(

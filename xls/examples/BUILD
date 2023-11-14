@@ -246,6 +246,8 @@ xls_eval_ir_test(
 xls_benchmark_ir(
     name = "sha256_benchmark_ir",
     src = ":sha256.ir",
+    # TODO: Takes >15m for synthesis; too long for routine benchmarks.
+    synthesize = False,
     tags = ["optonly"],
 )
 
@@ -283,6 +285,8 @@ xls_dslx_opt_ir(
 xls_benchmark_ir(
     name = "sobel_filter_benchmark_ir",
     src = ":sobel_filter_ir.ir",
+    # TODO: Takes >15m for synthesis; too long for routine benchmarks.
+    synthesize = False,
 )
 
 list_filegroup_files(
@@ -477,6 +481,8 @@ xls_dslx_opt_ir(
 xls_benchmark_ir(
     name = "large_array_benchmark_ir",
     src = ":large_array.ir",
+    # TODO: Takes >15m for synthesis; too long for routine benchmarks.
+    synthesize = False,
 )
 
 xls_dslx_library(
@@ -598,6 +604,8 @@ xls_ir_opt_ir(
 xls_benchmark_ir(
     name = "delay_loopback_channel_benchmark_ir",
     src = ":delay_loopback_channel_opt_ir.opt.ir",
+    # TODO: Enable this once loopback channels work in synthesis.
+    synthesize = False,
 )
 
 xls_ir_verilog(

@@ -160,54 +160,6 @@ Examples:
 | <a id="proto_data-protobin_file"></a>protobin_file |  The name of the output file to write binary proto to. If not specified, the target name of the bazel rule followed by a .protobin extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
 
-<a id="xls_benchmark_ir"></a>
-
-## xls_benchmark_ir
-
-<pre>
-xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_benchmark_ir-top">top</a>)
-</pre>
-
-Executes the benchmark tool on an IR file.
-
-Examples:
-
-1. A file as the source.
-
-    ```
-    xls_benchmark_ir(
-        name = "a_benchmark",
-        src = "a.ir",
-    )
-    ```
-
-1. An xls_ir_opt_ir target as the source.
-
-    ```
-    xls_ir_opt_ir(
-        name = "a_opt_ir",
-        src = "a.ir",
-    )
-
-
-    xls_benchmark_ir(
-        name = "a_benchmark",
-        src = ":a_opt_ir",
-    )
-    ```
-
-**ATTRIBUTES**
-
-
-| Name  | Description | Type | Mandatory | Default |
-| :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="xls_benchmark_ir-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_benchmark_ir-src"></a>src |  The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="xls_benchmark_ir-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
-| <a id="xls_benchmark_ir-scheduling_options_proto"></a>scheduling_options_proto |  Protobuf filename of scheduling arguments to the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
-| <a id="xls_benchmark_ir-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional |  `""`  |
-
-
 <a id="xls_benchmark_verilog"></a>
 
 ## xls_benchmark_verilog
@@ -609,6 +561,68 @@ converted, we use their mangled names to refer to them in the IR namespace.
 **RETURNS**
 
 The "mangled" symbol string.
+
+
+<a id="xls_benchmark_ir"></a>
+
+## xls_benchmark_ir
+
+<pre>
+xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-synthesize">synthesize</a>, <a href="#xls_benchmark_ir-codegen_args">codegen_args</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-standard_cells">standard_cells</a>, <a href="#xls_benchmark_ir-kwargs">kwargs</a>)
+</pre>
+
+Executes the benchmark tool on an IR file.
+
+Examples:
+
+1. A file as the source.
+
+    ```
+    xls_benchmark_ir(
+        name = "a_benchmark",
+        src = "a.ir",
+    )
+    ```
+
+1. An xls_ir_opt_ir target as the source.
+
+    ```
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = "a.ir",
+    )
+
+
+    xls_benchmark_ir(
+        name = "a_benchmark",
+        src = ":a_opt_ir",
+    )
+    ```
+
+    Args:
+        name: A unique name for this target.
+        src: The IR source file for the rule. A single source file must be provided. The file must
+          have a '.ir' extension.
+        benchmark_ir_args: Arguments of the benchmark IR tool. For details on the arguments, refer
+          to the benchmark_main application at //xls/tools/benchmark_main.cc.
+        scheduling_options_proto: Protobuf filename of scheduling arguments to the benchmark IR
+          tool. For details on the arguments, refer to the benchmark_main application at
+          //xls/tools/benchmark_main.cc.
+        top: The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top'
+          argument of the IR tool/application.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="xls_benchmark_ir-name"></a>name |  <p align="center"> - </p>   |  none |
+| <a id="xls_benchmark_ir-src"></a>src |  <p align="center"> - </p>   |  none |
+| <a id="xls_benchmark_ir-synthesize"></a>synthesize |  <p align="center"> - </p>   |  `True` |
+| <a id="xls_benchmark_ir-codegen_args"></a>codegen_args |  <p align="center"> - </p>   |  `{}` |
+| <a id="xls_benchmark_ir-benchmark_ir_args"></a>benchmark_ir_args |  <p align="center"> - </p>   |  `{}` |
+| <a id="xls_benchmark_ir-standard_cells"></a>standard_cells |  <p align="center"> - </p>   |  `None` |
+| <a id="xls_benchmark_ir-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
 <a id="xls_delay_model_generation"></a>

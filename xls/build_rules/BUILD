@@ -191,6 +191,7 @@ bzl_library(
     deps = [
         ":xls_codegen_rules_bzl",
         ":xls_config_rules_bzl",
+        ":xls_ir_macros_bzl",
         ":xls_ir_rules_bzl",
         ":xls_rules_bzl",
         ":xls_type_check_helpers_bzl",

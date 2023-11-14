@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(input: u32) -> u32 {
+fn main(val: u32) -> u32 {
     const FOO = u32:2;
     for (_, acc): (u32, u32) in range(u32:0, FOO) {
         for (_, acc): (u32, u32) in range(u32:0, FOO) {
             for (_, acc): (u32, u32) in range(u32:0, FOO) {
-                acc + input
+                acc + val
             }(acc)
         }(acc)
     }(u32:0)
