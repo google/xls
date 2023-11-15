@@ -215,7 +215,29 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
   }
   std::sort(pass_names.begin(), pass_names.end(),
             [&](const std::string& a, const std::string& b) {
-              return pass_times.at(a) > pass_times.at(b);
+              // Sort by time (at the same resolution we show), breaking ties by
+              // # of times run, # of times changed, and finally pass name.
+              int64_t a_time = DurationToMs(pass_times.at(a));
+              int64_t b_time = DurationToMs(pass_times.at(b));
+              if (a_time > b_time) {
+                return true;
+              }
+              if (a_time < b_time) {
+                return false;
+              }
+              if (pass_counts.at(a) > pass_counts.at(b)) {
+                return true;
+              }
+              if (pass_counts.at(a) < pass_counts.at(b)) {
+                return false;
+              }
+              if (changed_counts.at(a) > changed_counts.at(b)) {
+                return true;
+              }
+              if (changed_counts.at(a) < changed_counts.at(b)) {
+                return false;
+              }
+              return a > b;
             });
   std::cout << "Pass run durations (# of times pass changed IR / # of times "
                "pass was run):"
