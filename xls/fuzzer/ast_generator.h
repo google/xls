@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -646,20 +647,6 @@ class AstGenerator {
   // minimum number of bits required to make that constant.
   ConstRef* GetOrCreateConstRef(
       int64_t value, std::optional<int64_t> want_width = std::nullopt);
-
-  template <typename T>
-  T RandomSetChoice(const absl::btree_set<T>& choices) {
-    int64_t index = RandRange(choices.size());
-    auto it = choices.begin();
-    std::advance(it, index);
-    return *it;
-  }
-  template <typename T>
-  T RandomChoice(absl::Span<const T> choices) {
-    XLS_CHECK(!choices.empty());
-    int64_t index = RandRange(choices.size());
-    return choices[index];
-  }
 
   // Returns a recoverable status error with the given message. A recoverable
   // error may be raised to indicate that the generation of an individual

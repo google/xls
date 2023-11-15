@@ -45,6 +45,7 @@
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/random_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
@@ -342,7 +343,7 @@ absl::StatusOr<Expr*> AstGenerator::GenerateUmin(TypedExpr arg, int64_t other) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Context* ctx) {
-  BinopKind op = RandomSetChoice<BinopKind>(GetBinopComparisonKinds());
+  BinopKind op = RandomChoice(GetBinopComparisonKinds(), bit_gen_);
   XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
@@ -407,9 +408,12 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   // Equal distribution for channel ops.
-  ChannelOpType chan_op_type = RandomChoice<ChannelOpType>(
-      {ChannelOpType::kRecv, ChannelOpType::kRecvNonBlocking,
-       ChannelOpType::kRecvIf, ChannelOpType::kSend, ChannelOpType::kSendIf});
+  ChannelOpType chan_op_type =
+      RandomChoice(absl::MakeConstSpan(
+                       {ChannelOpType::kRecv, ChannelOpType::kRecvNonBlocking,
+                        ChannelOpType::kRecvIf, ChannelOpType::kSend,
+                        ChannelOpType::kSendIf}),
+                   bit_gen_);
   ChannelOpInfo chan_op_info = GetChannelOpInfo(chan_op_type);
 
   int64_t min_stage = 1;
@@ -1002,7 +1006,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
-  BinopKind op = RandomSetChoice<BinopKind>(GetBinopShifts());
+  BinopKind op = RandomChoice(GetBinopShifts(), bit_gen_);
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueUBits(&ctx->env));
   int64_t lhs_bit_count = GetTypeBitCount(lhs.type);
@@ -1114,8 +1118,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
-  const absl::btree_set<BinopKind>& bin_ops = GetBinopSameTypeKinds();
-  BinopKind op = RandomSetChoice(bin_ops);
+  BinopKind op = RandomChoice(GetBinopSameTypeKinds(), bit_gen_);
   if (op == BinopKind::kDiv) {
     return GenerateSynthesizableDiv(ctx);
   }
@@ -1137,8 +1140,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Context* ctx) {
   TypedExpr rhs = pair.second;
 
   // Pick some operation to do.
-  BinopKind op = RandomChoice<BinopKind>(
-      {BinopKind::kAnd, BinopKind::kOr, BinopKind::kXor});
+  BinopKind op = RandomChoice(
+      absl::MakeConstSpan({BinopKind::kAnd, BinopKind::kOr, BinopKind::kXor}),
+      bit_gen_);
   return TypedExpr{
       .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
       .type = lhs.type,
@@ -1672,9 +1676,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
     TypedExpr expr;
     float p = RandomFloat();
     if (env_non_params.empty() || (p < 0.1 && !env_params.empty())) {
-      expr = RandomChoice<TypedExpr>(env_params);
+      expr = RandomChoice(env_params, bit_gen_);
     } else {
-      expr = RandomChoice<TypedExpr>(env_non_params);
+      expr = RandomChoice(env_non_params, bit_gen_);
     }
 
     // See if the value we selected is going to push us over the "aggregate type
@@ -2024,7 +2028,8 @@ AstGenerator::ChooseEnvValueBitsPair(Env* env,
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateUnop(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(&ctx->env));
-  UnopKind op = RandomChoice<UnopKind>({UnopKind::kInvert, UnopKind::kNegate});
+  UnopKind op = RandomChoice(
+      absl::MakeConstSpan({UnopKind::kInvert, UnopKind::kNegate}), bit_gen_);
   return TypedExpr{
       .expr = module_->Make<Unop>(fake_span_, op, arg.expr),
       .type = arg.type,
@@ -2069,8 +2074,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
     kWidthSlice,
     kDynamicSlice,
   };
-  SliceType which = RandomChoice<SliceType>(
-      {SliceType::kBitSlice, SliceType::kWidthSlice, SliceType::kDynamicSlice});
+  SliceType which = RandomChoice(
+      absl::MakeConstSpan({SliceType::kBitSlice, SliceType::kWidthSlice,
+                           SliceType::kDynamicSlice}),
+      bit_gen_);
   std::optional<int64_t> start;
   std::optional<int64_t> limit;
   int64_t width = -1;
@@ -2127,8 +2134,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(&ctx->env));
-  std::string_view op = RandomChoice<std::string_view>(
-      {"and_reduce", "or_reduce", "xor_reduce"});
+  std::string_view op =
+      RandomChoice(absl::Span<const std::string_view>(
+                       {"and_reduce", "or_reduce", "xor_reduce"}),
+                   bit_gen_);
   NameRef* callee = MakeBuiltinNameRef(std::string(op));
   TypeAnnotation* type = MakeTypeAnnotation(false, 1);
   return TypedExpr{.expr = module_->Make<Invocation>(
@@ -2161,7 +2170,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Context* ctx) {
     }
   }
 
-  auto [element_size, array_size] = RandomChoice(absl::MakeConstSpan(factors));
+  auto [element_size, array_size] = RandomChoice(factors, bit_gen_);
   TypeAnnotation* element_type = MakeTypeAnnotation(false, element_size);
   ArrayTypeAnnotation* outer_array_type =
       MakeArrayType(element_type, array_size);
@@ -2640,7 +2649,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
   }
 
   Invocation* invocation = nullptr;
-  auto which = RandomChoice<UnopBuiltin>(choices);
+  auto which = RandomChoice(choices, bit_gen_);
   NameRef* name_ref = MakeBuiltinNameRef(to_string(which));
   int64_t result_bits = -1;
   switch (which) {

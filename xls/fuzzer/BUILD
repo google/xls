@@ -626,6 +626,7 @@ cc_library(
         ":ast_generator_options_cc_proto",
         ":value_generator",
         "//xls/common:casts",
+        "//xls/common:random_util",
         "//xls/common:symbolized_stacktrace",
         "//xls/common:test_macros",
         "//xls/common/logging",

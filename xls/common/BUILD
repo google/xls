@@ -31,6 +31,14 @@ cc_library(
 )
 
 cc_library(
+    name = "random_util",
+    hdrs = ["random_util.h"],
+    deps = [
+        "@com_google_absl//absl/random:bit_gen_ref",
+    ],
+)
+
+cc_library(
     name = "proto_adaptor_utils",
     hdrs = ["proto_adaptor_utils.h"],
     deps = [
