@@ -498,11 +498,9 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       pieces = {arena.ocurl(), arena.break1()};
     }
 
-    pieces.push_back(Fmt(*n.statements()[0], comments, arena));
+    pieces.push_back(FmtStatement(*n.statements()[0], comments, arena,
+                                  /*add_semi=*/n.trailing_semi()));
 
-    if (n.trailing_semi()) {
-      pieces.push_back(arena.semi());
-    }
     if (add_curls) {
       pieces.push_back(arena.break1());
       pieces.push_back(arena.ccurl());
@@ -575,15 +573,12 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     }
 
     // Here we emit the formatted statement.
-    std::vector<DocRef> stmt_semi = {Fmt(*stmt, comments, arena)};
+    bool last_stmt = i + 1 == n.statements().size();
+    std::vector<DocRef> stmt_semi = {
+        FmtStatement(*stmt, comments, arena, n.trailing_semi() || !last_stmt)};
 
     // Now we reflect the emission of the statement.
     last_entity_pos = stmt_limit;
-
-    bool last_stmt = i + 1 == n.statements().size();
-    if (!last_stmt || n.trailing_semi()) {
-      stmt_semi.push_back(arena.semi());
-    }
 
     stmt_pieces.push_back(ConcatNGroup(arena, stmt_semi));
     statements.push_back(ConcatN(arena, stmt_pieces));
@@ -839,8 +834,8 @@ DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
   // Group for the args tokens.
   std::vector<DocRef> arg_pieces = {
       arena.oparen(),
-      arena.MakeFlatChoice(/*on_flat=*/args_doc,
-                           /*on_break=*/arena.MakeAlign(args_doc)),
+      arena.MakeNestIfFlatFits(/*on_nested_flat_ref=*/args_doc,
+                               /*on_other_ref=*/arena.MakeAlign(args_doc)),
       arena.cparen()};
   pieces.push_back(ConcatNGroup(arena, arg_pieces));
   return ConcatNGroup(arena, pieces);
@@ -1205,7 +1200,12 @@ DocRef Fmt(const Unop& n, const Comments& comments, DocArena& arena) {
 
 // Forward decl.
 DocRef Fmt(const Range& n, const Comments& comments, DocArena& arena);
-DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena);
+
+// Default formatting for let-as-expression is to not emit the RHS with a
+// semicolon on it.
+DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
+  return FmtLetWithSemi(n, comments, arena, /*trailing_semi=*/false);
+}
 
 class FmtExprVisitor : public ExprVisitor {
  public:
@@ -1279,47 +1279,6 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
-  DocRef break1 = arena.break1();
-
-  std::vector<DocRef> leader_pieces = {
-      arena.MakeText(n.is_const() ? "const" : "let"), break1,
-      Fmt(*n.name_def_tree(), comments, arena)};
-  if (const TypeAnnotation* t = n.type_annotation()) {
-    leader_pieces.push_back(arena.colon());
-    leader_pieces.push_back(break1);
-    leader_pieces.push_back(Fmt(*t, comments, arena));
-  }
-
-  leader_pieces.push_back(break1);
-  leader_pieces.push_back(arena.equals());
-
-  DocRef body;
-  if (n.rhs()->IsBlockedExpr() || n.rhs()->kind() == AstNodeKind::kArray) {
-    // For blocked expressions we don't align them to the equals in the let,
-    // because it'd shove constructs like `let really_long_identifier = for ...`
-    // too far to the right hand side.
-    //
-    // Similarly for array literals, as they can have lots of elements which
-    // effectively makes them like blocks.
-    //
-    // Note that if you do e.g. a binary operation on blocked constructs as the
-    // RHS it /will/ align because we don't look for blocked constructs
-    // transitively -- seems reasonable given that's going to look funky no
-    // matter what.
-    leader_pieces.push_back(break1);
-    body = Fmt(*n.rhs(), comments, arena);
-  } else {
-    DocRef rhs = arena.MakeAlign(Fmt(*n.rhs(), comments, arena));
-    body = arena.MakeNestIfFlatFits(
-        /*on_nested_flat=*/rhs,
-        /*on_other=*/arena.MakeConcat(arena.space(), rhs));
-  }
-
-  DocRef leader = ConcatNGroup(arena, leader_pieces);
-  return arena.MakeConcat(leader, body);
-}
-
 // Note: suppress_parens just suppresses parentheses for the outermost
 // expression "n", not transitively.
 DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
@@ -1334,6 +1293,53 @@ DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
 }
 
 }  // namespace
+
+DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
+                      bool trailing_semi) {
+  std::vector<DocRef> leader_pieces = {
+      arena.MakeText(n.is_const() ? "const" : "let"), arena.space(),
+      Fmt(*n.name_def_tree(), comments, arena)};
+  if (const TypeAnnotation* t = n.type_annotation()) {
+    leader_pieces.push_back(arena.colon());
+    leader_pieces.push_back(arena.space());
+    leader_pieces.push_back(Fmt(*t, comments, arena));
+  }
+
+  leader_pieces.push_back(arena.space());
+  leader_pieces.push_back(arena.equals());
+
+  const DocRef rhs_doc_internal = Fmt(*n.rhs(), comments, arena);
+  const DocRef rhs_doc = trailing_semi
+                             ? arena.MakeConcat(rhs_doc_internal, arena.semi())
+                             : rhs_doc_internal;
+  DocRef body;
+  if (n.rhs()->IsBlockedExpr() || n.rhs()->kind() == AstNodeKind::kArray ||
+      n.rhs()->kind() == AstNodeKind::kInvocation) {
+    // For blocked expressions we don't align them to the equals in the let,
+    // because it'd shove constructs like `let really_long_identifier = for ...`
+    // too far to the right hand side.
+    //
+    // Similarly for array literals, as they can have lots of elements which
+    // effectively makes them like blocks.
+    //
+    // Note that if you do e.g. a binary operation on blocked constructs as the
+    // RHS it /will/ align because we don't look for blocked constructs
+    // transitively -- seems reasonable given that's going to look funky no
+    // matter what.
+    body = arena.MakeNestIfFlatFits(
+        /*on_nesated_flat=*/rhs_doc,
+        /*on_other=*/arena.MakeConcat(arena.space(), rhs_doc));
+  } else {
+    // Same as above but with an aligned RHS.
+    DocRef aligned_rhs = arena.MakeAlign(rhs_doc);
+    body = arena.MakeNestIfFlatFits(
+        /*on_nested_flat=*/rhs_doc,
+        /*on_other=*/arena.MakeConcat(arena.space(), aligned_rhs));
+  }
+
+  DocRef leader = ConcatN(arena, leader_pieces);
+  return arena.MakeConcat(leader, body);
+}
 
 /* static */ Comments Comments::Create(absl::Span<const CommentData> comments) {
   std::optional<Pos> last_data_limit;
@@ -1385,15 +1391,30 @@ std::vector<const CommentData*> Comments::GetComments(
   return results;
 }
 
-DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena) {
-  return absl::visit(
-      Visitor{
-          [&](const Expr* n) { return Fmt(*n, comments, arena); },
-          [&](const TypeAlias* n) { return Fmt(*n, comments, arena); },
-          [&](const Let* n) { return Fmt(*n, comments, arena); },
-          [&](const ConstAssert* n) { return Fmt(*n, comments, arena); },
-      },
-      n.wrapped());
+DocRef FmtStatement(const Statement& n, const Comments& comments,
+                    DocArena& arena, bool trailing_semi) {
+  auto maybe_concat_semi = [&](DocRef d) {
+    if (trailing_semi) {
+      return arena.MakeConcat(d, arena.semi());
+    }
+    return d;
+  };
+  return absl::visit(Visitor{
+                         [&](const Expr* n) {
+                           return maybe_concat_semi(Fmt(*n, comments, arena));
+                         },
+                         [&](const TypeAlias* n) {
+                           return maybe_concat_semi(Fmt(*n, comments, arena));
+                         },
+                         [&](const Let* n) {
+                           return FmtLetWithSemi(*n, comments, arena,
+                                                 trailing_semi);
+                         },
+                         [&](const ConstAssert* n) {
+                           return maybe_concat_semi(Fmt(*n, comments, arena));
+                         },
+                     },
+                     n.wrapped());
 }
 
 // Formats parameters (i.e. function parameters) with leading '(' and trailing

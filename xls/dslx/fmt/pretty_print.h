@@ -196,8 +196,8 @@ class DocArena {
   // vs preferring
   //
   //    let my_really_long_identifier =
-  //      invoke_a_thing_that(smushes, against, rhs);
-  //    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^-- nest-if-flat-and-fits
+  //        invoke_a_thing_that(smushes, against, rhs);
+  //    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^-- nest-if-flat-and-fits
   DocRef MakeNestIfFlatFits(DocRef on_nested_flat_ref, DocRef on_other_ref);
 
   // Creates a "prefixed reflow" doc, see `PrefixedReflow` for details.

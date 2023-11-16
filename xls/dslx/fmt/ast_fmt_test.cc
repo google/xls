@@ -147,7 +147,7 @@ TEST(AstFmtTest, FormatLet) {
   Comments comments = Comments::Create(s.comments());
 
   DocArena arena;
-  DocRef doc = Fmt(*stmt, comments, arena);
+  DocRef doc = FmtStatement(*stmt, comments, arena, /*trailing_semi=*/false);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
 
@@ -790,13 +790,11 @@ TEST_F(FunctionFmtTest, ParametricInvocationWithExpression) {
   EXPECT_EQ(got, original);
 }
 
+// The semicolon at the end of the let RHS pushes this over 100 chars.
 TEST_F(FunctionFmtTest, LetWith100Chars) {
   const std::string_view original = R"(fn f(integer_part: s9) {
-    let integer_part = if input_fraction_in_upper_half {
-        integer_part + s9:1
-    } else {
-        integer_part
-    };
+    let integer_part =
+        if input_fraction_in_upper_half { integer_part + s9:1 } else { integer_part };
 })";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got,
                            DoFmt(original, {"input_fraction_in_upper_half"}));
@@ -1788,6 +1786,23 @@ const NUM_PIECES = u32:8;
 pub const A0 = sN[W_A0][NUM_PIECES]:[
     111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111
 ];
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, InvocationWithOneStructArg) {
+  const std::string_view kProgram = R"(struct APFloat {}
+
+fn unbiased_exponent() {}
+
+fn f() {
+    let actual = unbiased_exponent<u32:8, u32:23>(
+        APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, fraction: u23:0 });
+}
 )";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,

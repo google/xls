@@ -62,7 +62,11 @@ class Comments {
 
 DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
 
-DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena);
+DocRef FmtStatement(const Statement& n, const Comments& comments,
+                    DocArena& arena, bool trailing_semi);
+
+DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
+                      bool trailing_semi);
 
 DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);
 
