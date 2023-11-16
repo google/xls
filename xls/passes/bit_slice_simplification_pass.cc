@@ -25,6 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/passes/optimization_pass.h"
@@ -138,7 +139,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
 
   // Bit slice that is the sole consumer of an op can often lead the slice to
   // propagate into the operands to reduce the work the op has to do.
-  if (NarrowingEnabled(opt_level) && operand->users().size() <= 1) {
+  if (NarrowingEnabled(opt_level) && HasSingleUse(operand)) {
     // For bitwise operations we can always slice the operands (because it's a
     // bit-parallel operation).
     //
@@ -229,7 +230,8 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
           bit_slice->GetName());
       XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(replacement));
       return true;
-    } else if (ext->users().size() == 1) {
+    }
+    if (HasSingleUse(ext)) {
       if (bit_slice->start() < x_bit_count) {
         // Case (2), slice straddles the sign bit.
         XLS_ASSIGN_OR_RETURN(
@@ -271,7 +273,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
   if (((bit_slice->start() == 0 && operand->op() == Op::kShll) ||
        ((bit_slice->start() + bit_slice->width() == operand->BitCountOrDie()) &&
         (operand->op() == Op::kShrl || operand->op() == Op::kShra))) &&
-      operand->users().size() == 1) {
+      HasSingleUse(operand)) {
     Node* shift = operand;
     Node* to_shift = shift->operand(0);
     Node* shift_amount = shift->operand(1);
@@ -292,7 +294,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
   // Combine slices with decode if the slice starts at zero. Only perform this
   // if the slice is the sole user.
   if (bit_slice->start() == 0 && operand->op() == Op::kDecode &&
-      operand->users().size() == 1) {
+      HasSingleUse(operand)) {
     XLS_VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(decode(s)) => decode(s): %s", bit_slice->GetName());
     XLS_RETURN_IF_ERROR(bit_slice
@@ -306,7 +308,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
   // user.
   if (NarrowingEnabled(opt_level) &&
       (operand->Is<Select>() || operand->Is<OneHotSelect>()) &&
-      operand->users().size() == 1) {
+      HasSingleUse(operand)) {
     Node* select = operand;
     std::vector<Node*> new_operands;
     // Operand 0 is the selector in both Select and OneHotSelect operations and

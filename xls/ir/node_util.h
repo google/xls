@@ -31,6 +31,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -112,6 +113,13 @@ inline bool AnyTwoOperandsWhere(Node* node,
     }
   }
   return false;
+}
+
+inline bool HasSingleUse(Node* node) {
+  if (node->function_base()->HasImplicitUse(node)) {
+    return node->users().empty();
+  }
+  return node->users().size() == 1;
 }
 
 inline bool SoleUserSatisfies(Node* node,

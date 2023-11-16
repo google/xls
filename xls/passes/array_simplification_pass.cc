@@ -393,7 +393,7 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update,
   // might be derived from 'Array' otherwise and the transformation would
   // introduce a loop in the graph.
   if (array_update->array_to_update()->Is<Array>() &&
-      array_update->array_to_update()->users().size() == 1 &&
+      HasSingleUse(array_update->array_to_update()) &&
       !array_update->indices().empty() &&
       array_update->indices().front()->Is<Literal>()) {
     Node* idx = array_update->indices().front();

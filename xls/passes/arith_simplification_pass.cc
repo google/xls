@@ -727,7 +727,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     std::vector<Node*> new_operands;
     bool should_transform = false;
     for (Node* operand : n->operands()) {
-      if (operand->op() == n->op() && operand->users().size() == 1) {
+      if (operand->op() == n->op() && HasSingleUse(operand)) {
         should_transform = true;
         for (Node* suboperand : operand->operands()) {
           new_operands.push_back(suboperand);

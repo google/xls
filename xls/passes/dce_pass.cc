@@ -20,6 +20,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -51,7 +52,7 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
     unique_operands.clear();
     for (Node* operand : node->operands()) {
       if (unique_operands.insert(operand).second) {
-        if (operand->users().size() == 1 && is_deletable(operand)) {
+        if (HasSingleUse(operand) && is_deletable(operand)) {
           worklist.push_back(operand);
         }
       }

@@ -17,13 +17,12 @@
 #include <optional>
 
 #include "xls/ir/block.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 
 namespace xls::verilog {
 namespace {
-
-bool HasSingleUse(Node* node) { return node->users().size() == 1; }
 
 // Tries to match `node` to the sum of the two elements of a single-use mulp
 // operation. Returns the mulp node if successful, nullopt otherwise. For

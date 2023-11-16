@@ -1009,6 +1009,7 @@ cc_library(
     deps = [
         ":codegen_pass",
         "//xls/ir",
+        "//xls/ir:node_util",
         "//xls/ir:op",
         "@com_google_absl//absl/status:statusor",
     ],

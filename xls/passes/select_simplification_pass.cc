@@ -525,7 +525,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     OneHotSelect* select = node->As<OneHotSelect>();
     absl::Span<Node* const> cases = select->cases();
     auto is_single_user_ohs = [](Node* n) {
-      return n->Is<OneHotSelect>() && n->users().size() == 1;
+      return n->Is<OneHotSelect>() && HasSingleUse(n);
     };
     if (std::any_of(cases.begin(), cases.end(), is_single_user_ohs)) {
       // Cases for the replacement one-hot-select.

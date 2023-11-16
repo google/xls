@@ -112,7 +112,7 @@ original leaf node A is being removed and a corresponding logging statement
     unique_operands.clear();
     for (Node* operand : node->operands()) {
       if (unique_operands.insert(operand).second) {
-        if (operand->users().size() == 1 && is_deletable(operand)) {
+        if (HasSingleUse(operand) && is_deletable(operand)) {
           worklist.push_back(operand);
         }
       }
