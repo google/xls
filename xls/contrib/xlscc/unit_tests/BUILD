@@ -315,6 +315,25 @@ cc_test(
 )
 
 cc_test(
+    name = "xls_intrinsics_test",
+    srcs = ["xls_intrinsics_test.cc"],
+    data = [
+        "//xls/contrib/xlscc:synth_only_headers",
+        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+    ],
+    tags = [
+        "noasan",
+        "nomsan",
+    ],
+    deps = [
+        ":unit_test",
+        "//xls/common:source_location",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+    ],
+)
+
+cc_test(
     name = "xls_fixed_test",
     srcs = ["xls_fixed_test.cc"],
     data = [

@@ -198,6 +198,7 @@ filegroup(
         "synth_only/type_traits",
         "synth_only/xls_fixed.h",
         "synth_only/xls_int.h",
+        "synth_only/xls_intrinsics.h",
     ],
     visibility = ["//xls:xls_users"],
 )
