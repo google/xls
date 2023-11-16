@@ -863,11 +863,6 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     bool is_one = leading_ones != 0;
     int64_t known_leading = is_one ? leading_ones : leading_zeros;
     int64_t required_bits = bit_count - known_leading;
-    XLS_ASSIGN_OR_RETURN(Node * new_lhs, MaybeNarrow(lhs, required_bits));
-    XLS_ASSIGN_OR_RETURN(Node * new_rhs, MaybeNarrow(rhs, required_bits));
-    XLS_ASSIGN_OR_RETURN(Node * new_sub,
-                         sub->function_base()->MakeNode<BinOp>(
-                             sub->loc(), new_lhs, new_rhs, Op::kSub));
     if (is_one) {
       // XLS_ASSIGN_OR_RETURN(
       //     Node * all_ones,
@@ -880,6 +875,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       // known-negative results. Until we do though this is dead code.
       return NoChange();
     }
+    XLS_ASSIGN_OR_RETURN(Node * new_lhs, MaybeNarrow(lhs, required_bits));
+    XLS_ASSIGN_OR_RETURN(Node * new_rhs, MaybeNarrow(rhs, required_bits));
+    XLS_ASSIGN_OR_RETURN(Node * new_sub,
+                         sub->function_base()->MakeNode<BinOp>(
+                             sub->loc(), new_lhs, new_rhs, Op::kSub));
     XLS_RETURN_IF_ERROR(
         sub->ReplaceUsesWithNew<ExtendOp>(new_sub, bit_count, Op::kZeroExt)
             .status());

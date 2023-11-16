@@ -119,6 +119,26 @@ TEST_P(NarrowingPassSemanticsTest, NarrowSub) {
   TestNarrowedIsEquivalent(fb);
 }
 
+TEST_P(NarrowingPassTest, NoChangeIsNoChangeWithMaybeNarrowableSubNegative) {
+  if (analysis() == NarrowingPass::AnalysisType::kBdd) {
+    GTEST_SKIP() << "BDD Unable to determine sign of subtraction";
+  }
+  // Regression test for issue where we added nodes but the pass reported no
+  // changes were made.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(4));
+  auto y = fb.Param("y", p->GetBitsType(4));
+  auto x_wide = fb.ZeroExtend(x, 32);
+  // y_wide is always larger than x
+  auto y_wide = fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), 32);
+  fb.Subtract(x_wide, y_wide);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  int64_t num_nodes = f->node_count();
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_EQ(f->node_count(), num_nodes);
+}
+
 TEST_P(NarrowingPassTest, NarrowableSubPositive) {
   if (analysis() == NarrowingPass::AnalysisType::kBdd) {
     GTEST_SKIP() << "BDD Unable to determine sign of subtraction";
