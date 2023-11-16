@@ -23,7 +23,10 @@ package(
 
 filegroup(
     name = "release_files",
-    srcs = glob(["*.bzl"]) + [":default_xls_toolchain"],
+    srcs = glob(["*.bzl"]) + [
+        ":default_xls_toolchain",
+        ":xls_macros_bzl",
+    ],
 )
 
 exports_files(
