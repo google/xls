@@ -37,9 +37,7 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
@@ -2246,7 +2244,9 @@ class StructInstance : public Expr {
 
   ~StructInstance() override;
 
-  bool IsBlockedExpr() const override { return false; }
+  // We put curlies around the instance members, so we consider this a blocked
+  // expression.
+  bool IsBlockedExpr() const override { return true; }
 
   AstNodeKind kind() const override { return AstNodeKind::kStructInstance; }
 

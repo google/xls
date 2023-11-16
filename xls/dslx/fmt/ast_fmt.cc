@@ -165,7 +165,8 @@ DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   DocRef elem = Fmt(*n.element_type(), comments, arena);
   DocRef dim = Fmt(*n.dim(), comments, arena);
-  return ConcatNGroup(arena, {elem, arena.obracket(), dim, arena.cbracket()});
+  return ConcatNGroup(
+      arena, {elem, arena.obracket(), arena.MakeAlign(dim), arena.cbracket()});
 }
 
 static DocRef FmtTypeAnnotationPtr(const TypeAnnotation* n,
@@ -816,21 +817,32 @@ static DocRef FmtParametricArg(const ExprOrType& n, const Comments& comments,
 }
 
 DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
+  // Starts with the callee.
   std::vector<DocRef> pieces = {
       Fmt(*n.callee(), comments, arena),
   };
+
   if (!n.explicit_parametrics().empty()) {
-    pieces.push_back(arena.oangle());
-    pieces.push_back(FmtJoin<ExprOrType>(
-        absl::MakeConstSpan(n.explicit_parametrics()), Joiner::kCommaSpace,
-        FmtParametricArg, comments, arena));
-    pieces.push_back(arena.cangle());
+    // Group for the parametrics.
+    pieces.push_back(ConcatNGroup(
+        arena, {arena.break0(), arena.oangle(),
+                FmtJoin<ExprOrType>(
+                    absl::MakeConstSpan(n.explicit_parametrics()),
+                    Joiner::kCommaSpace, FmtParametricArg, comments, arena),
+                arena.cangle()}));
   }
-  pieces.push_back(arena.oparen());
-  pieces.push_back(arena.MakeAlign(
+
+  DocRef args_doc =
       FmtJoin<const Expr*>(n.args(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
-                           FmtExprPtr, comments, arena)));
-  pieces.push_back(arena.cparen());
+                           FmtExprPtr, comments, arena);
+
+  // Group for the args tokens.
+  std::vector<DocRef> arg_pieces = {
+      arena.oparen(),
+      arena.MakeFlatChoice(/*on_flat=*/args_doc,
+                           /*on_break=*/arena.MakeAlign(args_doc)),
+      arena.cparen()};
+  pieces.push_back(ConcatNGroup(arena, arg_pieces));
   return ConcatNGroup(arena, pieces);
 }
 
@@ -865,7 +877,13 @@ static DocRef FmtMatchArm(const MatchArm& n, const Comments& comments,
     pieces.push_back(arena.MakeNest(rhs_doc));
   } else {
     pieces.push_back(arena.space());
-    pieces.push_back(arena.MakeGroup(rhs_doc));
+    // If the RHS is a blocked expression, e.g. a struct instance, we don't
+    // align it to the fat arrow indicated column.
+    if (n.expr()->IsBlockedExpr()) {
+      pieces.push_back(arena.MakeGroup(rhs_doc));
+    } else {
+      pieces.push_back(arena.MakeAlign(arena.MakeGroup(rhs_doc)));
+    }
   }
 
   return ConcatN(arena, pieces);

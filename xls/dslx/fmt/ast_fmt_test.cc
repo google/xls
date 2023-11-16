@@ -536,6 +536,22 @@ TEST_F(FunctionFmtTest, MatchWithCommentOnNonBlockExpressionSecondaryLine) {
   EXPECT_EQ(got, want);
 }
 
+// Note that the parametrics for the invocation don't fit on the same line with
+// the identifier.
+TEST_F(FunctionFmtTest, MatchWithOverLongRhs) {
+  const std::string_view original = R"(fn f(yyyyyyyyyyyyyy: u32) {
+    match yyyyyyyyyyyyyy {
+        _ => fffffffffffffffffffffffffffffffff
+             <u32:7, AAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBB, CCCCCCCCCC>(yyyyyyyyyyyyyy),
+    }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string got,
+      DoFmt(original, {"fffffffffffffffffffffffffffffffff",
+                       "AAAAAAAAAAAAAAAAAAAAA", "BBBBBBBBBBB", "CCCCCCCCCC"}));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, ZeroMacro) {
   const std::string_view original = "fn f()->u32{zero!<u32>()}";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"zero!"}));
