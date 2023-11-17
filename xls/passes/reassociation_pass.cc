@@ -15,6 +15,7 @@
 #include "xls/passes/reassociation_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,6 +44,24 @@ namespace {
 bool NodeAndOperandsSameType(Node* n) {
   return std::all_of(n->operands().begin(), n->operands().end(),
                      [n](Node* o) { return o->GetType() == n->GetType(); });
+}
+
+// Returns true if the node is an addition, the operands of the node are all the
+// same type of extension, and all are extended by at least one bit.
+bool IsFullWidthAddition(Node* n) {
+  if (n->op() != Op::kAdd) {
+    return false;
+  }
+  Op first_operand_op = n->operand(0)->op();
+  if (first_operand_op != Op::kZeroExt && first_operand_op != Op::kSignExt) {
+    return false;
+  }
+  return std::all_of(n->operands().begin(), n->operands().end(),
+                     [first_operand_op](Node* o) {
+                       return o->op() == first_operand_op &&
+                              o->GetType()->GetFlatBitCount() >
+                                  o->operand(0)->GetType()->GetFlatBitCount();
+                     });
 }
 
 // Walks an expression tree of adds and substracts and gathers the leafs of the
@@ -245,6 +264,64 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
   return changed;
 }
 
+// Walks an expression tree of full-width additions using the given
+// `extension_op`. 'node' is the node currently being visited.  The leaves of
+// the expression tree are added to 'leaves', and the interior nodes of the tree
+// are added to 'interior_nodes'. Returns the height of the tree.
+//
+// For example, if called at the root of the following expression:
+//
+//     a           b           c           d
+//     |           |           |           |
+// zero_ext.6  zero_ext.7  zero_ext.8  zero_ext.9
+//        \     /                 \     /
+//         add.4                   add.5
+//           |                       |
+//       zero_ext.2              zero_ext.3
+//              \                 /
+//               \               /
+//                \             /
+//                 \           /
+//                  \         /
+//                   \       /
+//                    \     /
+//                     add.1
+//
+// Upon return the passed in vectors would be:
+//
+//   leaves = {a, b, c, d}
+//   interior_nodes = {add.1, add.2, add.3}
+//
+// And the function would return 2, the depth of the tree (not counting the
+// leaves or the extensions).
+int64_t GatherFullWidthAdditionLeaves(Op extension_op, Node* node,
+                                      std::vector<Node*>* leaves,
+                                      std::vector<Node*>* interior_nodes) {
+  if (!IsFullWidthAddition(node) || node->operand(0)->op() != extension_op) {
+    // 'node' is not a full-width addition of the same type and is therefore a
+    // leaf.
+    leaves->push_back(node);
+    return 0;
+  }
+  // 'node' could be an interior node in the tree of full-width additions.
+  // Traverse into the operands if the operand & its extension are both
+  // single-use; otherwise the operand is a leaf.
+  interior_nodes->push_back(node);
+  int64_t max_depth = 1;
+  for (Node* extension : node->operands()) {
+    Node* operand = extension->operand(0);
+    // TODO(meheff): 2021-01-27 Consider handling cases with more than one user.
+    if (HasSingleUse(extension) && HasSingleUse(operand)) {
+      max_depth = std::max(
+          max_depth, 1 + GatherFullWidthAdditionLeaves(extension_op, operand,
+                                                       leaves, interior_nodes));
+    } else {
+      leaves->push_back(operand);
+    }
+  }
+  return max_depth;
+}
+
 // Walks an expression tree of operations with the given op and bit
 // width. 'node' is the node currently being visited.  The leaves of the
 // expression tree are added to 'leaves', and the interior nodes of the tree are
@@ -279,10 +356,10 @@ int64_t GatherExpressionLeaves(Op op, Node* node, std::vector<Node*>* leaves,
   int64_t max_depth = 1;
   for (Node* operand : node->operands()) {
     // TODO(meheff): 2021-01-27 Consider handling cases with more than one user.
-    if (operand->users().size() == 1) {
+    if (HasSingleUse(operand)) {
       max_depth = std::max(
           max_depth,
-          GatherExpressionLeaves(op, operand, leaves, interior_nodes) + 1);
+          1 + GatherExpressionLeaves(op, operand, leaves, interior_nodes));
     } else {
       leaves->push_back(operand);
     }
@@ -301,7 +378,9 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
   // Traverse the nodes in reverse order because we construct expressions for
   // reassociation starting from the roots.
   for (Node* node : ReverseTopoSort(f)) {
-    if (visited_nodes.contains(node)) {
+    auto [it, inserted] = visited_nodes.insert(node);
+    if (!inserted) {
+      // Already visited; skip this node.
       continue;
     }
 
@@ -312,13 +391,25 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
         node->op() != Op::kSMul) {
       continue;
     }
+    const bool is_full_width_addition = IsFullWidthAddition(node);
+
     std::vector<Node*> leaves;
     std::vector<Node*> interior_nodes;
-    int64_t expression_depth =
-        GatherExpressionLeaves(node->op(), node, &leaves, &interior_nodes);
+    int64_t expression_depth;
+    if (is_full_width_addition) {
+      // Full-width addition; we need to treat the addition & operand extensions
+      // as a single operation.
+      expression_depth = GatherFullWidthAdditionLeaves(
+          node->operand(0)->op(), node, &leaves, &interior_nodes);
+
+    } else {
+      expression_depth =
+          GatherExpressionLeaves(node->op(), node, &leaves, &interior_nodes);
+    }
 
     // Interior nodes in the expression will be reassociated so add them
-    // to the set of associated nodes. This will prevent future
+    // to the set of associated nodes. This keeps us from revisiting the same
+    // nodes later in the same pass.
     visited_nodes.insert(interior_nodes.begin(), interior_nodes.end());
 
     // We want to reassociate under two conditions:
@@ -387,8 +478,27 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
                 << absl::StrJoin(interior_nodes, ", ");
     XLS_VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ");
 
-    // Create a clone of 'node' for construcing a reassociated expression.
     auto new_node = [&](Node* lhs, Node* rhs) -> absl::StatusOr<Node*> {
+      if (is_full_width_addition) {
+        // Widths may vary between the tree & the original, so we need to
+        // construct new nodes rather than clones.
+        int64_t addition_width =
+            std::max(lhs->BitCountOrDie(), rhs->BitCountOrDie()) + 1;
+        XLS_ASSIGN_OR_RETURN(
+            Node * extended_lhs,
+            node->function_base()->MakeNode<ExtendOp>(
+                node->loc(), lhs, /*new_bit_count=*/addition_width,
+                node->operand(0)->op()));
+        XLS_ASSIGN_OR_RETURN(
+            Node * extended_rhs,
+            node->function_base()->MakeNode<ExtendOp>(
+                node->loc(), rhs, /*new_bit_count=*/addition_width,
+                node->operand(0)->op()));
+        return node->function_base()->MakeNode<BinOp>(node->loc(), extended_lhs,
+                                                      extended_rhs, Op::kAdd);
+      }
+
+      // Create a clone of 'node' for constructing a reassociated expression.
       return node->Clone({lhs, rhs});
     };
 
@@ -439,7 +549,16 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       }
       inputs = std::move(next_inputs);
     }
-    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(inputs[0]));
+    Node* new_root = inputs[0];
+    if (is_full_width_addition &&
+        new_root->BitCountOrDie() < node->BitCountOrDie()) {
+      XLS_ASSIGN_OR_RETURN(
+          new_root,
+          node->function_base()->MakeNode<ExtendOp>(
+              node->loc(), new_root, /*new_bit_count=*/node->BitCountOrDie(),
+              node->operand(0)->op()));
+    }
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(new_root));
     changed = true;
   }
 
