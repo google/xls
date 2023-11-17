@@ -1811,5 +1811,22 @@ fn f() {
   EXPECT_EQ(got, kProgram);
 }
 
+// See github issue https://github.com/google/xls/issues/1193
+TEST(ModuleFmtTest, LongLetLeader) {
+  const std::string_view kProgram = R"(import std
+
+fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_too_short: u32) {
+    type SomeTypeNameThatIsNotTooShort = s64;
+    let very_somewhat_long_variable_name: SomeTypeNameThatIsNotTooShort = std::to_signed(
+        some_value_that_is_pretty_long ++ some_other_value_that_is_also_not_too_short);
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx
