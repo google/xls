@@ -23,6 +23,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
@@ -208,6 +209,32 @@ fn operands_not_named() -> bits[32] {
     EXPECT_FALSE(ret->operand(0)->HasAssignedName());
     EXPECT_EQ(ret->operand(1)->GetName(), "y_squared");
   }
+}
+
+TEST_F(InliningPassTest, SingleInline) {
+  auto p = CreatePackage();
+  FunctionBuilder i1(TestName() + "InvokeTarget1", p.get());
+  i1.Add(i1.Param("x", p->GetBitsType(4)), i1.Param("y", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * i1_func, i1.Build());
+
+  FunctionBuilder i2(TestName() + "InvokeTarget2", p.get());
+  i2.UMul(i2.Param("x", p->GetBitsType(4)), i2.Param("y", p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * i2_func, i2.Build());
+
+  FunctionBuilder top(TestName() + "Top", p.get());
+  BValue p1 = top.Param("p1", p->GetBitsType(4));
+  BValue p2 = top.Param("p2", p->GetBitsType(4));
+  BValue i1_res = top.Invoke({p1, p2}, i1_func);
+  BValue i2_res = top.Invoke({p1, p2}, i2_func);
+  top.Invoke({i1_res, i2_res}, i1_func);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, top.Build());
+
+  XLS_ASSERT_OK(InliningPass::InlineOneInvoke(i1_res.node()->As<Invoke>()));
+
+  ASSERT_THAT(f->return_value(),
+              m::Invoke(m::Add(p1.node(), p2.node()), i2_res.node()));
+  EXPECT_EQ(f->return_value()->As<Invoke>()->to_apply(), i1_func);
 }
 
 TEST_F(InliningPassTest, NamePropagationWithPassThroughParam) {

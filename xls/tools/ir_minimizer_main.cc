@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
@@ -45,12 +46,16 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
 #include "xls/data_structures/binary_search.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/call_graph.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/node.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -172,6 +177,16 @@ ABSL_FLAG(
     "well-formed IR fails to parse, it is useful to disable IR verification so "
     "the minimizer can proceed and help you understand why it fails to "
     "verify.");
+ABSL_FLAG(bool, simplify_top_only, false,
+          "If true only the top function/proc/block will be actively "
+          "simplified. Otherwise each simplification will use a function "
+          "weighted by node-count and node selected randomly in the function.");
+ABSL_FLAG(
+    bool, can_inline_everything, true,
+    "Whether inlining everything into TOP as a single operation is an allowed "
+    "simplification. This is independent of --can_inline_invokes");
+ABSL_FLAG(bool, can_inline_invokes, true,
+          "Whether individual invokes can be inlined as a simplification.");
 
 namespace xls {
 namespace {
@@ -336,13 +351,48 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
     return changed;
   }
   if (f->IsFunction()) {
+    // Remove dead parameters and get rid of the uses in the linked invokes.
+    std::vector<Node*> invokes = GetNodesWhichCall(f->AsFunctionOrDie());
+    if (!absl::c_all_of(invokes, [](Node* n) { return n->Is<Invoke>(); })) {
+      // TODO(allight) 2023-11-16: Support removing params from non-invoke
+      // function calls (map, counted-for, etc).
+      return false;
+    }
     std::vector<Param*> params(f->params().begin(), f->params().end());
-    for (Param* p : params) {
-      if (p->IsDead()) {
-        XLS_RETURN_IF_ERROR(f->RemoveNode(p));
+    InlineBitmap removed(params.size(), /*fill=*/false);
+    {
+      int64_t i = 0;
+      for (Param* p : params) {
+        if (p->IsDead()) {
+          XLS_RETURN_IF_ERROR(f->RemoveNode(p));
+          removed.Set(i, true);
+        }
+        i++;
       }
     }
-    return params.size() != f->params().size();
+    if (params.size() == f->params().size()) {
+      // Nothing changed.
+      return false;
+    }
+    // Remove appropriate invoke arguments.
+    for (Node* n : invokes) {
+      // TODO(allight) 2023-11-16: Support removing params from non-invoke
+      // function calls (map, counted-for, etc).
+      if (n->As<Invoke>()->to_apply() == f) {
+        std::vector<Node*> new_args;
+        for (int64_t i = 0; i < n->operand_count(); ++i) {
+          if (!removed.Get(i)) {
+            new_args.push_back(n->operand(i));
+          }
+        }
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<Invoke>(new_args, f->AsFunctionOrDie())
+                .status());
+        // Avoid illegal (albeit unused) invokes.
+        XLS_RETURN_IF_ERROR(n->function_base()->RemoveNode(n));
+      }
+    }
+    return true;
   }
   XLS_LOG(FATAL) << "RemoveDeadParameters only handles procs and functions";
 }
@@ -485,8 +535,8 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
   }
 
   // If the return value is a tuple, concat, or array, try to knock out some of
-  // the operands which then become dead.
-  if (f->IsFunction() &&
+  // the operands which then become dead. Only possible for the top function.
+  if (f->IsFunction() && f->package()->GetTop() == f &&
       (orig->Is<Tuple>() || orig->Is<Concat>() || orig->Is<Array>()) &&
       absl::Bernoulli(rng, 0.5)) {
     std::vector<Node*> new_operands = PickRandomSubset(orig->operands(), rng);
@@ -554,6 +604,13 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
       int64_t which_operand =
           absl::Uniform<int64_t>(rng, 0, orig->operand_count());
       replacement = orig->operand(which_operand);
+      if (replacement->GetType() !=
+              f->AsFunctionOrDie()->return_value()->GetType() &&
+          f != f->package()->GetTop()) {
+        // Can't change type of a non-top function.
+        XLS_VLOG(1) << "Unable to change return type of a non-top function";
+        return SimplificationResult::kDidNotChange;
+      }
       *which_transform =
           absl::StrFormat("return operand %d of return value", which_operand);
     }
@@ -570,6 +627,9 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 absl::StatusOr<SimplificationResult> RunRandomPass(
     FunctionBase* f, absl::BitGenRef rng, std::string* which_transform) {
   // All these passes have trivial construction costs.
+  // TODO(allight): 2023-11-16: It might be nice to run these passes only on the
+  // selected function-base (possibly with a different set for running on
+  // everything).
   std::vector<std::unique_ptr<OptimizationPass>> passes;
   passes.push_back(std::make_unique<ArithSimplificationPass>());
   passes.push_back(std::make_unique<ArraySimplificationPass>());
@@ -579,7 +639,10 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   passes.push_back(std::make_unique<CsePass>());
   passes.push_back(std::make_unique<TupleSimplificationPass>());
   passes.push_back(std::make_unique<UnrollPass>());
-  passes.push_back(std::make_unique<InliningPass>());
+  if (absl::GetFlag(FLAGS_can_inline_everything)) {
+    // Only can inline from the top.
+    passes.push_back(std::make_unique<InliningPass>());
+  }
   passes.push_back(std::make_unique<ProcStateFlatteningPass>());
   passes.push_back(std::make_unique<ProcStateOptimizationPass>());
 
@@ -707,8 +770,7 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   // Replace node with a constant (all zeros or all ones).
   if (n->Is<Param>() && n->IsDead()) {
     // Can't replace unused params with constant.
-    XLS_VLOG(1)
-        << "Candidate for constant-replacement is a dead parameter.";
+    XLS_VLOG(1) << "Candidate for constant-replacement is a dead parameter.";
     return SimplificationResult::kDidNotChange;
   }
 
@@ -717,6 +779,17 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
     *which_transform = "random replace with all-ones: " + n->GetName();
+    return SimplificationResult::kDidChange;
+  }
+
+  // 50/50 replace invoke node with single-inlined version.
+  if (absl::GetFlag(FLAGS_can_inline_invokes) && n->Is<Invoke>() &&
+      absl::Bernoulli(rng, 0.5)) {
+    // We will remove the invoke node so grab its name now.
+    std::string transform_temp =
+        absl::StrFormat("inline single invoke '%s'", n->ToString());
+    XLS_RETURN_IF_ERROR(InliningPass::InlineOneInvoke(n->As<Invoke>()));
+    *which_transform = transform_temp;
     return SimplificationResult::kDidChange;
   }
 
@@ -791,7 +864,7 @@ absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
   DeadFunctionEliminationPass dfe;
   PassResults results;
   XLS_RETURN_IF_ERROR(
-      dce.RunOnFunctionBase(f, OptimizationPassOptions(), &results).status());
+      dce.Run(f->package(), OptimizationPassOptions(), &results).status());
   if (can_remove_params) {
     XLS_RETURN_IF_ERROR(RemoveDeadParameters(f).status());
   }
@@ -870,6 +943,12 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
       // Used up all our attempts for this state.
       break;
     }
+    XLS_LOG(INFO) << "Nodes left " << package->GetNodeCount() << " in "
+                  << package->GetFunctionBases().size() << " FunctionBases";
+    XLS_LOG(INFO) << "Total attempts " << total_attempts << "/"
+                  << total_attempt_limit;
+    XLS_LOG(INFO) << "Failed attempt count " << failed_simplification_attempts
+                  << "/" << failed_attempt_limit;
 
     total_attempts++;
     if (total_attempts >= total_attempt_limit) {
@@ -879,7 +958,20 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
 
     XLS_VLOG(1) << "=== Simplification attempt " << total_attempts;
 
-    FunctionBase* candidate = package->GetTop().value();
+    FunctionBase* candidate;
+    if (absl::GetFlag(FLAGS_simplify_top_only)) {
+      candidate = package->GetTop().value();
+    } else {
+      std::vector<FunctionBase*> bases = package->GetFunctionBases();
+      std::vector<int64_t> node_counts;
+      node_counts.reserve(bases.size());
+      absl::c_transform(bases, std::back_inserter(node_counts),
+                        [](FunctionBase* f) { return f->node_count(); });
+      std::discrete_distribution<int64_t> distribution(node_counts.cbegin(),
+                                                       node_counts.cend());
+      candidate = bases[distribution(rng)];
+    }
+    std::string candidate_name = candidate->name();
     XLS_VLOG_LINES(2,
                    "=== Candidate for simplification:\n" + candidate->DumpIr());
 
@@ -893,6 +985,22 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
       XLS_LOG(INFO) << "Cannot simplify any further, done!";
       break;
     }
+
+    // candidate might have been removed by DFE at this point. Be careful.
+    auto candidate_ir = [&]() -> std::string {
+      auto functions = package->GetFunctionBases();
+      if (absl::c_find(functions, candidate) != functions.end()) {
+        return candidate->DumpIr();
+      }
+      return "<Function removed>";
+    };
+    auto candidate_nodes = [&]() -> int64_t {
+      auto functions = package->GetFunctionBases();
+      if (absl::c_find(functions, candidate) != functions.end()) {
+        return candidate->node_count();
+      }
+      return -1;
+    };
 
     // If we happened to not change it (e.g. because the RNG said not to), keep
     // going until we do. We still bump the counter to make sure we don't end up
@@ -913,17 +1021,17 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
       failed_attempts_between_tests = 0;
     } else {
       XLS_CHECK(simplification == SimplificationResult::kDidChange);
-      XLS_LOG(INFO) << "Trying " << which_transform;
+      XLS_LOG(INFO) << "Trying " << which_transform << " on " << candidate_name;
       XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
       XLS_VLOG_LINES(2, "=== After simplification [" + which_transform + "]\n" +
-                            candidate->DumpIr());
+                            candidate_ir());
     }
 
     candidate_changes.push_back({
         .which_transform = which_transform,
         .package_ir_text = package->DumpIr(),
-        .candidate_ir_text = candidate->DumpIr(),
-        .node_count = candidate->node_count(),
+        .candidate_ir_text = candidate_ir(),
+        .node_count = candidate_nodes(),
     });
 
     simplification_iterations++;
@@ -983,7 +1091,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
                      [](std::string* out, const CandidateChange& change) {
                        absl::StrAppend(out, change.which_transform);
                      })
-              << "\n"
+              << " on " << candidate->name() << "\n"
               << (known_failure.node_count > 50
                       ? ""
                       : known_failure.candidate_ir_text)
@@ -994,12 +1102,12 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     candidate_changes.clear();
   }
 
+  std::cout << knownf_ir_text;
+
   // Run the last test verification without the cache.
   XLS_RETURN_IF_ERROR(VerifyStillFails(knownf_ir_text, inputs,
                                        "Minimized function does not fail!",
                                        /*test_cache=*/nullptr));
-
-  std::cout << knownf_ir_text;
 
   return absl::OkStatus();
 }

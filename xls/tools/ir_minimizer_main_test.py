@@ -31,13 +31,31 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
 }
 """
 
+INVOKE_TWO = """package foo
+
+fn bar(x: bits[32]) -> bits[1] {
+    ret and_reduce.1: bits[1] = and_reduce(x, id=1)
+}
+
+fn baz(x: bits[32]) -> bits[1] {
+    ret or_reduce.3: bits[1] = or_reduce(x, id=3)
+}
+
+top fn foo(x: bits[32], y: bits[32]) -> bits[1] {
+  invoke.6: bits[1] = invoke(x, to_apply=bar, id=6)
+  invoke.7: bits[1] = invoke(y, to_apply=baz, id=7)
+  ret and.8: bits[1] = and(invoke.6, invoke.7, id=8)
+}
+"""
+
 
 class IrMinimizerMainTest(absltest.TestCase):
 
   def _write_sh_script(self, path, commands):
     with open(path, 'w') as f:
-      f.write('#!/bin/sh -e\n')
-      f.write('\n'.join(commands))
+      all_cmds = ['#!/bin/sh -e'] + commands
+      self.recordProperty('test_script', '\n'.join(all_cmds))
+      f.write('\n'.join(all_cmds))
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IXUSR)
 
@@ -49,12 +67,13 @@ class IrMinimizerMainTest(absltest.TestCase):
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         '--can_remove_params=false', ir_file.full_path
     ])
+    self.recordProperty('output', minimized_ir.decode('utf-8'))
     self.assertEqual(
         minimized_ir.decode('utf-8'), """package foo
 
 top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
-  literal.9: bits[32] = literal(value=0, id=9)
-  ret add.2: bits[32] = add(literal.9, literal.9, id=2)
+  literal.10: bits[32] = literal(value=0, id=10)
+  ret add.2: bits[32] = add(literal.10, literal.10, id=2)
 }
 """)
 
@@ -66,12 +85,13 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         '--can_remove_params', ir_file.full_path
     ])
+    self.recordProperty('output', minimized_ir.decode('utf-8'))
     self.assertEqual(
         minimized_ir.decode('utf-8'), """package foo
 
 top fn foo() -> bits[32] {
-  literal.11: bits[32] = literal(value=0, id=11)
-  ret add.2: bits[32] = add(literal.11, literal.11, id=2)
+  literal.12: bits[32] = literal(value=0, id=12)
+  ret add.2: bits[32] = add(literal.12, literal.12, id=2)
 }
 """)
 
@@ -414,6 +434,84 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
         encoding='utf-8',
     )
     self.assertEqual(ADD_IR, minimized_ir)
+
+  def test_inline_single_invoke_is_triggerable(self):
+    ir_file = self.create_tempfile(content=INVOKE_TWO)
+    test_sh_file = self.create_tempfile()
+    # The test script only checks to see if `invoke.2` is in the IR.
+    self._write_sh_script(
+        test_sh_file.full_path,
+        ["/usr/bin/env grep 'invoke(x, to_apply=bar, id=6)' $1"],
+    )
+    output = subprocess.run(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            ir_file.full_path,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(
+        output.returncode,
+        0,
+        f'Non zero return: stderr {output.stderr}, stdout: {output.stdout}',
+    )
+    minimized_ir = output.stdout
+    self.assertEqual(
+        minimized_ir.decode('utf-8'),
+        """package foo
+
+fn bar(x: bits[32]) -> bits[1] {
+  ret literal.10: bits[1] = literal(value=0, id=10)
+}
+
+top fn foo(x: bits[32], y: bits[32]) -> bits[1] {
+  ret invoke.6: bits[1] = invoke(x, to_apply=bar, id=6)
+}
+""",
+    )
+
+  def test_can_remove_invoke_args(self):
+    ir_file = self.create_tempfile(content=INVOKE_TWO)
+    test_sh_file = self.create_tempfile()
+    # The test script only checks to see if invoke of bar is in the IR.
+    self._write_sh_script(
+        test_sh_file.full_path, ["/usr/bin/env grep 'to_apply=baz' $1"]
+    )
+    output = subprocess.run(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--can_remove_params',
+            '--can_inline_everything=false',
+            '--test_executable=' + test_sh_file.full_path,
+            ir_file.full_path,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(
+        output.returncode,
+        0,
+        f'Non zero return: stderr {output.stderr}, stdout: {output.stdout}',
+    )
+    minimized_ir = output.stdout
+    self.recordProperty('output', minimized_ir.decode('utf-8'))
+    self.assertEqual(
+        minimized_ir.decode('utf-8'),
+        """package foo
+
+fn baz() -> bits[1] {
+  ret literal.25: bits[1] = literal(value=0, id=25)
+}
+
+top fn foo() -> bits[1] {
+  ret invoke.19: bits[1] = invoke(to_apply=baz, id=19)
+}
+""",
+    )
 
 
 if __name__ == '__main__':

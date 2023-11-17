@@ -221,6 +221,7 @@ cc_library(
     hdrs = ["inlining_pass.h"],
     deps = [
         ":optimization_pass",
+        ":pass_base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -1487,6 +1488,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
     ],

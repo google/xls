@@ -40,6 +40,13 @@ absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
 // returned before callee FunctionBases in the returned order.
 std::vector<FunctionBase*> FunctionsInPostOrder(Package* p);
 
+// Returns a list of all the nodes which reference the given function as a
+// target.
+std::vector<Node*> GetNodesWhichCall(Function* f);
+
+// Returns true if node 'n' targets function 'f'.
+bool FunctionIsTargetedBy(Function* f, Node* n);
+
 }  // namespace xls
 
 #endif  // XLS_IR_CALL_GRAPH_H_

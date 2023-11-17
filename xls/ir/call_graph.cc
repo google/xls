@@ -14,12 +14,18 @@
 
 #include "xls/ir/call_graph.h"
 
+#include <functional>
+#include <iterator>
 #include <optional>
 #include <string_view>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 
 namespace xls {
@@ -132,6 +138,18 @@ absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
     call_remapping.insert({function, dependent_function_clone});
   }
   return to_clone->Clone(new_name, target_package, call_remapping);
+}
+
+std::vector<Node*> GetNodesWhichCall(Function* f) {
+  std::vector<Node*> nodes;
+  for (FunctionBase* other : f->package()->GetFunctionBases()) {
+    if (other == f) {
+      continue;
+    }
+    absl::c_copy_if(other->nodes(), std::back_inserter(nodes),
+                    [&](Node* n) { return f == CalledFunction(n); });
+  }
+  return nodes;
 }
 
 }  // namespace xls

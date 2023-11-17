@@ -15,15 +15,22 @@
 #ifndef XLS_PASSES_INLINING_PASS_H_
 #define XLS_PASSES_INLINING_PASS_H_
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
 class InliningPass : public OptimizationPass {
  public:
   InliningPass() : OptimizationPass("inlining", "Inlines invocations") {}
+
+  // Inline a single invoke instruction. Provided for test and utility
+  // (ir_minimizer) use.
+  static absl::Status InlineOneInvoke(Invoke* invoke);
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,
