@@ -168,9 +168,16 @@ absl::StatusOr<std::string> GetFileContents(
   // Use POSIX C APIs instead of C++ iostreams to avoid exceptions.
   std::string result;
 
-  int fd = open(file_name.c_str(), O_RDONLY | O_CLOEXEC);
-  if (fd == -1) {
-    return ErrNoToStatusWithFilename(errno, file_name);
+  int fd;
+  if (file_name == "/dev/stdin" || file_name == "-") {
+    fd = dup(STDIN_FILENO);  // dup standard input fd for portability:
+                             // - /dev/stdin is not posix
+                             // - avoid closing stdin's file descriptor
+  } else {
+    fd = open(file_name.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd == -1) {
+      return ErrNoToStatusWithFilename(errno, file_name);
+    }
   }
 
   char buf[4096];
