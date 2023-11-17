@@ -438,11 +438,9 @@ cc_library(
     deps = [
         ":pass_base",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
         "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
@@ -926,7 +924,30 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "pass_base_test",
+    srcs = ["pass_base_test.cc"],
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/ir:value",
     ],
 )
 

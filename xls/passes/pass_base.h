@@ -31,6 +31,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls {
@@ -117,11 +118,19 @@ class PassBase {
                                       results->invocations.size());
     XLS_VLOG(3) << "Before:";
     XLS_VLOG_LINES(3, ir->DumpIr());
+    int64_t ir_count_before = ir->GetNodeCount();
 
     XLS_ASSIGN_OR_RETURN(bool changed, RunInternal(ir, options, results));
 
     XLS_VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
     XLS_VLOG_LINES(3, ir->DumpIr());
+    // Perform a fast check nothing seems to have changed if we aren't told it
+    // has.
+    XLS_RET_CHECK(changed || ir_count_before == ir->GetNodeCount())
+        << absl::StreamFormat(
+               "Pass %s indicated IR unchanged, but IR is "
+               "changed: [Before] %d nodes != [after] %d nodes",
+               short_name(), ir_count_before, ir->GetNodeCount());
     return changed;
   }
 

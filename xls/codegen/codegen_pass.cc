@@ -14,6 +14,7 @@
 
 #include "xls/codegen/codegen_pass.h"
 
+#include <cstdint>
 #include <string>
 
 #include "absl/strings/str_cat.h"
@@ -35,6 +36,9 @@ std::string CodegenPassUnit::DumpIr() const {
     }
   }
   return out;
+}
+int64_t CodegenPassUnit::GetNodeCount() const {
+  return block->node_count();
 }
 
 }  // namespace xls::verilog

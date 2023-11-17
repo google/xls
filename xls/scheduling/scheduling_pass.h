@@ -55,6 +55,9 @@ struct SchedulingUnit {
     return out;
   }
   std::string name() const { return ir->name(); }
+  int64_t GetNodeCount() const {
+    return ir->GetNodeCount();
+  }
 };
 
 // Options passed to each scheduling pass.

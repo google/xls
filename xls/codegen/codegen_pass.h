@@ -249,6 +249,7 @@ struct CodegenPassUnit {
   // These methods are required by CompoundPassBase.
   std::string DumpIr() const;
   const std::string& name() const { return block->name(); }
+  int64_t GetNodeCount() const;
 };
 
 using CodegenPass = PassBase<CodegenPassUnit, CodegenPassOptions, PassResults>;
