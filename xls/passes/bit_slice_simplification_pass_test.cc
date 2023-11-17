@@ -194,6 +194,18 @@ TEST_F(BitSliceSimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
+TEST_F(BitSliceSimplificationPassTest,
+       NotSoleSliceLowBitsOfAddDoesNotOptimize) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("f", p.get());
+  auto u42 = p->GetBitsType(42);
+  BValue add = fb.Add(fb.Param("x", u42), fb.Param("y", u42));
+  fb.BitSlice(add, /*start=*/0, /*width=*/32);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(add));
+  EXPECT_THAT(f->return_value(), m::Add());
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
 TEST_F(BitSliceSimplificationPassTest, SliceOfSignExtCaseOne) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
