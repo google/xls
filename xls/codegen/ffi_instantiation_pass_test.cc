@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -40,6 +41,7 @@ namespace xls::verilog {
 namespace {
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using testing::ElementsAre;
 
 class FfiInstantiationPassTest : public IrTestBase {
  protected:
@@ -111,6 +113,61 @@ TEST_F(FfiInstantiationPassTest, InvocationsReplacedByInstance) {
   // Requesting a non-existent port.
   EXPECT_THAT(extern_inst->GetInputPort("bogus"),
               StatusIs(absl::StatusCode::kNotFound));
+
+  // Explicitly testing the resulting block passes verification.
+  XLS_EXPECT_OK(VerifyPackage(p.get()));
+}
+
+TEST_F(FfiInstantiationPassTest, FunctionParameterIsTuple) {
+  auto p = CreatePackage();
+  BitsType* const u32 = p->GetBitsType(32);
+  BitsType* const u17 = p->GetBitsType(17);
+
+  // Simple function that has foreign function data attached.
+  FunctionBuilder fb(TestName() + "ffi_fun", p.get());
+  const BValue param_x = fb.Param("x", p->GetTupleType({u32, u17}));
+  XLS_ASSERT_OK_AND_ASSIGN(ForeignFunctionData ffd,
+                           ForeignFunctionDataCreateFromTemplate(
+                               "foo {fn} (.xa({x.0}), .mb({x.1}))"));
+  fb.SetForeignFunctionData(ffd);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun,
+                           fb.BuildWithReturnValue(param_x));
+
+  // A block that contains one invocation of that ffi_fun.
+  BlockBuilder bb(TestName(), p.get());
+  const BValue input_port_a = bb.InputPort("block_a_input", u32);
+  const BValue input_port_b = bb.InputPort("block_b_input", u17);
+  const BValue param = bb.Tuple({input_port_a, input_port_b});
+
+  bb.OutputPort("out", bb.Invoke({param}, ffi_fun));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  // Convert to Instationation
+  EXPECT_THAT(Run(block), IsOkAndHolds(true));
+  ASSERT_EQ(block->GetInstantiations().size(), 1);
+
+  xls::Instantiation* const instantiation = block->GetInstantiations()[0];
+  ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
+  xls::ExternInstantiation* const extern_inst =
+      down_cast<xls::ExternInstantiation*>(instantiation);
+
+  // Make sure that all elements are expanded so that they are accessible
+  // to the user in the text template.
+  const auto instantiation_inputs = block->GetInstantiationInputs(extern_inst);
+  EXPECT_EQ(instantiation_inputs.size(), 3);  // x, x.0, x.1
+  std::vector<std::string> input_ports;
+  for (const InstantiationInput* input : instantiation_inputs) {
+    input_ports.push_back(input->port_name());
+  }
+  EXPECT_THAT(input_ports, ElementsAre("x", "x.0", "x.1"));
+
+  EXPECT_EQ(extern_inst->function(), ffi_fun);
+  for (std::string_view param_name : {"x.0", "x.1"}) {
+    XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort input_param,
+                             extern_inst->GetInputPort(param_name));
+    EXPECT_EQ(input_param.name, param_name);
+    EXPECT_EQ(input_param.type, param_name == "x.0" ? u32 : u17);
+  }
 
   // Explicitly testing the resulting block passes verification.
   XLS_EXPECT_OK(VerifyPackage(p.get()));

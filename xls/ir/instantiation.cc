@@ -95,12 +95,6 @@ absl::StatusOr<InstantiationPort> BlockInstantiation::GetOutputPort(
   return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));
 }
 
-absl::StatusOr<InstantiationPort> ExternInstantiation::GetInputPort(
-    std::string_view name) {
-  XLS_ASSIGN_OR_RETURN(Param * param, function_->GetParamByName(name));
-  return InstantiationPort{std::string{name}, param->GetType()};
-}
-
 // Note: these are tested in ffi_instantiation_pass_test
 static absl::StatusOr<InstantiationPort> ExtractNested(
     std::string_view fn_name, std::string_view full_parameter_name,
@@ -151,6 +145,17 @@ static absl::StatusOr<InstantiationPort> ExtractNested(
   // Issue in template.
   return absl::NotFoundError(absl::StrFormat("%s: No such output port `%s`",
                                              fn_name, full_parameter_name));
+}
+
+absl::StatusOr<InstantiationPort> ExternInstantiation::GetInputPort(
+    std::string_view name) {
+  std::string_view::size_type dot = name.find_first_of('.');
+  std::string_view main_name =
+      name.substr(0, dot);  // Up to start of tuple access
+  XLS_ASSIGN_OR_RETURN(Param * param, function_->GetParamByName(main_name));
+  const std::string& fn_name = function()->name();
+  const std::string_view nested_name = name.substr(main_name.length());
+  return ExtractNested(fn_name, name, param->GetType(), nested_name);
 }
 
 // Extern instantiation (FFI) will have names in template refer to output

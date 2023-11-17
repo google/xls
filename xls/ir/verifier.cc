@@ -1956,7 +1956,7 @@ static absl::Status VerifyForeignFunctionTemplate(Function* fun) {
   int64_t instance_name_parameter_count = 0;
   std::vector<std::string> replacements;
   Type* const return_type = fun->GetType()->return_type();
-  for (const std::string& original : code_template.Expressions()) {
+  for (const std::string_view original : code_template.Expressions()) {
     if (original == "fn") {
       ++instance_name_parameter_count;
       continue;
@@ -1969,13 +1969,13 @@ static absl::Status VerifyForeignFunctionTemplate(Function* fun) {
       continue;
     }
 
+    static const LazyRE2 kReMatchTupleId{R"([^.]*\.([0-9]+)(\.([0-9]+))*)"};
     if (absl::StartsWith(original, "return.")) {
       if (!return_type->IsTuple()) {
-        return absl::InvalidArgumentError(
-            err_msg("got `return.<idx>` in template, but function does not "
-                    "return a tuple."));
+        return absl::InvalidArgumentError(err_msg(
+            "Dot-access `return.<idx>` in template, but function does not "
+            "return a tuple."));
       }
-      static const LazyRE2 kReMatchTupleId{"return\\.([0-9]+)(\\.([0-9]+))*"};
       int64_t tuple_idx;
       if (!RE2::FullMatch(original, *kReMatchTupleId, &tuple_idx)) {
         return absl::InvalidArgumentError(
@@ -1990,13 +1990,22 @@ static absl::Status VerifyForeignFunctionTemplate(Function* fun) {
       continue;
     }
 
+    // Any remaining template parameters must be function parameters.
+    std::string_view::size_type dot_pos = original.find_first_of('.');
+    std::string_view param_name = original.substr(0, dot_pos);
     auto found =
         std::find_if(fun->params().begin(), fun->params().end(),
-                     [&](const Param* p) { return p->name() == original; });
+                     [&](const Param* p) { return p->name() == param_name; });
     if (found == fun->params().end()) {
       return absl::NotFoundError(err_msg(
-          absl::StrCat(" template wants '", original,
+          absl::StrCat(" template wants '", param_name,
                        "', but that is not a parameter of the function")));
+    }
+    // If there is an tuple access, make sure this parameter is a tuple
+    if (dot_pos != std::string_view::npos && !(*found)->GetType()->IsTuple()) {
+      return absl::InvalidArgumentError(
+          err_msg(absl::StrCat("Dot-access on `", param_name,
+                               ".<idx>`, but parameter is not a tuple")));
     }
   }
   if (instance_name_parameter_count != 1) {

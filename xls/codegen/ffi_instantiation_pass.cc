@@ -39,6 +39,26 @@
 
 namespace xls::verilog {
 
+static absl::Status MakeInstantiationInputs(Block* block, Node* node,
+                                            xls::Instantiation* instantiation,
+                                            std::string_view base_name) {
+  XLS_RETURN_IF_ERROR(block
+                          ->MakeNode<InstantiationInput>(
+                              node->loc(), node, instantiation, base_name)
+                          .status());
+  // The user can access tuple-indexes in the template, so provide expanded
+  // names a.0 here.
+  if (node->GetType()->kind() == TypeKind::kTuple) {
+    TupleType* const tuple_type = node->GetType()->AsTupleOrDie();
+    for (int64_t i = 0; i < tuple_type->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Node * subnode,
+                           block->MakeNode<TupleIndex>(node->loc(), node, i));
+      XLS_RETURN_IF_ERROR(MakeInstantiationInputs(
+          block, subnode, instantiation, absl::StrCat(base_name, ".", i)));
+    }
+  }
+  return absl::OkStatus();
+}
 static absl::Status InvocationParamsToInstInputs(
     Block* block, Invoke* invocation, Function* fun,
     xls::Instantiation* instantiation) {
@@ -53,11 +73,9 @@ static absl::Status InvocationParamsToInstInputs(
   // Creating InstantiationInput and Output in block will also wire them up.
   for (int i = 0; i < fun_params.size(); ++i) {
     Node* const operand = target_operands[i];
+    const std::string_view base_name = fun_params[i]->name();
     XLS_RETURN_IF_ERROR(
-        block
-            ->MakeNode<InstantiationInput>(invocation->loc(), operand,
-                                           instantiation, fun_params[i]->name())
-            .status());
+        MakeInstantiationInputs(block, operand, instantiation, base_name));
   }
 
   return absl::OkStatus();

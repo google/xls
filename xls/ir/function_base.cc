@@ -71,7 +71,7 @@ absl::StatusOr<Param*> FunctionBase::GetParamByName(
     }
   }
   return absl::NotFoundError(
-      absl::StrFormat("Function '%s' does not have a paramater named '%s'",
+      absl::StrFormat("Function '%s' does not have a parameter named '%s'",
                       name(), param_name));
 }
 
