@@ -34,7 +34,9 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce.h"
@@ -774,6 +776,52 @@ void PopulateSignatureToLambdaMap(
                             .status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
+  };
+  map["<uN[M]>(uN[N]) -> uN[M]"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
+                            .Len(1)
+                            .IsUN(0)
+                            .status());
+
+    if (data.arg_explicit_parametrics.size() != 1) {
+      return ArgCountMismatchErrorStatus(
+          data.span,
+          absl::StrFormat("Invalid number of parametrics passed to '%s', "
+                          "expected 1, got %d",
+                          data.name, data.arg_explicit_parametrics.size()));
+    }
+    AstNode* param_type = ToAstNode(data.arg_explicit_parametrics.at(0));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> return_type,
+                         DeduceAndResolve(param_type, ctx));
+    XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
+                                                     data.span, data.name));
+    if (auto* a = dynamic_cast<const BitsType*>(return_type.get());
+        a == nullptr || a->is_signed()) {
+      return TypeInferenceErrorStatus(
+          param_type->GetSpan().value_or(FakeSpan()), return_type.get(),
+          absl::StrFormat("Want return type to be unsigned bits; got %s",
+                          return_type->ToString()));
+    }
+
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), std::move(return_type))};
+  };
+  map["(uN[N]) -> uN[ceil(log2(N))]"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
+                            .Len(1)
+                            .IsUN(0)
+                            .status());
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
+                         data.arg_types[0]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim log2_n, n.CeilOfLog2());
+    auto return_type =
+        std::make_unique<BitsType>(/*signed=*/false, /*size=*/log2_n);
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(uN[N], u1) -> uN[N+1]"] =
       [](const SignatureData& data,

@@ -303,7 +303,7 @@ class AbstractEvaluator {
     return result;
   }
   Vector Encode(const Vector& input) {
-    int64_t result_width = Bits::MinBitCountUnsigned(input.size() - 1);
+    int64_t result_width = CeilOfLog2(input.size());
     Vector result(result_width, Zero());
     for (int64_t i = 0; i < input.size(); ++i) {
       for (int64_t j = 0; j < result_width; ++j) {
@@ -363,6 +363,9 @@ class AbstractEvaluator {
   }
 
   Vector Neg(const Vector& x) {
+    if (x.size() == 0) {
+      return x;
+    }
     return Add(BitwiseNot(x), BitsToVector(UBits(1, x.size())));
   }
 

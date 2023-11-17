@@ -112,6 +112,7 @@ class BytecodeInterpreter {
   absl::Status EvalConcat(const Bytecode& bytecode);
   absl::Status EvalCreateArray(const Bytecode& bytecode);
   absl::Status EvalCreateTuple(const Bytecode& bytecode);
+  absl::Status EvalDecode(const Bytecode& bytecode);
   absl::Status EvalDiv(const Bytecode& bytecode);
   absl::Status EvalDup(const Bytecode& bytecode);
   absl::Status EvalEq(const Bytecode& bytecode);

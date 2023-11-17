@@ -534,6 +534,10 @@ dslx_lang_test(name = "clz")
 
 dslx_lang_test(name = "ctz")
 
+dslx_lang_test(name = "decode")
+
+dslx_lang_test(name = "encode")
+
 dslx_lang_test(
     name = "one_hot",
     # Note: no meaningful function to convert.

@@ -14,6 +14,7 @@
 
 #include "xls/ir/verifier.h"
 
+
 #include <algorithm>
 #include <cstdint>
 #include <deque>
@@ -509,11 +510,9 @@ class NodeChecker : public DfsVisitor {
 
   absl::Status HandleEncode(Encode* encode) override {
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(encode, 0));
-    // Width of the encode output must be ceil(log_2(operand_width)). Subtract
-    // one from the width to account for zero-based numbering.
-    return ExpectHasBitsType(
-        encode,
-        Bits::MinBitCountUnsigned(encode->operand(0)->BitCountOrDie() - 1));
+    // Width of the encode output must be ceil(log_2(max_input + 1)).
+    return ExpectHasBitsType(encode,
+                             CeilOfLog2(encode->operand(0)->BitCountOrDie()));
   }
 
   absl::Status HandleUDiv(BinOp* div) override {
@@ -985,10 +984,10 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override {
-    return HandleExtendOp(sign_ext);
+    return HandleExtendOp(sign_ext, /*nonempty_input=*/true);
   }
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override {
-    return HandleExtendOp(zero_ext);
+    return HandleExtendOp(zero_ext, /*nonempty_input=*/false);
   }
 
   absl::Status HandleInputPort(InputPort* input_port) override {
@@ -1078,7 +1077,7 @@ class NodeChecker : public DfsVisitor {
     return ExpectOperandHasBitsType(shift, 1);
   }
 
-  absl::Status HandleExtendOp(ExtendOp* ext) {
+  absl::Status HandleExtendOp(ExtendOp* ext, bool nonempty_input) {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(ext, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(ext, /*operand_no=*/0));
     int64_t operand_bit_count = ext->operand(0)->BitCountOrDie();
@@ -1087,6 +1086,12 @@ class NodeChecker : public DfsVisitor {
       return absl::InternalError(StrFormat(
           "Extending operation %s is actually truncating from %d bits to %d "
           "bits.",
+          ext->ToStringWithOperandTypes(), operand_bit_count, new_bit_count));
+    }
+    if (nonempty_input && operand_bit_count == 0) {
+      return absl::InternalError(StrFormat(
+          "Extending operation %s requires nonempty input, but is extending "
+          "from %d bits to %d bits.",
           ext->ToStringWithOperandTypes(), operand_bit_count, new_bit_count));
     }
     return ExpectHasBitsType(ext, new_bit_count);

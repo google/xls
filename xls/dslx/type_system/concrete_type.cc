@@ -35,6 +35,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
@@ -215,6 +216,20 @@ absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Add(
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Cannot add dimensions: %s + %s", ToString(), rhs.ToString()));
+}
+
+absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::CeilOfLog2() const {
+  if (std::holds_alternative<InterpValue>(value_)) {
+    XLS_ASSIGN_OR_RETURN(InterpValue result,
+                         std::get<InterpValue>(value_).CeilOfLog2());
+    return ConcreteTypeDim(result);
+  }
+  if (IsParametric()) {
+    return ConcreteTypeDim(
+        std::make_unique<ParametricWidth>(parametric().Clone()));
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Cannot find the bit width of dimension: %s", ToString()));
 }
 
 absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {

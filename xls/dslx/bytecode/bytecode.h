@@ -68,6 +68,9 @@ class Bytecode {
     // Creates an N-tuple (N given in the data argument) from the values on the
     // stack.
     kCreateTuple,
+    // Decodes the element on top of the stack to a one-hot of the type given as
+    // the parametric arg.
+    kDecode,
     // Divides the N-1th value on the stack by the Nth value.
     kDiv,
     // Determines remainder of division of the N-1th value by the Nth value.

@@ -73,6 +73,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "create_tuple") {
     return Bytecode::Op::kCreateTuple;
   }
+  if (s == "decode") {
+    return Bytecode::Op::kDecode;
+  }
   if (s == "div") {
     return Bytecode::Op::kDiv;
   }
@@ -222,6 +225,8 @@ std::string OpToString(Bytecode::Op op) {
       return "create_array";
     case Bytecode::Op::kCreateTuple:
       return "create_tuple";
+    case Bytecode::Op::kDecode:
+      return "decode";
     case Bytecode::Op::kDiv:
       return "div";
     case Bytecode::Op::kDup:

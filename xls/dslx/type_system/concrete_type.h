@@ -85,6 +85,7 @@ class ConcreteTypeDim {
   // Arithmetic operators used in e.g. calculating total bit counts.
   absl::StatusOr<ConcreteTypeDim> Mul(const ConcreteTypeDim& rhs) const;
   absl::StatusOr<ConcreteTypeDim> Add(const ConcreteTypeDim& rhs) const;
+  absl::StatusOr<ConcreteTypeDim> CeilOfLog2() const;
 
   // Returns a string representation of this dimension, which is either the
   // integral string or the parametric expression string conversion.

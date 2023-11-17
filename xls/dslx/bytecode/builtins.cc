@@ -258,6 +258,18 @@ absl::Status RunBuiltinGate(const Bytecode& bytecode, InterpreterStack& stack) {
       stack);
 }
 
+absl::Status RunBuiltinEncode(const Bytecode& bytecode,
+                              InterpreterStack& stack) {
+  XLS_VLOG(3) << "Executing builtin encode.";
+  XLS_RET_CHECK(!stack.empty());
+
+  XLS_ASSIGN_OR_RETURN(InterpValue input, stack.Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue output, input.Encode());
+  stack.Push(std::move(output));
+
+  return absl::OkStatus();
+}
+
 absl::Status RunBuiltinOneHot(const Bytecode& bytecode,
                               InterpreterStack& stack) {
   return RunBinaryBuiltin(

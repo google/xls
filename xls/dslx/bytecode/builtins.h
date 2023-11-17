@@ -39,6 +39,9 @@ absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode,
 
 absl::Status RunBuiltinGate(const Bytecode& bytecode, InterpreterStack& stack);
 
+absl::Status RunBuiltinEncode(const Bytecode& bytecode,
+                              InterpreterStack& stack);
+
 absl::Status RunBuiltinOneHot(const Bytecode& bytecode,
                               InterpreterStack& stack);
 

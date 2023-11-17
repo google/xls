@@ -224,6 +224,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalCreateTuple(bytecode));
       break;
     }
+    case Bytecode::Op::kDecode: {
+      XLS_RETURN_IF_ERROR(EvalDecode(bytecode));
+      break;
+    }
     case Bytecode::Op::kDiv: {
       XLS_RETURN_IF_ERROR(EvalDiv(bytecode));
       break;
@@ -668,6 +672,33 @@ absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
   std::reverse(elements.begin(), elements.end());
 
   stack_.Push(InterpValue::MakeTuple(elements));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalDecode(const Bytecode& bytecode) {
+  if (!bytecode.data().has_value() ||
+      !std::holds_alternative<std::unique_ptr<ConcreteType>>(
+          bytecode.data().value())) {
+    return absl::InternalError("Decode op requires ConcreteType data.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue from, Pop());
+  if (!from.IsBits() || from.IsSigned()) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Decode op requires UBits-type input, was: ", from.ToString()));
+  }
+
+  ConcreteType* to =
+      std::get<std::unique_ptr<ConcreteType>>(bytecode.data().value()).get();
+  if (!IsUBits(*to)) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Decode op requires UBits-type output, was: ", to->ToString()));
+  }
+  BitsType* to_bits = dynamic_cast<BitsType*>(to);
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count, to_bits->size().GetAsInt64());
+
+  XLS_ASSIGN_OR_RETURN(InterpValue decoded, from.Decode(new_bit_count));
+  stack_.Push(std::move(decoded));
   return absl::OkStatus();
 }
 
@@ -1334,6 +1365,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinGate(bytecode, stack_);
     case Builtin::kMap:
       return RunBuiltinMap(bytecode);
+    case Builtin::kEncode:
+      return RunBuiltinEncode(bytecode, stack_);
     case Builtin::kOneHot:
       return RunBuiltinOneHot(bytecode, stack_);
     case Builtin::kOneHotSel:
@@ -1374,6 +1407,7 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kRecvIf:
     case Builtin::kRecvNonBlocking:
     case Builtin::kRecvIfNonBlocking:
+    case Builtin::kDecode:
     case Builtin::kCheckedCast:
     case Builtin::kWideningCast:
     case Builtin::kSelect:

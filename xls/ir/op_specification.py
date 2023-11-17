@@ -1046,9 +1046,7 @@ OpClass.kinds['ENCODE'] = OpClass(
     name='Encode',
     op='Op::kEncode',
     operands=[Operand('arg')],
-    # Subtract one from the width expression to account for zero-based
-    # numbering.
-    xls_type_expression='function->package()->GetBitsType(Bits::MinBitCountUnsigned(arg->BitCountOrDie() - 1))',
+    xls_type_expression='function->package()->GetBitsType(CeilOfLog2(arg->BitCountOrDie()))',
 )
 
 OpClass.kinds['INPUT_PORT'] = OpClass(

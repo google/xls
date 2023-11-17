@@ -77,6 +77,10 @@ class ParametricExpression {
   static std::unique_ptr<ParametricExpression> Mul(const EnvValue& lhs,
                                                    const EnvValue& rhs);
 
+  // Finds the minimum number of bits required to express a parametric
+  // expression environment value (as an unsigned integer).
+  static std::unique_ptr<ParametricExpression> CeilOfLog2(const EnvValue& arg);
+
   // Converts the environment value to an owned parametric expression.
   static std::unique_ptr<ParametricExpression> ToOwned(const EnvValue& operand);
 
@@ -245,6 +249,48 @@ class ParametricMul : public ParametricExpression {
  private:
   std::unique_ptr<ParametricExpression> lhs_;
   std::unique_ptr<ParametricExpression> rhs_;
+};
+
+// Represents finding the minimum bit-width required to represent values < arg
+// in a parametric dimension expression.
+class ParametricWidth : public ParametricExpression {
+ public:
+  explicit ParametricWidth(
+      std::unique_ptr<ParametricExpression> arg,
+      std::optional<InterpValue> const_value = std::nullopt)
+      : ParametricExpression(std::move(const_value)), arg_(std::move(arg)) {}
+
+  Evaluated Evaluate(const Env& env) const override {
+    Evaluated arg = arg_->Evaluate(env);
+    return TryUnwrapConstant(ParametricExpression::CeilOfLog2(ToEnvValue(arg)));
+  }
+
+  absl::flat_hash_set<std::string> GetFreeVariables() const override {
+    return arg_->GetFreeVariables();
+  }
+
+  std::unique_ptr<ParametricExpression> Clone() const override {
+    return std::make_unique<ParametricWidth>(arg_->Clone(), const_value());
+  }
+
+  bool operator==(const ParametricExpression& other) const override {
+    if (auto* o = dynamic_cast<const ParametricWidth*>(&other)) {
+      return *arg_ == *o->arg_;
+    }
+    return false;
+  }
+
+  std::string ToString() const override {
+    return absl::StrFormat("width(%s)", arg_->ToString());
+  }
+  std::string ToRepr() const override {
+    return absl::StrFormat("ParametricWidth(%s)", arg_->ToRepr());
+  }
+
+  const ParametricExpression& arg() const { return *arg_; }
+
+ private:
+  std::unique_ptr<ParametricExpression> arg_;
 };
 
 // Represents a symbol in a parametric dimension expression.

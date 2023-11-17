@@ -19,6 +19,7 @@
 #include <variant>
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 
@@ -63,6 +64,14 @@ std::unique_ptr<ParametricExpression> ParametricExpression::Mul(
         std::get<InterpValue>(lhs).Mul(std::get<InterpValue>(rhs)).value());
   }
   return std::make_unique<ParametricMul>(ToOwned(lhs), ToOwned(rhs));
+}
+std::unique_ptr<ParametricExpression> ParametricExpression::CeilOfLog2(
+    const EnvValue& arg) {
+  if (std::holds_alternative<InterpValue>(arg)) {
+    return std::make_unique<ParametricConstant>(
+        std::get<InterpValue>(arg).CeilOfLog2().value());
+  }
+  return std::make_unique<ParametricWidth>(ToOwned(arg));
 }
 ParametricExpression::Evaluated ParametricExpression::TryUnwrapConstant(
     std::unique_ptr<ParametricExpression> e) {

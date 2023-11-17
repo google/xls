@@ -54,6 +54,8 @@ namespace xls::dslx {
   X("enumerate", kEnumerate)              \
   X("fail!", kFail)                       \
   X("map", kMap)                          \
+  X("decode", kDecode)                    \
+  X("encode", kEncode)                    \
   X("one_hot", kOneHot)                   \
   X("one_hot_sel", kOneHotSel)            \
   X("or_reduce", kOrReduce)               \
@@ -305,6 +307,7 @@ class InterpValue {
   absl::StatusOr<InterpValue> BitwiseOr(const InterpValue& other) const;
   absl::StatusOr<InterpValue> BitwiseAnd(const InterpValue& other) const;
   absl::StatusOr<InterpValue> ArithmeticNegate() const;
+  absl::StatusOr<InterpValue> CeilOfLog2() const;
   absl::StatusOr<InterpValue> FloorDiv(const InterpValue& other) const;
   absl::StatusOr<InterpValue> FloorMod(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Index(const InterpValue& other) const;
@@ -314,6 +317,8 @@ class InterpValue {
   absl::StatusOr<InterpValue> Slice(const InterpValue& start,
                                     const InterpValue& length) const;
   absl::StatusOr<InterpValue> Flatten() const;
+  absl::StatusOr<InterpValue> Decode(int64_t new_bit_count) const;
+  absl::StatusOr<InterpValue> Encode() const;
   absl::StatusOr<InterpValue> OneHot(bool lsb_prio) const;
 
   absl::StatusOr<InterpValue> Lt(const InterpValue& other) const;

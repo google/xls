@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -31,8 +32,10 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -645,6 +648,17 @@ absl::StatusOr<InterpValue> InterpValue::ArithmeticNegate() const {
   return InterpValue(tag_, bits_ops::Negate(arg));
 }
 
+absl::StatusOr<InterpValue> InterpValue::CeilOfLog2() const {
+  XLS_ASSIGN_OR_RETURN(Bits arg, GetBits());
+  if (arg.IsZero()) {
+    return InterpValue(tag_, UBits(0, 32));
+  }
+  // Subtract one to make sure we get the right result for exact powers of 2.
+  int64_t min_bit_width =
+      arg.bit_count() - bits_ops::Decrement(arg).CountLeadingZeros();
+  return InterpValue(tag_, UBits(min_bit_width, 32));
+}
+
 absl::StatusOr<Bits> InterpValue::GetBits() const {
   if (std::holds_alternative<Bits>(payload_)) {
     return std::get<Bits>(payload_);
@@ -711,6 +725,39 @@ absl::StatusOr<InterpValue> InterpValue::ZeroExt(int64_t new_bit_count) const {
     return MakeBits(new_tag, b.Slice(0, new_bit_count));
   }
   return InterpValue(new_tag, bits_ops::ZeroExtend(b, new_bit_count));
+}
+
+absl::StatusOr<InterpValue> InterpValue::Decode(int64_t new_bit_count) const {
+  XLS_ASSIGN_OR_RETURN(Bits arg, GetBits());
+
+  absl::StatusOr<uint64_t> unsigned_index = arg.ToUint64();
+  if (!unsigned_index.ok() ||
+      *unsigned_index >
+          static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    // Index cannot be represented in a 64-bit signed integer - so it's telling
+    // us to set a bit that's definitely out of range. Return 0.
+    return InterpValue(InterpValueTag::kUBits, Bits(new_bit_count));
+  }
+
+  const int64_t index = static_cast<int64_t>(*unsigned_index);
+  InlineBitmap result(new_bit_count);
+  if (index < new_bit_count) {
+    result.Set(index);
+  }
+  return InterpValue(InterpValueTag::kUBits,
+                     Bits::FromBitmap(std::move(result)));
+}
+
+absl::StatusOr<InterpValue> InterpValue::Encode() const {
+  XLS_ASSIGN_OR_RETURN(Bits arg, GetBits());
+  int64_t result = 0;
+  for (int64_t i = 0; i < arg.bit_count(); ++i) {
+    if (arg.Get(i)) {
+      result |= i;
+    }
+  }
+  return InterpValue(InterpValueTag::kUBits,
+                     UBits(result, ::xls::CeilOfLog2(arg.bit_count())));
 }
 
 absl::StatusOr<InterpValue> InterpValue::OneHot(bool lsb_prio) const {

@@ -160,6 +160,47 @@ functions:
   assert_eq(u32:3, x2)
 ```
 
+### `decode`
+
+Converts a binary-encoded value into a one-hot value. For an operand value of
+`n``interpreted as an unsigned number, the`n`-th result bit and only the`n`-th
+result bit is set. Has the following signature:
+
+```
+fn decode<uN[W]>(x: uN[N]) -> uN[W]
+```
+
+The width of the decode operation may be less than the maximum value expressible
+by the input (`2**N - 1`). If the encoded operand value is larger than the
+number of bits of the result, the result is zero.
+
+Example usage:
+[`dslx/tests/decode.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/decode.x).
+
+See also the
+[IR semantics for the `decode` op](./ir_semantics.md#decode).
+
+### `encode`
+
+Converts a one-hot value to a binary-encoded value of the "hot" bit of the
+input. If the `n`-th bit and only the `n`-th bit of the operand is set, the
+result is equal to the value `n` as an unsigned number. Has the following
+signature:
+
+```
+fn encode(x: uN[N]) -> uN[ceil(log2(N))]
+```
+
+If multiple bits of the input are set, the result is equal to the logical or of
+the results produced by the input bits individually. For example, if bit 3 and
+bit 5 of an encode input are set the result is equal to `3 | 5 = 7`.
+
+Example usage:
+[`dslx/tests/encode.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/encode.x).
+
+See also the
+[IR semantics for the `encode` op](./ir_semantics.md#encode).
+
 ### `one_hot`
 
 Converts a value to one-hot form. Has the following signature:

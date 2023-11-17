@@ -171,6 +171,7 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_BIT_SLICE_UPDATE,
         ir_op_pb2.OP_CONCAT,
         ir_op_pb2.OP_COUNTED_FOR,
+        ir_op_pb2.OP_DECODE,
         ir_op_pb2.OP_DYNAMIC_BIT_SLICE,
         ir_op_pb2.OP_ENCODE,
         ir_op_pb2.OP_EQ,
@@ -219,7 +220,6 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_AFTER_ALL,
         ir_op_pb2.OP_ASSERT,
         ir_op_pb2.OP_COVER,
-        ir_op_pb2.OP_DECODE,
         ir_op_pb2.OP_DYNAMIC_COUNTED_FOR,
         ir_op_pb2.OP_IDENTITY,
         ir_op_pb2.OP_INPUT_PORT,
@@ -239,8 +239,8 @@ class FuzzCoverageTest(test_base.TestCase):
     ]
     # The set of expected to be seen and expected to be not seen should cover
     # all ops.
-    self.assertEqual(
-        len(expect_seen) + len(expect_not_seen), len(ir_op_pb2.OpProto.values())
+    self.assertLen(
+        ir_op_pb2.OpProto.values(), len(expect_seen) + len(expect_not_seen)
     )
 
     subprocess.check_call([

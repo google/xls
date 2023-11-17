@@ -785,6 +785,21 @@ absl::Status BytecodeEmitter::HandleBuiltinSendIf(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinDecode(const Invocation* node) {
+  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - Decode @ "
+              << node->span();
+
+  const Expr* from_expr = node->args().at(0);
+  XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
+
+  XLS_ASSIGN_OR_RETURN(BitsType * to, GetTypeOfNodeAsBits(node, type_info_));
+
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kDecode, to->CloneToUnique()));
+
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
   XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - CheckedCast @ "
               << node->span();
@@ -1169,6 +1184,10 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kTrace,
                                    Bytecode::TraceData(std::move(steps), {})));
       return absl::OkStatus();
+    }
+
+    if (name_ref->identifier() == "decode") {
+      return HandleBuiltinDecode(node);
     }
 
     if (name_ref->identifier() == "widening_cast") {

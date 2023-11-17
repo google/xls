@@ -169,10 +169,9 @@ class AstGenerator {
   // decreasing likelihood of picking something far away from the expected
   // value.  The underlying distribution is a Poisson distribution. See:
   // https://en.wikipedia.org/wiki/Poisson_distribution.
-  int64_t RandomIntWithExpectedValue(float expected_value,
+  int64_t RandomIntWithExpectedValue(double expected_value,
                                      int64_t lower_limit = 0) {
-    const double mean =
-        static_cast<double>(expected_value) - static_cast<double>(lower_limit);
+    const double mean = expected_value - static_cast<double>(lower_limit);
     return lower_limit + absl::Poisson<int64_t>(bit_gen_, mean);
   }
 

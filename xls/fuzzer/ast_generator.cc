@@ -45,6 +45,7 @@
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/random_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -1317,7 +1318,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(
   constexpr int64_t kMaxBitCount = 8;
   auto choose_value = [this](const TypedExpr& e) -> bool {
     TypeAnnotation* t = e.type;
-    return IsUBits(t) && 0 <= GetTypeBitCount(t) &&
+    return IsUBits(t) && 0 < GetTypeBitCount(t) &&
            GetTypeBitCount(t) <= kMaxBitCount;
   };
 
@@ -2623,6 +2624,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
     kClz,
     kCtz,
     kRev,
+    kDecode,
+    kEncode,
     kOneHot,
   };
   auto to_string = [](UnopBuiltin kind) -> std::string {
@@ -2633,19 +2636,28 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
         return "ctz";
       case kRev:
         return "rev";
+      case kDecode:
+        return "decode";
+      case kEncode:
+        return "encode";
       case kOneHot:
         return "one_hot";
     }
     XLS_LOG(FATAL) << "Invalid kind: " << kind;
   };
 
-  std::vector<UnopBuiltin> choices = {kRev};
+  std::vector<UnopBuiltin> choices = {kRev, kDecode};
   // Since one_hot, clz, and ctz adds a bit, only use it when we have head room
   // beneath max_width_bits_types to add another bit.
   if (GetTypeBitCount(arg.type) < options_.max_width_bits_types) {
     choices.push_back(kOneHot);
     choices.push_back(kClz);
     choices.push_back(kCtz);
+  }
+  // Since encode outputs an empty object on inputs <= 1 bit wide, only use it
+  // when we have at least 2 bits in the input.
+  if (GetTypeBitCount(arg.type) >= 2) {
+    choices.push_back(kEncode);
   }
 
   Invocation* invocation = nullptr;
@@ -2659,6 +2671,27 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
       invocation = module_->Make<Invocation>(fake_span_, name_ref,
                                              std::vector<Expr*>{arg.expr});
       result_bits = GetTypeBitCount(arg.type);
+      break;
+    case kDecode: {
+      int64_t max_decode_width = options_.max_width_bits_types;
+      // decode currently requires we ask for no more bits than `arg` could
+      // possibly code for.
+      if (GetTypeBitCount(arg.type) < 63) {
+        max_decode_width =
+            std::min(max_decode_width, int64_t{1} << GetTypeBitCount(arg.type));
+      }
+      result_bits = std::min(
+          max_decode_width,
+          RandomIntWithExpectedValue(max_decode_width, /*lower_limit=*/1));
+      invocation = module_->Make<Invocation>(
+          fake_span_, name_ref, std::vector<Expr*>{arg.expr},
+          std::vector<ExprOrType>{MakeTypeAnnotation(false, result_bits)});
+      break;
+    }
+    case kEncode:
+      invocation = module_->Make<Invocation>(fake_span_, name_ref,
+                                             std::vector<Expr*>{arg.expr});
+      result_bits = CeilOfLog2(GetTypeBitCount(arg.type));
       break;
     case kOneHot: {
       bool lsb_or_msb = RandomBool();

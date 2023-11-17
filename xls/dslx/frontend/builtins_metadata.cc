@@ -35,6 +35,8 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       {"fail!", {"(u8[N], T) -> T", false}},
       {"gate!", {"(u1, T) -> T", false}},
       {"map", {"(T[N], (T) -> U) -> U[N]", false}},
+      {"decode", {"<uN[M]>(uN[N]) -> uN[M]", false}},
+      {"encode", {"(uN[N]) -> uN[ceil(log2(N))]", false}},
       {"one_hot", {"(uN[N], u1) -> uN[N+1]", false}},
       {"one_hot_sel", {"(xN[N], xN[M][N]) -> xN[M]", false}},
       {"priority_sel", {"(xN[N], xN[M][N]) -> xN[M]", false}},

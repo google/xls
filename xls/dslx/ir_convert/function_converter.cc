@@ -1805,6 +1805,8 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
           {"gate!", &FunctionConverter::HandleBuiltinGate},
           {"signex", &FunctionConverter::HandleBuiltinSignex},
+          {"decode", &FunctionConverter::HandleBuiltinDecode},
+          {"encode", &FunctionConverter::HandleBuiltinEncode},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
           {"priority_sel", &FunctionConverter::HandleBuiltinPrioritySel},
@@ -2873,6 +2875,32 @@ absl::Status FunctionConverter::HandleBuiltinGate(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue value, Use(node->args()[1]));
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->Gate(predicate, value, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinDecode(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_RET_CHECK_EQ(node->explicit_parametrics().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue input, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(
+      xls::Type * return_type,
+      ResolveTypeToIr(ToAstNode(node->explicit_parametrics()[0])));
+  XLS_RET_CHECK(return_type->IsBits());
+  const int64_t width = return_type->AsBitsOrDie()->bit_count();
+
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->Decode(input, width, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinEncode(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue input, Use(node->args()[0]));
+
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->Encode(input, loc);
   });
   return absl::OkStatus();
 }
