@@ -1975,7 +1975,7 @@ static absl::Status VerifyForeignFunctionTemplate(Function* fun) {
             err_msg("got `return.<idx>` in template, but function does not "
                     "return a tuple."));
       }
-      static const LazyRE2 kReMatchTupleId{"return\\.([0-9]+)"};
+      static const LazyRE2 kReMatchTupleId{"return\\.([0-9]+)(\\.([0-9]+))*"};
       int64_t tuple_idx;
       if (!RE2::FullMatch(original, *kReMatchTupleId, &tuple_idx)) {
         return absl::InvalidArgumentError(

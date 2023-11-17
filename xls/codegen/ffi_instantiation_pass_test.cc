@@ -187,5 +187,74 @@ TEST_F(FfiInstantiationPassTest, FunctionReturningTuple) {
   }
 }
 
+TEST_F(FfiInstantiationPassTest, FunctionReturningNestedTuple) {
+  constexpr int kFirstTupleElementBitCount = 13;
+  constexpr int kNestedTupleBitCount[] = {17, 27};
+  auto p = CreatePackage();
+
+  // Function returning a tuple.
+  FunctionBuilder fb(TestName() + "ffi_fun", p.get());
+  BValue nested = fb.Tuple({fb.Literal(UBits(42, kNestedTupleBitCount[0])),
+                            fb.Literal(UBits(24, kNestedTupleBitCount[1]))});
+  BValue retval =
+      fb.Tuple({fb.Literal(UBits(123, kFirstTupleElementBitCount)), nested});
+  XLS_ASSERT_OK_AND_ASSIGN(ForeignFunctionData ffd,
+                           ForeignFunctionDataCreateFromTemplate(
+                               "foo {fn} (.foo({return.0}), "
+                               ".bar({return.1.0}), .baz({return.1.0}))"));
+  fb.SetForeignFunctionData(ffd);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun, fb.BuildWithReturnValue(retval));
+
+  // A block that contains one invocation of that ffi_fun.
+  BlockBuilder bb(TestName(), p.get());
+  bb.OutputPort("out", bb.Invoke({}, ffi_fun));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  // Convert to instance
+  EXPECT_THAT(Run(block), IsOkAndHolds(true));
+
+  xls::Instantiation* const instantiation = block->GetInstantiations()[0];
+  ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
+
+  xls::ExternInstantiation* const extern_inst =
+      down_cast<xls::ExternInstantiation*>(instantiation);
+
+  // first, non-nested element
+  std::string return_name = "return.0";
+  XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort return_port,
+                           extern_inst->GetOutputPort(return_name));
+  EXPECT_EQ(return_port.name, return_name);
+  EXPECT_EQ(return_port.type, p->GetBitsType(kFirstTupleElementBitCount));
+
+  // Get nested elements return.1.0,  return.1.1
+  for (int i = 0; i < 2; ++i) {
+    return_name = absl::StrCat("return.1.", i);
+    XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort return_port,
+                             extern_inst->GetOutputPort(return_name));
+    EXPECT_EQ(return_port.name, return_name);
+    EXPECT_EQ(return_port.type, p->GetBitsType(kNestedTupleBitCount[i]));
+  }
+
+  // Test some invalid accesses and usefulness of error messages
+  // by Instantiation (ir/instantiation.cc)
+  EXPECT_THAT(
+      extern_inst->GetOutputPort("return.1"),
+      StatusIs(absl::StatusCode::kNotFound,
+               testing::HasSubstr("return.1 is a tuple (with 2 fields), "
+                                  "expected sub-access by .<number>")));
+
+  EXPECT_THAT(
+      extern_inst->GetOutputPort("return.42"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               testing::HasSubstr("Invalid index into tuple `return.42`; "
+                                  "expected to be in range 0..1")));
+
+  EXPECT_THAT(extern_inst->GetOutputPort("return.1.1.1"),
+              StatusIs(absl::StatusCode::kNotFound,
+                       testing::HasSubstr(
+                           "Attempting to access tuple-field `return.1.1.1` "
+                           "but `return.1.1` is already a scalar")));
+}
+
 }  // namespace
 }  // namespace xls::verilog

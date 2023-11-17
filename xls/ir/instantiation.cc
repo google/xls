@@ -22,6 +22,8 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/logging/logging.h"
@@ -99,37 +101,46 @@ absl::StatusOr<InstantiationPort> ExternInstantiation::GetInputPort(
   return InstantiationPort{std::string{name}, param->GetType()};
 }
 
-absl::StatusOr<InstantiationPort> ExternInstantiation::GetOutputPort(
-    std::string_view name) {
-  static const LazyRE2 kReMatchTupleId{"return\\.([0-9]+)"};
-  Type* const return_type = function_->GetType()->return_type();
+// Note: these are tested in ffi_instantiation_pass_test
+static absl::StatusOr<InstantiationPort> ExtractNested(
+    std::string_view fn_name, std::string_view full_parameter_name,
+    Type* current_type, std::string_view nested_name) {
+  static const LazyRE2 kReMatchTupleId{"\\.([0-9]+)(.*)"};
 
-  switch (return_type->kind()) {
+  // (start_name ++ nested_name) == full_name
+  const std::string_view start_name = full_parameter_name.substr(
+      0, nested_name.data() - full_parameter_name.data());
+
+  switch (current_type->kind()) {
     case TypeKind::kBits:
-      if (name == "return") {
-        return InstantiationPort{"return", function_->GetType()->return_type()};
+      if (!nested_name.empty()) {
+        return absl::NotFoundError(absl::StrCat(
+            "Attempting to access tuple-field `", full_parameter_name,
+            "` but `", start_name, "` is already a scalar (of type ",
+            current_type->ToString(), ")"));
       }
+      return InstantiationPort{std::string(full_parameter_name), current_type};
       break;
     case TypeKind::kTuple: {
+      TupleType* const tuple = current_type->AsTupleOrDie();
       int64_t tuple_index = 0;
-      if (!RE2::FullMatch(name, *kReMatchTupleId, &tuple_index)) {
+      std::string_view parameter_remaining;
+      if (!RE2::FullMatch(nested_name, *kReMatchTupleId, &tuple_index,
+                          &parameter_remaining)) {
         return absl::NotFoundError(
-            absl::StrFormat("%s: Expected return value parameter to be of form "
-                            "return.<tuple-index>; got `%s`",
-                            function()->name(), name));
+            absl::StrFormat("%s: %s is a tuple (with %d fields), expected "
+                            "sub-access by .<number>",
+                            fn_name, start_name, tuple->size()));
       }
-      TupleType* const tuple = return_type->AsTupleOrDie();
       if (tuple_index < 0 || tuple_index >= tuple->size()) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "%s: Invalid index into tuple with `return.%d`; expected to be in "
+            "%s: Invalid index into tuple `%s.%d`; expected to be in "
             "range 0..%d",
-            function()->name(), tuple_index, tuple->size() - 1));
+            fn_name, start_name, tuple_index, tuple->size() - 1));
       }
       Type* const element_type = tuple->element_type(tuple_index);
-      if (!element_type->IsBits()) {
-        return absl::UnimplementedError("Not supporting nested tuples yet");
-      }
-      return InstantiationPort{std::string{name}, element_type};
+      return ExtractNested(fn_name, full_parameter_name, element_type,
+                           parameter_remaining);
       break;
     }
     default:
@@ -138,7 +149,23 @@ absl::StatusOr<InstantiationPort> ExternInstantiation::GetOutputPort(
   }
 
   // Issue in template.
-  return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));
+  return absl::NotFoundError(absl::StrFormat("%s: No such output port `%s`",
+                                             fn_name, full_parameter_name));
+}
+
+// Extern instantiation (FFI) will have names in template refer to output
+// ports, such as "return" for a scalar or "return.0" for a tuple value.
+absl::StatusOr<InstantiationPort> ExternInstantiation::GetOutputPort(
+    std::string_view name) {
+  const std::string& fn_name = function()->name();
+  const std::string_view prefix = "return";
+  if (!absl::StartsWith(name, prefix)) {
+    return absl::NotFoundError(absl::StrFormat(
+        "%s: output port reference needs to start with `%s`; got `%s`", fn_name,
+        prefix, name));
+  }
+  return ExtractNested(fn_name, name, function()->GetType()->return_type(),
+                       name.substr(prefix.length()));
 }
 
 std::string ExternInstantiation::ToString() const {

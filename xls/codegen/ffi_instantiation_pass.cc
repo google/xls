@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -62,45 +63,43 @@ static absl::Status InvocationParamsToInstInputs(
   return absl::OkStatus();
 }
 
-static absl::Status InvocationReturnToInstOutputs(
-    Block* block, Invoke* invocation, Function* fun,
-    xls::Instantiation* instantiation) {
-  switch (invocation->GetType()->kind()) {
+// Create InstantiationOutputs from IR nodes.
+static absl::StatusOr<Node*> BuildInstantiationOutput(
+    std::string_view prefix, FunctionBase* node_factory,
+    xls::Instantiation* instantiation, Node* node) {
+  switch (node->GetType()->kind()) {
     case TypeKind::kBits:
-      XLS_RETURN_IF_ERROR(
-          invocation
-              ->ReplaceUsesWithNew<InstantiationOutput>(instantiation, "return")
-              .status());
-      break;
+      return node->ReplaceUsesWithNew<InstantiationOutput>(instantiation,
+                                                           prefix);
     case TypeKind::kTuple: {
-      // A tuple return requires multiple outputs that are mapped to
-      // return.0, return.1 ... names in the FFI template.
-      // TODO(hzeller): 2023-06-28 for nested tuples, build this recursively.
-      TupleType* const node_type = invocation->GetType()->AsTupleOrDie();
+      TupleType* const tuple_type = node->GetType()->AsTupleOrDie();
       std::vector<Node*> inst_output_tuple_nodes;
-      for (int64_t i = 0; i < node_type->size(); ++i) {
-        XLS_ASSIGN_OR_RETURN(Node * tuple_element,
-                             invocation->function_base()->MakeNode<TupleIndex>(
-                                 invocation->loc(), invocation, i));
+      for (int64_t i = 0; i < tuple_type->size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(Node * subnode, node_factory->MakeNode<TupleIndex>(
+                                                 node->loc(), node, i));
         XLS_ASSIGN_OR_RETURN(
             Node * output_node,
-            tuple_element->ReplaceUsesWithNew<InstantiationOutput>(
-                instantiation, absl::StrCat("return.", i)));
+            BuildInstantiationOutput(absl::StrCat(prefix, ".", i), node_factory,
+                                     instantiation, subnode));
         inst_output_tuple_nodes.push_back(output_node);
       }
-
-      // The original invocation becomes a tuple of InstantiationOutputs
-      XLS_RETURN_IF_ERROR(
-          invocation->ReplaceUsesWithNew<Tuple>(inst_output_tuple_nodes)
-              .status());
-      break;
+      return node->ReplaceUsesWithNew<Tuple>(inst_output_tuple_nodes);
     }
     default:
       return absl::UnimplementedError(
           absl::StrFormat("Can't deal with FFI return type '%s' yet",
-                          invocation->GetType()->ToString()));
+                          node->GetType()->ToString()));
   }
   return absl::OkStatus();
+}
+
+static absl::Status InvocationReturnToInstOutputs(
+    FunctionBase* node_factory, Invoke* invocation,
+    xls::Instantiation* instantiation) {
+  XLS_ASSIGN_OR_RETURN(Node * tuple_or_scalar,
+                       BuildInstantiationOutput("return", node_factory,
+                                                instantiation, invocation));
+  return invocation->ReplaceUsesWith(tuple_or_scalar);
 }
 
 absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
@@ -134,7 +133,7 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     XLS_RETURN_IF_ERROR(
         InvocationParamsToInstInputs(block, invocation, fun, instantiation));
     XLS_RETURN_IF_ERROR(
-        InvocationReturnToInstOutputs(block, invocation, fun, instantiation));
+        InvocationReturnToInstOutputs(block, invocation, instantiation));
 
     to_remove.push_back(invocation);
   }
