@@ -194,7 +194,7 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
 }  // namespace
 
 absl::Status InliningPass::InlineOneInvoke(Invoke* invoke) {
-  return InlineInvoke(invoke, /*inline_count=*/0).WithSourceLocation();
+  return InlineInvoke(invoke, /*inline_count=*/0);
 }
 
 absl::StatusOr<bool> InliningPass::RunInternal(
