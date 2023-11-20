@@ -111,17 +111,20 @@ cc_library(
 
 cc_library(
     name = "gunit_init_xls",
+    testonly = True,
     srcs = ["gunit_init_xls.cc"],
     hdrs = ["gunit_init_xls.h"],
     deps = [
         ":init_xls",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
 
 cc_library(
     name = "benchmark_support",
+    testonly = True,
     srcs = ["benchmark_support.cc"],
     hdrs = ["benchmark_support.h"],
     visibility = ["//visibility:private"],
