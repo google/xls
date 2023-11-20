@@ -51,10 +51,14 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[1] {
 
 class IrMinimizerMainTest(absltest.TestCase):
 
+  def _maybe_record_property(self, name, value):
+    if callable(getattr(self, 'recordProperty', None)):
+      self.recordProperty(name, value)
+
   def _write_sh_script(self, path, commands):
     with open(path, 'w') as f:
       all_cmds = ['#!/bin/sh -e'] + commands
-      self.recordProperty('test_script', '\n'.join(all_cmds))
+      self._maybe_record_property('test_script', '\n'.join(all_cmds))
       f.write('\n'.join(all_cmds))
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IXUSR)
@@ -67,7 +71,7 @@ class IrMinimizerMainTest(absltest.TestCase):
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         '--can_remove_params=false', ir_file.full_path
     ])
-    self.recordProperty('output', minimized_ir.decode('utf-8'))
+    self._maybe_record_property('output', minimized_ir.decode('utf-8'))
     self.assertEqual(
         minimized_ir.decode('utf-8'), """package foo
 
@@ -85,7 +89,7 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         '--can_remove_params', ir_file.full_path
     ])
-    self.recordProperty('output', minimized_ir.decode('utf-8'))
+    self._maybe_record_property('output', minimized_ir.decode('utf-8'))
     self.assertEqual(
         minimized_ir.decode('utf-8'), """package foo
 
@@ -498,7 +502,7 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[1] {
         f'Non zero return: stderr {output.stderr}, stdout: {output.stdout}',
     )
     minimized_ir = output.stdout
-    self.recordProperty('output', minimized_ir.decode('utf-8'))
+    self._maybe_record_property('output', minimized_ir.decode('utf-8'))
     self.assertEqual(
         minimized_ir.decode('utf-8'),
         """package foo
