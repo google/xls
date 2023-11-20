@@ -364,3 +364,88 @@ place_and_route(
     target_die_utilization_percentage = "10",
     tags = ["manual"],
 )
+
+xls_dslx_library(
+    name = "rle_block_dec_dslx",
+    srcs = [
+        "rle_block_dec.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+        ":common_dslx",
+        "//xls/modules/rle:rle_common_dslx",
+        "//xls/modules/rle:rle_dec_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "rle_block_dec_dslx_test",
+    library = ":rle_block_dec_dslx",
+)
+
+xls_dslx_verilog(
+    name = "rle_block_dec_verilog",
+    codegen_args = {
+        "module_name": "RleBlockDecoder",
+        "delay_model": "asap7",
+        "pipeline_stages": "3",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "RleBlockDecoder",
+    library = ":rle_block_dec_dslx",
+    # TODO: 2024-01-15: Workaround for https://github.com/google/xls/issues/869
+    # Force proc inlining and set last internal proc as top proc for IR optimization
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__rle_block_dec__RleBlockDecoder__BatchPacker_0_next",
+    },
+    verilog_file = "rle_block_dec.v",
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "rle_block_dec_opt_ir_benchmark",
+    src = ":rle_block_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "3",
+        "delay_model": "asap7",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "rle_block_dec_verilog_lib",
+    srcs = [
+        ":rle_block_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "rle_block_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "RleBlockDecoder",
+    deps = [
+        ":rle_block_dec_verilog_lib",
+    ],
+    tags = ["manual"],
+)
+
+benchmark_synth(
+    name = "rle_block_dec_benchmark_synth",
+    synth_target = ":rle_block_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "rle_block_dec_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":rle_block_dec_synth_asap7",
+    target_die_utilization_percentage = "10",
+    tags = ["manual"],
+)
