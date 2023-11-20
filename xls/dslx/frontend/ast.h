@@ -613,9 +613,15 @@ class Expr : public AstNode {
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
-  // Returns whether an expression contains blocks; e.g. For or Conditional or
-  // similar.
-  virtual bool IsBlockedExpr() const = 0;
+  // Returns whether an expression contains blocks with a constant amount of
+  // leading characters; e.g. a block or an array without a type.
+  virtual bool IsBlockedExprNoLeader() const { return false; }
+
+  virtual bool IsBlockedExprWithLeader() const { return false; }
+
+  bool IsBlockedExprAnyLeader() const {
+    return IsBlockedExprNoLeader() || IsBlockedExprWithLeader();
+  }
 
   virtual absl::Status AcceptExpr(ExprVisitor* v) const = 0;
 
@@ -761,7 +767,7 @@ class Block : public Expr {
 
   ~Block() override;
 
-  bool IsBlockedExpr() const override { return true; }
+  bool IsBlockedExprNoLeader() const override { return true; }
 
   std::string ToInlineString() const override;
 
@@ -828,7 +834,6 @@ class NameRef : public Expr {
 
   ~NameRef() override;
 
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kNameRef; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -894,8 +899,6 @@ class Number : public Expr {
          TypeAnnotation* type);
 
   ~Number() override;
-
-  bool IsBlockedExpr() const override { return false; }
 
   AstNodeKind kind() const override { return AstNodeKind::kNumber; }
 
@@ -966,7 +969,6 @@ class String : public Expr {
 
   ~String() override;
 
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kString; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1046,7 +1048,15 @@ class Array : public Expr {
 
   ~Array() override;
 
-  bool IsBlockedExpr() const override { return false; }
+  // The type annotation would be an arbitrary-length number of leading
+  // characters.
+  bool IsBlockedExprNoLeader() const override {
+    return type_annotation_ == nullptr;
+  }
+  bool IsBlockedExprWithLeader() const override {
+    return type_annotation_ != nullptr;
+  }
+
   AstNodeKind kind() const override { return AstNodeKind::kArray; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1208,7 +1218,6 @@ class ColonRef : public Expr {
 
   ~ColonRef() override;
 
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kColonRef; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1299,7 +1308,6 @@ class Unop : public Expr {
 
   ~Unop() override;
 
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kUnop; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1389,7 +1397,6 @@ class Binop : public Expr {
 
   ~Binop() override;
 
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kBinop; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1439,7 +1446,8 @@ class Conditional : public Expr {
 
   ~Conditional() override;
 
-  bool IsBlockedExpr() const override { return true; }
+  // The arbitrary length leading chars are the conditional test expression.
+  bool IsBlockedExprWithLeader() const override { return true; }
 
   AstNodeKind kind() const override { return AstNodeKind::kConditional; }
 
@@ -1773,7 +1781,8 @@ class Match : public Expr {
 
   ~Match() override;
 
-  bool IsBlockedExpr() const override { return true; }
+  // Leading chars are the matched-on expression.
+  bool IsBlockedExprWithLeader() const override { return true; }
 
   AstNodeKind kind() const override { return AstNodeKind::kMatch; }
 
@@ -1811,8 +1820,6 @@ class Attr : public Expr {
       : Expr(owner, std::move(span)), lhs_(lhs), attr_(std::move(attr)) {}
 
   ~Attr() override;
-
-  bool IsBlockedExpr() const override { return false; }
 
   AstNodeKind kind() const override { return AstNodeKind::kAttr; }
 
@@ -1853,7 +1860,8 @@ class Instantiation : public Expr {
 
   ~Instantiation() override;
 
-  bool IsBlockedExpr() const override { return false; }
+  // Leading chars are the callee being invoked/instantiated.
+  bool IsBlockedExprWithLeader() const override { return true; }
 
   AstNodeKind kind() const override { return AstNodeKind::kInstantiation; }
 
@@ -1992,8 +2000,6 @@ class FormatMacro : public Expr {
 
   ~FormatMacro() override;
 
-  bool IsBlockedExpr() const override { return false; }
-
   AstNodeKind kind() const override { return AstNodeKind::kFormatMacro; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2034,8 +2040,6 @@ class ZeroMacro : public Expr {
   ZeroMacro(Module* owner, Span span, ExprOrType type);
 
   ~ZeroMacro() override;
-
-  bool IsBlockedExpr() const override { return false; }
 
   AstNodeKind kind() const override { return AstNodeKind::kZeroMacro; }
 
@@ -2244,9 +2248,8 @@ class StructInstance : public Expr {
 
   ~StructInstance() override;
 
-  // We put curlies around the instance members, so we consider this a blocked
-  // expression.
-  bool IsBlockedExpr() const override { return true; }
+  // The leading chars are the struct reference.
+  bool IsBlockedExprWithLeader() const override { return true; }
 
   AstNodeKind kind() const override { return AstNodeKind::kStructInstance; }
 
@@ -2302,7 +2305,8 @@ class SplatStructInstance : public Expr {
 
   ~SplatStructInstance() override;
 
-  bool IsBlockedExpr() const override { return false; }
+  // The leading chars are the struct reference.
+  bool IsBlockedExprWithLeader() const override { return true; }
 
   AstNodeKind kind() const override {
     return AstNodeKind::kSplatStructInstance;
@@ -2395,8 +2399,6 @@ class Index : public Expr {
 
   ~Index() override;
 
-  bool IsBlockedExpr() const override { return false; }
-
   AstNodeKind kind() const override { return AstNodeKind::kIndex; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2436,7 +2438,6 @@ class Range : public Expr {
  public:
   Range(Module* owner, Span span, Expr* start, Expr* end);
   ~Range() override;
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kRange; }
   std::string_view GetNodeTypeName() const override { return "Range"; }
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2581,7 +2582,6 @@ class TupleIndex : public Expr {
   TupleIndex(Module* owner, Span span, Expr* lhs, Number* index);
   ~TupleIndex() override;
 
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kTupleIndex; }
   absl::Status Accept(AstNodeVisitor* v) const override;
   absl::Status AcceptExpr(ExprVisitor* v) const override;
@@ -2613,7 +2613,8 @@ class XlsTuple : public Expr {
 
   ~XlsTuple() override;
 
-  bool IsBlockedExpr() const override { return false; }
+  bool IsBlockedExprNoLeader() const override { return true; }
+
   AstNodeKind kind() const override { return AstNodeKind::kXlsTuple; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2652,7 +2653,8 @@ class For : public Expr {
 
   ~For() override;
 
-  bool IsBlockedExpr() const override { return true; }
+  // Leader chars are the for loop bindings and iterable.
+  bool IsBlockedExprWithLeader() const override { return true; }
 
   AstNodeKind kind() const override { return AstNodeKind::kFor; }
 
@@ -2703,7 +2705,9 @@ class UnrollFor : public Expr {
   UnrollFor(Module* owner, Span span, NameDefTree* names, TypeAnnotation* types,
             Expr* iterable, Block* body, Expr* init);
   ~UnrollFor() override;
-  bool IsBlockedExpr() const override { return true; }
+
+  bool IsBlockedExprWithLeader() const override { return true; }
+
   AstNodeKind kind() const override { return AstNodeKind::kUnrollFor; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleUnrollFor(this);
@@ -2750,7 +2754,6 @@ class Cast : public Expr {
 
   ~Cast() override;
 
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kCast; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -3045,7 +3048,6 @@ class ChannelDecl : public Expr {
 
   ~ChannelDecl() override;
 
-  bool IsBlockedExpr() const override { return false; }
   AstNodeKind kind() const override { return AstNodeKind::kChannelDecl; }
 
   absl::Status AcceptExpr(ExprVisitor* v) const override {

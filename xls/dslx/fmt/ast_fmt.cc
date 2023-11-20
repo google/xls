@@ -714,8 +714,7 @@ DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
       arena,
       {arena.oparen(), Fmt(*n.init(), comments, arena), arena.cparen()}));
 
-  return arena.MakeConcat(ConcatNGroup(arena, pieces),
-                          ConcatN(arena, body_pieces));
+  return arena.MakeConcat(ConcatN(arena, pieces), ConcatN(arena, body_pieces));
 }
 
 DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
@@ -812,33 +811,55 @@ static DocRef FmtParametricArg(const ExprOrType& n, const Comments& comments,
 }
 
 DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
-  // Starts with the callee.
-  std::vector<DocRef> pieces = {
-      Fmt(*n.callee(), comments, arena),
-  };
+  DocRef callee_doc = Fmt(*n.callee(), comments, arena);
 
+  std::optional<DocRef> parametrics_doc;
   if (!n.explicit_parametrics().empty()) {
     // Group for the parametrics.
-    pieces.push_back(ConcatNGroup(
-        arena, {arena.break0(), arena.oangle(),
+    parametrics_doc = ConcatNGroup(
+        arena, {arena.oangle(), arena.break0(),
                 FmtJoin<ExprOrType>(
                     absl::MakeConstSpan(n.explicit_parametrics()),
                     Joiner::kCommaSpace, FmtParametricArg, comments, arena),
-                arena.cangle()}));
+                arena.cangle()});
   }
 
-  DocRef args_doc =
+  DocRef args_doc_internal =
       FmtJoin<const Expr*>(n.args(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
                            FmtExprPtr, comments, arena);
 
   // Group for the args tokens.
   std::vector<DocRef> arg_pieces = {
-      arena.oparen(),
-      arena.MakeNestIfFlatFits(/*on_nested_flat_ref=*/args_doc,
-                               /*on_other_ref=*/arena.MakeAlign(args_doc)),
+      arena.MakeNestIfFlatFits(
+          /*on_nested_flat_ref=*/args_doc_internal,
+          /*on_other_ref=*/arena.MakeAlign(args_doc_internal)),
       arena.cparen()};
-  pieces.push_back(ConcatNGroup(arena, arg_pieces));
-  return ConcatNGroup(arena, pieces);
+  DocRef args_doc = ConcatNGroup(arena, arg_pieces);
+  DocRef args_doc_nested = arena.MakeNest(args_doc);
+
+  // This is the flat version -- it simply concats the pieces together.
+  DocRef flat = parametrics_doc.has_value()
+                    ? ConcatN(arena, {callee_doc, parametrics_doc.value(),
+                                      arena.oparen(), args_doc})
+                    : ConcatN(arena, {callee_doc, arena.oparen(), args_doc});
+
+  // This doc ref is for the "I can emit *the leader* flat" case; i.e. the
+  // callee (or the callee with parametric args).
+  //
+  // The parametrics have a break at the start (after the oangle) that can be
+  // triggered, and the arguments have a break at the start (after the oparen)
+  // that can be triggered.
+  DocRef leader_flat =
+      parametrics_doc.has_value()
+          ? ConcatN(arena, {callee_doc, arena.MakeNest(parametrics_doc.value()),
+                            arena.oparen(), arena.break0(), args_doc_nested})
+          : ConcatN(arena, {callee_doc, arena.oparen(), arena.break0(),
+                            args_doc_nested});
+
+  DocRef result = arena.MakeGroup(
+      arena.MakeFlatChoice(/*on_flat=*/flat, /*on_break=*/leader_flat));
+
+  return result;
 }
 
 static DocRef FmtNameDefTreePtr(const NameDefTree* n, const Comments& comments,
@@ -874,7 +895,7 @@ static DocRef FmtMatchArm(const MatchArm& n, const Comments& comments,
     pieces.push_back(arena.space());
     // If the RHS is a blocked expression, e.g. a struct instance, we don't
     // align it to the fat arrow indicated column.
-    if (n.expr()->IsBlockedExpr()) {
+    if (n.expr()->IsBlockedExprAnyLeader()) {
       pieces.push_back(arena.MakeGroup(rhs_doc));
     } else {
       pieces.push_back(arena.MakeAlign(arena.MakeGroup(rhs_doc)));
@@ -1309,36 +1330,41 @@ DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
   leader_pieces.push_back(arena.equals());
 
   const DocRef rhs_doc_internal = Fmt(*n.rhs(), comments, arena);
+
+  // In the (rare) case where the semicolon is what pushes us over the line
+  // length, we want to put the semicolon on the subsequent line.
+  DocRef break0_semi =
+      arena.MakeGroup(arena.MakeConcat(arena.break0(), arena.semi()));
   const DocRef rhs_doc = trailing_semi
-                             ? arena.MakeConcat(rhs_doc_internal, arena.semi())
+                             ? arena.MakeConcat(rhs_doc_internal, break0_semi)
                              : rhs_doc_internal;
   DocRef body;
-  if (n.rhs()->IsBlockedExpr() || n.rhs()->kind() == AstNodeKind::kArray ||
-      n.rhs()->kind() == AstNodeKind::kInvocation) {
+  if (n.rhs()->IsBlockedExprAnyLeader()) {
     // For blocked expressions we don't align them to the equals in the let,
     // because it'd shove constructs like `let really_long_identifier = for ...`
     // too far to the right hand side.
     //
-    // Similarly for array literals, as they can have lots of elements which
-    // effectively makes them like blocks.
-    //
-    // Note that if you do e.g. a binary operation on blocked constructs as the
+    // Note: if you do e.g. a binary operation on blocked constructs as the
     // RHS it /will/ align because we don't look for blocked constructs
     // transitively -- seems reasonable given that's going to look funky no
     // matter what.
+    //
+    // Note: if it's an expression that acts as a block of contents, but has
+    // leading chars, e.g. an invocation, so we don't know with reasonable
+    // confidence it'll fit on the current line.
     body = arena.MakeNestIfFlatFits(
-        /*on_nesated_flat=*/rhs_doc,
-        /*on_other=*/arena.MakeConcat(arena.space(), rhs_doc));
+        /*on_nested_flat=*/rhs_doc,
+        /*on_other=*/ConcatN(arena, {arena.space(), rhs_doc}));
   } else {
     // Same as above but with an aligned RHS.
-    DocRef aligned_rhs = arena.MakeAlign(rhs_doc);
+    DocRef aligned_rhs = arena.MakeAlign(arena.MakeGroup(rhs_doc));
     body = arena.MakeNestIfFlatFits(
         /*on_nested_flat=*/rhs_doc,
         /*on_other=*/arena.MakeConcat(arena.space(), aligned_rhs));
   }
 
   DocRef leader = ConcatN(arena, leader_pieces);
-  return arena.MakeConcat(leader, body);
+  return ConcatNGroup(arena, {leader, body});
 }
 
 /* static */ Comments Comments::Create(absl::Span<const CommentData> comments) {

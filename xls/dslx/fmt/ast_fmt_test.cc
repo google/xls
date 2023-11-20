@@ -541,8 +541,9 @@ TEST_F(FunctionFmtTest, MatchWithCommentOnNonBlockExpressionSecondaryLine) {
 TEST_F(FunctionFmtTest, MatchWithOverLongRhs) {
   const std::string_view original = R"(fn f(yyyyyyyyyyyyyy: u32) {
     match yyyyyyyyyyyyyy {
-        _ => fffffffffffffffffffffffffffffffff
-             <u32:7, AAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBB, CCCCCCCCCC>(yyyyyyyyyyyyyy),
+        _ => fffffffffffffffffffffffffffffffff<
+            u32:7, AAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBB, CCCCCCCCCC>(
+            yyyyyyyyyyyyyy),
     }
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -668,8 +669,9 @@ TEST_F(FunctionFmtTest, FunctionWithParagraphStyleChunksOfStatements) {
 TEST_F(FunctionFmtTest, FunctionWithStmtThatNeedsReflow) {
   const std::string_view original =
       R"(fn f() {
-    assert_eq(aaaaaaaaaaa,
-              ffffffffffffffff(xxxxxxxxxxx, yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy, zzzzzzz));
+    assert_eq(
+        aaaaaaaaaaa,
+        ffffffffffffffff(xxxxxxxxxxx, yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy, zzzzzzz));
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string got,
@@ -1819,6 +1821,23 @@ fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_to
     type SomeTypeNameThatIsNotTooShort = s64;
     let very_somewhat_long_variable_name: SomeTypeNameThatIsNotTooShort = std::to_signed(
         some_value_that_is_pretty_long ++ some_other_value_that_is_also_not_too_short);
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, LongLetRhs) {
+  const std::string_view kProgram = R"(import std
+
+fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_too_short: u32) {
+    type SomeTypeNameThatIsNotTooShort = sN[u32:96];
+    let very_somewhat_long_variable_name: SomeTypeNameThatIsNotTooShort = std::to_signed(
+        some_value_that_is_pretty_long ++ some_other_value_that_is_also_not_too_short ++
+        some_value_that_is_pretty_long);
 }
 )";
   std::vector<CommentData> comments;
