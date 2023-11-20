@@ -345,3 +345,21 @@ place_and_route(
     synthesized_rtl = ":raw_block_dec_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "rle_block_dec_dslx",
+    srcs = [
+        "rle_block_dec.x",
+    ],
+    deps = [
+        ":buffer_dslx",
+        ":common_dslx",
+        "//xls/modules/rle:rle_common_dslx",
+        "//xls/modules/rle:rle_dec_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "rle_block_dec_dslx_test",
+    library = ":rle_block_dec_dslx",
+)
