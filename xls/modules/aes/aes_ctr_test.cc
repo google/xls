@@ -99,16 +99,12 @@ static absl::StatusOr<std::vector<Block>> XlsEncrypt(
     uint32_t msg_bytes;
     Key key;
     uint32_t key_width;
-#ifdef XLS_AES_CTR_ALIGN_128
     uint64_t padding_1;
-#endif  // XLS_AES_CTR_ALIGN_128
     InitVector init_vector;
     uint32_t padding_2;
     uint32_t initial_ctr;
     uint32_t ctr_stride;
-#ifdef XLS_AES_CTR_ALIGN_128
     uint64_t padding_3;
-#endif  // XLS_AES_CTR_ALIGN_128
   };
   uint32_t num_blocks = sample_data.input_blocks.size();
   uint32_t num_bytes = num_blocks * kBlockBytes;
@@ -261,7 +257,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
           xls_plaintext[block_idx][byte_idx]) {
         std::cout << "Error comparing block " << block_idx << ":" << std::endl;
         PrintFailure(sample_data.input_blocks[block_idx],
-                     xls_ciphertext[block_idx], byte_idx,
+                     xls_plaintext[block_idx], byte_idx,
                      /*ciphertext=*/false);
         return false;
       }
