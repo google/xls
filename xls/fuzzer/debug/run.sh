@@ -24,17 +24,17 @@
 #  (3) Tweak main.c to pass-in and return appropriate arguments/return value.
 #  (4) Run script. Artifacts will be dumped in a newly created temp directory.
 
-XLS_IR=test.ir
-XLS_INPUT="bits[8]:0xef;bits[16]:0x1234"
-MAIN_C=main.c
-LLVM_OPT_LEVEL=2
-
 SRC_TOP=
 if [[ -z ${SRC_TOP} ]]; then
   echo "SRC_TOP must be set to the top directory of the source repo."
   exit 1
 fi
 BIN=${SRC_TOP}/bazel-bin
+
+XLS_IR=test.ir
+XLS_INPUT="bits[8]:0xef;bits[16]:0x1234"
+MAIN_C=main.c
+LLVM_OPT_LEVEL=2
 
 LLVM_BIN_DIR=${SRC_TOP}/bazel-bin/llvm/llvm-project/llvm
 if [[ -z ${LLVM_BIN_DIR} ]]; then
@@ -96,16 +96,24 @@ build_and_run "opt.test" "Optimized at -O${LLVM_OPT_LEVEL}"
 build_and_run "inlined.test" "Only inlined"
 build_and_run "opt.inlined.test" "Inlined then optimized at -O${LLVM_OPT_LEVEL}"
 
-# Commands for generating a LLVM-IR-only implementation and evaluating with lli.
-# echo "== Compiling main to LLVM IR..."
-# MAIN_IR=${OUTDIR}/main.ll
-# ${CLANG} -S -emit-llvm ${MAIN_C} -o ${MAIN_IR}
-# # Swap in the datalayout used in the JIT
-# sed -i 's/^target datalayout.*/target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"/' ${OUTDIR}/main.ll
+echo "== Compiling main to LLVM IR..."
+MAIN_IR=${OUTDIR}/main.ll
+${CLANG} -S -emit-llvm ${MAIN_C} -o ${MAIN_IR}
+# Swap in the datalayout used in the JIT
+sed -i 's/^target datalayout.*/target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"/' ${OUTDIR}/main.ll
 
-# echo "== Generating combined LLVM IR..."
-# COMBINED_IR=${OUTDIR}/combined.ll
-# ${LLVM_BIN_DIR}/llvm-link ${LLVM_OPT_IR} ${MAIN_IR} -S -o ${COMBINED_IR}
+function link_and_run_ll() {
+  LLVM_IR=${OUTDIR}/$1.ll
+  COMBINED_IR=${OUTDIR}/$1.combined.ll
 
-# echo "== Running with lli..."
-# ${LLVM_BIN_DIR}/lli ${LLVM_OPTS} ${COMBINED_IR}
+  echo "=== $2 [$1]: Linking standalone LLVM IR..."
+  ${LLVM_BIN_DIR}/llvm-link ${LLVM_IR} ${MAIN_IR} -S -o ${COMBINED_IR}
+
+  echo "=== $2 [$1]: Running with lli..."
+  ${LLVM_BIN_DIR}/lli ${LLVM_OPTS} ${COMBINED_IR}
+}
+
+link_and_run_ll "test" "Unoptimized"
+link_and_run_ll "opt.test" "Optimized at -O${LLVM_OPT_LEVEL}"
+link_and_run_ll "inlined.test" "Only inlined"
+link_and_run_ll "opt.inlined.test" "Inlined then optimized at -O${LLVM_OPT_LEVEL}"
