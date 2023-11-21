@@ -165,8 +165,12 @@ DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   DocRef elem = Fmt(*n.element_type(), comments, arena);
   DocRef dim = Fmt(*n.dim(), comments, arena);
-  return ConcatNGroup(
-      arena, {elem, arena.obracket(), arena.MakeAlign(dim), arena.cbracket()});
+
+  // We want to break0 before the closing bracket in case the contents took us
+  // right up to the last available character.
+  DocRef closer = arena.MakeConcat(arena.break0(), arena.cbracket());
+  return ConcatNGroup(arena,
+                      {elem, arena.obracket(), arena.MakeAlign(dim), closer});
 }
 
 static DocRef FmtTypeAnnotationPtr(const TypeAnnotation* n,
@@ -1331,13 +1335,13 @@ DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
 
   const DocRef rhs_doc_internal = Fmt(*n.rhs(), comments, arena);
 
-  // In the (rare) case where the semicolon is what pushes us over the line
-  // length, we want to put the semicolon on the subsequent line.
-  DocRef break0_semi =
-      arena.MakeGroup(arena.MakeConcat(arena.break0(), arena.semi()));
-  const DocRef rhs_doc = trailing_semi
-                             ? arena.MakeConcat(rhs_doc_internal, break0_semi)
-                             : rhs_doc_internal;
+  DocRef rhs_doc = rhs_doc_internal;
+  if (trailing_semi) {
+    // Reduce the width by 1 so we know we can emit the semi inline.
+    rhs_doc = arena.MakeConcat(arena.MakeReduceTextWidth(rhs_doc_internal, 1),
+                               arena.semi());
+  }
+
   DocRef body;
   if (n.rhs()->IsBlockedExprAnyLeader()) {
     // For blocked expressions we don't align them to the equals in the let,

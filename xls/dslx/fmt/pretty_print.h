@@ -101,6 +101,17 @@ struct Align {
   DocRef arg;
 };
 
+// Command that reduces the text width of the document by "cols" count for the
+// duration of emitting "arg". This is useful if you know you need to tack
+// something on afterwards that should be inline. It generally has to be
+// important though, because it'll reduce all the lines by cols if something is
+// emitted multi-line. (Something like a semicolon is a canonical example of
+// something you might want to ensure there's space for.)
+struct ReduceTextWidth {
+  DocRef arg;
+  int64_t cols;
+};
+
 // Command for the pretty printer that says we should emit the (potentially
 // multi-line) "text", reflowing it at line length using "prefix" as the leader
 // on each new line.
@@ -126,7 +137,7 @@ struct Doc {
   // The value can carry more information on what to do in flat/break
   // situations, or nested documents within commands.
   std::variant<std::string, HardLine, FlatChoice, Group, Concat, Nest, Align,
-               PrefixedReflow, NestIfFlatFits>
+               PrefixedReflow, NestIfFlatFits, ReduceTextWidth>
       value;
 
   std::string ToDebugString(const DocArena& arena) const;
@@ -177,6 +188,10 @@ class DocArena {
   // Creates an "align" doc that aligns at the current indentation level for
   // "arg_ref" doc emission.
   DocRef MakeAlign(DocRef arg_ref);
+
+  // Creates a "reduce text width" doc that reduces the available text width by
+  // "cols" in "arg_ref" doc emission.
+  DocRef MakeReduceTextWidth(DocRef arg_ref, int64_t cols = 1);
 
   // Creates a "choice" doc where:
   //

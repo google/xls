@@ -705,8 +705,8 @@ pub fn extract_bits
         let upper_bits = uN[checked_cast<u32>(
                                 smax(
                                     s32:0,
-                                    N as s32 + fixed_shift as s32 - to_exclusive as s32 - s32:1))]:0
-                         ;
+                                    N as s32 + fixed_shift as s32 - to_exclusive as s32 - s32:1))
+                         ]:0;
 
         if fixed_shift < from_inclusive {
             // The bits extracted start within or after the middle span.
