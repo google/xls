@@ -22,11 +22,15 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -37,7 +41,7 @@ constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using status_testing::IsOkAndHolds;
 
-using ::xls::solvers::z3::TryProveEquivalence;
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 class ReassociationPassTest : public IrTestBase {
  protected:
@@ -94,10 +98,7 @@ TEST_F(ReassociationPassTest, ChainOfThreeFullWidthUnsignedAddsRight) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(f->return_value(), AllOf(m::Add(), m::Type("bits[35]")));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -106,9 +107,6 @@ TEST_F(ReassociationPassTest, ChainOfThreeFullWidthUnsignedAddsRight) {
                               m::ZeroExt(m::Add(m::ZeroExt(m::Param("c")),
                                                 m::ZeroExt(m::Param("d"))))),
                        m::Type("bits[34]"))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
 }
 
 TEST_F(ReassociationPassTest, ChainOfThreeFullWidthSignedAddsRight) {
@@ -125,10 +123,7 @@ TEST_F(ReassociationPassTest, ChainOfThreeFullWidthSignedAddsRight) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(f->return_value(), AllOf(m::Add(), m::Type("bits[35]")));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -137,9 +132,6 @@ TEST_F(ReassociationPassTest, ChainOfThreeFullWidthSignedAddsRight) {
                               m::SignExt(m::Add(m::SignExt(m::Param("c")),
                                                 m::SignExt(m::Param("d"))))),
                        m::Type("bits[34]"))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
 }
 
 TEST_F(ReassociationPassTest, ChainOfThreeFullWidthMixedAddsRight) {
@@ -236,17 +228,10 @@ TEST_F(ReassociationPassTest, DeepChainOfFullWidthUnsignedAdds) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(f->return_value(), AllOf(m::Add(), m::Type("bits[17]")));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, /*timeout=*/absl::Seconds(30));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ZeroExt(AllOf(m::Add(), m::Type("bits[12]"))));
-
-  EXPECT_THAT(
-      TryProveEquivalence(unoptimized_f, f, /*timeout=*/absl::Seconds(30)),
-      IsOkAndHolds(true));
 }
 
 TEST_F(ReassociationPassTest, DeepChainOfFullWidthSignedAdds) {
@@ -261,17 +246,10 @@ TEST_F(ReassociationPassTest, DeepChainOfFullWidthSignedAdds) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(f->return_value(), AllOf(m::Add(), m::Type("bits[17]")));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, /*timeout=*/absl::Seconds(30));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::SignExt(AllOf(m::Add(), m::Type("bits[12]"))));
-
-  EXPECT_THAT(
-      TryProveEquivalence(unoptimized_f, f, /*timeout=*/absl::Seconds(30)),
-      IsOkAndHolds(true));
 }
 
 TEST_F(ReassociationPassTest, BalancedTreeOfThreeAdds) {

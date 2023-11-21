@@ -37,6 +37,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -45,7 +46,9 @@ namespace {
 
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
+using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
@@ -83,23 +86,6 @@ class NarrowingPassTest
   NarrowingPass::AnalysisType analysis() const override { return GetParam(); }
 };
 
-class NarrowingPassSemanticsTest : public NarrowingPassTest {
- public:
-  void TestNarrowedIsEquivalent(Function* f) {
-    EXPECT_THAT(::xls::solvers::z3::TryProveEquivalence(
-                    f,
-                    [&](auto package, auto function) {
-                      return NarrowingPassTest::Run(package).status();
-                    }),
-                IsOkAndHolds(true))
-        << "Pass changed meaning of function";
-  }
-  void TestNarrowedIsEquivalent(FunctionBuilder& fb) {
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-    TestNarrowedIsEquivalent(f);
-  }
-};
-
 class ContextNarrowingPassTest : public NarrowingPassTestBase {
  protected:
   NarrowingPass::AnalysisType analysis() const override {
@@ -107,7 +93,7 @@ class ContextNarrowingPassTest : public NarrowingPassTestBase {
   }
 };
 
-TEST_P(NarrowingPassSemanticsTest, NarrowSub) {
+TEST_P(NarrowingPassTest, NarrowSub) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(4));
@@ -116,7 +102,10 @@ TEST_P(NarrowingPassSemanticsTest, NarrowSub) {
   // y_wide is always larger than x
   auto y_wide = fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), 32);
   fb.Subtract(y_wide, x_wide);
-  TestNarrowedIsEquivalent(fb);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOk());
 }
 
 TEST_P(NarrowingPassTest, NoChangeIsNoChangeWithMaybeNarrowableSubNegative) {
@@ -172,15 +161,6 @@ TEST_P(NarrowingPassTest, NarrowableNegOneBit) {
               m::SignExt(m::BitSlice(ext.node(), /*start=*/0, /*width=*/1)));
 }
 
-TEST_P(NarrowingPassSemanticsTest, NarrowableNegThreeBit) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  // -1 * -b00000XXX
-  auto param = fb.Param("x", p->GetBitsType(3));
-  auto ext = fb.ZeroExtend(param, 32);
-  fb.Negate(ext);
-  TestNarrowedIsEquivalent(fb);
-}
 TEST_P(NarrowingPassTest, NarrowableNegThreeBit) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -189,6 +169,8 @@ TEST_P(NarrowingPassTest, NarrowableNegThreeBit) {
   auto ext = fb.ZeroExtend(param, 32);
   fb.Negate(ext);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -205,15 +187,6 @@ TEST_P(NarrowingPassTest, UnnarrowableShift) {
   EXPECT_THAT(f->return_value(), m::Shra(m::Param("in"), m::Param("amt")));
 }
 
-TEST_P(NarrowingPassSemanticsTest, NarrowableShift) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.Shll(
-      fb.Param("in", p->GetBitsType(32)),
-      fb.ZeroExtend(fb.Param("amt", p->GetBitsType(3)), /*new_bit_count=*/123));
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, NarrowableShift) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -221,16 +194,11 @@ TEST_P(NarrowingPassTest, NarrowableShift) {
       fb.Param("in", p->GetBitsType(32)),
       fb.ZeroExtend(fb.Param("amt", p->GetBitsType(3)), /*new_bit_count=*/123));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Shll(m::Param("in"), m::BitSlice(/*start=*/0, /*width=*/3)));
-}
-
-TEST_P(NarrowingPassSemanticsTest, ShiftWithKnownZeroShiftAmount) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.Shll(fb.Param("in", p->GetBitsType(32)), fb.Literal(UBits(0, 27)));
-  TestNarrowedIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, ShiftWithKnownZeroShiftAmount) {
@@ -238,6 +206,8 @@ TEST_P(NarrowingPassTest, ShiftWithKnownZeroShiftAmount) {
   FunctionBuilder fb(TestName(), p.get());
   fb.Shll(fb.Param("in", p->GetBitsType(32)), fb.Literal(UBits(0, 27)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("in"));
 }
@@ -253,15 +223,6 @@ TEST_P(NarrowingPassTest, ShiftWithKnownOnePrefix) {
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("in"), m::Concat()));
 }
 
-TEST_P(NarrowingPassSemanticsTest, ShiftWithKnownZeroPrefix) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.Shll(fb.Param("in", p->GetBitsType(32)),
-          fb.Concat({fb.Literal(UBits(0b000, 3)),
-                     fb.Param("amt", p->GetBitsType(2))}));
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, ShiftWithKnownZeroPrefix) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -269,16 +230,11 @@ TEST_P(NarrowingPassTest, ShiftWithKnownZeroPrefix) {
           fb.Concat({fb.Literal(UBits(0b000, 3)),
                      fb.Param("amt", p->GetBitsType(2))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Shll(m::Param("in"), m::BitSlice(/*start=*/0, /*width=*/2)));
-}
-
-TEST_P(NarrowingPassSemanticsTest, DecodeWithKnownZeroIndex) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.Decode(fb.Literal(UBits(0, 13)), /*width=*/27);
-  TestNarrowedIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, DecodeWithKnownZeroIndex) {
@@ -286,6 +242,8 @@ TEST_P(NarrowingPassTest, DecodeWithKnownZeroIndex) {
   FunctionBuilder fb(TestName(), p.get());
   fb.Decode(fb.Literal(UBits(0, 13)), /*width=*/27);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(/*value=*/1, /*width=*/27));
 }
@@ -300,20 +258,14 @@ TEST_P(NarrowingPassTest, DecodeWithKnownOnePrefix) {
   EXPECT_THAT(f->return_value(), m::Decode(m::Concat()));
 }
 
-TEST_P(NarrowingPassSemanticsTest, DecodeWithKnownZeroPrefix) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.Decode(fb.Concat(
-      {fb.Literal(UBits(0b000, 3)), fb.Param("amt", p->GetBitsType(2))}));
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, DecodeWithKnownZeroPrefix) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Decode(fb.Concat(
       {fb.Literal(UBits(0b000, 3)), fb.Param("amt", p->GetBitsType(2))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ZeroExt(m::Decode(m::BitSlice(/*start=*/0, /*width=*/2))));
@@ -326,6 +278,8 @@ TEST_P(NarrowingPassTest, NarrowableArrayIndex) {
                 {fb.ZeroExtend(fb.Param("idx", p->GetBitsType(8)),
                                /*new_bit_count=*/123)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ArrayIndex(m::Param("a"), /*indices=*/{
@@ -424,15 +378,6 @@ TEST_P(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {
                              m::SMul(m::Param("lhs"), m::Param("rhs"))))));
 }
 
-TEST_P(NarrowingPassSemanticsTest, MultiplyOperandsWiderThanResult) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  Type* u17 = p->GetBitsType(17);
-  Type* u42 = p->GetBitsType(42);
-  fb.UMul(fb.Param("lhs", u17), fb.Param("rhs", u42), /*result_width=*/9);
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, MultiplyOperandsWiderThanResult) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -440,6 +385,8 @@ TEST_P(NarrowingPassTest, MultiplyOperandsWiderThanResult) {
   Type* u42 = p->GetBitsType(42);
   fb.UMul(fb.Param("lhs", u17), fb.Param("rhs", u42), /*result_width=*/9);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -447,16 +394,6 @@ TEST_P(NarrowingPassTest, MultiplyOperandsWiderThanResult) {
                     m::BitSlice(m::Param("lhs"), /*start=*/0, /*width=*/9)),
               AllOf(m::Type("bits[9]"),
                     m::BitSlice(m::Param("rhs"), /*start=*/0, /*width=*/9))));
-}
-
-TEST_P(NarrowingPassSemanticsTest, ExtendedUMulOperands) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  Type* u17 = p->GetBitsType(17);
-  fb.UMul(fb.ZeroExtend(fb.Param("lhs", u17), 32),
-          fb.SignExtend(fb.Param("rhs", u17), 54),
-          /*result_width=*/62);
-  TestNarrowedIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, ExtendedUMulOperands) {
@@ -467,6 +404,8 @@ TEST_P(NarrowingPassTest, ExtendedUMulOperands) {
           fb.SignExtend(fb.Param("rhs", u17), 54),
           /*result_width=*/62);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // Only the zero-extend should have been elided.
   EXPECT_THAT(f->return_value(),
@@ -599,12 +538,17 @@ TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnostic) {
                        m::Param("rhs")));
 }
 
-TEST_P(NarrowingPassSemanticsTest, UnsignedCompareWithKnownZeros) {
+TEST_P(NarrowingPassTest, UnsignedCompareWithKnownZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
+  Type* u23 = p->GetBitsType(23);
   fb.UGt(fb.ZeroExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
-         fb.ZeroExtend(fb.Param("rhs", p->GetBitsType(23)), 42));
-  TestNarrowedIsEquivalent(fb);
+         fb.ZeroExtend(fb.Param("rhs", u23), 42));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::UGt(m::Type(u23), m::Type(u23)));
 }
 
 TEST_P(NarrowingPassTest, LeadingZerosOfUnsignedCompare) {
@@ -632,16 +576,6 @@ TEST_P(NarrowingPassTest, LeadingZerosOneOneSideOfUnsignedCompare) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-TEST_P(NarrowingPassSemanticsTest, MatchedLeadingBitsOfUnsignedCompare) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.ULe(fb.Concat({fb.Literal(UBits(0b001101, 6)),
-                    fb.Param("lhs", p->GetBitsType(13))}),
-         fb.Concat({fb.Literal(UBits(0b0011, 4)),
-                    fb.Param("rhs", p->GetBitsType(15))}));
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, MatchedLeadingBitsOfUnsignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -650,24 +584,12 @@ TEST_P(NarrowingPassTest, MatchedLeadingBitsOfUnsignedCompare) {
          fb.Concat({fb.Literal(UBits(0b0011, 4)),
                     fb.Param("rhs", p->GetBitsType(15))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ULe(m::BitSlice(m::Concat(), /*start=*/0, /*width=*/15),
                      m::BitSlice(m::Concat(), /*start=*/0, /*width=*/15)));
-}
-
-TEST_P(NarrowingPassSemanticsTest,
-       MatchedLeadingAndTrailingBitsOfUnsignedCompare) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  // Four matching leading bits and three matching trailing bits.
-  fb.ULe(fb.Concat({fb.Literal(UBits(0b001101, 6)),
-                    fb.Param("lhs", p->GetBitsType(13)),
-                    fb.Literal(UBits(0b10101, 5))}),
-         fb.Concat({fb.Literal(UBits(0b0011, 4)),
-                    fb.Param("rhs", p->GetBitsType(15)),
-                    fb.Literal(UBits(0b11101, 5))}));
-  TestNarrowedIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, MatchedLeadingAndTrailingBitsOfUnsignedCompare) {
@@ -681,18 +603,12 @@ TEST_P(NarrowingPassTest, MatchedLeadingAndTrailingBitsOfUnsignedCompare) {
                     fb.Param("rhs", p->GetBitsType(15)),
                     fb.Literal(UBits(0b11101, 5))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ULe(m::BitSlice(m::Concat(), /*start=*/3, /*width=*/17),
                      m::BitSlice(m::Concat(), /*start=*/3, /*width=*/17)));
-}
-
-TEST_P(NarrowingPassSemanticsTest, LeadingZerosSignedCompare) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.SGt(fb.ZeroExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
-         fb.ZeroExtend(fb.Param("rhs", p->GetBitsType(23)), 42));
-  TestNarrowedIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, LeadingZerosSignedCompare) {
@@ -701,6 +617,8 @@ TEST_P(NarrowingPassTest, LeadingZerosSignedCompare) {
   fb.SGt(fb.ZeroExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
          fb.ZeroExtend(fb.Param("rhs", p->GetBitsType(23)), 42));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -711,16 +629,6 @@ TEST_P(NarrowingPassTest, LeadingZerosSignedCompare) {
           m::BitSlice(m::ZeroExt(m::Param("rhs")), /*start=*/0, /*width=*/23)));
 }
 
-TEST_P(NarrowingPassSemanticsTest, LeadingOnesOfSignedCompare) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.SLe(fb.Concat({fb.Literal(UBits(0b111101, 6)),
-                    fb.Param("lhs", p->GetBitsType(12))}),
-         fb.Concat({fb.Literal(UBits(0b111, 3)),
-                    fb.Param("rhs", p->GetBitsType(15))}));
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, LeadingOnesOfSignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -729,6 +637,8 @@ TEST_P(NarrowingPassTest, LeadingOnesOfSignedCompare) {
          fb.Concat({fb.Literal(UBits(0b111, 3)),
                     fb.Param("rhs", p->GetBitsType(15))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -737,38 +647,20 @@ TEST_P(NarrowingPassTest, LeadingOnesOfSignedCompare) {
              m::BitSlice(m::Concat(), /*start=*/0, /*width=*/15)));
 }
 
-TEST_P(NarrowingPassSemanticsTest, SignExtendedOperandsOfSignedCompare) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.SGe(fb.SignExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
-         fb.SignExtend(fb.Param("rhs", p->GetBitsType(23)), 42));
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, SignExtendedOperandsOfSignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.SGe(fb.SignExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
          fb.SignExtend(fb.Param("rhs", p->GetBitsType(23)), 42));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
       m::SGe(
           m::BitSlice(m::SignExt(m::Param("lhs")), /*start=*/0, /*width=*/23),
           m::BitSlice(m::SignExt(m::Param("rhs")), /*start=*/0, /*width=*/23)));
-}
-
-TEST_P(NarrowingPassSemanticsTest, SignedCompareSignExtendComparedWithLiteral) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x_ge_lit = fb.SGe(fb.SignExtend(fb.Param("x", p->GetBitsType(17)), 42),
-                           fb.Literal(UBits(0, 42)));
-  BValue lit_ge_x =
-      fb.SGe(fb.Literal(UBits(0, 42)),
-             fb.SignExtend(fb.Param("y", p->GetBitsType(17)), 42));
-  fb.Concat({x_ge_lit, lit_ge_x});
-  TestNarrowedIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, SignedCompareSignExtendComparedWithLiteral) {
@@ -781,6 +673,8 @@ TEST_P(NarrowingPassTest, SignedCompareSignExtendComparedWithLiteral) {
              fb.SignExtend(fb.Param("y", p->GetBitsType(17)), 42));
   fb.Concat({x_ge_lit, lit_ge_x});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -793,18 +687,6 @@ TEST_P(NarrowingPassTest, SignedCompareSignExtendComparedWithLiteral) {
                                    /*width=*/17))));
 }
 
-TEST_P(NarrowingPassSemanticsTest, SignedCompareZeroExtendComparedWithLiteral) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x_gt_lit = fb.SGt(fb.ZeroExtend(fb.Param("x", p->GetBitsType(17)), 42),
-                           fb.Literal(UBits(0, 42)));
-  BValue lit_lt_x =
-      fb.SLt(fb.Literal(UBits(0, 42)),
-             fb.ZeroExtend(fb.Param("y", p->GetBitsType(17)), 42));
-  fb.Concat({x_gt_lit, lit_lt_x});
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithLiteral) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -815,6 +697,8 @@ TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithLiteral) {
              fb.ZeroExtend(fb.Param("y", p->GetBitsType(17)), 42));
   fb.Concat({x_gt_lit, lit_lt_x});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -829,18 +713,6 @@ TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithLiteral) {
                                    /*width=*/17))));
 }
 
-TEST_P(NarrowingPassSemanticsTest,
-       SignedCompareZeroExtendComparedWithSignExtend) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x_gt_y = fb.SGt(fb.ZeroExtend(fb.Param("x", p->GetBitsType(17)), 42),
-                         fb.SignExtend(fb.Param("y", p->GetBitsType(19)), 42));
-  BValue a_lt_b = fb.SLt(fb.ZeroExtend(fb.Param("a", p->GetBitsType(19)), 42),
-                         fb.SignExtend(fb.Param("b", p->GetBitsType(17)), 42));
-  fb.Concat({x_gt_y, a_lt_b});
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithSignExtend) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -850,6 +722,8 @@ TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithSignExtend) {
                          fb.SignExtend(fb.Param("b", p->GetBitsType(17)), 42));
   fb.Concat({x_gt_y, a_lt_b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -864,19 +738,6 @@ TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithSignExtend) {
                                    /*width=*/20))));
 }
 
-TEST_P(NarrowingPassSemanticsTest,
-       UnsignedCompareSignExtendComparedWithLiteral) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x_gt_lit = fb.UGt(fb.SignExtend(fb.Param("x", p->GetBitsType(17)), 42),
-                           fb.Literal(UBits(0, 42)));
-  BValue lit_lt_x =
-      fb.ULt(fb.Literal(UBits(0, 42)),
-             fb.SignExtend(fb.Param("y", p->GetBitsType(17)), 42));
-  fb.Concat({x_gt_lit, lit_lt_x});
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, UnsignedCompareSignExtendComparedWithLiteral) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -887,6 +748,8 @@ TEST_P(NarrowingPassTest, UnsignedCompareSignExtendComparedWithLiteral) {
              fb.SignExtend(fb.Param("y", p->GetBitsType(17)), 42));
   fb.Concat({x_gt_lit, lit_lt_x});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -899,19 +762,6 @@ TEST_P(NarrowingPassTest, UnsignedCompareSignExtendComparedWithLiteral) {
                                    /*width=*/17))));
 }
 
-TEST_P(NarrowingPassSemanticsTest,
-       UnsignedCompareZeroExtendComparedWithLiteral) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x_gt_lit = fb.UGt(fb.ZeroExtend(fb.Param("x", p->GetBitsType(17)), 42),
-                           fb.Literal(UBits(0, 42)));
-  BValue lit_lt_x =
-      fb.ULt(fb.Literal(UBits(0, 42)),
-             fb.ZeroExtend(fb.Param("y", p->GetBitsType(17)), 42));
-  fb.Concat({x_gt_lit, lit_lt_x});
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithLiteral) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -922,6 +772,8 @@ TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithLiteral) {
              fb.ZeroExtend(fb.Param("y", p->GetBitsType(17)), 42));
   fb.Concat({x_gt_lit, lit_lt_x});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -934,18 +786,6 @@ TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithLiteral) {
                                    /*width=*/17))));
 }
 
-TEST_P(NarrowingPassSemanticsTest,
-       UnsignedCompareZeroExtendComparedWithSignExtend) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x_gt_y = fb.UGt(fb.ZeroExtend(fb.Param("x", p->GetBitsType(17)), 42),
-                         fb.SignExtend(fb.Param("y", p->GetBitsType(19)), 42));
-  BValue a_lt_b = fb.ULt(fb.ZeroExtend(fb.Param("a", p->GetBitsType(19)), 42),
-                         fb.SignExtend(fb.Param("b", p->GetBitsType(17)), 42));
-  fb.Concat({x_gt_y, a_lt_b});
-  TestNarrowedIsEquivalent(fb);
-}
-
 TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithSignExtend) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -955,6 +795,8 @@ TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithSignExtend) {
                          fb.SignExtend(fb.Param("b", p->GetBitsType(17)), 42));
   fb.Concat({x_gt_y, a_lt_b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -967,22 +809,6 @@ TEST_P(NarrowingPassTest, UnsignedCompareZeroExtendComparedWithSignExtend) {
                                    /*start=*/0, /*width=*/20),
                        m::BitSlice(m::SignExt(m::Param("b")), /*start=*/0,
                                    /*width=*/20))));
-}
-
-TEST_P(NarrowingPassSemanticsTest, SignedCompareWithKnownMSBs) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x_gt_y = fb.SGt(fb.Concat({fb.Literal(Value(UBits(0, 1))),
-                                    fb.Param("x", p->GetBitsType(17))}),
-                         fb.Literal(Value(UBits(0, 18))));
-  BValue lit_lt_a = fb.SLt(fb.Literal(Value(UBits(0x80000ull, 20))),
-                         fb.Concat({fb.Literal(Value(UBits(2, 2))),
-                                    fb.Param("a", p->GetBitsType(18))}));
-  BValue lit_lt_b = fb.SLt(fb.Literal(Value(UBits(0x80000ull, 20))),
-                         fb.Concat({fb.Literal(Value(UBits(1, 1))),
-                                    fb.Param("b", p->GetBitsType(19))}));
-  fb.Concat({x_gt_y, lit_lt_a, lit_lt_b});
-  TestNarrowedIsEquivalent(fb);
 }
 
 TEST_P(NarrowingPassTest, SignedCompareWithKnownMSBs) {
@@ -999,6 +825,8 @@ TEST_P(NarrowingPassTest, SignedCompareWithKnownMSBs) {
                                     fb.Param("b", p->GetBitsType(19))}));
   fb.Concat({x_gt_y, lit_lt_a, lit_lt_b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1322,13 +1150,6 @@ TEST_F(ContextNarrowingPassTest, KnownSmallAdd) {
 
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
-    testing::Values(NarrowingPass::AnalysisType::kBdd,
-                    NarrowingPass::AnalysisType::kRange,
-                    NarrowingPass::AnalysisType::kRangeWithContext),
-    testing::PrintToStringParamName());
-
-INSTANTIATE_TEST_SUITE_P(
-    NarrowingPassSemanticsTestInstantiation, NarrowingPassSemanticsTest,
     testing::Values(NarrowingPass::AnalysisType::kBdd,
                     NarrowingPass::AnalysisType::kRange,
                     NarrowingPass::AnalysisType::kRangeWithContext),

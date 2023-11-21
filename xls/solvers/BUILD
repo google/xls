@@ -74,7 +74,9 @@ cc_test(
     srcs = ["z3_ir_equivalence_test.cc"],
     deps = [
         ":z3_ir_equivalence",
+        ":z3_ir_equivalence_testutils",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -83,6 +85,26 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+    ],
+)
+
+cc_library(
+    name = "z3_ir_equivalence_testutils",
+    testonly = True,
+    srcs = ["z3_ir_equivalence_testutils.cc"],
+    hdrs = ["z3_ir_equivalence_testutils.h"],
+    deps = [
+        ":z3_ir_equivalence",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "//xls/common:source_location",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
     ],
 )
 

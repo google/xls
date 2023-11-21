@@ -1979,6 +1979,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence",
+        "//xls/solvers:z3_ir_equivalence_testutils",
     ],
 )
 
@@ -2080,6 +2081,7 @@ cc_test(
     shard_count = 8,
     deps = [
         ":optimization_pass",
+        ":pass_base",
         ":reassociation_pass",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
@@ -2087,10 +2089,13 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "//xls/solvers:z3_ir_equivalence",
+        "//xls/ir:value",
+        "//xls/solvers:z3_ir_equivalence_testutils",
     ],
 )
 

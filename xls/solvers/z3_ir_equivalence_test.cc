@@ -14,11 +14,14 @@
 
 #include "xls/solvers/z3_ir_equivalence.h"
 
+#include <cstdint>
 #include <memory>
 
 #include "gmock/gmock.h"
+#include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -28,6 +31,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace xls::solvers::z3 {
 namespace {
@@ -49,6 +53,17 @@ TEST_F(EquivalenceTest, NoOpIsEquivalent) {
   EXPECT_THAT(
       TryProveEquivalence(f, [](auto p, auto f) { return absl::OkStatus(); }),
       IsOkAndHolds(true));
+}
+
+TEST_F(EquivalenceTest, ScopedNoOpIsEquivalent) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Tuple({fb.Add(x, y), fb.Subtract(x, y), fb.Subtract(y, x), fb.UMul(x, y)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence check_equivalence(f);
 }
 
 TEST_F(EquivalenceTest, EquivalentTransformIsEquivalent) {
@@ -75,6 +90,24 @@ TEST_F(EquivalenceTest, EquivalentTransformIsEquivalent) {
       IsOkAndHolds(true));
 }
 
+TEST_F(EquivalenceTest, ScopedEquivalentTransformIsEquivalent) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Tuple({fb.Add(x, y), fb.UMul(x, y)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence check_equivalence(f);
+  for (Node* n : TopoSort(f)) {
+    if (n->Is<BinOp>()) {
+      XLS_ASSERT_OK(
+          n->ReplaceUsesWithNew<BinOp>(n->operand(1), n->operand(0), n->op())
+              .status());
+    }
+  }
+}
+
 TEST_F(EquivalenceTest, EquivalentArrayTransformIsEquivalent) {
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -97,6 +130,25 @@ TEST_F(EquivalenceTest, EquivalentArrayTransformIsEquivalent) {
                             return absl::OkStatus();
                           }),
       IsOkAndHolds(true));
+}
+
+TEST_F(EquivalenceTest, ScopedEquivalentArrayTransformIsEquivalent) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Array({fb.Add(x, y), fb.UMul(x, y)}, p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence check_equivalence(f);
+  // Reverse all the binary operations
+  for (Node* n : TopoSort(f)) {
+    if (n->Is<BinOp>()) {
+      XLS_ASSERT_OK(
+          n->ReplaceUsesWithNew<BinOp>(n->operand(1), n->operand(0), n->op())
+              .status());
+    }
+  }
 }
 
 TEST_F(EquivalenceTest, EquivalentBitsTransformIsEquivalent) {
@@ -123,7 +175,26 @@ TEST_F(EquivalenceTest, EquivalentBitsTransformIsEquivalent) {
       IsOkAndHolds(true));
 }
 
-TEST_F(EquivalenceTest, NonEquivalentTransform) {
+TEST_F(EquivalenceTest, ScopedEquivalentBitsTransformIsEquivalent) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Add(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence check_equivalence(f);
+  // Reverse all the binary operations
+  for (Node* n : TopoSort(f)) {
+    if (n->Is<BinOp>()) {
+      XLS_ASSERT_OK(
+          n->ReplaceUsesWithNew<BinOp>(n->operand(1), n->operand(0), n->op())
+              .status());
+    }
+  }
+}
+
+TEST_F(EquivalenceTest, DetectsNonEquivalentTransform) {
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -147,6 +218,36 @@ TEST_F(EquivalenceTest, NonEquivalentTransform) {
       IsOkAndHolds(false));
 }
 
+constexpr int64_t kScopedNonEquivalentTransformCheckLine = __LINE__ + 2;
+void ScopedNonEquivalentTransform(Function* f) {
+  ScopedVerifyEquivalence check_equivalence(f);
+  // Reverse all the binary operations
+  for (Node* n : TopoSort(f)) {
+    if (n->Is<BinOp>()) {
+      XLS_EXPECT_OK(
+          n->ReplaceUsesWithNew<BinOp>(n->operand(1), n->operand(0), n->op())
+              .status())
+          << "Transform failed";
+    }
+  }
+}
+
+TEST_F(EquivalenceTest, ScopedDetectsNonEquivalentTransform) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_test_function"), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Tuple({fb.UDiv(x, y), fb.Subtract(x, y), fb.UMod(x, y)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_NONFATAL_FAILURE(
+      ScopedNonEquivalentTransform(f),
+      absl::StrCat(
+          __FILE__, ":", kScopedNonEquivalentTransformCheckLine,
+          ": ScopedVerifyEquivalence failed to prove equivalence of function ",
+          f->name(), " before & after changes"));
+}
+
 TEST_F(EquivalenceTest, DetectsReturnTypeChange) {
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -159,6 +260,22 @@ TEST_F(EquivalenceTest, DetectsReturnTypeChange) {
                                     return f->set_return_value(f->param(0));
                                   }),
               Not(IsOk()));
+}
+
+void ScopedReturnTypeChange(Function* f) {
+  ScopedVerifyEquivalence check_equivalence(f);
+  XLS_ASSERT_OK(f->set_return_value(f->param(0)));
+}
+
+TEST_F(EquivalenceTest, ScopedDetectsReturnTypeChange) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Tuple({fb.UDiv(x, y), fb.Subtract(x, y), fb.UMod(x, y)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_NONFATAL_FAILURE(ScopedReturnTypeChange(f), "return_value");
 }
 
 TEST_F(EquivalenceTest, DetectsParamShift) {
@@ -175,6 +292,24 @@ TEST_F(EquivalenceTest, DetectsParamShift) {
                                     return f->MoveParamToIndex(f->param(2), 0);
                                   }),
               Not(IsOk()));
+}
+
+void ScopedParamShift(Function* f) {
+  ScopedVerifyEquivalence check_equivalence(f);
+  XLS_ASSERT_OK(f->MoveParamToIndex(f->param(2), 0));
+}
+
+TEST_F(EquivalenceTest, ScopedDetectsParamShift) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x1 = fb.Param("x1", p->GetBitsType(16));
+  BValue x2 = fb.Param("x2", p->GetBitsType(16));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  BValue x = fb.Concat({x1, x2});
+  fb.Tuple({fb.UDiv(x, y), fb.Subtract(x, y), fb.UMod(x, y)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_NONFATAL_FAILURE(ScopedParamShift(f), "params");
 }
 
 TEST_F(EquivalenceTest, MultiFunctionDetectsSame) {
