@@ -702,11 +702,9 @@ pub fn extract_bits
         // Based on the input of N bits and a fixed shift, there are an effective
         // count of N + fixed_shift known bits.  All bits of index >
         // N + fixed_shift - 1 are zero's.
-        let upper_bits = uN[checked_cast<u32>(
-                                smax(
-                                    s32:0,
-                                    N as s32 + fixed_shift as s32 - to_exclusive as s32 - s32:1))
-                         ]:0;
+        const UPPER_BIT_COUNT = checked_cast<u32>(
+            smax(s32:0, N as s32 + fixed_shift as s32 - to_exclusive as s32 - s32:1));
+        let upper_bits = uN[UPPER_BIT_COUNT]:0;
 
         if fixed_shift < from_inclusive {
             // The bits extracted start within or after the middle span.
