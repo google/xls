@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "proto_data",
@@ -22,8 +24,6 @@ load(
     "//xls/contrib/xlscc/build_rules:xlscc_build_defs.bzl",
     "xls_cc_ir",
 )
-load("@rules_hdl//verilog:providers.bzl", "verilog_library")
-load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -149,7 +149,7 @@ xls_cc_ir(
         ),
         synthesize_rtl(
             name = "mem_iterated_read_{iterations}_synth_asap7".format(iterations = read_iterations),
-            standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+            standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",
             tags = ["manual"],
             top_module = "mem_iterated_read",
             deps = [

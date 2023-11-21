@@ -660,7 +660,7 @@ Examples:
         if codegen_args["delay_model"] == "sky130":
             standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"
         else:
-            standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt"
+            standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x"
 
     codegen_target = name + ".default_asap7.codegen"
     verilog_file = codegen_target + ".v"

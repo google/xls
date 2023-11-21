@@ -562,7 +562,7 @@ verilog_library(
 
 synthesize_rtl(
     name = "delay_verilog_synth",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",
     tags = ["manual"],
     top_module = "delay_top",
     deps = [":delay"],

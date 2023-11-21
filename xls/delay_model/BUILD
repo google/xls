@@ -326,7 +326,7 @@ xls_delay_model_generation(
 xls_delay_model_generation(
     name = "asap7_data_points",
     samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",
     tags = ["manual"],
 )
 
