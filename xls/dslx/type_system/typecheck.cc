@@ -26,16 +26,20 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -44,12 +48,19 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/maybe_explain_error.h"
+#include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
+#include "xls/dslx/type_system/scoped_fn_stack_entry.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/warning_kind.h"
 #include "re2/re2.h"
@@ -66,51 +77,6 @@ absl::Status ValidateWithinProc(std::string_view builtin_name, const Span& span,
   }
   return absl::OkStatus();
 }
-
-// Helper type to place on the stack when we intend to pop off a FnStackEntry
-// when done, or expect a caller to pop it off for us. That is, this helps us
-// check fn_stack() invariants are as expected.
-class ScopedFnStackEntry {
- public:
-  ScopedFnStackEntry(DeduceCtx* ctx, Module* module)
-      : ctx_(ctx),
-        depth_before_(ctx->fn_stack().size()),
-        expect_popped_(false) {
-    ctx->AddFnStackEntry(FnStackEntry::MakeTop(module));
-  }
-
-  // Args:
-  //  expect_popped: Indicates that we expect, in the destructor for this scope,
-  //    that the entry will have already been popped. Generally this is `false`
-  //    since we expect the entry to be on the top of the fn stack in the
-  //    destructor, in which case we automatically pop it.
-  ScopedFnStackEntry(Function* fn, DeduceCtx* ctx, WithinProc within_proc,
-                     bool expect_popped = false)
-      : ctx_(ctx),
-        depth_before_(ctx->fn_stack().size()),
-        expect_popped_(expect_popped) {
-    ctx->AddFnStackEntry(FnStackEntry::Make(fn, ParametricEnv(), within_proc));
-  }
-
-  // Called when we close out a scope. We can't use this object as a scope
-  // guard easily because we want to be able to detect if we return an
-  // absl::Status early, so we have to manually put end-of-scope calls at usage
-  // points.
-  void Finish() {
-    if (expect_popped_) {
-      XLS_CHECK_EQ(ctx_->fn_stack().size(), depth_before_);
-    } else {
-      int64_t depth_after_push = depth_before_ + 1;
-      XLS_CHECK_EQ(ctx_->fn_stack().size(), depth_after_push);
-      ctx_->PopFnStackEntry();
-    }
-  }
-
- private:
-  DeduceCtx* ctx_;
-  int64_t depth_before_;
-  bool expect_popped_;
-};
 
 absl::StatusOr<InterpValue> InterpretExpr(
     ImportData* import_data, TypeInfo* type_info, Expr* expr,
