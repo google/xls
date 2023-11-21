@@ -14,6 +14,7 @@
 
 #include "xls/jit/proc_jit.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -41,19 +42,22 @@ ProcJitContinuation::ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
   // Pre-allocate input, output, and temporary buffers.
   for (Param* param : proc->params()) {
     int64_t param_size = jit_runtime_->GetTypeByteSize(param->GetType());
-    input_buffers_.push_back(std::vector<uint8_t>(param_size));
-    output_buffers_.push_back(std::vector<uint8_t>(param_size));
-    input_ptrs_.push_back(input_buffers_.back().data());
-    output_ptrs_.push_back(output_buffers_.back().data());
+    int64_t buffer_size = jit_runtime_->ShouldAllocateForStack(param_size);
+    input_buffers_.push_back(std::vector<uint8_t>(buffer_size));
+    output_buffers_.push_back(std::vector<uint8_t>(buffer_size));
+    input_ptrs_.push_back(
+        jit_runtime_->AsStack(absl::MakeSpan(input_buffers_.back())).data());
+    output_ptrs_.push_back(
+        jit_runtime_->AsStack(absl::MakeSpan(output_buffers_.back())).data());
   }
 
   // Write initial state value to the input_buffer.
   for (Param* state_param : proc->StateParams()) {
     int64_t param_index = proc->GetParamIndex(state_param).value();
     int64_t state_index = proc->GetStateParamIndex(state_param).value();
-    jit_runtime->BlitValueToBuffer(proc->GetInitValueElement(state_index),
-                                   state_param->GetType(),
-                                   absl::MakeSpan(input_buffers_[param_index]));
+    jit_runtime->BlitValueToBuffer(
+        proc->GetInitValueElement(state_index), state_param->GetType(),
+        jit_runtime_->AsStack(absl::MakeSpan(input_buffers_[param_index])));
   }
 
   temp_buffer_.resize(jit_runtime->ShouldAllocateForStack(temp_buffer_size));

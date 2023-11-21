@@ -314,7 +314,7 @@ absl::Status VerifyStillFails(
 
   if (!still_fails) {
     return absl::FailedPreconditionError(
-        absl::StrCat("Unexpected PASS: ", description));
+        absl::StrCat("Unexpected PASS: ", description, "\n\nIR\n", ir_text));
   }
 
   XLS_VLOG(1) << "Confirmed: sample still fails.";
