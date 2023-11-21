@@ -317,6 +317,7 @@ cc_library(
     hdrs = ["bit_slice_simplification_pass.h"],
     deps = [
         ":optimization_pass",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",

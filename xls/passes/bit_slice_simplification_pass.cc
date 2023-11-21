@@ -15,15 +15,18 @@
 #include "xls/passes/bit_slice_simplification_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -267,13 +270,26 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
     }
   }
 
+  // Are all users of the operand slices entirely contained within this slice?
+  // If so, we may be able to narrow the operand & eliminate this slice.
+  auto all_operand_users_are_subslices = [operand, bit_slice] {
+    return !operand->function_base()->HasImplicitUse(operand) &&
+           absl::c_all_of(operand->users(), [bit_slice](Node* user) {
+             return user->Is<BitSlice>() &&
+                    user->As<BitSlice>()->start() >= bit_slice->start() &&
+                    user->As<BitSlice>()->start() +
+                            user->As<BitSlice>()->width() <=
+                        bit_slice->start() + bit_slice->width();
+           });
+  };
+
   // Hoist slices above left shift if the slice starts at zero and above right
-  // shifts if the slice ends at the MSB. Only perform this if the slice is the
-  // sole user.
+  // shifts if the slice ends at the MSB. Only perform this if all users are
+  // slices entirely contained within this slice.
   if (((bit_slice->start() == 0 && operand->op() == Op::kShll) ||
        ((bit_slice->start() + bit_slice->width() == operand->BitCountOrDie()) &&
         (operand->op() == Op::kShrl || operand->op() == Op::kShra))) &&
-      HasSingleUse(operand)) {
+      all_operand_users_are_subslices()) {
     Node* shift = operand;
     Node* to_shift = shift->operand(0);
     Node* shift_amount = shift->operand(1);
@@ -284,31 +300,61 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
     XLS_VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(shift(x, y)) => shift(bitslice(x), y): %s",
         bit_slice->GetName());
-    XLS_RETURN_IF_ERROR(bit_slice
-                            ->ReplaceUsesWithNew<BinOp>(
-                                sliced_to_shift, shift_amount, shift->op())
-                            .status());
+    XLS_ASSIGN_OR_RETURN(BinOp * new_shift,
+                         bit_slice->ReplaceUsesWithNew<BinOp>(
+                             sliced_to_shift, shift_amount, shift->op()));
+    std::vector<Node*> users(operand->users().begin(), operand->users().end());
+    for (Node* user : users) {
+      if (user == bit_slice) {
+        continue;
+      }
+      XLS_VLOG(3) << absl::StreamFormat("Replacing %s with %s in: %s",
+                                        operand->GetName(),
+                                        new_shift->GetName(), user->ToString());
+      XLS_ASSIGN_OR_RETURN(
+          BitSlice * new_user,
+          make_bit_slice(user->loc(), new_shift,
+                         user->As<BitSlice>()->start() - bit_slice->start(),
+                         user->As<BitSlice>()->width()));
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(new_user));
+    }
     return true;
   }
 
   // Combine slices with decode if the slice starts at zero. Only perform this
-  // if the slice is the sole user.
+  // if all users are slices entirely contained within this slice.
   if (bit_slice->start() == 0 && operand->op() == Op::kDecode &&
-      HasSingleUse(operand)) {
+      !operand->function_base()->HasImplicitUse(operand) &&
+      all_operand_users_are_subslices()) {
     XLS_VLOG(3) << absl::StreamFormat(
-        "Replacing bitslice(decode(s)) => decode(s): %s", bit_slice->GetName());
-    XLS_RETURN_IF_ERROR(bit_slice
-                            ->ReplaceUsesWithNew<Decode>(operand->operand(0),
-                                                         bit_slice->width())
-                            .status());
+        "Replacing bitslice(decode(x), 0, %d) => decode<u%d>(x): %s",
+        bit_slice->width(), bit_slice->width(), bit_slice->GetName());
+    XLS_ASSIGN_OR_RETURN(Decode * new_decode,
+                         bit_slice->ReplaceUsesWithNew<Decode>(
+                             operand->operand(0), bit_slice->width()));
+    std::vector<Node*> users(operand->users().begin(), operand->users().end());
+    for (Node* user : users) {
+      if (user == bit_slice) {
+        continue;
+      }
+      XLS_VLOG(3) << absl::StreamFormat(
+          "Replacing %s with %s in: %s", operand->GetName(),
+          new_decode->GetName(), user->ToString());
+      XLS_ASSIGN_OR_RETURN(
+          BitSlice * new_user,
+          make_bit_slice(user->loc(), new_decode,
+                         user->As<BitSlice>()->start() - bit_slice->start(),
+                         user->As<BitSlice>()->width()));
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(new_user));
+    }
     return true;
   }
 
-  // Hoist slices above selects and one-hot-selects if the slice is the sole
-  // user.
+  // Hoist slices above selects and one-hot-selects. Only perform this if all
+  // users are slices entirely contained within this slice.
   if (NarrowingEnabled(opt_level) &&
       (operand->Is<Select>() || operand->Is<OneHotSelect>()) &&
-      HasSingleUse(operand)) {
+      all_operand_users_are_subslices()) {
     Node* select = operand;
     std::vector<Node*> new_operands;
     // Operand 0 is the selector in both Select and OneHotSelect operations and
@@ -328,6 +374,21 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
         "Replacing bitslice(sel(s, [...])) => sel(s, [bitslice(), ...]): %s",
         bit_slice->GetName());
     XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_select));
+    std::vector<Node*> users(operand->users().begin(), operand->users().end());
+    for (Node* user : users) {
+      if (user == bit_slice) {
+        continue;
+      }
+      XLS_VLOG(3) << absl::StreamFormat(
+          "Replacing %s with %s in: %s", operand->GetName(),
+          new_select->GetName(), user->ToString());
+      XLS_ASSIGN_OR_RETURN(
+          BitSlice * new_user,
+          make_bit_slice(user->loc(), new_select,
+                         user->As<BitSlice>()->start() - bit_slice->start(),
+                         user->As<BitSlice>()->width()));
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(new_user));
+    }
     return true;
   }
 

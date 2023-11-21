@@ -346,11 +346,36 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftMultipleUsers) {
   Type* u32 = p->GetBitsType(32);
   BValue shift = fb.Shll(fb.Param("in", u32), fb.Param("amt", u32));
   fb.Add(shift, shift);
-  fb.BitSlice(shift, /*start=*/0,
-              /*width=*/10);
+  fb.BitSlice(shift, /*start=*/0, /*width=*/10);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::BitSlice(m::Shll()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftMultipleSliceUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue shift = fb.Shll(fb.Param("in", u32), fb.Param("amt", u32));
+  BValue shift_slice1 = fb.BitSlice(shift, /*start=*/3, /*width=*/5);
+  BValue shift_slice2 = fb.BitSlice(shift, /*start=*/0, /*width=*/10);
+  fb.Concat({shift_slice1, shift_slice2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  auto sliced_shift = m::Shll(m::BitSlice(m::Param("in"), /*start=*/0,
+                                          /*width=*/10),
+                              m::Param("amt"));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(sliced_shift, /*start=*/3, /*width=*/5),
+                        sliced_shift));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftStartNonzero) {
@@ -389,6 +414,32 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftRightDoesNotEndAtMsb) {
   EXPECT_THAT(f->return_value(), m::BitSlice(m::Shrl()));
 }
 
+TEST_F(BitSliceSimplificationPassTest, SlicedShiftRightMultipleSliceUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue shift = fb.Shrl(fb.Param("in", u32), fb.Param("amt", u32));
+  BValue shift_slice1 = fb.BitSlice(shift, /*start=*/16, /*width=*/10);
+  BValue shift_slice2 = fb.BitSlice(shift, /*start=*/14, /*width=*/18);
+  fb.Concat({shift_slice1, shift_slice2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  auto sliced_shift = m::Shrl(m::BitSlice(m::Param("in"), /*start=*/14,
+                                          /*width=*/18),
+                              m::Param("amt"));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(sliced_shift, /*start=*/2, /*width=*/10),
+                        sliced_shift));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
+}
+
 TEST_F(BitSliceSimplificationPassTest, SlicedDecode) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -419,6 +470,32 @@ TEST_F(BitSliceSimplificationPassTest, SlicedDecodeMultipleUsers) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::BitSlice(AllOf(m::Decode(), m::Type(u32))));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedDecodeMultipleSliceUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue decode = fb.Decode(fb.Param("amt", u32), /*width=*/32);
+  BValue decode_slice1 = fb.BitSlice(decode, /*start=*/0, /*width=*/11);
+  BValue decode_slice2 = fb.BitSlice(decode, /*start=*/1, /*width=*/9);
+  fb.Concat({decode_slice1, decode_slice2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  auto narrowed_decode =
+      AllOf(m::Decode(m::Param("amt")), m::Type(p->GetBitsType(11)));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(narrowed_decode,
+                m::BitSlice(narrowed_decode, /*start=*/1, /*width=*/9)));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedDecodeStartNonzero) {
@@ -455,11 +532,42 @@ TEST_F(BitSliceSimplificationPassTest, SlicedOhsWithMoreThanOneUser) {
   Type* u2 = p->GetBitsType(2);
   BValue ohs = fb.OneHotSelect(fb.Param("p", u2),
                                {fb.Param("x", u32), fb.Param("y", u32)});
-  fb.BitSlice(ohs, /*start=*/10, /*width=*/7);
+  fb.Add(ohs, ohs);
   fb.BitSlice(ohs, /*start=*/12, /*width=*/15);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::BitSlice(m::OneHotSelect()));
+}
+
+TEST_F(BitSliceSimplificationPassTest, SlicedOhsWithMultipleSliceUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u2 = p->GetBitsType(2);
+  BValue ohs = fb.OneHotSelect(fb.Param("p", u2),
+                               {fb.Param("x", u32), fb.Param("y", u32)});
+  BValue ohs_slice1 = fb.BitSlice(ohs, /*start=*/10, /*width=*/7);
+  BValue ohs_slice2 = fb.BitSlice(ohs, /*start=*/12, /*width=*/15);
+  BValue ohs_slice3 = fb.BitSlice(ohs, /*start=*/10, /*width=*/18);
+  fb.Concat({ohs_slice1, ohs_slice2, ohs_slice3});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  auto unoptimized = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
+                           f->Clone(f->name(), unoptimized.get()));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  auto sliced_ohs =
+      m::OneHotSelect(m::Param("p"),
+                      /*cases=*/{m::BitSlice(m::Param("x"), 10, 18),
+                                 m::BitSlice(m::Param("y"), 10, 18)});
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(sliced_ohs, /*start=*/0, /*width=*/7),
+                        m::BitSlice(sliced_ohs, /*start=*/2, /*width=*/15),
+                        sliced_ohs));
+
+  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
+              IsOkAndHolds(true));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedSelect) {
