@@ -157,6 +157,7 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
         "//xls/dslx:warning_kind",
+        "//xls/dslx/bytecode",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",

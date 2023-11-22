@@ -83,6 +83,7 @@ cc_library(
         ":bindings",
         ":builtins_metadata",
         ":pos",
+        ":scanner",
         ":token",
         ":token_parser",
         "@com_google_absl//absl/cleanup",
