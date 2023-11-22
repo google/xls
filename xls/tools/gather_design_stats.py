@@ -14,11 +14,11 @@
 # limitations under the License.
 """Analyze Yosys and OpenSTA logs and gather metrics info.
 
-   Usage: gather_design_stats [--out <name.textproto>] [list of log files]
+Usage: gather_design_stats [--out <name.textproto>] [list of log files]
 
-   Overall and per-pipeline-stage statistics will be gathered from
-   provided Yosys and OpenSTA logfiles, and written to a DesignStats
-   textproto at a location specified by the '--out' option.
+Overall and per-pipeline-stage statistics will be gathered from
+provided Yosys and OpenSTA logfiles, and written to a DesignStats
+textproto at a location specified by the '--out' option.
 """
 
 import gzip
@@ -30,6 +30,7 @@ from absl import flags
 from google.protobuf import text_format
 from xls.common import gfile
 from xls.tools import design_stats_pb2
+
 _OUT_PROTO = flags.DEFINE_string(
     "out", default="metrics.textproto", help="Path to output protobuf."
 )
@@ -46,82 +47,102 @@ def ensure_stage(model: design_stats_pb2.DesignStats, stage: int):
     model.per_stage.add()
 
 
-def scrape(model: design_stats_pb2.DesignStats, f):
+def scrape_yosys(model: design_stats_pb2.DesignStats, f):
   """Read every line of f, look for known patterns, put info into 'model'."""
-  current_stage = -1
+  chip_area_module_regex = re.compile(
+      r"Chip area for module.*p(\d+)mod.*: ([\d\.]+)"
+  )
+  chip_area_top_regex = re.compile(r"Chip area for (top )?module.*: ([\d\.]+)")
+  flop_regex = re.compile(r"Flop count p(\d+)mod: (\d+) objects.")
+  flop_total_regex = re.compile(r"Flop count: (\d+) objects.")
+  cell_count_regex = re.compile(r"Cell count in p(\d+)mod: (\d+)")
+  longest_path_regex = re.compile(
+      r"Longest topological path in p(\d+)mod \(length=(\d+)\)"
+  )
+
   while line := f.readline():
-    if isinstance(line, bytes):
-      line = line.decode("utf-8")
-    line = line.rstrip()
     if _DEBUG.value:
-      if m := re.search(r"p(\d+)mod", line):
+      if re.search(r"p(\d+)mod", line):
         print(line)
 
-    # Record current module (only needed for crit_path_delay_ps)
-    if m := re.search(r"Timing p(\d+)mod", line):
-      current_stage = int(m.group(1))
-      ensure_stage(model, current_stage)
-
-    #   1.50   data arrival time
-    if m := re.search(r"([\d\.]+)\s+data arrival time", line):
-      delay = float(m.group(1))
-      if current_stage >= 0:
-        model.per_stage[current_stage].crit_path_delay_ps = delay
-      else:
-        model.overall.crit_path_delay_ps = delay
-      current_stage = -1
+    if line.startswith("Warning:"):
+      continue
 
     # Chip area for module '\p2mod': 41.256600
     #  (unit: square microns)
-    if m := re.search(r"Chip area for module.*p(\d+)mod.*: ([\d\.]+)", line):
+    if m := re.search(chip_area_module_regex, line):
       stage = int(m.group(1))
       area_um2 = float(m.group(2))
       ensure_stage(model, stage)
       model.per_stage[stage].area_um2 = area_um2
 
     # Chip area for top module '\xls_fp_four_input_adder': 259.892640
-    if m := re.search(r"Chip area for top module.*: ([\d\.]+)", line):
-      area_um2 = float(m.group(1))
+    if m := re.search(chip_area_top_regex, line):
+      area_um2 = float(m.group(2))
       model.overall.area_um2 = area_um2
 
     # Flop count p0mod: 96 objects.
-    if m := re.search(r"Flop count p(\d+)mod: (\d+) objects", line):
+    if m := re.search(flop_regex, line):
       stage = int(m.group(1))
       flops = int(m.group(2))
       ensure_stage(model, stage)
       model.per_stage[stage].flops = flops
 
     # Flop count: 216 objects.
-    if m := re.search(r"Flop count: (\d+) objects", line):
+    if m := re.search(flop_total_regex, line):
       flops = int(m.group(1))
       model.overall.flops = flops
 
-    # Longest topological path in p0mod (length=1):
-    if m := re.search(
-        r"Longest topological path in p(\d+)mod \(length=(\d+)\)", line
-    ):
-      stage = int(m.group(1))
-      ltp = int(m.group(2))
-      ensure_stage(model, stage)
-      model.per_stage[stage].levels = ltp
-
     # Cell count in p1mod: 3406
-    if m := re.search(r"Cell count in p(\d+)mod: (\d+)", line):
+    if m := re.search(cell_count_regex, line):
       stage = int(m.group(1))
       cells = int(m.group(2))
       ensure_stage(model, stage)
       model.per_stage[stage].cells = cells
 
+    # Longest topological path in p0mod (length=1):
+    if m := re.search(longest_path_regex, line):
+      stage = int(m.group(1))
+      ltp = int(m.group(2))
+      ensure_stage(model, stage)
+      model.per_stage[stage].levels = ltp
+
+
+def scrape_opensta(model: design_stats_pb2.DesignStats, f):
+  """Read every line of f, look for known patterns, put info into 'model'."""
+  current_stage = None
+  timing_regex = re.compile(r"Timing p(\d+)mod")
+  data_arrival_regex = re.compile(r"([\d\.]+)\s+data arrival time")
+  critcal_path_end_regex = re.compile(r"p(\d+)mod Endpoint.*: (.+)$")
+  critcal_path_start_regex = re.compile(r"p(\d+)mod Startpoint: (.+)$")
+  while line := f.readline():
+    if _DEBUG.value:
+      if re.search(r"p(\d+)mod", line):
+        print(line)
+    # Record current module (only needed for crit_path_delay_ps)
+    if m := re.search(timing_regex, line):
+      current_stage = int(m.group(1))
+      ensure_stage(model, current_stage)
+
+    #   1.50   data arrival time
+    if m := re.search(data_arrival_regex, line):
+      delay = float(m.group(1))
+      if current_stage is not None:
+        model.per_stage[current_stage].crit_path_delay_ps = delay
+      else:
+        model.overall.crit_path_delay_ps = delay
+      current_stage = None
+
     # p2mod Endpoint: $auto$ff.cc:266:slice$5367/D
     # p2mod Endpoint net name: $abc$18269$p2_shifted_fraction__5_comb[14]
-    if m := re.search(r"p(\d+)mod Endpoint.*: (.+)$", line):
+    if m := re.search(critcal_path_end_regex, line):
       stage = int(m.group(1))
       name = str(m.group(2))
       ensure_stage(model, stage)
       model.per_stage[stage].crit_path_end = name
 
     # p3mod Startpoint: p2_shifted_fraction__5[3]
-    if m := re.search(r"p(\d+)mod Startpoint: (.+)$", line):
+    if m := re.search(critcal_path_start_regex, line):
       stage = int(m.group(1))
       name = str(m.group(2))
       ensure_stage(model, stage)
@@ -130,11 +151,11 @@ def scrape(model: design_stats_pb2.DesignStats, f):
 
 def scrape_file(model: design_stats_pb2.DesignStats, path: str):
   if ".gz" in path:
-    gz_file_handle = gfile.open(path, "rb")
-    file_handle = gzip.GzipFile(fileobj=gz_file_handle, mode="r")
+    file_handle = gzip.open(path, "rt", encoding="utf-8")
+    scrape_yosys(model, file_handle)
   else:
     file_handle = gfile.open(path, "rt")
-  scrape(model, file_handle)
+    scrape_opensta(model, file_handle)
 
 
 def main(argv):
