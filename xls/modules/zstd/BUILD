@@ -164,6 +164,14 @@ xls_dslx_library(
     ],
 )
 
+xls_dslx_library(
+    name = "common_dslx",
+    srcs = [
+        "common.x",
+    ],
+    deps = [],
+)
+
 xls_dslx_test(
     name = "frame_header_dslx_test",
     library = ":frame_header_dslx",
