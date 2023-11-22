@@ -509,7 +509,8 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       pieces.push_back(arena.break1());
       pieces.push_back(arena.ccurl());
     }
-    return arena.MakeNest(ConcatNGroup(arena, pieces));
+    DocRef block_group = ConcatNGroup(arena, pieces);
+    return arena.MakeFlatChoice(block_group, arena.MakeNest(block_group));
   }
 
   // Emit a '{' then nest to emit statements with semis, then emit a '}' outside

@@ -13,32 +13,24 @@
 // limitations under the License.
 
 fn i() -> () {
-  // Block that's just a type alias.
-  let w: () = {
-    type Useless = u8;
-  };
-  w
+    // Block that's just a type alias.
+    let w: () = { type Useless = u8; };
+    w
 }
 
 fn j() -> () {
-  // Trailing semi means block returns unit.
-  let z: () = {
-    u32:42;
-  };
-  z
+    // Trailing semi means block returns unit.
+    let z: () = { u32:42; };
+    z
 }
 
 fn main() -> () {
-  let x: () = i();
-  let y: () = j();
+    let x: () = i();
+    let y: () = j();
 }
 
 #[test]
-fn test_i() {
-  assert_eq(i(), ())
-}
+fn test_i() { assert_eq(i(), ()) }
 
 #[test]
-fn test_j() {
-  assert_eq(j(), ())
-}
+fn test_j() { assert_eq(j(), ()) }

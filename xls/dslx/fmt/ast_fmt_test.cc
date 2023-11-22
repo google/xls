@@ -824,6 +824,15 @@ TEST_F(FunctionFmtTest, SliceExprOverlong) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, InlineBlockExpression) {
+  const std::string_view original = R"(fn f() -> u32 {
+    let x = { u32:42 };
+    x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 // -- ModuleFmtTest cases, formatting entire modules
 
 TEST(ModuleFmtTest, TwoSimpleFunctions) {

@@ -216,8 +216,6 @@ dslx_lang_test(name = "local_type_alias")
 
 dslx_lang_test(
     name = "block_with_trailing_semi",
-    # TODO(leary): 2023-10-20 Puts newline after inline block.
-    test_autofmt = False,
     # We intenionally have unused vars.
     warnings_as_errors = False,
 )
