@@ -286,3 +286,11 @@ def load_external_repositories():
             "https://github.com/nlohmann/json/archive/refs/tags/v3.10.2.tar.gz",
         ],
     )
+
+    http_archive(
+        name = "com_github_facebook_zstd",
+        sha256 = "9c4396cc829cfae319a6e2615202e82aad41372073482fce286fac78646d3ee4",
+        strip_prefix = "zstd-1.5.5",
+        urls = ["https://github.com/facebook/zstd/releases/download/v1.5.5/zstd-1.5.5.tar.gz"],
+        build_file = "@//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
+    )
