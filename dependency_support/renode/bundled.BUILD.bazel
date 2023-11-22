@@ -1,0 +1,137 @@
+# Copyright 2023 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@com_google_xls//dependency_support/renode:toolchain.bzl","renode_toolchain")
+load("@com_google_xls//dependency_support/renode:renode.bzl","renode_test")
+load("@com_google_xls//dependency_support/renode:build_defs.bzl",
+    "get_socket_lib", "get_renode_base", "get_renode_communication",
+    "get_dpi_lib", "get_cfu_lib", "get_renode_bus_lib", "get_apb3_lib",
+    "get_axi_lib", "get_wishbone_lib", "get_peripherals_lib")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "renode_runtime",
+    srcs = glob(["**/*"]),
+)
+
+filegroup(
+    name = "renode_buildin_litex_tests",
+    srcs = glob(["**/LiteX/**/*.robot"]),
+)
+
+renode_toolchain(
+    name = "renode_linux_x86-64",
+    runtime = [":renode_runtime"],
+)
+
+toolchain_type(
+    name = "toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+toolchain(
+    name = "renode_linux_toolchain",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    toolchain = ":renode_linux_x86-64",
+    toolchain_type = ":toolchain_type",
+)
+
+hdrs, srcs, deps = get_socket_lib()
+cc_library(
+    name = "socket_lib",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_renode_base()
+cc_library(
+    name = "renode_base",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_renode_communication()
+cc_library(
+    name = "renode_communication",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_dpi_lib()
+cc_library(
+    name = "renode_dpi",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_cfu_lib()
+cc_library(
+    name = "renode_cfu_lib",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_renode_bus_lib()
+cc_library(
+    name = "renode_base_bus_lib",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_apb3_lib()
+cc_library(
+    name = "renode_apb3_lib",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_axi_lib()
+cc_library(
+    name = "renode_axi_lib",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_wishbone_lib()
+cc_library(
+    name = "renode_wishbone_lib",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+hdrs, srcs, deps = get_peripherals_lib()
+cc_library(
+    name = "renode_peripherals_lib",
+    srcs = srcs,
+    hdrs = hdrs,
+    deps = deps,
+)
+
+renode_test(
+    name = "run_renode_buildin_tests",
+    robot = [":renode_buildin_litex_tests"]
+)
