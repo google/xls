@@ -465,3 +465,79 @@ xls_dslx_test(
     name = "block_header_dslx_test",
     library = ":block_header_dslx",
 )
+
+xls_dslx_library(
+    name = "dec_mux_dslx",
+    srcs = [
+        "dec_mux.x",
+    ],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "dec_mux_dslx_test",
+    library = ":dec_mux_dslx",
+)
+
+xls_dslx_verilog(
+    name = "dec_mux_verilog",
+    codegen_args = {
+        "module_name": "DecoderMux",
+        "delay_model": "asap7",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "DecoderMux",
+    library = ":dec_mux_dslx",
+    verilog_file = "dec_mux.v",
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "dec_mux_opt_ir_benchmark",
+    src = ":dec_mux_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "asap7",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "dec_mux_verilog_lib",
+    srcs = [
+        ":dec_mux.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "dec_mux_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "DecoderMux",
+    deps = [
+        ":dec_mux_verilog_lib",
+    ],
+    tags = ["manual"],
+)
+
+benchmark_synth(
+    name = "dec_mux_benchmark_synth",
+    synth_target = ":dec_mux_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "dec_mux_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":dec_mux_synth_asap7",
+    target_die_utilization_percentage = "10",
+    tags = ["manual"],
+)
