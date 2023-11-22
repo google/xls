@@ -12,22 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Generic<X:u32, Y:u32> {
-  a: bits[X],
-  b: bits[Y]
-}
+struct Generic<X: u32, Y: u32> { a: bits[X], b: bits[Y] }
 
-fn zero<C:u32, D:u32>() -> Generic<C, D> {
-  Generic<C, D>{ a: bits[C]:0, b: bits[D]:0 }
-}
+fn zero<C: u32, D: u32>() -> Generic<C, D> { Generic<C, D> { a: bits[C]:0, b: bits[D]:0 } }
 
-fn indirection<E:u32, F:u32>() -> Generic<E, F> {
-  zero<E, F>()
-}
+fn indirection<E: u32, F: u32>() -> Generic<E, F> { zero<E, F>() }
 
 #[test]
 fn test_generic() {
-  let got = indirection<u32:1, u32:2>();
-  let want = Generic<u32:1, u32:2>{ a: u1:0, b: u2:0 };
-  assert_eq(want, got)
+    let got = indirection<u32:1, u32:2>();
+    let want = Generic<u32:1, u32:2> { a: u1:0, b: u2:0 };
+    assert_eq(want, got)
 }

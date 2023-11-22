@@ -1143,6 +1143,21 @@ fn f() -> u8 { p<8>(u8:42) }
   }
 }
 
+TEST(ModuleFmtTest, SimpleParametricStructInstantiation) {
+  const std::string_view kProgram =
+      R"(import mol
+
+struct Point<N: u32> { x: bits[N], y: bits[N] }
+
+fn f() -> Point<mol::MOL> { Point<mol::MOL> { x: u8:42, y: u8:64 } }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 TEST(ModuleFmtTest, TypeRefTypeAnnotationModuleLevel) {
   constexpr std::string_view kProgram =
       R"(type MyU32 = u32;

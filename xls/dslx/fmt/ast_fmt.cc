@@ -54,6 +54,28 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
 DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
                bool suppress_parens);
 
+// A parametric argument, as in parametric instantiation:
+//
+//    f<FOO as u32>()
+//      ^^^^^^^^^^~~~ parametric argument, expr or types can go here generally
+DocRef FmtParametricArg(const ExprOrType& n, const Comments& comments,
+                        DocArena& arena) {
+  return absl::visit(
+      Visitor{
+          [&](const Expr* n) {
+            DocRef guts = Fmt(*n, comments, arena);
+            if (dynamic_cast<const NameRef*>(n) != nullptr ||
+                dynamic_cast<const ColonRef*>(n) != nullptr ||
+                dynamic_cast<const Number*>(n) != nullptr) {
+              return guts;  // No need for enclosing curlies.
+            }
+            return ConcatN(arena, {arena.ocurl(), guts, arena.ccurl()});
+          },
+          [&](const TypeAnnotation* n) { return Fmt(*n, comments, arena); },
+      },
+      n);
+}
+
 static DocRef FmtExprPtr(const Expr* n, const Comments& comments,
                          DocArena& arena) {
   XLS_CHECK(n != nullptr);
@@ -205,7 +227,7 @@ DocRef Fmt(const TypeRefTypeAnnotation& n, const Comments& comments,
   if (!n.parametrics().empty()) {
     pieces.push_back(arena.oangle());
     pieces.push_back(FmtJoin<ExprOrType>(absl::MakeConstSpan(n.parametrics()),
-                                         Joiner::kCommaSpace, FmtExprOrType,
+                                         Joiner::kCommaSpace, FmtParametricArg,
                                          comments, arena));
     pieces.push_back(arena.cangle());
   }
@@ -792,24 +814,6 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
   return absl::visit(
       Visitor{
           [&](const Expr* n) { return Fmt(*n, comments, arena); },
-          [&](const TypeAnnotation* n) { return Fmt(*n, comments, arena); },
-      },
-      n);
-}
-
-static DocRef FmtParametricArg(const ExprOrType& n, const Comments& comments,
-                               DocArena& arena) {
-  return absl::visit(
-      Visitor{
-          [&](const Expr* n) {
-            DocRef guts = Fmt(*n, comments, arena);
-            if (dynamic_cast<const NameRef*>(n) != nullptr ||
-                dynamic_cast<const ColonRef*>(n) != nullptr ||
-                dynamic_cast<const Number*>(n) != nullptr) {
-              return guts;  // No need for enclosing curlies.
-            }
-            return ConcatN(arena, {arena.ocurl(), guts, arena.ccurl()});
-          },
           [&](const TypeAnnotation* n) { return Fmt(*n, comments, arena); },
       },
       n);

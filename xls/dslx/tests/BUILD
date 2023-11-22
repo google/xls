@@ -286,8 +286,6 @@ dslx_lang_test(name = "constexpr_pad_via_slice")
 dslx_lang_test(
     name = "explicit_parametric",
     dslx_entry = "instantiates_indirect_foo",
-    # TODO(leary): 2023-10-20 Explicit instantiations of structs get deleted.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -300,8 +298,6 @@ dslx_lang_test(
     name = "explicit_parametric_reduced",
     # No meaningful entry point to convert.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Explicit instantiations of structs get deleted.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
