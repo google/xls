@@ -440,3 +440,18 @@ xls_dslx_test(
     name = "block_header_dslx_test",
     library = ":block_header_dslx",
 )
+
+xls_dslx_library(
+    name = "dec_mux_dslx",
+    srcs = [
+        "dec_mux.x",
+    ],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "dec_mux_dslx_test",
+    library = ":dec_mux_dslx",
+)
