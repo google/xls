@@ -998,7 +998,6 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
             recv->GetName()));
       }
     }
-    changed = true;
     XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
     if (channel->kind() != ChannelKind::kStreaming) {
       // Don't make adapters for non-streaming channels.
@@ -1016,9 +1015,9 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
         channel_id, absl::StrJoin(ops, ", "));
     XLS_RETURN_IF_ERROR(
         AddAdapterForMultipleReceives(p, streaming_channel, ops));
+    changed = true;
   }
   for (const auto& [channel_id, ops] : multiple_ops.multiple_sends) {
-    changed = true;
     XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
     if (channel->kind() != ChannelKind::kStreaming) {
       // Don't make adapters for non-streaming channels.
@@ -1035,6 +1034,7 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
         "Making send channel adapter for channel %d, has sends (%s).",
         channel_id, absl::StrJoin(ops, ", "));
     XLS_RETURN_IF_ERROR(AddAdapterForMultipleSends(p, streaming_channel, ops));
+    changed = true;
   }
   // If we've added an adapter, we likely want to inline it.
   // TODO(google/xls#950): remove this warning when multi-proc codegen is an

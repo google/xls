@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 
@@ -27,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -52,9 +54,15 @@ using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::AnyOf;
+using ::testing::Combine;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::Matcher;
 using ::testing::Optional;
+using ::testing::Values;
+using ::testing::ValuesIn;
+using ::testing::TestPartResult;
+using ::testing::TestWithParam;
 
 OptimizationPass* StandardPipelinePass() {
   static OptimizationPass* singleton =
@@ -96,20 +104,19 @@ struct TestParam {
       SerialProcRuntime*, std::optional<ChannelStrictness>)>;
   std::string_view test_name;
   std::string_view ir_text;
-  absl::flat_hash_map<ChannelStrictness,
-                      ::testing::Matcher<absl::StatusOr<bool>>>
+  absl::flat_hash_map<ChannelStrictness, Matcher<absl::StatusOr<bool>>>
       builder_matcher = {};
   evaluation_function evaluate =
       [](SerialProcRuntime* interpreter,
          std::optional<ChannelStrictness> strictness) -> absl::Status {
     GTEST_MESSAGE_("Evaluation is not implemented for this test!",
-                   ::testing::TestPartResult::kSkip);
+                   TestPartResult::kSkip);
     return absl::OkStatus();
   };
 };
 
 class ChannelLegalizationPassTest
-    : public testing::TestWithParam<
+    : public TestWithParam<
           std::tuple<TestParam, PassVariant, ChannelStrictness>> {
  protected:
   absl::StatusOr<bool> Run(Package* package) {
@@ -156,8 +163,8 @@ top proc my_proc(tok: token, init={}) {
     )",
         .builder_matcher =
             {
-                // Mutually exclusive OK- channel legalization pass skips them.
-                // They are ultimately handled them in scheduling.
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
                 {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
@@ -239,6 +246,8 @@ proc proc_b(tok: token, pred: bits[1], init={0}) {
       )",
         .builder_matcher =
             {
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
                 {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
@@ -299,6 +308,8 @@ proc proc_b(tok: token, init={}) {
       )",
         .builder_matcher =
             {
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
                 {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
@@ -380,6 +391,8 @@ top proc my_proc(tok: token, init={}) {
       )",
         .builder_matcher =
             {
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
                 {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder,
                  StatusIs(absl::StatusCode::kInternal,
@@ -528,6 +541,8 @@ top proc test_proc(tkn: token, state:(), init={()}) {
         )",
         .builder_matcher =
             {
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
                 {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
@@ -586,7 +601,7 @@ top proc test_proc(tkn: token, state:(), init={()}) {
         },
     },
     TestParam{
-        .test_name = "DataDependentReceive",
+        .test_name = "DataDependentReceiveSingleOutput",
         .ir_text = R"(package test
 chan in(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="")
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
@@ -608,6 +623,8 @@ top proc test_proc(tkn: token, state:(), init={()}) {
         )",
         .builder_matcher =
             {
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
                 {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
@@ -674,6 +691,109 @@ top proc test_proc(tkn: token, state:(), init={()}) {
           return absl::OkStatus();
         },
     },
+    TestParam{
+        .test_name = "DataDependentReceiveMultipleOutputs",
+        .ir_text = R"(package test
+chan in(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="")
+chan out0(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
+chan out1(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
+
+top proc test_proc(tkn: token, state:(), init={()}) {
+  in_recv0: (token, bits[32]) = receive(tkn, channel_id=1)
+  in_recv0_token: token = tuple_index(in_recv0, index=0)
+  in_recv0_data: bits[32] = tuple_index(in_recv0, index=1)
+  comp_data: bits[32] = literal(value=5)
+  in_recv1_pred: bits[1] = ugt(in_recv0_data, comp_data)
+  in_recv1: (token, bits[32]) = receive(in_recv0_token, predicate=in_recv1_pred, channel_id=1)
+  in_recv1_token: token = tuple_index(in_recv1, index=0)
+  in_recv1_data: bits[32] = tuple_index(in_recv1, index=1)
+  data_to_send: bits[32] = add(in_recv0_data, in_recv1_data)
+  out_send0: token = send(in_recv1_token, data_to_send, channel_id=2)
+  out_send1: token = send(out_send0, data_to_send, predicate=in_recv1_pred, channel_id=3)
+  next (out_send1, state)
+}
+        )",
+        .builder_matcher =
+            {
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
+                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
+                {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeMutuallyExclusive,
+                 IsOkAndHolds(true)},
+                {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
+            },
+        .evaluate =
+            [](SerialProcRuntime* interpreter,
+               std::optional<ChannelStrictness> strictness) -> absl::Status {
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * inq,
+              interpreter->queue_manager().GetQueueByName("in"));
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * out0q,
+              interpreter->queue_manager().GetQueueByName("out0"));
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * out1q,
+              interpreter->queue_manager().GetQueueByName("out1"));
+
+          constexpr int64_t kNumValues =
+              100 + 6;  // 6 values on out0 + 50 each for out0 and out1
+          for (int64_t i = 0; i < kNumValues; ++i) {
+            XLS_RET_CHECK_OK(inq->Write(Value(UBits(i, /*bit_count=*/32))));
+          }
+          // There is one output per input; run until full.
+          absl::Status tick_status =
+              interpreter
+                  ->TickUntilOutput(
+                      {
+                          {out0q->channel(), (kNumValues - 6) / 2 + 6},
+                          {out1q->channel(), (kNumValues - 6) / 2},
+                      },
+                      /*max_ticks=*/kNumValues * 2)
+                  .status();
+          if (strictness == ChannelStrictness::kRuntimeMutuallyExclusive) {
+            EXPECT_THAT(tick_status,
+                        StatusIs(absl::StatusCode::kAborted,
+                                 HasSubstr("was not mutually exclusive")));
+          } else {
+            XLS_EXPECT_OK(tick_status);
+          }
+
+          // For inputs from 0 to 5, only the first recv executes and only
+          // the first send executes, so passthrough.
+          for (int64_t expected_output : {0, 1, 2, 3, 4, 5}) {
+            XLS_RET_CHECK_GE(out0q->GetSize(), 1);
+            EXPECT_THAT(
+                out0q->Read(),
+                Optional(Value(UBits(expected_output, /*bit_count=*/32))));
+          }
+          // For inputs > 5, both recvs and both sends execute. For mutually
+          // exclusive adapters, this causes an assertion to fire, so there
+          // shouldn't be any more outputs.
+          if (strictness == ChannelStrictness::kRuntimeMutuallyExclusive) {
+            EXPECT_EQ(out0q->GetSize(), 0);
+            EXPECT_EQ(out1q->GetSize(), 0);
+            return absl::OkStatus();
+          }
+          // For inputs > 5, both recvs and both sends execute. Check that
+          // outputs are the repeated sum of the two inputs.
+          for (int64_t i = 6; i < kNumValues; i += 2) {
+            int64_t expected_value = i + (i + 1);
+            XLS_RET_CHECK_GE(out0q->GetSize(), 1);
+            XLS_RET_CHECK_GE(out1q->GetSize(), 1);
+            EXPECT_THAT(
+                out0q->Read(),
+                Optional(Value(UBits(expected_value, /*bit_count=*/32))));
+            EXPECT_THAT(
+                out1q->Read(),
+                Optional(Value(UBits(expected_value, /*bit_count=*/32))));
+          }
+          EXPECT_EQ(out0q->GetSize(), 0);
+          EXPECT_EQ(out1q->GetSize(), 0);
+          return absl::OkStatus();
+        },
+    },
     // TODO(rigge): run this test on block IR interpreter.
     // The interpreter runs in program order, so the predicate send for
     // out_send1 will never happen before out_send0's predicate send, although
@@ -702,6 +822,8 @@ top proc test_proc(tkn: token, state:(), init={()}) {
         )",
         .builder_matcher =
             {
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
                 {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
@@ -794,7 +916,7 @@ TEST_P(ChannelLegalizationPassTest, PassRuns) {
   if (itr == matchers.end()) {
     GTEST_SKIP();
   }
-  ::testing::Matcher<absl::StatusOr<bool>> matcher = itr->second;
+  Matcher<absl::StatusOr<bool>> matcher = itr->second;
   EXPECT_THAT((run_status = Run(p.get())), matcher);
   // If we expect the pass to complete, the result should be codegen'able.
   bool inline_procs = PassVariantInlinesProcs(std::get<1>(GetParam()));
@@ -829,24 +951,90 @@ TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
 
 INSTANTIATE_TEST_SUITE_P(
     ChannelLegalizationPassTestInstantiation, ChannelLegalizationPassTest,
-    ::testing::Combine(
-        testing::ValuesIn(kTestParameters),
-        testing::Values(
-            // TODO(google/xls#1018): Enable proc inlining variant when cycle
-            // problems are solved.
-            // PassVariant::RunStandardPipelineInlineProcs,
-            PassVariant::RunStandardPipelineNoInlineProcs,
-            PassVariant::RunChannelLegalizationPassOnly),
-        testing::Values(ChannelStrictness::kProvenMutuallyExclusive,
-                        ChannelStrictness::kRuntimeMutuallyExclusive,
-                        ChannelStrictness::kTotalOrder,
-                        ChannelStrictness::kRuntimeOrdered,
-                        ChannelStrictness::kArbitraryStaticOrder)),
+    Combine(ValuesIn(kTestParameters),
+            Values(
+                // TODO(google/xls#1018): Enable proc inlining variant when
+                // cycle problems are solved.
+                // PassVariant::RunStandardPipelineInlineProcs,
+                PassVariant::RunStandardPipelineNoInlineProcs,
+                PassVariant::RunChannelLegalizationPassOnly),
+            Values(ChannelStrictness::kProvenMutuallyExclusive,
+                            ChannelStrictness::kRuntimeMutuallyExclusive,
+                            ChannelStrictness::kTotalOrder,
+                            ChannelStrictness::kRuntimeOrdered,
+                            ChannelStrictness::kArbitraryStaticOrder)),
     [](const auto& info) {
       return absl::StrCat(std::get<0>(info.param).test_name, "_",
                           PassVariantName(std::get<1>(info.param)), "_",
                           ChannelStrictnessToString(std::get<2>(info.param)));
     });
+
+// Test that runs the channel legalization pass (only, not the whole pass
+// pipeline) with proven-mutually-exclusive channel strictness.
+// This is a special case of ChannelLegalizationPassTest.
+class MutuallyExclusiveChannelLegalizationPassTest
+    : public TestWithParam<TestParam> {
+ protected:
+  absl::StatusOr<bool> Run() {
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<Package> p,
+        Parser::ParsePackage(absl::Substitute(
+            GetParam().ir_text,
+            ChannelStrictnessToString(
+                ChannelStrictness::kProvenMutuallyExclusive))));
+    OptimizationPassOptions options;
+    PassResults results;
+    return ChannelLegalizationPassOnly()->Run(p.get(), options, &results);
+  }
+};
+
+TEST_P(MutuallyExclusiveChannelLegalizationPassTest, DoesNotChangeIR) {
+  // Check that if the IR is unchanged. The pass should not change the IR
+  // because mutually exclusive channels should never cause an adapter to be
+  // inserted.
+  EXPECT_THAT(Run(), IsOkAndHolds(false));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    MutuallyExclusiveChannelLegalizationPassTestInstantiation,
+    MutuallyExclusiveChannelLegalizationPassTest, ValuesIn(kTestParameters),
+    [](const auto& info) { return std::string(info.param.test_name); });
+
+// Test that runs the channel legalization pass (only, not the whole pass
+// pipeline) with single-value channels.
+// This is a special case of ChannelLegalizationPassTest.
+class SingleValueChannelLegalizationPassTest : public TestWithParam<TestParam> {
+ protected:
+  absl::StatusOr<bool> Run() {
+    // Replace all streaming channels with single_value channels.
+    std::string substituted_ir_text = absl::StrReplaceAll(
+        GetParam().ir_text, {
+                                {"kind=streaming, ops=send_only, "
+                                 "flow_control=ready_valid, strictness=$0, ",
+                                 "kind=single_value, ops=send_only, "},
+                                {"kind=streaming, ops=receive_only, "
+                                 "flow_control=ready_valid, strictness=$0, ",
+                                 "kind=single_value, ops=receive_only, "},
+                            });
+
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
+                         Parser::ParsePackage(substituted_ir_text));
+    OptimizationPassOptions options;
+    PassResults results;
+    return ChannelLegalizationPassOnly()->Run(p.get(), options, &results);
+  }
+};
+
+TEST_P(SingleValueChannelLegalizationPassTest, DoesNotChangeIR) {
+  // Check that the pass said IR is unchanged.
+  EXPECT_THAT(Run(), IsOkAndHolds(false));
+}
+
+INSTANTIATE_TEST_SUITE_P(SingleValueChannelLegalizationPassTestInstantiation,
+                         SingleValueChannelLegalizationPassTest,
+                         ValuesIn(kTestParameters), [](const auto& info) {
+                           return std::string(info.param.test_name);
+                         });
 
 }  // namespace
 }  // namespace xls
