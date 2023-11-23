@@ -42,12 +42,8 @@ cc_library(
         "lib/zstd.h",
     ],
     strip_include_prefix = "lib",
-    linkopts = [
-        "-pthread",
-    ],
     local_defines = [
         "ZSTD_LEGACY_SUPPORT=4",
-        "ZSTD_MULTITHREAD",
         "XXH_NAMESPACE=ZSTD_",
     ],
     visibility = ["//visibility:public"],
