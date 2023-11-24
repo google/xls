@@ -321,6 +321,71 @@ proc main {
   EXPECT_EQ(order[4].proc_id().value().ToString(), "main->foo:0");
 }
 
+TEST(ExtractConversionOrderTest, BasicProcWithImplicitParametricFunctionCall) {
+  constexpr std::string_view kProgram = R"(
+pub struct Buffer<CAPACITY: u32> {
+    content: bits[CAPACITY],
+}
+
+pub fn parametric_fn<CAPACITY: u32>(buffer: Buffer<CAPACITY>) -> Buffer<CAPACITY> {
+    buffer
+}
+
+struct proc_state {
+    buffer: Buffer<u32:128>,
+}
+
+const ZERO_PROC_STATE = zero!<proc_state>();
+
+pub fn call_parametric_from_no_parametric(state: proc_state) -> proc_state {
+    parametric_fn<u32:128>(state.buffer);
+    state
+}
+
+pub proc main {
+    input_r: chan<u32> in;
+    output_s: chan<u32> out;
+
+    init {(ZERO_PROC_STATE)}
+
+    config (
+        input_r: chan<u32> in,
+        output_s: chan<u32> out,
+    ) {(input_r, output_s)}
+
+    next (tok: token, state: proc_state) {
+        let (tok, _) = recv(tok, input_r);
+        call_parametric_from_no_parametric(state);
+        let tok = send(tok, output_s, u32:0);
+        state
+    }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  std::vector<ConversionRecord> order;
+  // When jitting or converting without setting "top", GetOrder function is called
+  XLS_ASSERT_OK_AND_ASSIGN(order, GetOrder(tm.module, tm.type_info));
+  for (const auto& o : order) {
+    std::cerr << o.f()->identifier() << "\n";
+  }
+  ASSERT_EQ(4, order.size());
+  ASSERT_TRUE(order[2].proc_id().has_value());
+  ASSERT_TRUE(order[3].proc_id().has_value());
+  EXPECT_EQ(order[0].f()->identifier(), "parametric_fn");
+  EXPECT_FALSE(order[0].IsTop());
+  EXPECT_EQ(order[1].f()->identifier(), "call_parametric_from_no_parametric");
+  EXPECT_FALSE(order[1].IsTop());
+  EXPECT_EQ(order[2].f()->identifier(), "main.config");
+  EXPECT_EQ(order[2].proc_id().value().ToString(), "main:0");
+  EXPECT_FALSE(order[2].IsTop());
+  EXPECT_EQ(order[3].f()->identifier(), "main.next");
+  EXPECT_EQ(order[3].proc_id().value().ToString(), "main:0");
+  EXPECT_FALSE(order[3].IsTop());
+}
+
 TEST(ExtractConversionOrderTest, ProcNetworkWithEntry) {
   constexpr std::string_view kProgram = R"(
 fn f0() -> u32 {
