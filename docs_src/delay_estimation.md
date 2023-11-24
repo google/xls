@@ -136,16 +136,17 @@ contrast, as we now ignore it all and do something very simple.
 Currently, XLS delay estimation follows a conceptually simple procedure:
 
 *   For every operation in XLS (e.g. binary addition):
-    *   For some relevant-seeming set of bitwidths; e.g. `{2, 4, 8, 16, ...,
-        2048}`
-    *   Find the maximum frequency at which that operation closes timing at that
-        bitwidth, in 100MHz units as determined by the synthesis tool.
-        <sup>[2](#footnote2)</sup> Call the clock period for this frequency
-        `t_best`. (Note that we currently just use a single process corner /
-        voltage for this sweep.)
-    *   Subtract the clock uncertainty from `t_best`.
-    *   Record that value in a table (with the keys of the table being operation
-        / bitwidth).
+
+  *   For some relevant-seeming set of bitwidths; e.g. `{2, 4, 8, 16, ...,
+      2048}`
+  *   Find the maximum frequency at which that operation closes timing at that
+      bitwidth, in 100MHz units as determined by the synthesis tool.
+      <sup>[2](#footnote2)</sup> Call the clock period for this frequency
+      `t_best`. (Note that we currently just use a single process corner /
+      voltage for this sweep.)
+  *   Subtract the clock uncertainty from `t_best`.
+  *   Record that value in a table (with the keys of the table being operation
+      / bitwidth).
 
 <a name='footnote2'>2</a>: The timing report can provide the delay through a
 path at any clock frequency, but a wrinkle is that synthesis tools potentially
