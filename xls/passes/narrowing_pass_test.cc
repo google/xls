@@ -538,6 +538,116 @@ TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnostic) {
                        m::Param("rhs")));
 }
 
+TEST_P(NarrowingPassTest, UMulTrailingZerosRight) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(20));
+  BValue r = fb.Param("r", p->GetBitsType(16));
+  BValue r_wide = fb.Shll(fb.ZeroExtend(r, 20), fb.Literal(UBits(4, 3)));
+  fb.UMul(l, r_wide, 40);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::UMul(l.node(),
+                        m::BitSlice(r_wide.node(), /*start=*/4, /*width=*/16)),
+                m::Literal(UBits(0, 4))));
+}
+
+TEST_P(NarrowingPassTest, UMulTrailingZerosLeft) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(16));
+  BValue r = fb.Param("r", p->GetBitsType(20));
+  BValue l_wide = fb.Shll(fb.ZeroExtend(l, 20), fb.Literal(UBits(4, 3)));
+  fb.UMul(l_wide, r, 40);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::UMul(m::BitSlice(l_wide.node(), /*start=*/4, /*width=*/16),
+                        r.node()),
+                m::Literal(UBits(0, 4))));
+}
+
+TEST_P(NarrowingPassTest, UMulTrailingZerosBoth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(4));
+  BValue r = fb.Param("r", p->GetBitsType(4));
+  BValue l_wide = fb.Shll(fb.ZeroExtend(l, 10), fb.Literal(UBits(6, 3)));
+  BValue r_wide = fb.Shll(fb.ZeroExtend(r, 10), fb.Literal(UBits(6, 3)));
+  fb.UMul(l_wide, r_wide, 20);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::UMul(m::BitSlice(l_wide.node(), /*start=*/6, /*width=*/4),
+                        m::BitSlice(r_wide.node(), /*start=*/6, /*width=*/4)),
+                m::Literal(UBits(0, 12))));
+}
+
+TEST_P(NarrowingPassTest, SMulTrailingZerosRight) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(20));
+  BValue r = fb.Param("r", p->GetBitsType(16));
+  BValue r_wide = fb.Shll(fb.ZeroExtend(r, 20), fb.Literal(UBits(4, 3)));
+  fb.SMul(l, r_wide, 40);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::SMul(l.node(),
+                        m::BitSlice(r_wide.node(), /*start=*/4, /*width=*/16)),
+                m::Literal(UBits(0, 4))));
+}
+
+TEST_P(NarrowingPassTest, SMulTrailingZerosLeft) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(16));
+  BValue r = fb.Param("r", p->GetBitsType(20));
+  BValue l_wide = fb.Shll(fb.ZeroExtend(l, 20), fb.Literal(UBits(4, 3)));
+  fb.SMul(l_wide, r, 40);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::SMul(m::BitSlice(l_wide.node(), /*start=*/4, /*width=*/16),
+                        r.node()),
+                m::Literal(UBits(0, 4))));
+}
+
+TEST_P(NarrowingPassTest, SMulTrailingZerosBoth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue l = fb.Param("l", p->GetBitsType(4));
+  BValue r = fb.Param("r", p->GetBitsType(4));
+  BValue l_wide = fb.Shll(fb.ZeroExtend(l, 10), fb.Literal(UBits(6, 3)));
+  BValue r_wide = fb.Shll(fb.ZeroExtend(r, 10), fb.Literal(UBits(6, 3)));
+  fb.SMul(l_wide, r_wide, 20);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::SMul(m::BitSlice(l_wide.node(), /*start=*/6, /*width=*/4),
+                        m::BitSlice(r_wide.node(), /*start=*/6, /*width=*/4)),
+                m::Literal(UBits(0, 12))));
+}
+
 TEST_P(NarrowingPassTest, UnsignedCompareWithKnownZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -818,11 +928,11 @@ TEST_P(NarrowingPassTest, SignedCompareWithKnownMSBs) {
                                     fb.Param("x", p->GetBitsType(17))}),
                          fb.Literal(Value(UBits(0, 18))));
   BValue lit_lt_a = fb.SLt(fb.Literal(Value(UBits(0x80000ull, 20))),
-                         fb.Concat({fb.Literal(Value(UBits(2, 2))),
-                                    fb.Param("a", p->GetBitsType(18))}));
+                           fb.Concat({fb.Literal(Value(UBits(2, 2))),
+                                      fb.Param("a", p->GetBitsType(18))}));
   BValue lit_lt_b = fb.SLt(fb.Literal(Value(UBits(0x80000ull, 20))),
-                         fb.Concat({fb.Literal(Value(UBits(1, 1))),
-                                    fb.Param("b", p->GetBitsType(19))}));
+                           fb.Concat({fb.Literal(Value(UBits(1, 1))),
+                                      fb.Param("b", p->GetBitsType(19))}));
   fb.Concat({x_gt_y, lit_lt_a, lit_lt_b});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 

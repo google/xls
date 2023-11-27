@@ -127,6 +127,17 @@ absl::StatusOr<Node*> MaybeNarrow(Node* node, int64_t bit_count) {
                                                    /*width=*/bit_count);
 }
 
+absl::StatusOr<Node*> ExtractMostSignificantBits(Node* node,
+                                                 int64_t bit_count) {
+  XLS_RET_CHECK_GE(node->BitCountOrDie(), bit_count);
+  if (node->BitCountOrDie() == bit_count) {
+    return node;
+  }
+  return node->function_base()->MakeNode<BitSlice>(
+      node->loc(), node, /*start=*/node->BitCountOrDie() - bit_count,
+      /*width=*/bit_count);
+}
+
 class NarrowVisitor final : public DfsVisitorWithDefault {
  public:
   explicit NarrowVisitor(const SpecializedQueryEngines& engine,
@@ -1033,8 +1044,31 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
     }
 
-    // TODO(meheff): If either lhs or rhs has trailing zeros, the multiply can
-    // be narrowed and the result concatenated with trailing zeros.
+    int64_t left_trailing_zeros = CountTrailingKnownZeros(lhs, mul);
+    int64_t right_trailing_zeros = CountTrailingKnownZeros(rhs, mul);
+    if (left_trailing_zeros > 0 || right_trailing_zeros > 0) {
+      int64_t removed_bits = left_trailing_zeros + right_trailing_zeros;
+      XLS_ASSIGN_OR_RETURN(Node * new_left, ExtractMostSignificantBits(
+                                                lhs, lhs->BitCountOrDie() -
+                                                         left_trailing_zeros));
+      XLS_ASSIGN_OR_RETURN(
+          Node * new_right,
+          ExtractMostSignificantBits(
+              rhs, rhs->BitCountOrDie() - right_trailing_zeros));
+      XLS_ASSIGN_OR_RETURN(
+          Node * new_mul,
+          mul->function_base()->MakeNodeWithName<ArithOp>(
+              mul->loc(), new_left, new_right, mul->width() - removed_bits,
+              mul->op(), mul->GetName() + "_NarrowedMult_"));
+      XLS_ASSIGN_OR_RETURN(Node * zeros,
+                           mul->function_base()->MakeNodeWithName<Literal>(
+                               mul->loc(), Value(Bits(removed_bits)),
+                               mul->GetName() + "_TrailingBits_"));
+      XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<Concat>(
+                                 absl::Span<Node* const>{new_mul, zeros})
+                              .status());
+      return Change();
+    }
 
     return NoChange();
   }
@@ -1247,6 +1281,34 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   }
 
  private:
+  // Return the number of trailing known zeros in the given nodes values when
+  // used as an argument to 'user'. If user is std::nullopt the context isn't
+  // used.
+  int64_t CountTrailingKnownZeros(Node* node, std::optional<Node*> user) const {
+    XLS_CHECK(node->GetType()->IsBits());
+    XLS_CHECK(user != nullptr);
+    int64_t trailing_zeros = 0;
+    const QueryEngine& node_query_engine =
+        specialized_query_engine_.ForNode(node);
+    const std::optional<const QueryEngine*> user_query_engine =
+        analysis_ == AnalysisType::kRangeWithContext && user.has_value()
+            ? std::make_optional(&specialized_query_engine_.ForNode(*user))
+            : std::nullopt;
+    auto is_user_zero = [&](const TreeBitLocation& tbl) {
+      if (user_query_engine) {
+        return (*user_query_engine)->IsZero(tbl);
+      }
+      return false;
+    };
+    for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
+      if (!node_query_engine.IsZero(TreeBitLocation(node, i)) &&
+          !is_user_zero(TreeBitLocation(node, i))) {
+        break;
+      }
+      ++trailing_zeros;
+    }
+    return trailing_zeros;
+  }
   // Return the number of leading known zeros in the given nodes values when
   // used as an argument to 'user'. If user is std::nullopt the context isn't
   // used.
