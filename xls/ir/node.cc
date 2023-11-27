@@ -517,7 +517,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
         args.push_back(absl::StrFormat("predicate=%s",
                                        send->predicate().value()->GetName()));
       }
-      args.push_back(absl::StrFormat("channel_id=%d", send->channel_id()));
+      args.push_back(absl::StrFormat("channel=%s", send->channel_name()));
       break;
     }
     case Op::kReceive: {
@@ -527,7 +527,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
         args.push_back(absl::StrFormat(
             "predicate=%s", receive->predicate().value()->GetName()));
       }
-      args.push_back(absl::StrFormat("channel_id=%d", receive->channel_id()));
+      args.push_back(absl::StrFormat("channel=%s", receive->channel_name()));
       if (receive->is_blocking() == false) {
         // Default blocking=true so we only need to push is !is_blocking().
         args.push_back("blocking=false");

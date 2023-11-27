@@ -32,7 +32,7 @@ chan out_ch(bits[64], id=3, kind=streaming, ops=send_only, flow_control=ready_va
 chan out_ch_2(bits[64], id=4, kind=streaming, ops=send_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
 
 proc test_proc(tkn: token, st: (bits[64]), init={(10)}) {
-  receive.1: (token, bits[64]) = receive(tkn, channel_id=1, id=1)
+  receive.1: (token, bits[64]) = receive(tkn, channel=in_ch, id=1)
 
   literal.21: bits[64] = literal(value=10, id=21)
   tuple_index.23: bits[64] = tuple_index(st, index=0, id=23)
@@ -40,15 +40,15 @@ proc test_proc(tkn: token, st: (bits[64]), init={(10)}) {
   literal.3: bits[1] = literal(value=1, id=3)
   tuple_index.7: token = tuple_index(receive.1, index=0, id=7)
   tuple_index.4: bits[64] = tuple_index(receive.1, index=1, id=4)
-  receive.9: (token, bits[64]) = receive(tuple_index.7, channel_id=2, id=9)
+  receive.9: (token, bits[64]) = receive(tuple_index.7, channel=in_ch_2, id=9)
   tuple_index.10: bits[64] = tuple_index(receive.9, index=1, id=10)
   add.8: bits[64] = add(tuple_index.4, tuple_index.10, id=8)
   add.24: bits[64] = add(add.8, tuple_index.23, id=24)
 
   tuple_index.11: token = tuple_index(receive.9, index=0, id=11)
-  send.2: token = send(tuple_index.11, add.24, predicate=literal.3, channel_id=3, id=2)
+  send.2: token = send(tuple_index.11, add.24, predicate=literal.3, channel=out_ch, id=2)
   literal.14: bits[64] = literal(value=55, id=14)
-  send.12: token = send(send.2, literal.14, predicate=literal.3, channel_id=4, id=12)
+  send.12: token = send(send.2, literal.14, predicate=literal.3, channel=out_ch_2, id=12)
 
   add.20: bits[64] = add(literal.21, tuple_index.23, id=20)
 
@@ -66,12 +66,12 @@ chan input(bits[8], id=0, kind=streaming, ops=receive_only, flow_control=ready_v
 chan output(bits[8], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
 
 proc test_proc(__token: token, init={}) {
-  receive.4: (token, bits[8]) = receive(__token, channel_id=0, id=4)
+  receive.4: (token, bits[8]) = receive(__token, channel=input, id=4)
   recv_val: bits[8] = tuple_index(receive.4, index=1, id=7, pos=[(0,7,19)])
   literal.8: bits[8] = literal(value=42, id=8, pos=[(0,8,39)])
   recv_tok: token = tuple_index(receive.4, index=0, id=6, pos=[(0,7,9)])
   do_send: bits[1] = ne(recv_val, literal.8, id=9, pos=[(0,8,33)])
-  send_tok: token = send(recv_tok, recv_val, predicate=do_send, channel_id=1, id=10)
+  send_tok: token = send(recv_tok, recv_val, predicate=do_send, channel=output, id=10)
   after_all.12: token = after_all(__token, recv_tok, send_tok, id=12)
   next (after_all.12)
 }

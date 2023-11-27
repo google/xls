@@ -3936,23 +3936,23 @@ top proc foo(tkn: token, count: bits[32], init={0}) {
   lit0: bits[32] = literal(value=0)
   lit1: bits[32] = literal(value=1)
   pred: bits[1] = eq(count, lit0)
-  recv: (token, bits[32]) = receive(tkn, predicate=pred, channel_id=0)
+  recv: (token, bits[32]) = receive(tkn, predicate=pred, channel=in)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   count_minus_one: bits[32] = sub(count, lit1)
   next_count: bits[32] = sel(pred, cases=[count_minus_one, recv_data])
-  send_token: token = send(recv_token, recv_data, predicate=pred, channel_id=1)
+  send_token: token = send(recv_token, recv_data, predicate=pred, channel=internal)
   next (send_token, next_count)
 }
 
 proc output_passthrough(tkn: token, state:(), init={()}) {
-  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, channel_id=1)
+  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, channel=internal)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   recv_valid: bits[1] = tuple_index(recv, index=2)
   literal1000: bits[32] = literal(value=1000)
   send_data: bits[32] = sel(recv_valid, cases=[literal1000, recv_data])
-  send_token: token = send(recv_token, send_data, channel_id=2)
+  send_token: token = send(recv_token, send_data, channel=out)
   next(send_token, state)
 }
   )";
@@ -4002,17 +4002,17 @@ top proc foo(tkn: token, count: bits[32], init={0}) {
   lit0: bits[32] = literal(value=0)
   lit1: bits[32] = literal(value=1)
   pred: bits[1] = eq(count, lit0)
-  recv: (token, bits[32]) = receive(tkn, predicate=pred, channel_id=0)
+  recv: (token, bits[32]) = receive(tkn, predicate=pred, channel=in)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   count_minus_one: bits[32] = sub(count, lit1)
   next_count: bits[32] = sel(pred, cases=[count_minus_one, recv_data])
-  send_token: token = send(recv_token, recv_data, predicate=pred, channel_id=1)
+  send_token: token = send(recv_token, recv_data, predicate=pred, channel=internal)
   next (send_token, next_count)
 }
 
 proc output_passthrough(tkn: token, state: bits[1], init={1}) {
-  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, predicate=state, channel_id=1)
+  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, predicate=state, channel=internal)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   recv_valid: bits[1] = tuple_index(recv, index=2)
@@ -4020,7 +4020,7 @@ proc output_passthrough(tkn: token, state: bits[1], init={1}) {
   literal1000: bits[32] = literal(value=1000)
   recv_data_or_literal: bits[32] = sel(recv_valid, cases=[literal1000, recv_data])
   send_data: bits[32] = sel(state, cases=[literal500, recv_data_or_literal])
-  send_token: token = send(recv_token, send_data, channel_id=2)
+  send_token: token = send(recv_token, send_data, channel=out)
   next_state: bits[1] = not(state)
   next(send_token, next_state)
 }
@@ -4091,21 +4091,21 @@ top proc foo(tkn: token, count: bits[2], init={0}) {
   lit0: bits[2] = literal(value=0)
   lit1: bits[2] = literal(value=1)
   pred: bits[1] = eq(count, lit0)
-  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, predicate=pred, channel_id=0)
+  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, predicate=pred, channel=in)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   recv_valid: bits[1] = tuple_index(recv, index=2)
-  send0_token: token = send(recv_token, recv_data, predicate=recv_valid, channel_id=1)
-  send1_token: token = send(send0_token, recv_data, predicate=recv_valid, channel_id=3)
+  send0_token: token = send(recv_token, recv_data, predicate=recv_valid, channel=internal)
+  send1_token: token = send(send0_token, recv_data, predicate=recv_valid, channel=out1)
   next_count: bits[2] = add(count, lit1)
   next (send1_token, next_count)
 }
 
 proc output_passthrough(tkn: token, state:bits[1], init={0}) {
-  recv: (token, bits[32]) = receive(tkn, predicate=state, channel_id=1)
+  recv: (token, bits[32]) = receive(tkn, predicate=state, channel=internal)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  send_token: token = send(recv_token, recv_data, predicate=state, channel_id=2)
+  send_token: token = send(recv_token, recv_data, predicate=state, channel=out0)
   next_state: bits[1] = not(state)
   next(send_token, next_state)
 }

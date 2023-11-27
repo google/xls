@@ -1063,18 +1063,18 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 chan loopback(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, bypass=false, metadata="")
 
 proc running_sum(tkn: token, first_cycle: bits[1], init={1}) {
-  in_recv: (token, bits[32]) = receive(tkn, channel_id=0)
+  in_recv: (token, bits[32]) = receive(tkn, channel=in)
   in_tkn: token = tuple_index(in_recv, index=0)
   in_data: bits[32] = tuple_index(in_recv, index=1)
   lit1: bits[32] = literal(value=1)
   not_first_cycle: bits[1] = not(first_cycle)
-  loopback_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel_id=2)
+  loopback_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel=loopback)
   loopback_tkn: token = tuple_index(loopback_recv, index=0)
   loopback_data: bits[32] = tuple_index(loopback_recv, index=1)
   sum: bits[32] = add(loopback_data, in_data)
   all_recv_tkn: token = after_all(in_tkn, loopback_tkn)
-  out_send: token = send(all_recv_tkn, sum, channel_id=1)
-  loopback_send: token = send(out_send, sum, channel_id=2)
+  out_send: token = send(all_recv_tkn, sum, channel=out)
+  loopback_send: token = send(out_send, sum, channel=loopback)
   lit0: bits[1] = literal(value=0)
   next (loopback_send, lit0)
 }

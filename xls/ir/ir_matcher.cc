@@ -377,25 +377,24 @@ bool TupleIndexMatcher::MatchAndExplain(
 }
 
 static bool MatchChannel(
-    int64_t channel_id, Package* package,
+    std::string_view channel, Package* package,
     const ::testing::Matcher<const ::xls::Channel*>& channel_matcher,
     ::testing::MatchResultListener* listener) {
-  absl::StatusOr<::xls::Channel*> channel_status =
-      package->GetChannel(channel_id);
+  absl::StatusOr<::xls::Channel*> channel_status = package->GetChannel(channel);
   if (!channel_status.ok()) {
-    *listener << " has an invalid channel id: " << channel_id;
+    *listener << " has an invalid channel name: " << channel;
     return false;
   }
   ::xls::Channel* ch = channel_status.value();
   return channel_matcher.MatchAndExplain(ch, listener);
 }
 
-static int64_t GetChannelId(const Node* node) {
+static std::string_view GetChannelName(const Node* node) {
   switch (node->op()) {
     case Op::kReceive:
-      return node->As<::xls::Receive>()->channel_id();
+      return node->As<::xls::Receive>()->channel_name();
     case Op::kSend:
-      return node->As<::xls::Send>()->channel_id();
+      return node->As<::xls::Send>()->channel_name();
     default:
       XLS_LOG(FATAL) << "Node is not a channel node: " << node->ToString();
   }
@@ -409,7 +408,7 @@ bool ChannelNodeMatcher::MatchAndExplain(
   if (!channel_matcher_.has_value()) {
     return true;
   }
-  return MatchChannel(GetChannelId(node), node->package(),
+  return MatchChannel(GetChannelName(node), node->package(),
                       channel_matcher_.value(), listener);
 }
 

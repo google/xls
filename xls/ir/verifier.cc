@@ -170,13 +170,13 @@ class NodeChecker : public DfsVisitor {
       XLS_RETURN_IF_ERROR(
           ExpectOperandHasBitsType(receive, 1, /*expected_bit_count=*/1));
     }
-    if (!receive->package()->HasChannelWithId(receive->channel_id())) {
+    if (!receive->package()->HasChannelWithName(receive->channel_name())) {
       return absl::InternalError(
-          StrFormat("%s refers to channel ID %d which does not exist",
-                    receive->GetName(), receive->channel_id()));
+          StrFormat("%s refers to channel `%s` which does not exist",
+                    receive->GetName(), receive->channel_name()));
     }
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         receive->package()->GetChannel(receive->channel_id()));
+    XLS_ASSIGN_OR_RETURN(Channel * channel, receive->package()->GetChannel(
+                                                receive->channel_name()));
     Type* expected_type =
         receive->is_blocking()
             ? receive->package()->GetTupleType(
@@ -206,13 +206,13 @@ class NodeChecker : public DfsVisitor {
           ExpectOperandHasBitsType(send, 2, /*expected_bit_count=*/1));
     }
 
-    if (!send->package()->HasChannelWithId(send->channel_id())) {
+    if (!send->package()->HasChannelWithName(send->channel_name())) {
       return absl::InternalError(
-          StrFormat("%s refers to channel ID %d which does not exist",
-                    send->GetName(), send->channel_id()));
+          StrFormat("%s refers to channel `%s` which does not exist",
+                    send->GetName(), send->channel_name()));
     }
     XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         send->package()->GetChannel(send->channel_id()));
+                         send->package()->GetChannel(send->channel_name()));
     if (!channel->CanSend()) {
       return absl::InternalError(
           StrFormat("Cannot send over channel %s (%d), send operation: %s",
@@ -1513,10 +1513,10 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
 // if the given node is not a send or receive.
 absl::StatusOr<Channel*> GetSendOrReceiveChannel(Node* node) {
   if (node->Is<Send>()) {
-    return node->package()->GetChannel(node->As<Send>()->channel_id());
+    return node->package()->GetChannel(node->As<Send>()->channel_name());
   }
   if (node->Is<Receive>()) {
-    return node->package()->GetChannel(node->As<Receive>()->channel_id());
+    return node->package()->GetChannel(node->As<Receive>()->channel_name());
   }
   return absl::InternalError(absl::StrFormat(
       "Node is not a send or receive node: %s", node->ToString()));
@@ -2033,9 +2033,9 @@ static absl::Status VerifyFifoInstantiation(Package* package,
         absl::StrFormat("Expected fifo depth >= 0, got %d",
                         instantiation->fifo_config().depth));
   }
-  if (instantiation->channel_id().has_value()) {
+  if (instantiation->channel_name().has_value()) {
     XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         package->GetChannel(*instantiation->channel_id()));
+                         package->GetChannel(*instantiation->channel_name()));
     if (channel->kind() != ChannelKind::kStreaming) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Expected channel %s (with FIFO instantiation %s) to "

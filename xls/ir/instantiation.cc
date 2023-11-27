@@ -178,14 +178,13 @@ std::string ExternInstantiation::ToString() const {
                          name(), function_->name());
 }
 
-FifoInstantiation::FifoInstantiation(std::string_view inst_name,
-                                     FifoConfig fifo_config, Type* data_type,
-                                     std::optional<int64_t> channel_id,
-                                     Package* package)
+FifoInstantiation::FifoInstantiation(
+    std::string_view inst_name, FifoConfig fifo_config, Type* data_type,
+    std::optional<std::string_view> channel_name, Package* package)
     : Instantiation(inst_name, InstantiationKind::kFifo),
       fifo_config_(fifo_config),
       data_type_(data_type),
-      channel_id_(channel_id),
+      channel_name_(channel_name),
       package_(package) {
   XLS_CHECK(package->IsOwnedType(data_type));
 }
@@ -223,8 +222,8 @@ absl::StatusOr<InstantiationPort> FifoInstantiation::GetOutputPort(
 
 std::string FifoInstantiation::ToString() const {
   std::string channel_str;
-  if (channel_id_.has_value()) {
-    channel_str = absl::StrFormat("channel_id=%d, ", *channel_id_);
+  if (channel_name_.has_value()) {
+    channel_str = absl::StrFormat("channel=\"%s\", ", *channel_name_);
   }
 
   return absl::StrFormat(

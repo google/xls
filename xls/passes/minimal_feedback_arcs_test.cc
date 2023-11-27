@@ -151,10 +151,10 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 top proc foo(tkn: token, st: (), init={()}) {
-  recv: (token, bits[32]) = receive(tkn, channel_id=0)
+  recv: (token, bits[32]) = receive(tkn, channel=in)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  send_token: token = send(recv_token, recv_data, channel_id=1)
+  send_token: token = send(recv_token, recv_data, channel=out)
   next (send_token, st)
 }
 )";
@@ -171,16 +171,16 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 chan internal(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
 
 top proc foo(tkn: token, st: (), init={()}) {
-  recv: (token, bits[32]) = receive(tkn, channel_id=0)
+  recv: (token, bits[32]) = receive(tkn, channel=in)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  internal_recv: (token, bits[32]) = receive(tkn, channel_id=2)
+  internal_recv: (token, bits[32]) = receive(tkn, channel=internal)
   internal_recv_token: token = tuple_index(internal_recv, index=0)
   internal_recv_data: bits[32] = tuple_index(internal_recv, index=1)
   sum: bits[32] = add(recv_data, internal_recv_data)
   all_receive_token: token = after_all(recv_token, internal_recv_token)
-  send_token: token = send(all_receive_token, sum, channel_id=1)
-  internal_send_token: token = send(recv_token, recv_data, channel_id=2)
+  send_token: token = send(all_receive_token, sum, channel=out)
+  internal_send_token: token = send(recv_token, recv_data, channel=internal)
   all_send_token: token = after_all(send_token, internal_send_token)
   next (all_send_token, st)
 }
@@ -198,16 +198,16 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 chan internal(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
 
 top proc foo(tkn: token, st: (), init={()}) {
-  recv: (token, bits[32]) = receive(tkn, channel_id=0)
+  recv: (token, bits[32]) = receive(tkn, channel=in)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  internal_recv: (token, bits[32]) = receive(tkn, channel_id=2)
+  internal_recv: (token, bits[32]) = receive(tkn, channel=internal)
   internal_recv_token: token = tuple_index(internal_recv, index=0)
   internal_recv_data: bits[32] = tuple_index(internal_recv, index=1)
   sum: bits[32] = add(recv_data, internal_recv_data)
   all_receive_token: token = after_all(recv_token, internal_recv_token)
-  send_token: token = send(all_receive_token, sum, channel_id=1)
-  internal_send_token: token = send(all_receive_token, sum, channel_id=2)
+  send_token: token = send(all_receive_token, sum, channel=out)
+  internal_send_token: token = send(all_receive_token, sum, channel=internal)
   all_send_token: token = after_all(send_token, internal_send_token)
   next (all_send_token, st)
 }
@@ -235,30 +235,30 @@ chan internal1(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=re
 chan internal2(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
 
 top proc foo(tkn: token, st: (), init={()}) {
-  recv: (token, bits[32]) = receive(tkn, channel_id=0)
+  recv: (token, bits[32]) = receive(tkn, channel=in)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  internal_recv0: (token, bits[32]) = receive(tkn, channel_id=2)
+  internal_recv0: (token, bits[32]) = receive(tkn, channel=internal0)
   internal_recv0_token: token = tuple_index(internal_recv0, index=0)
   internal_recv0_data: bits[32] = tuple_index(internal_recv0, index=1)
-  internal_recv1: (token, bits[32]) = receive(tkn, channel_id=3)
+  internal_recv1: (token, bits[32]) = receive(tkn, channel=internal1)
   internal_recv1_token: token = tuple_index(internal_recv1, index=0)
   internal_recv1_data: bits[32] = tuple_index(internal_recv1, index=1)
   partial_sum: bits[32] = add(internal_recv0_data, internal_recv1_data)
   sum: bits[32] = add(recv_data, partial_sum)
   all_receive_token: token = after_all(recv_token, internal_recv0_token, internal_recv1_token)
-  send_token: token = send(all_receive_token, sum, channel_id=1)
-  internal_send_token: token = send(all_receive_token, sum, channel_id=4)
+  send_token: token = send(all_receive_token, sum, channel=out)
+  internal_send_token: token = send(all_receive_token, sum, channel=internal2)
   all_send_token: token = after_all(send_token, internal_send_token)
   next (all_send_token, st)
 }
 
 proc bar(tkn: token, st: (), init={()}) {
-  recv: (token, bits[32]) = receive(tkn, channel_id=4)
+  recv: (token, bits[32]) = receive(tkn, channel=internal2)
   recv_token: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  send0_token: token = send(recv_token, recv_data, channel_id=2)
-  send1_token: token = send(recv_token, recv_data, channel_id=3)
+  send0_token: token = send(recv_token, recv_data, channel=internal0)
+  send1_token: token = send(recv_token, recv_data, channel=internal1)
   all_send_token: token = after_all(send0_token, send1_token)
   next(all_send_token, st)
 }

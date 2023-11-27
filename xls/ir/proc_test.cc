@@ -302,8 +302,8 @@ TEST_F(ProcTest, Clone) {
                                   p->GetBitsType(32)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * clone,
-      proc->Clone("cloned", p.get(), {{channel->id(), cloned_channel->id()}}));
+      Proc * clone, proc->Clone("cloned", p.get(),
+                                {{channel->name(), cloned_channel->name()}}));
 
   EXPECT_FALSE(clone->IsFunction());
   EXPECT_TRUE(clone->IsProc());
@@ -311,12 +311,12 @@ TEST_F(ProcTest, Clone) {
   EXPECT_EQ(clone->DumpIr(),
             R"(proc cloned(tkn: token, st: bits[32], init={42}) {
   literal.12: bits[32] = literal(value=1, id=12)
-  receive_3: (token, bits[32]) = receive(tkn, channel_id=1, id=13)
+  receive_3: (token, bits[32]) = receive(tkn, channel=cloned_chan, id=13)
   add.14: bits[32] = add(literal.12, st, id=14)
   tuple_index.15: bits[32] = tuple_index(receive_3, index=1, id=15)
   tuple_index.16: token = tuple_index(receive_3, index=0, id=16)
   add.17: bits[32] = add(add.14, tuple_index.15, id=17)
-  send_9: token = send(tuple_index.16, add.17, channel_id=1, id=18)
+  send_9: token = send(tuple_index.16, add.17, channel=cloned_chan, id=18)
   next (send_9, add.17)
 }
 )");

@@ -999,16 +999,18 @@ absl::StatusOr<BValue> Parser::ParseNode(
                                op_token.pos()));
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
-      int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
+      IdentifierString* channel_name =
+          arg_parser.AddKeywordArg<IdentifierString>("channel");
       bool* is_blocking = arg_parser.AddOptionalKeywordArg<bool>(
           "blocking", /*default_value=*/true);
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       // Get the channel from the package.
-      if (!package->HasChannelWithId(*channel_id)) {
+      if (!package->HasChannelWithName(channel_name->value)) {
         return absl::InvalidArgumentError(
-            absl::StrFormat("No such channel with channel ID %d", *channel_id));
+            absl::StrFormat("No such channel `%s`", channel_name->value));
       }
-      XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
+      XLS_ASSIGN_OR_RETURN(Channel * channel,
+                           package->GetChannel(channel_name->value));
 
       Type* expected_type =
           (*is_blocking)
@@ -1047,14 +1049,16 @@ absl::StatusOr<BValue> Parser::ParseNode(
               fb, "send operations only supported in procs", op_token.pos()));
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
-      int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
+      IdentifierString* channel_name =
+          arg_parser.AddKeywordArg<IdentifierString>("channel");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
-      if (!package->HasChannelWithId(*channel_id)) {
+      if (!package->HasChannelWithName(channel_name->value)) {
         return absl::InvalidArgumentError(
-            absl::StrFormat("No such channel with channel ID %d", *channel_id));
+            absl::StrFormat("No such channel `%s`", channel_name->value));
       }
-      XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
+      XLS_ASSIGN_OR_RETURN(Channel * channel,
+                           package->GetChannel(channel_name->value));
       if (predicate->has_value()) {
         bvalue = pb->SendIf(channel, operands[0], predicate->value(),
                             operands[1], *loc, node_name);
@@ -1390,11 +1394,11 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
     return absl::OkStatus();
   };
 
-  std::optional<int64_t> channel_id;
-  handlers["channel_id"] = [&]() -> absl::Status {
-    XLS_ASSIGN_OR_RETURN(Token channel_id_token,
-                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
-    XLS_ASSIGN_OR_RETURN(channel_id, channel_id_token.GetValueInt64());
+  std::optional<std::string> channel;
+  handlers["channel"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token channel_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    channel = channel_token.value();
     return absl::OkStatus();
   };
 
@@ -1443,7 +1447,7 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
             Field::MustNotHave(data_type.has_value(), "data_type"),
             Field::MustNotHave(depth.has_value(), "depth"),
             Field::MustNotHave(bypass.has_value(), "bypass"),
-            Field::MustNotHave(channel_id.has_value(), "channel_id"),
+            Field::MustNotHave(channel.has_value(), "channel"),
             Field::MustHave(instantiated_block.has_value(),
                             "instantiated_block"),
         },
@@ -1464,7 +1468,7 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
     return block->AddFifoInstantiation(
         instantiation_name.value(),
         FifoConfig{.depth = depth.value(), .bypass = bypass.value()},
-        *data_type, channel_id);
+        *data_type, channel);
   }
 
   return absl::InvalidArgumentError(

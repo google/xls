@@ -708,7 +708,7 @@ OpClass.kinds['RECEIVE'] = OpClass(
     name='Receive',
     op='Op::kReceive',
     operands=[Operand('token'), OptionalOperand('predicate')],
-    xls_type_expression='GetReceiveType(function->package(), channel_id, is_blocking)',
+    xls_type_expression='GetReceiveType(function->package(), channel_name, is_blocking)',
     extra_methods=[Method(name='token',
                           return_cpp_type='Node*',
                           expression='operand(0)'),
@@ -721,10 +721,10 @@ OpClass.kinds['RECEIVE'] = OpClass(
                    Method(name='ReplaceChannel',
                           return_cpp_type='void',
                           expression=None,
-                          params='int64_t new_channel_id',
+                          params='std::string_view new_channel_name',
                           is_const=False),
                    ],
-    attributes=[Int64Attribute('channel_id'), BoolAttribute('is_blocking')],
+    attributes=[StringAttribute('channel_name'), BoolAttribute('is_blocking')],
     custom_clone_method=True
 )
 
@@ -733,7 +733,7 @@ OpClass.kinds['SEND'] = OpClass(
     op='Op::kSend',
     operands=[Operand('token'), Operand('data'), OptionalOperand('predicate')],
     xls_type_expression='function->package()->GetTokenType()',
-    attributes=[Int64Attribute('channel_id')],
+    attributes=[StringAttribute('channel_name')],
     extra_methods=[Method(name='token',
                           return_cpp_type='Node*',
                           expression='operand(0)'),
@@ -746,7 +746,7 @@ OpClass.kinds['SEND'] = OpClass(
                    Method(name='ReplaceChannel',
                           return_cpp_type='void',
                           expression=None,
-                          params='int64_t new_channel_id',
+                          params='std::string_view new_channel_name',
                           is_const=False),
                    ],
     custom_clone_method=True

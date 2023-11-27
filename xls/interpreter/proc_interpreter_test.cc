@@ -14,12 +14,14 @@
 
 #include "xls/interpreter/proc_interpreter.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/proc_evaluator_test_base.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 
 namespace xls {

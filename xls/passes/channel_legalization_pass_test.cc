@@ -150,14 +150,14 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
 top proc my_proc(tok: token, init={}) {
-  recv0: (token, bits[32]) = receive(tok, channel_id=0)
+  recv0: (token, bits[32]) = receive(tok, channel=in)
   recv0_tok: token = tuple_index(recv0, index=0)
   recv0_data: bits[32] = tuple_index(recv0, index=1)
-  recv1: (token, bits[32]) = receive(recv0_tok, channel_id=0)
+  recv1: (token, bits[32]) = receive(recv0_tok, channel=in)
   recv1_tok: token = tuple_index(recv1, index=0)
   recv1_data: bits[32] = tuple_index(recv1, index=1)
-  send0: token = send(recv1_tok, recv1_data, channel_id=1)
-  send1: token = send(send0, recv0_data, channel_id=1)
+  send0: token = send(recv1_tok, recv1_data, channel=out)
+  send1: token = send(send0, recv0_data, channel=out)
   next(send1)
 }
     )",
@@ -227,19 +227,19 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
 top proc proc_a(tok: token, pred: bits[1], init={1}) {
-  recv: (token, bits[32]) = receive(tok, predicate=pred, channel_id=0)
+  recv: (token, bits[32]) = receive(tok, predicate=pred, channel=in)
   recv_tok: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  send: token = send(recv_tok, recv_data, predicate=pred, channel_id=1)
+  send: token = send(recv_tok, recv_data, predicate=pred, channel=out)
   next_pred: bits[1] = not(pred)
   next(send, next_pred)
 }
 
 proc proc_b(tok: token, pred: bits[1], init={0}) {
-  recv: (token, bits[32]) = receive(tok, predicate=pred, channel_id=0)
+  recv: (token, bits[32]) = receive(tok, predicate=pred, channel=in)
   recv_tok: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  send: token = send(recv_tok, recv_data, predicate=pred, channel_id=1)
+  send: token = send(recv_tok, recv_data, predicate=pred, channel=out)
   next_pred: bits[1] = not(pred)
   next(send, next_pred)
 }
@@ -291,18 +291,18 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
 top proc proc_a(tok: token, init={}) {
-  recv: (token, bits[32]) = receive(tok, channel_id=0)
+  recv: (token, bits[32]) = receive(tok, channel=in)
   recv_tok: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  send: token = send(recv_tok, recv_data, channel_id=1)
+  send: token = send(recv_tok, recv_data, channel=out)
   next(send)
 }
 
 proc proc_b(tok: token, init={}) {
-  recv: (token, bits[32]) = receive(tok, channel_id=0)
+  recv: (token, bits[32]) = receive(tok, channel=in)
   recv_tok: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
-  send: token = send(recv_tok, recv_data, channel_id=1)
+  send: token = send(recv_tok, recv_data, channel=out)
   next(send)
 }
       )",
@@ -367,24 +367,24 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 chan pred(bits[2], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
 top proc my_proc(tok: token, init={}) {
-  pred_recv: (token, bits[2]) = receive(tok, channel_id=2)
+  pred_recv: (token, bits[2]) = receive(tok, channel=pred)
   pred_token: token = tuple_index(pred_recv, index=0)
   pred_data: bits[2] = tuple_index(pred_recv, index=1)
   pred0: bits[1] = bit_slice(pred_data, start=0, width=1)
   pred1: bits[1] = bit_slice(pred_data, start=1, width=1)
-  recv0: (token, bits[32]) = receive(pred_token, channel_id=0)
+  recv0: (token, bits[32]) = receive(pred_token, channel=in)
   recv0_tok: token = tuple_index(recv0, index=0)
   recv0_data: bits[32] = tuple_index(recv0, index=1)
-  recv1: (token, bits[32]) = receive(recv0_tok, channel_id=0, predicate=pred0)
+  recv1: (token, bits[32]) = receive(recv0_tok, channel=in, predicate=pred0)
   recv1_tok: token = tuple_index(recv1, index=0)
   recv1_data: bits[32] = tuple_index(recv1, index=1)
-  recv2: (token, bits[32]) = receive(recv0_tok, channel_id=0, predicate=pred1)
+  recv2: (token, bits[32]) = receive(recv0_tok, channel=in, predicate=pred1)
   recv2_tok: token = tuple_index(recv2, index=0)
   recv2_data: bits[32] = tuple_index(recv2, index=1)
   all_recv_tok: token = after_all(recv0_tok, recv1_tok, recv2_tok)
-  send0: token = send(all_recv_tok, recv0_data, channel_id=1)
-  send1: token = send(send0, recv1_data, predicate=pred0, channel_id=1)
-  send2: token = send(send0, recv2_data, predicate=pred1, channel_id=1)
+  send0: token = send(all_recv_tok, recv0_data, channel=out)
+  send1: token = send(send0, recv1_data, predicate=pred0, channel=out)
+  send2: token = send(send0, recv2_data, predicate=pred1, channel=out)
   all_send_tok: token = after_all(send0, send1, send2)
   next(all_send_tok)
 }
@@ -527,15 +527,15 @@ chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid
 
 top proc test_proc(tkn: token, state:(), init={()}) {
   data_to_send: bits[32] = literal(value=5)
-  pred_recv: (token, bits[1]) = receive(tkn, channel_id=0)
+  pred_recv: (token, bits[1]) = receive(tkn, channel=pred_recv)
   pred_recv_token: token = tuple_index(pred_recv, index=0)
   pred_recv_data: bits[1] = tuple_index(pred_recv, index=1)
-  in_recv0: (token, bits[32]) = receive(pred_recv_token, predicate=pred_recv_data, channel_id=1)
+  in_recv0: (token, bits[32]) = receive(pred_recv_token, predicate=pred_recv_data, channel=in)
   in_recv0_token: token = tuple_index(in_recv0, index=0)
-  in_recv1: (token, bits[32]) = receive(in_recv0_token, predicate=pred_recv_data, channel_id=1)
+  in_recv1: (token, bits[32]) = receive(in_recv0_token, predicate=pred_recv_data, channel=in)
   in_recv1_token: token = tuple_index(in_recv1, index=0)
-  out_send0: token = send(in_recv1_token, data_to_send, channel_id=2)
-  out_send1: token = send(out_send0, data_to_send, channel_id=2)
+  out_send0: token = send(in_recv1_token, data_to_send, channel=out)
+  out_send1: token = send(out_send0, data_to_send, channel=out)
   next (out_send1, state)
 }
         )",
@@ -607,17 +607,17 @@ chan in(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
 
 top proc test_proc(tkn: token, state:(), init={()}) {
-  in_recv0: (token, bits[32]) = receive(tkn, channel_id=1)
+  in_recv0: (token, bits[32]) = receive(tkn, channel=in)
   in_recv0_token: token = tuple_index(in_recv0, index=0)
   in_recv0_data: bits[32] = tuple_index(in_recv0, index=1)
   comp_data: bits[32] = literal(value=5)
   in_recv1_pred: bits[1] = ugt(in_recv0_data, comp_data)
-  in_recv1: (token, bits[32]) = receive(in_recv0_token, predicate=in_recv1_pred, channel_id=1)
+  in_recv1: (token, bits[32]) = receive(in_recv0_token, predicate=in_recv1_pred, channel=in)
   in_recv1_token: token = tuple_index(in_recv1, index=0)
   in_recv1_data: bits[32] = tuple_index(in_recv1, index=1)
   data_to_send: bits[32] = add(in_recv0_data, in_recv1_data)
-  out_send0: token = send(in_recv1_token, data_to_send, channel_id=2)
-  out_send1: token = send(out_send0, data_to_send, predicate=in_recv1_pred, channel_id=2)
+  out_send0: token = send(in_recv1_token, data_to_send, channel=out)
+  out_send1: token = send(out_send0, data_to_send, predicate=in_recv1_pred, channel=out)
   next (out_send1, state)
 }
         )",
@@ -699,17 +699,17 @@ chan out0(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_vali
 chan out1(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
 
 top proc test_proc(tkn: token, state:(), init={()}) {
-  in_recv0: (token, bits[32]) = receive(tkn, channel_id=1)
+  in_recv0: (token, bits[32]) = receive(tkn, channel=in)
   in_recv0_token: token = tuple_index(in_recv0, index=0)
   in_recv0_data: bits[32] = tuple_index(in_recv0, index=1)
   comp_data: bits[32] = literal(value=5)
   in_recv1_pred: bits[1] = ugt(in_recv0_data, comp_data)
-  in_recv1: (token, bits[32]) = receive(in_recv0_token, predicate=in_recv1_pred, channel_id=1)
+  in_recv1: (token, bits[32]) = receive(in_recv0_token, predicate=in_recv1_pred, channel=in)
   in_recv1_token: token = tuple_index(in_recv1, index=0)
   in_recv1_data: bits[32] = tuple_index(in_recv1, index=1)
   data_to_send: bits[32] = add(in_recv0_data, in_recv1_data)
-  out_send0: token = send(in_recv1_token, data_to_send, channel_id=2)
-  out_send1: token = send(out_send0, data_to_send, predicate=in_recv1_pred, channel_id=3)
+  out_send0: token = send(in_recv1_token, data_to_send, channel=out0)
+  out_send1: token = send(out_send0, data_to_send, predicate=in_recv1_pred, channel=out1)
   next (out_send1, state)
 }
         )",
@@ -806,17 +806,17 @@ chan pred1(bits[1], id=1, kind=streaming, ops=receive_only, flow_control=ready_v
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
 
 top proc test_proc(tkn: token, state:(), init={()}) {
-  pred1_recv: (token, bits[1]) = receive(tkn, channel_id=1)
+  pred1_recv: (token, bits[1]) = receive(tkn, channel=pred1)
   pred1_recv_token: token = tuple_index(pred1_recv, index=0)
   pred1_recv_data: bits[1] = tuple_index(pred1_recv, index=1)
-  pred0_recv: (token, bits[1]) = receive(pred1_recv_token, channel_id=0)
+  pred0_recv: (token, bits[1]) = receive(pred1_recv_token, channel=pred0)
   pred0_recv_token: token = tuple_index(pred0_recv, index=0)
   pred0_recv_data: bits[1] = tuple_index(pred0_recv, index=1)
   literal0: bits[32] = literal(value=0)
   literal1: bits[32] = literal(value=1)
-  out_send0: token = send(pred0_recv_token, literal0, predicate=pred0_recv_data, channel_id=2)
+  out_send0: token = send(pred0_recv_token, literal0, predicate=pred0_recv_data, channel=out)
   after_all_tok: token = after_all(out_send0, pred1_recv_token)
-  out_send1: token = send(after_all_tok, literal1, predicate=pred1_recv_data, channel_id=2)
+  out_send1: token = send(after_all_tok, literal1, predicate=pred1_recv_data, channel=out)
   next (out_send1, state)
 }
         )",

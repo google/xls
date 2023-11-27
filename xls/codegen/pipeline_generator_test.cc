@@ -1112,12 +1112,12 @@ chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_va
 
 #[initiation_interval(2)]
 proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
-  send.1: token = send(tkn, st, channel_id=1, id=1)
+  send.1: token = send(tkn, st, channel=out, id=1)
   min_delay.2: token = min_delay(send.1, delay=1, id=2)
-  receive.3: (token, bits[32]) = receive(min_delay.2, channel_id=0, id=3)
+  receive.3: (token, bits[32]) = receive(min_delay.2, channel=in, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
-  send.6: token = send(tuple_index.4, tuple_index.5, channel_id=2, id=6)
+  send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
   next (send.6, tuple_index.5)
 }
 )",

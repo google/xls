@@ -53,18 +53,18 @@ Type* GetMapType(Node* operand, Function* to_apply) {
                                  to_apply->return_value()->GetType());
 }
 
-Type* GetReceivePayloadType(Package* package, int64_t channel_id) {
-  return package->GetChannel(channel_id).value()->type();
+Type* GetReceivePayloadType(Package* package, std::string_view channel_name) {
+  return package->GetChannel(channel_name).value()->type();
 }
 
-Type* GetReceiveType(Package* package, int64_t channel_id, bool is_blocking) {
+Type* GetReceiveType(Package* package, std::string_view channel_name, bool is_blocking) {
   if(is_blocking) {
     return package->GetTupleType({package->GetTokenType(),
-                                  GetReceivePayloadType(package, channel_id)});
+                                  GetReceivePayloadType(package, channel_name)});
   }
 
   return package->GetTupleType({package->GetTokenType(),
-                           GetReceivePayloadType(package, channel_id),
+                           GetReceivePayloadType(package, channel_name),
                            package->GetBitsType(1)});
 }
 
@@ -237,15 +237,15 @@ absl::StatusOr<Node*> Trace::CloneInNewFunction(
 }
 
 Type* Receive::GetPayloadType() const {
-  return GetReceivePayloadType(function_base_->package(), channel_id_);
+  return GetReceivePayloadType(function_base_->package(), channel_name_);
 }
 
-void Receive::ReplaceChannel(int64_t new_channel_id) {
-  channel_id_ = new_channel_id;
+void Receive::ReplaceChannel(std::string_view new_channel_name) {
+  channel_name_ = new_channel_name;
 }
 
-void Send::ReplaceChannel(int64_t new_channel_id) {
-  channel_id_ = new_channel_id;
+void Send::ReplaceChannel(std::string_view new_channel_name) {
+  channel_name_ = new_channel_name;
 }
 
 absl::StatusOr<Node*> Receive::CloneInNewFunction(
@@ -256,7 +256,7 @@ absl::StatusOr<Node*> Receive::CloneInNewFunction(
       loc(), new_operands[0],
       new_operands.size() > 1 ? std::optional<Node*>(new_operands[1])
                               : absl::nullopt,
-      channel_id(), is_blocking(), name_);
+      channel_name(), is_blocking(), name_);
 }
 
 absl::StatusOr<Node*> Send::CloneInNewFunction(
@@ -267,7 +267,7 @@ absl::StatusOr<Node*> Send::CloneInNewFunction(
       loc(), new_operands[0], new_operands[1],
       new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
                               : absl::nullopt,
-      channel_id(), name_);
+      channel_name(), name_);
 }
 
 bool Select::AllCases(std::function<bool(Node*)> p) const {

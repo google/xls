@@ -206,13 +206,13 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 top proc g(tok: token, x: (), init={()}) {
-  recv_tuple: (token, bits[32]) = receive(tok, channel_id=0)
+  recv_tuple: (token, bits[32]) = receive(tok, channel=in)
   recv_token: token = tuple_index(recv_tuple, index=0)
   recv_data: bits[32] = tuple_index(recv_tuple, index=1)
   xy: bits[32] = umul(recv_data, recv_data)
   literal1: bits[32] = literal(value=1)
   xy_plus_1: bits[32] = add(xy, literal1)
-  send: token = send(recv_token, xy_plus_1, channel_id=1)
+  send: token = send(recv_token, xy_plus_1, channel=out)
   literal4: bits[32] = literal(value=4)
   xy_plus_1_gt_4: bits[1] = ugt(xy_plus_1, literal4)
   assertion: token = assert(send, xy_plus_1_gt_4, label="foo", message="bar")
@@ -432,13 +432,13 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 top proc f(tkn: token, x: bits[32], init={0}) {
-  y_recv: (token, bits[32]) = receive(tkn, channel_id=0)
+  y_recv: (token, bits[32]) = receive(tkn, channel=in)
   y_token: token = tuple_index(y_recv, index=0)
   y: bits[32] = tuple_index(y_recv, index=1)
   x_lt_y: bits[1] = ult(x, y)
   assertion: token = assert(y_token, x_lt_y, label="foo", message="bar")
   sum: bits[32] = add(x, y)
-  send_tok: token = send(assertion, sum, channel_id=1)
+  send_tok: token = send(assertion, sum, channel=out)
   next (send_tok, sum)
 }
     )";
@@ -556,13 +556,13 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 proc g(tok: token, x: bits[32], init={4}) {
-  recv_tuple: (token, bits[32]) = receive(tok, channel_id=0)
+  recv_tuple: (token, bits[32]) = receive(tok, channel=in)
   recv_token: token = tuple_index(recv_tuple, index=0)
   recv_data: bits[32] = tuple_index(recv_tuple, index=1)
   xy: bits[32] = umul(x, recv_data)
   literal1: bits[32] = literal(value=1)
   xy_plus_1: bits[32] = add(xy, literal1)
-  send: token = send(recv_token, xy_plus_1, channel_id=1)
+  send: token = send(recv_token, xy_plus_1, channel=out)
   literal4: bits[32] = literal(value=4)
   xy_plus_1_gt_4: bits[1] = ugt(xy_plus_1, literal4)
   assertion: token = assert(send, xy_plus_1_gt_4, label="foo", message="bar")
@@ -621,15 +621,15 @@ chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_va
 
 #[initiation_interval(2)]
 top proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
-  send0_token: token = send(tkn, st, channel_id=1)
+  send0_token: token = send(tkn, st, channel=out)
   min_delay_token: token = min_delay(send0_token, delay=1)
-  receive_tuple: (token, bits[32]) = receive(min_delay_token, channel_id=0)
+  receive_tuple: (token, bits[32]) = receive(min_delay_token, channel=in)
   receive_token: token = tuple_index(receive_tuple, index=0)
   receive_data: bits[32] = tuple_index(receive_tuple, index=1)
   literal5: bits[32] = literal(value=5)
   receive_data_lt_5: bits[1] = ult(receive_data, literal5)
   assertion: token = assert(receive_token, receive_data_lt_5, label="foo", message="bar")
-  send1_token: token = send(assertion, receive_data, channel_id=2)
+  send1_token: token = send(assertion, receive_data, channel=in_out)
   next (send1_token, receive_data)
 }
 )";

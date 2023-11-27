@@ -242,13 +242,13 @@ TEST_F(NodeTest, ReplaceSendChannel) {
                            pb.Build(send1_tok, {pb.Not(send_on_c1)}));
   Send* send0 = send0_tok.node()->As<Send>();
   Send* send1 = send1_tok.node()->As<Send>();
-  EXPECT_NE(send0->channel_id(), ch1->id());
-  send0->ReplaceChannel(ch1->id());
-  EXPECT_EQ(send0->channel_id(), ch1->id());
+  EXPECT_NE(send0->channel_name(), ch1->name());
+  send0->ReplaceChannel(ch1->name());
+  EXPECT_EQ(send0->channel_name(), ch1->name());
   XLS_EXPECT_OK(VerifyNode(send0));
-  EXPECT_NE(send1->channel_id(), ch0->id());
-  send1->ReplaceChannel(ch0->id());
-  EXPECT_EQ(send1->channel_id(), ch0->id());
+  EXPECT_NE(send1->channel_name(), ch0->name());
+  send1->ReplaceChannel(ch0->name());
+  EXPECT_EQ(send1->channel_name(), ch0->name());
   XLS_EXPECT_OK(VerifyNode(send1));
   XLS_EXPECT_OK(VerifyProc(proc));
 }
@@ -286,17 +286,17 @@ TEST_F(NodeTest, ReplaceReceiveChannel) {
   Receive* recv0_node = recv0.node()->As<Receive>();
   Receive* recv1_node = recv1.node()->As<Receive>();
   Receive* recv2_node = recv2.node()->As<Receive>();
-  EXPECT_NE(recv0_node->channel_id(), ch1->id());
-  recv0_node->ReplaceChannel(ch1->id());
-  EXPECT_EQ(recv0_node->channel_id(), ch1->id());
+  EXPECT_NE(recv0_node->channel_name(), ch1->name());
+  recv0_node->ReplaceChannel(ch1->name());
+  EXPECT_EQ(recv0_node->channel_name(), ch1->name());
   XLS_EXPECT_OK(VerifyNode(recv0_node));
-  EXPECT_NE(recv1_node->channel_id(), ch2->id());
-  recv1_node->ReplaceChannel(ch2->id());
-  EXPECT_EQ(recv1_node->channel_id(), ch2->id());
+  EXPECT_NE(recv1_node->channel_name(), ch2->name());
+  recv1_node->ReplaceChannel(ch2->name());
+  EXPECT_EQ(recv1_node->channel_name(), ch2->name());
   XLS_EXPECT_OK(VerifyNode(recv1_node));
-  EXPECT_NE(recv2_node->channel_id(), ch0->id());
-  recv2_node->ReplaceChannel(ch0->id());
-  EXPECT_EQ(recv2_node->channel_id(), ch0->id());
+  EXPECT_NE(recv2_node->channel_name(), ch0->name());
+  recv2_node->ReplaceChannel(ch0->name());
+  EXPECT_EQ(recv2_node->channel_name(), ch0->name());
   XLS_EXPECT_OK(VerifyNode(recv2_node));
 
   XLS_EXPECT_OK(VerifyProc(proc));

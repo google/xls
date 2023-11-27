@@ -347,7 +347,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
                    ChannelStrictness::kProvenMutuallyExclusive,
                    ChannelMetadataProto(), 1)
                   .status(),
-              StatusIs(absl::StatusCode::kInternal,
+              StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Channel already exists with id 1")));
 
   // Fetching a non-existent channel ID is an error.
@@ -1005,10 +1005,10 @@ chan test_channel(
   flow_control=ready_valid, metadata="""""")
 
 top proc main(__token: token, __state: (), init={()}) {
-  receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+  receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-  send.4: token = send(__token, tuple_index.3, channel_id=0)
+  send.4: token = send(__token, tuple_index.3, channel=test_channel)
   after_all.5: token = after_all(send.4, tuple_index.2)
   tuple.6: () = tuple()
   next (after_all.5, tuple.6)
@@ -1023,10 +1023,10 @@ chan another_test_channel(
 
 
 top proc another_main(__token: token, __state: (), init={()}) {
-  receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+  receive.1: (token, bits[32]) = receive(__token, channel=another_test_channel)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-  send.4: token = send(__token, tuple_index.3, channel_id=0)
+  send.4: token = send(__token, tuple_index.3, channel=another_test_channel)
   after_all.5: token = after_all(send.4, tuple_index.2)
   tuple.6: () = tuple()
   next (after_all.5, tuple.6)
@@ -1057,11 +1057,11 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
 }
 
 top proc main(__token: token, __state: (), init={()}) {
-  receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+  receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   invoke.4: bits[32] = invoke(tuple_index.3, tuple_index.3, to_apply=f)
-  send.5: token = send(__token, invoke.4, channel_id=0)
+  send.5: token = send(__token, invoke.4, channel=test_channel)
   after_all.6: token = after_all(send.5, tuple_index.2)
   tuple.7: () = tuple()
   next (after_all.6, tuple.7)
@@ -1079,11 +1079,11 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
 }
 
 top proc another_main(__token: token, __state: (), init={()}) {
-  receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+  receive.1: (token, bits[32]) = receive(__token, channel=another_test_channel)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   invoke.4: bits[32] = invoke(tuple_index.3, tuple_index.3, to_apply=f)
-  send.5: token = send(__token, invoke.4, channel_id=0)
+  send.5: token = send(__token, invoke.4, channel=another_test_channel)
   after_all.6: token = after_all(send.5, tuple_index.2)
   tuple.7: () = tuple()
   next (after_all.6, tuple.7)

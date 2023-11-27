@@ -1023,21 +1023,21 @@ TEST_F(TranslatorMemoryTest, MemoryUnused) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("foo_unused__read_request"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("foo_unused__read_response"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("foo_unused__write_request"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
   {
@@ -1045,7 +1045,7 @@ TEST_F(TranslatorMemoryTest, MemoryUnused) {
         xls::Channel * channel,
         package_->GetChannel("foo_unused__write_response"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
 
@@ -1186,33 +1186,33 @@ TEST_F(TranslatorMemoryTest, MemoryTokenNetwork) {
       xls::Proc * ret,
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec));
 
-  int64_t memory_read_request_id = -1, memory_read_response_id = -1;
+  std::string_view memory_read_request, memory_read_response;
 
   for (xls::Channel* channel : package_->channels()) {
     const std::string ch_name = channel->name();
     if (ch_name == "memory__read_request") {
-      memory_read_request_id = channel->id();
+      memory_read_request = channel->name();
     } else if (ch_name == "memory__read_response") {
-      memory_read_response_id = channel->id();
+      memory_read_response = channel->name();
     }
   }
 
-  ASSERT_GE(memory_read_request_id, 0);
-  ASSERT_GE(memory_read_response_id, 0);
+  ASSERT_FALSE(memory_read_request.empty());
+  ASSERT_FALSE(memory_read_response.empty());
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<xls::Node*> nodes_for_memory_read_response_id,
-      GetIOOpsForChannel(ret, memory_read_response_id));
-  ASSERT_EQ(nodes_for_memory_read_response_id.size(), 1);
+      std::vector<xls::Node*> nodes_for_memory_read_response,
+      GetIOOpsForChannel(ret, memory_read_response));
+  ASSERT_EQ(nodes_for_memory_read_response.size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<xls::Node*> nodes_for_memory_read_request_id,
-      GetIOOpsForChannel(ret, memory_read_request_id));
-  ASSERT_EQ(nodes_for_memory_read_request_id.size(), 1);
+      std::vector<xls::Node*> nodes_for_memory_read_request,
+      GetIOOpsForChannel(ret, memory_read_request));
+  ASSERT_EQ(nodes_for_memory_read_request.size(), 1);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       bool request_before_response,
-      NodeIsAfterTokenWise(ret, /*before=*/nodes_for_memory_read_request_id[0],
-                           /*after=*/nodes_for_memory_read_response_id[0]));
+      NodeIsAfterTokenWise(ret, /*before=*/nodes_for_memory_read_request[0],
+                           /*after=*/nodes_for_memory_read_response[0]));
   EXPECT_TRUE(request_before_response);
 }
 
@@ -1240,33 +1240,33 @@ TEST_F(TranslatorMemoryTest, MemoryTokenNetworkReadAfterWrite) {
       xls::Proc * ret,
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec));
 
-  int64_t memory_read_request_id = -1, memory_write_request_id = -1;
+  std::string_view memory_read_request, memory_write_request;
 
   for (xls::Channel* channel : package_->channels()) {
     const std::string ch_name = channel->name();
     if (ch_name == "memory__read_request") {
-      memory_read_request_id = channel->id();
+      memory_read_request = channel->name();
     } else if (ch_name == "memory__write_request") {
-      memory_write_request_id = channel->id();
+      memory_write_request = channel->name();
     }
   }
 
-  ASSERT_GE(memory_read_request_id, 0);
-  ASSERT_GE(memory_write_request_id, 0);
+  ASSERT_FALSE(memory_read_request.empty());
+  ASSERT_FALSE(memory_write_request.empty());
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<xls::Node*> nodes_for_memory_read_request_id,
-      GetIOOpsForChannel(ret, memory_read_request_id));
-  ASSERT_EQ(nodes_for_memory_read_request_id.size(), 1);
+      std::vector<xls::Node*> nodes_for_memory_read_request,
+      GetIOOpsForChannel(ret, memory_read_request));
+  ASSERT_EQ(nodes_for_memory_read_request.size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::vector<xls::Node*> nodes_for_memory_write_request_id,
-      GetIOOpsForChannel(ret, memory_write_request_id));
-  ASSERT_EQ(nodes_for_memory_write_request_id.size(), 1);
+      std::vector<xls::Node*> nodes_for_memory_write_request,
+      GetIOOpsForChannel(ret, memory_write_request));
+  ASSERT_EQ(nodes_for_memory_write_request.size(), 1);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       bool write_before_read,
-      NodeIsAfterTokenWise(ret, /*before=*/nodes_for_memory_write_request_id[0],
-                           /*after=*/nodes_for_memory_read_request_id[0]));
+      NodeIsAfterTokenWise(ret, /*before=*/nodes_for_memory_write_request[0],
+                           /*after=*/nodes_for_memory_read_request[0]));
   EXPECT_TRUE(write_before_read);
 }
 

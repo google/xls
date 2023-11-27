@@ -151,9 +151,9 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
 
      top proc main(tok: token, state: (), init={()}) {
        literal.1: bits[32] = literal(value=10)
-       send.2: token = send(tok, literal.1, channel_id=0)
-       send.3: token = send(send.2, literal.1, channel_id=0)
-       send.4: token = send(tok, literal.1, channel_id=0)
+       send.2: token = send(tok, literal.1, channel=test_channel)
+       send.3: token = send(send.2, literal.1, channel=test_channel)
+       send.4: token = send(tok, literal.1, channel=test_channel)
        after_all.5: token = after_all(send.2, send.3, send.4)
        tuple.6: () = tuple()
        next (after_all.5, tuple.6)
@@ -177,9 +177,9 @@ TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
 
      top proc main(tok: token, state: (), init={()}) {
        literal.1: bits[32] = literal(value=10)
-       send.2: token = send(tok, literal.1, channel_id=0)
-       send.3: token = send(tok, literal.1, channel_id=0)
-       send.4: token = send(tok, literal.1, channel_id=0)
+       send.2: token = send(tok, literal.1, channel=test_channel)
+       send.3: token = send(tok, literal.1, channel=test_channel)
+       send.4: token = send(tok, literal.1, channel=test_channel)
        after_all.5: token = after_all(send.2, send.3, send.4)
        tuple.6: () = tuple()
        next (after_all.5, tuple.6)
@@ -203,8 +203,8 @@ TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
 
      top proc main(tok: token, state: (), init={()}) {
        literal.1: bits[32] = literal(value=10)
-       send.2: token = send(tok, literal.1, channel_id=0)
-       send.3: token = send(send.2, literal.1, channel_id=0)
+       send.2: token = send(tok, literal.1, channel=test_channel)
+       send.3: token = send(send.2, literal.1, channel=test_channel)
        after_all.4: token = after_all(tok, send.2, send.3)
        tuple.5: () = tuple()
        next (after_all.4, tuple.5)
@@ -229,8 +229,8 @@ TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
 
      top proc main(tok: token, state: (), init={()}) {
        literal.1: bits[32] = literal(value=10)
-       send.2: token = send(tok, literal.1, channel_id=0)
-       send.3: token = send(tok, literal.1, channel_id=0)
+       send.2: token = send(tok, literal.1, channel=test_channel)
+       send.3: token = send(tok, literal.1, channel=test_channel)
        invoke.4: token = invoke(send.2, send.3, to_apply=test_fn)
        after_all.5: token = after_all(tok, send.2, send.3, invoke.4)
        tuple.6: () = tuple()

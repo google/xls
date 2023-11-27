@@ -29,6 +29,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
@@ -204,8 +205,8 @@ absl::StatusOr<Value> RollIntoProcPass::CreateInitialState(
   new_state_vals.push_back(ZeroOfType(loopbody->param(0)->GetType()));
   new_state_vals.push_back(ZeroOfType(loopbody->param(0)->GetType()));
   new_state_vals.push_back(ZeroOfType(initial_value->GetType()));
-  XLS_ASSIGN_OR_RETURN(Channel* recv_channel,
-                      proc->package()->GetChannel(recv->channel_id()));
+  XLS_ASSIGN_OR_RETURN(Channel * recv_channel,
+                       proc->package()->GetChannel(recv->channel_name()));
   new_state_vals.push_back(ZeroOfType(recv_channel->type()));
   // Naively push the loop invariants into the state.
   for (Node* invariant : loop_invariants) {
@@ -285,9 +286,9 @@ absl::StatusOr<Node*> RollIntoProcPass::ReplaceReceiveWithConditionalReceive(
     Node* on_condition_false) const {
   XLS_ASSIGN_OR_RETURN(
       auto new_receive,
-      proc->MakeNode<Receive>(original_receive->loc(), proc->TokenParam(),
-                              receive_condition, original_receive->channel_id(),
-                              original_receive->is_blocking()));
+      proc->MakeNode<Receive>(
+          original_receive->loc(), proc->TokenParam(), receive_condition,
+          original_receive->channel_name(), original_receive->is_blocking()));
   XLS_ASSIGN_OR_RETURN(
       auto new_receive_token,
       proc->MakeNode<TupleIndex>(original_receive->loc(), new_receive, 0));
@@ -500,12 +501,10 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
                            receive_val_proc_state));
 
   // Create the "SendIf" node.
-  XLS_ASSIGN_OR_RETURN(auto new_send,
-                       proc->MakeNode<Send>(send_node->loc(),
-                                            proc->TokenParam(),
-                                            send_node->data(),
-                                            is_final_iteration,
-                                            send_node->channel_id()));
+  XLS_ASSIGN_OR_RETURN(
+      auto new_send, proc->MakeNode<Send>(send_node->loc(), proc->TokenParam(),
+                                          send_node->data(), is_final_iteration,
+                                          send_node->channel_name()));
   XLS_RETURN_IF_ERROR(send_node->ReplaceUsesWith(new_send));
   XLS_RETURN_IF_ERROR(proc->RemoveNode(send_node));
 

@@ -53,11 +53,11 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only,
         flow_control=ready_valid, metadata="")
 
 proc neg_proc(my_token: token, my_state: (), init={()}) {
-  rcv: (token, bits[32]) = receive(my_token, channel_id=0)
+  rcv: (token, bits[32]) = receive(my_token, channel=in)
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
-  send: token = send(rcv_token, negate, channel_id=1)
+  send: token = send(rcv_token, negate, channel=out)
   next (send, my_state)
 }
 """

@@ -55,10 +55,10 @@ TEST_F(TokenDependencyPassTest, Simple) {
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: (), init={()}) {
-       receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+       receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
        tuple_index.2: token = tuple_index(receive.1, index=0)
        tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-       send.4: token = send(__token, tuple_index.3, channel_id=0)
+       send.4: token = send(__token, tuple_index.3, channel=test_channel)
        after_all.5: token = after_all(send.4, tuple_index.2)
        tuple.6: () = tuple()
        next (after_all.5, tuple.6)
@@ -82,12 +82,12 @@ TEST_F(TokenDependencyPassTest, MultipleSends) {
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: (), init={()}) {
-       receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+       receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
        tuple_index.2: token = tuple_index(receive.1, index=0)
        tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-       send.4: token = send(__token, tuple_index.3, channel_id=0)
-       send.5: token = send(__token, tuple_index.3, channel_id=0)
-       send.6: token = send(__token, tuple_index.3, channel_id=0)
+       send.4: token = send(__token, tuple_index.3, channel=test_channel)
+       send.5: token = send(__token, tuple_index.3, channel=test_channel)
+       send.6: token = send(__token, tuple_index.3, channel=test_channel)
        after_all.7: token = after_all(send.4, send.5, send.6, tuple_index.2)
        tuple.8: () = tuple()
        next (after_all.7, tuple.8)
@@ -117,12 +117,12 @@ TEST_F(TokenDependencyPassTest, DependentSends) {
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: (), init={()}) {
-       receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+       receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
        tuple_index.2: token = tuple_index(receive.1, index=0)
        tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-       send.4: token = send(__token, tuple_index.3, channel_id=0)
-       send.5: token = send(send.4, tuple_index.3, channel_id=0)
-       send.6: token = send(__token, tuple_index.3, channel_id=0)
+       send.4: token = send(__token, tuple_index.3, channel=test_channel)
+       send.5: token = send(send.4, tuple_index.3, channel=test_channel)
+       send.6: token = send(__token, tuple_index.3, channel=test_channel)
        after_all.7: token = after_all(send.4, send.5, send.6, tuple_index.2)
        tuple.8: () = tuple()
        next (after_all.7, tuple.8)
@@ -151,7 +151,7 @@ TEST_F(TokenDependencyPassTest, SideEffectingNontokenOps) {
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, init={}) {
-       rcv: (token, bits[32]) = receive(__token, channel_id=0)
+       rcv: (token, bits[32]) = receive(__token, channel=test_channel)
        tkn: token = tuple_index(rcv, index=0)
        data: bits[32] = tuple_index(rcv, index=1)
        one: bits[1] = literal(value=1)

@@ -1267,9 +1267,9 @@ TEST(IrParserTest, ParseSimpleProc) {
 chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
 
 proc my_proc(my_token: token, my_state: bits[32], init={42}) {
-  send.1: token = send(my_token, my_state, channel_id=0, id=1)
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
-  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel_id=0, id=3)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   next (tuple_index.4, my_state)
 }
@@ -2571,11 +2571,11 @@ chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only,
             metadata="module_port { flopped: true }")
 
 proc my_proc(my_token: token, my_state: bits[32], init={42}) {
-  receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
+  receive.1: (token, bits[32]) = receive(my_token, channel=hbo)
   tuple_index.2: token = tuple_index(receive.1, index=0, id=2)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1, id=3)
   add.4: bits[32] = add(my_state, tuple_index.3, id=4)
-  send.5: token = send(tuple_index.2, add.4, channel_id=1)
+  send.5: token = send(tuple_index.2, add.4, channel=mtv)
   next (send.5, add.4)
 }
 )";

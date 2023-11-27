@@ -612,11 +612,11 @@ chan out(bits[32], id=1, kind=single_value, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
 proc my_proc(my_token: token, my_state: (), init={()}) {
-  rcv: (token, bits[32]) = receive(my_token, channel_id=0)
+  rcv: (token, bits[32]) = receive(my_token, channel=in)
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
-  send: token = send(rcv_token, negate, channel_id=1)
+  send: token = send(rcv_token, negate, channel=out)
   next (send, my_state)
 }
 )";
@@ -807,8 +807,8 @@ chan in2(bits[32], id=2, kind=single_value, ops=receive_only, metadata="")
 chan out2(bits[32], id=3, kind=single_value, ops=send_only, metadata="")
 
 proc my_proc(my_token: token, my_state: (), init={()}) {
-  rcv: (token, bits[32]) = receive(my_token, channel_id=0)
-  rcv2: (token, bits[32]) = receive(my_token, channel_id=2)
+  rcv: (token, bits[32]) = receive(my_token, channel=in)
+  rcv2: (token, bits[32]) = receive(my_token, channel=in2)
 
   data: bits[32] = tuple_index(rcv, index=1)
   rcv_token: token = tuple_index(rcv, index=0)
@@ -818,8 +818,8 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
   rcv2_token: token = tuple_index(rcv2, index=0)
   negate2: bits[32] = neg(data2)
 
-  send: token = send(rcv_token, negate, channel_id=1)
-  send2: token = send(rcv2_token, negate2, channel_id=3)
+  send: token = send(rcv_token, negate, channel=out)
+  send2: token = send(rcv2_token, negate2, channel=out2)
   fin : token = after_all(send, send2)
   next (fin, my_state)
 }
@@ -892,11 +892,11 @@ chan out(bits[32], id=3, kind=single_value, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
 proc my_proc(my_token: token, my_state: (), init={()}) {
-  rcv0: (token, bits[32]) = receive(my_token, channel_id=0)
+  rcv0: (token, bits[32]) = receive(my_token, channel=in0)
   rcv0_token: token = tuple_index(rcv0, index=0)
-  rcv1: (token, bits[32]) = receive(rcv0_token, channel_id=1)
+  rcv1: (token, bits[32]) = receive(rcv0_token, channel=in1)
   rcv1_token: token = tuple_index(rcv1, index=0)
-  rcv2: (token, bits[32]) = receive(rcv1_token, channel_id=2)
+  rcv2: (token, bits[32]) = receive(rcv1_token, channel=in2)
   rcv2_token: token = tuple_index(rcv2, index=0)
   data0: bits[32] = tuple_index(rcv0, index=1)
   data1: bits[32] = tuple_index(rcv1, index=1)
@@ -906,7 +906,7 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
   data2_times_two: bits[32] = umul(data2, two)
   tmp: bits[32] = add(neg_data1, data2_times_two)
   sum: bits[32] = add(tmp, data0)
-  send: token = send(rcv2_token, sum, channel_id=3)
+  send: token = send(rcv2_token, sum, channel=out)
   next (send, my_state)
 }
 )";
@@ -930,11 +930,11 @@ chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 proc my_proc(tkn: token, st: (), init={()}) {
-  receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
+  receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
-  send.20: token = send(tuple_index.14, tuple_index.15, predicate=literal.21, channel_id=1, id=20, pos=[(1,5,1)])
+  send.20: token = send(tuple_index.14, tuple_index.15, predicate=literal.21, channel=out, id=20, pos=[(1,5,1)])
   next (send.20, st)
 }
 
@@ -956,16 +956,17 @@ TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsTrue) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
 flow_control=ready_valid, metadata="""module_port { flopped: false
-port_order: 0 }""") chan out(bits[32], id=1, kind=single_value,
+port_order: 0 }""")
+chan out(bits[32], id=1, kind=single_value,
 ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init={()}) {
   literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
-  receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel_id=0, id=13)
+  receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15,
-                        channel_id=1, id=20, pos=[(1,5,1)])
+                        channel=out, id=20, pos=[(1,5,1)])
   next (send.20, st)
 }
 )";
@@ -991,16 +992,17 @@ TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsFalse) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
 flow_control=ready_valid, metadata="""module_port { flopped: false
-port_order: 0 }""") chan out(bits[32], id=1, kind=single_value,
+port_order: 0 }""")
+chan out(bits[32], id=1, kind=single_value,
 ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init={()}) {
   literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
-  receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel_id=0, id=13)
+  receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15,
-                        channel_id=1, id=20, pos=[(1,5,1)])
+                        channel=out, id=20, pos=[(1,5,1)])
   next (send.20, st)
 }
 )";
@@ -1027,10 +1029,10 @@ chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 proc my_proc(tkn: token, st: (), init={()}) {
-  receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
+  receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
-  send.20: token = send(tuple_index.14, tuple_index.15, channel_id=1, id=20) next (send.20, st)
+  send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20) next (send.20, st)
 }
 )";
 
@@ -1449,10 +1451,10 @@ chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="")
 
 proc my_proc(tkn: token, st: (), init={()}) {
-  receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
+  receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
-  send.20: token = send(tuple_index.14, tuple_index.15, channel_id=1, id=20) next (send.20, st)
+  send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20) next (send.20, st)
 }
 )";
 
@@ -3362,7 +3364,7 @@ TEST_F(ProcConversionTestFixture, ProcSendDuringReset) {
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 proc pipelined_proc(tkn: token, st: bits[32], init={1}) {
-  send.1: token = send(tkn, st, channel_id=1, id=1)
+  send.1: token = send(tkn, st, channel=out, id=1)
   next (send.1, st)
 }
 )";
@@ -3423,12 +3425,12 @@ chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_va
 
 #[initiation_interval(2)]
 proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
-  send.1: token = send(tkn, st, channel_id=1, id=1)
+  send.1: token = send(tkn, st, channel=out, id=1)
   min_delay.2: token = min_delay(send.1, delay=1, id=2)
-  receive.3: (token, bits[32]) = receive(min_delay.2, channel_id=0, id=3)
+  receive.3: (token, bits[32]) = receive(min_delay.2, channel=in, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
-  send.6: token = send(tuple_index.4, tuple_index.5, channel_id=2, id=6)
+  send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
   next (send.6, tuple_index.5)
 }
 )";
@@ -3502,12 +3504,12 @@ chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_va
 
 #[initiation_interval(2)]
 proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
-  send.1: token = send(tkn, st, channel_id=1, id=1)
+  send.1: token = send(tkn, st, channel=out, id=1)
   min_delay.2: token = min_delay(send.1, delay=1, id=2)
-  receive.3: (token, bits[32]) = receive(min_delay.2, channel_id=0, id=3)
+  receive.3: (token, bits[32]) = receive(min_delay.2, channel=in, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
-  send.6: token = send(tuple_index.4, tuple_index.5, channel_id=2, id=6)
+  send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
   next (send.6, tuple_index.5)
 }
 )";
@@ -4155,15 +4157,15 @@ class ProcWithStateTest : public BlockConversionTest {
   chan c_out(bits[32], id=5, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
   top proc test_proc(tkn: token, st_0: bits[32], st_1: bits[32], st_2: bits[32], init={3, 5, 9}) {
-    receive.107: (token, bits[32]) = receive(tkn, channel_id=0, id=107)
-    receive.108: (token, bits[32]) = receive(tkn, channel_id=2, id=108)
-    receive.109: (token, bits[32]) = receive(tkn, channel_id=4, id=109)
+    receive.107: (token, bits[32]) = receive(tkn, channel=a_in, id=107)
+    receive.108: (token, bits[32]) = receive(tkn, channel=b_in, id=108)
+    receive.109: (token, bits[32]) = receive(tkn, channel=c_in, id=109)
     tuple_index.34: token = tuple_index(receive.107, index=0, id=34)
-    send.110: token = send(tkn, st_0, channel_id=1, id=110)
+    send.110: token = send(tkn, st_0, channel=a_out, id=110)
     tuple_index.43: token = tuple_index(receive.108, index=0, id=43)
-    send.111: token = send(tkn, st_1, channel_id=3, id=111)
+    send.111: token = send(tkn, st_1, channel=b_out, id=111)
     tuple_index.52: token = tuple_index(receive.109, index=0, id=52)
-    send.112: token = send(tkn, st_2, channel_id=5, id=112)
+    send.112: token = send(tkn, st_2, channel=c_out, id=112)
     tuple_index.35: bits[32] = tuple_index(receive.107, index=1, id=35)
     tuple_index.44: bits[32] = tuple_index(receive.108, index=1, id=44)
     tuple_index.53: bits[32] = tuple_index(receive.109, index=1, id=53)
@@ -4430,12 +4432,12 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   lit1: bits[32] = literal(value=1)
   not_first_cycle: bits[1] = ne(st, lit1)
-  loopback_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel_id=0)
+  loopback_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel=loopback)
   loopback_tkn: token = tuple_index(loopback_recv, index=0)
   loopback_data: bits[32] = tuple_index(loopback_recv, index=1)
   sum: bits[32] = add(loopback_data, st)
-  out_send: token = send(loopback_tkn, sum, channel_id=1)
-  loopback_send: token = send(out_send, sum, channel_id=0)
+  out_send: token = send(loopback_tkn, sum, channel=out)
+  loopback_send: token = send(out_send, sum, channel=loopback)
   next (loopback_send, sum)
 }
 )";
@@ -4478,17 +4480,17 @@ chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid
 proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   lit1: bits[32] = literal(value=1)
   not_first_cycle: bits[1] = ne(st, lit1)
-  loopback0_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel_id=0)
+  loopback0_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel=loopback0)
   loopback0_tkn: token = tuple_index(loopback0_recv, index=0)
   loopback0_data: bits[32] = tuple_index(loopback0_recv, index=1)
-  loopback1_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel_id=1)
+  loopback1_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel=loopback1)
   loopback1_tkn: token = tuple_index(loopback1_recv, index=0)
   loopback1_data: bits[32] = tuple_index(loopback1_recv, index=1)
   sum: bits[32] = add(loopback0_data, loopback1_data)
   loopback_tkn: token = after_all(loopback0_tkn, loopback1_tkn)
-  out_send: token = send(loopback_tkn, sum, channel_id=2)
-  loopback0_send: token = send(out_send, sum, channel_id=0)
-  loopback1_send: token = send(out_send, sum, channel_id=1)
+  out_send: token = send(loopback_tkn, sum, channel=out)
+  loopback0_send: token = send(out_send, sum, channel=loopback0)
+  loopback1_send: token = send(out_send, sum, channel=loopback1)
   loopback_send: token = after_all(loopback0_send, loopback1_send)
   next (loopback_send, sum)
 }

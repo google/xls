@@ -199,7 +199,7 @@ absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node);
 
 // Replace the channel that node is operating on. If node is not a
 // send/sendif/receive/receiveif node then an error is returned.
-absl::Status ReplaceChannelUsedByNode(Node* node, int64_t new_channel_id);
+absl::Status ReplaceChannelUsedByNode(Node* node, std::string_view new_channel);
 
 // Returns the predicate used by the given node. If node is not a
 // send/sendif/receive/receiveif node then an error is returned.

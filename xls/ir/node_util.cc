@@ -248,25 +248,26 @@ bool IsChannelNode(Node* node) {
 }
 
 absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node) {
-  int64_t channel_id;
+  std::string_view channel;
   if (node->Is<Send>()) {
-    channel_id = node->As<Send>()->channel_id();
+    channel = node->As<Send>()->channel_name();
   } else if (node->Is<Receive>()) {
-    channel_id = node->As<Receive>()->channel_id();
+    channel = node->As<Receive>()->channel_name();
   } else {
     return absl::NotFoundError(
         absl::StrFormat("No channel associated with node %s", node->GetName()));
   }
-  return node->package()->GetChannel(channel_id);
+  return node->package()->GetChannel(channel);
 }
 
-absl::Status ReplaceChannelUsedByNode(Node* node, int64_t new_channel_id) {
+absl::Status ReplaceChannelUsedByNode(Node* node,
+                                      std::string_view new_channel) {
   switch (node->op()) {
     case Op::kSend:
-      node->As<Send>()->ReplaceChannel(new_channel_id);
+      node->As<Send>()->ReplaceChannel(new_channel);
       return absl::OkStatus();
     case Op::kReceive:
-      node->As<Receive>()->ReplaceChannel(new_channel_id);
+      node->As<Receive>()->ReplaceChannel(new_channel);
       return absl::OkStatus();
     default:
       return absl::InvalidArgumentError(absl::StrFormat(

@@ -117,7 +117,8 @@ class ExternInstantiation : public Instantiation {
 class FifoInstantiation : public Instantiation {
  public:
   FifoInstantiation(std::string_view inst_name, FifoConfig fifo_config,
-                    Type* data_type, std::optional<int64_t> channel_id,
+                    Type* data_type,
+                    std::optional<std::string_view> channel_name,
                     Package* package);
 
   absl::StatusOr<InstantiationPort> GetInputPort(std::string_view name) final;
@@ -125,14 +126,14 @@ class FifoInstantiation : public Instantiation {
 
   const FifoConfig& fifo_config() const { return fifo_config_; }
   Type* data_type() const { return data_type_; }
-  std::optional<int64_t> channel_id() const { return channel_id_; }
+  std::optional<std::string_view> channel_name() const { return channel_name_; }
 
   std::string ToString() const final;
 
  private:
   FifoConfig fifo_config_;
   Type* data_type_;
-  std::optional<int64_t> channel_id_;
+  std::optional<std::string> channel_name_;
   Package* package_;
 };
 

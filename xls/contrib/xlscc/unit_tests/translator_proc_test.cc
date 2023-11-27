@@ -191,14 +191,14 @@ TEST_F(TranslatorProcTest, IOProcUnusedChannels) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("in_unused1"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("in_unused2"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
 
@@ -262,7 +262,7 @@ TEST_F(TranslatorProcTest, IOProcUnusedDirectIn) {
                            package_->GetChannel("dir_unused"));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                           GetOpsForChannel(channel->id()));
+                           GetOpsForChannel(channel->name()));
 
   EXPECT_FALSE(ops.empty());
 

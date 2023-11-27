@@ -1374,7 +1374,7 @@ BValue ProcBuilder::Receive(Channel* channel, BValue token,
         loc);
   }
   return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
-                               channel->id(), /*is_blocking=*/true, name);
+                               channel->name(), /*is_blocking=*/true, name);
 }
 
 BValue ProcBuilder::ReceiveNonBlocking(Channel* channel, BValue token,
@@ -1391,7 +1391,7 @@ BValue ProcBuilder::ReceiveNonBlocking(Channel* channel, BValue token,
         loc);
   }
   return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
-                               channel->id(), /*is_blocking=*/false, name);
+                               channel->name(), /*is_blocking=*/false, name);
 }
 
 BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
@@ -1414,7 +1414,7 @@ BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
                         pred.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->id(),
+  return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->name(),
                                /*is_blocking=*/true, name);
 }
 
@@ -1439,7 +1439,7 @@ BValue ProcBuilder::ReceiveIfNonBlocking(Channel* channel, BValue token,
                         pred.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->id(),
+  return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->name(),
                                /*is_blocking=*/false, name);
 }
 
@@ -1455,7 +1455,7 @@ BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
         loc);
   }
   return AddNode<xls::Send>(loc, token.node(), data.node(),
-                            /*predicate=*/std::nullopt, channel->id(), name);
+                            /*predicate=*/std::nullopt, channel->name(), name);
 }
 
 BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
@@ -1478,7 +1478,7 @@ BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
                     loc);
   }
   return AddNode<xls::Send>(loc, token.node(), data.node(), pred.node(),
-                            channel->id(), name);
+                            channel->name(), name);
 }
 
 BValue TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,

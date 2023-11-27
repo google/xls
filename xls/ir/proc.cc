@@ -310,7 +310,7 @@ bool Proc::HasImplicitUse(Node* node) const {
 
 absl::StatusOr<Proc*> Proc::Clone(
     std::string_view new_name, Package* target_package,
-    absl::flat_hash_map<int64_t, int64_t> channel_remapping,
+    absl::flat_hash_map<std::string, std::string> channel_remapping,
     absl::flat_hash_map<const FunctionBase*, FunctionBase*> call_remapping)
     const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
@@ -338,24 +338,23 @@ absl::StatusOr<Proc*> Proc::Clone(
       }
       case Op::kReceive: {
         Receive* src = node->As<Receive>();
-        int64_t channel_id = channel_remapping.contains(src->channel_id())
-                                 ? channel_remapping.at(src->channel_id())
-                                 : src->channel_id();
-        XLS_ASSIGN_OR_RETURN(
-            original_to_clone[node],
-            cloned_proc->MakeNodeWithName<Receive>(
-                src->loc(), cloned_operands[0],
-                cloned_operands.size() == 2
-                    ? std::optional<Node*>(cloned_operands[1])
-                    : std::nullopt,
-                channel_id, src->is_blocking(), src->GetName()));
+        std::string channel = channel_remapping.contains(src->channel_name())
+                                  ? channel_remapping.at(src->channel_name())
+                                  : src->channel_name();
+        XLS_ASSIGN_OR_RETURN(original_to_clone[node],
+                             cloned_proc->MakeNodeWithName<Receive>(
+                                 src->loc(), cloned_operands[0],
+                                 cloned_operands.size() == 2
+                                     ? std::optional<Node*>(cloned_operands[1])
+                                     : std::nullopt,
+                                 channel, src->is_blocking(), src->GetName()));
         break;
       }
       case Op::kSend: {
         Send* src = node->As<Send>();
-        int64_t channel_id = channel_remapping.contains(src->channel_id())
-                                 ? channel_remapping.at(src->channel_id())
-                                 : src->channel_id();
+        std::string channel = channel_remapping.contains(src->channel_name())
+                                  ? channel_remapping.at(src->channel_name())
+                                  : src->channel_name();
         XLS_ASSIGN_OR_RETURN(
             original_to_clone[node],
             cloned_proc->MakeNodeWithName<Send>(
@@ -363,7 +362,7 @@ absl::StatusOr<Proc*> Proc::Clone(
                 cloned_operands.size() == 3
                     ? std::optional<Node*>(cloned_operands[2])
                     : std::nullopt,
-                channel_id, src->GetName()));
+                channel, src->GetName()));
         break;
       }
       // Remap CountedFor body.

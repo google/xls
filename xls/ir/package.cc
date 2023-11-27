@@ -219,11 +219,11 @@ absl::flat_hash_set<std::string_view> AllPackageNames(const Package& package) {
 }
 
 // Adds channels from other_package to this_package, potentially changing the
-// channel id. Returns channels ID mapping from old id -> new id.
-absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>> AddChannelsFromPackage(
-    Package* this_package, const Package* other_package,
-    NameCollisionResolver* name_resolver) {
-  absl::flat_hash_map<int64_t, int64_t> channel_id_updates;
+// channel id. Returns channel name mapping from old name -> new name.
+absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
+AddChannelsFromPackage(Package* this_package, const Package* other_package,
+                       NameCollisionResolver* name_resolver) {
+  absl::flat_hash_map<std::string, std::string> channel_updates;
   // Channels can collide in two ways: by name, and by id. First we resolve name
   // collisions, and then we call the various Create*Channel() functions, which
   // will give a new channel id. We keep track of this new id to update
@@ -232,9 +232,9 @@ absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>> AddChannelsFromPackage(
     std::string channel_name = name_resolver->ResolveName(channel->name());
     XLS_ASSIGN_OR_RETURN(Channel * new_channel,
                          this_package->CloneChannel(channel, channel_name));
-    channel_id_updates[channel->id()] = new_channel->id();
+    channel_updates[channel->name()] = new_channel->name();
   }
-  return channel_id_updates;
+  return channel_updates;
 }
 
 // Add FunctionBases (function, proc, and block) from other_package to
@@ -243,7 +243,7 @@ absl::StatusOr<absl::flat_hash_map<const FunctionBase*, FunctionBase*>>
 AddFunctionBasesFromPackage(
     Package* this_package, const Package* other_package,
     NameCollisionResolver* name_resolver,
-    const absl::flat_hash_map<int64_t, int64_t>& channel_remapping) {
+    const absl::flat_hash_map<std::string, std::string>& channel_remapping) {
   std::vector<FunctionBase*> other_function_bases =
       other_package->GetFunctionBases();
 
@@ -305,17 +305,17 @@ absl::StatusOr<Package::PackageMergeResult> Package::AddPackage(
   NameCollisionResolver name_resolver(AllPackageNames(*this));
 
   // First, merge channels.
-  // Returns a mapping of channel ids from old id -> new id
-  XLS_ASSIGN_OR_RETURN(auto channel_id_updates,
+  // Returns a mapping of channel ids from old name -> new name
+  XLS_ASSIGN_OR_RETURN(auto channel_updates,
                        AddChannelsFromPackage(this, other, &name_resolver));
 
   // Next, merge in functions, procs, and blocks.
   XLS_ASSIGN_OR_RETURN(auto call_mapping,
                        AddFunctionBasesFromPackage(this, other, &name_resolver,
-                                                   channel_id_updates));
+                                                   channel_updates));
   return Package::PackageMergeResult{
       .name_updates = name_resolver.name_updates(),
-      .channel_id_updates = std::move(channel_id_updates)};
+      .channel_updates = std::move(channel_updates)};
 }
 
 absl::StatusOr<Function*> Package::GetFunction(
@@ -843,9 +843,9 @@ absl::Status Package::RemoveChannel(Channel* channel) {
   for (const auto& proc : procs()) {
     for (Node* node : proc->nodes()) {
       if ((node->Is<Send>() &&
-           node->As<Send>()->channel_id() == channel->id()) ||
+           node->As<Send>()->channel_name() == channel->name()) ||
           (node->Is<Receive>() &&
-           node->As<Receive>()->channel_id() == channel->id())) {
+           node->As<Receive>()->channel_name() == channel->name())) {
         return absl::InternalError(absl::StrFormat(
             "Channel %s (id=%d) cannot be removed because it "
             "is used by node %v in %v",
@@ -858,26 +858,26 @@ absl::Status Package::RemoveChannel(Channel* channel) {
   channel_vec_.erase(it);
 
   // Remove from channel map.
-  XLS_RET_CHECK(channels_.contains(channel->id()));
-  channels_.erase(channel->id());
+  XLS_RET_CHECK(channels_.contains(channel->name()));
+  channels_.erase(channel->name());
 
   return absl::OkStatus();
 }
 
 absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
-  int64_t id = channel->id();
-  auto [channel_it, inserted] = channels_.insert({id, std::move(channel)});
+  std::string name = channel->name();
+  auto [channel_it, inserted] = channels_.insert({name, std::move(channel)});
   if (!inserted) {
     return absl::InternalError(
-        absl::StrFormat("Channel already exists with id %d.", id));
+        absl::StrFormat("Channel already exists with name `%s`.", name));
   }
   Channel* channel_ptr = channel_it->second.get();
 
-  // Verify the channel name is unique.
+  // Verify the channel id is unique.
   for (Channel* ch : channel_vec_) {
-    if (ch->name() == channel_ptr->name()) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Channel already exists with name \"%s\"", ch->name()));
+    if (ch->id() == channel_ptr->id()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Channel already exists with id %d", ch->id()));
     }
   }
 
@@ -893,17 +893,19 @@ absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
   std::sort(channel_vec_.begin(), channel_vec_.end(),
             [](Channel* a, Channel* b) { return a->id() < b->id(); });
 
-  next_channel_id_ = std::max(next_channel_id_, id + 1);
+  next_channel_id_ = std::max(next_channel_id_, channel_ptr->id() + 1);
   return absl::OkStatus();
 }
 
 absl::StatusOr<Channel*> Package::GetChannel(int64_t id) const {
-  if (channels_.find(id) == channels_.end()) {
-    return absl::NotFoundError(absl::StrFormat(
-        "No channel with id %d (package has %d channels: %s).", id,
-        channels_.size(), absl::StrJoin(GetChannelNames(), ", ")));
+  for (Channel* ch : channels()) {
+    if (ch->id() == id) {
+      return ch;
+    }
   }
-  return channels_.at(id).get();
+  return absl::NotFoundError(absl::StrFormat(
+      "No channel with id %d (package has %d channels: %s).", id,
+      channels().size(), absl::StrJoin(GetChannelNames(), ", ")));
 }
 
 std::vector<std::string> Package::GetChannelNames() const {
@@ -916,14 +918,13 @@ std::vector<std::string> Package::GetChannelNames() const {
 }
 
 absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
-  for (Channel* ch : channels()) {
-    if (ch->name() == name) {
-      return ch;
-    }
+  auto it = channels_.find(name);
+  if (it == channels_.end()) {
+    return absl::NotFoundError(absl::StrFormat(
+        "No channel with name `%s` (package has %d channels: %s).", name,
+        channels_.size(), absl::StrJoin(GetChannelNames(), ", ")));
   }
-  return absl::NotFoundError(absl::StrFormat(
-      "No channel with name '%s' (package has %d channels: %s).", name,
-      channels().size(), absl::StrJoin(GetChannelNames(), ", ")));
+  return it->second.get();
 }
 
 absl::StatusOr<Channel*> Package::CloneChannel(

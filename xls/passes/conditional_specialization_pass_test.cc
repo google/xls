@@ -560,7 +560,7 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeLiteralPred) {
         literal.5: bits[32] = literal(value=400, id=5)
         eq.3: bits[1] = eq(value, literal.5, id=3)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
-        send.1: token = send(tkn, sel.4, predicate=literal.2, channel_id=1, id=1)
+        send.1: token = send(tkn, sel.4, predicate=literal.2, channel=out, id=1)
         next (send.1, value)
       }
     )"));
@@ -580,7 +580,7 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeUnprovable) {
         eq.3: bits[1] = eq(value, literal.5, id=3)
         ugt.4: bits[1] = ugt(value, literal.6, id=4)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
-        send.1: token = send(tkn, sel.4, predicate=ugt.4, channel_id=1, id=1)
+        send.1: token = send(tkn, sel.4, predicate=ugt.4, channel=out, id=1)
         next (send.1, value)
       }
     )"));
@@ -598,7 +598,7 @@ TEST_F(ConditionalSpecializationPassTest, SendChange) {
         literal.5: bits[32] = literal(value=400, id=5)
         eq.3: bits[1] = eq(value, literal.5, id=3)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
-        send.1: token = send(tkn, sel.4, predicate=eq.3, channel_id=1, id=1)
+        send.1: token = send(tkn, sel.4, predicate=eq.3, channel=out, id=1)
         next (send.1, value)
       }
     )"));

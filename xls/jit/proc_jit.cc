@@ -25,8 +25,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/node.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -131,7 +135,7 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
     // Execution exited after sending data on a channel.
     XLS_ASSIGN_OR_RETURN(Channel * sent_channel,
                          proc()->package()->GetChannel(
-                             early_exit_node->As<Send>()->channel_id()));
+                             early_exit_node->As<Send>()->channel_name()));
     // The send executed so some progress should have been made.
     XLS_RET_CHECK_NE(next_continuation_point, start_continuation_point);
     return TickResult{.execution_state = TickExecutionState::kSentOnChannel,
@@ -141,7 +145,7 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   XLS_RET_CHECK(early_exit_node->Is<Receive>());
   XLS_ASSIGN_OR_RETURN(Channel * blocked_channel,
                        proc()->package()->GetChannel(
-                           early_exit_node->As<Receive>()->channel_id()));
+                           early_exit_node->As<Receive>()->channel_name()));
   return TickResult{
       .execution_state = TickExecutionState::kBlockedOnReceive,
       .channel = blocked_channel,

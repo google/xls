@@ -150,11 +150,12 @@ class Proc : public FunctionBase {
 
   // Creates a clone of the proc with the new name `new_name`. Proc is
   // owned by `target_package`. `channel_remapping` dictates how to map channel
-  // IDs to new channel IDs in the cloned version; if a key is unavailable in
-  // `channel_remapping` it is assumed to be the identity mapping at that key.
+  // names to new channel names in the cloned version; if a key is unavailable
+  // in `channel_remapping` it is assumed to be the identity mapping at that
+  // key.
   absl::StatusOr<Proc*> Clone(
       std::string_view new_name, Package* target_package = nullptr,
-      absl::flat_hash_map<int64_t, int64_t> channel_remapping = {},
+      absl::flat_hash_map<std::string, std::string> channel_remapping = {},
       absl::flat_hash_map<const FunctionBase*, FunctionBase*> call_remapping =
           {}) const;
 

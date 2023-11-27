@@ -289,16 +289,16 @@ chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_vali
 chan d(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 top proc test_proc0(tkn: token, state:(), init={()}) {
-  rcv: (token, bits[32]) = receive(tkn, channel_id=0)
+  rcv: (token, bits[32]) = receive(tkn, channel=a)
   rcv_token: token = tuple_index(rcv, index=0)
   next (rcv_token, state)
 }
 
 proc test_proc1(tkn: token, state:(), init={()}) {
-  rcv: (token, bits[32]) = receive(tkn, channel_id=0)
+  rcv: (token, bits[32]) = receive(tkn, channel=a)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
-  send_token: token = send(rcv_token, rcv_data, channel_id=1)
+  send_token: token = send(rcv_token, rcv_data, channel=b)
   next (send_token, state)
 }
 
@@ -307,17 +307,17 @@ fn negate(in: bits[32]) -> bits[32] {
 }
 
 proc test_proc2(tkn: token, state:(), init={()}) {
-  rcv: (token, bits[32]) = receive(tkn, channel_id=2)
+  rcv: (token, bits[32]) = receive(tkn, channel=c)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_data: bits[32] = invoke(rcv_data, to_apply=negate)
-  send_token: token = send(rcv_token, rcv_data, channel_id=1)
+  send_token: token = send(rcv_token, rcv_data, channel=b)
   next (send_token, state)
 }
 
 proc test_proc3(tkn: token, state:(), init={()}) {
   literal0: bits[32] = literal(value=0)
-  send_token: token = send(tkn, literal0, channel_id=3)
+  send_token: token = send(tkn, literal0, channel=d)
   next (send_token, state)
 }
 )";
@@ -348,10 +348,10 @@ top proc test_proc0(tkn: token, state:(), init={()}) {
 }
 
 proc test_proc1(tkn: token, state:(), init={()}) {
-  rcv: (token, bits[32]) = receive(tkn, channel_id=0)
+  rcv: (token, bits[32]) = receive(tkn, channel=a)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
-  send_token: token = send(rcv_token, rcv_data, channel_id=1)
+  send_token: token = send(rcv_token, rcv_data, channel=b)
   next (send_token, state)
 }
 
@@ -360,17 +360,17 @@ fn negate(in: bits[32]) -> bits[32] {
 }
 
 proc test_proc2(tkn: token, state:(), init={()}) {
-  rcv: (token, bits[32]) = receive(tkn, channel_id=2)
+  rcv: (token, bits[32]) = receive(tkn, channel=c)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_data: bits[32] = invoke(rcv_data, to_apply=negate)
-  send_token: token = send(rcv_token, rcv_data, channel_id=1)
+  send_token: token = send(rcv_token, rcv_data, channel=b)
   next (send_token, state)
 }
 
 proc test_proc3(tkn: token, state:(), init={()}) {
   literal0: bits[32] = literal(value=0)
-  send_token: token = send(tkn, literal0, channel_id=3)
+  send_token: token = send(tkn, literal0, channel=d)
   next (send_token, state)
 }
 )";
@@ -395,10 +395,10 @@ proc test_proc0(tkn: token, state:(), init={()}) {
 }
 
 proc test_proc1(tkn: token, state:(), init={()}) {
-  rcv: (token, bits[32]) = receive(tkn, channel_id=0)
+  rcv: (token, bits[32]) = receive(tkn, channel=a)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
-  send_token: token = send(rcv_token, rcv_data, channel_id=1)
+  send_token: token = send(rcv_token, rcv_data, channel=b)
   next (send_token, state)
 }
 
@@ -407,17 +407,17 @@ top fn negate(in: bits[32]) -> bits[32] {
 }
 
 proc test_proc2(tkn: token, state:(), init={()}) {
-  rcv: (token, bits[32]) = receive(tkn, channel_id=2)
+  rcv: (token, bits[32]) = receive(tkn, channel=c)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_data: bits[32] = invoke(rcv_data, to_apply=negate)
-  send_token: token = send(rcv_token, rcv_data, channel_id=1)
+  send_token: token = send(rcv_token, rcv_data, channel=b)
   next (send_token, state)
 }
 
 proc test_proc3(tkn: token, state:(), init={()}) {
   literal0: bits[32] = literal(value=0)
-  send_token: token = send(tkn, literal0, channel_id=3)
+  send_token: token = send(tkn, literal0, channel=d)
   next (send_token, state)
 }
 )";

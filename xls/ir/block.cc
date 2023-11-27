@@ -599,13 +599,13 @@ absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(
 
 absl::StatusOr<FifoInstantiation*> Block::AddFifoInstantiation(
     std::string_view name, FifoConfig fifo_config, Type* data_type,
-    std::optional<int64_t> channel_id) {
+    std::optional<std::string_view> channel) {
   XLS_RET_CHECK(package()->IsOwnedType(data_type));
   XLS_ASSIGN_OR_RETURN(
       absl::StatusOr<Instantiation*> instantiation,
-      AddInstantiation(
-          name, std::make_unique<FifoInstantiation>(
-                    name, fifo_config, data_type, channel_id, package())));
+      AddInstantiation(name,
+                       std::make_unique<FifoInstantiation>(
+                           name, fifo_config, data_type, channel, package())));
   return down_cast<FifoInstantiation*>(instantiation.value());
 }
 

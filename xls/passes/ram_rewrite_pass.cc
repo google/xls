@@ -233,17 +233,17 @@ GetChannelsForNewRam(Package* p, std::string_view name_prefix,
     XLS_ASSIGN_OR_RETURN(auto linked_channel_mapping,
                          p->AddPackage(new_package.get()));
     absl::flat_hash_map<RamLogicalChannel, Channel*> resolved_channel_mapping;
-    for (const auto& [logical_name, original_id] : new_channel_mapping) {
-      auto new_id = linked_channel_mapping.channel_id_updates.find(original_id);
-      if (new_id == linked_channel_mapping.channel_id_updates.end()) {
+    for (const auto& [logical_name, original_channel] : new_channel_mapping) {
+      auto new_channel_it =
+          linked_channel_mapping.channel_updates.find(original_channel);
+      if (new_channel_it == linked_channel_mapping.channel_updates.end()) {
         return absl::InternalError(absl::StrFormat(
-            "Could not find new channel id for linked channel %s.",
-            logical_name));
+            "Could not find new channel for linked channel %s.", logical_name));
       }
       XLS_ASSIGN_OR_RETURN(RamLogicalChannel logical_channel,
                            RamLogicalChannelFromName(logical_name));
       XLS_ASSIGN_OR_RETURN(Channel * new_channel,
-                           p->GetChannel(new_id->second));
+                           p->GetChannel(new_channel_it->second));
       resolved_channel_mapping.insert({logical_channel, new_channel});
     }
     return resolved_channel_mapping;
@@ -442,14 +442,14 @@ absl::Status ReplaceSend(Proc* proc, Send* old_send,
                          RamLogicalChannel logical_channel,
                          const RamConfig& from_config,
                          const RamConfig& to_config, Type* data_type,
-                         int64_t new_channel_id) {
+                         std::string_view new_channel) {
   XLS_ASSIGN_OR_RETURN(Node * new_payload,
                        RepackPayload(proc, old_send->data(), logical_channel,
                                      from_config, to_config, data_type));
   XLS_RETURN_IF_ERROR(
       old_send
           ->ReplaceUsesWithNew<Send>(old_send->token(), new_payload,
-                                     old_send->predicate(), new_channel_id)
+                                     old_send->predicate(), new_channel)
           .status());
   XLS_RETURN_IF_ERROR(proc->RemoveNode(old_send));
   return absl::OkStatus();
@@ -466,7 +466,7 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
                             RamLogicalChannel logical_channel,
                             const RamConfig& from_config,
                             const RamConfig& to_config, Type* data_type,
-                            int64_t new_channel_id) {
+                            std::string_view new_channel) {
   std::optional<Node*> new_receive;
   if (from_config.kind == RamKind::kAbstract &&
       (to_config.kind == RamKind::k1RW || to_config.kind == RamKind::k1R1W)) {
@@ -475,7 +475,7 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
         XLS_ASSIGN_OR_RETURN(
             new_receive,
             proc->MakeNode<Receive>(old_receive->loc(), old_receive->token(),
-                                    old_receive->predicate(), new_channel_id,
+                                    old_receive->predicate(), new_channel,
                                     old_receive->is_blocking()));
         break;
       }
@@ -483,7 +483,7 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
         XLS_ASSIGN_OR_RETURN(
             new_receive,
             proc->MakeNode<Receive>(old_receive->loc(), old_receive->token(),
-                                    old_receive->predicate(), new_channel_id,
+                                    old_receive->predicate(), new_channel,
                                     old_receive->is_blocking()));
         break;
       }
@@ -554,7 +554,7 @@ absl::Status ReplaceChannelReferences(
         // channel and replace this send with a new send to the new channel.
         XLS_ASSIGN_OR_RETURN(
             Channel * old_channel,
-            proc->package()->GetChannel(old_send->channel_id()));
+            proc->package()->GetChannel(old_send->channel_name()));
         auto it = reverse_from_mapping.find(old_channel);
         if (it == reverse_from_mapping.end()) {
           continue;
@@ -563,10 +563,11 @@ absl::Status ReplaceChannelReferences(
         XLS_ASSIGN_OR_RETURN(
             RamLogicalChannel new_logical_channel,
             MapChannel(from_config.kind, logical_channel, to_config.kind));
-        int64_t new_channel_id = to_mapping.at(new_logical_channel)->id();
+        std::string_view new_channel =
+            to_mapping.at(new_logical_channel)->name();
         XLS_RETURN_IF_ERROR(ReplaceSend(proc.get(), old_send, logical_channel,
                                         from_config, to_config, data_type,
-                                        new_channel_id));
+                                        new_channel));
       } else if (node->Is<Receive>()) {
         // If this receive operates on a channel in our mapping, find the new
         // channel and replace this receive with a new receive to the new
@@ -574,7 +575,7 @@ absl::Status ReplaceChannelReferences(
         Receive* old_receive = node->As<Receive>();
         XLS_ASSIGN_OR_RETURN(
             Channel * old_channel,
-            proc->package()->GetChannel(old_receive->channel_id()));
+            proc->package()->GetChannel(old_receive->channel_name()));
         auto it = reverse_from_mapping.find(old_channel);
         if (it == reverse_from_mapping.end()) {
           continue;
@@ -583,10 +584,11 @@ absl::Status ReplaceChannelReferences(
         XLS_ASSIGN_OR_RETURN(
             RamLogicalChannel new_logical_channel,
             MapChannel(from_config.kind, logical_channel, to_config.kind));
-        int64_t new_channel_id = to_mapping.at(new_logical_channel)->id();
-        XLS_RETURN_IF_ERROR(
-            ReplaceReceive(proc.get(), old_receive, logical_channel,
-                           from_config, to_config, data_type, new_channel_id));
+        std::string_view new_channel =
+            to_mapping.at(new_logical_channel)->name();
+        XLS_RETURN_IF_ERROR(ReplaceReceive(proc.get(), old_receive,
+                                           logical_channel, from_config,
+                                           to_config, data_type, new_channel));
       }
     }
   }

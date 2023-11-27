@@ -3162,7 +3162,7 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
 
   XLS_RET_CHECK(jit_context_.queue_manager().has_value());
   XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       recv->package()->GetChannel(recv->channel_id()));
+                       recv->package()->GetChannel(recv->channel_name()));
   JitChannelQueue& queue =
       jit_context_.queue_manager().value()->GetJitQueue(channel);
 
@@ -3303,7 +3303,7 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
 
   XLS_RET_CHECK(jit_context_.queue_manager().has_value());
   XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       send->package()->GetChannel(send->channel_id()));
+                       send->package()->GetChannel(send->channel_name()));
   JitChannelQueue& queue =
       jit_context_.queue_manager().value()->GetJitQueue(channel);
   if (send->predicate().has_value()) {

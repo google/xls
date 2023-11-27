@@ -21,6 +21,7 @@
 #include <numeric>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -183,14 +184,14 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
     }
   }
 
-  auto get_channel_id = [](Node* node) -> int64_t {
+  auto get_channel_name = [](Node* node) -> std::string_view {
     if (node->Is<Receive>()) {
-      return node->As<Receive>()->channel_id();
+      return node->As<Receive>()->channel_name();
     }
     if (node->Is<Send>()) {
-      return node->As<Send>()->channel_id();
+      return node->As<Send>()->channel_name();
     }
-    return -1;
+    return "";
   };
 
   auto get_predicate = [](Node* node) -> std::optional<Node*> {
@@ -211,7 +212,7 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
       absl::flat_hash_set<Node*> subgraph =
           LargestConnectedSubgraph(node, token_dag, [&](Node* n) -> bool {
             return n->op() == node->op() &&
-                   get_channel_id(n) == get_channel_id(node);
+                   get_channel_name(n) == get_channel_name(node);
           });
       for (Node* x : subgraph) {
         for (Node* y : subgraph) {
@@ -292,12 +293,12 @@ absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
       }
       if ((x->op() == Op::kSend) &&
           (!is_mergable(x, y) ||
-           (x->As<Send>()->channel_id() != y->As<Send>()->channel_id()))) {
+           (x->As<Send>()->channel_name() != y->As<Send>()->channel_name()))) {
         continue;
       }
       if ((x->op() == Op::kReceive) &&
-          (!is_mergable(x, y) || (x->As<Receive>()->channel_id() !=
-                                  y->As<Receive>()->channel_id()))) {
+          (!is_mergable(x, y) || (x->As<Receive>()->channel_name() !=
+                                  y->As<Receive>()->channel_name()))) {
         continue;
       }
       if (p->QueryMutuallyExclusive(px, py) == std::make_optional(true)) {
@@ -426,9 +427,9 @@ absl::StatusOr<std::vector<Node*>> ComputeTokenInputs(
 
 absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
                                 absl::Span<Node* const> to_merge) {
-  int64_t channel_id = to_merge.front()->As<Send>()->channel_id();
+  std::string_view channel_name = to_merge.front()->As<Send>()->channel_name();
   for (Node* send : to_merge) {
-    XLS_CHECK_EQ(channel_id, send->As<Send>()->channel_id());
+    XLS_CHECK_EQ(channel_name, send->As<Send>()->channel_name());
   }
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
@@ -459,7 +460,7 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
                        f->MakeNode<OneHotSelect>(SourceInfo(), selector, args));
 
   XLS_ASSIGN_OR_RETURN(Node * send, f->MakeNode<Send>(SourceInfo(), token, data,
-                                                      predicate, channel_id));
+                                                      predicate, channel_name));
 
   for (Node* node : to_merge) {
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(send));
@@ -471,11 +472,12 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
 
 absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
                                    absl::Span<Node* const> to_merge) {
-  int64_t channel_id = to_merge.front()->As<Receive>()->channel_id();
+  std::string_view channel_name =
+      to_merge.front()->As<Receive>()->channel_name();
   bool is_blocking = to_merge.front()->As<Receive>()->is_blocking();
 
   for (Node* send : to_merge) {
-    XLS_CHECK_EQ(channel_id, send->As<Receive>()->channel_id());
+    XLS_CHECK_EQ(channel_name, send->As<Receive>()->channel_name());
     XLS_CHECK_EQ(is_blocking, send->As<Receive>()->is_blocking());
   }
 
@@ -493,7 +495,7 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
 
   XLS_ASSIGN_OR_RETURN(Node * receive,
                        f->MakeNode<Receive>(SourceInfo(), token, predicate,
-                                            channel_id, is_blocking));
+                                            channel_name, is_blocking));
 
   XLS_ASSIGN_OR_RETURN(Node * token_output,
                        f->MakeNode<TupleIndex>(SourceInfo(), receive, 0));

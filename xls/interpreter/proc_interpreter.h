@@ -15,17 +15,14 @@
 #ifndef XLS_INTERPRETER_PROC_INTERPRETER_H_
 #define XLS_INTERPRETER_PROC_INTERPRETER_H_
 
-#include <deque>
-#include <limits>
+#include <cstdint>
 #include <memory>
-#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
-#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"

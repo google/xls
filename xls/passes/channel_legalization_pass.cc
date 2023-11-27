@@ -70,8 +70,9 @@ absl::StatusOr<int64_t> TokenOperandNumberForChannelOp(Node* node) {
   }
 }
 struct MultipleChannelOps {
-  absl::flat_hash_map<int64_t, absl::flat_hash_set<Send*>> multiple_sends;
-  absl::flat_hash_map<int64_t, absl::flat_hash_set<Receive*>> multiple_receives;
+  absl::flat_hash_map<std::string, absl::flat_hash_set<Send*>> multiple_sends;
+  absl::flat_hash_map<std::string, absl::flat_hash_set<Receive*>>
+      multiple_receives;
 };
 
 // Find instances of multiple sends/recvs on a channel.
@@ -81,27 +82,28 @@ MultipleChannelOps FindMultipleChannelOps(Package* p) {
     for (Node* node : fb->nodes()) {
       if (node->Is<Send>()) {
         Send* send = node->As<Send>();
-        absl::StatusOr<Channel*> channel = p->GetChannel(send->channel_id());
+        absl::StatusOr<Channel*> channel = p->GetChannel(send->channel_name());
         XLS_VLOG(4) << "Found send " << send->ToString();
-        result.multiple_sends[send->channel_id()].insert(send);
+        result.multiple_sends[send->channel_name()].insert(send);
       }
       if (node->Is<Receive>()) {
         Receive* recv = node->As<Receive>();
-        absl::StatusOr<Channel*> channel = p->GetChannel(recv->channel_id());
-        result.multiple_receives[recv->channel_id()].insert(recv);
+        absl::StatusOr<Channel*> channel = p->GetChannel(recv->channel_name());
+        result.multiple_receives[recv->channel_name()].insert(recv);
         XLS_VLOG(4) << "Found recv " << recv->ToString();
       }
     }
   }
 
   // Erase cases where there's only one send or receive.
-  absl::erase_if(result.multiple_sends,
-                 [](const std::pair<int64_t, absl::flat_hash_set<Send*>>& elt) {
-                   return elt.second.size() < 2;
-                 });
+  absl::erase_if(
+      result.multiple_sends,
+      [](const std::pair<std::string, absl::flat_hash_set<Send*>>& elt) {
+        return elt.second.size() < 2;
+      });
   absl::erase_if(
       result.multiple_receives,
-      [](const std::pair<int64_t, absl::flat_hash_set<Receive*>>& elt) {
+      [](const std::pair<std::string, absl::flat_hash_set<Receive*>>& elt) {
         return elt.second.size() < 2;
       });
 
@@ -378,7 +380,7 @@ absl::StatusOr<StreamingChannel*> MakePredicateChannel(Node* operation) {
       Send * send_pred,
       proc->MakeNodeWithName<Send>(
           SourceInfo(), operation->operand(operand_number), predicate.value(),
-          std::nullopt, pred_channel->id(),
+          std::nullopt, pred_channel->name(),
           absl::StrFormat("send_predicate_for_chan_%s", channel->name())));
   // Replace the op's original input token with the predicate send's token.
   XLS_RETURN_IF_ERROR(operation->ReplaceOperandNumber(
@@ -435,7 +437,7 @@ absl::StatusOr<StreamingChannel*> MakeCompletionChannel(Node* operation) {
       Receive * recv_completion,
       proc->MakeNodeWithName<Receive>(
           SourceInfo(), proc->TokenParam(), predicate.value(),
-          completion_channel->id(), /*is_blocking=*/true,
+          completion_channel->name(), /*is_blocking=*/true,
           absl::StrFormat("recv_completion_for_chan_%s", channel->name())));
   XLS_ASSIGN_OR_RETURN(Node * recv_completion_token,
                        proc->MakeNodeWithName<TupleIndex>(
@@ -895,7 +897,7 @@ absl::Status AddAdapterForMultipleReceives(
                   .OverrideSupportedOps(ChannelOps::kSendReceive)
                   .OverrideFifoDepth(1)));
       XLS_RETURN_IF_ERROR(
-          ReplaceChannelUsedByNode(node, new_data_channel->id()));
+          ReplaceChannelUsedByNode(node, new_data_channel->name()));
       BValue send_token = pb.AfterAll({activation.pred_recv_token, recv_token});
       send_tokens.push_back(pb.SendIf(new_data_channel, send_token,
                                       activation.activate, recv_data));
@@ -946,7 +948,7 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
                   .OverrideSupportedOps(ChannelOps::kSendReceive)
                   .OverrideFifoDepth(1)));
       XLS_RETURN_IF_ERROR(
-          ReplaceChannelUsedByNode(node, new_data_channel->id()));
+          ReplaceChannelUsedByNode(node, new_data_channel->name()));
       BValue recv = pb.ReceiveIf(new_data_channel, activation.pred_recv_token,
                                  activation.activate);
       recv_tokens.push_back(pb.TupleIndex(recv, 0));
@@ -989,7 +991,7 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
   XLS_VLOG(3) << "Running channel legalization pass.";
   bool changed = false;
   MultipleChannelOps multiple_ops = FindMultipleChannelOps(p);
-  for (const auto& [channel_id, ops] : multiple_ops.multiple_receives) {
+  for (const auto& [channel_name, ops] : multiple_ops.multiple_receives) {
     for (Receive* recv : ops) {
       if (!recv->is_blocking()) {
         return absl::InvalidArgumentError(absl::StrFormat(
@@ -998,7 +1000,7 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
             recv->GetName()));
       }
     }
-    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
+    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_name));
     if (channel->kind() != ChannelKind::kStreaming) {
       // Don't make adapters for non-streaming channels.
       continue;
@@ -1011,14 +1013,14 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
       continue;
     }
     XLS_VLOG(3) << absl::StreamFormat(
-        "Making receive channel adapter for channel %d, has receives (%s).",
-        channel_id, absl::StrJoin(ops, ", "));
+        "Making receive channel adapter for channel `%s`, has receives (%s).",
+        channel_name, absl::StrJoin(ops, ", "));
     XLS_RETURN_IF_ERROR(
         AddAdapterForMultipleReceives(p, streaming_channel, ops));
     changed = true;
   }
-  for (const auto& [channel_id, ops] : multiple_ops.multiple_sends) {
-    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
+  for (const auto& [channel_name, ops] : multiple_ops.multiple_sends) {
+    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_name));
     if (channel->kind() != ChannelKind::kStreaming) {
       // Don't make adapters for non-streaming channels.
       continue;
@@ -1031,8 +1033,8 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
       continue;
     }
     XLS_VLOG(3) << absl::StreamFormat(
-        "Making send channel adapter for channel %d, has sends (%s).",
-        channel_id, absl::StrJoin(ops, ", "));
+        "Making send channel adapter for channel `%s`, has sends (%s).",
+        channel_name, absl::StrJoin(ops, ", "));
     XLS_RETURN_IF_ERROR(AddAdapterForMultipleSends(p, streaming_channel, ops));
     changed = true;
   }

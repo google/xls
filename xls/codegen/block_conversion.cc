@@ -1921,11 +1921,11 @@ static absl::Status RemoveDeadTokenNodes(Block* block) {
 //   chan y_ch(bits[32], kind=streaming, flow_control=single_value, id=1, ...)
 //
 //   proc foo(tkn: token, st: (), init=42) {
-//     rcv_x: (token, bits[32]) = receive(tkn, channel_id=0)
+//     rcv_x: (token, bits[32]) = receive(tkn, channel=x_ch)
 //     rcv_x_token: token = tuple_index(rcv_x, index=0)
 //     x: bits[32] = tuple_index(rcv_x, index=1)
 //     not_x: bits[32] = not(x)
-//     snd_y: token = send(rcv_x_token, not_x, channel_id=1)
+//     snd_y: token = send(rcv_x_token, not_x, channel=y_ch)
 //     next (tkn, snd_y)
 //   }
 //
@@ -2050,7 +2050,7 @@ class CloneNodesIntoBlockHandler {
                     inst_name,
                     std::make_unique<xls::FifoInstantiation>(
                         inst_name, *streaming_channel->fifo_config(),
-                        streaming_channel->type(), streaming_channel->id(),
+                        streaming_channel->type(), streaming_channel->name(),
                         block_->package())));
             itr->second = instantiation;
           } else {
@@ -2402,8 +2402,8 @@ class CloneNodesIntoBlockHandler {
     XLS_ASSIGN_OR_RETURN(Node * valid,
                          block_->MakeNode<xls::InstantiationOutput>(
                              receive->loc(), fifo_instantiation, "pop_valid"));
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         block_->package()->GetChannel(receive->channel_id()));
+    XLS_ASSIGN_OR_RETURN(Channel * channel, block_->package()->GetChannel(
+                                                receive->channel_name()));
     Node* signal_valid;
     if (receive->is_blocking()) {
       signal_valid = valid;
@@ -2492,7 +2492,7 @@ class CloneNodesIntoBlockHandler {
                          block_->MakeNode<xls::InstantiationOutput>(
                              send->loc(), fifo_instantiation, "push_ready"));
     XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         block_->package()->GetChannel(send->channel_id()));
+                         block_->package()->GetChannel(send->channel_name()));
     Node* data = node_map_.at(send->data());
     XLS_ASSIGN_OR_RETURN(
         Node * port, block_->MakeNode<xls::InstantiationInput>(

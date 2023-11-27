@@ -79,7 +79,7 @@ TEST_F(UnrollProcTest, UnrollWithIO) {
      top proc main(__token: token, __state: bits[10], init={0}) {
        literal.1: bits[10] = literal(value=1)
        add.2: bits[10] = add(literal.1, __state)
-       send.3: token = send(__token, add.2, channel_id=0)
+       send.3: token = send(__token, add.2, channel=test_channel)
        next (send.3, add.2)
      }
   )"));

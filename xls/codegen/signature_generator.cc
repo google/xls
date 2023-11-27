@@ -144,9 +144,9 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
         const FifoInstantiation* fifo =
             down_cast<const FifoInstantiation*>(instantiation);
         std::optional<std::string_view> channel_name;
-        if (fifo->channel_id().has_value()) {
+        if (fifo->channel_name().has_value()) {
           XLS_ASSIGN_OR_RETURN(Channel * ch,
-                               p->GetChannel(*fifo->channel_id()));
+                               p->GetChannel(*fifo->channel_name()));
           channel_name = ch->name();
         }
         b.AddFifoInstantiation(p, fifo->name(), channel_name, fifo->data_type(),

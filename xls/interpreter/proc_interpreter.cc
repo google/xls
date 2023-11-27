@@ -14,22 +14,29 @@
 
 #include "xls/interpreter/proc_interpreter.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_join.h"
+#include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/ir/events.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
 namespace {
 
 // A visitor for interpreting procs. Adds handlers for send and receive
-// communcate via ChannelQueues.
+// communicate via ChannelQueues.
 class ProcIrInterpreter : public IrInterpreter {
  public:
   // Constructor args:
@@ -48,8 +55,8 @@ class ProcIrInterpreter : public IrInterpreter {
         queue_manager_(queue_manager) {}
 
   absl::Status HandleReceive(Receive* receive) override {
-    XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
-                         queue_manager_->GetQueueById(receive->channel_id()));
+    XLS_ASSIGN_OR_RETURN(ChannelQueue * queue, queue_manager_->GetQueueByName(
+                                                   receive->channel_name()));
 
     if (receive->predicate().has_value()) {
       const Bits& pred = ResolveAsBits(receive->predicate().value());
@@ -83,7 +90,7 @@ class ProcIrInterpreter : public IrInterpreter {
 
   absl::Status HandleSend(Send* send) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
-                         queue_manager_->GetQueueById(send->channel_id()));
+                         queue_manager_->GetQueueByName(send->channel_name()));
     if (send->predicate().has_value()) {
       const Bits& pred = ResolveAsBits(send->predicate().value());
       if (pred.IsZero()) {

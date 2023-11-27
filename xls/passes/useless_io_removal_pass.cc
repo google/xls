@@ -15,6 +15,8 @@
 #include "xls/passes/useless_io_removal_pass.h"
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -34,8 +36,10 @@ namespace xls {
 
 namespace {
 
-using ChannelToSendMap = std::vector<absl::flat_hash_set<Send*>>;
-using ChannelToReceiveMap = std::vector<absl::flat_hash_set<Receive*>>;
+using ChannelToSendMap =
+    absl::flat_hash_map<std::string, absl::flat_hash_set<Send*>>;
+using ChannelToReceiveMap =
+    absl::flat_hash_map<std::string, absl::flat_hash_set<Receive*>>;
 
 struct ChannelMaps {
   ChannelToSendMap to_send;
@@ -47,16 +51,14 @@ absl::StatusOr<ChannelMaps> ComputeChannelMaps(Package* package) {
   if (package->channels().empty()) {
     return result;
   }
-  int64_t max_id = package->channels().back()->id();
-  result.to_send.resize(max_id + 1);
-  result.to_receive.resize(max_id + 1);
   for (std::unique_ptr<Proc>& proc : package->procs()) {
     for (Node* node : proc->nodes()) {
       if (node->Is<Send>()) {
-        result.to_send[node->As<Send>()->channel_id()].insert(node->As<Send>());
+        result.to_send[node->As<Send>()->channel_name()].insert(
+            node->As<Send>());
       }
       if (node->Is<Receive>()) {
-        result.to_receive[node->As<Receive>()->channel_id()].insert(
+        result.to_receive[node->As<Receive>()->channel_name()].insert(
             node->As<Receive>());
       }
     }
@@ -85,15 +87,15 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         }
         Node* predicate = send->predicate().value();
         if (IsLiteralZero(predicate) &&
-            channel_maps.to_send.at(send->channel_id()).size() >= 2) {
-          channel_maps.to_send.at(send->channel_id()).erase(send);
+            channel_maps.to_send.at(send->channel_name()).size() >= 2) {
+          channel_maps.to_send.at(send->channel_name()).erase(send);
           replacement = send->token();
         } else if (IsLiteralUnsignedOne(predicate)) {
           XLS_ASSIGN_OR_RETURN(
               replacement,
               proc->MakeNode<Send>(node->loc(), send->token(), send->data(),
                                    /*predicate=*/std::nullopt,
-                                   send->channel_id()));
+                                   send->channel_name()));
         }
       } else if (node->Is<Receive>()) {
         Receive* receive = node->As<Receive>();
@@ -102,9 +104,9 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         }
         Node* predicate = receive->predicate().value();
         if (IsLiteralZero(predicate) &&
-            channel_maps.to_receive.at(receive->channel_id()).size() >= 2) {
+            channel_maps.to_receive.at(receive->channel_name()).size() >= 2) {
           XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-          channel_maps.to_receive.at(receive->channel_id()).erase(receive);
+          channel_maps.to_receive.at(receive->channel_name()).erase(receive);
           XLS_ASSIGN_OR_RETURN(Literal * zero,
                                proc->MakeNode<Literal>(
                                    node->loc(), ZeroOfType(channel->type())));
@@ -113,11 +115,11 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
               proc->MakeNode<Tuple>(
                   node->loc(), std::vector<Node*>{receive->token(), zero}));
         } else if (IsLiteralUnsignedOne(predicate)) {
-          XLS_ASSIGN_OR_RETURN(
-              replacement, proc->MakeNode<Receive>(
-                               node->loc(), receive->token(),
-                               /*predicate=*/std::nullopt,
-                               receive->channel_id(), receive->is_blocking()));
+          XLS_ASSIGN_OR_RETURN(replacement, proc->MakeNode<Receive>(
+                                                node->loc(), receive->token(),
+                                                /*predicate=*/std::nullopt,
+                                                receive->channel_name(),
+                                                receive->is_blocking()));
         }
       }
       if (replacement != nullptr) {

@@ -191,10 +191,10 @@ chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
 top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
-  receive.1: (token, bits[32]) = receive(tkn, channel_id=0)
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-  send.4: token = send(tkn, baz, channel_id=1)
+  send.4: token = send(tkn, baz, channel=output)
   after_all.5: token = after_all(tuple_index.2, send.4)
   next (after_all.5, tuple_index.3, foo, bar)
 }
@@ -218,10 +218,10 @@ chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
 top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
-  receive.1: (token, bits[32]) = receive(tkn, channel_id=0)
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-  send.4: token = send(tkn, baz, channel_id=1)
+  send.4: token = send(tkn, baz, channel=output)
   after_all.5: token = after_all(tuple_index.2, send.4)
   next (after_all.5, tuple_index.3, foo, bar)
 }
@@ -247,10 +247,10 @@ chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
 top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
-  receive.1: (token, bits[32]) = receive(tkn, channel_id=0)
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-  send.4: token = send(tkn, baz, channel_id=1)
+  send.4: token = send(tkn, baz, channel=output)
   after_all.5: token = after_all(tuple_index.2, send.4)
   next (after_all.5, tuple_index.3, foo, bar)
 }
@@ -276,10 +276,10 @@ chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
 top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
-  receive.1: (token, bits[32]) = receive(tkn, channel_id=0)
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-  send.4: token = send(tkn, baz, channel_id=1)
+  send.4: token = send(tkn, baz, channel=output)
   after_all.5: token = after_all(tuple_index.2, send.4)
   next (after_all.5, tuple_index.3, foo, bar)
 }
@@ -306,10 +306,10 @@ chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
 top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
-  receive.1: (token, bits[32]) = receive(tkn, channel_id=0)
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
-  send.4: token = send(tkn, baz, channel_id=1)
+  send.4: token = send(tkn, baz, channel=output)
   after_all.5: token = after_all(tuple_index.2, send.4)
   next (after_all.5, tuple_index.3, foo, bar)
 }

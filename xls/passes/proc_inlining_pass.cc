@@ -157,7 +157,7 @@ absl::StatusOr<Send*> AddSendPredicate(Send* send, Node* predicate) {
   }
   XLS_ASSIGN_OR_RETURN(Send * new_send, send->ReplaceUsesWithNew<Send>(
                                             send->token(), send->data(),
-                                            predicate, send->channel_id()));
+                                            predicate, send->channel_name()));
   return new_send;
 }
 
@@ -178,7 +178,7 @@ absl::StatusOr<Receive*> AddReceivePredicate(Receive* receive,
   }
   XLS_ASSIGN_OR_RETURN(Receive * new_receive,
                        receive->ReplaceUsesWithNew<Receive>(
-                           receive->token(), predicate, receive->channel_id(),
+                           receive->token(), predicate, receive->channel_name(),
                            receive->is_blocking()));
   return new_receive;
 }

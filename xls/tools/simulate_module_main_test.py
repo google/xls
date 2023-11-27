@@ -38,15 +38,15 @@ chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_co
 chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
 top proc add(__token: token, init={}) {
-  receive.4: (token, bits[32]) = receive(__token, channel_id=0, id=4)
-  receive.7: (token, bits[32]) = receive(__token, channel_id=1, id=7)
+  receive.4: (token, bits[32]) = receive(__token, channel=sample__operand_0, id=4)
+  receive.7: (token, bits[32]) = receive(__token, channel=sample__operand_1, id=7)
   tok_operand_0_val: token = tuple_index(receive.4, index=0, id=5, pos=[(0,14,9)])
   tok_operand_1_val: token = tuple_index(receive.7, index=0, id=8, pos=[(0,15,9)])
   operand_0_val: bits[32] = tuple_index(receive.4, index=1, id=6, pos=[(0,14,28)])
   operand_1_val: bits[32] = tuple_index(receive.7, index=1, id=9, pos=[(0,15,28)])
   tok_recv: token = after_all(tok_operand_0_val, tok_operand_1_val, id=10)
   result_val: bits[32] = add(operand_0_val, operand_1_val, id=11, pos=[(0,18,35)])
-  tok_send: token = send(tok_recv, result_val, channel_id=2, id=12)
+  tok_send: token = send(tok_recv, result_val, channel=sample__result, id=12)
   after_all.14: token = after_all(__token, tok_operand_0_val, tok_operand_1_val, tok_recv, tok_send, id=14)
   next (after_all.14)
 }
@@ -60,9 +60,9 @@ chan in0(bits[12], id=0, kind=streaming, ops=receive_only, flow_control=ready_va
 chan in1(bits[42], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
 top proc no_output_channels(__token: token, init={}) {
-  recv0: (token, bits[12]) = receive(__token, channel_id=0, id=4)
+  recv0: (token, bits[12]) = receive(__token, channel=in0, id=4)
   recv0_token: token = tuple_index(recv0, index=0, id=11, pos=[(0,15,22)])
-  recv1: (token, bits[42], bits[1]) = receive(recv0_token, channel_id=1, blocking=false, id=36)
+  recv1: (token, bits[42], bits[1]) = receive(recv0_token, channel=in1, blocking=false, id=36)
   recv1_token: token = tuple_index(recv1, index=0, id=37)
   after_all_token: token = after_all(__token, recv0_token, recv1_token, id=45)
   next (after_all_token)

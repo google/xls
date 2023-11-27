@@ -21,7 +21,7 @@ top proc __test_module__main_0_next(__token: token, __state: (), init={()}) {
 
 proc __test_module__main__producer_0_next(__token: token, __state: bits[32], init={0}) {
   literal.12: bits[32] = literal(value=1, id=12)
-  tok: token = send(__token, __state, channel_id=0, id=11)
+  tok: token = send(__token, __state, channel=main_chandecl_test_module_x_33_18_33_26, id=11)
   literal.10: bits[1] = literal(value=1, id=10)
   add.13: bits[32] = add(__state, literal.12, id=13)
   after_all.14: token = after_all(__token, tok, id=14)
@@ -29,7 +29,7 @@ proc __test_module__main__producer_0_next(__token: token, __state: bits[32], ini
 }
 
 proc __test_module__main__consumer_0_next(__token: token, __state: bits[32], init={0}) {
-  receive.18: (token, bits[32]) = receive(__token, channel_id=0, id=18)
+  receive.18: (token, bits[32]) = receive(__token, channel=main_chandecl_test_module_x_33_18_33_26, id=18)
   i: bits[32] = tuple_index(receive.18, index=1, id=21)
   tuple_index.19: token = tuple_index(receive.18, index=0, id=19)
   literal.17: bits[1] = literal(value=1, id=17)

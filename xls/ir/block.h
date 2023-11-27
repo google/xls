@@ -140,7 +140,7 @@ class Block : public FunctionBase {
   // instantiation to the data-flow graph.
   absl::StatusOr<FifoInstantiation*> AddFifoInstantiation(
       std::string_view name, FifoConfig fifo_config, Type* data_type,
-      std::optional<int64_t> channel_id = std::nullopt);
+      std::optional<std::string_view> channel = std::nullopt);
 
   absl::StatusOr<Instantiation*> AddInstantiation(
       std::string_view name, std::unique_ptr<Instantiation> instantiation);

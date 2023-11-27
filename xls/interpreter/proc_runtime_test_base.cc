@@ -582,56 +582,56 @@ chan e_o(bits[32], id=7, kind=streaming, ops=send_only, flow_control=none, metad
 
 proc a(my_token: token, state: (), init={()}) {
   literal.1: bits[32] = literal(value=1)
-  receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
+  receive.2: (token, bits[32]) = receive(my_token, channel=i_a)
   tuple_index.3: token = tuple_index(receive.2, index=0)
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
   umul.5: bits[32] = umul(literal.1, tuple_index.4)
-  send.6: token = send(tuple_index.3, umul.5, channel_id=2)
+  send.6: token = send(tuple_index.3, umul.5, channel=a_c)
   next (send.6, state)
 }
 
 proc b(my_token: token, state: (), init={()}) {
   literal.101: bits[32] = literal(value=2)
-  receive.102: (token, bits[32]) = receive(my_token, channel_id=1)
+  receive.102: (token, bits[32]) = receive(my_token, channel=i_b)
   tuple_index.103: token = tuple_index(receive.102, index=0)
   tuple_index.104: bits[32] = tuple_index(receive.102, index=1)
   umul.105: bits[32] = umul(literal.101, tuple_index.104)
-  send.106: token = send(tuple_index.103, umul.105, channel_id=3)
+  send.106: token = send(tuple_index.103, umul.105, channel=b_c)
   next (send.106, state)
 }
 
 proc c(my_token: token, state: (), init={()}) {
   literal.201: bits[32] = literal(value=3)
-  receive.202: (token, bits[32]) = receive(my_token, channel_id=2)
+  receive.202: (token, bits[32]) = receive(my_token, channel=a_c)
   tuple_index.203: token = tuple_index(receive.202, index=0)
   tuple_index.204: bits[32] = tuple_index(receive.202, index=1)
-  receive.205: (token, bits[32]) = receive(tuple_index.203, channel_id=3)
+  receive.205: (token, bits[32]) = receive(tuple_index.203, channel=b_c)
   tuple_index.206: token = tuple_index(receive.205, index=0)
   tuple_index.207: bits[32] = tuple_index(receive.205, index=1)
   umul.208: bits[32] = umul(literal.201, tuple_index.204)
   umul.209: bits[32] = umul(literal.201, tuple_index.207)
-  send.210: token = send(tuple_index.206, umul.208, channel_id=4)
-  send.211: token = send(send.210, umul.209, channel_id=5)
+  send.210: token = send(tuple_index.206, umul.208, channel=c_d)
+  send.211: token = send(send.210, umul.209, channel=c_e)
   next (send.211, state)
 }
 
 proc d(my_token: token, state: (), init={()}) {
   literal.301: bits[32] = literal(value=4)
-  receive.302: (token, bits[32]) = receive(my_token, channel_id=4)
+  receive.302: (token, bits[32]) = receive(my_token, channel=c_d)
   tuple_index.303: token = tuple_index(receive.302, index=0)
   tuple_index.304: bits[32] = tuple_index(receive.302, index=1)
   umul.305: bits[32] = umul(literal.301, tuple_index.304)
-  send.306: token = send(tuple_index.303, umul.305, channel_id=6)
+  send.306: token = send(tuple_index.303, umul.305, channel=d_o)
   next (send.306, state)
 }
 
 proc e(my_token: token, state: (), init={()}) {
   literal.401: bits[32] = literal(value=5)
-  receive.402: (token, bits[32]) = receive(my_token, channel_id=5)
+  receive.402: (token, bits[32]) = receive(my_token, channel=c_e)
   tuple_index.403: token = tuple_index(receive.402, index=0)
   tuple_index.404: bits[32] = tuple_index(receive.402, index=1)
   umul.405: bits[32] = umul(literal.401, tuple_index.404)
-  send.406: token = send(tuple_index.403, umul.405, channel_id=7)
+  send.406: token = send(tuple_index.403, umul.405, channel=e_o)
   next (send.406, state)
 }
 )";

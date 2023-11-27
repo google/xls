@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -90,32 +91,31 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
     return false;
   }
 
-  // Mapping from proc->channel_id, where channel_id is a representative value
-  // for all the channel_ids in the UnionFind.
-  absl::flat_hash_map<Proc*, int64_t> representative_channel_ids;
-  representative_channel_ids.reserve(p->procs().size());
+  // Mapping from proc->channel, where channel is a representative value
+  // for all the channel names in the UnionFind.
+  absl::flat_hash_map<Proc*, std::string> representative_channels;
+  representative_channels.reserve(p->procs().size());
   // Channels in the same proc will be union'd.
-  UnionFind<int64_t> channel_id_union;
+  UnionFind<std::string> channel_union;
   for (std::unique_ptr<Proc>& proc : p->procs()) {
-    std::optional<int64_t> representative_proc_channel_id;
+    std::optional<std::string> representative_proc_channel;
     for (Node* node : proc->nodes()) {
       if (IsChannelNode(node)) {
-        int64_t channel_id;
+        std::string channel;
         if (node->Is<Send>()) {
-          channel_id = node->As<Send>()->channel_id();
+          channel = node->As<Send>()->channel_name();
         } else if (node->Is<Receive>()) {
-          channel_id = node->As<Receive>()->channel_id();
+          channel = node->As<Receive>()->channel_name();
         } else {
           return absl::NotFoundError(absl::StrFormat(
               "No channel associated with node %s", node->GetName()));
         }
-        channel_id_union.Insert(channel_id);
-        if (representative_proc_channel_id.has_value()) {
-          channel_id_union.Union(representative_proc_channel_id.value(),
-                                 channel_id);
+        channel_union.Insert(channel);
+        if (representative_proc_channel.has_value()) {
+          channel_union.Union(representative_proc_channel.value(), channel);
         } else {
-          representative_proc_channel_id = channel_id;
-          representative_channel_ids.insert({proc.get(), channel_id});
+          representative_proc_channel = channel;
+          representative_channels.insert({proc.get(), channel});
         }
       }
     }
@@ -123,18 +123,17 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
 
   absl::flat_hash_set<FunctionBase*> reached;
   MarkReachedFunctions(top.value(), &reached);
-  std::optional<int64_t> top_proc_representative_channel_id;
+  std::optional<std::string> top_proc_representative_channel;
   if ((*top)->IsProc()) {
-    auto itr = representative_channel_ids.find(top.value()->AsProcOrDie());
-    if (itr != representative_channel_ids.end()) {
-      top_proc_representative_channel_id = channel_id_union.Find(itr->second);
-      for (auto [proc, representative_channel_id] :
-           representative_channel_ids) {
-        if (channel_id_union.Find(representative_channel_id) ==
-            *top_proc_representative_channel_id) {
+    auto itr = representative_channels.find(top.value()->AsProcOrDie());
+    if (itr != representative_channels.end()) {
+      top_proc_representative_channel = channel_union.Find(itr->second);
+      for (auto [proc, representative_channel] : representative_channels) {
+        if (channel_union.Find(representative_channel) ==
+            *top_proc_representative_channel) {
           MarkReachedFunctions(proc, &reached);
         }
-    }
+      }
     }
   }
 
@@ -149,19 +148,18 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
   }
 
   // Find any channels which are only used by now-removed procs.
-  std::vector<int64_t> channel_ids_to_remove;
-  channel_ids_to_remove.reserve(p->channels().size());
+  std::vector<std::string> channels_to_remove;
+  channels_to_remove.reserve(p->channels().size());
   for (Channel* channel : p->channels()) {
-    int64_t channel_id = channel->id();
-    if (!top_proc_representative_channel_id.has_value() ||
-        channel_id_union.Find(channel_id) !=
-            *top_proc_representative_channel_id) {
-      channel_ids_to_remove.push_back(channel_id);
+    if (!top_proc_representative_channel.has_value() ||
+        channel_union.Find(channel->name()) !=
+            *top_proc_representative_channel) {
+      channels_to_remove.push_back(channel->name());
     }
   }
   // Now remove any channels which are only used by now-removed procs.
-  for (int64_t channel_id : channel_ids_to_remove) {
-    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
+  for (const std::string& channel_name : channels_to_remove) {
+    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_name));
     XLS_VLOG(2) << "Removing channel: " << channel->name();
     XLS_RETURN_IF_ERROR(p->RemoveChannel(channel));
     changed = true;

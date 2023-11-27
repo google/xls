@@ -533,16 +533,16 @@ absl::StatusOr<xlscc::HLSBlock> XlsccTestBase::GetBlockSpec() {
 }
 
 absl::StatusOr<std::vector<xls::Node*>> XlsccTestBase::GetIOOpsForChannel(
-    xls::FunctionBase* proc, int64_t channel_id) {
+    xls::FunctionBase* proc, std::string_view channel) {
   std::vector<xls::Node*> ret;
   for (xls::Node* node : proc->nodes()) {
     if (node->Is<xls::Send>()) {
-      if (node->As<xls::Send>()->channel_id() == channel_id) {
+      if (node->As<xls::Send>()->channel_name() == channel) {
         ret.push_back(node);
       }
     }
     if (node->Is<xls::Receive>()) {
-      if (node->As<xls::Receive>()->channel_id() == channel_id) {
+      if (node->As<xls::Receive>()->channel_name() == channel) {
         ret.push_back(node);
       }
     }
@@ -596,17 +596,17 @@ absl::StatusOr<bool> XlsccTestBase::NodeIsAfterTokenWise(xls::Proc* proc,
 }
 
 absl::StatusOr<std::vector<xls::Node*>> XlsccTestBase::GetOpsForChannel(
-    int64_t channel_id) {
+    std::string_view channel) {
   std::vector<xls::Node*> ret;
   XLS_CHECK_NE(package_.get(), nullptr);
   for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
     for (xls::Node* node : proc->nodes()) {
       if (node->Is<xls::Receive>() &&
-          node->As<xls::Receive>()->channel_id() == channel_id) {
+          node->As<xls::Receive>()->channel_name() == channel) {
         ret.push_back(node);
       }
       if (node->Is<xls::Send>() &&
-          node->As<xls::Send>()->channel_id() == channel_id) {
+          node->As<xls::Send>()->channel_name() == channel) {
         ret.push_back(node);
       }
     }

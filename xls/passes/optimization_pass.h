@@ -68,7 +68,8 @@ struct RamConfig {
 
 struct RamModelBuilderResult {
   std::unique_ptr<Package> package;
-  absl::flat_hash_map<std::string, int64_t> channel_logical_name_to_physical_id;
+  absl::flat_hash_map<std::string, std::string>
+      channel_logical_name_to_physical_name;
 };
 
 using ram_model_builder_t = std::function<RamModelBuilderResult(RamConfig)>;

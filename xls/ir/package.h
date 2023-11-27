@@ -117,7 +117,7 @@ class Package {
     // and blocks)
     absl::flat_hash_map<std::string, std::string> name_updates;
     // other package -> this package channel id mapping
-    absl::flat_hash_map<int64_t, int64_t> channel_id_updates;
+    absl::flat_hash_map<std::string, std::string> channel_updates;
   };
   // Add another package to this package. Ownership is transferred to this
   // package.
@@ -263,9 +263,17 @@ class Package {
   absl::StatusOr<Channel*> GetChannel(int64_t id) const;
   absl::StatusOr<Channel*> GetChannel(std::string_view name) const;
 
-  // Returns whether there exists a channel with the given ID.
+  // Returns whether there exists a channel with the given ID / name.
   bool HasChannelWithId(int64_t id) const {
-    return channels_.find(id) != channels_.end();
+    for (Channel* channel : channel_vec_) {
+      if (channel->id() == id) {
+        return true;
+      }
+    }
+    return false;
+  }
+  bool HasChannelWithName(std::string_view name) const {
+    return channels_.find(name) != channels_.end();
   }
 
   // Removes the given channel. If the channel has any associated send/receive
@@ -403,9 +411,9 @@ class Package {
   absl::flat_hash_map<Fileno, std::string> fileno_to_filename_;
   absl::flat_hash_map<std::string, Fileno> filename_to_fileno_;
 
-  // Channels owned by this package. Indexed by channel id. Stored as
+  // Channels owned by this package. Indexed by channel name. Stored as
   // unique_ptrs for pointer stability.
-  absl::flat_hash_map<int64_t, std::unique_ptr<Channel>> channels_;
+  absl::flat_hash_map<std::string, std::unique_ptr<Channel>> channels_;
 
   // Vector of channel pointers. Kept in sync with the channels_ map. Enables
   // easy, stable iteration over channels.
