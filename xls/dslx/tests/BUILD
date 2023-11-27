@@ -258,10 +258,6 @@ dslx_lang_test(name = "comments")
 
 dslx_lang_test(
     name = "compound_eq",
-    # TODO(leary): 2023-11-09 Match arm RHS is awkwardly line wrapped.
-    # Also, quickcheck abutted comment is spaced, and quickcheck test count is
-    # dropped.
-    test_autofmt = False,
     # Compound eq not supported yet in z3.
     test_ir_equivalence = False,
 )

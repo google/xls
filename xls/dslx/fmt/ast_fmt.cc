@@ -902,13 +902,17 @@ static DocRef FmtMatchArm(const MatchArm& n, const Comments& comments,
     pieces.push_back(arena.hard_line());
     pieces.push_back(arena.MakeNest(rhs_doc));
   } else {
-    pieces.push_back(arena.space());
     // If the RHS is a blocked expression, e.g. a struct instance, we don't
     // align it to the fat arrow indicated column.
     if (n.expr()->IsBlockedExprAnyLeader()) {
+      pieces.push_back(arena.space());
       pieces.push_back(arena.MakeGroup(rhs_doc));
     } else {
-      pieces.push_back(arena.MakeAlign(arena.MakeGroup(rhs_doc)));
+      DocRef flat_choice_group = arena.MakeGroup(arena.MakeFlatChoice(
+          /*on_flat=*/arena.MakeConcat(arena.space(), rhs_doc),
+          /*on_break=*/arena.MakeConcat(arena.hard_line(),
+                                        arena.MakeNest(rhs_doc))));
+      pieces.push_back(flat_choice_group);
     }
   }
 
