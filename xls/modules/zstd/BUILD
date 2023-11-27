@@ -510,3 +510,19 @@ place_and_route(
     synthesized_rtl = ":dec_mux_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "dec_demux_dslx",
+    srcs = [
+        "dec_demux.x",
+    ],
+    deps = [
+        ":block_header_dslx",
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "dec_demux_dslx_test",
+    library = ":dec_demux_dslx",
+)
