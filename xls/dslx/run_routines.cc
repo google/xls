@@ -35,6 +35,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
@@ -42,12 +43,19 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/interpreter/random_value.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 namespace {
@@ -178,7 +186,7 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
   XLS_ASSIGN_OR_RETURN(
       QuickCheckResults qc_results,
       DoQuickCheck(ir_function, std::move(ir_name), run_comparator, seed,
-                   quickcheck->test_count()));
+                   quickcheck->GetTestCountOrDefault()));
   const auto& [arg_sets, results] = qc_results;
   XLS_ASSIGN_OR_RETURN(Bits last_result, results.back().GetBitsWithStatus());
   if (!last_result.IsZero()) {
@@ -232,7 +240,7 @@ static absl::Status RunQuickChecksIfJitEnabled(
   for (QuickCheck* quickcheck : entry_module->GetQuickChecks()) {
     const std::string& test_name = quickcheck->identifier();
     std::cerr << "[ RUN QUICKCHECK        ] " << test_name
-              << " count: " << quickcheck->test_count() << "\n";
+              << " count: " << quickcheck->GetTestCountOrDefault() << "\n";
     absl::Status status =
         RunQuickCheck(run_comparator, ir_package, quickcheck, type_info, *seed);
     if (!status.ok()) {

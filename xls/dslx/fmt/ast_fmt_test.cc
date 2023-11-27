@@ -1871,5 +1871,17 @@ fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_to
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, QuickcheckWithCount) {
+  const std::string_view kProgram = R"(// Comment on quickcheck.
+#[quickcheck(test_count=100000)]
+fn prop_eq(x: u32, y: u32) -> bool { x == y }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

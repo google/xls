@@ -471,8 +471,8 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     return ParseTestProc(bindings);
   }
   if (directive_name == "quickcheck") {
-    XLS_ASSIGN_OR_RETURN(QuickCheck * n, ParseQuickCheck(name_to_fn, bindings,
-                                                         directive_tok.span()));
+    XLS_ASSIGN_OR_RETURN(QuickCheck * n,
+                         ParseQuickCheck(name_to_fn, bindings, hash_pos));
     return n;
   }
   return ParseErrorStatus(
@@ -1403,12 +1403,14 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
 
 absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
     absl::flat_hash_map<std::string, Function*>* name_to_fn, Bindings& bindings,
-    const Span& directive_span) {
+    const Pos& hash_pos) {
   std::optional<int64_t> test_count;
   XLS_ASSIGN_OR_RETURN(bool peek_is_paren, PeekTokenIs(TokenKind::kOParen));
   if (peek_is_paren) {  // Config is specified.
     DropTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(std::string config_name, PopIdentifierOrError());
+    Span config_name_span;
+    XLS_ASSIGN_OR_RETURN(std::string config_name,
+                         PopIdentifierOrError(&config_name_span));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
     if (config_name == "test_count") {
       XLS_ASSIGN_OR_RETURN(Token count_token,
@@ -1423,7 +1425,7 @@ absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     } else {
       return ParseErrorStatus(
-          directive_span,
+          config_name_span,
           absl::StrFormat("Unknown configuration key in directive: '%s'",
                           config_name));
     }
@@ -1432,7 +1434,8 @@ absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
   XLS_ASSIGN_OR_RETURN(
       Function * fn, ParseFunction(/*is_public=*/false, bindings, name_to_fn));
-  return module_->Make<QuickCheck>(fn->span(), fn, test_count);
+  const Span quickcheck_span(hash_pos, fn->span().limit());
+  return module_->Make<QuickCheck>(quickcheck_span, fn, test_count);
 }
 
 absl::StatusOr<XlsTuple*> Parser::ParseTupleRemainder(const Pos& start_pos,

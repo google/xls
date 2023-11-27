@@ -2565,10 +2565,11 @@ class QuickCheck : public AstNode {
   const std::string& identifier() const { return f_->identifier(); }
 
   Function* f() const { return f_; }
-  int64_t test_count() const {
+  int64_t GetTestCountOrDefault() const {
     return test_count_ ? *test_count_ : kDefaultTestCount;
   }
-  std::optional<Span> GetSpan() const override { return f_->span(); }
+  std::optional<int64_t> test_count() const { return test_count_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;

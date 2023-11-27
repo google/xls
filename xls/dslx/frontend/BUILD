@@ -61,7 +61,9 @@ cc_library(
     hdrs = ["token_parser.h"],
     deps = [
         ":bindings",
+        ":pos",
         ":scanner",
+        ":token",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

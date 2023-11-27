@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -1694,7 +1695,12 @@ static DocRef Fmt(const TestProc& n, const Comments& comments,
 static DocRef Fmt(const QuickCheck& n, const Comments& comments,
                   DocArena& arena) {
   std::vector<DocRef> pieces;
-  pieces.push_back(arena.MakeText("#[quickcheck]"));
+  if (std::optional<int64_t> test_count = n.test_count()) {
+    pieces.push_back(arena.MakeText(
+        absl::StrFormat("#[quickcheck(test_count=%d)]", test_count.value())));
+  } else {
+    pieces.push_back(arena.MakeText("#[quickcheck]"));
+  }
   pieces.push_back(arena.hard_line());
   pieces.push_back(Fmt(*n.f(), comments, arena));
   return ConcatN(arena, pieces);

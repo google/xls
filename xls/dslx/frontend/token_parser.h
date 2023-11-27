@@ -25,7 +25,10 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
 
@@ -147,8 +150,11 @@ class TokenParser {
     return token;
   }
 
-  absl::StatusOr<std::string> PopIdentifierOrError() {
+  absl::StatusOr<std::string> PopIdentifierOrError(Span* span_out = nullptr) {
     XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
+    if (span_out != nullptr) {
+      *span_out = tok.span();
+    }
     return *tok.GetValue();
   }
 

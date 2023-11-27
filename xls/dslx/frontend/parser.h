@@ -522,7 +522,7 @@ class Parser : public TokenParser {
 
   absl::StatusOr<QuickCheck*> ParseQuickCheck(
       absl::flat_hash_map<std::string, Function*>* name_to_fn,
-      Bindings& bindings, const Span& directive_span);
+      Bindings& bindings, const Pos& hash_pos);
 
   // Parses DSLX attributes, analogous to Rust's attributes.
   absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
