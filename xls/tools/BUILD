@@ -862,28 +862,6 @@ cc_binary(
     ],
 )
 
-cc_binary(
-    name = "llvm_main_generator",
-    srcs = ["llvm_main_generator.cc"],
-    deps = [
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/logging",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/ir:type",
-        "//xls/jit:llvm_type_converter",
-        "//xls/jit:orc_jit",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@llvm-project//llvm:Core",
-        "@llvm-project//llvm:IRReader",
-        "@llvm-project//llvm:Support",
-    ],
-)
-
 py_test(
     name = "mul_folding_overlarge",
     srcs = ["run_opt_main.py"],
