@@ -989,13 +989,7 @@ class String : public Expr {
   }
 
  private:
-  std::string ToStringInternal() const final {
-    // We need to re-insert the escape slash for: the blackslahes and the double
-    // quotes.
-    return absl::StrFormat(
-        R"("%s")",
-        absl::StrReplaceAll(text_, {{R"(\)", R"(\\)"}, {R"(")", R"(\")"}}));
-  }
+  std::string ToStringInternal() const final;
 
   std::string text_;
 };

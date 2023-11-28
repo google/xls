@@ -44,6 +44,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/token_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
@@ -2381,6 +2382,10 @@ std::string Expr::ToString() const {
 // -- class String
 
 String::~String() = default;
+
+std::string String::ToStringInternal() const {
+  return absl::StrCat("\"", Escape(text_), "\"");
+}
 
 // -- class Number
 

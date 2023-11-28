@@ -695,6 +695,18 @@ TEST_F(FunctionFmtTest, CharLiteral) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, CharLiteralTab) {
+  const std::string_view original = R"(fn f() -> u8 { u8:'\t' })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, CharLiteralNul) {
+  const std::string_view original = R"(fn f() -> u8 { u8:'\0' })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, LetWithInlineCommentThatFits) {
   const std::string_view original =
       R"(fn f() {

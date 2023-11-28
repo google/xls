@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
 
@@ -34,6 +35,10 @@ struct SizedTypeData {
 // SizedTypeData.
 const absl::flat_hash_map<std::string, SizedTypeData>&
 GetSizedTypeKeywordsMetadata();
+
+// Performs unescaping a la absl::CHexEscape but prefers the non-hex nul
+// character '\0' over the hex one that CHexEscape uses.
+std::string Escape(std::string_view original);
 
 }  // namespace xls::dslx
 

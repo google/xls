@@ -359,6 +359,7 @@ cc_library(
         ":ast_builtin_types",
         ":ast_node",
         ":pos",
+        ":token_utils",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

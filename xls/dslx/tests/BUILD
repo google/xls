@@ -320,11 +320,7 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "character_conversion",
-    # TODO(leary): 2023-10-20 Char literals are messed up.
-    test_autofmt = False,
-)
+dslx_lang_test(name = "character_conversion")
 
 dslx_lang_test(
     name = "string_conversion",

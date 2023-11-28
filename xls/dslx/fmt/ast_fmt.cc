@@ -41,6 +41,7 @@
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
+#include "xls/dslx/frontend/token_utils.h"
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
@@ -309,7 +310,8 @@ DocRef Fmt(const NameRef& n, const Comments& comments, DocArena& arena) {
 DocRef Fmt(const Number& n, const Comments& comments, DocArena& arena) {
   DocRef num_text;
   if (n.number_kind() == NumberKind::kCharacter) {
-    num_text = arena.MakeText(absl::StrFormat("'%s'", n.text()));
+    std::string guts = Escape(n.text());
+    num_text = arena.MakeText(absl::StrFormat("'%s'", guts));
   } else {
     num_text = arena.MakeText(n.text());
   }

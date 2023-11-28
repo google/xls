@@ -20,8 +20,10 @@
 #include <string_view>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_replace.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/scanner_keywords.inc"
 
@@ -44,6 +46,11 @@ GetSizedTypeKeywordsMetadata() {
     return result.release();
   })();
   return *m;
+}
+
+std::string Escape(std::string_view original) {
+  std::string result = absl::CHexEscape(original);
+  return absl::StrReplaceAll(result, {{"\\x00", "\\0"}});
 }
 
 }  // namespace xls::dslx

@@ -66,6 +66,7 @@ cc_library(
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:token",
+        "//xls/dslx/frontend:token_utils",
         "//xls/ir:format_strings",
     ],
 )
