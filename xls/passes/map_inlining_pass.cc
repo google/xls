@@ -51,6 +51,11 @@ absl::StatusOr<bool> MapInliningPass::RunOnFunctionBaseInternal(
   return changed;
 }
 
+absl::Status MapInliningPass::InlineOneMap(Map* map) {
+  MapInliningPass pass;
+  return pass.ReplaceMap(map);
+}
+
 absl::Status MapInliningPass::ReplaceMap(Map* map) const {
   FunctionBase* function = map->function_base();
 

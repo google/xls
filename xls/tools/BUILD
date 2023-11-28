@@ -840,6 +840,7 @@ cc_binary(
         "//xls/passes:dce_pass",
         "//xls/passes:dfe_pass",
         "//xls/passes:inlining_pass",
+        "//xls/passes:map_inlining_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",

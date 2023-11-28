@@ -74,6 +74,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/inlining_pass.h"
+#include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
@@ -184,9 +185,10 @@ ABSL_FLAG(bool, simplify_top_only, false,
 ABSL_FLAG(
     bool, can_inline_everything, true,
     "Whether inlining everything into TOP as a single operation is an allowed "
-    "simplification. This is independent of --can_inline_invokes");
-ABSL_FLAG(bool, can_inline_invokes, true,
-          "Whether individual invokes can be inlined as a simplification.");
+    "simplification. This is independent of --can_inline");
+ABSL_FLAG(
+    bool, can_inline, true,
+    "Whether individual invokes & maps can be inlined as a simplification.");
 
 namespace xls {
 namespace {
@@ -791,12 +793,23 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   }
 
   // 50/50 replace invoke node with single-inlined version.
-  if (absl::GetFlag(FLAGS_can_inline_invokes) && n->Is<Invoke>() &&
+  if (absl::GetFlag(FLAGS_can_inline) && n->Is<Invoke>() &&
       absl::Bernoulli(rng, 0.5)) {
     // We will remove the invoke node so grab its name now.
     std::string transform_temp =
         absl::StrFormat("inline single invoke '%s'", n->ToString());
     XLS_RETURN_IF_ERROR(InliningPass::InlineOneInvoke(n->As<Invoke>()));
+    *which_transform = transform_temp;
+    return SimplificationResult::kDidChange;
+  }
+
+  // 50/50 replace map node with expanded invokes.
+  if (absl::GetFlag(FLAGS_can_inline) && n->Is<Map>() &&
+      absl::Bernoulli(rng, 0.5)) {
+    // We will remove the map node so grab its name now.
+    std::string transform_temp =
+        absl::StrFormat("expand single map '%s'", n->ToString());
+    XLS_RETURN_IF_ERROR(MapInliningPass::InlineOneMap(n->As<Map>()));
     *which_transform = transform_temp;
     return SimplificationResult::kDidChange;
   }

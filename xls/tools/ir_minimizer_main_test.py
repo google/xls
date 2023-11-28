@@ -17,8 +17,8 @@ import os
 import stat
 import subprocess
 
-from xls.common import runfiles
 from absl.testing import absltest
+from xls.common import runfiles
 
 IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/tools/ir_minimizer_main')
 
@@ -80,6 +80,17 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[1] {
 }
 """
 
+INVOKE_MAP = """package foo
+
+fn bar(x: bits[32]) -> bits[1] {
+    ret and_reduce.1: bits[1] = and_reduce(x, id=1)
+}
+
+top fn foo(x: bits[32][8]) -> bits[1][8] {
+    ret map.3: bits[1][8] = map(x, to_apply=bar, id=3)
+}
+"""
+
 
 class IrMinimizerMainTest(absltest.TestCase):
 
@@ -125,36 +136,44 @@ top fn foo(x: bits[8], y: bits[8]) -> bits[8][4] {
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, ['/usr/bin/env grep add $1'])
     minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
-        '--can_remove_params=false', ir_file.full_path
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        '--can_remove_params=false',
+        ir_file.full_path,
     ])
     self._maybe_record_property('output', minimized_ir.decode('utf-8'))
     self.assertEqual(
-        minimized_ir.decode('utf-8'), """package foo
+        minimized_ir.decode('utf-8'),
+        """package foo
 
 top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
   literal.10: bits[32] = literal(value=0, id=10)
   ret add.2: bits[32] = add(literal.10, literal.10, id=2)
 }
-""")
+""",
+    )
 
   def test_minimize_add_remove_params(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, ['/usr/bin/env grep add $1'])
     minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
-        '--can_remove_params', ir_file.full_path
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        '--can_remove_params',
+        ir_file.full_path,
     ])
     self._maybe_record_property('output', minimized_ir.decode('utf-8'))
     self.assertEqual(
-        minimized_ir.decode('utf-8'), """package foo
+        minimized_ir.decode('utf-8'),
+        """package foo
 
 top fn foo() -> bits[32] {
   literal.12: bits[32] = literal(value=0, id=12)
   ret add.2: bits[32] = add(literal.12, literal.12, id=2)
 }
-""")
+""",
+    )
 
   def test_no_reduction_possible(self):
     ir_file = self.create_tempfile(content=ADD_IR)
@@ -170,8 +189,10 @@ top fn foo() -> bits[32] {
         ],
     )
     minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
-        '--can_remove_params', ir_file.full_path
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        '--can_remove_params',
+        ir_file.full_path,
     ])
     self.assertEqual(minimized_ir.decode('utf-8'), ADD_IR)
 
@@ -190,8 +211,9 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[32][3] {
         test_sh_file.full_path, ['/usr/bin/env grep not.*x $1']
     )
     minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
-        ir_file.full_path
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        ir_file.full_path,
     ])
     # The array operation should have been stripped from the function.
     self.assertIn('array(', input_ir)
@@ -213,11 +235,14 @@ top fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[
         test_sh_file.full_path, ['/usr/bin/env grep "tuple(.*x" $1']
     )
     minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
-        ir_file.full_path
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        ir_file.full_path,
     ])
-    self.assertRegex(minimized_ir.decode('utf-8'),
-                     r'ret tuple\.\d+: \(bits\[32\]\) = tuple\(x, id=\d+\)')
+    self.assertRegex(
+        minimized_ir.decode('utf-8'),
+        r'ret tuple\.\d+: \(bits\[32\]\) = tuple\(x, id=\d+\)',
+    )
 
   def test_simplify_array(self):
     input_ir = """package foo
@@ -231,15 +256,18 @@ top fn foo() -> bits[32][3] {
     self._write_sh_script(
         test_sh_file.full_path, [r'/usr/bin/env grep "bits\[32\]\[[123]\]" $1']
     )
-    minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH,
-        '--test_executable=' + test_sh_file.full_path,
-        ir_file.full_path,
-    ],
-                                           encoding='utf-8')
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
     self.assertRegex(
         minimized_ir,
-        r'ret \w+.\d+: bits\[32\]\[1\] = literal\(value=\[0\], id=\d+\)')
+        r'ret \w+.\d+: bits\[32\]\[1\] = literal\(value=\[0\], id=\d+\)',
+    )
 
   def test_proc(self):
     input_ir = '''package foo
@@ -259,13 +287,15 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
-    minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH,
-        '--test_executable=' + test_sh_file.full_path,
-        '--can_remove_params',
-        ir_file.full_path,
-    ],
-                                           encoding='utf-8')
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
     self.assertIn('proc foo', minimized_ir)
 
   def test_proc_remove_sends(self):
@@ -286,14 +316,16 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
-    minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH,
-        '--test_executable=' + test_sh_file.full_path,
-        '--can_remove_params',
-        '--can_remove_sends',
-        ir_file.full_path,
-    ],
-                                           encoding='utf-8')
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            '--can_remove_sends',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
     self.assertIn('receive', minimized_ir)
     self.assertNotIn('send', minimized_ir)
 
@@ -315,14 +347,16 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
-    minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH,
-        '--test_executable=' + test_sh_file.full_path,
-        '--can_remove_params',
-        '--can_remove_receives',
-        ir_file.full_path,
-    ],
-                                           encoding='utf-8')
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            '--can_remove_receives',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
     self.assertNotIn('receive', minimized_ir)
     self.assertIn('send', minimized_ir)
 
@@ -344,15 +378,17 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
-    minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH,
-        '--test_executable=' + test_sh_file.full_path,
-        '--can_remove_params',
-        '--can_remove_receives',
-        '--can_remove_sends',
-        ir_file.full_path,
-    ],
-                                           encoding='utf-8')
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            '--can_remove_receives',
+            '--can_remove_sends',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
     self.assertNotIn('receive', minimized_ir)
     self.assertNotIn('send', minimized_ir)
 
@@ -374,16 +410,18 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
-    minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH,
-        '--test_executable=' + test_sh_file.full_path,
-        '--can_remove_params',
-        '--can_remove_receives',
-        '--can_remove_sends',
-        '--preserve_channels=input',
-        ir_file.full_path,
-    ],
-                                           encoding='utf-8')
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            '--can_remove_receives',
+            '--can_remove_sends',
+            '--preserve_channels=input',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
     self.assertIn('chan input', minimized_ir)
     self.assertNotIn('chan output', minimized_ir)
 
@@ -395,33 +433,45 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
     self._write_sh_script(test_sh_file.full_path, ['exit 1'])
     with self.assertRaises(subprocess.CalledProcessError):
       subprocess.check_call([
-          IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
-          '--can_remove_params', ir_file.full_path
+          IR_MINIMIZER_MAIN_PATH,
+          '--test_executable=' + test_sh_file.full_path,
+          '--can_remove_params',
+          ir_file.full_path,
       ])
 
   def test_minimize_jit_mismatch(self):
     ir_file = self.create_tempfile(content=ADD_IR)
-    minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH, '--test_llvm_jit',
-        '--use_optimization_pipeline', '--input=bits[32]:0x42; bits[32]:0x123',
-        '--test_only_inject_jit_result=bits[32]:0x22', ir_file.full_path
-    ],
-                                           stderr=subprocess.PIPE)
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_llvm_jit',
+            '--use_optimization_pipeline',
+            '--input=bits[32]:0x42; bits[32]:0x123',
+            '--test_only_inject_jit_result=bits[32]:0x22',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+    )
     # The minimizer should reduce the test case to just a literal.
     self.assertIn('ret literal', minimized_ir.decode('utf-8'))
 
   def test_minimize_jit_mismatch_but_no_mismatch(self):
     ir_file = self.create_tempfile(content=ADD_IR)
-    comp = subprocess.run([
-        IR_MINIMIZER_MAIN_PATH, '--test_llvm_jit',
-        '--use_optimization_pipeline', '--input=bits[32]:0x42; bits[32]:0x123',
-        ir_file.full_path
-    ],
-                          stderr=subprocess.PIPE,
-                          check=False)
+    comp = subprocess.run(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_llvm_jit',
+            '--use_optimization_pipeline',
+            '--input=bits[32]:0x42; bits[32]:0x123',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn('main function provided does not fail',
-                  comp.stderr.decode('utf-8'))
+    self.assertIn(
+        'main function provided does not fail', comp.stderr.decode('utf-8')
+    )
 
   def test_remove_userless_sideeffecting_op(self):
     input_ir = """package foo
@@ -438,8 +488,9 @@ top fn foo(x: bits[32], y: bits[1]) -> bits[32] {
         test_sh_file.full_path, ['/usr/bin/env grep test_node $1']
     )
     minimized_ir = subprocess.check_output([
-        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
-        ir_file.full_path
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        ir_file.full_path,
     ])
     self.assertNotIn('gate_node', minimized_ir.decode('utf-8'))
 
@@ -570,6 +621,48 @@ fn baz() -> bits[1] {
 
 top fn foo() -> bits[1] {
   ret invoke.19: bits[1] = invoke(to_apply=baz, id=19)
+}
+""",
+    )
+
+  def test_can_unwrap_map(self):
+    ir_file = self.create_tempfile(content=INVOKE_MAP)
+    test_sh_file = self.create_tempfile()
+    # The test script only checks to see if bar is present
+    self._write_sh_script(
+        test_sh_file.full_path,
+        ['/usr/bin/env grep bar $1'],
+    )
+    output = subprocess.run(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--can_remove_params',
+            '--can_inline_everything=false',
+            '--test_executable=' + test_sh_file.full_path,
+            ir_file.full_path,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(
+        output.returncode,
+        0,
+        f'Non zero return: stderr {output.stderr}, stdout: {output.stdout}',
+    )
+    minimized_ir = output.stdout
+    self._maybe_record_property('output', minimized_ir.decode('utf-8'))
+    self.assertEqual(
+        minimized_ir.decode('utf-8'),
+        """package foo
+
+fn bar(x: bits[32]) -> bits[1] {
+  ret literal.5: bits[1] = literal(value=0, id=5)
+}
+
+top fn foo() -> bits[1] {
+  literal.66: bits[32] = literal(value=0, id=66)
+  ret invoke.33: bits[1] = invoke(literal.66, to_apply=bar, id=33)
 }
 """,
     )

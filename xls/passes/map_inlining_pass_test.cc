@@ -17,8 +17,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls {
@@ -26,8 +29,10 @@ namespace {
 
 namespace m = ::xls::op_matchers;
 
+class MapInliningPassTest : public IrTestBase {};
+
 // "Smoke" test for a basic map transform.
-TEST(MapInliningPassTest, BasicOperation) {
+TEST_F(MapInliningPassTest, BasicOperation) {
   const char kPackage[] = R"(
 package p
 
@@ -64,7 +69,7 @@ fn main() -> bits[16][4] {
   XLS_VLOG(1) << package->DumpIr();
 }
 
-TEST(MapInliningPass, InputArrayOrLiteral) {
+TEST_F(MapInliningPassTest, InputArrayOrLiteral) {
   const char kPackage[] = R"(
 package p
 
@@ -92,6 +97,29 @@ fn main(a: bits[32][4]) -> bits[16][4] {
           m::Invoke(m::ArrayIndex(m::Param(), /*indices=*/{m::Literal(1)})),
           m::Invoke(m::ArrayIndex(m::Param(), /*indices=*/{m::Literal(2)})),
           m::Invoke(m::ArrayIndex(m::Param(), /*indices=*/{m::Literal(3)}))));
+}
+
+TEST_F(MapInliningPassTest, InlineOneMap) {
+  auto p = CreatePackage();
+  FunctionBuilder fb_target(TestName() + "_Target", p.get());
+  fb_target.BitSlice(fb_target.Param("x", p->GetBitsType(8)), 0, 4);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * target, fb_target.Build());
+
+  FunctionBuilder fb_main(TestName(), p.get());
+  BValue map_one = fb_main.Map(
+      fb_main.Param("a", p->GetArrayType(8, p->GetBitsType(8))), target);
+  BValue map_two = fb_main.Map(
+      fb_main.Param("b", p->GetArrayType(8, p->GetBitsType(8))), target);
+  fb_main.Tuple({map_one, map_two});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main, fb_main.Build());
+
+  XLS_ASSERT_OK(MapInliningPass::InlineOneMap(map_one.node()->As<Map>()));
+
+  EXPECT_THAT(
+      main->return_value(),
+      m::Tuple(m::Array(m::Invoke(), m::Invoke(), m::Invoke(), m::Invoke(),
+                        m::Invoke(), m::Invoke(), m::Invoke(), m::Invoke()),
+               map_two.node()));
 }
 
 }  // namespace

@@ -257,6 +257,7 @@ cc_library(
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/ir",
         "//xls/ir:function_builder",
     ],
 )
@@ -270,8 +271,11 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
     ],
 )
 

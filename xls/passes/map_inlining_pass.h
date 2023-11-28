@@ -15,8 +15,12 @@
 #ifndef XLS_PASSES_MAP_INLINING_PASS_H_
 #define XLS_PASSES_MAP_INLINING_PASS_H_
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -25,6 +29,10 @@ namespace xls {
 class MapInliningPass : public OptimizationFunctionBasePass {
  public:
   MapInliningPass();
+
+  // Inline a single Map instruction. Provided for test and utility
+  // (ir_minimizer) use.
+  static absl::Status InlineOneMap(Map* map);
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
