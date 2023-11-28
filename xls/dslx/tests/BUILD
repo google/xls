@@ -755,12 +755,7 @@ dslx_lang_test(name = "local_const_value_in_parametric")
 
 dslx_lang_test(name = "constant_array_unannotated_type")
 
-dslx_lang_test(
-    name = "reverse",
-    # TODO(leary): 2023-10-20 Newline after comment (before test/quickcheck
-    # function).
-    test_autofmt = False,
-)
+dslx_lang_test(name = "reverse")
 
 dslx_lang_test(name = "typedef_multidim_array")
 

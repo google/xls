@@ -13,35 +13,29 @@
 // limitations under the License.
 
 // (Dummy) wrapper around reverse.
-fn wrapper<N: u32>(x: bits[N]) -> bits[N] {
-  rev(x)
-}
+fn wrapper<N: u32>(x: bits[N]) -> bits[N] { rev(x) }
 
 // Target for IR conversion that works on u3s.
-fn main(x: u3) -> u3 {
-  wrapper(x)
-}
+fn main(x: u3) -> u3 { wrapper(x) }
 
 // Reverse examples.
 #[test]
 fn test_reverse() {
-  assert_eq(u3:0b100, main(u3:0b001));
-  assert_eq(u3:0b001, main(u3:0b100));
-  assert_eq(bits[0]:0, rev(bits[0]:0));
-  assert_eq(u1:1, rev(u1:1));
-  assert_eq(u2:0b10, rev(u2:0b01));
-  assert_eq(u2:0b00, rev(u2:0b00));
+    assert_eq(u3:0b100, main(u3:0b001));
+    assert_eq(u3:0b001, main(u3:0b100));
+    assert_eq(bits[0]:0, rev(bits[0]:0));
+    assert_eq(u1:1, rev(u1:1));
+    assert_eq(u2:0b10, rev(u2:0b01));
+    assert_eq(u2:0b00, rev(u2:0b00));
 }
 
 // Reversing a value twice gets you the original value.
 #[quickcheck]
-fn prop_double_reverse(x: u32) -> bool {
-  x == rev(rev(x))
-}
+fn prop_double_reverse(x: u32) -> bool { x == rev(rev(x)) }
 
 // Reversing a value means that the lsb becomes the msb.
 #[quickcheck]
 fn prop_lsb_becomes_msb(x: u32) -> bool {
-  let reversed_x = rev(x);
-  x[0:1] == reversed_x[-1:]
+    let reversed_x = rev(x);
+    x[0:1] == reversed_x[-1:]
 }
