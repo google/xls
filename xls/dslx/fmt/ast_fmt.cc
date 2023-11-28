@@ -756,9 +756,13 @@ DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
       arena.oparen(),
       arena.MakeText(
           absl::StrCat("\"", StepsToXlsFormatString(n.format()), "\"")),
-      arena.comma(),
-      arena.break1(),
   };
+
+  if (!n.args().empty()) {
+    pieces.push_back(arena.comma());
+    pieces.push_back(arena.break1());
+  }
+
   pieces.push_back(FmtJoin<const Expr*>(n.args(), Joiner::kCommaSpace,
                                         FmtExprPtr, comments, arena));
   pieces.push_back(arena.cparen());

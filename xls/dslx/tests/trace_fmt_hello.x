@@ -13,16 +13,14 @@
 // limitations under the License.
 
 fn hello() {
-  let x = u8:0xF0;
-  trace_fmt!("Hello world!");
-  trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
-  let y = u32:17;
-  trace_fmt!("y is 32'd{:d}, 32'h{:x} and 32'b{:b}", y, y, y);
+    let x = u8:0xF0;
+    trace_fmt!("Hello world!");
+    trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
+    let y = u32:17;
+    trace_fmt!("y is 32'd{:d}, 32'h{:x} and 32'b{:b}", y, y, y);
 }
 
-fn main() {
-  hello()
-}
+fn main() { hello() }
 
 #[test]
 fn hello_test() { hello() }

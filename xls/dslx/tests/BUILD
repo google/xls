@@ -416,8 +416,6 @@ dslx_lang_test(name = "trace")
 # trace_fmt tests.
 dslx_lang_test(
     name = "trace_fmt_hello",
-    # TODO(leary): 2023-10-20 Erroneous trailing comma in trace_fmt! call.
-    test_autofmt = False,
     # No trace op Z3 translation.
     test_ir_equivalence = False,
 )
