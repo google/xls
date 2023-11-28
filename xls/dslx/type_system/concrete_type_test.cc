@@ -27,6 +27,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 namespace {

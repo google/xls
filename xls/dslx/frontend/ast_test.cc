@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast_test_utils.h"
+#include "xls/dslx/frontend/module.h"
 
 namespace xls::dslx {
 namespace {

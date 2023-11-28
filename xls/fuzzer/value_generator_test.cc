@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"

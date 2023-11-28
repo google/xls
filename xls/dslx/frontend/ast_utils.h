@@ -22,6 +22,7 @@
 #include <tuple>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -208,6 +209,13 @@ struct BitVectorMetadata {
 // std::nullopt otherwise.
 std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
     const TypeAnnotation* type_annotation);
+
+// Collects all nodes under the given root.
+absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
+                                                   bool want_types);
+
+absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
+                                                         bool want_types);
 
 }  // namespace xls::dslx
 

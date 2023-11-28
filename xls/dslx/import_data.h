@@ -30,6 +30,7 @@
 #include "absl/types/span.h"
 #include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/type_info.h"

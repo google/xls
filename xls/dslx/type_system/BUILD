@@ -53,6 +53,8 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -248,7 +250,9 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtins_metadata",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:proc",
         "@com_googlesource_code_re2//:re2",
     ],
 )
@@ -433,6 +437,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
     ],
 )
 
@@ -445,6 +450,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx/frontend:module",
     ],
 )
 

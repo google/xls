@@ -18,6 +18,10 @@
 #include <variant>
 #include <vector>
 
+#include "xls/common/logging/logging.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
+
 namespace xls::dslx {
 
 std::optional<Span> FindDefinition(const Module& m, const Pos& selected) {

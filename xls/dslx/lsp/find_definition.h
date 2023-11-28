@@ -18,6 +18,7 @@
 #include <optional>
 
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {

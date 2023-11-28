@@ -32,7 +32,9 @@ cc_library(
     srcs = ["find_definition.cc"],
     hdrs = ["find_definition.h"],
     deps = [
+        "//xls/common/logging",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
     ],
 )
@@ -99,6 +101,7 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:visitor",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
         "@verible//common/lsp:lsp-protocol",
         "@verible//common/lsp:lsp-protocol-enums",
     ],

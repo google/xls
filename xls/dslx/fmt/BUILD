@@ -64,6 +64,7 @@ cc_library(
         "//xls/dslx:channel_direction",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:token",
         "//xls/dslx/frontend:token_utils",

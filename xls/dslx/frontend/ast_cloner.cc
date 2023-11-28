@@ -33,6 +33,8 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/proc.h"
 
 namespace xls::dslx {
 namespace {

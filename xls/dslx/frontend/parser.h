@@ -37,6 +37,7 @@
 #include "xls/common/strong_int.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/token.h"

@@ -323,6 +323,7 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
+        "//xls/dslx/frontend:module",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_protobuf//:protobuf",
@@ -341,6 +342,7 @@ cc_test(
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:module",
         "@com_google_absl//absl/status:statusor",
     ],
 )

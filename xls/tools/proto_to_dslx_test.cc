@@ -25,6 +25,7 @@
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/module.h"
 
 namespace xls {
 namespace {

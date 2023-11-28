@@ -19,6 +19,7 @@
 
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 
 namespace xls::dslx {
 

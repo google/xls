@@ -22,7 +22,6 @@
 #include <string>
 #include <string_view>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -36,9 +35,9 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
 #include "xls/fuzzer/ast_generator_options.pb.h"

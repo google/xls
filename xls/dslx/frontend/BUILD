@@ -27,6 +27,8 @@ cc_library(
     deps = [
         ":ast",
         ":ast_utils",
+        ":module",
+        ":proc",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -47,6 +49,7 @@ cc_test(
     deps = [
         ":ast",
         ":ast_cloner",
+        ":module",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -84,6 +87,7 @@ cc_library(
         ":ast_utils",
         ":bindings",
         ":builtins_metadata",
+        ":module",
         ":pos",
         ":scanner",
         ":token",
@@ -134,6 +138,7 @@ cc_test(
     ],
 )
 
+# Note: ast_utils layers on top of the AST implementation.
 cc_library(
     name = "ast_utils",
     srcs = ["ast_utils.cc"],
@@ -387,12 +392,50 @@ cc_library(
 )
 
 cc_library(
+    name = "proc",
+    srcs = ["proc.cc"],
+    hdrs = ["proc.h"],
+    deps = [
+        ":ast",
+        ":pos",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:indent",
+    ],
+)
+
+cc_library(
+    name = "module",
+    srcs = ["module.cc"],
+    hdrs = ["module.h"],
+    deps = [
+        ":ast",
+        ":pos",
+        ":proc",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:casts",
+        "//xls/common:visitor",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+    ],
+)
+
+cc_library(
     name = "ast_test_utils",
     testonly = True,
     srcs = ["ast_test_utils.cc"],
     hdrs = ["ast_test_utils.h"],
     deps = [
         ":ast",
+        ":module",
         ":pos",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
@@ -405,8 +448,8 @@ cc_test(
     deps = [
         ":ast",
         ":ast_test_utils",
+        ":module",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

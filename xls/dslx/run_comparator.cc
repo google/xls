@@ -14,11 +14,26 @@
 
 #include "xls/dslx/run_comparator.h"
 
+#include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/mangle.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/function.h"
+#include "xls/ir/value.h"
+#include "xls/jit/function_jit.h"
 
 namespace xls::dslx {
 

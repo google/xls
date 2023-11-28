@@ -20,6 +20,7 @@
 #include <string_view>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -574,6 +575,45 @@ std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
     }
   }
   return std::nullopt;
+}
+
+absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
+                                                   bool want_types) {
+  std::vector<AstNode*> nodes;
+
+  class CollectVisitor : public AstNodeVisitor {
+   public:
+    explicit CollectVisitor(std::vector<AstNode*>& nodes) : nodes_(nodes) {}
+
+#define DECLARE_HANDLER(__type)                           \
+  absl::Status Handle##__type(const __type* n) override { \
+    nodes_.push_back(const_cast<__type*>(n));             \
+    return absl::OkStatus();                              \
+  }
+    XLS_DSLX_AST_NODE_EACH(DECLARE_HANDLER)
+#undef DECLARE_HANDLER
+
+   private:
+    std::vector<AstNode*>& nodes_;
+  } collect_visitor(nodes);
+
+  XLS_RETURN_IF_ERROR(WalkPostOrder(root, &collect_visitor, want_types));
+  return nodes;
+}
+
+absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
+                                                         bool want_types) {
+  // Implementation note: delegate to non-const version and turn result values
+  // back to const.
+  XLS_ASSIGN_OR_RETURN(std::vector<AstNode*> got,
+                       CollectUnder(const_cast<AstNode*>(root), want_types));
+
+  std::vector<const AstNode*> result;
+  result.reserve(got.size());
+  for (AstNode* n : got) {
+    result.push_back(n);
+  }
+  return result;
 }
 
 }  // namespace xls::dslx

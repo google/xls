@@ -22,6 +22,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
