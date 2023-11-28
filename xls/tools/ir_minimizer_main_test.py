@@ -31,6 +31,38 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
 }
 """
 
+ARRAY_IR = """package foo
+
+fn bar(x: bits[8][8]) -> bits[8][4] {
+  literal.2: bits[32] = literal(value=0, id=2)
+  literal.4: bits[32] = literal(value=1, id=4)
+  literal.7: bits[32] = literal(value=2, id=7)
+  literal.9: bits[32] = literal(value=3, id=9)
+  literal.12: bits[32] = literal(value=4, id=12)
+  literal.14: bits[32] = literal(value=5, id=14)
+  literal.17: bits[32] = literal(value=6, id=17)
+  literal.19: bits[32] = literal(value=7, id=19)
+  array_index.3: bits[8] = array_index(x, indices=[literal.2], id=3)
+  array_index.5: bits[8] = array_index(x, indices=[literal.4], id=5)
+  array_index.8: bits[8] = array_index(x, indices=[literal.7], id=8)
+  array_index.10: bits[8] = array_index(x, indices=[literal.9], id=10)
+  array_index.13: bits[8] = array_index(x, indices=[literal.12], id=13)
+  array_index.15: bits[8] = array_index(x, indices=[literal.14], id=15)
+  array_index.18: bits[8] = array_index(x, indices=[literal.17], id=18)
+  array_index.20: bits[8] = array_index(x, indices=[literal.19], id=20)
+  add.6: bits[8] = add(array_index.3, array_index.5, id=6)
+  add.11: bits[8] = add(array_index.8, array_index.10, id=11)
+  add.16: bits[8] = add(array_index.13, array_index.15, id=16)
+  add.21: bits[8] = add(array_index.18, array_index.20, id=21)
+  ret array.22: bits[8][4] = array(add.6, add.11, add.16, add.21, id=22)
+}
+
+top fn foo(x: bits[8], y: bits[8]) -> bits[8][4] {
+  array.25: bits[8][8] = array(x, y, x, y, x, y, x, y, id=25)
+  ret invoke.26: bits[8][4] = invoke(array.25, to_apply=bar, id=26)
+}
+"""
+
 INVOKE_TWO = """package foo
 
 fn bar(x: bits[32]) -> bits[1] {
@@ -62,6 +94,31 @@ class IrMinimizerMainTest(absltest.TestCase):
       f.write('\n'.join(all_cmds))
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IXUSR)
+
+  def test_minimize_no_change_subroutine_type(self):
+    ir_file = self.create_tempfile(content=ARRAY_IR)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(
+        test_sh_file.full_path, ['/usr/bin/env grep invoke $1']
+    )
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        '--can_remove_params=false',
+        ir_file.full_path,
+    ])
+    self._maybe_record_property('output', minimized_ir.decode('utf-8'))
+    self.assertEqual(minimized_ir.decode('utf-8'), """package foo
+
+fn bar(x: bits[8][8]) -> bits[8][4] {
+  ret literal.43: bits[8][4] = literal(value=[0, 0, 0, 0], id=43)
+}
+
+top fn foo(x: bits[8], y: bits[8]) -> bits[8][4] {
+  literal.48: bits[8][8] = literal(value=[0, 0, 0, 0, 0, 0, 0, 0], id=48)
+  ret invoke.26: bits[8][4] = invoke(literal.48, to_apply=bar, id=26)
+}
+""")
 
   def test_minimize_add_no_remove_params(self):
     ir_file = self.create_tempfile(content=ADD_IR)

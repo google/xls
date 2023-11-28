@@ -503,6 +503,14 @@ Value ReduceValue(const Value& value, absl::BitGenRef rng) {
 
 absl::StatusOr<SimplificationResult> SimplifyReturnValue(
     FunctionBase* f, absl::BitGenRef rng, std::string* which_transform) {
+  // For now we do not do the inter-procedural transforms needed to allow for
+  // return-value simplification in non-top functions.
+  // TODO(https://github.com/google/xls/issues/1207): This should be added at
+  // some point.
+  if (f != f->package()->GetTop()) {
+    return SimplificationResult::kCannotChange;
+  }
+
   Node* orig = nullptr;
   {
     std::vector<Node*> implicitly_used = ImplicitlyUsed(f);
@@ -536,7 +544,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 
   // If the return value is a tuple, concat, or array, try to knock out some of
   // the operands which then become dead. Only possible for the top function.
-  if (f->IsFunction() && f->package()->GetTop() == f &&
+  if (f->IsFunction() &&
       (orig->Is<Tuple>() || orig->Is<Concat>() || orig->Is<Array>()) &&
       absl::Bernoulli(rng, 0.5)) {
     std::vector<Node*> new_operands = PickRandomSubset(orig->operands(), rng);
