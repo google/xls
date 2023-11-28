@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> u8[12] {
-  update("Hello World?", u32:11, u8:'!')
-}
+fn main() -> u8[12] { update("Hello World?", u32:11, u8:'!') }
 
 #[test]
-fn test_update() {
-  assert_eq("Hello World!", main())
-}
+fn test_update() { assert_eq("Hello World!", main()) }

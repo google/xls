@@ -336,11 +336,7 @@ dslx_lang_test(name = "array_concat_str")
 
 dslx_lang_test(name = "array_slice_str")
 
-dslx_lang_test(
-    name = "array_update_str",
-    # TODO(leary): 2023-10-20 Char is not formatted properly.
-    test_autofmt = False,
-)
+dslx_lang_test(name = "array_update_str")
 
 dslx_lang_test(
     name = "import_constexpr",

@@ -307,7 +307,12 @@ DocRef Fmt(const NameRef& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Number& n, const Comments& comments, DocArena& arena) {
-  DocRef num_text = arena.MakeText(n.text());
+  DocRef num_text;
+  if (n.number_kind() == NumberKind::kCharacter) {
+    num_text = arena.MakeText(absl::StrFormat("'%s'", n.text()));
+  } else {
+    num_text = arena.MakeText(n.text());
+  }
   if (const TypeAnnotation* type = n.type_annotation()) {
     return ConcatNGroup(arena,
                         {Fmt(*type, comments, arena), arena.colon(), num_text});
