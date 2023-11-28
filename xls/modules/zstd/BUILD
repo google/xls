@@ -618,3 +618,89 @@ place_and_route(
     target_die_utilization_percentage = "5",
     tags = ["manual"],
 )
+
+xls_dslx_library(
+    name = "block_dec_dslx",
+    srcs = [
+        "block_dec.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":dec_demux_dslx",
+        ":dec_mux_dslx",
+        ":raw_block_dec_dslx",
+        ":rle_block_dec_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "block_dec_dslx_test",
+    library = ":block_dec_dslx",
+)
+
+xls_dslx_verilog(
+    name = "block_dec_verilog",
+    codegen_args = {
+        "module_name": "BlockDecoder",
+        "delay_model": "asap7",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "BlockDecoder",
+    library = ":block_dec_dslx",
+    # TODO: 2024-01-15: Workaround for https://github.com/google/xls/issues/869
+    # Force proc inlining and set last internal proc as top proc for IR optimization
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__xls_modules_zstd_dec_mux__BlockDecoder__DecoderMux_0_next",
+    },
+    verilog_file = "block_dec.v",
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "block_dec_opt_ir_benchmark",
+    src = ":block_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "asap7",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "block_dec_verilog_lib",
+    srcs = [
+        ":block_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "block_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "BlockDecoder",
+    deps = [
+        ":block_dec_verilog_lib",
+    ],
+    tags = ["manual"],
+)
+
+benchmark_synth(
+    name = "block_dec_benchmark_synth",
+    synth_target = ":block_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "block_dec_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":block_dec_synth_asap7",
+    target_die_utilization_percentage = "10",
+    tags = ["manual"],
+)
