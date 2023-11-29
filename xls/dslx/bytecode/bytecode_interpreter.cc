@@ -40,15 +40,19 @@
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -82,13 +86,13 @@ constexpr int64_t kChannelTraceIndentation = 2;
     ImportData* import_data, BytecodeFunction* bf,
     const std::vector<InterpValue>& args,
     const BytecodeInterpreterOptions& options) {
-  XLS_ASSIGN_OR_RETURN(auto interpreter, BytecodeInterpreter::CreateUnique(
-                                             import_data, bf, args, options));
-  XLS_RETURN_IF_ERROR(interpreter->Run());
+  BytecodeInterpreter interpreter(import_data, options);
+  XLS_RETURN_IF_ERROR(interpreter.InitFrame(bf, args, bf->type_info()));
+  XLS_RETURN_IF_ERROR(interpreter.Run());
   if (options.validate_final_stack_depth()) {
-    XLS_RET_CHECK_EQ(interpreter->stack_.size(), 1);
+    XLS_RET_CHECK_EQ(interpreter.stack_.size(), 1);
   }
-  return interpreter->stack_.PeekOrDie();
+  return interpreter.stack_.PeekOrDie();
 }
 
 BytecodeInterpreter::BytecodeInterpreter(
@@ -1442,7 +1446,7 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
       Bytecode(span, Bytecode::Op::kStore, Bytecode::SlotIndex(1)));
 
   // Top-of-loop marker.
-  int top_of_loop_index = bytecodes.size();
+  size_t top_of_loop_index = bytecodes.size();
   bytecodes.push_back(Bytecode(span, Bytecode::Op::kJumpDest));
 
   // Extract element N and call the mapping fn on that value.
@@ -1468,7 +1472,7 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
       Bytecode(span, Bytecode::Op::kLoad, Bytecode::SlotIndex(1)));
   bytecodes.push_back(
       Bytecode(span, Bytecode::Op::kLiteral,
-               InterpValue::MakeU32(elements->size())));
+               InterpValue::MakeU32(static_cast<uint32_t>(elements->size()))));
   bytecodes.push_back(Bytecode(span, Bytecode::Op::kLt));
 
   // If true, jump to top-of-loop, else create the result array.

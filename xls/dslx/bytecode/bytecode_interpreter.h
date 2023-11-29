@@ -33,7 +33,9 @@
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 
@@ -77,6 +79,7 @@ class BytecodeInterpreter {
   BytecodeInterpreter(ImportData* import_data,
                       const BytecodeInterpreterOptions& options);
 
+  // Creates a new interpreter object with an initialized entry frame.
   static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
@@ -242,7 +245,7 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
 
 // The execution state that a proc may be left in after a call to
 // ProcInstance::Run.
-enum class ProcExecutionState {
+enum class ProcExecutionState : uint8_t {
   // The proc tick completed.
   kCompleted,
   // The proc tick was blocked on a blocking receive.
