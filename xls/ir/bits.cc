@@ -75,11 +75,17 @@ Bits Bits::AllOnes(int64_t bit_count) {
 
 /* static */
 Bits Bits::MaxSigned(int64_t bit_count) {
+  if (bit_count == 0) {
+    return SBits(0, 0);
+  }
   return Bits::AllOnes(bit_count).UpdateWithSet(bit_count - 1, false);
 }
 
 /* static */
 Bits Bits::MinSigned(int64_t bit_count) {
+  if (bit_count == 0) {
+    return SBits(0, 0);
+  }
   return Bits::PowerOfTwo(bit_count - 1, bit_count);
 }
 

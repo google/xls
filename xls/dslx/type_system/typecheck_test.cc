@@ -405,6 +405,16 @@ fn main(p: u32) -> () {
                        HasSubstr("const_assert! expression is not constexpr")));
 }
 
+TEST(TypecheckErrorTest, FitsInTypeSN0) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() -> sN[0] {
+  sN[0]:0xffff_ffff_ffff_ffff_ffff
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Value '0xffff_ffff_ffff_ffff_ffff' does not "
+                                 "fit in the bitwidth of a sN[0]")));
+}
+
 TEST(TypecheckTest, ForBuiltinInBody) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {

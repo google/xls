@@ -60,6 +60,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"

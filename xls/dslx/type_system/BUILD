@@ -93,6 +93,7 @@ cc_library(
         ":parametric_env",
         ":parametric_instantiator",
         ":type_and_parametric_env",
+        ":type_info",
         ":unwrap_meta_type",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/data_structures/inline_bitmap.h"
