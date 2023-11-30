@@ -661,18 +661,15 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
       bool either_is_parametric =
           function_cr.f()->IsParametric() || subject_cr.f()->IsParametric();
 
-      bool both_is_parametric =
+      bool both_are_parametric =
           function_cr.f()->IsParametric() && subject_cr.f()->IsParametric();
 
-      bool equal_parametric_env = false;
-      if (both_is_parametric) {
-        equal_parametric_env =
-            function_cr.parametric_env() == subject_cr.parametric_env();
-      }
+      bool both_are_parametric_and_equivalent =
+          both_are_parametric &&
+          (function_cr.parametric_env() == subject_cr.parametric_env());
 
       if (same_fns && !either_is_proc_instance_fn &&
-          (!either_is_parametric ||
-           (both_is_parametric && equal_parametric_env))) {
+          (!either_is_parametric || both_are_parametric_and_equivalent)) {
         iter_subject = ready->erase(iter_subject);
         continue;
       }
