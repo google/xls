@@ -211,6 +211,32 @@ cc_library(
 )
 
 cc_library(
+    name = "instantiate_parametric_function",
+    srcs = ["instantiate_parametric_function.cc"],
+    hdrs = ["instantiate_parametric_function.h"],
+    deps = [
+        ":concrete_type",
+        ":deduce_ctx",
+        ":parametric_constraint",
+        ":parametric_instantiator",
+        ":type_and_parametric_env",
+        ":type_info",
+        ":unwrap_meta_type",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:errors",
+        "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+    ],
+)
+
+cc_library(
     name = "typecheck",
     srcs = ["typecheck.cc"],
     hdrs = ["typecheck.h"],
@@ -218,6 +244,7 @@ cc_library(
         ":concrete_type",
         ":deduce",
         ":deduce_ctx",
+        ":instantiate_parametric_function",
         ":maybe_explain_error",
         ":parametric_constraint",
         ":parametric_env",
