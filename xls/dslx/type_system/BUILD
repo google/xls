@@ -91,6 +91,7 @@ cc_library(
         ":deduce_ctx",
         ":parametric_constraint",
         ":parametric_env",
+        ":parametric_expression",
         ":parametric_instantiator",
         ":type_and_parametric_env",
         ":type_info",

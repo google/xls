@@ -35,6 +35,7 @@ cc_library(
         ":warning_collector",
         ":warning_kind",
         "//xls/common:visitor",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/bytecode:bytecode_emitter",

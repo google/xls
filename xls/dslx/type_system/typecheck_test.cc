@@ -942,6 +942,13 @@ TEST(TypecheckTest, OutOfRangeNumberInConstantArray) {
           HasSubstr("Value '256' does not fit in the bitwidth of a uN[8]")));
 }
 
+TEST(TypecheckErrorTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
+  EXPECT_THAT(Typecheck("const MY_ARRAY = u32[1]:[];"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("uN[32][1] Annotated array size 1 does not "
+                                 "match inferred array size 0.")));
+}
+
 TEST(TypecheckTest, MatchNoArms) {
   EXPECT_THAT(Typecheck("fn f(x: u8) -> u8 { let _ = match x {}; x }"),
               StatusIs(absl::StatusCode::kInvalidArgument,

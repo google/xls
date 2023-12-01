@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -189,8 +190,12 @@ absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
 
     int64_t int_size = int_size_or.value();
     int64_t remaining = int_size - values.size();
-    while (remaining-- > 0) {
-      values.push_back(values.back());
+    if (expr->has_ellipsis()) {
+      while (remaining-- > 0) {
+        values.push_back(values.back());
+      }
+    } else {
+      XLS_RET_CHECK_EQ(remaining, 0);
     }
   }
 

@@ -59,7 +59,9 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -1227,6 +1229,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
                                                           DeduceCtx* ctx) {
+  XLS_VLOG(5) << "DeduceArray; node: " << node->ToString();
+
   std::vector<std::unique_ptr<ConcreteType>> member_types;
   for (Expr* member : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> member_type,
@@ -1249,13 +1253,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
         "add at least one element");
   }
 
-  auto dim = ConcreteTypeDim::CreateU32(member_types.size());
+  auto member_types_dim =
+      ConcreteTypeDim::CreateU32(static_cast<uint32_t>(member_types.size()));
 
   // Try to infer the array type from the first member.
   std::unique_ptr<ArrayType> inferred;
   if (!member_types.empty()) {
-    inferred =
-        std::make_unique<ArrayType>(member_types[0]->CloneToUnique(), dim);
+    inferred = std::make_unique<ArrayType>(member_types[0]->CloneToUnique(),
+                                           member_types_dim);
   }
 
   if (node->type_annotation() == nullptr) {
@@ -1287,6 +1292,23 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
                         "cannot be resolved."));
   }
 
+  // If we were presented with the wrong number of elements (vs what the
+  // annotated type expected), flag an error.
+  if (array_type->size() != member_types_dim && !node->has_ellipsis()) {
+    std::string message = absl::StrFormat(
+        "Annotated array size %s does not match inferred array size %d.",
+        array_type->size().ToString(), member_types.size());
+    if (inferred == nullptr) {
+      // No type to compare our expectation to, as there was no member to infer
+      // the type from.
+      return TypeInferenceErrorStatus(node->span(), array_type, message);
+    }
+    return ctx->TypeMismatchError(node->span(), nullptr, *array_type, nullptr,
+                                  *inferred, message);
+  }
+
+  // Implementation note: we can only do this after we've checked that the size
+  // is correct (zero elements provided and zero elements expected).
   if (member_types.empty()) {
     return annotated;
   }
@@ -1308,14 +1330,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
         ctx->import_data(), ctx->type_info(), ctx->warnings(),
         GetCurrentParametricEnv(ctx), node, array_type));
     return annotated;
-  }
-
-  if (array_type->size() != dim) {
-    return ctx->TypeMismatchError(
-        node->span(), nullptr, *array_type, nullptr, *inferred,
-        absl::StrFormat("Annotated array size %s does not match "
-                        "inferred array size %d.",
-                        array_type->size().ToString(), member_types.size()));
   }
 
   return inferred;
