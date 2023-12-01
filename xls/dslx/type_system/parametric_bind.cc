@@ -18,8 +18,13 @@
 #include <memory>
 #include <string>
 
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 namespace {
@@ -144,17 +149,32 @@ absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
 absl::Status ParametricBind(const ConcreteType& param_type,
                             const ConcreteType& arg_type,
                             ParametricBindContext& ctx) {
+  auto wrong_kind = [&]() {
+    std::string message = absl::StrFormat(
+        "expected argument kind '%s' to match parameter kind '%s'",
+        arg_type.GetDebugTypeName(), param_type.GetDebugTypeName());
+    return ctx.deduce_ctx.TypeMismatchError(ctx.span, nullptr, param_type,
+                                            nullptr, arg_type, message);
+  };
   if (auto* param_bits = dynamic_cast<const BitsType*>(&param_type)) {
     auto* arg_bits = dynamic_cast<const BitsType*>(&arg_type);
-    XLS_RET_CHECK(arg_bits != nullptr);
+    if (arg_bits == nullptr) {
+      return wrong_kind();
+    }
     return ParametricBindBits(*param_bits, *arg_bits, ctx);
   }
   if (auto* param_tuple = dynamic_cast<const TupleType*>(&param_type)) {
     auto* arg_tuple = dynamic_cast<const TupleType*>(&arg_type);
+    if (arg_tuple == nullptr) {
+      return wrong_kind();
+    }
     return ParametricBindTuple(*param_tuple, *arg_tuple, ctx);
   }
   if (auto* param_struct = dynamic_cast<const StructType*>(&param_type)) {
     auto* arg_struct = dynamic_cast<const StructType*>(&arg_type);
+    if (arg_struct == nullptr) {
+      return wrong_kind();
+    }
     const StructDef& param_nominal = param_struct->nominal_type();
     const StructDef& arg_nominal = arg_struct->nominal_type();
     if (&param_nominal != &arg_nominal) {
@@ -168,7 +188,9 @@ absl::Status ParametricBind(const ConcreteType& param_type,
   }
   if (auto* param_array = dynamic_cast<const ArrayType*>(&param_type)) {
     auto* arg_array = dynamic_cast<const ArrayType*>(&arg_type);
-    XLS_RET_CHECK(arg_array != nullptr);
+    if (arg_array == nullptr) {
+      return wrong_kind();
+    }
     return ParametricBindArray(*param_array, *arg_array, ctx);
   }
   if (dynamic_cast<const EnumType*>(&param_type) != nullptr) {

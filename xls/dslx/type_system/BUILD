@@ -113,6 +113,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
+        "//xls/dslx:interp_bindings",
         "//xls/dslx:interp_value",
         "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode:bytecode_emitter",
@@ -120,6 +121,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:token_utils",
         "//xls/ir:bits",
@@ -489,8 +491,12 @@ cc_library(
     deps = [
         ":concrete_type",
         ":deduce_ctx",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
     ],
 )

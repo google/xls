@@ -415,6 +415,31 @@ fn main() -> sN[0] {
                                  "fit in the bitwidth of a sN[0]")));
 }
 
+TEST(TypecheckErrorTest, ParametricBindArrayToTuple) {
+  EXPECT_THAT(Typecheck(R"(
+fn p<N: u32>(x: (uN[N], uN[N])) -> uN[N] { x.0 }
+
+fn main() -> u32 {
+  p(u32[2]:[0, 1])
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Parameter 0 and argument types are different "
+                                 "kinds (tuple vs array)")));
+}
+
+TEST(TypecheckErrorTest, ParametricBindNested) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn p<N: u32>(x: (u32, u64)[N]) -> u32 { x[0].0 }
+
+fn main() -> u32 {
+  p(u32[1][1]:[[u32:0]])
+})"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("(uN[32], uN[64]) vs uN[32][1]: expected argument "
+                         "kind 'array' to match parameter kind 'tuple'")));
+}
+
 TEST(TypecheckTest, ForBuiltinInBody) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
