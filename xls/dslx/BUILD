@@ -556,11 +556,13 @@ cc_binary(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/frontend:scanner",
+        "//xls/dslx/frontend:token",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -570,6 +572,37 @@ py_test(
     srcs = ["highlight_main_test.py"],
     data = [
         ":highlight_main",
+        "//xls/examples:sha256.x",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+cc_binary(
+    name = "strip_comments_main",
+    srcs = ["strip_comments_main.cc"],
+    deps = [
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:scanner",
+        "//xls/dslx/frontend:token",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+py_test(
+    name = "strip_comments_main_test",
+    srcs = ["strip_comments_main_test.py"],
+    data = [
+        ":strip_comments_main",
         "//xls/examples:sha256.x",
     ],
     python_version = "PY3",
