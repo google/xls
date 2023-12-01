@@ -15,15 +15,22 @@
 #include "xls/passes/strength_reduction_pass.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
@@ -363,6 +370,88 @@ absl::StatusOr<bool> StrengthReduceNode(
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(
                                   std::vector<Node*>{narrowed_add, lsb})
                               .status());
+      return true;
+    }
+  }
+
+  // Transform arithmetic operation with exactly one unknown-bit in all of its
+  // operands into a select on that one unknown bit.
+  constexpr std::array<Op, 6> kExpensiveArithOps = {
+      Op::kSMul, Op::kUMul, Op::kSDiv, Op::kUDiv, Op::kSMod, Op::kUMod,
+  };
+  if (NarrowingEnabled(opt_level) && node->OpIn(kExpensiveArithOps) &&
+      query_engine.IsTracked(node->operand(0)) &&
+      query_engine.IsTracked(node->operand(1))) {
+    Node* left = node->operand(0);
+    Node* right = node->operand(1);
+    TernaryVector left_ternary = query_engine.GetTernary(left).Get({});
+    TernaryVector right_ternary = query_engine.GetTernary(right).Get({});
+    int64_t left_unknown_count =
+        absl::c_count(left_ternary, TernaryValue::kUnknown);
+    int64_t right_unknown_count =
+        absl::c_count(right_ternary, TernaryValue::kUnknown);
+    Node* unknown_operand = left_unknown_count == 0 ? right : left;
+    auto replace_with_select = [&](Node* variable, const Bits& value,
+                                   const Value& true_result,
+                                   const Value& false_result) -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(
+          Node * compare_lit,
+          node->function_base()->MakeNodeWithName<Literal>(
+              node->loc(), Value(value),
+              absl::StrFormat("%s_possible_value", variable->GetName())));
+      XLS_ASSIGN_OR_RETURN(Node * eq,
+                           node->function_base()->MakeNodeWithName<CompareOp>(
+                               node->loc(), variable, compare_lit, Op::kEq,
+                               absl::StrFormat("%s_compare", node->GetName())));
+      XLS_ASSIGN_OR_RETURN(
+          Node * true_node,
+          node->function_base()->MakeNodeWithName<Literal>(
+              node->loc(), Value(true_result),
+              absl::StrFormat("%s_result_value_true", node->GetName())));
+      XLS_ASSIGN_OR_RETURN(
+          Node * false_node,
+          node->function_base()->MakeNodeWithName<Literal>(
+              node->loc(), Value(false_result),
+              absl::StrFormat("%s_result_value_false", node->GetName())));
+      return node
+          ->ReplaceUsesWithNew<Select>(
+              eq, absl::Span<Node* const>{false_node, true_node}, std::nullopt)
+          .status();
+    };
+
+    // TODO(allight): It might be good to do this with more unknown bits in some
+    // cases (eg 200 bit mul with -> 8 branch select).
+    if (left_unknown_count + right_unknown_count == 1) {
+      Value known_value =
+          left_unknown_count == 0
+              ? Value(ternary_ops::ToKnownBitsValues(left_ternary))
+              : Value(ternary_ops::ToKnownBitsValues(right_ternary));
+      const TernaryVector& unknown_value =
+          left_unknown_count == 0 ? right_ternary : left_ternary;
+      TernaryVector zero_vec(unknown_value);
+      TernaryVector one_vec(unknown_value);
+      // Set the single unknown to zero.
+      absl::c_replace(zero_vec, TernaryValue::kUnknown,
+                      TernaryValue::kKnownZero);
+      // Set the single unknown to one.
+      absl::c_replace(one_vec, TernaryValue::kUnknown, TernaryValue::kKnownOne);
+      Value zero_value = Value(ternary_ops::ToKnownBitsValues(zero_vec));
+      Value one_value = Value(ternary_ops::ToKnownBitsValues(one_vec));
+      // Interpret the node, makes sure to pass in the right order to deal with
+      // non-commutative ops like mod and div.
+      auto get_real_result =
+          [&](const Value& materialized_value) -> absl::StatusOr<Value> {
+        if (left_unknown_count != 0) {
+          // Unknown value is on the left.
+          return InterpretNode(node, {materialized_value, known_value});
+        }
+        // Unknown value is on the right.
+        return InterpretNode(node, {known_value, materialized_value});
+      };
+      XLS_ASSIGN_OR_RETURN(Value zero_result, get_real_result(zero_value));
+      XLS_ASSIGN_OR_RETURN(Value one_result, get_real_result(one_value));
+      XLS_RETURN_IF_ERROR(replace_with_select(
+          unknown_operand, zero_value.bits(), zero_result, one_result));
       return true;
     }
   }

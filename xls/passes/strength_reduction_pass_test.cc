@@ -21,13 +21,16 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -55,6 +58,22 @@ class StrengthReductionPassTest : public IrTestBase {
   }
 };
 
+class StrengthReductionPassSemanticsTest : public StrengthReductionPassTest {
+ public:
+  void TestReductionIsEquivalent(FunctionBuilder& fb) {
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+    TestReductionIsEquivalent(f);
+  }
+  void TestReductionIsEquivalent(Function* f) {
+    EXPECT_THAT(solvers::z3::TryProveEquivalence(
+                    f,
+                    [&](auto package, auto function) {
+                      return StrengthReductionPassTest::Run(function).status();
+                    }),
+                IsOkAndHolds(true))
+        << "Pass changed meaning of the function";
+  }
+};
 
 TEST_F(StrengthReductionPassTest, ReducibleAdd) {
   auto p = CreatePackage();
@@ -343,6 +362,71 @@ TEST_F(StrengthReductionPassTest, GateKnownDataZero) {
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
+}
+
+TEST_F(StrengthReductionPassSemanticsTest, ArithToSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("unknown", p->GetBitsType(1));
+  // Value is 42 (0b101010) or 40 (0b101000)
+  BValue big_unknown = fb.Concat(
+      {fb.Literal(UBits(0b1010, 62)), param, fb.Literal(UBits(0, 1))});
+  fb.Tuple({
+      fb.UMul(big_unknown, fb.Literal(UBits(10, 64))),    // 400 or 420
+      fb.UMul(fb.Literal(UBits(10, 64)), big_unknown),    // 400 or 420
+      fb.SMul(big_unknown, fb.Literal(UBits(-10, 64))),   // -400 or -420
+      fb.SMul(fb.Literal(UBits(-12, 64)), big_unknown),   // -400 or -420
+      fb.UDiv(big_unknown, fb.Literal(UBits(2, 64))),     // 20 or 21
+      fb.UDiv(fb.Literal(UBits(84, 64)), big_unknown),    // 2 or 1
+      fb.SDiv(big_unknown, fb.Literal(UBits(-2, 64))),    // -20 or -21
+      fb.SDiv(fb.Literal(UBits(-84, 64)), big_unknown),   // -2 or -1
+      fb.UMod(big_unknown, fb.Literal(UBits(7, 64))),     // 0 or 5
+      fb.UMod(fb.Literal(UBits(120, 64)), big_unknown),   // 36 or 0
+      fb.SMod(big_unknown, fb.Literal(UBits(-7, 64))),    // 0 or -5
+      fb.SMod(fb.Literal(UBits(-120, 64)), big_unknown),  // -36 or 0
+  });
+  TestReductionIsEquivalent(fb);
+}
+
+TEST_F(StrengthReductionPassTest, ArithToSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("unknown", p->GetBitsType(1));
+  // Value is 42 (0b101010) or 40 (0b101000)
+  BValue big_unknown = fb.Concat(
+      {fb.Literal(UBits(0b1010, 62)), param, fb.Literal(UBits(0, 1))});
+  fb.Tuple({
+      fb.UMul(big_unknown, fb.Literal(UBits(10, 64))),    // 400 or 420
+      fb.UMul(fb.Literal(UBits(10, 64)), big_unknown),    // 400 or 420
+      fb.SMul(big_unknown, fb.Literal(UBits(-10, 64))),   // -400 or -420
+      fb.SMul(fb.Literal(UBits(-12, 64)), big_unknown),   // -400 or -420
+      fb.UDiv(big_unknown, fb.Literal(UBits(2, 64))),     // 20 or 21
+      fb.UDiv(fb.Literal(UBits(84, 64)), big_unknown),    // 2 or 1
+      fb.SDiv(big_unknown, fb.Literal(UBits(-2, 64))),    // -20 or -21
+      fb.SDiv(fb.Literal(UBits(-84, 64)), big_unknown),   // -2 or -1
+      fb.UMod(big_unknown, fb.Literal(UBits(7, 64))),     // 0 or 5
+      fb.UMod(fb.Literal(UBits(120, 64)), big_unknown),   // 36 or 0
+      fb.SMod(big_unknown, fb.Literal(UBits(-7, 64))),    // 0 or -5
+      fb.SMod(fb.Literal(UBits(-120, 64)), big_unknown),  // -36 or 0
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  // Actual verification of result is done by semantics test.
+  EXPECT_THAT(f->return_value()->operands(),
+              testing::Each(m::Select(m::Eq(), {m::Literal(), m::Literal()})));
+}
+
+TEST_F(StrengthReductionPassTest, ArithToSelectOnlyWithOneBit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // 4 unknown bits.
+  BValue param = fb.Param("unknown", p->GetBitsType(4));
+  BValue big_unknown =
+      fb.Concat({fb.Literal(UBits(0b101, 59)), param, fb.Literal(UBits(0, 1))});
+  fb.UMul(big_unknown, fb.Literal(UBits(10, 64)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false))
+      << "Optimization triggered unexpectedly. Got:\n" << f->DumpIr();
 }
 
 }  // namespace
