@@ -147,10 +147,10 @@ void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
   BlitValueToBufferInternal(value, type, buffer);
 }
 
-absl::Span<uint8_t> JitRuntime::AsStack(absl::Span<uint8_t> buffer) {
-  return buffer.subspan(
-      llvm::offsetToAlignment(reinterpret_cast<uintptr_t>(buffer.data()),
-                              data_layout_.getStackAlignment()));
+absl::Span<uint8_t> JitRuntime::AsAligned(absl::Span<uint8_t> buffer,
+                                          int64_t alignment) const {
+  return buffer.subspan(llvm::offsetToAlignment(
+      reinterpret_cast<uintptr_t>(buffer.data()), llvm::Align(alignment)));
 }
 
 void JitRuntime::BlitValueToBufferInternal(const Value& value, const Type* type,

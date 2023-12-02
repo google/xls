@@ -176,8 +176,11 @@ class BlockJitContinuation {
   BlockJitContinuation(Block* block, BlockJit* jit, JitRuntime* runtime,
                        size_t temp_size,
                        absl::Span<const int64_t> register_sizes,
+                       absl::Span<const int64_t> register_alignments,
                        absl::Span<const int64_t> output_port_sizes,
-                       absl::Span<const int64_t> input_port_sizes);
+                       absl::Span<const int64_t> output_port_alignments,
+                       absl::Span<const int64_t> input_port_sizes,
+                       absl::Span<const int64_t> input_port_alignments);
 
   void SwapRegisters() {
     register_pointers_.Swap();
@@ -206,21 +209,24 @@ class BlockJitContinuation {
   // memory live for the pointers.
   std::vector<uint8_t> input_port_arena_;
 
-  // The register pointer file.
+  // The register pointer file, aligned as required.
   IOSpace register_pointers_;
 
-  // The output port pointers.
+  // The output port pointers, aligned as required.
   const std::vector<uint8_t*> output_port_pointers_;
 
-  // The input port pointers.
+  // The input port pointers, aligned as required.
   const std::vector<uint8_t*> input_port_pointers_;
-  // The input value pointers the register pointers.
+  // The input value pointers the register pointers, aligned as required.
   IOSpace full_input_pointer_set_;
-  // The output value pointers followed by the register pointers.
+  // The output value pointers followed by the register pointers, aligned as
+  // required.
   IOSpace full_output_pointer_set_;
 
   // Data block to store temporary data in.
   std::vector<uint8_t> temp_data_arena_;
+  // Data block to store temporary data in, aligned as required.
+  uint8_t* temp_data_ptr_;
 
   InterpreterEvents events_;
 

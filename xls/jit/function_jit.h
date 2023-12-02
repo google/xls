@@ -15,6 +15,7 @@
 #ifndef XLS_JIT_FUNCTION_JIT_H_
 #define XLS_JIT_FUNCTION_JIT_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -117,7 +118,7 @@ class FunctionJit {
 
     InterpreterEvents events;
     uint8_t* output_buffers[1] = {result_buffer};
-    jitted_function_base_.packed_function.value()(
+    jitted_function_base_.RunPackedJittedFunction(
         arg_buffers, output_buffers, temp_buffer_.data(), &events,
         /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 
@@ -146,8 +147,14 @@ class FunctionJit {
   int64_t GetArgTypeSize(int arg_index) const {
     return jitted_function_base_.input_buffer_sizes.at(arg_index);
   }
+  int64_t GetArgTypeAlignment(int arg_index) const {
+    return jitted_function_base_.input_buffer_prefered_alignments.at(arg_index);
+  }
   int64_t GetReturnTypeSize() const {
     return jitted_function_base_.output_buffer_sizes[0];
+  }
+  int64_t GetReturnTypeAlignment() const {
+    return jitted_function_base_.output_buffer_prefered_alignments[0];
   }
 
   // Gets the size of the compiled function's arguments (or return value) in the
@@ -227,12 +234,19 @@ class FunctionJit {
 
   // Buffers to hold the arguments, result, temporary storage. This is allocated
   // once and then re-used with each invocation of Run. Not thread-safe.
+  // These buffer pointers cannot be used directly as they might not be
+  // correctly aligned. the '_ptr[s]_' version must be used instead.
   std::vector<std::vector<uint8_t>> arg_buffers_;
   std::vector<uint8_t> result_buffer_;
   std::vector<uint8_t> temp_buffer_;
 
-  // Raw pointers to the buffers held in `arg_buffers_`.
+  // Raw pointers to the buffers held in `arg_buffers_` with each pointer having
+  // correct alignment.
   std::vector<uint8_t*> arg_buffer_ptrs_;
+  // Raw pointer to the buffer 'result_buffer_' with correct alignment.
+  uint8_t* result_buffer_ptr_ = nullptr;
+  // Raw pointer to the buffer 'temp_buffer_' with correct alignment.
+  uint8_t* temp_buffer_ptr_ = nullptr;
 
   JittedFunctionBase jitted_function_base_;
   std::unique_ptr<JitRuntime> jit_runtime_;

@@ -553,8 +553,15 @@ absl::StatusOr<JitArguments> ConvertToJitArguments(
     pointers.reserve(args.size());
     for (int64_t i = 0; i < args.size(); ++i) {
       buffers.push_back(
-          std::vector<uint8_t>(runtime->GetTypeByteSize(params[i]), 0));
-      pointers.push_back(buffers.back().data());
+          std::vector<uint8_t>(runtime->ShouldAllocateForAlignment(
+                                   runtime->GetTypeByteSize(params[i]),
+                                   runtime->GetTypeAlignment(params[i])),
+                               0));
+      pointers.push_back(runtime
+                             ->AsAligned(absl::MakeSpan(buffers.back()),
+                                         runtime->GetTypeAlignment(params[i]))
+                             .data());
+      XLS_CHECK_NE(pointers.back(), nullptr);
     }
     arg_buffers.push_back(std::move(buffers));
     arg_pointers.push_back(pointers);
@@ -593,15 +600,18 @@ absl::Status RunFunctionInterpreterAndJit(Function* function,
 
   // The JIT is much faster so run many times.
   InterpreterEvents events;
-  std::vector<uint8_t> result_buffer(jit->GetReturnTypeSize());
+  std::vector<uint8_t> result_buffer(jit->runtime()->ShouldAllocateForAlignment(
+      jit->GetReturnTypeSize(), jit->GetReturnTypeAlignment()));
+  absl::Span<uint8_t> result_aligned = jit->runtime()->AsAligned(
+      absl::MakeSpan(result_buffer), jit->GetReturnTypeAlignment());
   XLS_ASSIGN_OR_RETURN(
       float jit_run_rate,
       CountRate(
           [&]() -> absl::Status {
             for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
               for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
-                XLS_CHECK_OK(jit->RunWithViews(
-                    pointers, absl::MakeSpan(result_buffer), &events));
+                XLS_CHECK_OK(
+                    jit->RunWithViews(pointers, result_aligned, &events));
               }
             }
             return absl::OkStatus();

@@ -73,17 +73,32 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
       llvm::DataLayout data_layout,
       OrcJit::CreateDataLayout(/*aot_specification=*/emit_object_code));
   jit->jit_runtime_ = std::make_unique<JitRuntime>(data_layout);
+  JitRuntime& runtime = *jit->jit_runtime_;
   XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
                        BuildFunction(xls_function, *jit->orc_jit_));
 
   // Pre-allocate argument, result, and temporary buffers.
-  for (int64_t i = 0; i < xls_function->params().size(); ++i) {
-    jit->arg_buffers_.push_back(std::vector<uint8_t>(jit->GetArgTypeSize(i)));
-    jit->arg_buffer_ptrs_.push_back(jit->arg_buffers_.back().data());
+  for (int i = 0; i < xls_function->params().size(); ++i) {
+    jit->arg_buffers_.push_back(
+        std::vector<uint8_t>(runtime.ShouldAllocateForAlignment(
+            jit->GetArgTypeSize(i), jit->GetArgTypeAlignment(i))));
+    jit->arg_buffer_ptrs_.push_back(
+        runtime
+            .AsAligned(absl::MakeSpan(jit->arg_buffers_.back()),
+                       jit->GetArgTypeAlignment(i))
+            .data());
   }
-  jit->result_buffer_.resize(jit->GetReturnTypeSize());
+  jit->result_buffer_.resize(runtime.ShouldAllocateForAlignment(
+      jit->GetReturnTypeSize(), jit->GetReturnTypeAlignment()));
+  jit->result_buffer_ptr_ =
+      runtime
+          .AsAligned(absl::MakeSpan(jit->result_buffer_),
+                     jit->GetReturnTypeAlignment())
+          .data();
   jit->temp_buffer_.resize(
-      jit->jit_runtime_->ShouldAllocateForStack(jit->GetTempBufferSize()));
+      runtime.ShouldAllocateForStack(jit->GetTempBufferSize()));
+  jit->temp_buffer_ptr_ =
+      runtime.AsStack(absl::MakeSpan(jit->temp_buffer_)).data();
 
   return jit;
 }
@@ -115,9 +130,9 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
                                              absl::MakeSpan(arg_buffer_ptrs_)));
 
   InterpreterEvents events;
-  InvokeJitFunction(arg_buffer_ptrs_, result_buffer_.data(), &events);
+  InvokeJitFunction(arg_buffer_ptrs_, result_buffer_ptr_, &events);
   Value result = jit_runtime_->UnpackBuffer(
-      result_buffer_.data(), xls_function_->return_value()->GetType());
+      result_buffer_ptr_, xls_function_->return_value()->GetType());
 
   return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
@@ -153,9 +168,8 @@ void FunctionJit::InvokeJitFunction(
     absl::Span<const uint8_t* const> arg_buffers, uint8_t* output_buffer,
     InterpreterEvents* events) {
   uint8_t* output_buffers[1] = {output_buffer};
-  jitted_function_base_.function(
-      arg_buffers.data(), output_buffers,
-      jit_runtime_->AsStack(absl::MakeSpan(temp_buffer_)).data(), events,
+  jitted_function_base_.RunJittedFunction(
+      arg_buffers.data(), output_buffers, temp_buffer_ptr_, events,
       /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 }
 

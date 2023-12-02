@@ -46,13 +46,19 @@ ProcJitContinuation::ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
   // Pre-allocate input, output, and temporary buffers.
   for (Param* param : proc->params()) {
     int64_t param_size = jit_runtime_->GetTypeByteSize(param->GetType());
-    int64_t buffer_size = jit_runtime_->ShouldAllocateForStack(param_size);
+    int64_t param_align = jit_runtime->GetTypeAlignment(param->GetType());
+    int64_t buffer_size =
+        jit_runtime_->ShouldAllocateForAlignment(param_size, param_align);
     input_buffers_.push_back(std::vector<uint8_t>(buffer_size));
     output_buffers_.push_back(std::vector<uint8_t>(buffer_size));
     input_ptrs_.push_back(
-        jit_runtime_->AsStack(absl::MakeSpan(input_buffers_.back())).data());
+        jit_runtime_
+            ->AsAligned(absl::MakeSpan(input_buffers_.back()), param_align)
+            .data());
     output_ptrs_.push_back(
-        jit_runtime_->AsStack(absl::MakeSpan(output_buffers_.back())).data());
+        jit_runtime_
+            ->AsAligned(absl::MakeSpan(output_buffers_.back()), param_align)
+            .data());
   }
 
   // Write initial state value to the input_buffer.
@@ -112,7 +118,7 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
 
   // The jitted function returns the early exit point at which execution
   // halted. A return value of zero indicates that the tick completed.
-  int64_t next_continuation_point = jitted_function_base_.function(
+  int64_t next_continuation_point = jitted_function_base_.RunJittedFunction(
       cont->GetInputBuffers().data(), cont->GetOutputBuffers().data(),
       cont->GetTempBuffer().data(), &cont->GetEvents(),
       /*user_data=*/nullptr, runtime(), cont->GetContinuationPoint());

@@ -85,11 +85,14 @@ class ProcJitContinuation : public ProcContinuation {
   InterpreterEvents events_;
 
   // Buffers to hold inputs, outputs, and temporary storage. This is allocated
-  // once and then re-used with each invocation of Run. Not thread-safe.
+  // once and then re-used with each invocation of Run. Not thread-safe. These
+  // cannot be used directly because the pointers might not be aligned. Use the
+  // '_ptr_' versions instead.
   std::vector<std::vector<uint8_t>> input_buffers_;
   std::vector<std::vector<uint8_t>> output_buffers_;
 
-  // Raw pointers to the buffers held in `input_buffers_` and `output_buffers_`.
+  // Raw pointers to the buffers held in `input_buffers_` and `output_buffers_`,
+  // aligned as required.
   std::vector<uint8_t*> input_ptrs_;
   std::vector<uint8_t*> output_ptrs_;
   std::vector<uint8_t> temp_buffer_;

@@ -69,6 +69,12 @@ class LlvmTypeConverter {
   // DataLayout object can handle ~all of the work for us.
   int64_t GetTypeByteSize(const Type* type) const;
 
+  // Returns the preferred alignment for the given type.
+  int64_t GetTypePreferredAlignment(const Type* type) const;
+
+  // Returns the alignment requirement for the given type.
+  int64_t GetTypeAbiAlignment(const Type* type) const;
+
   // Returns the next position (starting from offset) where LLVM would consider
   // an object of the given type to have ended; specifically, the next position
   // that matches the greater of the stack alignment and the type's preferred

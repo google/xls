@@ -14,13 +14,16 @@
 #ifndef XLS_JIT_FUNCTION_BASE_JIT_H_
 #define XLS_JIT_FUNCTION_BASE_JIT_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
@@ -68,15 +71,36 @@ struct JittedFunctionBase {
   std::string function_name;
   JitFunctionType function;
 
+  // Execute the actual function (after verifying some invariants)
+  int64_t RunJittedFunction(const uint8_t* const* inputs,
+                            uint8_t* const* outputs, void* temp_buffer,
+                            InterpreterEvents* events, void* user_data,
+                            JitRuntime* jit_runtime,
+                            int64_t continuation_point) const;
+
   // Name and function pointer for the jitted function which accepts/produces
   // arguments/results in a packed format. Only exists for JITted
   // xls::Functions, not procs.
   std::optional<std::string> packed_function_name;
   std::optional<JitFunctionType> packed_function;
 
+  // Execute the actual function (after verifying some invariants)
+  std::optional<int64_t> RunPackedJittedFunction(
+      const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+      InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
+      int64_t continuation_point) const;
+
   // Sizes of the inputs/outputs in native LLVM format for `function_base`.
   std::vector<int64_t> input_buffer_sizes;
   std::vector<int64_t> output_buffer_sizes;
+
+  // alignment preferences of each input/output buffer.
+  std::vector<int64_t> input_buffer_prefered_alignments;
+  std::vector<int64_t> output_buffer_prefered_alignments;
+
+  // alignment ABI requirements of each input/output buffer.
+  std::vector<int64_t> input_buffer_abi_alignments;
+  std::vector<int64_t> output_buffer_abi_alignments;
 
   // Sizes of the inputs/outputs in packed format for `function_base`.
   std::vector<int64_t> packed_input_buffer_sizes;

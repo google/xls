@@ -63,27 +63,49 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
 std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
   return std::unique_ptr<BlockJitContinuation>(new BlockJitContinuation(
       block_, this, runtime_, function_.temp_buffer_size,
+      /*register_sizes=*/
       absl::MakeSpan(function_.input_buffer_sizes)
           .subspan(block_->GetInputPorts().size()),
+      /*register_alignments=*/
+      absl::MakeSpan(function_.input_buffer_prefered_alignments)
+          .subspan(block_->GetInputPorts().size()),
+      /*output_port_sizes=*/
       absl::MakeSpan(function_.output_buffer_sizes)
           .subspan(0, block_->GetOutputPorts().size()),
+      /*output_port_alignments=*/
+      absl::MakeSpan(function_.output_buffer_prefered_alignments)
+          .subspan(0, block_->GetOutputPorts().size()),
+      /*input_port_sizes=*/
       absl::MakeSpan(function_.input_buffer_sizes)
+          .subspan(0, block_->GetInputPorts().size()),
+      /*input_port_alignments=*/
+      absl::MakeSpan(function_.input_buffer_prefered_alignments)
           .subspan(0, block_->GetInputPorts().size())));
 }
 
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
-  function_.function(continuation.function_inputs().data(),
-                     continuation.function_outputs().data(),
-                     runtime_->AsStack(continuation.temp_buffer()).data(),
-                     &continuation.GetEvents(), /*user_data=*/nullptr, runtime_,
-                     /*continuation_point=*/0);
+  function_.RunJittedFunction(
+      continuation.function_inputs().data(),
+      continuation.function_outputs().data(),
+      runtime_->AsStack(continuation.temp_buffer()).data(),
+      &continuation.GetEvents(), /*user_data=*/nullptr, runtime_,
+      /*continuation_point=*/0);
   continuation.SwapRegisters();
   return absl::OkStatus();
 }
 
 namespace {
-int64_t SumElements(absl::Span<int64_t const> v) {
-  return absl::c_accumulate(v, int64_t{0});
+// Determine how much memory is needed to hold all the arguments of the given
+// sizes. This is larger than just the sum to allow for space for all of them to
+// be properly aligned.
+int64_t FindFullBufferSize(JitRuntime* runtime, absl::Span<int64_t const> sizes,
+                           absl::Span<int64_t const> alignments) {
+  XLS_CHECK_EQ(sizes.size(), alignments.size());
+  int64_t total = 0;
+  for (int64_t i = 0; i < sizes.size(); ++i) {
+    total += runtime->ShouldAllocateForAlignment(sizes[i], alignments[i]);
+  }
+  return total;
 }
 
 std::vector<uint8_t*> CombineLists(absl::Span<uint8_t* const> a,
@@ -101,14 +123,19 @@ std::vector<uint8_t*> CombineLists(absl::Span<uint8_t* const> a,
 
 // Find the start-pointer of each argument in the argument arena. The size of
 // each argument is given by the sizes span.
-std::vector<uint8_t*> CalculatePointers(uint8_t* base_ptr,
-                                        absl::Span<const int64_t> sizes) {
-  size_t tot = 0;
+std::vector<uint8_t*> CalculatePointers(JitRuntime* runtime,
+                                        absl::Span<uint8_t> base_buffer,
+                                        absl::Span<const int64_t> sizes,
+                                        absl::Span<const int64_t> alignments) {
+  XLS_CHECK_EQ(sizes.size(), alignments.size());
   std::vector<uint8_t*> out;
   out.reserve(sizes.size());
-  for (size_t s : sizes) {
-    out.push_back(base_ptr + tot);
-    tot += s;
+  for (int64_t i = 0; i < sizes.size(); ++i) {
+    auto aligned_span = runtime->AsAligned(base_buffer, alignments[i]);
+    XLS_CHECK_GE(aligned_span.size(), sizes[i])
+        << "Buffer for " << i << " element not large enough!";
+    out.push_back(aligned_span.data());
+    base_buffer = aligned_span.subspan(sizes[i]);
   }
   return out;
 }
@@ -117,23 +144,35 @@ std::vector<uint8_t*> CalculatePointers(uint8_t* base_ptr,
 BlockJitContinuation::BlockJitContinuation(
     Block* block, BlockJit* jit, JitRuntime* runtime, size_t temp_size,
     absl::Span<const int64_t> register_sizes,
+    absl::Span<const int64_t> register_alignments,
     absl::Span<const int64_t> output_port_sizes,
-    absl::Span<const int64_t> input_port_sizes)
+    absl::Span<const int64_t> output_port_alignments,
+    absl::Span<const int64_t> input_port_sizes,
+    absl::Span<const int64_t> input_port_alignments)
     : block_(block),
       block_jit_(jit),
       runtime_(runtime),
-      register_arena_left_(SumElements(register_sizes), 0),
+      register_arena_left_(
+          FindFullBufferSize(runtime, register_sizes, register_alignments), 0),
       register_arena_right_(register_arena_left_.size(), 0xff),
-      output_port_arena_(SumElements(output_port_sizes), 0xff),
-      input_port_arena_(SumElements(input_port_sizes), 0xff),
+      output_port_arena_(FindFullBufferSize(runtime, output_port_sizes,
+                                            output_port_alignments),
+                         0xff),
+      input_port_arena_(
+          FindFullBufferSize(runtime, input_port_sizes, input_port_alignments),
+          0xff),
       register_pointers_(BlockJitContinuation::IOSpace(
-          CalculatePointers(register_arena_left_.data(), register_sizes),
-          CalculatePointers(register_arena_right_.data(), register_sizes),
+          CalculatePointers(runtime, absl::MakeSpan(register_arena_left_),
+                            register_sizes, register_alignments),
+          CalculatePointers(runtime, absl::MakeSpan(register_arena_right_),
+                            register_sizes, register_alignments),
           BlockJitContinuation::IOSpace::RegisterSpace::kLeft)),
       output_port_pointers_(
-          CalculatePointers(output_port_arena_.data(), output_port_sizes)),
+          CalculatePointers(runtime, absl::MakeSpan(output_port_arena_),
+                            output_port_sizes, output_port_alignments)),
       input_port_pointers_(
-          CalculatePointers(input_port_arena_.data(), input_port_sizes)),
+          CalculatePointers(runtime, absl::MakeSpan(input_port_arena_),
+                            input_port_sizes, input_port_alignments)),
       full_input_pointer_set_(BlockJitContinuation::IOSpace(
           CombineLists(input_port_pointers_, register_pointers_.left()),
           CombineLists(input_port_pointers_, register_pointers_.right()),
@@ -461,9 +500,7 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
     }
     return *temporary_regs_;
   }
-  const InterpreterEvents& events() final {
-    return continuation_->GetEvents();
-  }
+  const InterpreterEvents& events() final { return continuation_->GetEvents(); }
   absl::Status RunOneCycle(
       const absl::flat_hash_map<std::string, Value>& inputs) final {
     temporary_outputs_.reset();

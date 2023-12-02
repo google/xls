@@ -58,14 +58,34 @@ class JitRuntime {
   const llvm::DataLayout& data_layout() { return data_layout_; }
 
   // Returns the number of bytes that should be allocated for a native LLVM
+  // value storing `size` bytes with `alignment` alignment.
+  //
+  // Note: A user cannot just allocate `size` bytes in every scenario, as there
+  //       may be alignment constraints. This method tells us how much to
+  //       overallocate.
+  size_t ShouldAllocateForAlignment(size_t size, int64_t alignment) const {
+    return size + alignment - 1;
+  }
+
+  // Returns the number of bytes that should be allocated for a native LLVM
   // stack storing `size` bytes.
   //
   // Note: A user cannot just allocate `size` bytes in every scenario, as there
   //       may be stack alignment constraints. This method tells us how much to
   //       overallocate.
   size_t ShouldAllocateForStack(size_t size) {
-    return size + data_layout_.getStackAlignment().value() - 1;
+    return ShouldAllocateForAlignment(size,
+                                      data_layout_.getStackAlignment().value());
   }
+
+  // Converts the provided buffer into a native LLVM buffer by aligning to the
+  // given alignment.
+  //
+  // May reduce the size of the buffer; if the buffer was allocated to hold at
+  // least `ShouldAllocateForAlignment(size, alignment)` bytes, then the result
+  // is guaranteed to hold at least `size` bytes.
+  absl::Span<uint8_t> AsAligned(absl::Span<uint8_t> buffer,
+                                int64_t alignment) const;
 
   // Converts the provided buffer into a native LLVM stack by aligning to the
   // memory model's requirements.
@@ -73,11 +93,18 @@ class JitRuntime {
   // May reduce the size of the buffer; if the buffer was allocated to hold at
   // least `ShouldAllocateForStack(size)` bytes, then the result is guaranteed
   // to hold at least `size` bytes.
-  absl::Span<uint8_t> AsStack(absl::Span<uint8_t> buffer);
+  absl::Span<uint8_t> AsStack(absl::Span<uint8_t> buffer) {
+    return AsAligned(buffer, data_layout_.getStackAlignment().value());
+  }
 
   int64_t GetTypeByteSize(Type* xls_type) {
     absl::MutexLock lock(&mutex_);
     return type_converter_->GetTypeByteSize(xls_type);
+  }
+
+  int64_t GetTypeAlignment(Type* xls_type) {
+    absl::MutexLock lock(&mutex_);
+    return type_converter_->GetTypePreferredAlignment(xls_type);
   }
 
  private:
