@@ -57,7 +57,7 @@ class EvalMainTest(absltest.TestCase):
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output([
         EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42; bits[32]:0x123',
-        '--use_llvm_jit=true', ir_file.full_path
+        '--use_llvm_jit=false', ir_file.full_path
     ])
     self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x165')
 
@@ -75,7 +75,7 @@ class EvalMainTest(absltest.TestCase):
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output([
         EVAL_IR_MAIN_PATH, '-v=5', '--input=bits[32]:0x42; bits[32]:0x123',
-        '--use_llvm_jit=true', ir_file.full_path
+        '--use_llvm_jit=false', ir_file.full_path
     ])
     self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x165')
 
