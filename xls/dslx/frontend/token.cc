@@ -114,6 +114,9 @@ std::string Token::ToString() const {
   if (kind() == TokenKind::kCharacter) {
     return absl::StrCat("'", GetValue().value(), "'");
   }
+  if (kind() == TokenKind::kString) {
+    return absl::StrCat("\"", GetValue().value(), "\"");
+  }
   if (GetValue().has_value()) {
     return GetValue().value();
   }

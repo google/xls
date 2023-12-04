@@ -35,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/scanner_keywords.inc"
 #include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
@@ -325,6 +326,17 @@ absl::StatusOr<std::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
   return std::nullopt;
 }
 
+absl::StatusOr<Token> Scanner::ScanString(const Pos& start_pos) {
+  DropChar();
+  XLS_ASSIGN_OR_RETURN(std::string value, ScanUntilDoubleQuote());
+  if (!TryDropChar('"')) {
+    return ScanErrorStatus(
+        Span(start_pos, GetPos()),
+        "Expected close quote character to terminate open quote character.");
+  }
+  return Token(TokenKind::kString, Span(start_pos, GetPos()), value);
+}
+
 absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
   bool negative = startc == '-';
   if (negative) {
@@ -461,6 +473,10 @@ absl::StatusOr<Token> Scanner::Pop() {
   const char startc = PeekChar();
   std::optional<Token> result;
   switch (startc) {
+    case '"': {
+      XLS_ASSIGN_OR_RETURN(result, ScanString(start_pos));
+      break;
+    }
     case '\'': {
       XLS_ASSIGN_OR_RETURN(result, ScanChar(start_pos));
       break;
@@ -566,7 +582,6 @@ absl::StatusOr<Token> Scanner::Pop() {
     case '%': DropChar(); result = Token(TokenKind::kPercent, mk_span()); break;  // NOLINT
     case '^': DropChar(); result = Token(TokenKind::kHat, mk_span()); break;  // NOLINT
     case '/': DropChar(); result = Token(TokenKind::kSlash, mk_span()); break;  // NOLINT
-    case '"': DropChar(); result = Token(TokenKind::kDoubleQuote, mk_span()); break;  // NOLINT
     // clang-format on
     default:
       if (std::isalpha(startc) != 0 || startc == '_') {

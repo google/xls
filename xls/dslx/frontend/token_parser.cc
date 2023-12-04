@@ -25,7 +25,9 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
 
@@ -122,18 +124,6 @@ absl::Status TokenParser::DropKeywordOrError(Keyword target, Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(Token token, PopKeywordOrError(target, /*context=*/"",
                                                       /*limit_pos=*/limit_pos));
   return absl::OkStatus();
-}
-
-absl::StatusOr<std::string> TokenParser::PopString(Span* span) {
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleQuote));
-  const Pos start = scanner_->GetPos();
-  XLS_ASSIGN_OR_RETURN(std::string text, scanner_->ScanUntilDoubleQuote());
-  const Pos end = scanner_->GetPos();
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleQuote));
-  if (span != nullptr) {
-    *span = Span(start, end);
-  }
-  return text;
 }
 
 }  // namespace xls::dslx

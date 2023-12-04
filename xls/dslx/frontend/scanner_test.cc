@@ -26,7 +26,9 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/error_test_utils.h"
+#include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
 namespace {
@@ -38,6 +40,8 @@ absl::StatusOr<std::vector<Token>> ToTokens(std::string text) {
   Scanner s("fake_file.x", std::move(text));
   return s.PopAll();
 }
+
+}  // namespace
 
 TEST(ScannerTest, SimpleTokens) {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, ToTokens("+ - ++ << >>"));
@@ -323,6 +327,18 @@ TEST(ScannerTest, HexCharLiteralBadDigit) {
       IsPosError("ScanError", HasSubstr("Only hex digits are allowed")));
 }
 
+TEST(ScannerTest, NoCloseQuoteOnString) {
+  std::string text = R"("abc)";
+  Scanner s("fake_file.x", text);
+  absl::StatusOr<std::vector<Token>> result = s.PopAll();
+  EXPECT_THAT(
+      result.status(),
+      IsPosError(
+          "ScanError",
+          HasSubstr(
+              "Reached end of file without finding a closing double quote.")));
+}
+
 TEST(ScannerTest, StringCharUnicodeEscapeNonHexDigit) {
   std::string text = R"(\u{jk}")";
   Scanner s("fake_file.x", text);
@@ -389,6 +405,23 @@ TEST(ScannerTest, StringCharUnicodeBadStartChar) {
                     "be followed by a character code, such as \"{...}\"")));
 }
 
+TEST(ScannerTest, SimpleString) {
+  std::string text = R"({"hello world!"})";
+  Scanner s("fake_file.x", text);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Token ocurl, s.Pop());
+  EXPECT_EQ(ocurl.kind(), TokenKind::kOBrace);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Token t, s.Pop());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Token ccurl, s.Pop());
+  EXPECT_EQ(ccurl.kind(), TokenKind::kCBrace);
+
+  ASSERT_TRUE(s.AtEof());
+  EXPECT_EQ(t.kind(), TokenKind::kString);
+  EXPECT_EQ(*t.GetValue(), "hello world!");
+}
+
 TEST(ScannerTest, SimpleCommentData) {
   std::string text = R"(// I haz comments!)";
   Scanner s("fake_file.x", text);
@@ -448,5 +481,4 @@ bar  // another thing
   }
 }
 
-}  // namespace
 }  // namespace xls::dslx

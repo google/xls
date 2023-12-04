@@ -77,6 +77,7 @@ namespace xls::dslx {
   X(kDoubleDot, DOUBLE_DOT, "..")                                      \
   X(kEllipsis, ELLIPSIS, "...")                                        \
   X(kHash, HASH, "#")                                                  \
+  X(kString, STRING, "string")                                         \
   /* When in whitespace/comment mode; e.g. for syntax highlighting. */ \
   X(kWhitespace, WHITESPACE, "whitespace")                             \
   X(kComment, COMMENT, "comment")

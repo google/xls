@@ -29,6 +29,7 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
@@ -93,12 +94,6 @@ class Scanner {
     return AtCharEof();
   }
 
-  // Proceeds through the stream until an unescaped double quote is encountered.
-  //
-  // Note: since there are special character escapes in strings, they are
-  // specially handled by this routine when an open quote is encountered.
-  absl::StatusOr<std::string> ScanUntilDoubleQuote();
-
   void EnableDoubleCAngle() { double_c_angle_enabled_ = true; }
   void DisableDoubleCAngle() { double_c_angle_enabled_ = false; }
 
@@ -114,10 +109,25 @@ class Scanner {
   }
 
  private:
+  // These tests generally use the private ScanUntilDoubleQuote() helper.
+  XLS_FRIEND_TEST(ScannerTest, RecognizesEscapes);
+  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeBadStartChar);
+  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeBadTerminator);
+  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeEscapeEmpty);
+  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeEscapeNonHexDigit);
+  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeInvalidSequence);
+  XLS_FRIEND_TEST(ScannerTest, StringCharUnicodeMoreThanSixDigits);
+
   // Determines whether string "s" matches a keyword -- if so, returns the
   // keyword enum that it corresponds to. Otherwise, typically the caller will
   // assume s is an identifier.
   static std::optional<Keyword> GetKeyword(std::string_view s);
+
+  // Proceeds through the stream until an unescaped double quote is encountered.
+  //
+  // Note: since there are special character escapes in strings, they are
+  // specially handled by this routine when an open quote is encountered.
+  absl::StatusOr<std::string> ScanUntilDoubleQuote();
 
   // Scans a number token out of the character stream. Note the number may have
   // a base determined by a radix-noting prefix; e.g. "0x" or "0b".
@@ -125,6 +135,10 @@ class Scanner {
   // Precondition: The character stream must be positioned over either a digit
   // or a minus sign.
   absl::StatusOr<Token> ScanNumber(char startc, const Pos& start_pos);
+
+  // Scans a string token out of the character stream -- character cursor should
+  // be over the opening quote character.
+  absl::StatusOr<Token> ScanString(const Pos& start_pos);
 
   // Scans a character literal from the character stream as a character token.
   //

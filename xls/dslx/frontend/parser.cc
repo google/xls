@@ -444,9 +444,14 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
         peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
   }
   if (directive_name == "extern_verilog") {
-    Span template_span;
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-    XLS_ASSIGN_OR_RETURN(std::string ffi_annotation, PopString(&template_span));
+    Pos template_start = GetPos();
+    Pos template_limit;
+    XLS_ASSIGN_OR_RETURN(
+        Token ffi_annotation_token,
+        PopTokenOrError(TokenKind::kString, /*start=*/nullptr,
+                        "extern_verilog template", &template_limit));
+    std::string ffi_annotation = *ffi_annotation_token.GetValue();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     XLS_ASSIGN_OR_RETURN(bool dropped_pub, TryDropKeyword(Keyword::kPub));
@@ -457,8 +462,8 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     if (!parsed_ffi_annotation.ok()) {
       const int64_t error_at =
           CodeTemplate::ExtractErrorColumn(parsed_ffi_annotation.status());
-      const Pos& start = template_span.start();
-      Pos error_pos{start.filename(), start.lineno(), start.colno() + error_at};
+      Pos error_pos{template_start.filename(), template_start.lineno(),
+                    template_start.colno() + error_at};
       dslx::Span error_span(error_pos, error_pos);
       return ParseErrorStatus(error_span,
                               parsed_ffi_annotation.status().message());
@@ -1507,20 +1512,15 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter}) ||
       peek->IsKeywordIn({Keyword::kTrue, Keyword::kFalse})) {
     XLS_ASSIGN_OR_RETURN(lhs, ParseNumber(outer_bindings));
-  } else if (peek->IsKindIn({TokenKind::kDoubleQuote})) {
-    // Eat characters until the first unescaped double quote.
-    //
-    // Make a defensive copy of the peek token span as it may/will be
-    // invalidated via the PopString() call.
-    const Span span_copy = peek->span();
-    XLS_ASSIGN_OR_RETURN(std::string text, PopString());
-    if (text.empty()) {
-      // TODO(https://github.com/google/xls/issues/1105): 2021-05-20 Add
-      // zero-length support.
-      return ParseErrorStatus(span_copy,
+  } else if (peek->kind() == TokenKind::kString) {
+    Token tok = PopTokenOrDie();
+    // TODO(https://github.com/google/xls/issues/1105): 2021-05-20 Add
+    // zero-length string support akin to zero-length array support.
+    if (tok.GetValue()->empty()) {
+      return ParseErrorStatus(tok.span(),
                               "Zero-length strings are not supported.");
     }
-    return module_->Make<String>(Span(start_pos, GetPos()), text);
+    return module_->Make<String>(tok.span(), *tok.GetValue());
   } else if (peek->IsKindIn({TokenKind::kBang, TokenKind::kMinus})) {
     Token tok = PopTokenOrDie();
     XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(outer_bindings, restrictions));
