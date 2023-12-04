@@ -67,7 +67,9 @@ ProcJitContinuation::ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
     int64_t state_index = proc->GetStateParamIndex(state_param).value();
     jit_runtime->BlitValueToBuffer(
         proc->GetInitValueElement(state_index), state_param->GetType(),
-        jit_runtime_->AsStack(absl::MakeSpan(input_buffers_[param_index])));
+        absl::Span<uint8_t>(
+            input_ptrs_[param_index],
+            jit_runtime_->GetTypeByteSize(state_param->GetType())));
   }
 
   temp_buffer_.resize(jit_runtime->ShouldAllocateForStack(temp_buffer_size));
