@@ -463,3 +463,23 @@ cc_library(
         ":pos",
     ],
 )
+
+cc_test(
+    name = "scanned_token_to_string_fuzz_test",
+    srcs = ["scanned_token_to_string_fuzz_test.cc"],
+    tags = ["componentid:1408685"],
+    deps = [
+        ":bindings",
+        ":scanner",
+        ":token",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "@com_google_fuzztest//fuzztest",
+    ],
+)

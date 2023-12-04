@@ -96,12 +96,15 @@ cc_library(
     visibility = ["//xls:xls_utility_users"],
     deps = [
         ":filesystem",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "//xls/common:module_initializer",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@bazel_tools//tools/cpp/runfiles",
     ],
 )

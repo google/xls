@@ -15,6 +15,7 @@
 #include "xls/common/file/get_runfile_path.h"
 
 #include <cstdlib>
+#include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
 #include <string_view>
