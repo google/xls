@@ -37,9 +37,9 @@ def repo():
         sha256 = "fd9e99f6ccb9e946755f9bc444abefbdd1eedb32c372c56dcacc7eb486aed178",
     )
 
-    # Commit on 2023-11-28 -- Merge pull request #236 from mithro/asap7-multi-corner
-    git_hash = "aca8d0a2c04d5b2a56299bc09ce959f57e7fbf63"
-    archive_sha256 = "9871074b168d60829477421d0fdc0adc997822f127b59a00097cbbbdb7c6463a"
+    # Current as of 2023-12-05
+    git_hash = "37efe7ca7b8469454eacd3b70ef5fe5ddfea2cf4"
+    archive_sha256 = "d32c5d3a0864e351ca8e6e40d3cf1bb4b78cfc85ea81b5c52bd44b23d274d321"
 
     maybe(
         http_archive,
