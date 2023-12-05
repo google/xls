@@ -95,7 +95,8 @@ enum class Joiner : uint8_t {
   //
   // Note that, in this mode, if we span multiple lines, we'll put a trailing
   // comma as well.
-  kCommaBreak1AsGroupTrailingComma,
+  kCommaBreak1AsGroupTrailingCommaOnBreak,
+  kCommaBreak1AsGroupTrailingCommaAlways,
   kCommaBreak1AsGroupNoTrailingComma,
 
   kSpaceBarBreak,
@@ -131,7 +132,8 @@ DocRef FmtJoin(
           pieces.push_back(arena.break1());
           break;
         case Joiner::kCommaBreak1AsGroupNoTrailingComma:
-        case Joiner::kCommaBreak1AsGroupTrailingComma: {
+        case Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak:
+        case Joiner::kCommaBreak1AsGroupTrailingCommaAlways: {
           std::vector<DocRef> this_pieces;
           if (i != 0) {  // If it's the first item we don't put a leading space.
             this_pieces.push_back(arena.break1());
@@ -155,7 +157,8 @@ DocRef FmtJoin(
     } else {  // Last item, generally "no trailing delimiter".
       switch (joiner) {
         case Joiner::kCommaBreak1AsGroupNoTrailingComma:
-        case Joiner::kCommaBreak1AsGroupTrailingComma: {
+        case Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak:
+        case Joiner::kCommaBreak1AsGroupTrailingCommaAlways: {
           // Note: we only want to put a leading space in front of the last
           // element if the last element is not also the first element.
           if (i == 0) {
@@ -164,11 +167,13 @@ DocRef FmtJoin(
             pieces.push_back(ConcatNGroup(arena, {arena.break1(), member}));
           }
 
-          if (joiner == Joiner::kCommaBreak1AsGroupTrailingComma) {
+          if (joiner == Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak) {
             // With this pattern if we're in break mode (implying we spanned
             // multiple lines), we allow a trailing comma.
             pieces.push_back(
                 arena.MakeFlatChoice(arena.empty(), arena.comma()));
+          } else if (joiner == Joiner::kCommaBreak1AsGroupTrailingCommaAlways) {
+            pieces.push_back(arena.comma());
           }
           break;
         }
@@ -328,6 +333,31 @@ DocRef Fmt(const WildcardPattern& n, const Comments& comments,
   return arena.underscore();
 }
 
+static DocRef FmtFlat(const Array& n, const Comments& comments,
+                      DocArena& arena) {
+  std::vector<DocRef> flat_pieces;
+  if (TypeAnnotation* t = n.type_annotation()) {
+    flat_pieces.push_back(Fmt(*t, comments, arena));
+    flat_pieces.push_back(arena.colon());
+  }
+
+  flat_pieces.push_back(arena.obracket());
+  flat_pieces.push_back(FmtJoin<const Expr*>(n.members(), Joiner::kCommaSpace,
+                                             FmtExprPtr, comments, arena));
+  if (n.has_ellipsis()) {
+    // Note: zero members with ellipsis is invalid at type checking, we may
+    // choose not to flag it as a parse-time error, in which case we could have
+    // it in the AST.
+    if (!n.members().empty()) {
+      flat_pieces.push_back(arena.comma());
+    }
+    flat_pieces.push_back(arena.space());
+    flat_pieces.push_back(arena.MakeText("..."));
+  }
+  flat_pieces.push_back(arena.cbracket());
+  return ConcatN(arena, flat_pieces);
+}
+
 DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> leader_pieces;
   if (TypeAnnotation* t = n.type_annotation()) {
@@ -342,7 +372,7 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
 
   std::vector<DocRef> member_pieces;
   member_pieces.push_back(FmtJoin<const Expr*>(
-      n.members(), Joiner::kCommaBreak1AsGroupTrailingComma, FmtExprPtr,
+      n.members(), Joiner::kCommaBreak1AsGroupTrailingCommaAlways, FmtExprPtr,
       comments, arena));
 
   if (n.has_ellipsis()) {
@@ -360,7 +390,10 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.break0());
   pieces.push_back(arena.cbracket());
 
-  return ConcatN(arena, pieces);
+  DocRef non_flat = ConcatN(arena, pieces);
+  DocRef flat = FmtFlat(n, comments, arena);
+
+  return arena.MakeFlatChoice(/*on_flat=*/flat, /*on_break=*/non_flat);
 }
 
 DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
@@ -1012,9 +1045,9 @@ DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
                                });
   }
 
-  DocRef guts = FmtJoin<const Expr*>(n.members(),
-                                     Joiner::kCommaBreak1AsGroupTrailingComma,
-                                     FmtExprPtr, comments, arena);
+  DocRef guts = FmtJoin<const Expr*>(
+      n.members(), Joiner::kCommaBreak1AsGroupTrailingCommaOnBreak, FmtExprPtr,
+      comments, arena);
 
   return ConcatNGroup(
       arena, {

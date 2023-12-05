@@ -999,7 +999,7 @@ const W_A2 = u32:32;
 const NUM_PIECES = u32:16;
 
 pub const A2 = sN[W_A2][NUM_PIECES]:[
-    11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 111, 111, 111, 111, 111
+    11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 111, 111, 111, 111, 111,
 ];
 pub const A1 = sN[W_A1][NUM_PIECES]:[
     1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111, 11111, 11111,
@@ -1828,7 +1828,7 @@ TEST(ModuleFmtTest, OverLongArrayConstant) {
 const W_A0 = u32:32;
 const NUM_PIECES = u32:8;
 pub const A0 = sN[W_A0][NUM_PIECES]:[
-    111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111
+    111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111,
 ];
 )";
   std::vector<CommentData> comments;

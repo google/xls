@@ -15,6 +15,6 @@ import xls.dslx.tests.mod_imported
 
 fn main() -> mod_imported::Point[2] {
     mod_imported::Point[2]:[
-        mod_imported::Point { x: u32:0, y: u32:1 }, mod_imported::Point { x: u32:2, y: u32:3 }
+        mod_imported::Point { x: u32:0, y: u32:1 }, mod_imported::Point { x: u32:2, y: u32:3 },
     ]
 }

@@ -18,7 +18,7 @@
 struct FooAndBar { foo: u32, bar: u32 }
 
 const MY_FOO_BARS = FooAndBar[2]:[
-    FooAndBar { foo: u32:1, bar: u32:2 }, FooAndBar { foo: u32:3, bar: u32:4 }
+    FooAndBar { foo: u32:1, bar: u32:2 }, FooAndBar { foo: u32:3, bar: u32:4 },
 ];
 
 fn main() -> u32 { array_size(MY_FOO_BARS) }
