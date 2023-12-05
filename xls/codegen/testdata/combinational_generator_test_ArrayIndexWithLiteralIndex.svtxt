@@ -8,5 +8,5 @@ module ArrayIndexWithLiteralIndex(
   assign a_unflattened[2] = a[23:16];
   assign a_unflattened[3] = a[31:24];
 
-  assign out = a_unflattened[42'h000_0000_0003];
+  assign out = a_unflattened[2'h3];
 endmodule

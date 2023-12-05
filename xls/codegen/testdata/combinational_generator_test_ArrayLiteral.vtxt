@@ -12,9 +12,9 @@ module main(
   assign literal_8[1][2] = 44'h000_0000_0006;
   wire [43:0] array_index_9[0:2];
   wire [43:0] result;
-  assign array_index_9[0] = literal_8[x > 32'h0000_0001 ? 32'h0000_0001 : x][0];
-  assign array_index_9[1] = literal_8[x > 32'h0000_0001 ? 32'h0000_0001 : x][1];
-  assign array_index_9[2] = literal_8[x > 32'h0000_0001 ? 32'h0000_0001 : x][2];
-  assign result = array_index_9[y > 32'h0000_0002 ? 32'h0000_0002 : y];
+  assign array_index_9[0] = literal_8[x > 32'h0000_0001 ? 1'h1 : x[0:0]][0];
+  assign array_index_9[1] = literal_8[x > 32'h0000_0001 ? 1'h1 : x[0:0]][1];
+  assign array_index_9[2] = literal_8[x > 32'h0000_0001 ? 1'h1 : x[0:0]][2];
+  assign result = array_index_9[y > 32'h0000_0002 ? 2'h2 : y[1:0]];
   assign out = result;
 endmodule

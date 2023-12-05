@@ -16,5 +16,5 @@ module main(
   wire [31:0] tuple_index_25[0:1];
   assign tuple_index_25[0] = e[31:0];
   assign tuple_index_25[1] = e[63:32];
-  assign out = a | b[31:0] | c_unflattened[g] | d_unflattened[32'h0000_0000][31:0] | tuple_index_25[g];
+  assign out = a | b[31:0] | c_unflattened[g] | d_unflattened[1'h0][31:0] | tuple_index_25[g];
 endmodule

@@ -481,6 +481,32 @@ TEST_P(ModuleBuilderTest, BitSliceUpdateAsFunction) {
                                  file.Emit());
 }
 
+TEST_P(ModuleBuilderTest, ArrayIndexAsFunction) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  Type* big_array = package.GetArrayType(
+      6, package.GetArrayType(16, package.GetArrayType(4, u32)));
+  BValue x_param = fb.Param("x", big_array);
+  BValue y_param = fb.Param("y", u32);
+  BValue z_param = fb.Param("z", u32);
+  BValue array_index_x_y_z = fb.ArrayIndex(x_param, {y_param, z_param});
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", big_array));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * z, mb.AddInputPort("z", u32));
+
+  XLS_ASSERT_OK(mb.EmitAsAssignment("array_index_x_y_z",
+                                    array_index_x_y_z.node(), {x, y, z})
+                    .status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
 INSTANTIATE_TEST_SUITE_P(ModuleBuilderTestInstantiation, ModuleBuilderTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ModuleBuilderTest>);

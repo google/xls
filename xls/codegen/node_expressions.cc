@@ -46,7 +46,8 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
   // necessarily indexable. Generally, if the expression emitted for a node is
   // an indexing operation and the operand is emitted as an indexable expression
   // then there is no need to make the operand a declared expression because
-  // indexing/slicing can be chained.
+  // indexing/slicing can be chained... unless we might need to narrow it if it
+  // uses more bits than the size of the array.
   //
   // For example, a kArrayIndex of a kArrayIndex can be emitted as a chained
   // VAST Index expression like so:
@@ -71,7 +72,47 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
       return !operand_is_indexable();
     case Op::kDynamicBitSlice:
       return operand_no == 0 && !operand_is_indexable();
-    case Op::kArrayIndex:
+    case Op::kArrayIndex: {
+      if (operand_is_indexable()) {
+        return false;
+      }
+      switch (operand_no) {
+        case 0:
+          // The array needs to be indexable.
+          return true;
+        case 1: {
+          // The indices need to be indexable if and only if we might need to
+          // truncate one to ensure we don't use too many bits for the array's
+          // indexing operation.
+          XLS_CHECK_EQ(operand_no, 1);
+          Node* operand = node->operand(operand_no);
+          Type* array_type = node->As<ArrayIndex>()->array()->GetType();
+          auto index_could_be_out_of_range = [&](Node* index) {
+            if (index->Is<::xls::Literal>()) {
+              return bits_ops::UGreaterThanOrEqual(
+                  index->As<::xls::Literal>()->value().bits(),
+                  array_type->AsArrayOrDie()->size());
+            }
+            return index->BitCountOrDie() >=
+                   Bits::MinBitCountUnsigned(
+                       array_type->AsArrayOrDie()->size());
+          };
+          if (!operand->Is<Tuple>()) {
+            return index_could_be_out_of_range(operand);
+          }
+          Tuple* indices = operand->As<Tuple>();
+          for (int64_t i = 0; i < indices->size(); ++i) {
+            if (index_could_be_out_of_range(indices->operand(i))) {
+              return true;
+            }
+            array_type = array_type->AsArrayOrDie()->element_type();
+          }
+          return false;
+        }
+        default:
+          return false;
+      }
+    }
     case Op::kArrayUpdate:
       return operand_no == 0 && !operand_is_indexable();
     case Op::kOneHot:
@@ -734,14 +775,43 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
                bits_ops::ULessThan(index->AsLiteralOrDie()->bits(),
                                    array_type->size())) {
       // Index is an in-bounds literal.
-      clamped_index = index;
+      const int64_t short_index_width = std::max(
+          int64_t{1}, Bits::MinBitCountUnsigned(array_type->size() - 1));
+      if (index_type->bit_count() <= short_index_width) {
+        clamped_index = index;
+      } else {
+        XLS_RET_CHECK(index->AsLiteralOrDie()->bits().FitsInUint64());
+        clamped_index =
+            file->Literal(*index->AsLiteralOrDie()->bits().ToUint64(),
+                          short_index_width, array_index->loc());
+      }
     } else {
       Expression* max_index =
           file->Literal(UBits(array_type->size() - 1, index_type->bit_count()),
                         array_index->loc());
+
+      Expression* short_index = index;
+      Expression* short_max_index = max_index;
+      const int64_t short_index_width = std::max(
+          int64_t{1}, Bits::MinBitCountUnsigned(array_type->size() - 1));
+      if (index_type->bit_count() > short_index_width) {
+        if (!index->IsIndexableExpression()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Index %d of array_index %s is not indexable, "
+              "and is too wide for array %s; was %s",
+              i, array_index->GetName(), array_index->array()->GetName(),
+              array_index->indices()[i]->GetType()->ToString()));
+        }
+        short_index = file->Slice(index->AsIndexableExpressionOrDie(),
+                                  short_index_width - 1, 0, array_index->loc());
+        short_max_index =
+            file->Literal(UBits(array_type->size() - 1, short_index_width),
+                          array_index->loc());
+      }
+
       clamped_index =
           file->Ternary(file->GreaterThan(index, max_index, array_index->loc()),
-                        max_index, index, array_index->loc());
+                        short_max_index, short_index, array_index->loc());
     }
     value = file->Index(value, clamped_index, array_index->loc());
     type = array_type->element_type();

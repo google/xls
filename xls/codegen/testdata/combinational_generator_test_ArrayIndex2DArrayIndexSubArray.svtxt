@@ -11,6 +11,6 @@ module ArrayIndex2DArrayIndexSubArray(
   assign a_unflattened[1][1] = a[39:32];
   assign a_unflattened[1][2] = a[47:40];
   wire [7:0] array_index_6[3];
-  assign array_index_6 = a_unflattened[idx > 16'h0001 ? 16'h0001 : idx];
+  assign array_index_6 = a_unflattened[idx > 16'h0001 ? 1'h1 : idx[0:0]];
   assign out = {array_index_6[2], array_index_6[1], array_index_6[0]};
 endmodule

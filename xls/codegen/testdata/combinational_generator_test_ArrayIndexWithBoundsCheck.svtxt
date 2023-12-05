@@ -8,5 +8,5 @@ module ArrayIndexWithBoundsCheck(
   assign A_unflattened[1] = A[15:8];
   assign A_unflattened[2] = A[23:16];
 
-  assign out = A_unflattened[index > 8'h02 ? 8'h02 : index];
+  assign out = A_unflattened[index > 8'h02 ? 2'h2 : index[1:0]];
 endmodule
