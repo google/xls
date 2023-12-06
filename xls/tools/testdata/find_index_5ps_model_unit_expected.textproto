@@ -1,6 +1,7 @@
 overall {
   area_um2: 740.7104
   flops: 27
+  cells: 63
   crit_path_delay_ps: 471.97
 }
 per_stage {

@@ -56,6 +56,7 @@ def scrape_yosys(model: design_stats_pb2.DesignStats, f):
   flop_regex = re.compile(r"Flop count p(\d+)mod: (\d+) objects.")
   flop_total_regex = re.compile(r"Flop count: (\d+) objects.")
   cell_count_regex = re.compile(r"Cell count in p(\d+)mod: (\d+)")
+  total_cell_count_regex = re.compile(r"Number of cells:\s+(\d+)")
   longest_path_regex = re.compile(
       r"Longest topological path in p(\d+)mod \(length=(\d+)\)"
   )
@@ -99,6 +100,12 @@ def scrape_yosys(model: design_stats_pb2.DesignStats, f):
       cells = int(m.group(2))
       ensure_stage(model, stage)
       model.per_stage[stage].cells = cells
+
+    # Number of cells:        189
+    if not model.overall.cells:
+      if m := re.search(total_cell_count_regex, line):
+        cells = int(m.group(1))
+        model.overall.cells = cells
 
     # Longest topological path in p0mod (length=1):
     if m := re.search(longest_path_regex, line):
