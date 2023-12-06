@@ -1,5 +1,5 @@
 <div align='center'>
-<img src='https://google.github.io/xls/images/xls_logo_623_250.png' alt='XLS Logo'>
+<img src='https://google.github.io/xls/images/xls_logo.svg' alt='XLS Logo'>
 </div>
 
 # **XLS**: Accelerated HW Synthesis
