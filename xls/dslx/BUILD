@@ -14,14 +14,20 @@
 
 # Domain Specific Language implementation for HW construction that mimics Rust.
 
-# pytype tests are present in this file
-
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+
+# pytype tests are present in this file
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
+)
+
+bzl_library(
+    name = "strip_comments_bzl",
+    srcs = ["strip_comments.bzl"],
 )
 
 cc_library(
@@ -594,7 +600,9 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/frontend:token",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )

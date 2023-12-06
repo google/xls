@@ -15,6 +15,7 @@
 # Tests for DSLX files that have various forms of errors.
 
 # pytype tests are present in this file
+load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -39,5 +40,11 @@ py_test(
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)
+
+dslx_strip_comments(
+    name = "x_files_stripped",
+    srcs = [":x_files"],
     visibility = ["//xls:xls_internal"],
 )

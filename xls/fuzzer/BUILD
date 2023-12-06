@@ -16,6 +16,7 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype test and library
 load("@rules_python//python:proto.bzl", "py_proto_library")
+load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
 
@@ -28,6 +29,12 @@ package(
 filegroup(
     name = "x_files",
     srcs = glob(["crashers/*.x"]),
+)
+
+dslx_strip_comments(
+    name = "x_files_stripped",
+    srcs = [":x_files"],
+    visibility = ["//xls:xls_internal"],
 )
 
 py_library(

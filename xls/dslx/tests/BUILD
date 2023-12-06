@@ -23,6 +23,7 @@ load(
     "xls_dslx_opt_ir_test",
     "xls_ir_opt_ir",
 )
+load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 load("//xls/dslx/tests:build_defs.bzl", "dslx_lang_test")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
@@ -1178,4 +1179,9 @@ filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
     visibility = ["//xls:xls_internal"],
+)
+
+dslx_strip_comments(
+    name = "x_files_stripped",
+    srcs = [":x_files"],
 )

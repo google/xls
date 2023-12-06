@@ -12,13 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <fstream>
 #include <iostream>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -28,6 +34,11 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/token.h"
 
+ABSL_FLAG(bool, original_on_error, false,
+          "emit original source if a scan error is encountered");
+ABSL_FLAG(std::optional<std::string>, output_path, std::nullopt,
+          "output path to use in lieu of stdout");
+
 namespace xls::dslx {
 namespace {
 
@@ -35,16 +46,22 @@ const char* kUsage = R"(
 Emits the original DSLX source text with comment tokens stripped out.
 )";
 
-absl::Status RealMain(const std::filesystem::path& path) {
-  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
-  Scanner s(path, contents, /*include_whitespace_and_comments=*/true);
+absl::StatusOr<std::string> RealMain(const std::filesystem::path& path,
+                                     std::optional<std::string>* contents_out) {
+  XLS_ASSIGN_OR_RETURN(*contents_out, GetFileContents(path));
+  Scanner s(path, contents_out->value(),
+            /*include_whitespace_and_comments=*/true);
+
+  // We output to a string stream as an intermediary in case we encounter an
+  // error in the process of emitting tokens.
+  std::stringstream ss;
   while (!s.AtEof()) {
     XLS_ASSIGN_OR_RETURN(Token t, s.Pop());
     if (t.kind() != TokenKind::kComment) {
-      std::cout << t.ToString();
+      ss << t.ToString();
     }
   }
-  return absl::OkStatus();
+  return ss.str();
 }
 
 }  // namespace
@@ -59,5 +76,25 @@ int main(int argc, char** argv) {
                     << "`; want " << argv[0] << " <input-file>";
   }
 
-  return xls::ExitStatus(xls::dslx::RealMain(std::filesystem::path(args[0])));
+  std::optional<std::ofstream> fs;
+  std::ostream* os = nullptr;
+  if (std::optional<std::string> output_path = absl::GetFlag(FLAGS_output_path);
+      output_path.has_value()) {
+    fs.emplace(output_path.value());
+    os = &fs.value();
+  } else {
+    os = &std::cout;
+  }
+
+  std::optional<std::string> contents;
+  absl::StatusOr<std::string> result =
+      xls::dslx::RealMain(std::filesystem::path(args[0]), &contents);
+  if (result.ok()) {
+    *os << result.value();
+  } else if (absl::GetFlag(FLAGS_original_on_error) && contents.has_value()) {
+    *os << contents.value();
+    return EXIT_SUCCESS;
+  }
+
+  return xls::ExitStatus(result.status());
 }

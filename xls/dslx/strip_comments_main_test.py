@@ -34,6 +34,28 @@ class StripCommentsMainTest(absltest.TestCase):
     self.assertNotIn('//', output)
     self.assertNotEqual(original_text, output)
 
+  def test_unterminated_string(self):
+    original = '"'
+    f = self.create_tempfile(content=original)
+
+    p = subp.run(
+        [_STRIP_COMMENTS_MAIN_PATH, f.full_path],
+        encoding='utf-8',
+        stderr=subp.PIPE,
+        check=False,
+    )
+    self.assertNotEqual(p.returncode, 0)
+    self.assertIn(
+        'Reached end of file without finding a closing double quote.', p.stderr
+    )
+
+    output = subp.check_output(
+        [_STRIP_COMMENTS_MAIN_PATH, f.full_path, '--original_on_error'],
+        encoding='utf-8',
+    )
+    # Check even though it was a scanner error we got the original.
+    self.assertEqual(output, original)
+
 
 if __name__ == '__main__':
   absltest.main()
