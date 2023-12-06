@@ -1605,51 +1605,50 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
                                           y: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
   // WIDE_EXP: Widened exponent to capture a possible carry bit.
-  const WIDE_EXP: u32 =EXP_SZ + u32:1;
+  const WIDE_EXP: u32 = EXP_SZ + u32:1;
   // CARRY_EXP: WIDE_EXP plus one sign bit.
-  const CARRY_EXP: u32 =WIDE_EXP + u32:1;
+  const CARRY_EXP: u32 = u32:1 + WIDE_EXP;
+
   // WIDE_FRACTION: Widened fraction to contain full precision + rounding
-  // (guard & sticky) bits.
-  const WIDE_FRACTION: u32 =FRACTION_SZ + u32:5;
+  // (sign, hidden as well as guard, round, sticky) bits.
+  const SIGN_BIT = u32:1;
+  const HIDDEN_BIT = u32:1;
+  const GUARD_ROUND_STICKY_BITS = u32:3;
+  const WIDE_FRACTION: u32 = SIGN_BIT + HIDDEN_BIT + FRACTION_SZ + GUARD_ROUND_STICKY_BITS;
   // CARRY_FRACTION: WIDE_FRACTION plus one bit to capture a possible carry bit.
-  const CARRY_FRACTION: u32 =WIDE_FRACTION + u32:1;
+  const CARRY_FRACTION: u32 = u32:1 + WIDE_FRACTION;
+
   // NORMALIZED_FRACTION: WIDE_FRACTION minus one bit for post normalization
   // (where the implicit leading 1 bit is dropped).
-  const NORMALIZED_FRACTION: u32 =WIDE_FRACTION - u32:1;
+  const NORMALIZED_FRACTION: u32 = WIDE_FRACTION - u32:1;
 
-  // Step 1: align the fractions.
-  //  - Bit widths: Base fraction: u23.
-  //  - Add the implied/leading 1 bit: u23 -> u24
-  //  - Add a sign bit: u24 -> u25
-  let fraction_high_bit = uN[FRACTION_SZ]:1 << (FRACTION_SZ as uN[FRACTION_SZ] - uN[FRACTION_SZ]:1);
-  let wide_fraction_high_bit = fraction_high_bit as uN[WIDE_FRACTION] << uN[WIDE_FRACTION]:1;
-  let wide_x = ((x.fraction as uN[WIDE_FRACTION]) | wide_fraction_high_bit) << uN[WIDE_FRACTION]:3;
-  let wide_y = ((y.fraction as uN[WIDE_FRACTION]) | wide_fraction_high_bit) << uN[WIDE_FRACTION]:3;
+  // Step 0: Swap operands for x to contain value with greater exponent
+  let (x, y, shift) = if x.bexp > y.bexp {
+    (x, y, x.bexp - y.bexp)
+  } else {
+    (y, x, y.bexp - x.bexp)
+  };
+
+  // Step 1: add hidden bit and provide space for guard, round and sticky
+  let wide_x = (u1:1 ++ x.fraction) as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
+  let wide_y = (u1:1 ++ y.fraction) as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
 
   // Flush denormals to 0.
   let wide_x = if x.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { wide_x };
   let wide_y = if y.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { wide_y };
 
-  // Shift the fractions to align with the largest exponent.
-  let greater_exp = if x.bexp > y.bexp { x } else { y };
-  let shift_x = greater_exp.bexp - x.bexp;
-  let shift_y = greater_exp.bexp - y.bexp;
-  let shifted_x = (wide_x >> (shift_x as uN[WIDE_FRACTION])) as sN[WIDE_FRACTION];
-  let shifted_y = (wide_y >> (shift_y as uN[WIDE_FRACTION])) as sN[WIDE_FRACTION];
+  // Shift the smaller fraction to align with the largest exponent.
+  // x is already the larger, so no alignment needed which is done for y.
+  // Use the extra time on x to negate if we have an effective subtraction.
+  let addend_x = wide_x as sN[WIDE_FRACTION];
+  let addend_x = if x.sign != y.sign { -addend_x } else { addend_x };
 
-  // Calculate the sticky bits - set to 1 if any set bits were
-  // shifted out of the fractions.
-  let dropped_x = wide_x << ((WIDE_FRACTION as uN[EXP_SZ] - shift_x) as uN[WIDE_FRACTION]);
-  let dropped_y = wide_y << ((WIDE_FRACTION as uN[EXP_SZ] - shift_y) as uN[WIDE_FRACTION]);
-  let sticky_x = dropped_x > uN[WIDE_FRACTION]:0;
-  let sticky_y = dropped_y > uN[WIDE_FRACTION]:0;
-  let addend_x = shifted_x | (sticky_x as sN[WIDE_FRACTION]);
-  let addend_y = shifted_y | (sticky_y as sN[WIDE_FRACTION]);
-
-  // Invert the mantissa if its source has a different sign than
-  // the larger value.
-  let addend_x = if x.sign != greater_exp.sign { -addend_x } else { addend_x };
-  let addend_y = if y.sign != greater_exp.sign { -addend_y } else { addend_y };
+  // The smaller (y) needs to be shifted.
+  // Calculate the sticky bit - set to 1 if any set bits have to be shifted
+  // shifted out of the fraction.
+  let dropped = wide_y << (WIDE_FRACTION as uN[EXP_SZ] - shift);
+  let sticky = (dropped != uN[WIDE_FRACTION]:0) as sN[WIDE_FRACTION];
+  let addend_y = (wide_y >> shift) as sN[WIDE_FRACTION] | sticky;
 
   // Step 2: Do some addition!
   // Add one bit to capture potential carry: s28 -> s29.
@@ -1657,8 +1656,8 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
   let fraction_is_zero = fraction == sN[CARRY_FRACTION]:0;
   let result_sign = match (fraction_is_zero, fraction < sN[CARRY_FRACTION]:0) {
     (true, _) => u1:0,
-    (false, true) => !greater_exp.sign,
-    _ => greater_exp.sign,
+    (false, true) => !y.sign,
+    _ => y.sign
   };
 
   // Get the absolute value of the result then chop off the sign bit: s29 -> u28.
@@ -1714,7 +1713,7 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
   // Finally, adjust the exponent based on addition and rounding -
   // each bit of carry or cancellation moves it by one place.
   let wide_exponent =
-      (greater_exp.bexp as sN[CARRY_EXP]) +
+      (x.bexp as sN[CARRY_EXP]) +
       (rounding_carry as sN[CARRY_EXP]) +
       sN[CARRY_EXP]:1 - (leading_zeroes as sN[CARRY_EXP]);
   let wide_exponent = if fraction_is_zero { sN[CARRY_EXP]:0 } else { wide_exponent };
@@ -1755,14 +1754,15 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
       (is_inf<EXP_SZ, FRACTION_SZ>(x) & (x.sign == u1:1)) |
       (is_inf<EXP_SZ, FRACTION_SZ>(y) & (y.sign == u1:1));
   let is_result_nan = is_nan<EXP_SZ, FRACTION_SZ>(x) |
-      is_nan<EXP_SZ, FRACTION_SZ>(y) | (has_pos_inf & has_neg_inf);
+    is_nan<EXP_SZ, FRACTION_SZ>(y) | (has_pos_inf & has_neg_inf);
+  const kFractionHighBit = uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1);
   let result_exponent = if is_result_nan { max_exp } else { result_exponent };
-  let result_fraction = if is_result_nan { fraction_high_bit } else { result_fraction };
+  let result_fraction = if is_result_nan { kFractionHighBit } else { result_fraction };
   let result_sign = if is_result_nan { u1:0 } else { result_sign };
 
   // Finally (finally!), construct the output float.
   APFloat<EXP_SZ, FRACTION_SZ> { sign: result_sign, bexp: result_exponent,
-                            fraction: result_fraction as uN[FRACTION_SZ] }
+                                 fraction: result_fraction as uN[FRACTION_SZ] }
 }
 
 
