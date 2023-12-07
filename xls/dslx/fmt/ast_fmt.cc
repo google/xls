@@ -22,11 +22,13 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -47,6 +49,23 @@
 
 namespace xls::dslx {
 namespace {
+
+// If there is a '.' modifier in the attribute given by s (e.g. if it's of the
+// form "ProcName.config") strips off the trailing modifier and returns the
+// stem.
+//
+// TODO(https://github.com/google/xls/issues/1029): 2023-12-05 Ideally we'd have
+// proc references and avoid strange modifiers on identifiers.
+std::string StripAnyDotModifier(std::string_view s) {
+  XLS_CHECK_LE(std::count(s.begin(), s.end(), '.'), 1);
+  // Check for special identifier for proc config, which is ProcName.config
+  // internally, but in spawns we just want to say ProcName.
+  if (auto pos = s.rfind('.'); pos != std::string::npos) {
+    return std::string(s.substr(0, pos));
+  }
+
+  return std::string(s);
+}
 
 // Forward decls.
 DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena);
@@ -304,13 +323,7 @@ DocRef Fmt(const NameDef& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const NameRef& n, const Comments& comments, DocArena& arena) {
-  // Check for special identifier for proc config, which is ProcName.config
-  // internally, but in spawns we just want to say ProcName.
-  if (auto pos = n.identifier().find('.'); pos != std::string::npos) {
-    XLS_CHECK_EQ(n.identifier().substr(pos), ".config");
-    return arena.MakeText(n.identifier().substr(0, pos));
-  }
-  return arena.MakeText(n.identifier());
+  return arena.MakeText(StripAnyDotModifier(n.identifier()));
 }
 
 DocRef Fmt(const Number& n, const Comments& comments, DocArena& arena) {
@@ -743,8 +756,8 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {
               [&](const ColonRef* n) { return Fmt(*n, comments, arena); }},
       n.subject());
 
-  return ConcatNGroup(arena,
-                      {subject, arena.colon_colon(), arena.MakeText(n.attr())});
+  return ConcatNGroup(arena, {subject, arena.colon_colon(),
+                              arena.MakeText(StripAnyDotModifier(n.attr()))});
 }
 
 DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {

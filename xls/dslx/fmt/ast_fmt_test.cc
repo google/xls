@@ -1643,6 +1643,29 @@ pub proc q {
   EXPECT_EQ(got, kProgram);
 }
 
+// Based on report in https://github.com/google/xls/issues/1216
+TEST(ModuleFmtTest, ProcSpawnImported) {
+  const std::string_view kProgram =
+      R"(import some_import
+
+proc p {
+    config() {
+        spawn some_import::some_proc();
+        ()
+    }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 TEST(ModuleFmtTest, SimpleTestProc) {
   constexpr std::string_view kProgram =
       R"(#[test_proc]
