@@ -851,6 +851,13 @@ class NameRef : public Expr {
     return {};
   }
 
+  // Returns the node that defines the associated NameDef -- note: when the
+  // corresponding NameDef for this reference is built-in this returns nullptr.
+  const AstNode* GetDefiner() const {
+    return IsBuiltin() ? nullptr
+                       : std::get<const NameDef*>(name_def())->definer();
+  }
+
   template <typename T>
   bool DefinerIs() {
     if (std::holds_alternative<BuiltinNameDef*>(name_def_)) {

@@ -27,8 +27,10 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
@@ -95,6 +97,16 @@ absl::Status VerifyParentage(const AstNode* root);
 // Returns the set consisting of all transitive children of the given node (as
 // well as that node itself).
 absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node);
+
+// Returns whether node n is a parametric function.
+//
+// "n" may be null.
+bool IsParametricFunction(const AstNode* n);
+
+// Returns whether the parent of "n" is an invocation where "n" is the callee.
+//
+// "n" should not be null.
+bool ParentIsInvocationWithCallee(const NameRef* n);
 
 // Returns the result of accessing a colon-ref member of a builtin type; e.g.
 // `s7::MAX`.

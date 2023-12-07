@@ -3215,6 +3215,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
     return concrete_type;
   }
 
+  // If this has no corresponding type because it is a parametric function that
+  // is not being invoked, we give an error instead of propagating
+  // "TypeMissing".
+  if (IsParametricFunction(node->GetDefiner()) &&
+      !ParentIsInvocationWithCallee(node)) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat(
+            "Name '%s' is a parametric function, but it is not being invoked",
+            node->identifier()));
+  }
+
   return TypeMissingErrorStatus(/*node=*/*name_def, /*user=*/node);
 }
 

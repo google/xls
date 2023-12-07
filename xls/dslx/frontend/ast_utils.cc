@@ -116,6 +116,26 @@ void FlattenToSetInternal(const AstNode* node,
 
 }  // namespace
 
+bool IsParametricFunction(const AstNode* n) {
+  // Convenience so we can check things like "definer" when the definer may be
+  // unspecified in the AST. This generally only happens with programmatically
+  // built ASTs.
+  if (n == nullptr) {
+    return false;
+  }
+
+  const auto* f = dynamic_cast<const Function*>(n);
+  return f != nullptr && f->IsParametric();
+}
+
+bool ParentIsInvocationWithCallee(const NameRef* n) {
+  XLS_CHECK(n != nullptr);
+  const AstNode* parent = n->parent();
+  XLS_CHECK(parent != nullptr);
+  const auto* invocation = dynamic_cast<const Invocation*>(parent);
+  return invocation != nullptr && invocation->callee() == n;
+}
+
 bool IsBuiltinFn(Expr* callee, std::optional<std::string_view> target) {
   NameRef* name_ref = dynamic_cast<NameRef*>(callee);
   if (name_ref == nullptr) {

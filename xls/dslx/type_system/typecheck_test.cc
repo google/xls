@@ -217,6 +217,29 @@ const GLOBAL: u32 = u32:4;
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckErrorTest, ParametricIdentifierLtValue) {
+  std::string program = R"(
+fn p<N: u32>(x: bits[N]) -> bits[N] { x }
+
+fn f() -> bool { p < u32:42 }
+)";
+  EXPECT_THAT(Typecheck(program),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Name 'p' is a parametric function, but it is "
+                                 "not being invoked")));
+}
+
+TEST(TypecheckTest, MapOfParametric) {
+  std::string program = R"(
+fn p<N: u32>(x: bits[N]) -> bits[N] { x }
+
+fn f() -> u32[3] {
+  map(u32[3]:[1, 2, 3], p)
+}
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckErrorTest, ParametricInvocationConflictingArgs) {
   std::string program = R"(
 fn id<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x }
@@ -730,7 +753,6 @@ fn main() {
   let arr = [u5:1, u5:2, u5:3];
   let mapped_arr = map(arr, add_one);
   let type_error = add_one(u6:1);
-  ()
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
