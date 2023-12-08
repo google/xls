@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/visualization/ir_viz/ir_to_json.h"
+#include "xls/visualization/ir_viz/ir_to_proto.h"
 
 #include <filesystem>  // NOLINT
 #include <memory>
-#include <string>
 #include <string_view>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -32,23 +31,22 @@
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/visualization/ir_viz/visualization.pb.h"
 
 namespace xls {
 namespace {
 
-using ::testing::HasSubstr;
-
 constexpr char kTestdataPath[] = "xls/visualization/ir_viz/testdata";
 
-class IrToJsonTest : public IrTestBase {
+class IrToProtoTest : public IrTestBase {
  protected:
   std::filesystem::path GoldenFilePath(std::string_view file_ext) {
-    return absl::StrFormat("%s/ir_to_json_test_%s.%s", kTestdataPath,
+    return absl::StrFormat("%s/ir_to_html_test_%s.%s", kTestdataPath,
                            TestName(), file_ext);
   }
 };
 
-TEST_F(IrToJsonTest, SimpleFunction) {
+TEST_F(IrToProtoTest, SimpleFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
 package test
 
@@ -58,32 +56,16 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
-                                                      /*schedule=*/nullptr,
-                                                      /*entry_name=*/"main"));
-  // We can't compare the JSON to a golden file because the underlying proto to
-  // JSON library is nondeterministic in the order of fields so just check a
-  // couple things.
-  XLS_VLOG(1) << json;
-  EXPECT_THAT(json, HasSubstr(R"("name": "main")"));
-  EXPECT_THAT(json, HasSubstr(R"("id": "f0")"));
+  XLS_ASSERT_OK_AND_ASSIGN(viz::Package proto,
+                           IrToProto(p.get(), *delay_estimator,
+                                     /*schedule=*/nullptr,
+                                     /*entry_name=*/"main"));
 
-  EXPECT_THAT(json, HasSubstr(R"("edges": [)"));
-  EXPECT_THAT(json, HasSubstr(R"("nodes": [)"));
-  EXPECT_THAT(json, HasSubstr(R"("id": "f0_p1")"));
-  EXPECT_THAT(
-      json,
-      HasSubstr(
-          "\"ir\": \"add.1: bits[32] = add(x: bits[32], y: bits[32], id=1)\""));
-  EXPECT_THAT(json, HasSubstr(R"("name": "add.1")"));
-  EXPECT_THAT(json, HasSubstr(R"("opcode": "add")"));
-  EXPECT_THAT(
-      json,
-      HasSubstr(
-          R"("known_bits": "0bXXXX_XXXX_XXXX_XXXX_XXXX_XXXX_XXXX_XXXX")"));
+  XLS_VLOG(1) << proto.ir_html();
+  ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 
-TEST_F(IrToJsonTest, SimpleFunctionWithSchedule) {
+TEST_F(IrToProtoTest, SimpleFunctionWithSchedule) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -101,13 +83,16 @@ TEST_F(IrToJsonTest, SimpleFunctionWithSchedule) {
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
                            GetDelayEstimator("unit"));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
-                                                      /*schedule=*/&schedule,
-                                                      /*entry_name=*/"main"));
-  XLS_VLOG(1) << json;
+  XLS_ASSERT_OK_AND_ASSIGN(viz::Package proto,
+                           IrToProto(p.get(), *delay_estimator,
+                                     /*schedule=*/&schedule,
+                                     /*entry_name=*/"main"));
+
+  XLS_VLOG(1) << proto.ir_html();
+  ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 
-TEST_F(IrToJsonTest, MultipleFunctions) {
+TEST_F(IrToProtoTest, MultipleFunctions) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
 package test
 
@@ -124,13 +109,16 @@ fn main(x: bits[32], xx: bits[32]) -> bits[32] {
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
-                                                      /*schedule=*/nullptr,
-                                                      /*entry_name=*/"main"));
-  XLS_VLOG(1) << json;
+  XLS_ASSERT_OK_AND_ASSIGN(viz::Package proto,
+                           IrToProto(p.get(), *delay_estimator,
+                                     /*schedule=*/nullptr,
+                                     /*entry_name=*/"main"));
+
+  XLS_VLOG(1) << proto.ir_html();
+  ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 
-TEST_F(IrToJsonTest, SimpleProc) {
+TEST_F(IrToProtoTest, SimpleProc) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
 package test
 
@@ -149,10 +137,13 @@ top proc the_proc(tkn: token, x: bits[32], y: bits[64], init={0, 42}) {
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
-                                                      /*schedule=*/nullptr,
-                                                      /*entry_name=*/"main"));
-  XLS_VLOG(1) << json;
+  XLS_ASSERT_OK_AND_ASSIGN(viz::Package proto,
+                           IrToProto(p.get(), *delay_estimator,
+                                     /*schedule=*/nullptr,
+                                     /*entry_name=*/"main"));
+
+  XLS_VLOG(1) << proto.ir_html();
+  ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 
 }  // namespace

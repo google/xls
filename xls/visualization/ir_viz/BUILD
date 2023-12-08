@@ -86,12 +86,13 @@ proto_library(
 )
 
 cc_library(
-    name = "ir_to_json",
-    srcs = ["ir_to_json.cc"],
-    hdrs = ["ir_to_json.h"],
+    name = "ir_to_proto",
+    srcs = ["ir_to_proto.cc"],
+    hdrs = ["ir_to_proto.h"],
     deps = [
         ":visualization_cc_proto",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/delay_model:analyze_critical_path",
         "//xls/delay_model:delay_estimator",
@@ -99,22 +100,25 @@ cc_library(
         "//xls/ir:op",
         "//xls/passes:bdd_query_engine",
         "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_protobuf//:protobuf",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "@com_googlesource_code_re2//:re2",
     ],
 )
 
 cc_test(
-    name = "ir_to_json_test",
-    srcs = ["ir_to_json_test.cc"],
+    name = "ir_to_proto_test",
+    srcs = ["ir_to_proto_test.cc"],
     data = glob([
-        "testdata/ir_to_json_test_*",
+        "testdata/ir_to_html_test_*",
     ]),
     deps = [
-        ":ir_to_json",
+        ":ir_to_proto",
+        ":visualization_cc_proto",
         "//xls/common:golden_files",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -125,7 +129,49 @@ cc_test(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_absl//absl/memory",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "ir_to_json",
+    srcs = ["ir_to_json.cc"],
+    hdrs = ["ir_to_json.h"],
+    deps = [
+        ":ir_to_proto",
+        ":visualization_cc_proto",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "ir_to_json_test",
+    srcs = ["ir_to_json_test.cc"],
+    data = glob([
+        "testdata/ir_to_html_test_*",
+    ]),
+    deps = [
+        ":ir_to_json",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

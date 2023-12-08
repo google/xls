@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,26 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_VISUALIZATION_IR_TO_JSON_H_
-#define XLS_IR_VISUALIZATION_IR_TO_JSON_H_
+#ifndef XLS_IR_VISUALIZATION_IR_TO_PROTO_H_
+#define XLS_IR_VISUALIZATION_IR_TO_PROTO_H_
 
 #include <optional>
 #include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/delay_model/delay_estimator.h"
+#include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/visualization/ir_viz/visualization.pb.h"
 
 namespace xls {
 
-// Returns a JSON representation of the given package for use by the
-// visualizer. The JSON is based on the xls::viz::Package proto (see
-// ir_to_json_test.cc for examples)
-absl::StatusOr<std::string> IrToJson(
+// Returns a xls::viz::Package proto representation of the given package for use
+// by a visualizer.
+absl::StatusOr<xls::viz::Package> IrToProto(
     Package* package, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule = nullptr,
     std::optional<std::string_view> entry_name = std::nullopt);
 
 }  // namespace xls
 
-#endif  // XLS_IR_VISUALIZATION_IR_TO_JSON_H_
+#endif  // XLS_IR_VISUALIZATION_IR_TO_PROTO_H_
