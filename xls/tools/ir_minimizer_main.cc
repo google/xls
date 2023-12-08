@@ -127,6 +127,11 @@ ABSL_FLAG(
     "file. The test should return a zero exit code (success) if the IR "
     "exhibits the bug in question. Note, if testing for a crash of a "
     "particular binary this is the opposite return code polarity.");
+ABSL_FLAG(std::vector<std::string>, test_executable_args, {},
+          "Flags to pass to the '--test_executable'.");
+ABSL_FLAG(bool, test_executable_crash_is_bug, false,
+          "If true a crash of the test executable is considered a bug repro, "
+          "normal termination is considered a passing run.");
 ABSL_FLAG(bool, test_llvm_jit, false,
           "Tests for differences between results from the JIT and the "
           "interpreter as the reduction test case. Must specify --input with "
@@ -241,19 +246,25 @@ absl::StatusOr<bool> StillFailsHelper(
         << "Cannot specify --test_llvm_jit with --test_executable";
     XLS_QCHECK(absl::GetFlag(FLAGS_input).empty())
         << "Cannot specify --input with --test_executable";
-    absl::StatusOr<std::pair<std::string, std::string>> result =
-        SubprocessResultToStrings(SubprocessErrorAsStatus(
-            InvokeSubprocess({absl::GetFlag(FLAGS_test_executable), ir_path})));
+    std::vector<std::string> argv;
+    argv.reserve(2 + absl::GetFlag(FLAGS_test_executable_args).size());
+    argv.push_back(absl::GetFlag(FLAGS_test_executable));
+    absl::c_copy(absl::GetFlag(FLAGS_test_executable_args),
+                 std::back_inserter(argv));
+    argv.push_back(ir_path);
 
-    if (result.ok()) {
-      const auto& [stdout_str, stderr_str] = *result;
-      XLS_VLOG(1) << "stdout:  \"\"\"" << stdout_str << "\"\"\"";
-      XLS_VLOG(1) << "stderr:  \"\"\"" << stderr_str << "\"\"\"";
-      XLS_VLOG(1) << "retcode: 0";
-    } else {
-      XLS_VLOG(1) << result.status();
+    XLS_ASSIGN_OR_RETURN(SubprocessResult subproc_result,
+                         InvokeSubprocess(argv));
+
+    if (subproc_result.exit_status != 0) {
+      XLS_VLOG(2) << "stdout:  \"\"\"" << subproc_result.stdout << "\"\"\"";
+      XLS_VLOG(2) << "stderr:  \"\"\"" << subproc_result.stderr << "\"\"\"";
+      XLS_VLOG(2) << "retcode: " << subproc_result.exit_status;
     }
-    return result.ok();
+    if (absl::GetFlag(FLAGS_test_executable_crash_is_bug)) {
+      return !subproc_result.normal_termination;
+    }
+    return subproc_result.exit_status == 0;
   }
 
   // Test for bugs by comparing the results of the JIT and interpreter.
