@@ -2406,21 +2406,10 @@ OpChoice ChooseOp(absl::BitGenRef bit_gen, bool generate_proc) {
 
 }  // namespace
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
-                                                     int64_t call_depth,
+absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t call_depth,
                                                      Context* ctx) {
-  if (expr_size == 0) {
-    // Should not recurse any more; select return values.
-    if (ctx->is_generating_proc) {
-      return GenerateProcNextFunctionRetval(ctx);
-    }
-    return GenerateRetval(ctx);
-  }
-
-  TypedExpr rhs;
-  while (true) {
-    absl::StatusOr<TypedExpr> generated;
-
+  absl::StatusOr<TypedExpr> generated = RecoverableError("Not yet generated.");
+  while (IsRecoverableError(generated.status())) {
     switch (ChooseOp(bit_gen_, ctx->is_generating_proc)) {
       case kArray:
         generated = GenerateArray(ctx);
@@ -2518,116 +2507,24 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
       case kEndSentinel:
         XLS_LOG(FATAL) << "Should not have selected end sentinel";
     }
-
-    if (generated.ok()) {
-      rhs = generated.value();
-
-      // Do some opportunistic checking that our result types are staying within
-      // requested parameters.
-      if (IsBits(rhs.type)) {
-        XLS_RET_CHECK_LE(GetTypeBitCount(rhs.type),
-                         options_.max_width_bits_types)
-            << absl::StreamFormat("Bits-typed expression is too wide: %s",
-                                  rhs.expr->ToString());
-      } else if (IsArray(rhs.type) || IsTuple(rhs.type)) {
-        XLS_RET_CHECK_LE(GetTypeBitCount(rhs.type),
-                         options_.max_width_aggregate_types)
-            << absl::StreamFormat("Aggregate-typed expression is too wide: %s",
-                                  rhs.expr->ToString());
-      }
-      break;
-    }
-
-    // We expect the Generate* routines might try to sample things that don't
-    // exist in the envs, so we keep going if we see one of those errors.
-    if (IsRecoverableError(generated.status())) {
-      continue;
-    }
-
-    // Any other error is unexpected, though.
-    return generated.status();
   }
 
-  std::string identifier = GenSym();
-
-  // What we place into the environment is a NameRef that refers to this RHS
-  // value -- this way rules will pick up the expression names instead of
-  // picking up the expression ASTs directly (which would cause duplication).
-  auto* name_def = module_->Make<NameDef>(fake_span_, identifier, rhs.expr);
-  auto* name_ref = MakeNameRef(name_def);
-  ctx->env[identifier] = TypedExpr{.expr = name_ref,
-                                   .type = rhs.type,
-                                   .last_delaying_op = rhs.last_delaying_op,
-                                   .min_stage = rhs.min_stage};
-
-  // Unpack result tuples from channel operations and place them in environment
-  // to be easily accessible creating more interesting behavior.
-  // Currently, results from operations that are tuples and start with a token
-  // are assumed to be channel operations.
-  std::vector<std::pair<NameDef*, TypedExpr>> channel_tuples;
-  if (IsTuple(rhs.type)) {
-    auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(rhs.type);
-    if (!tuple_type->empty() && IsToken(tuple_type->members()[0])) {
-      channel_tuples.resize(tuple_type->members().size());
-      for (int64_t index = 0; index < tuple_type->members().size(); ++index) {
-        std::string member_identifier = GenSym();
-        auto* member_name_def = module_->Make<NameDef>(
-            fake_span_, member_identifier, /*definer=*/nullptr);
-        auto* member_name_ref = MakeNameRef(member_name_def);
-        ctx->env[member_identifier] =
-            TypedExpr{.expr = member_name_ref,
-                      .type = tuple_type->members()[index],
-                      .last_delaying_op = rhs.last_delaying_op,
-                      .min_stage = rhs.min_stage};
-        // Insert in reverse order so the identifier are consecutive when
-        // displayed on the output.
-        channel_tuples[index] = std::pair<NameDef*, TypedExpr>{
-            member_name_def,
-            TypedExpr{.expr = module_->Make<TupleIndex>(fake_span_, name_ref,
-                                                        MakeNumber(index)),
-                      .type = tuple_type->members()[index],
-                      .last_delaying_op = rhs.last_delaying_op,
-                      .min_stage = rhs.min_stage}};
-      }
+  if (generated.ok()) {
+    // Do some opportunistic checking that our result types are staying within
+    // requested parameters.
+    if (IsBits(generated->type)) {
+      XLS_RET_CHECK_LE(GetTypeBitCount(generated->type),
+                       options_.max_width_bits_types)
+          << absl::StreamFormat("Bits-typed expression is too wide: %s",
+                                generated->expr->ToString());
+    } else if (IsArray(generated->type) || IsTuple(generated->type)) {
+      XLS_RET_CHECK_LE(GetTypeBitCount(generated->type),
+                       options_.max_width_aggregate_types)
+          << absl::StreamFormat("Aggregate-typed expression is too wide: %s",
+                                generated->expr->ToString());
     }
   }
-
-  XLS_ASSIGN_OR_RETURN(TypedExpr body,
-                       GenerateExpr(expr_size - 1, call_depth, ctx));
-
-  std::vector<Statement*> statements;
-
-  statements.push_back(module_->Make<Statement>(module_->Make<Let>(
-      fake_span_,
-      /*name_def_tree=*/module_->Make<NameDefTree>(fake_span_, name_def),
-      /*type=*/rhs.type, /*rhs=*/rhs.expr,
-      /*is_const=*/false)));
-
-  for (const auto& channel_tuple : channel_tuples) {
-    NameDefTree* ndt =
-        module_->Make<NameDefTree>(fake_span_, channel_tuple.first);
-    Let* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
-                                  /*type=*/channel_tuple.second.type,
-                                  /*rhs=*/channel_tuple.second.expr,
-                                  /*is_const=*/false);
-    statements.push_back(module_->Make<Statement>(let));
-  }
-
-  // If the thing we're nesting is a block we just absorb its statements into
-  // the block we're currently making.
-  if (Block* nested_block = dynamic_cast<Block*>(body.expr)) {
-    statements.insert(statements.end(), nested_block->statements().begin(),
-                      nested_block->statements().end());
-  } else {
-    statements.push_back(module_->Make<Statement>(body.expr));
-  }
-
-  Block* block =
-      module_->Make<Block>(fake_span_, statements, /*trailing_semi=*/false);
-  return TypedExpr{.expr = block,
-                   .type = body.type,
-                   .last_delaying_op = body.last_delaying_op,
-                   .min_stage = body.min_stage};
+  return generated;
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
@@ -2732,9 +2629,76 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
 
   // Make non-top-level functions smaller; these means were chosen
   // arbitrarily, and can be adjusted as we see fit later.
-  int64_t expr_size = RandomIntWithExpectedValue(call_depth == 0 ? 22.0 : 2.87,
+  int64_t body_size = RandomIntWithExpectedValue(call_depth == 0 ? 22.0 : 2.87,
                                                  /*lower_limit=*/1);
-  return GenerateExpr(expr_size, call_depth, ctx);
+
+  std::vector<Statement*> statements;
+  statements.reserve(body_size + 1);
+  for (int64_t i = 0; i < body_size; ++i) {
+    XLS_ASSIGN_OR_RETURN(TypedExpr rhs, GenerateExpr(call_depth, ctx));
+
+    // Add the expression into the environment with a unique name.
+    std::string identifier = GenSym();
+
+    // What we place into the environment is a NameRef that refers to this RHS
+    // value -- this way rules will pick up the expression names instead of
+    // picking up the expression ASTs directly (which would cause duplication).
+    auto* name_def = module_->Make<NameDef>(fake_span_, identifier, rhs.expr);
+    auto* name_ref = MakeNameRef(name_def);
+    statements.push_back(module_->Make<Statement>(module_->Make<Let>(
+        fake_span_,
+        /*name_def_tree=*/module_->Make<NameDefTree>(fake_span_, name_def),
+        /*type=*/rhs.type, /*rhs=*/rhs.expr,
+        /*is_const=*/false)));
+    ctx->env[identifier] = TypedExpr{.expr = name_ref,
+                                     .type = rhs.type,
+                                     .last_delaying_op = rhs.last_delaying_op,
+                                     .min_stage = rhs.min_stage};
+
+    // Unpack result tuples from channel operations and place them in the
+    // environment to be easily accessible, creating more interesting behavior.
+    // Currently, results from operations that are tuples and start with a token
+    // are assumed to be channel operations.
+    if (IsTuple(rhs.type)) {
+      auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(rhs.type);
+      if (!tuple_type->empty() && IsToken(tuple_type->members()[0])) {
+        for (int64_t index = 0; index < tuple_type->members().size(); ++index) {
+          std::string member_identifier = GenSym();
+          auto* member_name_def = module_->Make<NameDef>(
+              fake_span_, member_identifier, /*definer=*/nullptr);
+          auto* member_name_ref = MakeNameRef(member_name_def);
+          statements.push_back(module_->Make<Statement>(module_->Make<Let>(
+              fake_span_,
+              /*name_def_tree=*/
+              module_->Make<NameDefTree>(fake_span_, member_name_def),
+              /*type=*/tuple_type->members()[index],
+              /*rhs=*/
+              module_->Make<TupleIndex>(fake_span_, name_ref,
+                                        MakeNumber(index)),
+              /*is_const=*/false)));
+          ctx->env[member_identifier] =
+              TypedExpr{.expr = member_name_ref,
+                        .type = tuple_type->members()[index],
+                        .last_delaying_op = rhs.last_delaying_op,
+                        .min_stage = rhs.min_stage};
+        }
+      }
+    }
+  }
+
+  // Done building up the body; finish with the retval.
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval,
+                       ctx->is_generating_proc
+                           ? GenerateProcNextFunctionRetval(ctx)
+                           : GenerateRetval(ctx));
+  statements.push_back(module_->Make<Statement>(retval.expr));
+
+  Block* block =
+      module_->Make<Block>(fake_span_, statements, /*trailing_semi=*/false);
+  return TypedExpr{.expr = block,
+                   .type = retval.type,
+                   .last_delaying_op = retval.last_delaying_op,
+                   .min_stage = retval.min_stage};
 }
 
 absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(

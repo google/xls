@@ -385,12 +385,10 @@ class AstGenerator {
   absl::StatusOr<int64_t> GenerateNaryOperandCount(Context* ctx,
                                                    int64_t lower_limit = 0);
 
-  // Generates an expression AST node and returns it. expr_size is a limit on
-  // the size of the generated expression. call_depth is the depth of the call
-  // stack (via map or other function-calling operation) for the function being
-  // generated.
-  absl::StatusOr<TypedExpr> GenerateExpr(int64_t expr_size, int64_t call_depth,
-                                         Context* ctx);
+  // Generates an expression AST node and returns it. call_depth is the depth of
+  // the call stack (via map or other function-calling operation) for the
+  // function being generated.
+  absl::StatusOr<TypedExpr> GenerateExpr(int64_t call_depth, Context* ctx);
 
   // Generates an invocation of the one_hot_sel builtin.
   absl::StatusOr<TypedExpr> GenerateOneHotSelectBuiltin(Context* ctx);
