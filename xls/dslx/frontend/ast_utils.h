@@ -229,6 +229,10 @@ absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
 absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
                                                          bool want_types);
 
+// Collects NameDefs referred to by NameRefs under "root".
+absl::StatusOr<std::vector<const NameDef*>> CollectReferencedUnder(
+    const AstNode* root, bool want_types = false);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

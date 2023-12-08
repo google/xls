@@ -40,6 +40,7 @@
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/make_value_format_descriptor.h"
@@ -156,127 +157,6 @@ BytecodeEmitter::EmitProcNext(
                                   std::move(emitter.bytecode_));
 }
 
-// Extracts all NameDefs "downstream" of a given AstNode. This
-// is needed for Expr evaluation, so we can reserve slots for provided
-// InterpValues (in namedef_to_slot_).
-class NameDefCollector : public AstNodeVisitor {
- public:
-  const absl::flat_hash_map<std::string, const NameDef*>& name_defs() {
-    return name_defs_;
-  }
-
-#define DEFAULT_HANDLER(NODE)                                      \
-  absl::Status Handle##NODE(const NODE* n) override {              \
-    for (AstNode * child : n->GetChildren(/*want_types=*/false)) { \
-      XLS_RETURN_IF_ERROR(child->Accept(this));                    \
-    }                                                              \
-    return absl::OkStatus();                                       \
-  }
-
-  DEFAULT_HANDLER(Array);
-  DEFAULT_HANDLER(ArrayTypeAnnotation);
-  absl::Status HandleAttr(const Attr* n) override {
-    XLS_RETURN_IF_ERROR(n->lhs()->Accept(this));
-    return absl::OkStatus();
-  }
-  DEFAULT_HANDLER(Binop);
-  DEFAULT_HANDLER(Block);
-  DEFAULT_HANDLER(BuiltinNameDef);
-  DEFAULT_HANDLER(BuiltinTypeAnnotation);
-  DEFAULT_HANDLER(Cast);
-  DEFAULT_HANDLER(ChannelDecl);
-  DEFAULT_HANDLER(ChannelTypeAnnotation);
-  DEFAULT_HANDLER(ColonRef);
-
-  absl::Status HandleConstAssert(const ConstAssert* n) override {
-    // We don't need to bytecode-emit constant assertions because they are
-    // constexpr conditions verified by the typechecker.
-    //
-    // Hypothetically we could also double-check they hold at runtime, but we'd
-    // want some kind of flag for that as a paranoia mode.
-    return absl::OkStatus();
-  }
-
-  DEFAULT_HANDLER(ConstantArray);
-  DEFAULT_HANDLER(ConstantDef);
-  absl::Status HandleConstRef(const ConstRef* n) override {
-    return n->name_def()->Accept(this);
-  }
-  DEFAULT_HANDLER(EnumDef);
-  DEFAULT_HANDLER(For);
-  DEFAULT_HANDLER(FormatMacro);
-  DEFAULT_HANDLER(ZeroMacro);
-  absl::Status HandleFunction(const Function* n) override {
-    return absl::InternalError(
-        absl::StrFormat(
-            "Encountered nested Function: %s @ %s",
-            n->identifier(), n->span().ToString()));
-  }
-  DEFAULT_HANDLER(Index);
-  DEFAULT_HANDLER(Invocation);
-  DEFAULT_HANDLER(Import);
-  DEFAULT_HANDLER(Let);
-  DEFAULT_HANDLER(Match);
-  DEFAULT_HANDLER(MatchArm);
-  DEFAULT_HANDLER(Module);
-  absl::Status HandleNameDef(const NameDef* n) override {
-    name_defs_[n->identifier()] = n;
-    return absl::OkStatus();
-  }
-  DEFAULT_HANDLER(NameDefTree);
-  absl::Status HandleNameRef(const NameRef* n) override {
-    if (std::holds_alternative<const NameDef*>(n->name_def())) {
-      return std::get<const NameDef*>(n->name_def())->Accept(this);
-    }
-    return absl::OkStatus();
-  }
-  DEFAULT_HANDLER(Number);
-  DEFAULT_HANDLER(Param);
-  DEFAULT_HANDLER(ProcMember);
-  DEFAULT_HANDLER(ParametricBinding);
-  absl::Status HandleProc(const Proc* n) override {
-    return absl::InternalError(
-        absl::StrFormat(
-            "Encountered nested Proc: %s @ %s",
-            n->identifier(), n->span().ToString()));
-  }
-  DEFAULT_HANDLER(QuickCheck);
-  DEFAULT_HANDLER(Range);
-  DEFAULT_HANDLER(Slice);
-  DEFAULT_HANDLER(Spawn);
-  DEFAULT_HANDLER(SplatStructInstance);
-  DEFAULT_HANDLER(String);
-  DEFAULT_HANDLER(StructDef);
-  absl::Status HandleTestFunction(const TestFunction* n) override {
-    return absl::InternalError(
-        absl::StrFormat(
-            "Encountered nested TestFunction: %s @ %s",
-            n->identifier(), n->GetSpan()->ToString()));
-  }
-  absl::Status HandleStructInstance(const StructInstance* n) override {
-    for (const auto& member : n->GetUnorderedMembers()) {
-      XLS_RETURN_IF_ERROR(member.second->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-  DEFAULT_HANDLER(Statement);
-  DEFAULT_HANDLER(Conditional);
-  DEFAULT_HANDLER(TestProc);
-  DEFAULT_HANDLER(TupleIndex);
-  DEFAULT_HANDLER(TupleTypeAnnotation);
-  DEFAULT_HANDLER(TypeAlias);
-  DEFAULT_HANDLER(TypeRef);
-  DEFAULT_HANDLER(TypeRefTypeAnnotation);
-  DEFAULT_HANDLER(Unop);
-  DEFAULT_HANDLER(UnrollFor);
-  DEFAULT_HANDLER(WidthSlice);
-  DEFAULT_HANDLER(WildcardPattern);
-  DEFAULT_HANDLER(XlsTuple);
-
- private:
-  absl::flat_hash_map<std::string, const NameDef*> name_defs_;
-};
-
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::EmitExpression(
     ImportData* import_data, const TypeInfo* type_info, const Expr* expr,
@@ -285,10 +165,14 @@ BytecodeEmitter::EmitExpression(
     const BytecodeEmitterOptions& options) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings, options);
 
-  NameDefCollector collector;
-  XLS_RETURN_IF_ERROR(expr->Accept(&collector));
+  XLS_ASSIGN_OR_RETURN(std::vector<const NameDef*> name_defs,
+                       CollectReferencedUnder(expr));
+  absl::flat_hash_map<std::string, const NameDef*> identifier_to_name_def;
+  for (const NameDef* name_def : name_defs) {
+    identifier_to_name_def[name_def->identifier()] = name_def;
+  }
 
-  for (const auto& [identifier, name_def] : collector.name_defs()) {
+  for (const auto& [identifier, name_def] : identifier_to_name_def) {
     AstNode* definer = name_def->definer();
     if (dynamic_cast<Function*>(definer) != nullptr ||
         dynamic_cast<Import*>(definer) != nullptr) {

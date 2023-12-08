@@ -636,4 +636,19 @@ absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
   return result;
 }
 
+absl::StatusOr<std::vector<const NameDef*>> CollectReferencedUnder(
+    const AstNode* root, bool want_types) {
+  XLS_ASSIGN_OR_RETURN(std::vector<const AstNode*> nodes,
+                       CollectUnder(root, want_types));
+  std::vector<const NameDef*> name_defs;
+  for (const AstNode* n : nodes) {
+    if (const NameRef* nr = dynamic_cast<const NameRef*>(n)) {
+      if (std::holds_alternative<const NameDef*>(nr->name_def())) {
+        name_defs.push_back(std::get<const NameDef*>(nr->name_def()));
+      }
+    }
+  }
+  return name_defs;
+}
+
 }  // namespace xls::dslx
