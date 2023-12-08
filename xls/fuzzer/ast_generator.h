@@ -15,6 +15,7 @@
 #ifndef XLS_FUZZER_CPP_AST_GENERATOR_H_
 #define XLS_FUZZER_CPP_AST_GENERATOR_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -147,26 +148,27 @@ class AstGenerator {
   absl::StatusOr<AnnotatedModule> Generate(const std::string& top_entity_name,
                                            const std::string& module_name);
 
-  bool RandomBool() { return absl::Bernoulli(bit_gen_, 0.5); }
+ private:
+  // We include RNG helper functions to help simplify circumstances where the
+  // Abseil Random library does not provide native interfaces (e.g., choosing a
+  // random item from a list of choices, or picking a random integer from a
+  // shifted Poisson distribution), or where it uses terminology that is not
+  // widely known (e.g., Bernoulli distribution for a weighted-coin-flip).
 
-  // Returns a random float uniformly distributed over [0, 1).
-  float RandomFloat() { return absl::Uniform<float>(bit_gen_, 0.0f, 1.0f); }
-
-  // Returns a random integer over the range [0, limit).
-  int64_t RandRange(int64_t limit) {
-    return absl::Uniform<int64_t>(bit_gen_, 0, limit);
-  }
-
-  // Returns a random integer over the range [start, limit).
-  int64_t RandRange(int64_t start, int64_t limit) {
-    return absl::Uniform<int64_t>(bit_gen_, start, limit);
+  // Returns a random boolean, true with the given probability.
+  //
+  // NOTE: This is significantly more efficient (in entropy, and possibly
+  //       in runtime) than generating a random float and comparing it to a
+  //       cutoff probability.
+  bool RandomBool(double true_probability = 0.5) {
+    return absl::Bernoulli(bit_gen_, true_probability);
   }
 
   // Returns a random integer with the given expected value from a distribution
   // which tails off exponentially in both directions over the range
   // [lower_limit, inf). Useful for picking a number around some value with
   // decreasing likelihood of picking something far away from the expected
-  // value.  The underlying distribution is a Poisson distribution. See:
+  // value.  The underlying distribution is a shifted Poisson distribution. See:
   // https://en.wikipedia.org/wiki/Poisson_distribution.
   int64_t RandomIntWithExpectedValue(double expected_value,
                                      int64_t lower_limit = 0) {
@@ -174,7 +176,6 @@ class AstGenerator {
     return lower_limit + absl::Poisson<int64_t>(bit_gen_, mean);
   }
 
- private:
   XLS_FRIEND_TEST(AstGeneratorTest, GeneratesParametricBindings);
   XLS_FRIEND_TEST(AstGeneratorTest, BitsTypeGetMetadata);
 

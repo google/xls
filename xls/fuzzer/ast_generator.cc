@@ -303,8 +303,9 @@ std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
     // identifier since Bits conversion to decimal only supports that.
     //
     // Starting from 1 is to ensure that we don't get a 0-bit value.
-    int64_t bit_count =
-        RandRange(1, std::min(int64_t{65}, options_.max_width_bits_types + 1));
+    int64_t bit_count = absl::Uniform<int64_t>(
+        absl::IntervalClosed, bit_gen_, 1,
+        std::min(int64_t{65}, options_.max_width_bits_types));
     TypedExpr number =
         GenerateNumberWithType(BitsAndSignedness{bit_count, false});
     ParametricBinding* pb =
@@ -430,7 +431,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
     if (!predicate.has_value()) {
       // If there's no natural environment value to use as the predicate,
       // generate a boolean.
-      Number* boolean = MakeBool(RandomBool());
+      Number* boolean = MakeBool(RandomBool(0.5));
       predicate = TypedExpr{boolean, boolean->type_annotation()};
     }
 
@@ -585,15 +586,19 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Context* ctx) {
     return IsToken(e.type);
   };
   std::vector<TypedExpr> tokens = GatherAllValues(&ctx->env, token_predicate);
-  int64_t token_count = RandRange(1, tokens.size() + 1);
-  std::vector<Expr*> tokens_to_join(token_count);
-  std::vector<LastDelayingOp> delaying_ops(token_count);
+  int64_t token_count =
+      absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, tokens.size());
+  std::vector<Expr*> tokens_to_join;
+  std::vector<LastDelayingOp> delaying_ops;
+  tokens_to_join.reserve(token_count);
+  delaying_ops.reserve(token_count);
   int64_t min_stage = 1;
   for (int64_t i = 0; i < token_count; ++i) {
-    int64_t token_index = RandRange(0, tokens.size());
-    tokens_to_join[i] = tokens[token_index].expr;
-    delaying_ops[i] = tokens[token_index].last_delaying_op;
-    min_stage = std::max(min_stage, tokens[token_index].min_stage);
+    TypedExpr random_token =
+        RandomChoice(absl::MakeConstSpan(tokens), bit_gen_);
+    tokens_to_join.push_back(random_token.expr);
+    delaying_ops.push_back(random_token.last_delaying_op);
+    min_stage = std::max(min_stage, random_token.min_stage);
   }
   return TypedExpr{.expr = module_->Make<Invocation>(
                        fake_span_, MakeBuiltinNameRef("join"), tokens_to_join),
@@ -605,7 +610,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Context* ctx) {
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(&ctx->env, lhs.type));
-  BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
+  BinopKind op = RandomBool(0.5) ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{
       .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
       .type = MakeTypeAnnotation(false, 1),
@@ -752,7 +757,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs,
                        ChooseEnvValueTupleWithoutToken(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(&ctx->env, lhs.type));
-  BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
+  BinopKind op = RandomBool(0.5) ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{
       .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
       .type = MakeTypeAnnotation(false, 1),
@@ -767,8 +772,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
     auto tuple_type = dynamic_cast<TupleTypeAnnotation*>(type);
     std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, tuple_type);
     // Twenty percent of the time, generate a reference if one exists.
-    if (!candidates.empty() && RandomFloat() < 0.20) {
-      return candidates[RandRange(candidates.size())];
+    if (!candidates.empty() && RandomBool(0.20)) {
+      return RandomChoice(absl::MakeConstSpan(candidates), bit_gen_);
     }
     int64_t min_stage = 1;
     std::vector<TypedExpr> tuple_entries(tuple_type->size());
@@ -790,8 +795,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
     auto array_type = dynamic_cast<ArrayTypeAnnotation*>(type);
     std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, array_type);
     // Twenty percent of the time, generate a reference if one exists.
-    if (!candidates.empty() && RandomFloat() < 0.20) {
-      return candidates[RandRange(candidates.size())];
+    if (!candidates.empty() && RandomBool(0.20)) {
+      return RandomChoice(absl::MakeConstSpan(candidates), bit_gen_);
     }
     int64_t min_stage = 1;
     int64_t array_size = GetArraySize(array_type);
@@ -818,8 +823,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
   XLS_CHECK(IsBits(type));
   std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, type);
   // Twenty percent of the time, generate a reference if one exists.
-  if (!candidates.empty() && RandomFloat() < 0.20) {
-    return candidates[RandRange(candidates.size())];
+  if (!candidates.empty() && RandomBool(0.20)) {
+    return RandomChoice(absl::MakeConstSpan(candidates), bit_gen_);
   }
   return GenerateNumberWithType(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
@@ -830,7 +835,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
   if (IsTuple(type)) {
     auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
     // Twenty percent of the time, generate a wildcard pattern.
-    if (RandomFloat() < 0.20) {
+    if (RandomBool(0.20)) {
       WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
       return module_->Make<NameDefTree>(fake_span_, wc);
     }
@@ -851,11 +856,12 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     std::vector<TypedExpr> array_candidates =
         GatherAllValues(&ctx->env, array_matches);
     // Twenty percent of the time, generate a wildcard pattern.
-    if (array_candidates.empty() || RandomFloat() < 0.20) {
+    if (array_candidates.empty() || RandomBool(0.20)) {
       WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
       return module_->Make<NameDefTree>(fake_span_, wc);
     }
-    TypedExpr array = array_candidates[RandRange(array_candidates.size())];
+    TypedExpr array =
+        RandomChoice(absl::MakeConstSpan(array_candidates), bit_gen_);
     NameRef* name_ref = dynamic_cast<NameRef*>(array.expr);
     return module_->Make<NameDefTree>(fake_span_, name_ref);
   }
@@ -870,7 +876,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
   XLS_CHECK(IsBits(type));
 
   // Five percent of the time, generate a wildcard pattern.
-  if (RandomFloat() < 0.05) {
+  if (RandomBool(0.05)) {
     WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
     return module_->Make<NameDefTree>(fake_span_, wc);
   }
@@ -878,7 +884,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
   // Fifteen percent of the time, generate a range. (Note that this is an
   // independent float from the one tested above, so it's a 15% chance not 10%
   // chance.)
-  if (RandomFloat() < 0.15) {
+  if (RandomBool(0.15)) {
     int64_t bit_count = GetTypeBitCount(type);
     bool is_signed = BitsTypeIsSigned(type).value();
     Bits start_bits;
@@ -895,7 +901,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     //
     // TODO(leary): 2023-08-04 If the bit count is too high we don't have an
     // easy RNG available to select out of the remaining range.
-    if (RandomFloat() < 0.3 || bit_count >= 64 || !start_lt_max) {
+    if (RandomBool(0.3) || bit_count >= 64 || !start_lt_max) {
       // Sometimes pick an arbitrary limit in the bitwidth.
       limit_type_expr =
           GenerateNumberWithType(BitsAndSignedness{bit_count, is_signed});
@@ -906,7 +912,8 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
       // worry about whether start+1 exceeds the max value.
       XLS_ASSIGN_OR_RETURN(int64_t start_int64, start.GetBitValueViaSign());
       XLS_ASSIGN_OR_RETURN(int64_t max_int64, max.GetBitValueViaSign());
-      int64_t limit = RandRange(start_int64, max_int64);
+      int64_t limit = absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_,
+                                             start_int64, max_int64);
       limit_type_expr = TypedExpr{MakeNumber(limit, start_type_expr.type),
                                   start_type_expr.type};
     }
@@ -931,7 +938,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
   TypeAnnotation* match_return_type = GenerateType();
   // Attempt to create at least one additional match arm aside from the wildcard
   // pattern.
-  int64_t max_arm_count = RandRange(4) + 1;
+  int64_t max_arm_count =
+      absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, 4);
   std::vector<MatchArm*> match_arms;
   // `match` will flag an error if a syntactically identical pattern is typed
   // twice. Using the `std::string` equivalent of the pattern for comparing
@@ -941,7 +949,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
   for (int64_t arm_count = 0; arm_count < max_arm_count; ++arm_count) {
     std::vector<NameDefTree*> match_arm_patterns;
     // Attempt to create at least one pattern.
-    int64_t max_pattern_count = RandRange(2) + 1;
+    int64_t max_pattern_count =
+        absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, 2);
     for (int64_t pattern_count = 0; pattern_count < max_pattern_count;
          ++pattern_count) {
       XLS_ASSIGN_OR_RETURN(NameDefTree * pattern,
@@ -1013,7 +1022,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
   int64_t lhs_bit_count = GetTypeBitCount(lhs.type);
   int64_t rhs_bit_count = GetTypeBitCount(rhs.type);
   if (lhs_bit_count > 0 && rhs_bit_count > 0) {
-    if (RandomFloat() < 0.8) {
+    if (RandomBool(0.8)) {
       // Clamp the shift rhs to be in range most of the time.  First find the
       // maximum value representable in the RHS type as this imposes a different
       // limit on the magnitude of the shift amount. If the RHS type is 63 bits
@@ -1024,12 +1033,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
                                   : std::numeric_limits<int64_t>::max();
 
       int64_t shift_limit = std::min(lhs_bit_count, max_rhs_value);
-      int64_t new_upper = RandRange(shift_limit);
+      int64_t new_upper = absl::Uniform<int64_t>(bit_gen_, 0, shift_limit);
       XLS_ASSIGN_OR_RETURN(rhs.expr, GenerateUmin(rhs, new_upper));
-    } else if (RandomBool()) {
+    } else if (RandomBool(0.5)) {
       // Generate a numerical value (Number) as an untyped literal instead of
       // the value we chose above.
-      int64_t shift_amount = RandRange(0, lhs_bit_count);
+      int64_t shift_amount = absl::Uniform<int64_t>(bit_gen_, 0, lhs_bit_count);
       rhs = TypedExpr();
       rhs.expr = MakeNumber(shift_amount);
     }
@@ -1047,7 +1056,7 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
-  bool is_signed = RandomBool();
+  bool is_signed = RandomBool(0.5);
 
   std::string op = is_signed ? "smulp" : "umulp";
 
@@ -1183,36 +1192,38 @@ Number* AstGenerator::GenerateNumberFromBits(const Bits& value,
   // 50% of the time, when the type is unsigned and it has a single bit,
   // generate the string representation equivalent to the boolean value.
   if (!BitsTypeIsSigned(type).value() && value.bit_count() == 1 &&
-      RandomBool()) {
+      RandomBool(0.5)) {
     return module_->Make<Number>(fake_span_, value.Get(0) ? "true" : "false",
                                  NumberKind::kBool, type);
   }
   // 50% of the time, when the type is unsigned and its bit width is eight,
   // generate a "character" Number.
   if (!BitsTypeIsSigned(type).value() && value.bit_count() == 8 &&
-      std::isprint(value.ToBytes()[0]) != 0 && RandomBool()) {
+      std::isprint(value.ToBytes()[0]) != 0 && RandomBool(0.5)) {
     return module_->Make<Number>(fake_span_, std::string(1, value.ToBytes()[0]),
                                  NumberKind::kCharacter, type);
   }
-  float choice = RandomFloat();
-  // Now, generate a hexadecimal representation of the literal 90% of the time.
 
-  if (choice < 0.9) {
+  // Most of the time (90%), generate a hexadecimal representation of the
+  // literal.
+  if (RandomBool(0.9)) {
     return MakeNumberFromBits(value, type, FormatPreference::kHex);
   }
-  // Now, generate a decimal representation of the literal 5% of the time.
-  // As stated in google/xls#461, decimal values can only be emitted if they fit
-  // in an int64_t/uint64_t.
+
+  // 5% of the time (half the remainder): generate a decimal representation if
+  // we can. As stated in google/xls#461, decimal values can only be emitted if
+  // they fit in an int64_t/uint64_t.
   bool is_signed = BitsTypeIsSigned(type).value();
   bool can_emit_decimal = (is_signed && value.FitsInInt64()) ||
                           (!is_signed && value.FitsInUint64());
-  if (choice < 0.95 && can_emit_decimal) {
+  if (RandomBool(0.5) && can_emit_decimal) {
     if (is_signed) {
       return MakeNumberFromBits(value, type, FormatPreference::kSignedDecimal);
     }
     return MakeNumberFromBits(value, type, FormatPreference::kUnsignedDecimal);
   }
-  // Now, generate a binary representation of the literal 5% of the time.
+
+  // Otherwise, generate a binary representation of the literal.
   return MakeNumberFromBits(value, type, FormatPreference::kBinary);
 }
 
@@ -1296,7 +1307,7 @@ ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value,
 ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
                                                  int64_t array_size) {
   Expr* dim;
-  if (RandomBool()) {
+  if (RandomBool(0.5)) {
     // Get-or-create a module level constant for the array size.
     dim = GetOrCreateConstRef(array_size, /*want_width=*/32);
   } else {
@@ -1327,7 +1338,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(
   if (!lhs.has_value()) {
     // If there's no natural environment value to use as the LHS, make up a
     // number and number of bits.
-    int64_t bits = RandRange(1, kMaxBitCount);
+    int64_t bits = absl::Uniform<int64_t>(bit_gen_, 1, kMaxBitCount);
     lhs = GenerateNumberWithType(BitsAndSignedness{bits, false});
   }
   LastDelayingOp last_delaying_op = lhs->last_delaying_op;
@@ -1449,7 +1460,8 @@ String* AstGenerator::GenerateString(int64_t char_count) {
   for (int64_t index = 0; index < char_count; ++index) {
     // Codes 32 to 126 are the printable characters. There are 95 printable
     // characters in total. Ref: https://en.wikipedia.org/wiki/ASCII.
-    int64_t printable_character = RandRange(95) + 32;
+    int64_t printable_character =
+        absl::Uniform<uint8_t>(absl::IntervalClosed, bit_gen_, 32, 126);
     string_literal[index] = static_cast<uint8_t>(printable_character);
   }
   return module_->Make<String>(fake_span_, string_literal);
@@ -1458,8 +1470,9 @@ String* AstGenerator::GenerateString(int64_t char_count) {
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
   // 5% of the time generate string literals as arrays.
   int64_t byte_count = options_.max_width_aggregate_types / 8;
-  if (byte_count > 0 && RandomFloat() < 0.05) {
-    int64_t length = RandRange(byte_count) + 1;
+  if (byte_count > 0 && RandomBool(0.05)) {
+    int64_t length =
+        absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, byte_count);
     return TypedExpr{GenerateString(length),
                      MakeArrayType(MakeTypeAnnotation(false, 8), length)};
   }
@@ -1470,15 +1483,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
   std::vector<TypedExpr> values = GatherAllValues(
       &ctx->env, [&](const TypedExpr& t) { return t.type == value.type; });
   XLS_RET_CHECK(!values.empty());
-  if (RandomBool()) {
+  if (RandomBool(0.5)) {
     // Half the time extend the set of values by duplicating members. Walk
     // through the vector randomly duplicating members along the way. On average
     // this process will double the size of the array with the distribution
     // falling off exponentially.
     for (int64_t i = 0; i < values.size(); ++i) {
-      if (RandomBool()) {
-        int64_t idx = RandRange(values.size());
-        values.push_back(values[idx]);
+      if (RandomBool(0.5)) {
+        values.push_back(RandomChoice(absl::MakeConstSpan(values), bit_gen_));
       }
     }
   }
@@ -1530,7 +1542,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Context* ctx) {
   // TODO(https://github.com/google/xls/issues/327) 2021-03-05 Unify OOB
   // behavior across different levels in XLS.
   if (GetTypeBitCount(index.type) >= Bits::MinBitCountUnsigned(array_size)) {
-    int64_t index_bound = RandRange(array_size);
+    int64_t index_bound = absl::Uniform<int64_t>(bit_gen_, 0, array_size);
     XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
   }
   return TypedExpr{
@@ -1554,7 +1566,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Context* ctx) {
   // TODO(https://github.com/google/xls/issues/327) 2021-03-05 Unify OOB
   // behavior across different levels in XLS.
   if (GetTypeBitCount(index.type) >= Bits::MinBitCountUnsigned(array_size)) {
-    int64_t index_bound = RandRange(array_size);
+    int64_t index_bound = absl::Uniform<int64_t>(bit_gen_, 0, array_size);
     XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
   }
   return TypedExpr{
@@ -1586,7 +1598,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateGate(Context* ctx) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Context* ctx) {
   XLS_RET_CHECK(ctx != nullptr);
-  if (EnvContainsArray(ctx->env) && RandomBool()) {
+  if (EnvContainsArray(ctx->env) && RandomBool(0.5)) {
     return GenerateArrayConcat(ctx);
   }
 
@@ -1627,8 +1639,8 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType(
   if (max_width_bits_types.has_value()) {
     max_width = max_width_bits_types.value();
   }
-  int64_t integral =
-      RandRange(std::min(kConcreteBuiltinTypeLimit, max_width + 1));
+  int64_t integral = absl::Uniform<int64_t>(
+      bit_gen_, 0, std::min(kConcreteBuiltinTypeLimit, max_width + 1));
   auto type = static_cast<BuiltinType>(integral);
   return module_->Make<BuiltinTypeAnnotation>(
       fake_span_, type,
@@ -1675,8 +1687,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
   int64_t total_bit_count = 0;
   for (int64_t i = 0; i < retval_count; ++i) {
     TypedExpr expr;
-    float p = RandomFloat();
-    if (env_non_params.empty() || (p < 0.1 && !env_params.empty())) {
+    if (env_non_params.empty() || (RandomBool(0.1) && !env_params.empty())) {
       expr = RandomChoice(env_params, bit_gen_);
     } else {
       expr = RandomChoice(env_non_params, bit_gen_);
@@ -1698,7 +1709,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
 
   // If only a single return value is selected, most of the time just return it
   // as a non-tuple value.
-  if (RandomFloat() < 0.8 && typed_exprs.size() == 1) {
+  if (RandomBool(0.8) && typed_exprs.size() == 1) {
     return typed_exprs[0];
   }
 
@@ -1743,7 +1754,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
   // TODO(meheff): Generate more interesting loop bodies.
   TypeAnnotation* ivar_type = MakeTypeAnnotation(false, 4);
   Number* zero = GenerateNumber(0, ivar_type);
-  Number* trips = GenerateNumber(RandRange(8) + 1, ivar_type);
+  Number* trips = GenerateNumber(
+      absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, 8), ivar_type);
   Expr* iterable = MakeRange(zero, trips);
   NameDef* x_def = MakeNameDef("x");
   NameDefTree* i_ndt = module_->Make<NameDefTree>(fake_span_, MakeNameDef("i"));
@@ -1755,7 +1767,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
 
   // Randomly decide to use or not-use the type annotation on the loop.
   TupleTypeAnnotation* tree_type = nullptr;
-  if (RandomBool()) {
+  if (RandomBool(0.5)) {
     tree_type = MakeTupleType({ivar_type, e.type});
   }
 
@@ -1769,12 +1781,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
   XLS_CHECK(ctx != nullptr);
-  bool do_index = RandomBool() && EnvContainsTuple(ctx->env);
-  if (do_index) {
+  if (RandomBool(0.5) && EnvContainsTuple(ctx->env)) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e,
                          ChooseEnvValueTuple(&ctx->env, /*min_size=*/1));
     auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(e.type);
-    int64_t i = RandRange(tuple_type->size());
+    int64_t i = absl::Uniform<int64_t>(bit_gen_, 0, tuple_type->size());
     Number* index_expr = MakeNumber(i);
     return TypedExpr{
         .expr = module_->Make<TupleIndex>(fake_span_, e.expr, index_expr),
@@ -1815,7 +1826,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
   // GenerateFunction(), in turn, can call GenerateMap(), so we need some way of
   // bounding the recursion. To limit explosion, return an recoverable error
   // with exponentially increasing probability depending on the call depth.
-  if (RandomFloat() > pow(10.0, -call_depth)) {
+  if (RandomBool(1 - pow(10.0, -call_depth))) {
     return RecoverableError("Call depth too deep.");
   }
 
@@ -1862,7 +1873,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateInvoke(int64_t call_depth,
   // GenerateFunction(), in turn, can call GenerateInvoke(), so we need some way
   // of bounding the recursion. To limit explosion, return an recoverable error
   // with exponentially increasing probability depending on the call depth.
-  if (RandomFloat() > pow(10.0, -call_depth)) {
+  if (RandomBool(1 - pow(10.0, -call_depth))) {
     return RecoverableError("Call depth too deep.");
   }
 
@@ -1873,9 +1884,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateInvoke(int64_t call_depth,
   //
   // (Note we still pick a number of params with an expected value of 4 even
   // when 0 is permitted.)
-  int64_t num_params = RandomIntWithExpectedValue(
-      4,
-      /*lower_limit=*/(RandomFloat() >= 0.10 ? 1 : 0));
+  int64_t num_params =
+      RandomIntWithExpectedValue(4,
+                                 /*lower_limit=*/(RandomBool(0.90) ? 1 : 0));
   std::vector<Expr*> args;
   std::vector<AnnotatedType> param_types;
   args.reserve(num_params);
@@ -1906,32 +1917,33 @@ TypeAnnotation* AstGenerator::GenerateBitsType(
   if (max_width_bits_types.has_value()) {
     max_width = max_width_bits_types.value();
   }
-  if (max_width <= 64 || RandRange(1, 10) != 1) {
+  if (max_width <= 64 || RandomBool(0.9)) {
     // Once in a while generate a zero-width bits type.
-    if (options_.emit_zero_width_bits_types && RandRange(1, 64) == 1) {
-      return MakeTypeAnnotation(/*is_signed=*/RandomBool(), 0);
+    if (options_.emit_zero_width_bits_types && RandomBool(1. / 63)) {
+      return MakeTypeAnnotation(/*is_signed=*/RandomBool(0.5), 0);
     }
     return GeneratePrimitiveType(max_width_bits_types);
   }
   // Generate a type wider than 64-bits. With smallish probability choose a
   // *really* wide type if the max_width_bits_types supports it, otherwise
   // choose a width up to 128 bits.
-  if (max_width > 128 && RandRange(1, 10) > 1) {
+  if (max_width > 128 && RandomBool(1. / 9)) {
     max_width = 128;
   }
-  bool sign = RandomBool();
-  return MakeTypeAnnotation(sign, 64 + RandRange(1, max_width - 64));
+  return MakeTypeAnnotation(
+      /*is_signed=*/RandomBool(0.5),
+      /*width=*/absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 65,
+                                       max_width));
 }
 
 TypeAnnotation* AstGenerator::GenerateType(
     int64_t nesting, std::optional<int64_t> max_width_bits_types,
     std::optional<int64_t> max_width_aggregate_types) {
-  float r = RandomFloat();
   int64_t max_width = options_.max_width_aggregate_types;
   if (max_width_aggregate_types.has_value()) {
     max_width = max_width_aggregate_types.value();
   }
-  if (r < 0.1 * std::pow(2.0, -nesting)) {
+  if (RandomBool(0.1 * std::pow(2.0, -nesting))) {
     // Generate tuple type. Use a mean value of 3 elements so the tuple isn't
     // too big.
     int64_t total_width = 0;
@@ -1947,7 +1959,7 @@ TypeAnnotation* AstGenerator::GenerateType(
     }
     return MakeTupleType(element_types);
   }
-  if (r < 0.2 * std::pow(2.0, -nesting)) {
+  if (RandomBool(0.1 * std::pow(2.0, -nesting))) {
     // Generate array type.
     TypeAnnotation* element_type =
         GenerateType(nesting + 1, max_width_bits_types, max_width);
@@ -1969,7 +1981,7 @@ std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
     if (env->empty()) {
       return std::nullopt;
     }
-    int64_t index = RandRange(env->size());
+    int64_t index = absl::Uniform<int64_t>(bit_gen_, 0, env->size());
     auto it = env->begin();
     std::advance(it, index);
     return it->second;
@@ -1984,8 +1996,7 @@ std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
   if (choices.empty()) {
     return std::nullopt;
   }
-  int64_t index = RandRange(choices.size());
-  return *choices[index];
+  return *RandomChoice(absl::MakeConstSpan(choices), bit_gen_);
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValue(
@@ -2017,7 +2028,7 @@ AstGenerator::ChooseEnvValueBitsPair(Env* env,
   if (lhs.type == rhs.type) {
     return std::pair{lhs, rhs};
   }
-  if (RandomBool()) {
+  if (RandomBool(0.5)) {
     rhs.expr = module_->Make<Cast>(fake_span_, rhs.expr, lhs.type);
     rhs.type = lhs.type;
   } else {
@@ -2084,14 +2095,17 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
   int64_t width = -1;
   while (true) {
     int64_t start_low = (which == SliceType::kWidthSlice) ? 0 : -bit_count - 1;
-    bool should_have_start = RandomBool();
+    bool should_have_start = RandomBool(0.5);
     start = should_have_start
-                ? std::make_optional(RandRange(start_low, bit_count + 1))
+                ? std::make_optional(absl::Uniform<int64_t>(
+                      absl::IntervalClosed, bit_gen_, start_low, bit_count))
                 : std::nullopt;
-    bool should_have_limit = RandomBool();
-    limit = should_have_limit
-                ? std::make_optional(RandRange(-bit_count - 1, bit_count + 1))
-                : std::nullopt;
+    bool should_have_limit = RandomBool(0.5);
+    limit =
+        should_have_limit
+            ? std::make_optional(absl::Uniform<int64_t>(
+                  absl::IntervalClosed, bit_gen_, -bit_count - 1, bit_count))
+            : std::nullopt;
     width = ResolveBitSliceIndices(bit_count, start, limit).second;
     // Make sure we produce non-zero-width things.
     if (options_.emit_zero_width_bits_types || width > 0) {
@@ -2135,10 +2149,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(&ctx->env));
-  std::string_view op =
-      RandomChoice(absl::Span<const std::string_view>(
-                       {"and_reduce", "or_reduce", "xor_reduce"}),
-                   bit_gen_);
+  std::string_view op = RandomChoice(
+      absl::MakeConstSpan({"and_reduce", "or_reduce", "xor_reduce"}), bit_gen_);
   NameRef* callee = MakeBuiltinNameRef(std::string(op));
   TypeAnnotation* type = MakeTypeAnnotation(false, 1);
   return TypedExpr{.expr = module_->Make<Invocation>(
@@ -2217,7 +2229,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
 
   int64_t slice_width;
 
-  if (RandomBool()) {
+  if (RandomBool(0.5)) {
     slice_width = RandomIntWithExpectedValue(1.0, /*lower_limit=*/1);
   } else {
     slice_width = RandomIntWithExpectedValue(10.0, /*lower_limit=*/1);
@@ -2694,7 +2706,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
       result_bits = CeilOfLog2(GetTypeBitCount(arg.type));
       break;
     case kOneHot: {
-      bool lsb_or_msb = RandomBool();
+      bool lsb_or_msb = RandomBool(0.5);
       invocation = module_->Make<Invocation>(
           fake_span_, name_ref,
           std::vector<Expr*>{arg.expr, MakeBool(lsb_or_msb)});
@@ -2720,9 +2732,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
 
   // Make non-top-level functions smaller; these means were chosen
   // arbitrarily, and can be adjusted as we see fit later.
-  const double mean_size_minus_1 = (call_depth == 0) ? 21.0 : 1.87;
-  return GenerateExpr(1 + absl::Poisson<int64_t>(bit_gen_, mean_size_minus_1),
-                      call_depth, ctx);
+  int64_t expr_size = RandomIntWithExpectedValue(call_depth == 0 ? 22.0 : 2.87,
+                                                 /*lower_limit=*/1);
+  return GenerateExpr(expr_size, call_depth, ctx);
 }
 
 absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
@@ -2749,7 +2761,7 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
   // When we're not the main function, 10% of the time put some parametrics on
   // the function.
   std::vector<ParametricBinding*> parametric_bindings;
-  if (call_depth != 0 && RandomFloat() >= 0.90) {
+  if (call_depth != 0 && RandomBool(0.10)) {
     parametric_bindings = GenerateParametricBindings(
         RandomIntWithExpectedValue(2, /*lower_limit=*/1));
   }
