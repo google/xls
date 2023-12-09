@@ -161,9 +161,9 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
                                        cpp_type(), ev.name, type_name, ev.name,
                                        ev.value_str));
     }
-    pieces.push_back(
-        absl::StrFormat("  default: return absl::StrFormat(%s, %s);",
-                        "\"<unknown> (%d)\"", CastToCppBaseType("value")));
+    pieces.push_back(absl::StrFormat(
+        "  default: return absl::StrFormat(\"<unknown> (%%d)\", %s);",
+        CastToCppBaseType("value")));
     pieces.push_back("}");
     return absl::StrJoin(pieces, "\n");
   }
