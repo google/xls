@@ -40,7 +40,7 @@ std::string MyEnumToString(MyEnum value, int64_t indent) {
     case MyEnum::kMIN: return "MyEnum::kMIN (-9223372036854775808)";
     case MyEnum::kMID: return "MyEnum::kMID (4611686018427387904)";
     case MyEnum::kMAX: return "MyEnum::kMAX (9223372036854775807)";
-    default: return absl::StrFormat("<unknown> (%d)", static_cast<int64_t>(value));
+    default: return absl::StrFormat("<unknown> (%v)", static_cast<int64_t>(value));
   }
 }
 
@@ -49,7 +49,7 @@ std::string MyEnumToDslxString(MyEnum value, int64_t indent) {
     case MyEnum::kMIN: return "MyEnum::kMIN (-9223372036854775808)";
     case MyEnum::kMID: return "MyEnum::kMID (4611686018427387904)";
     case MyEnum::kMAX: return "MyEnum::kMAX (9223372036854775807)";
-    default: return absl::StrFormat("<unknown> (%d)", static_cast<int64_t>(value));
+    default: return absl::StrFormat("<unknown> (%v)", static_cast<int64_t>(value));
   }
 }
 
