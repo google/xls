@@ -157,14 +157,14 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
     std::vector<std::string> pieces;
     pieces.push_back("switch (value) {");
     for (const EnumValue& ev : enum_values_) {
-      // TODO(https://github.com/google/xls/issues/1127): Also emit the actual
-      // value along with the enum name. For example: `MyEnum::kFoo (42)`,
-      // `<unknown> (3)`.
-      pieces.push_back(absl::StrFormat("  case %s::%s: return \"%s::%s\";",
-                                       cpp_type(), ev.name, type_name,
-                                       ev.name));
+      pieces.push_back(absl::StrFormat("  case %s::%s: return \"%s::%s (%s)\";",
+                                       cpp_type(), ev.name, type_name, ev.name,
+                                       ev.value_str));
     }
-    pieces.push_back("  default: return \"<unknown>\";");
+    pieces.push_back(
+        absl::StrFormat("  default: return absl::StrFormat(\"<unknown> "
+                        "(%%v)\", %s);",
+                        CastToCppBaseType("value")));
     pieces.push_back("}");
     return absl::StrJoin(pieces, "\n");
   }

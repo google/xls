@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/status/status.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/cpp_transpiler/test_types_lib.h"
 #include "xls/ir/bits.h"
@@ -28,15 +28,19 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 TEST(TestTypesTest, EnumToString) {
-  EXPECT_EQ(MyEnumToString(test::MyEnum::kA), "MyEnum::kA");
-  EXPECT_EQ(MyEnumToString(test::MyEnum::kB), "MyEnum::kB");
-  EXPECT_EQ(MyEnumToString(test::MyEnum::kC), "MyEnum::kC");
-  EXPECT_EQ(MyEnumToString(test::MyEnum(1234)), "<unknown>");
+  EXPECT_EQ(MyEnumToString(test::MyEnum::kA), "MyEnum::kA (0)");
+  EXPECT_EQ(MyEnumToString(test::MyEnum::kB), "MyEnum::kB (1)");
+  EXPECT_EQ(MyEnumToString(test::MyEnum::kC), "MyEnum::kC (42)");
+  EXPECT_EQ(MyEnumToString(test::MyEnum(123)), "<unknown> (123)");
+  // 1234 overflows the uint8_t making it 210.
+  EXPECT_EQ(MyEnumToString(test::MyEnum(1234)), "<unknown> (210)");
 
-  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kA), "MyEnum::kA");
-  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kB), "MyEnum::kB");
-  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kC), "MyEnum::kC");
-  EXPECT_EQ(MyEnumToDslxString(test::MyEnum(1234)), "<unknown>");
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kA), "MyEnum::kA (0)");
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kB), "MyEnum::kB (1)");
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum::kC), "MyEnum::kC (42)");
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum(123)), "<unknown> (123)");
+  // 1234 overflows the uint8_t making it 210.
+  EXPECT_EQ(MyEnumToDslxString(test::MyEnum(1234)), "<unknown> (210)");
 }
 
 TEST(TestTypesTest, VerifyEnum) {
@@ -154,11 +158,11 @@ TEST(TestTypesTest, SimpleStructToString) {
   test::InnerStruct s{.x = 42, .y = test::MyEnum::kB};
   EXPECT_EQ(s.ToString(), R"(InnerStruct {
   x: bits[17]:0x2a,
-  y: MyEnum::kB,
+  y: MyEnum::kB (1),
 })");
   EXPECT_EQ(s.ToDslxString(), R"(InnerStruct {
   x: u17:0x2a,
-  y: MyEnum::kB,
+  y: MyEnum::kB (1),
 })");
 }
 
@@ -471,11 +475,11 @@ TEST(TestTypesTest, TupleOfStructsToString) {
   EXPECT_EQ(TupleOfStructsToString(s), R"((
   InnerStruct {
     x: bits[17]:0xc,
-    y: MyEnum::kA,
+    y: MyEnum::kA (0),
   },
   InnerStruct {
     x: bits[17]:0x16,
-    y: MyEnum::kB,
+    y: MyEnum::kB (1),
   },
 ))");
 }
@@ -511,14 +515,14 @@ TEST(TestTypesTest, NestedStructToString) {
   EXPECT_EQ(s.ToString(), R"(OuterStruct {
   a: InnerStruct {
       x: bits[17]:0x2a,
-      y: MyEnum::kB,
+      y: MyEnum::kB (1),
     },
   b: InnerStruct {
       x: bits[17]:0x7b,
-      y: MyEnum::kC,
+      y: MyEnum::kC (42),
     },
   c: bits[37]:0xdead,
-  v: MyEnum::kA,
+  v: MyEnum::kA (0),
 })");
 
   EXPECT_EQ(test::OuterStruct::kCWidth, 37);
@@ -555,14 +559,14 @@ TEST(TestTypesTest, DoublyNestedStructToString) {
   s: OuterStruct {
       a: InnerStruct {
           x: bits[17]:0x2a,
-          y: MyEnum::kB,
+          y: MyEnum::kB (1),
         },
       b: InnerStruct {
           x: bits[17]:0x7b,
-          y: MyEnum::kC,
+          y: MyEnum::kC (42),
         },
       c: bits[37]:0xdead,
-      v: MyEnum::kA,
+      v: MyEnum::kA (0),
     },
 })");
   EXPECT_EQ(s.ToDslxString(), R"(OuterOuterStruct {
@@ -576,14 +580,14 @@ TEST(TestTypesTest, DoublyNestedStructToString) {
   s: OuterStruct {
       a: InnerStruct {
           x: u17:0x2a,
-          y: MyEnum::kB,
+          y: MyEnum::kB (1),
         },
       b: InnerStruct {
           x: u17:0x7b,
-          y: MyEnum::kC,
+          y: MyEnum::kC (42),
         },
       c: MyType:0xdead,
-      v: MyEnum::kA,
+      v: MyEnum::kA (0),
     },
 })");
 }
@@ -606,11 +610,11 @@ TEST(TestTypesTest, SnakeCaseToString) {
                            .some_other_field = test::SnakeCaseEnumT::kA};
   EXPECT_EQ(s.ToString(), R"(SnakeCaseStructT {
   some_field: bits[13]:0x42,
-  some_other_field: SnakeCaseEnumT::kA,
+  some_other_field: SnakeCaseEnumT::kA (0),
 })");
   EXPECT_EQ(s.ToDslxString(), R"(snake_case_struct_t {
   some_field: snake_case_type_t:0x42,
-  some_other_field: snake_case_enum_t::kA,
+  some_other_field: snake_case_enum_t::kA (0),
 })");
 }
 
