@@ -46,6 +46,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -2764,6 +2765,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
                        ctx->Deduce(node->type_ref()));
   TypeRef* type_ref = node->type_ref();
   TypeDefinition type_definition = type_ref->type_definition();
+
+  // If it's a (potentially parametric) struct, we concretize it.
   absl::StatusOr<StructDef*> struct_def_or = DerefToStruct(
       node->span(), type_ref->ToString(), type_definition, ctx->type_info());
   if (struct_def_or.ok()) {

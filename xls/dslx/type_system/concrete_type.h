@@ -40,6 +40,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_expression.h"
@@ -697,7 +698,7 @@ class ChannelType : public ConcreteType {
 // exposing the parametric version directly to callers.
 template <typename T>
 inline std::unique_ptr<T> CloneToUniqueInternal(const T& type) {
-  static_assert(std::is_base_of<ConcreteType, T>::value);
+  static_assert(std::is_base_of_v<ConcreteType, T>);
   std::unique_ptr<ConcreteType> cloned = type.CloneToUnique();
   return absl::WrapUnique<T>(dynamic_cast<T*>(cloned.release()));
 }

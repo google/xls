@@ -42,6 +42,7 @@
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/errors.h"
@@ -769,6 +770,14 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
                         f->identifier()));
+  }
+
+  if (return_type->HasParametricDims()) {
+    return TypeInferenceErrorStatus(
+        f->return_type()->span(), return_type.get(),
+        absl::StrFormat(
+            "Parametric type being returned from function -- types must be "
+            "fully resolved, please fully instantiate the type"));
   }
 
   // Implementation note: we have to check for defined-but-unused values before

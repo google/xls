@@ -26,12 +26,15 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_helpers.h"
 
 namespace xls::dslx {
@@ -2164,6 +2167,18 @@ TEST(TypecheckTest, ConcatNilArrayOfOneU8) {
               IsPosError("XlsTypeError",
                          HasSubstr("() vs uN[8][1]: Attempting to concatenate "
                                    "array/non-array values together")));
+}
+
+TEST(TypecheckTest, ParametricStructWithoutAllParametricsBoundInReturnType) {
+  EXPECT_THAT(
+      Typecheck(R"(
+struct Point1D<N: u32> { x: bits[N] }
+
+fn f(x: Point1D) -> Point1D { x }
+)")
+          .status(),
+      IsPosError("TypeInferenceError",
+                 HasSubstr("Parametric type being returned from function")));
 }
 
 }  // namespace
