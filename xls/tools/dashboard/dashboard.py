@@ -37,19 +37,22 @@ def tuple_of_three(string: str) -> Tuple[str, str, str]:
 def parse_args_to_dict(args) -> Sequence[TestData]:
   args_dict = dict()
 
-  for test, parser in args.parser:
-    if test not in args_dict:
-      args_dict[test] = TestData(test)
-    args_dict[test].output_parsers += [OutputParserData(parser)]
+  if args.parser is not None:
+    for test, parser in args.parser:
+      if test not in args_dict:
+        args_dict[test] = TestData(test)
+      args_dict[test].output_parsers += [OutputParserData(parser)]
 
-  for test, parser, file in args.file:
-    if test not in args_dict:
-      args_dict[test] = TestData(test)
-    args_dict[test].file_parsers += [FileParserData(parser, file)]
+  if args.file is not None:
+    for test, parser, file in args.file:
+      if test not in args_dict:
+        args_dict[test] = TestData(test)
+      args_dict[test].file_parsers += [FileParserData(parser, file)]
 
   data_parsers = []
-  for file, parser in args.data:
-    data_parsers += [FileParserData(parser, file)]
+  if args.data is not None:
+    for file, parser in args.data:
+      data_parsers += [FileParserData(parser, file)]
 
   return args_dict.values(), data_parsers
 
@@ -75,23 +78,26 @@ def check_args(args) -> None:
   if output_dir.exists():
     raise FileExistsError(f"Output directory {str(output_dir)} exists")
 
-  for _, parser in args.parser:
-    parser_path = Path(parser)
-    if not parser_path.exists():
-      raise FileNotFoundError(f"Output parser {str(parser_path)} does not exist")
+  if args.parser is not None:
+    for _, parser in args.parser:
+      parser_path = Path(parser)
+      if not parser_path.exists():
+        raise FileNotFoundError(f"Output parser {str(parser_path)} does not exist")
 
-  for _, parser, _ in args.file:
-    parser_path = Path(parser)
-    if not parser_path.exists():
-      raise FileNotFoundError(f"File parser {str(parser_path)} does not exist")
+  if args.file is not None:
+    for _, parser, _ in args.file:
+      parser_path = Path(parser)
+      if not parser_path.exists():
+        raise FileNotFoundError(f"File parser {str(parser_path)} does not exist")
 
-  for file, parser in args.data:
-    parser_path = Path(parser)
-    if not parser_path.exists():
-      raise FileNotFoundError(f"Data file parser {str(parser_path)} does not exist")
-    file_path = Path(parser)
-    if not file_path.exists():
-      raise FileNotFoundError(f"Data file {str(file_path)} does not exist")
+  if args.data is not None:
+    for file, parser in args.data:
+      parser_path = Path(parser)
+      if not parser_path.exists():
+        raise FileNotFoundError(f"Data file parser {str(parser_path)} does not exist")
+      file_path = Path(parser)
+      if not file_path.exists():
+        raise FileNotFoundError(f"Data file {str(file_path)} does not exist")
 
 
 if __name__ == "__main__":
