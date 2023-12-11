@@ -1601,8 +1601,8 @@ fn to_int_test() {
 // The bit widths of different float components are given
 // in comments throughout this implementation, listed
 // relative to the widths of a standard float32.
-pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
-                                          y: APFloat<EXP_SZ, FRACTION_SZ>)
+pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(a: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          b: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
   // WIDE_EXP: Widened exponent to capture a possible carry bit.
   const WIDE_EXP: u32 = EXP_SZ + u32:1;
@@ -1623,10 +1623,10 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
   const NORMALIZED_FRACTION: u32 = WIDE_FRACTION - u32:1;
 
   // Step 0: Swap operands for x to contain value with greater exponent
-  let (x, y, shift) = if x.bexp > y.bexp {
-    (x, y, x.bexp - y.bexp)
+  let (x, y, shift) = if a.bexp > b.bexp {
+    (a, b, a.bexp - b.bexp)
   } else {
-    (y, x, y.bexp - x.bexp)
+    (b, a, b.bexp - a.bexp)
   };
 
   // Step 1: add hidden bit and provide space for guard, round and sticky
@@ -1667,7 +1667,7 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
   // If the carry bit is set, shift right one bit (to capture the new bit of
   // precision) - but don't drop the sticky bit!
   let carry_bit = abs_fraction[-1:];
-  let carry_fraction = (abs_fraction >> uN[WIDE_FRACTION]:1) as uN[NORMALIZED_FRACTION];
+  let carry_fraction = (abs_fraction >> u32:1) as uN[NORMALIZED_FRACTION];
   let carry_fraction = carry_fraction | (abs_fraction[0:1] as uN[NORMALIZED_FRACTION]);
 
   // If we cancelled higher bits, then we'll need to shift left.
@@ -1694,20 +1694,21 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
   //    in whichever direction makes the last bit in the fraction 0.
   let normal_chunk = shifted_fraction[0:3];
   let half_way_chunk = shifted_fraction[2:4];
-  let do_round_up =
-      if (normal_chunk > u3:0x4) | (half_way_chunk == u2:0x3) { u1:1 }
-      else { u1:0 };
+  let do_round_up = (normal_chunk > u3:0x4) || (half_way_chunk == u2:0x3);
 
   // We again need an extra bit for carry.
-  let rounded_fraction = if do_round_up { (shifted_fraction as uN[WIDE_FRACTION]) + uN[WIDE_FRACTION]:0x8 }
-      else { shifted_fraction as uN[WIDE_FRACTION] };
+  let rounded_fraction = if do_round_up {
+    (shifted_fraction as uN[WIDE_FRACTION]) + uN[WIDE_FRACTION]:0x8
+  } else {
+    shifted_fraction as uN[WIDE_FRACTION]
+  };
   let rounding_carry = rounded_fraction[-1:];
 
   // After rounding, we can chop off the extra precision bits.
   // As with normalization, if we carried, we need to shift right
   // an extra place.
-  let fraction_shift = uN[WIDE_FRACTION]:3 +
-      (if rounded_fraction[-1:] { uN[WIDE_FRACTION]:1 } else { uN[WIDE_FRACTION]:0 });
+  let fraction_shift = GUARD_ROUND_STICKY_BITS as u3 +
+      (if rounded_fraction[-1:] { u3:1 } else { u3:0 });
   let result_fraction = (rounded_fraction >> fraction_shift) as uN[FRACTION_SZ];
 
   // Finally, adjust the exponent based on addition and rounding -
@@ -1729,23 +1730,22 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
   let result_fraction = if wide_exponent < uN[WIDE_EXP]:1 { uN[FRACTION_SZ]:0 } else { result_fraction };
 
   // Handle exponent overflow infinities.
-  let saturated_exp = std::mask_bits<EXP_SZ>() as uN[WIDE_EXP];
-  let max_exp = std::mask_bits<EXP_SZ>();
+  const MAX_EXPONENT = std::mask_bits<EXP_SZ>();
+  const SATURATED_EXPONENT = MAX_EXPONENT as uN[WIDE_EXP];
   let result_fraction =
-      if wide_exponent < saturated_exp { result_fraction }
+      if wide_exponent < SATURATED_EXPONENT { result_fraction }
       else { uN[FRACTION_SZ]:0 };
   let result_exponent =
-      if wide_exponent < saturated_exp { wide_exponent as uN[EXP_SZ] }
-      else { max_exp };
+      if wide_exponent < SATURATED_EXPONENT { wide_exponent as uN[EXP_SZ] }
+      else { MAX_EXPONENT };
 
   // Handle arg infinities.
-  let is_operand_inf = is_inf<EXP_SZ, FRACTION_SZ>(x) |
-      is_inf<EXP_SZ, FRACTION_SZ>(y);
-  let result_exponent = if is_operand_inf { max_exp } else { result_exponent };
+  let is_operand_inf = is_inf<EXP_SZ, FRACTION_SZ>(x) || is_inf<EXP_SZ, FRACTION_SZ>(y);
+  let result_exponent = if is_operand_inf { MAX_EXPONENT } else { result_exponent };
   let result_fraction = if is_operand_inf { uN[FRACTION_SZ]:0 } else { result_fraction };
   // Result infinity is negative iff all infinite operands are neg.
-  let has_pos_inf = (is_inf<EXP_SZ, FRACTION_SZ>(x) & (x.sign == u1:0)) |
-                    (is_inf<EXP_SZ, FRACTION_SZ>(y) & (y.sign == u1:0));
+  let has_pos_inf = (is_inf<EXP_SZ, FRACTION_SZ>(x) && (x.sign == u1:0)) |
+                    (is_inf<EXP_SZ, FRACTION_SZ>(y) && (y.sign == u1:0));
   let result_sign = if is_operand_inf { !has_pos_inf } else { result_sign };
 
   // Handle NaN; NaN trumps infinities, so we handle it last.
@@ -1755,9 +1755,9 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
       (is_inf<EXP_SZ, FRACTION_SZ>(y) & (y.sign == u1:1));
   let is_result_nan = is_nan<EXP_SZ, FRACTION_SZ>(x) |
     is_nan<EXP_SZ, FRACTION_SZ>(y) | (has_pos_inf & has_neg_inf);
-  const kFractionHighBit = uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1);
-  let result_exponent = if is_result_nan { max_exp } else { result_exponent };
-  let result_fraction = if is_result_nan { kFractionHighBit } else { result_fraction };
+  const FRACTION_HIGH_BIT = uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1);
+  let result_exponent = if is_result_nan { MAX_EXPONENT } else { result_exponent };
+  let result_fraction = if is_result_nan { FRACTION_HIGH_BIT } else { result_fraction };
   let result_sign = if is_result_nan { u1:0 } else { result_sign };
 
   // Finally (finally!), construct the output float.
