@@ -243,6 +243,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         XLS_RETURN_IF_ERROR(
             node->ReplaceUsesWithNew<Literal>(Value(Bits(known_prefix)))
                 .status());
+        return true;
       } else if (SplitsEnabled(opt_level)) {
         std::vector<Node*> old_users(node->users().begin(),
                                      node->users().end());
@@ -278,8 +279,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         }
         XLS_RETURN_IF_ERROR(
             node->ReplaceImplicitUsesWith(replacement).status());
+        return true;
       }
-      return true;
     }
   }
 
@@ -302,8 +303,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                   std::vector<Node*>{ohs->get_case(1), ohs->get_case(0)},
                   /*default_value*/ std::nullopt)
               .status());
+      return true;
     }
-    return true;
   }
 
   // Remove kOneHot operations with an input that is already one-hot.
