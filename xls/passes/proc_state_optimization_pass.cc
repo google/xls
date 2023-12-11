@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -32,15 +33,20 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/data_structures/union_find.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
 namespace {
@@ -62,6 +68,55 @@ absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
                             ->ReplaceUsesWithNew<Literal>(
                                 ZeroOfType(proc->GetStateElementType(i)))
                             .status());
+    XLS_RETURN_IF_ERROR(proc->RemoveStateElement(i));
+  }
+  return true;
+}
+
+absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
+                                                 QueryEngine& query_engine) {
+  std::vector<int64_t> to_remove;
+  for (int64_t i = proc->GetStateElementCount() - 1; i >= 0; --i) {
+    if (proc->GetNextStateElement(i) == proc->GetStateParam(i)) {
+      // The state element never changes, so it's definitely constant.
+      to_remove.push_back(i);
+      continue;
+    }
+
+    LeafTypeTree<TernaryVector> next_state =
+        query_engine.GetTernary(proc->GetNextStateElement(i));
+    if (!absl::c_all_of(next_state.elements(),
+                        [](const TernaryVector& ternary_vector) {
+                          return ternary_ops::IsFullyKnown(ternary_vector);
+                        })) {
+      continue;
+    }
+    // We know exactly what value the next state will hold, no matter what
+    // happens.
+    LeafTypeTree<Value> next_value_tree =
+        LeafTypeTree<Value>::Zip<TernaryVector, Type*>(
+            [](const TernaryVector& ternary_vector, Type* type) -> Value {
+              return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
+            },
+            next_state,
+            LeafTypeTree<Type*>(next_state.type(), next_state.leaf_types()));
+    XLS_ASSIGN_OR_RETURN(Value next_value,
+                         LeafTypeTreeToValue(next_value_tree));
+    const Value& initial_value = proc->GetInitValueElement(i);
+    if (initial_value == next_value) {
+      to_remove.push_back(i);
+    }
+  }
+  if (to_remove.empty()) {
+    return false;
+  }
+  for (int64_t i : to_remove) {
+    Value value = proc->GetInitValueElement(i);
+    XLS_VLOG(2) << "Removing constant state element: "
+                << proc->GetStateParam(i)->GetName()
+                << " (value: " << value.ToString() << ")";
+    XLS_RETURN_IF_ERROR(
+        proc->GetStateParam(i)->ReplaceUsesWithNew<Literal>(value).status());
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(i));
   }
   return true;
@@ -373,6 +428,20 @@ absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
   XLS_ASSIGN_OR_RETURN(bool zero_width_changed,
                        RemoveZeroWidthStateElements(proc));
   changed = changed || zero_width_changed;
+
+  // Run constant state-element removal to fixed point; should usually take just
+  // one additional pass to verify, except for chains like next_s1 := s1,
+  // next_s2 := f(s1), next_s3 := g(s1, s2), ..., etc., where the results all
+  // match the state elements' initial values.
+  bool constant_changed = false;
+  do {
+    TernaryQueryEngine query_engine;
+    XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
+
+    XLS_ASSIGN_OR_RETURN(constant_changed,
+                         RemoveConstantStateElements(proc, query_engine));
+    changed = changed || constant_changed;
+  } while (constant_changed);
 
   XLS_ASSIGN_OR_RETURN(bool literal_chains_changed,
                        ConvertLiteralChainsToStateMachines(proc));

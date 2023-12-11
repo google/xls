@@ -1303,6 +1303,9 @@ cc_library(
         ":dataflow_visitor",
         ":optimization_pass",
         ":pass_base",
+        ":query_engine",
+        ":ternary_query_engine",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1313,10 +1316,13 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/data_structures:inline_bitmap",
+        "//xls/data_structures:leaf_type_tree",
         "//xls/data_structures:union_find",
         "//xls/ir",
         "//xls/ir:op",
+        "//xls/ir:ternary",
         "//xls/ir:type",
+        "//xls/ir:value",
         "//xls/ir:value_helpers",
     ],
 )
@@ -1467,6 +1473,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
     ],
 )
 
