@@ -475,6 +475,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
     ],
 )
 

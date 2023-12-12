@@ -92,6 +92,7 @@ cc_library(
         "//xls/common:casts",
         "//xls/common:symbolized_stacktrace",
         "//xls/common:visitor",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
@@ -105,6 +106,7 @@ cc_library(
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",
+        "//xls/ir:format_strings",
     ],
 )
 

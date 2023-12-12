@@ -27,8 +27,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/dslx/interp_value.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
@@ -103,6 +104,8 @@ class TypeInfoOwner {
 
 class TypeInfo {
  public:
+  ~TypeInfo();
+
   // Type information can be "differential"; e.g. when we obtain type
   // information for a particular parametric instantiation the type information
   // is backed by the enclosing type information for the module. Therefore, type
@@ -283,16 +286,31 @@ class TypeInfo {
     return const_cast<TypeInfo*>(this)->GetRoot();
   }
 
+  // Returns whether this is the root type information for the module (vs. a
+  // dervied type info for e.g. a parametric instantiation context).
+  bool IsRoot() const { return this == GetRoot(); }
+
   Module* module_;
+
+  // Node to type mapping -- this is present on "derived" type info (i.e. for
+  // instantiated parametric type info) as well as the root type information for
+  // a module.
   absl::flat_hash_map<const AstNode*, std::unique_ptr<ConcreteType>> dict_;
+
+  // Node to constexpr-value mapping -- this is also present on "derived" type
+  // info as constexprs take on different values in different parametric
+  // instantiation contexts.
+  absl::flat_hash_map<const AstNode*, std::optional<InterpValue>> const_exprs_;
+
+  // The following are only present on the root type info.
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
   absl::flat_hash_map<const Invocation*, InvocationData> invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
-  absl::flat_hash_map<const AstNode*, std::optional<InterpValue>> const_exprs_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
 
   // Maps a Proc to the TypeInfo used for its top-level typechecking.
   absl::flat_hash_map<const Proc*, TypeInfo*> top_level_proc_type_info_;
+
   TypeInfo* parent_;  // Note: may be nullptr.
 };
 

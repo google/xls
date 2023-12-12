@@ -32,7 +32,9 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 
@@ -114,7 +116,7 @@ std::optional<InterpValue> TypeInfo::GetConstExprOption(
       << " node: " << const_expr->ToString();
 
   if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
-    return it->second.value();
+    return it->second;
   }
 
   if (parent_ != nullptr) {
@@ -410,6 +412,18 @@ TypeInfo::TypeInfo(Module* module, TypeInfo* parent)
     : module_(module), parent_(parent) {
   XLS_VLOG(6) << "Created type info for module \"" << module_->name() << "\" @ "
               << this << " parent " << parent << " root " << GetRoot();
+}
+
+TypeInfo::~TypeInfo() {
+  // Only the root type information contains certain data.
+  if (!IsRoot()) {
+    XLS_CHECK(imports_.empty());
+    XLS_CHECK(invocations_.empty());
+    XLS_CHECK(slices_.empty());
+    XLS_CHECK(imports_.empty());
+    XLS_CHECK(requires_implicit_token_.empty());
+    XLS_CHECK(top_level_proc_type_info_.empty());
+  }
 }
 
 }  // namespace xls::dslx

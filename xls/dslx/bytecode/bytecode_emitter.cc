@@ -33,6 +33,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
@@ -49,6 +50,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
 // some subset that we test), interpretation terminates with only a single value
