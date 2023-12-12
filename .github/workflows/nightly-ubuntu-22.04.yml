@@ -9,9 +9,6 @@ on:
   # This lets us trigger manually from the UI.
   workflow_dispatch:
 
-env:
-  USE_BAZEL_VERSION: 6.4.0
-
 jobs:
   build:
     name: Nightly Ubuntu 22.04

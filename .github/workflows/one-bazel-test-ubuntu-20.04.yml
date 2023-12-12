@@ -16,7 +16,6 @@ on:
         required: true
 
 env:
-  USE_BAZEL_VERSION: 6.4.0
   BAZEL_TARGET: ${{ github.event.inputs.target }}
   BAZEL_RUNS_PER_TEST: ${{ github.event.inputs.runs_per_test }}
 
