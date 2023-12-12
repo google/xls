@@ -9,6 +9,9 @@ on:
   # This lets us trigger manually from the UI.
   workflow_dispatch:
 
+env:
+  USE_BAZEL_VERSION: 6.4.0
+
 jobs:
   build:
     name: Nightly Ubuntu 22.04
@@ -28,7 +31,7 @@ jobs:
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
       - name: Install bazelisk
         run: |
-          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.18.0/bazelisk-linux-amd64"
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64"
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
           mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
