@@ -30,7 +30,7 @@ jobs:
 
       - name: Install bazelisk
         run: |
-          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.18.0/bazelisk-darwin-arm64"
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-darwin-arm64"
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
           mv bazelisk-darwin-arm64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
