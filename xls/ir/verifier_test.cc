@@ -14,6 +14,7 @@
 
 #include "xls/ir/verifier.h"
 
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -21,9 +22,12 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
 
 namespace xls {
 namespace {
@@ -71,6 +75,22 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("graph"));
   EXPECT_THAT(VerifyFunction(f), StatusIs(absl::StatusCode::kInternal,
                                           HasSubstr("ID 2 is not unique")));
+}
+
+TEST_F(VerifierTest, KeywordAsFunctionName) {
+  auto p = std::make_unique<Package>("KeywordAsFunctionName");
+  FunctionBuilder fb("top", p.get(), /*should_verify=*/false);
+  Type* u42 = p->GetBitsType(42);
+  BValue a = fb.Param("a", u42);
+  BValue b = fb.Param("b", u42);
+  BValue add = fb.Add(fb.And(absl::MakeConstSpan({a, b})), b);
+  fb.Subtract(add, add);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Function/proc/block name 'top' is a keyword")));
 }
 
 TEST_F(VerifierTest, NonUniqueFunctionName) {

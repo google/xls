@@ -14,11 +14,11 @@
 
 #include "xls/ir/verifier.h"
 
-
 #include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -49,7 +49,9 @@
 #include "xls/ir/fileno.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/ir_scanner.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
@@ -1450,10 +1452,20 @@ absl::Status VerifyNodeIdUnique(Node* node, absl::flat_hash_set<int64_t>* ids) {
   return absl::OkStatus();
 }
 
+absl::Status VerifyName(FunctionBase* function_base) {
+  if (Token::GetKeywords().contains(function_base->name())) {
+    return absl::InternalError(absl::StrFormat(
+        "Function/proc/block name '%s' is a keyword", function_base->name()));
+  }
+  return absl::OkStatus();
+}
+
 // Verify common invariants to function-level constructs.
 absl::Status VerifyFunctionBase(FunctionBase* function) {
   XLS_VLOG(2) << absl::StreamFormat("Verifying function %s:", function->name());
   XLS_VLOG_LINES(4, function->DumpIr());
+
+  XLS_RETURN_IF_ERROR(VerifyName(function));
 
   // Verify all types are owned by package.
   for (Node* node : function->nodes()) {

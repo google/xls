@@ -797,6 +797,7 @@ cc_test(
     name = "verifier_test",
     srcs = ["verifier_test.cc"],
     deps = [
+        ":function_builder",
         ":ir",
         ":ir_matcher",
         ":ir_test_base",
@@ -805,6 +806,7 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

@@ -352,7 +352,7 @@ TEST(IrMatchersTest, SendOps) {
           ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
           123));
 
-  ProcBuilder b("proc", "my_token", &p);
+  ProcBuilder b("test_proc", "my_token", &p);
   auto state = b.StateElement("my_state", Value(UBits(333, 32)));
   auto send = b.Send(ch42, b.GetTokenParam(), state);
   auto send_if =
@@ -391,7 +391,7 @@ TEST(IrMatchersTest, ReceiveOps) {
           ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
           123));
 
-  ProcBuilder b("proc", "my_token", &p);
+  ProcBuilder b("test_proc", "my_token", &p);
   auto state = b.StateElement("my_state", Value(UBits(333, 32)));
   auto receive = b.Receive(ch42, b.GetTokenParam());
   auto receive_if =

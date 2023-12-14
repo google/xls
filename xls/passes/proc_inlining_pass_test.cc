@@ -2729,7 +2729,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
         p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
     // Top level builder.
-    ProcBuilder b("top", "tkn", p.get());
+    ProcBuilder b("top_proc", "tkn", p.get());
     BValue receive_in = b.Receive(ch_in, b.GetTokenParam());
 
     // Vector of all the receives in the top level proc. When data is needed to

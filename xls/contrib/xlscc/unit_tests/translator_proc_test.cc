@@ -5043,7 +5043,7 @@ TEST_F(TranslatorProcTest, LocalChannelSubBlock) {
       }
 
       #pragma hls_top
-      void top() {
+      void top_f() {
         static __xls_channel<int> internal_in_top;
         Ping(internal_in_top);
         Pong(internal_in_top);
@@ -5079,7 +5079,7 @@ TEST_F(TranslatorProcTest, LocalChannelSubBlockNonStatic) {
       }
 
       #pragma hls_top
-      void top() {
+      void top_f() {
         __xls_channel<int> internal_in_top;
         Ping(internal_in_top);
         Pong(internal_in_top);

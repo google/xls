@@ -142,7 +142,7 @@ TEST(FunctionBuilderTest, MapTest) {
   }
   Function* top;
   {
-    FunctionBuilder b("top", &p);
+    FunctionBuilder b("top_f", &p);
     b.Map(b.Param("input", array_type), to_apply);
     XLS_ASSERT_OK_AND_ASSIGN(top, b.Build());
   }
@@ -790,7 +790,7 @@ TEST(FunctionBuilderTest, DynamicCountedForTest) {
   }
   Function* top;
   {
-    FunctionBuilder b("top", &p);
+    FunctionBuilder b("top_f", &p);
     b.DynamicCountedFor(b.Param("init", int32_type),
                         b.Param("trip_count", int16_type),
                         b.Param("stride", int16_type), body,

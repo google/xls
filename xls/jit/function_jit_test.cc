@@ -699,7 +699,7 @@ TEST(FunctionJitTest, FunAssert) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * fun, fun_builder.Build());
 
-  FunctionBuilder top_builder("top", &p);
+  FunctionBuilder top_builder("top_f", &p);
   auto y = top_builder.Param("y", p.GetBitsType(5));
 
   std::vector<BValue> args = {y};
