@@ -30,6 +30,8 @@ class InliningPass : public OptimizationPass {
 
   // Inline a single invoke instruction. Provided for test and utility
   // (ir_minimizer) use.
+  // Because this is only for ir-minimizer use it allows the inlined function to
+  // have invokes in the function code.
   static absl::Status InlineOneInvoke(Invoke* invoke);
 
  protected:

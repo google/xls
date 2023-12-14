@@ -89,6 +89,7 @@ static bool IsInlineable(const Invoke* invoke) {
 
 // Inlines the node "invoke" by replacing it with the contents of the called
 // function.
+template <bool kCheckNoSubInvokes = true>
 absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
   Function* invoked = invoke->to_apply();
   absl::flat_hash_map<Node*, Node*> invoked_node_to_replacement;
@@ -102,8 +103,9 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
       // Already taken care of (e.g. parameters above).
       continue;
     }
-    XLS_RET_CHECK(  // All invokes before us should've been inlined (except ffi)
-        !node->Is<Invoke>() || !IsInlineable(node->As<Invoke>()))
+    XLS_RET_CHECK(!kCheckNoSubInvokes ||
+                  // All invokes before us should've been inlined (except ffi)
+                  !node->Is<Invoke>() || !IsInlineable(node->As<Invoke>()))
         << "No invokes that are not FFI should remain in function to inline: "
         << node->GetName() << ": " << node->As<Invoke>()->to_apply()->name();
     std::vector<Node*> new_operands;
@@ -194,7 +196,7 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
 }  // namespace
 
 absl::Status InliningPass::InlineOneInvoke(Invoke* invoke) {
-  return InlineInvoke(invoke, /*inline_count=*/0);
+  return InlineInvoke</*kCheckNoSubInvokes=*/false>(invoke, /*inline_count=*/0);
 }
 
 absl::StatusOr<bool> InliningPass::RunInternal(

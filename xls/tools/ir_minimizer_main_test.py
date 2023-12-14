@@ -80,6 +80,23 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[1] {
 }
 """
 
+INVOKE_TWO_DEEP = """package foo
+
+fn mul(a: bits[8], b: bits[8]) -> bits[8] {
+  ret umul.3: bits[8] = umul(a, b, id=3)
+}
+
+fn muladd(a: bits[8], b: bits[8], c: bits[8]) -> bits[8] {
+  invoke.7: bits[8] = invoke(a, b, to_apply=mul, id=7)
+  ret add.8: bits[8] = add(invoke.7, c, id=8)
+}
+
+top fn muladdadd(a: bits[8], b: bits[8], c: bits[8], d: bits[8]) -> bits[8] {
+  invoke.13: bits[8] = invoke(a, b, c, to_apply=muladd, id=13)
+  ret add.14: bits[8] = add(invoke.13, d, id=14)
+}
+"""
+
 INVOKE_MAP = """package foo
 
 fn bar(x: bits[32]) -> bits[1] {
@@ -105,6 +122,34 @@ class IrMinimizerMainTest(absltest.TestCase):
       f.write('\n'.join(all_cmds))
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IXUSR)
+
+  def test_minimize_inline_one_can_inline_other_invokes(self):
+    ir_file = self.create_tempfile(content=INVOKE_TWO_DEEP)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(
+        test_sh_file.full_path, ["/usr/bin/env grep 'invoke.*to_apply=mul,' $1"]
+    )
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        '--can_remove_params=false',
+        ir_file.full_path,
+    ])
+    self._maybe_record_property('output', minimized_ir.decode('utf-8'))
+    self.assertEqual(
+        minimized_ir.decode('utf-8'),
+        """package foo
+
+fn mul(a: bits[8], b: bits[8]) -> bits[8] {
+  ret literal.15: bits[8] = literal(value=0, id=15)
+}
+
+top fn muladdadd(a: bits[8], b: bits[8], c: bits[8], d: bits[8]) -> bits[8] {
+  literal.57: bits[8] = literal(value=0, id=57)
+  ret invoke.59: bits[8] = invoke(literal.57, literal.57, to_apply=mul, id=59)
+}
+""",
+    )
 
   def test_minimize_no_change_subroutine_type(self):
     ir_file = self.create_tempfile(content=ARRAY_IR)
