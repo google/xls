@@ -933,7 +933,39 @@ fn f(x: bits[1], y: bits[8]) -> (bits[1], bits[8], bits[16]) {
   }
 }
 
-// TODO(allight): 2023-12-08: This should be supported.
+TEST(FunctionJitTest, MisalignedPointerCopied) {
+  Package package("my_package");
+
+  FunctionBuilder fb("test", &package);
+  fb.Add(fb.Param("x", package.GetBitsType(256)),
+         fb.Param("y", package.GetBitsType(256)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+  Bits ret_bits =
+      bits_ops::Concat({UBits(0, 256 - 65), UBits(1, 1), UBits(0, 64)});
+
+  alignas(16) std::array<uint8_t, 1 + (256 / 8)> x_view{
+      0xAB, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  alignas(16) std::array<uint8_t, 1 + (256 / 8)> y_view{
+      0xAB, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  alignas(16) std::array<uint8_t, 1 + (256 / 8)> ret_view{};
+  {
+    InterpreterEvents events;
+    EXPECT_THAT(jit->RunWithViews</*kForceZeroCopy=*/false>(
+                    {x_view.data() + 1, y_view.data() + 1},
+                    absl::MakeSpan(ret_view).subspan(1), &events),
+                status_testing::IsOk());
+    EXPECT_EQ(Bits::FromBytes(absl::MakeSpan(ret_view).subspan(1), 256),
+              ret_bits);
+  }
+}
+
 TEST(FunctionJitDeathTest, MisalignedPointerCaught) {
 #ifndef NDEBUG
   Package package("my_package");
@@ -958,11 +990,11 @@ TEST(FunctionJitDeathTest, MisalignedPointerCaught) {
   ASSERT_DEATH(
       {
         InterpreterEvents events;
-        auto unused =
-            jit->RunWithViews({x_view.data() + 1, y_view.data() + 1},
-                              absl::MakeSpan(ret_view).subspan(1), &events);
+        auto unused = jit->RunWithViews</*kForceZeroCopy=*/true>(
+            {x_view.data() + 1, y_view.data() + 1},
+            absl::MakeSpan(ret_view).subspan(1), &events);
       },
-      ".*is not aligned to [0-9]+.*");
+      ".*does not have alignment of [0-9]+.*");
 #else
   GTEST_SKIP() << "Checking only performed in dbg mode.";
 #endif

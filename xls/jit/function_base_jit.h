@@ -114,11 +114,10 @@ class JittedFunctionBase {
                             JitRuntime* jit_runtime,
                             int64_t continuation_point) const;
 
-  // Execute the jitted function using inputs not created by this function
-  // (after verifying some invariants).
-  //
-  // TODO(allight): 2023-12-05: We should have a shim that ensures everythings
-  // aligned ideally.
+  // Execute the jitted function using inputs not created by this function.
+  // If kForceZeroCopy is false the inputs will be memcpy'd if needed to aligned
+  // temporary buffers.
+  template<bool kForceZeroCopy = false>
   int64_t RunUnalignedJittedFunction(const uint8_t* const* inputs,
                                      uint8_t* const* outputs, void* temp_buffer,
                                      InterpreterEvents* events, void* user_data,

@@ -15,6 +15,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <ios>
 #include <iterator>
 #include <limits>
@@ -1375,27 +1377,65 @@ bool IsAligned(const void* ptr, int64_t align) {
 absl::Status VerifyOffsetAlignments(uint8_t const* const* const ptrs,
                                     absl::Span<int64_t const> alignments) {
   for (int64_t i = 0; i < alignments.size(); ++i) {
-    XLS_RET_CHECK_EQ(absl::bit_cast<uintptr_t>(ptrs[i]) % alignments[i], 0)
-        << "value at index " << i << " is not aligned to " << alignments[i]
-        << ". Value is 0x" << std::hex << absl::bit_cast<uintptr_t>(ptrs[i]);
+    if (absl::bit_cast<uintptr_t>(ptrs[i]) % alignments[i] != 0) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("element %d of input vector does not have alignment "
+                          "of %d. Pointer is %p",
+                          i, alignments[i], ptrs[i]));
+    }
   }
   return absl::OkStatus();
 }
 }  // namespace
 
+template <bool kForceZeroCopy>
 int64_t JittedFunctionBase::RunUnalignedJittedFunction(
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
     int64_t continuation) const {
-  // TODO(allight): Create an entry point to run these even if the arguments are
-  // not aligned correctly.
-  XLS_DCHECK_OK(VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()));
-  XLS_DCHECK_OK(
-      VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()));
-  XLS_DCHECK(IsAligned(temp_buffer, temp_buffer_alignment_));
+  if constexpr (kForceZeroCopy) {
+    XLS_DCHECK_OK(
+        VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()));
+    XLS_DCHECK_OK(
+        VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()));
+    XLS_DCHECK(IsAligned(temp_buffer, temp_buffer_alignment_));
+  } else {
+    if (!VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()).ok() ||
+        !VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()).ok() ||
+        !IsAligned(temp_buffer, temp_buffer_alignment_)) {
+      JitArgumentSet aligned_input(CreateInputBuffer());
+      JitArgumentSet aligned_output(CreateOutputBuffer());
+      JitTempBuffer temp(CreateTempBuffer());
+      memcpy(temp.get(), temp_buffer, temp_buffer_size_);
+      for (int i = 0; i < input_buffer_sizes().size(); ++i) {
+        memcpy(aligned_input.pointers()[i], inputs[i], input_buffer_sizes()[i]);
+      }
+      auto result =
+          RunJittedFunction(aligned_input, aligned_output, temp, events,
+                            user_data, jit_runtime, continuation);
+      memcpy(temp_buffer, temp.get(), temp_buffer_size_);
+      for (int i = 0; i < output_buffer_sizes().size(); ++i) {
+        memcpy(outputs[i], aligned_output.pointers()[i],
+               output_buffer_sizes()[i]);
+      }
+      return result;
+    }
+  }
   return function_(inputs, outputs, temp_buffer, events, user_data, jit_runtime,
                    continuation);
 }
+
+template int64_t
+JittedFunctionBase::RunUnalignedJittedFunction</*kForceZeroCopy=*/true>(
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
+    int64_t continuation) const;
+
+template int64_t
+JittedFunctionBase::RunUnalignedJittedFunction</*kForceZeroCopy=*/false>(
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
+    int64_t continuation) const;
 
 std::optional<int64_t> JittedFunctionBase::RunPackedJittedFunction(
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,

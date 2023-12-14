@@ -87,6 +87,7 @@ class FunctionJit {
   // TODO(https://github.com/google/xls/issues/506): 2021-10-13 Figure out
   // if we want a way to return events in the view and packed view interfaces
   // (or if their performance-focused execution means events are unimportant).
+  template <bool kForceZeroCopy = false>
   absl::Status RunWithViews(absl::Span<uint8_t* const> args,
                             absl::Span<uint8_t> result_buffer,
                             InterpreterEvents* events);
@@ -130,15 +131,19 @@ class FunctionJit {
   // Same as RunWithPackedViews but expects a View rather than a PackedView.
   template <typename... ArgsT>
   absl::Status RunWithUnpackedViews(ArgsT... args) {
-    const uint8_t* arg_buffers[sizeof...(ArgsT)];
-    uint8_t* result_buffer;
+    return RunWithUnpackedViewsCommon</*kForceZeroCopy=*/false, ArgsT...>(
+        args...);
+  }
 
-    // Walk the type tree to get each arg's data buffer into our view/arg list.
-    PackArgBuffers(arg_buffers, &result_buffer, args...);
-
-    InterpreterEvents events;
-    InvokeUnalignedJitFunction(arg_buffers, result_buffer, &events);
-    return InterpreterEventsToStatus(events);
+  // Same as RunWithPackedViews but expects a View rather than a PackedView.
+  // Guaranteed to run without copying the arguments first. The arguments must
+  // be aligned correctly.
+  // NOTE: Alignment is determined by LLVM and might change with little warning.
+  // TODO(allight): 2023-12-6 We need to make this more usable safely.
+  template <typename... ArgsT>
+  absl::Status RunWithUnpackedViewsZeroCopy(ArgsT... args) {
+    return RunWithUnpackedViewsCommon</*kForceZeroCopy=*/true, ArgsT...>(
+        args...);
   }
 
   // Returns the function that the JIT executes.
@@ -198,6 +203,20 @@ class FunctionJit {
       Function* xls_function, int64_t opt_level, bool emit_object_code,
       JitObserver* observer);
 
+  template <bool kForceZeroCopy, typename... ArgsT>
+  absl::Status RunWithUnpackedViewsCommon(ArgsT... args) {
+    const uint8_t* arg_buffers[sizeof...(ArgsT)];
+    uint8_t* result_buffer;
+
+    // Walk the type tree to get each arg's data buffer into our view/arg list.
+    PackArgBuffers(arg_buffers, &result_buffer, args...);
+
+    InterpreterEvents events;
+    InvokeUnalignedJitFunction<kForceZeroCopy>(arg_buffers, result_buffer,
+                                               &events);
+    return InterpreterEventsToStatus(events);
+  }
+
   // Builds a function which wraps the natively compiled XLS function `callee`
   // (as built by xls::BuildFunction) with another function which accepts the
   // input arguments as an array of pointers to buffers and the output as a
@@ -236,6 +255,7 @@ class FunctionJit {
   }
 
   // Invokes the jitted function with the given argument and outputs.
+  template <bool kForceZeroCopy = false>
   void InvokeUnalignedJitFunction(absl::Span<const uint8_t* const> arg_buffers,
                                   uint8_t* output_buffer,
                                   InterpreterEvents* events);

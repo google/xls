@@ -125,6 +125,7 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
   return Run(positional_args);
 }
 
+template <bool kForceZeroCopy>
 absl::Status FunctionJit::RunWithViews(absl::Span<uint8_t* const> args,
                                        absl::Span<uint8_t> result_buffer,
                                        InterpreterEvents* events) {
@@ -141,17 +142,37 @@ absl::Status FunctionJit::RunWithViews(absl::Span<uint8_t* const> args,
                      GetReturnTypeSize()));
   }
 
-  InvokeUnalignedJitFunction(args, result_buffer.data(), events);
+  InvokeUnalignedJitFunction<kForceZeroCopy>(args, result_buffer.data(),
+                                             events);
   return absl::OkStatus();
 }
 
+template
+absl::Status FunctionJit::RunWithViews</*kForceZeroCopy=*/true>(
+    absl::Span<uint8_t* const> args, absl::Span<uint8_t> result_buffer,
+    InterpreterEvents* events);
+template
+absl::Status FunctionJit::RunWithViews</*kForceZeroCopy=*/false>(
+    absl::Span<uint8_t* const> args, absl::Span<uint8_t> result_buffer,
+    InterpreterEvents* events);
+
+template <bool kForceZeroCopy>
 void FunctionJit::InvokeUnalignedJitFunction(
     absl::Span<const uint8_t* const> arg_buffers, uint8_t* output_buffer,
     InterpreterEvents* events) {
   uint8_t* output_buffers[1] = {output_buffer};
-  jitted_function_base_.RunUnalignedJittedFunction(
+  jitted_function_base_.RunUnalignedJittedFunction<kForceZeroCopy>(
       arg_buffers.data(), output_buffers, temp_buffer_.get(), events,
       /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 }
+
+template
+void FunctionJit::InvokeUnalignedJitFunction</*kForceZeroCopy=*/false>(
+    absl::Span<const uint8_t* const> arg_buffers, uint8_t* output_buffer,
+    InterpreterEvents* events);
+template
+void FunctionJit::InvokeUnalignedJitFunction</*kForceZeroCopy=*/true>(
+    absl::Span<const uint8_t* const> arg_buffers, uint8_t* output_buffer,
+    InterpreterEvents* events);
 
 }  // namespace xls
