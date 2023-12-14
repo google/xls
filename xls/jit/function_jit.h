@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -29,6 +30,7 @@
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
@@ -110,7 +112,7 @@ class FunctionJit {
   // TODO(rspringer): Add user data support here.
   template <typename... ArgsT>
   absl::Status RunWithPackedViews(ArgsT... args) {
-    XLS_RET_CHECK(jitted_function_base_.packed_function.has_value());
+    XLS_RET_CHECK(jitted_function_base_.HasPackedFunction());
     const uint8_t* arg_buffers[sizeof...(ArgsT)];
     uint8_t* result_buffer;
     // Walk the type tree to get each arg's data buffer into our view/arg list.
@@ -119,7 +121,7 @@ class FunctionJit {
     InterpreterEvents events;
     uint8_t* output_buffers[1] = {result_buffer};
     jitted_function_base_.RunPackedJittedFunction(
-        arg_buffers, output_buffers, temp_buffer_.data(), &events,
+        arg_buffers, output_buffers, temp_buffer_.get(), &events,
         /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 
     return InterpreterEventsToStatus(events);
@@ -135,7 +137,7 @@ class FunctionJit {
     PackArgBuffers(arg_buffers, &result_buffer, args...);
 
     InterpreterEvents events;
-    InvokeJitFunction(arg_buffers, result_buffer, &events);
+    InvokeUnalignedJitFunction(arg_buffers, result_buffer, &events);
     return InterpreterEventsToStatus(events);
   }
 
@@ -145,43 +147,52 @@ class FunctionJit {
   // Gets the size of the compiled function's arguments (or return value) in the
   // native LLVM data layout (not the packed layout).
   int64_t GetArgTypeSize(int arg_index) const {
-    return jitted_function_base_.input_buffer_sizes.at(arg_index);
+    return jitted_function_base_.input_buffer_sizes()[arg_index];
   }
   int64_t GetArgTypeAlignment(int arg_index) const {
-    return jitted_function_base_.input_buffer_prefered_alignments.at(arg_index);
+    return jitted_function_base_.input_buffer_abi_alignments()[arg_index];
   }
   int64_t GetReturnTypeSize() const {
-    return jitted_function_base_.output_buffer_sizes[0];
+    return jitted_function_base_.output_buffer_sizes()[0];
   }
   int64_t GetReturnTypeAlignment() const {
-    return jitted_function_base_.output_buffer_prefered_alignments[0];
+    return jitted_function_base_.output_buffer_abi_alignments()[0];
   }
 
   // Gets the size of the compiled function's arguments (or return value) in the
   // packed layout.
   int64_t GetPackedArgTypeSize(int arg_index) const {
-    return jitted_function_base_.packed_input_buffer_sizes.at(arg_index);
+    return jitted_function_base_.packed_input_buffer_sizes().at(arg_index);
   }
   int64_t GetPackedReturnTypeSize() const {
-    return jitted_function_base_.output_buffer_sizes[0];
+    return jitted_function_base_.output_buffer_sizes()[0];
   }
 
   // Returns the size of the temporary buffer which must be passed to the jitted
   // function. The buffer is used to hold temporary node values inside the
   // jitted function.
   int64_t GetTempBufferSize() const {
-    return jitted_function_base_.temp_buffer_size;
+    return jitted_function_base_.temp_buffer_size();
   }
 
   // Returns the name of the jitted function.
   std::string_view GetJittedFunctionName() const {
-    return jitted_function_base_.function_name;
+    return jitted_function_base_.function_name();
   }
 
   JitRuntime* runtime() const { return jit_runtime_.get(); }
 
  private:
-  explicit FunctionJit(Function* xls_function) : xls_function_(xls_function) {}
+  FunctionJit(Function* xls_function, std::unique_ptr<OrcJit>&& orc_jit,
+              JittedFunctionBase&& jitted_function_base,
+              std::unique_ptr<JitRuntime>&& runtime)
+      : xls_function_(xls_function),
+        orc_jit_(std::move(orc_jit)),
+        jitted_function_base_(std::move(jitted_function_base)),
+        arg_buffers_(jitted_function_base_.CreateInputBuffer()),
+        result_buffers_(jitted_function_base_.CreateOutputBuffer()),
+        temp_buffer_(jitted_function_base_.CreateTempBuffer()),
+        jit_runtime_(std::move(runtime)) {}
 
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateInternal(
       Function* xls_function, int64_t opt_level, bool emit_object_code,
@@ -225,30 +236,24 @@ class FunctionJit {
   }
 
   // Invokes the jitted function with the given argument and outputs.
-  void InvokeJitFunction(absl::Span<const uint8_t* const> arg_buffers,
-                         uint8_t* output_buffer, InterpreterEvents* events);
-
-  std::unique_ptr<OrcJit> orc_jit_;
+  void InvokeUnalignedJitFunction(absl::Span<const uint8_t* const> arg_buffers,
+                                  uint8_t* output_buffer,
+                                  InterpreterEvents* events);
 
   Function* xls_function_;
 
-  // Buffers to hold the arguments, result, temporary storage. This is allocated
-  // once and then re-used with each invocation of Run. Not thread-safe.
-  // These buffer pointers cannot be used directly as they might not be
-  // correctly aligned. the '_ptr[s]_' version must be used instead.
-  std::vector<std::vector<uint8_t>> arg_buffers_;
-  std::vector<uint8_t> result_buffer_;
-  std::vector<uint8_t> temp_buffer_;
-
-  // Raw pointers to the buffers held in `arg_buffers_` with each pointer having
-  // correct alignment.
-  std::vector<uint8_t*> arg_buffer_ptrs_;
-  // Raw pointer to the buffer 'result_buffer_' with correct alignment.
-  uint8_t* result_buffer_ptr_ = nullptr;
-  // Raw pointer to the buffer 'temp_buffer_' with correct alignment.
-  uint8_t* temp_buffer_ptr_ = nullptr;
+  std::unique_ptr<OrcJit> orc_jit_;
 
   JittedFunctionBase jitted_function_base_;
+
+  // Pre-allocated & aligned storage for a set of arguments. Not thread safe.
+  JitArgumentSet arg_buffers_;
+  // Pre-allocated & aligned storage for a result. Not thread safe.
+  JitArgumentSet result_buffers_;
+  // Pre-allocated & aligned storage for required temporary storage. NB Not
+  // thread safe.
+  JitTempBuffer temp_buffer_;
+
   std::unique_ptr<JitRuntime> jit_runtime_;
 };
 

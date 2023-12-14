@@ -17,14 +17,20 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/proc.h"
+#include "xls/jit/ir_builder_visitor.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
@@ -62,27 +68,62 @@ using JitFunctionType = int64_t (*)(const uint8_t* const* inputs,
 
 // Abstraction holding function pointers and metadata about a jitted function
 // implementing a XLS Function, Proc, etc.
-struct JittedFunctionBase {
-  // The XLS FunctionBase this jitted function implements.
-  FunctionBase* function_base;
+class JittedFunctionBase {
+ public:
+  // Builds and returns an LLVM IR function implementing the given XLS
+  // function.
+  static absl::StatusOr<JittedFunctionBase> Build(Function* xls_function,
+                                                  OrcJit& orc_jit);
 
-  // Name and function pointer for the jitted function which accepts/produces
-  // arguments/results in LLVM native format.
-  std::string function_name;
-  JitFunctionType function;
+  // Builds and returns an LLVM IR function implementing the given XLS
+  // proc.
+  static absl::StatusOr<JittedFunctionBase> Build(
+      Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit);
+
+  // Builds and returns an LLVM IR function implementing the given XLS
+  // block.
+  static absl::StatusOr<JittedFunctionBase> Build(Block* block, OrcJit& jit);
+
+  // Create a buffer with space for all inputs, correctly aligned.
+  JitArgumentSet CreateInputBuffer() const;
+
+  // Create a buffer with space for all outputs, correctly aligned.
+  JitArgumentSet CreateOutputBuffer() const;
+
+  // Return if the required alignments and sizes of both the inputs and outputs
+  // are identical.
+  bool InputsAndOutputsAreEquivalent() const {
+    return absl::c_equal(input_buffer_sizes_, output_buffer_sizes_) &&
+           absl::c_equal(input_buffer_prefered_alignments_,
+                         output_buffer_prefered_alignments_);
+  }
+
+  // Create a buffer capable of being used for both the input and output of a
+  // jitted function.
+  //
+  // Returns an error if `InputsAndOutputsAreEquivalent()` is not true.
+  absl::StatusOr<JitArgumentSet> CreateInputOutputBuffer() const;
+
+  // Create a buffer usable as the temporary storage, correctly aligned.
+  JitTempBuffer CreateTempBuffer() const;
 
   // Execute the actual function (after verifying some invariants)
-  int64_t RunJittedFunction(const uint8_t* const* inputs,
-                            uint8_t* const* outputs, void* temp_buffer,
+  int64_t RunJittedFunction(const JitArgumentSet& inputs,
+                            JitArgumentSet& outputs, JitTempBuffer& temp_buffer,
                             InterpreterEvents* events, void* user_data,
                             JitRuntime* jit_runtime,
                             int64_t continuation_point) const;
 
-  // Name and function pointer for the jitted function which accepts/produces
-  // arguments/results in a packed format. Only exists for JITted
-  // xls::Functions, not procs.
-  std::optional<std::string> packed_function_name;
-  std::optional<JitFunctionType> packed_function;
+  // Execute the jitted function using inputs not created by this function
+  // (after verifying some invariants).
+  //
+  // TODO(allight): 2023-12-05: We should have a shim that ensures everythings
+  // aligned ideally.
+  int64_t RunUnalignedJittedFunction(const uint8_t* const* inputs,
+                                     uint8_t* const* outputs, void* temp_buffer,
+                                     InterpreterEvents* events, void* user_data,
+                                     JitRuntime* jit_runtime,
+                                     int64_t continuation) const;
 
   // Execute the actual function (after verifying some invariants)
   std::optional<int64_t> RunPackedJittedFunction(
@@ -90,44 +131,95 @@ struct JittedFunctionBase {
       InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
       int64_t continuation_point) const;
 
+  // Checks if we have a packed version of the function.
+  bool HasPackedFunction() const { return packed_function_.has_value(); }
+
+  std::string_view function_name() const { return function_name_; }
+
+  absl::Span<int64_t const> input_buffer_sizes() const {
+    return input_buffer_sizes_;
+  }
+
+  absl::Span<int64_t const> output_buffer_sizes() const {
+    return output_buffer_sizes_;
+  }
+
+  absl::Span<int64_t const> packed_input_buffer_sizes() const {
+    return packed_input_buffer_sizes_;
+  }
+
+  absl::Span<int64_t const> packed_output_buffer_sizes() const {
+    return packed_output_buffer_sizes_;
+  }
+
+  absl::Span<int64_t const> input_buffer_preferred_alignments() const {
+    return input_buffer_prefered_alignments_;
+  }
+
+  absl::Span<int64_t const> output_buffer_preferred_alignments() const {
+    return output_buffer_prefered_alignments_;
+  }
+
+  absl::Span<int64_t const> input_buffer_abi_alignments() const {
+    return input_buffer_abi_alignments_;
+  }
+
+  absl::Span<int64_t const> output_buffer_abi_alignments() const {
+    return output_buffer_abi_alignments_;
+  }
+
+  int64_t temp_buffer_size() const { return temp_buffer_size_; }
+
+  int64_t temp_buffer_alignment() const { return temp_buffer_alignment_; }
+
+  const absl::flat_hash_map<int64_t, Node*>& continuation_points() const {
+    return continuation_points_;
+  }
+
+ private:
+  static absl::StatusOr<JittedFunctionBase> BuildInternal(
+      FunctionBase* function, JitBuilderContext& jit_context,
+      bool build_packed_wrapper);
+
+  // The XLS FunctionBase this jitted function implements.
+  FunctionBase* function_base_;
+
+  // Name and function pointer for the jitted function which accepts/produces
+  // arguments/results in LLVM native format.
+  std::string function_name_;
+  JitFunctionType function_;
+
+  // Name and function pointer for the jitted function which accepts/produces
+  // arguments/results in a packed format. Only exists for JITted
+  // xls::Functions, not procs.
+  std::optional<std::string> packed_function_name_;
+  std::optional<JitFunctionType> packed_function_;
+
   // Sizes of the inputs/outputs in native LLVM format for `function_base`.
-  std::vector<int64_t> input_buffer_sizes;
-  std::vector<int64_t> output_buffer_sizes;
+  std::vector<int64_t> input_buffer_sizes_;
+  std::vector<int64_t> output_buffer_sizes_;
 
   // alignment preferences of each input/output buffer.
-  std::vector<int64_t> input_buffer_prefered_alignments;
-  std::vector<int64_t> output_buffer_prefered_alignments;
+  std::vector<int64_t> input_buffer_prefered_alignments_;
+  std::vector<int64_t> output_buffer_prefered_alignments_;
 
   // alignment ABI requirements of each input/output buffer.
-  std::vector<int64_t> input_buffer_abi_alignments;
-  std::vector<int64_t> output_buffer_abi_alignments;
+  std::vector<int64_t> input_buffer_abi_alignments_;
+  std::vector<int64_t> output_buffer_abi_alignments_;
 
   // Sizes of the inputs/outputs in packed format for `function_base`.
-  std::vector<int64_t> packed_input_buffer_sizes;
-  std::vector<int64_t> packed_output_buffer_sizes;
+  std::vector<int64_t> packed_input_buffer_sizes_;
+  std::vector<int64_t> packed_output_buffer_sizes_;
 
   // Size of the temporary buffer required by `function`.
-  int64_t temp_buffer_size;
+  int64_t temp_buffer_size_ = -1;
+  // Alignment of the temporary buffer required by `function`
+  int64_t temp_buffer_alignment_ = -1;
 
   // Map from the continuation point return value to the corresponding node at
   // which execution was interrupted.
-  absl::flat_hash_map<int64_t, Node*> continuation_points;
+  absl::flat_hash_map<int64_t, Node*> continuation_points_;
 };
-
-// Builds and returns an LLVM IR function implementing the given XLS
-// function.
-absl::StatusOr<JittedFunctionBase> BuildFunction(Function* xls_function,
-                                                 OrcJit& orc_jit);
-
-// Builds and returns an LLVM IR function implementing the given XLS
-// proc.
-absl::StatusOr<JittedFunctionBase> BuildProcFunction(
-    Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit);
-
-// Builds and returns an LLVM IR function implementing the given XLS
-// block.
-absl::StatusOr<JittedFunctionBase> BuildBlockFunction(Block* block,
-                                                      OrcJit& jit);
 
 }  // namespace xls
 

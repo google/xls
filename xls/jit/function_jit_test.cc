@@ -14,6 +14,8 @@
 
 #include "xls/jit/function_jit.h"
 
+#include <array>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <ios>
@@ -29,11 +31,16 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/ir_evaluator_test_base.h"
 #include "xls/interpreter/random_value.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
 
 namespace xls {
@@ -796,6 +803,49 @@ TEST(FunctionJitTest, CompoundTokenCompareError) {
                        testing::HasSubstr("Tokens are incomparable")));
 }
 
+TEST(FunctionJitTest, BigFunctionInputsOutputs) {
+  Package package("my_package");
+
+  FunctionBuilder fb("test", &package);
+  fb.Add(fb.Param("x", package.GetBitsType(256)),
+         fb.Param("y", package.GetBitsType(256)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+  Bits ret_bits =
+      bits_ops::Concat({UBits(0, 256 - 65), UBits(1, 1), UBits(0, 64)});
+
+  // Test using values
+  {
+    Value x(bits_ops::ZeroExtend(UBits(-1, 64), 256));
+    Value y(bits_ops::ZeroExtend(UBits(1, 64), 256));
+    Value ret = Value(ret_bits);
+
+    EXPECT_THAT(RunJitNoEvents(jit.get(), {x, y}), IsOkAndHolds(ret));
+  }
+
+  // Test using views.
+  {
+    // TODO(allight): 2023-12-08: The fact that we need alignas is unfortunate.
+    alignas(16) std::array<uint8_t, 256 / 8> x_view{
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+    alignas(16) std::array<uint8_t, 256 / 8> y_view{
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+    alignas(16) std::array<uint8_t, 256 / 8> ret_view{};
+
+    InterpreterEvents events;
+    EXPECT_THAT(jit->RunWithViews({x_view.data(), y_view.data()},
+                                  absl::MakeSpan(ret_view), &events),
+                status_testing::IsOk());
+    EXPECT_EQ(Bits::FromBytes(ret_view, 256), ret_bits);
+  }
+}
+
 TEST(FunctionJitTest, TupleViewSmokeTest2) {
   Package package("my_package");
 
@@ -881,6 +931,41 @@ fn f(x: bits[1], y: bits[8]) -> (bits[1], bits[8], bits[16]) {
     EXPECT_EQ(result_view.Get<2>().GetValue(), 0xabcd);
     EXPECT_THAT(result, testing::ElementsAreArray({0x1, 0x34, 0xcd, 0xab}));
   }
+}
+
+// TODO(allight): 2023-12-08: This should be supported.
+TEST(FunctionJitDeathTest, MisalignedPointerCaught) {
+#ifndef NDEBUG
+  Package package("my_package");
+
+  FunctionBuilder fb("test", &package);
+  fb.Add(fb.Param("x", package.GetBitsType(256)),
+         fb.Param("y", package.GetBitsType(256)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+
+  alignas(16) std::array<uint8_t, 1 + (256 / 8)> x_view{
+      0xAB, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  alignas(16) std::array<uint8_t, 1 + (256 / 8)> y_view{
+      0xAB, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  alignas(16) std::array<uint8_t, 1 + (256 / 8)> ret_view{};
+  ASSERT_DEATH(
+      {
+        InterpreterEvents events;
+        auto unused =
+            jit->RunWithViews({x_view.data() + 1, y_view.data() + 1},
+                              absl::MakeSpan(ret_view).subspan(1), &events);
+      },
+      ".*is not aligned to [0-9]+.*");
+#else
+  GTEST_SKIP() << "Checking only performed in dbg mode.";
+#endif
 }
 
 }  // namespace

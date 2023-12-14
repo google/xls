@@ -24,7 +24,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -51,7 +50,8 @@ namespace xls {
 absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
     Block* block, JitRuntime* runtime) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
-  XLS_ASSIGN_OR_RETURN(auto function, BuildBlockFunction(block, *orc_jit));
+  XLS_ASSIGN_OR_RETURN(auto function,
+                       JittedFunctionBase::Build(block, *orc_jit));
   if (!block->GetInstantiations().empty()) {
     return absl::UnimplementedError(
         "Jitting of blocks with instantiations is not yet supported.");
@@ -61,127 +61,103 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
 }
 
 std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
-  return std::unique_ptr<BlockJitContinuation>(new BlockJitContinuation(
-      block_, this, runtime_, function_.temp_buffer_size,
-      /*register_sizes=*/
-      absl::MakeSpan(function_.input_buffer_sizes)
-          .subspan(block_->GetInputPorts().size()),
-      /*register_alignments=*/
-      absl::MakeSpan(function_.input_buffer_prefered_alignments)
-          .subspan(block_->GetInputPorts().size()),
-      /*output_port_sizes=*/
-      absl::MakeSpan(function_.output_buffer_sizes)
-          .subspan(0, block_->GetOutputPorts().size()),
-      /*output_port_alignments=*/
-      absl::MakeSpan(function_.output_buffer_prefered_alignments)
-          .subspan(0, block_->GetOutputPorts().size()),
-      /*input_port_sizes=*/
-      absl::MakeSpan(function_.input_buffer_sizes)
-          .subspan(0, block_->GetInputPorts().size()),
-      /*input_port_alignments=*/
-      absl::MakeSpan(function_.input_buffer_prefered_alignments)
-          .subspan(0, block_->GetInputPorts().size())));
+  return std::unique_ptr<BlockJitContinuation>(
+      new BlockJitContinuation(block_, this, runtime_, function_));
 }
 
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
   function_.RunJittedFunction(
-      continuation.function_inputs().data(),
-      continuation.function_outputs().data(),
-      runtime_->AsStack(continuation.temp_buffer()).data(),
+      continuation.input_buffers_.current(),
+      continuation.output_buffers_.current(), continuation.temp_buffer_,
       &continuation.GetEvents(), /*user_data=*/nullptr, runtime_,
       /*continuation_point=*/0);
   continuation.SwapRegisters();
   return absl::OkStatus();
 }
 
-namespace {
-// Determine how much memory is needed to hold all the arguments of the given
-// sizes. This is larger than just the sum to allow for space for all of them to
-// be properly aligned.
-int64_t FindFullBufferSize(JitRuntime* runtime, absl::Span<int64_t const> sizes,
-                           absl::Span<int64_t const> alignments) {
-  XLS_CHECK_EQ(sizes.size(), alignments.size());
-  int64_t total = 0;
-  for (int64_t i = 0; i < sizes.size(); ++i) {
-    total += runtime->ShouldAllocateForAlignment(sizes[i], alignments[i]);
+absl::StatusOr<JitArgumentSet> BlockJitContinuation::CombineBuffers(
+    const JittedFunctionBase& jit_func, const JitArgumentSet& left,
+    int64_t left_count, const JitArgumentSet& rest, int64_t rest_start,
+    bool is_inputs) {
+  XLS_RET_CHECK_EQ(left.source(), &jit_func);
+  XLS_RET_CHECK_EQ(rest.source(), &jit_func);
+  const auto& final_sizes = is_inputs ? jit_func.input_buffer_sizes()
+                                      : jit_func.output_buffer_sizes();
+  const auto& final_aligns =
+      is_inputs ? jit_func.input_buffer_preferred_alignments()
+                : jit_func.output_buffer_preferred_alignments();
+  const absl::Span<int64_t const> left_sizes =
+      left.is_inputs() ? left.source()->input_buffer_sizes()
+                       : left.source()->output_buffer_sizes();
+  const absl::Span<int64_t const> left_aligns =
+      left.is_inputs() ? left.source()->input_buffer_preferred_alignments()
+                       : left.source()->output_buffer_preferred_alignments();
+  const absl::Span<int64_t const> rest_sizes =
+      rest.is_inputs() ? rest.source()->input_buffer_sizes()
+                       : rest.source()->output_buffer_sizes();
+  const absl::Span<int64_t const> rest_aligns =
+      rest.is_inputs() ? rest.source()->input_buffer_preferred_alignments()
+                       : rest.source()->output_buffer_preferred_alignments();
+  std::vector<uint8_t*> final_ptrs;
+  XLS_RET_CHECK_LE(left_count, final_sizes.size());
+  XLS_RET_CHECK_LE(left_count, left.pointers().size());
+  final_ptrs.reserve(final_sizes.size());
+  for (int64_t i = 0; i < left_count; ++i) {
+    XLS_RET_CHECK_EQ(final_sizes[i], left_sizes[i]) << i;
+    XLS_RET_CHECK_EQ(final_aligns[i], left_aligns[i]) << i;
+    final_ptrs.push_back(left.pointers()[i]);
   }
-  return total;
+  for (int64_t i = left_count; i < final_sizes.size(); ++i) {
+    XLS_RET_CHECK_EQ(final_sizes[i], rest_sizes[rest_start])
+        << i << " rest: " << rest_start;
+    XLS_RET_CHECK_EQ(final_aligns[i], rest_aligns[rest_start])
+        << i << " rest: " << rest_start;
+    final_ptrs.push_back(rest.pointers()[rest_start++]);
+  }
+  return JitArgumentSet(&jit_func, /*data=*/nullptr, std::move(final_ptrs),
+                        /*is_inputs=*/is_inputs, /*is_outputs=*/!is_inputs);
 }
 
-std::vector<uint8_t*> CombineLists(absl::Span<uint8_t* const> a,
-                                   absl::Span<uint8_t* const> b) {
-  std::vector<uint8_t*> res;
-  res.reserve(a.size() + b.size());
-  for (auto i : a) {
-    res.push_back(i);
-  }
-  for (auto i : b) {
-    res.push_back(i);
-  }
-  return res;
+BlockJitContinuation::IOSpace BlockJitContinuation::MakeCombinedBuffers(
+    const JittedFunctionBase& jit_func, const Block* block,
+    const JitArgumentSet& ports, const BlockJitContinuation::BufferPair& regs,
+    bool input) {
+  int64_t num_ports =
+      input ? block->GetInputPorts().size() : block->GetOutputPorts().size();
+  // Registers use the input port offsets.
+  int64_t num_input_ports = block->GetInputPorts().size();
+  return IOSpace(CombineBuffers(jit_func, ports, num_ports, regs[0],
+                                num_input_ports, input)
+                     .value(),
+                 CombineBuffers(jit_func, ports, num_ports, regs[1],
+                                num_input_ports, input)
+                     .value());
 }
 
-// Find the start-pointer of each argument in the argument arena. The size of
-// each argument is given by the sizes span.
-std::vector<uint8_t*> CalculatePointers(JitRuntime* runtime,
-                                        absl::Span<uint8_t> base_buffer,
-                                        absl::Span<const int64_t> sizes,
-                                        absl::Span<const int64_t> alignments) {
-  XLS_CHECK_EQ(sizes.size(), alignments.size());
-  std::vector<uint8_t*> out;
-  out.reserve(sizes.size());
-  for (int64_t i = 0; i < sizes.size(); ++i) {
-    auto aligned_span = runtime->AsAligned(base_buffer, alignments[i]);
-    XLS_CHECK_GE(aligned_span.size(), sizes[i])
-        << "Buffer for " << i << " element not large enough!";
-    out.push_back(aligned_span.data());
-    base_buffer = aligned_span.subspan(sizes[i]);
-  }
-  return out;
-}
-}  // namespace
-
-BlockJitContinuation::BlockJitContinuation(
-    Block* block, BlockJit* jit, JitRuntime* runtime, size_t temp_size,
-    absl::Span<const int64_t> register_sizes,
-    absl::Span<const int64_t> register_alignments,
-    absl::Span<const int64_t> output_port_sizes,
-    absl::Span<const int64_t> output_port_alignments,
-    absl::Span<const int64_t> input_port_sizes,
-    absl::Span<const int64_t> input_port_alignments)
+BlockJitContinuation::BlockJitContinuation(Block* block, BlockJit* jit,
+                                           JitRuntime* runtime,
+                                           const JittedFunctionBase& jit_func)
     : block_(block),
       block_jit_(jit),
       runtime_(runtime),
-      register_arena_left_(
-          FindFullBufferSize(runtime, register_sizes, register_alignments), 0),
-      register_arena_right_(register_arena_left_.size(), 0xff),
-      output_port_arena_(FindFullBufferSize(runtime, output_port_sizes,
-                                            output_port_alignments),
-                         0xff),
-      input_port_arena_(
-          FindFullBufferSize(runtime, input_port_sizes, input_port_alignments),
-          0xff),
-      register_pointers_(BlockJitContinuation::IOSpace(
-          CalculatePointers(runtime, absl::MakeSpan(register_arena_left_),
-                            register_sizes, register_alignments),
-          CalculatePointers(runtime, absl::MakeSpan(register_arena_right_),
-                            register_sizes, register_alignments),
-          BlockJitContinuation::IOSpace::RegisterSpace::kLeft)),
-      output_port_pointers_(
-          CalculatePointers(runtime, absl::MakeSpan(output_port_arena_),
-                            output_port_sizes, output_port_alignments)),
-      input_port_pointers_(
-          CalculatePointers(runtime, absl::MakeSpan(input_port_arena_),
-                            input_port_sizes, input_port_alignments)),
-      full_input_pointer_set_(BlockJitContinuation::IOSpace(
-          CombineLists(input_port_pointers_, register_pointers_.left()),
-          CombineLists(input_port_pointers_, register_pointers_.right()),
-          BlockJitContinuation::IOSpace::RegisterSpace::kLeft)),
-      full_output_pointer_set_(BlockJitContinuation::IOSpace(
-          CombineLists(output_port_pointers_, register_pointers_.left()),
-          CombineLists(output_port_pointers_, register_pointers_.right()),
-          BlockJitContinuation::IOSpace::RegisterSpace::kRight)),
-      temp_data_arena_(temp_size) {}
+      register_buffers_memory_{jit_func.CreateInputBuffer(),
+                               jit_func.CreateInputBuffer()},
+      input_port_buffers_memory_(jit_func.CreateInputBuffer()),
+      output_port_buffers_memory_(jit_func.CreateOutputBuffer()),
+      input_buffers_(MakeCombinedBuffers(jit_func, block_,
+                                         input_port_buffers_memory_,
+                                         register_buffers_memory_,
+                                         /*input=*/true)),
+      output_buffers_(MakeCombinedBuffers(jit_func, block_,
+                                          output_port_buffers_memory_,
+                                          register_buffers_memory_,
+                                          /*input=*/false)),
+      temp_buffer_(jit_func.CreateTempBuffer()) {
+  // since input and output share the same register pointers they need to use
+  // different sides at all times.
+  input_buffers_.SetActive(IOSpace::RegisterSpace::kLeft);
+  output_buffers_.SetActive(IOSpace::RegisterSpace::kRight);
+}
 
 absl::Status BlockJitContinuation::SetInputPorts(
     absl::Span<const Value> values) {
@@ -197,7 +173,7 @@ absl::Status BlockJitContinuation::SetInputPorts(
         << ip->GetType()->ToString();
     ++it;
   }
-  return runtime_->PackArgs(values, types, input_port_pointers_);
+  return runtime_->PackArgs(values, types, input_port_pointers());
 }
 
 absl::Status BlockJitContinuation::SetInputPorts(

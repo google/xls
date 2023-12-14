@@ -269,6 +269,7 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":function_base_jit",
+        ":jit_buffer",
         ":jit_runtime",
         ":observer",
         ":orc_jit",
@@ -282,7 +283,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:events",
-        "//xls/ir:format_preference",
         "//xls/ir:keyword_args",
         "//xls/ir:type",
         "//xls/ir:value",
@@ -305,13 +305,18 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/interpreter:ir_evaluator_test_base",
         "//xls/interpreter:random_value",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:events",
         "//xls/ir:function_builder",
+        "//xls/ir:value",
         "//xls/ir:value_view",
     ],
 )
@@ -439,9 +444,10 @@ cc_library(
     hdrs = ["block_jit.h"],
     deps = [
         ":function_base_jit",
+        ":jit_buffer",
         ":jit_runtime",
         ":orc_jit",
-        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -488,6 +494,7 @@ cc_library(
     hdrs = ["proc_jit.h"],
     deps = [
         ":function_base_jit",
+        ":jit_buffer",
         ":jit_channel_queue",
         ":jit_runtime",
         ":observer",
@@ -510,18 +517,34 @@ cc_library(
 )
 
 cc_library(
+    name = "jit_buffer",
+    srcs = ["jit_buffer.cc"],
+    hdrs = ["jit_buffer.h"],
+    deps = [
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:math_util",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+    ],
+)
+
+cc_library(
     name = "function_base_jit",
     srcs = ["function_base_jit.cc"],
     hdrs = ["function_base_jit.h"],
     deps = [
         ":ir_builder_visitor",
+        ":jit_buffer",
         ":jit_channel_queue",
         ":jit_runtime",
         ":llvm_type_converter",
         ":orc_jit",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",

@@ -17,6 +17,7 @@
 
 #include <sys/types.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -27,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -37,8 +39,10 @@
 #include "xls/ir/events.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
+
 namespace xls {
 
 class BlockJitContinuation;
@@ -58,13 +62,13 @@ class BlockJit {
 
   // Get how large each pointer buffer for the input ports are.
   absl::Span<const int64_t> input_port_sizes() const {
-    return absl::MakeConstSpan(function_.input_buffer_sizes)
+    return absl::MakeConstSpan(function_.input_buffer_sizes())
         .subspan(0, block_->GetInputPorts().size());
   }
 
   // Get how large each pointer buffer for the registers are.
   absl::Span<int64_t const> register_sizes() const {
-    return absl::MakeConstSpan(function_.input_buffer_sizes)
+    return absl::MakeConstSpan(function_.input_buffer_sizes())
         .subspan(block_->GetInputPorts().size());
   }
 
@@ -87,9 +91,11 @@ class BlockJitContinuation {
   class IOSpace {
    public:
     enum class RegisterSpace : uint8_t { kLeft, kRight };
-    IOSpace(std::vector<uint8_t*>&& left, std::vector<uint8_t*>&& right,
+    IOSpace(JitArgumentSet left, JitArgumentSet right,
             RegisterSpace initial_space = RegisterSpace::kLeft)
-        : left_(left), right_(right), current_side_(initial_space) {}
+        : left_(std::move(left)),
+          right_(std::move(right)),
+          current_side_(initial_space) {}
 
     // Switch the currently active space to the alternate.
     void Swap() {
@@ -98,7 +104,10 @@ class BlockJitContinuation {
                           : RegisterSpace::kLeft;
     }
 
-    absl::Span<uint8_t* const> current() const {
+    // Force a particular set of inputs to be the active inputs.
+    void SetActive(RegisterSpace space) { current_side_ = space; }
+
+    const JitArgumentSet& current() const {
       switch (current_side_) {
         case RegisterSpace::kLeft:
           return left_;
@@ -107,13 +116,22 @@ class BlockJitContinuation {
       }
     }
 
-    absl::Span<uint8_t* const> left() const { return left_; }
+    JitArgumentSet& current() {
+      switch (current_side_) {
+        case RegisterSpace::kLeft:
+          return left_;
+        case RegisterSpace::kRight:
+          return right_;
+      }
+    }
 
-    absl::Span<uint8_t* const> right() const { return right_; }
+    const JitArgumentSet& left() const { return left_; }
+
+    const JitArgumentSet& right() const { return right_; }
 
    private:
-    std::vector<uint8_t*> left_;
-    std::vector<uint8_t*> right_;
+    JitArgumentSet left_;
+    JitArgumentSet right_;
     RegisterSpace current_side_;
   };
 
@@ -150,83 +168,87 @@ class BlockJitContinuation {
   // Write to the pointed to memory to manually set an input port value for the
   // next cycle.
   absl::Span<uint8_t* const> input_port_pointers() const {
-    return input_port_pointers_;
+    // Registers follow the input-ports in the input vector.
+    return function_inputs().subspan(0, /*len=*/block_->GetInputPorts().size());
   }
   // Gets pointers to the JIT ABI struct pointers for each register.
   // Write to the pointed-to memory to manually set a register.
   absl::Span<uint8_t* const> register_pointers() const {
-    return register_pointers_.current();
+    // Previous register values got swapped over to the inputs.
+    // Registers follow the input-ports in the input vector.
+    return function_inputs().subspan(block_->GetInputPorts().size());
   }
   // Gets the pointers to the JIT ABI output pointers for each output port.
-  absl::Span<uint8_t* const> output_port_pointers() const {
-    return output_port_pointers_;
+  absl::Span<uint8_t const* const> output_port_pointers() const {
+    // output ports are before the registers.
+    return function_outputs().subspan(0,
+                                      /*len=*/block_->GetOutputPorts().size());
   }
 
   const InterpreterEvents& GetEvents() const { return events_; }
   InterpreterEvents& GetEvents() { return events_; }
   void ClearEvents() { events_.Clear(); }
 
-  absl::Span<const uint8_t> temp_buffer() const {
-    return absl::MakeConstSpan(temp_data_arena_);
-  }
-
-  absl::Span<uint8_t> temp_buffer() { return absl::MakeSpan(temp_data_arena_); }
+  const JitTempBuffer& temp_buffer() const { return temp_buffer_; }
 
  private:
+  using BufferPair = std::array<JitArgumentSet, 2>;
   BlockJitContinuation(Block* block, BlockJit* jit, JitRuntime* runtime,
-                       size_t temp_size,
-                       absl::Span<const int64_t> register_sizes,
-                       absl::Span<const int64_t> register_alignments,
-                       absl::Span<const int64_t> output_port_sizes,
-                       absl::Span<const int64_t> output_port_alignments,
-                       absl::Span<const int64_t> input_port_sizes,
-                       absl::Span<const int64_t> input_port_alignments);
+                       const JittedFunctionBase& jit_func);
+  static IOSpace MakeCombinedBuffers(const JittedFunctionBase& jit_func,
+                                     const Block* block,
+                                     const JitArgumentSet& ports,
+                                     const BufferPair& regs, bool input);
+
+  // Create a new aligned buffer with the first 'left_count' elements of left
+  // and the rest from right.
+  //
+  // Both left and right must live longer than the returned buffer.
+  // This should only be used to enable some elements to be shared between 2
+  // input & output buffers for block-jit.
+  static absl::StatusOr<JitArgumentSet> CombineBuffers(
+      const JittedFunctionBase& jit_func,
+      const JitArgumentSet& left ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      int64_t left_count,
+      const JitArgumentSet& rest ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      int64_t rest_start, bool is_inputs);
 
   void SwapRegisters() {
-    register_pointers_.Swap();
-    full_output_pointer_set_.Swap();
-    full_input_pointer_set_.Swap();
+    input_buffers_.Swap();
+    output_buffers_.Swap();
   }
   absl::Span<uint8_t* const> function_inputs() const {
-    return full_input_pointer_set_.current();
+    return input_buffers_.current().pointers();
   }
   absl::Span<uint8_t* const> function_outputs() const {
-    return full_output_pointer_set_.current();
+    return output_buffers_.current().pointers();
   }
 
   const Block* block_;
   BlockJit* block_jit_;
   JitRuntime* runtime_;
 
-  // Data to store registers in. Reused for each invoke. These are not directly
-  // used but merely hold memory live for the pointers.
-  std::vector<uint8_t> register_arena_left_;
-  std::vector<uint8_t> register_arena_right_;
-  // Data to store port output in. This is not directly used but merely holds
-  // memory live for the pointers.
-  std::vector<uint8_t> output_port_arena_;
-  // Data to store port input in. This is not directly used but merely holds
-  // memory live for the pointers.
-  std::vector<uint8_t> input_port_arena_;
+  // Buffers for the registers. Note this includes (unused) space for the input
+  // ports.
+  BufferPair register_buffers_memory_;
+  // Buffers for the input ports. Note this includes (unused) space for the
+  // registers.
+  JitArgumentSet input_port_buffers_memory_;
+  // Buffers for the output ports. Note this includes (unused) space for the
+  // registers.
+  JitArgumentSet output_port_buffers_memory_;
 
-  // The register pointer file, aligned as required.
-  IOSpace register_pointers_;
+  // Input pointers. Memory is owned by register_buffers_memory_ and
+  // input_port_buffers_memory_. Not thread safe. NB The inputs are organized as
+  // <input_ports><Registers>.
+  IOSpace input_buffers_;
+  // Output pointers. Memory is owned by register_buffers_memory_ and
+  // input_port_buffers_memory_. Not thread safe. NB The outputs are organized
+  // as <output_ports><Registers>.
+  IOSpace output_buffers_;
 
-  // The output port pointers, aligned as required.
-  const std::vector<uint8_t*> output_port_pointers_;
-
-  // The input port pointers, aligned as required.
-  const std::vector<uint8_t*> input_port_pointers_;
-  // The input value pointers the register pointers, aligned as required.
-  IOSpace full_input_pointer_set_;
-  // The output value pointers followed by the register pointers, aligned as
-  // required.
-  IOSpace full_output_pointer_set_;
-
-  // Data block to store temporary data in.
-  std::vector<uint8_t> temp_data_arena_;
-  // Data block to store temporary data in, aligned as required.
-  uint8_t* temp_data_ptr_;
+  // Temporary scratch storage. Not thread safe.
+  JitTempBuffer temp_buffer_;
 
   InterpreterEvents events_;
 

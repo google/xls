@@ -59,6 +59,7 @@
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
@@ -334,17 +335,21 @@ class BufferAllocator {
 
   // Returns the total size of the allocated memory.
   int64_t size() const { return current_offset_; }
+  int64_t alignment() const { return alignment_; }
 
  private:
   void AllocateTempBuffer(Node* node) {
     XLS_CHECK(!node->Is<RegisterWrite>());
     XLS_CHECK(!node->Is<OutputPort>());
     XLS_CHECK(!temp_block_offsets_.contains(node));
-    int64_t offset = current_offset_;
+    int64_t offset =
+        type_converter_->AlignFor(node->GetType(), current_offset_);
     int64_t node_size = type_converter_->GetTypeByteSize(node->GetType());
     temp_block_offsets_[node] = offset;
-    current_offset_ =
-        type_converter_->AlignFor(node->GetType(), current_offset_ + node_size);
+    alignment_ =
+        std::max(alignment_,
+                 type_converter_->GetTypePreferredAlignment(node->GetType()));
+    current_offset_ = offset + node_size;
     XLS_VLOG(3) << absl::StreamFormat(
         "Allocated %s at offset %d (size = %d): total size %d", node->GetName(),
         offset, node_size, current_offset_);
@@ -353,6 +358,7 @@ class BufferAllocator {
   const LlvmTypeConverter* type_converter_;
   absl::flat_hash_map<Node*, int64_t> temp_block_offsets_;
   int64_t current_offset_ = 0;
+  int64_t alignment_ = 1;
   absl::flat_hash_map<Node*, AllocationKind> allocation_kinds_;
 };
 
@@ -1217,9 +1223,33 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
   return wrapper.function();
 }
 
+}  // namespace
+
+JitArgumentSet JittedFunctionBase::CreateInputBuffer() const {
+  return JitArgumentSet::CreateInput(this, input_buffer_preferred_alignments(),
+                                     input_buffer_sizes());
+}
+JitArgumentSet JittedFunctionBase::CreateOutputBuffer() const {
+  return JitArgumentSet::CreateOutput(
+      this, output_buffer_preferred_alignments(), output_buffer_sizes());
+}
+
+absl::StatusOr<JitArgumentSet> JittedFunctionBase::CreateInputOutputBuffer()
+    const {
+  return JitArgumentSet::CreateInputOutput(
+      this,
+      {input_buffer_preferred_alignments(),
+       output_buffer_preferred_alignments()},
+      {input_buffer_sizes(), output_buffer_sizes()});
+}
+
+JitTempBuffer JittedFunctionBase::CreateTempBuffer() const {
+  return JitTempBuffer(this, temp_buffer_alignment(), temp_buffer_size());
+}
+
 // Jits a function implementing `xls_function`. Also jits all transitively
 // dependent xls::Functions which may be called by `xls_function`.
-absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
+absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     FunctionBase* xls_function, JitBuilderContext& jit_context,
     bool build_packed_wrapper) {
   std::vector<FunctionBase*> functions = GetDependentFunctions(xls_function);
@@ -1253,50 +1283,49 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
 
   JittedFunctionBase jitted_function;
 
-  jitted_function.function_name = function_name;
+  jitted_function.function_name_ = function_name;
   XLS_ASSIGN_OR_RETURN(auto fn_address,
                        jit_context.orc_jit().LoadSymbol(function_name));
-  jitted_function.function = absl::bit_cast<JitFunctionType>(fn_address);
+  jitted_function.function_ = absl::bit_cast<JitFunctionType>(fn_address);
 
   if (build_packed_wrapper) {
-    jitted_function.packed_function_name = packed_wrapper_name;
+    jitted_function.packed_function_name_ = packed_wrapper_name;
     XLS_ASSIGN_OR_RETURN(auto packed_fn_address,
                          jit_context.orc_jit().LoadSymbol(packed_wrapper_name));
-    jitted_function.packed_function =
+    jitted_function.packed_function_ =
         absl::bit_cast<JitFunctionType>(packed_fn_address);
   }
 
   for (const Node* input : GetJittedFunctionInputs(xls_function)) {
-    jitted_function.input_buffer_sizes.push_back(
+    jitted_function.input_buffer_sizes_.push_back(
         jit_context.type_converter().GetTypeByteSize(input->GetType()));
-    jitted_function.input_buffer_prefered_alignments.push_back(
+    jitted_function.input_buffer_prefered_alignments_.push_back(
         jit_context.type_converter().GetTypePreferredAlignment(
             input->GetType()));
-    jitted_function.input_buffer_abi_alignments.push_back(
-        jit_context.type_converter().GetTypeAbiAlignment(
-            input->GetType()));
-    jitted_function.packed_input_buffer_sizes.push_back(
+    jitted_function.input_buffer_abi_alignments_.push_back(
+        jit_context.type_converter().GetTypeAbiAlignment(input->GetType()));
+    jitted_function.packed_input_buffer_sizes_.push_back(
         jit_context.type_converter().GetPackedTypeByteSize(input->GetType()));
   }
   for (const Node* output : GetJittedFunctionOutputs(xls_function)) {
-    jitted_function.output_buffer_sizes.push_back(
+    jitted_function.output_buffer_sizes_.push_back(
         jit_context.type_converter().GetTypeByteSize(OutputType(output)));
-    jitted_function.output_buffer_prefered_alignments.push_back(
+    jitted_function.output_buffer_prefered_alignments_.push_back(
         jit_context.type_converter().GetTypePreferredAlignment(
             OutputType(output)));
-    jitted_function.output_buffer_abi_alignments.push_back(
-        jit_context.type_converter().GetTypeAbiAlignment(
-            OutputType(output)));
-    jitted_function.packed_output_buffer_sizes.push_back(
+    jitted_function.output_buffer_abi_alignments_.push_back(
+        jit_context.type_converter().GetTypeAbiAlignment(OutputType(output)));
+    jitted_function.packed_output_buffer_sizes_.push_back(
         jit_context.type_converter().GetPackedTypeByteSize(OutputType(output)));
   }
-  jitted_function.temp_buffer_size = allocator.size();
+  jitted_function.temp_buffer_size_ = allocator.size();
+  jitted_function.temp_buffer_alignment_ = allocator.alignment();
 
   // Indicate which nodes correspond to which early exit points.
   for (const Partition& partition : top_partitions) {
     if (partition.early_exit_point.has_value()) {
       XLS_RET_CHECK_EQ(partition.nodes.size(), 1);
-      jitted_function.continuation_points[partition.early_exit_point->id] =
+      jitted_function.continuation_points_[partition.early_exit_point->id] =
           partition.nodes.front();
     }
   }
@@ -1304,30 +1333,45 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
   return std::move(jitted_function);
 }
 
-}  // namespace
-
-absl::StatusOr<JittedFunctionBase> BuildFunction(Function* xls_function,
-                                                 OrcJit& orc_jit) {
+absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
+    Function* xls_function, OrcJit& orc_jit) {
   JitBuilderContext jit_context(orc_jit);
-  return BuildFunctionAndDependencies(xls_function, jit_context,
-                                      /*build_packed_wrapper=*/true);
+  return JittedFunctionBase::BuildInternal(xls_function, jit_context,
+                                           /*build_packed_wrapper=*/true);
 }
 
-absl::StatusOr<JittedFunctionBase> BuildProcFunction(
+absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
     Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit) {
   JitBuilderContext jit_context(orc_jit, queue_mgr);
-  return BuildFunctionAndDependencies(proc, jit_context,
-                                      /*build_packed_wrapper=*/false);
+  return JittedFunctionBase::BuildInternal(proc, jit_context,
+                                           /*build_packed_wrapper=*/false);
 }
 
-absl::StatusOr<JittedFunctionBase> BuildBlockFunction(Block* block,
-                                                      OrcJit& jit) {
+absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(Block* block,
+                                                             OrcJit& jit) {
   JitBuilderContext jit_context(jit);
-  return BuildFunctionAndDependencies(block, jit_context,
-                                      /*build_packed_wrapper=*/false);
+  return JittedFunctionBase::BuildInternal(block, jit_context,
+                                           /*build_packed_wrapper=*/false);
+}
+
+int64_t JittedFunctionBase::RunJittedFunction(
+    const JitArgumentSet& inputs, JitArgumentSet& outputs,
+    JitTempBuffer& temp_buffer, InterpreterEvents* events, void* user_data,
+    JitRuntime* jit_runtime, int64_t continuation_point) const {
+  XLS_CHECK(inputs.is_inputs());
+  XLS_CHECK_EQ(inputs.source(), this);
+  XLS_CHECK(outputs.is_outputs());
+  XLS_CHECK_EQ(outputs.source(), this);
+  XLS_CHECK_EQ(temp_buffer.source(), this);
+  return function_(inputs.get(), outputs.get(), temp_buffer.get(), events,
+                   user_data, jit_runtime, continuation_point);
 }
 
 namespace {
+bool IsAligned(const void* ptr, int64_t align) {
+  return (absl::bit_cast<uintptr_t>(ptr) % align) == 0;
+}
+
 absl::Status VerifyOffsetAlignments(uint8_t const* const* const ptrs,
                                     absl::Span<int64_t const> alignments) {
   for (int64_t i = 0; i < alignments.size(); ++i) {
@@ -1339,14 +1383,18 @@ absl::Status VerifyOffsetAlignments(uint8_t const* const* const ptrs,
 }
 }  // namespace
 
-int64_t JittedFunctionBase::RunJittedFunction(
+int64_t JittedFunctionBase::RunUnalignedJittedFunction(
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
-    int64_t continuation_point) const {
-  XLS_DCHECK_OK(VerifyOffsetAlignments(inputs, input_buffer_abi_alignments));
-  XLS_DCHECK_OK(VerifyOffsetAlignments(outputs, output_buffer_abi_alignments));
-  return function(inputs, outputs, temp_buffer, events, user_data, jit_runtime,
-                  continuation_point);
+    int64_t continuation) const {
+  // TODO(allight): Create an entry point to run these even if the arguments are
+  // not aligned correctly.
+  XLS_DCHECK_OK(VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()));
+  XLS_DCHECK_OK(
+      VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()));
+  XLS_DCHECK(IsAligned(temp_buffer, temp_buffer_alignment_));
+  return function_(inputs, outputs, temp_buffer, events, user_data, jit_runtime,
+                   continuation);
 }
 
 std::optional<int64_t> JittedFunctionBase::RunPackedJittedFunction(
@@ -1354,9 +1402,9 @@ std::optional<int64_t> JittedFunctionBase::RunPackedJittedFunction(
     InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
     int64_t continuation_point) const {
   // TODO(allight): Do actual checks here.
-  if (packed_function) {
-    return (*packed_function)(inputs, outputs, temp_buffer, events, user_data,
-                              jit_runtime, continuation_point);
+  if (packed_function_) {
+    return (*packed_function_)(inputs, outputs, temp_buffer, events, user_data,
+                               jit_runtime, continuation_point);
   }
   return std::nullopt;
 }

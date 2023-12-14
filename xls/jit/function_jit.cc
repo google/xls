@@ -57,8 +57,10 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
   return JitObjectCode{
       .function_name = std::string{jit->GetJittedFunctionName()},
       .object_code = jit->orc_jit_->GetObjectCode(),
-      .parameter_buffer_sizes = jit->jitted_function_base_.input_buffer_sizes,
-      .return_buffer_size = jit->jitted_function_base_.output_buffer_sizes[0],
+      .parameter_buffer_sizes = std::vector<int64_t>(
+          jit->jitted_function_base_.input_buffer_sizes().cbegin(),
+          jit->jitted_function_base_.input_buffer_sizes().cend()),
+      .return_buffer_size = jit->jitted_function_base_.output_buffer_sizes()[0],
       .temp_buffer_size = jit->GetTempBufferSize(),
   };
 }
@@ -66,41 +68,17 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
     Function* xls_function, int64_t opt_level, bool emit_object_code,
     JitObserver* observer) {
-  auto jit = absl::WrapUnique(new FunctionJit(xls_function));
-  XLS_ASSIGN_OR_RETURN(jit->orc_jit_,
+  XLS_ASSIGN_OR_RETURN(auto orc_jit,
                        OrcJit::Create(opt_level, emit_object_code, observer));
   XLS_ASSIGN_OR_RETURN(
       llvm::DataLayout data_layout,
       OrcJit::CreateDataLayout(/*aot_specification=*/emit_object_code));
-  jit->jit_runtime_ = std::make_unique<JitRuntime>(data_layout);
-  JitRuntime& runtime = *jit->jit_runtime_;
-  XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
-                       BuildFunction(xls_function, *jit->orc_jit_));
+  XLS_ASSIGN_OR_RETURN(auto function_base,
+                       JittedFunctionBase::Build(xls_function, *orc_jit));
 
-  // Pre-allocate argument, result, and temporary buffers.
-  for (int i = 0; i < xls_function->params().size(); ++i) {
-    jit->arg_buffers_.push_back(
-        std::vector<uint8_t>(runtime.ShouldAllocateForAlignment(
-            jit->GetArgTypeSize(i), jit->GetArgTypeAlignment(i))));
-    jit->arg_buffer_ptrs_.push_back(
-        runtime
-            .AsAligned(absl::MakeSpan(jit->arg_buffers_.back()),
-                       jit->GetArgTypeAlignment(i))
-            .data());
-  }
-  jit->result_buffer_.resize(runtime.ShouldAllocateForAlignment(
-      jit->GetReturnTypeSize(), jit->GetReturnTypeAlignment()));
-  jit->result_buffer_ptr_ =
-      runtime
-          .AsAligned(absl::MakeSpan(jit->result_buffer_),
-                     jit->GetReturnTypeAlignment())
-          .data();
-  jit->temp_buffer_.resize(
-      runtime.ShouldAllocateForStack(jit->GetTempBufferSize()));
-  jit->temp_buffer_ptr_ =
-      runtime.AsStack(absl::MakeSpan(jit->temp_buffer_)).data();
-
-  return jit;
+  return std::unique_ptr<FunctionJit>(new FunctionJit(
+      xls_function, std::move(orc_jit), std::move(function_base),
+      std::make_unique<JitRuntime>(data_layout)));
 }
 
 absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
@@ -126,13 +104,16 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
   }
 
   // Allocate argument buffers and copy in arg Values.
-  XLS_RETURN_IF_ERROR(jit_runtime_->PackArgs(args, param_types,
-                                             absl::MakeSpan(arg_buffer_ptrs_)));
+  XLS_RETURN_IF_ERROR(
+      jit_runtime_->PackArgs(args, param_types, arg_buffers_.pointers()));
 
   InterpreterEvents events;
-  InvokeJitFunction(arg_buffer_ptrs_, result_buffer_ptr_, &events);
+  jitted_function_base_.RunJittedFunction(
+      arg_buffers_, result_buffers_, temp_buffer_, &events,
+      /*user_data=*/nullptr, /*jit_runtime=*/runtime(),
+      /*continuation_point=*/0);
   Value result = jit_runtime_->UnpackBuffer(
-      result_buffer_ptr_, xls_function_->return_value()->GetType());
+      result_buffers_.pointers()[0], xls_function_->return_value()->GetType());
 
   return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
@@ -160,16 +141,16 @@ absl::Status FunctionJit::RunWithViews(absl::Span<uint8_t* const> args,
                      GetReturnTypeSize()));
   }
 
-  InvokeJitFunction(args, result_buffer.data(), events);
+  InvokeUnalignedJitFunction(args, result_buffer.data(), events);
   return absl::OkStatus();
 }
 
-void FunctionJit::InvokeJitFunction(
+void FunctionJit::InvokeUnalignedJitFunction(
     absl::Span<const uint8_t* const> arg_buffers, uint8_t* output_buffer,
     InterpreterEvents* events) {
   uint8_t* output_buffers[1] = {output_buffer};
-  jitted_function_base_.RunJittedFunction(
-      arg_buffers.data(), output_buffers, temp_buffer_ptr_, events,
+  jitted_function_base_.RunUnalignedJittedFunction(
+      arg_buffers.data(), output_buffers, temp_buffer_.get(), events,
       /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 }
 

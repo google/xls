@@ -31,36 +31,25 @@
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
 
-ProcJitContinuation::ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
-                                         JitRuntime* jit_runtime)
-    : proc_(proc), continuation_point_(0), jit_runtime_(jit_runtime) {
-  // Pre-allocate input, output, and temporary buffers.
-  for (Param* param : proc->params()) {
-    int64_t param_size = jit_runtime_->GetTypeByteSize(param->GetType());
-    int64_t param_align = jit_runtime->GetTypeAlignment(param->GetType());
-    int64_t buffer_size =
-        jit_runtime_->ShouldAllocateForAlignment(param_size, param_align);
-    input_buffers_.push_back(std::vector<uint8_t>(buffer_size));
-    output_buffers_.push_back(std::vector<uint8_t>(buffer_size));
-    input_ptrs_.push_back(
-        jit_runtime_
-            ->AsAligned(absl::MakeSpan(input_buffers_.back()), param_align)
-            .data());
-    output_ptrs_.push_back(
-        jit_runtime_
-            ->AsAligned(absl::MakeSpan(output_buffers_.back()), param_align)
-            .data());
-  }
-
+ProcJitContinuation::ProcJitContinuation(Proc* proc, JitRuntime* jit_runtime,
+                                         const JittedFunctionBase& jit_func)
+    : proc_(proc),
+      continuation_point_(0),
+      jit_runtime_(jit_runtime),
+      input_(jit_func.CreateInputOutputBuffer().value()),
+      output_(jit_func.CreateInputOutputBuffer().value()),
+      temp_buffer_(jit_func.CreateTempBuffer()) {
   // Write initial state value to the input_buffer.
   for (Param* state_param : proc->StateParams()) {
     int64_t param_index = proc->GetParamIndex(state_param).value();
@@ -68,18 +57,16 @@ ProcJitContinuation::ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
     jit_runtime->BlitValueToBuffer(
         proc->GetInitValueElement(state_index), state_param->GetType(),
         absl::Span<uint8_t>(
-            input_ptrs_[param_index],
+            input_.pointers()[param_index],
             jit_runtime_->GetTypeByteSize(state_param->GetType())));
   }
-
-  temp_buffer_.resize(jit_runtime->ShouldAllocateForStack(temp_buffer_size));
 }
 
 std::vector<Value> ProcJitContinuation::GetState() const {
   std::vector<Value> state;
   for (Param* state_param : proc()->StateParams()) {
     int64_t param_index = proc()->GetParamIndex(state_param).value();
-    state.push_back(jit_runtime_->UnpackBuffer(input_ptrs_[param_index],
+    state.push_back(jit_runtime_->UnpackBuffer(input_.pointers()[param_index],
                                                state_param->GetType(),
                                                /*unpoison=*/true));
   }
@@ -90,8 +77,7 @@ void ProcJitContinuation::NextTick() {
   continuation_point_ = 0;
   {
     using std::swap;
-    swap(input_buffers_, output_buffers_);
-    swap(input_ptrs_, output_ptrs_);
+    swap(input_, output_);
   }
 }
 
@@ -102,14 +88,16 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
   orc_jit->SetJitObserver(observer);
   auto jit =
       absl::WrapUnique(new ProcJit(proc, jit_runtime, std::move(orc_jit)));
-  XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
-                       BuildProcFunction(proc, queue_mgr, jit->GetOrcJit()));
+  XLS_ASSIGN_OR_RETURN(
+      jit->jitted_function_base_,
+      JittedFunctionBase::Build(proc, queue_mgr, jit->GetOrcJit()));
+  XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
   return jit;
 }
 
 std::unique_ptr<ProcContinuation> ProcJit::NewContinuation() const {
   return std::make_unique<ProcJitContinuation>(
-      proc(), jitted_function_base_.temp_buffer_size, jit_runtime_);
+      proc(), jit_runtime_, jitted_function_base_);
 }
 
 absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
@@ -121,8 +109,8 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   // The jitted function returns the early exit point at which execution
   // halted. A return value of zero indicates that the tick completed.
   int64_t next_continuation_point = jitted_function_base_.RunJittedFunction(
-      cont->GetInputBuffers().data(), cont->GetOutputBuffers().data(),
-      cont->GetTempBuffer().data(), &cont->GetEvents(),
+      cont->input(), cont->output(),
+      cont->temp_buffer(), &cont->GetEvents(),
       /*user_data=*/nullptr, runtime(), cont->GetContinuationPoint());
 
   if (next_continuation_point == 0) {
@@ -135,10 +123,10 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   // The proc did not complete the tick. Determine at which node execution was
   // interrupted.
   cont->SetContinuationPoint(next_continuation_point);
-  XLS_RET_CHECK(jitted_function_base_.continuation_points.contains(
+  XLS_RET_CHECK(jitted_function_base_.continuation_points().contains(
       next_continuation_point));
   Node* early_exit_node =
-      jitted_function_base_.continuation_points.at(next_continuation_point);
+      jitted_function_base_.continuation_points().at(next_continuation_point);
   if (early_exit_node->Is<Send>()) {
     // Execution exited after sending data on a channel.
     XLS_ASSIGN_OR_RETURN(Channel * sent_channel,

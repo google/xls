@@ -28,6 +28,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
@@ -44,8 +45,8 @@ class ProcJitContinuation : public ProcContinuation {
   // specifies the size of a flat buffer used to hold temporary xls::Node values
   // during execution of the JITed function. The size of the buffer is
   // determined at JIT compile time and known by the ProcJit.
-  explicit ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
-                               JitRuntime* jit_runtime);
+  explicit ProcJitContinuation(Proc* proc, JitRuntime* jit_runtime,
+                               const JittedFunctionBase& jit_func);
 
   ~ProcJitContinuation() override = default;
 
@@ -63,12 +64,13 @@ class ProcJitContinuation : public ProcContinuation {
 
   // Return the various buffers passed to the top-level function implementing
   // the proc.
-  absl::Span<uint8_t*> GetInputBuffers() { return absl::MakeSpan(input_ptrs_); }
-  absl::Span<uint8_t*> GetOutputBuffers() {
-    return absl::MakeSpan(output_ptrs_);
-  }
-  absl::Span<uint8_t> GetTempBuffer() {
-    return jit_runtime_->AsStack(absl::MakeSpan(temp_buffer_));
+  JitArgumentSet& input() { return input_; }
+  JitArgumentSet& output() { return output_; }
+  JitTempBuffer& temp_buffer() { return temp_buffer_; }
+  const JitArgumentSet& input() const { return input_; }
+  const JitArgumentSet& output() const { return output_; }
+  const JitTempBuffer& temp_buffer() const {
+    return temp_buffer_;
   }
 
   // Sets the continuation to resume execution at the entry of the proc. Updates
@@ -85,17 +87,10 @@ class ProcJitContinuation : public ProcContinuation {
   InterpreterEvents events_;
 
   // Buffers to hold inputs, outputs, and temporary storage. This is allocated
-  // once and then re-used with each invocation of Run. Not thread-safe. These
-  // cannot be used directly because the pointers might not be aligned. Use the
-  // '_ptr_' versions instead.
-  std::vector<std::vector<uint8_t>> input_buffers_;
-  std::vector<std::vector<uint8_t>> output_buffers_;
-
-  // Raw pointers to the buffers held in `input_buffers_` and `output_buffers_`,
-  // aligned as required.
-  std::vector<uint8_t*> input_ptrs_;
-  std::vector<uint8_t*> output_ptrs_;
-  std::vector<uint8_t> temp_buffer_;
+  // once and then re-used with each invocation of Run. Not thread-safe.
+  JitArgumentSet input_;
+  JitArgumentSet output_;
+  JitTempBuffer temp_buffer_;
 };
 
 // This class provides a facility to execute XLS procs (on the host) by
