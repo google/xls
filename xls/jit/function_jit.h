@@ -45,10 +45,13 @@ struct JitObjectCode {
 
   // Size of the buffers for the parameters and result.
   std::vector<int64_t> parameter_buffer_sizes;
+  std::vector<int64_t> parameter_alignments;
   int64_t return_buffer_size;
+  int64_t return_buffer_alignment;
 
   // Minimum size of the temporary buffer passed to the jitted function.
   int64_t temp_buffer_size;
+  int64_t temp_buffer_alignment;
 };
 
 // This class provides a facility to execute XLS functions (on the host) by
@@ -178,6 +181,10 @@ class FunctionJit {
   // jitted function.
   int64_t GetTempBufferSize() const {
     return jitted_function_base_.temp_buffer_size();
+  }
+
+  int64_t GetTempBufferAlignment() const {
+    return jitted_function_base_.temp_buffer_alignment();
   }
 
   // Returns the name of the jitted function.

@@ -51,6 +51,7 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",

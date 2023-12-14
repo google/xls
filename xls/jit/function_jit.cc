@@ -60,8 +60,14 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
       .parameter_buffer_sizes = std::vector<int64_t>(
           jit->jitted_function_base_.input_buffer_sizes().cbegin(),
           jit->jitted_function_base_.input_buffer_sizes().cend()),
+      .parameter_alignments = std::vector<int64_t>(
+          jit->jitted_function_base_.input_buffer_abi_alignments().cbegin(),
+          jit->jitted_function_base_.input_buffer_abi_alignments().cend()),
       .return_buffer_size = jit->jitted_function_base_.output_buffer_sizes()[0],
+      .return_buffer_alignment =
+          jit->jitted_function_base_.output_buffer_abi_alignments()[0],
       .temp_buffer_size = jit->GetTempBufferSize(),
+      .temp_buffer_alignment = jit->GetTempBufferAlignment(),
   };
 }
 
@@ -147,12 +153,10 @@ absl::Status FunctionJit::RunWithViews(absl::Span<uint8_t* const> args,
   return absl::OkStatus();
 }
 
-template
-absl::Status FunctionJit::RunWithViews</*kForceZeroCopy=*/true>(
+template absl::Status FunctionJit::RunWithViews</*kForceZeroCopy=*/true>(
     absl::Span<uint8_t* const> args, absl::Span<uint8_t> result_buffer,
     InterpreterEvents* events);
-template
-absl::Status FunctionJit::RunWithViews</*kForceZeroCopy=*/false>(
+template absl::Status FunctionJit::RunWithViews</*kForceZeroCopy=*/false>(
     absl::Span<uint8_t* const> args, absl::Span<uint8_t> result_buffer,
     InterpreterEvents* events);
 
@@ -166,12 +170,10 @@ void FunctionJit::InvokeUnalignedJitFunction(
       /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 }
 
-template
-void FunctionJit::InvokeUnalignedJitFunction</*kForceZeroCopy=*/false>(
+template void FunctionJit::InvokeUnalignedJitFunction</*kForceZeroCopy=*/false>(
     absl::Span<const uint8_t* const> arg_buffers, uint8_t* output_buffer,
     InterpreterEvents* events);
-template
-void FunctionJit::InvokeUnalignedJitFunction</*kForceZeroCopy=*/true>(
+template void FunctionJit::InvokeUnalignedJitFunction</*kForceZeroCopy=*/true>(
     absl::Span<const uint8_t* const> arg_buffers, uint8_t* output_buffer,
     InterpreterEvents* events);
 

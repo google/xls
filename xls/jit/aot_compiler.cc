@@ -26,6 +26,7 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -181,14 +182,14 @@ const xls::aot_compile::FunctionTypeLayout& GetFunctionTypeLayout() {
 absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
 {{arg_buffer_decls}}
   uint8_t* arg_buffers[] = {{arg_buffer_collector}};
-  uint8_t result_buffer[{{result_size}}];
+  alignas({{result_buffer_align}}) uint8_t result_buffer[{{result_size}}];
   GetFunctionTypeLayout().ArgValuesToNativeLayout(
     {{{param_names}}}, absl::MakeSpan(arg_buffers, {{arg_count}}));
 
   uint8_t* output_buffers[1] = {result_buffer};
-  std::vector<uint8_t> temp_buffers({{temp_buffer_size}});
+  alignas({{temp_buffer_align}}) uint8_t temp_buffer[{{temp_buffer_size}}];
   ::xls::InterpreterEvents events;
-  {{extern_fn}}(arg_buffers, output_buffers, temp_buffers.data(),
+  {{extern_fn}}(arg_buffers, output_buffers, temp_buffer,
                 &events, /*unused=*/nullptr, /*continuation_point=*/0);
 
   return GetFunctionTypeLayout().NativeLayoutResultToValue(result_buffer);
@@ -212,6 +213,8 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
       ResultLayoutSerialization(f, type_converter);
   substitution_map["{{temp_buffer_size}}"] =
       absl::StrCat(object_code.temp_buffer_size);
+  substitution_map["{{temp_buffer_align}}"] =
+      absl::StrCat(object_code.temp_buffer_alignment);
 
   if (namespaces.empty()) {
     substitution_map["{{open_ns}}"] = "";
@@ -234,7 +237,8 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
     params.push_back(absl::StrCat("const ::xls::Value& ", param->name()));
     param_names.push_back(std::string(param->name()));
     arg_buffer_decls.push_back(
-        absl::StrFormat("  uint8_t %s_buffer[%d];", param->name(),
+        absl::StrFormat("  alignas(%d) uint8_t %s_buffer[%d];",
+                        object_code.parameter_alignments[i], param->name(),
                         object_code.parameter_buffer_sizes[i]));
     arg_buffer_names.push_back(absl::StrCat(param->name(), "_buffer"));
   }
@@ -245,6 +249,8 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
   substitution_map["{{arg_buffer_collector}}"] =
       absl::StrFormat("{%s}", absl::StrJoin(arg_buffer_names, ", "));
   substitution_map["{{result_size}}"] = absl::StrCat(return_type_bytes);
+  substitution_map["{{result_buffer_align}}"] =
+      absl::StrCat(object_code.return_buffer_alignment);
   substitution_map["{{arg_count}}"] = absl::StrCat(params.size());
 
   std::string type_textproto;
