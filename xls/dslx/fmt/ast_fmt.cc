@@ -1996,6 +1996,19 @@ static bool AreGroupedMembers(const ModuleMember& above,
 
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
+
+  if (!n.annotations().empty()) {
+    for (ModuleAnnotation annotation : n.annotations()) {
+      switch (annotation) {
+        case ModuleAnnotation::kAllowNonstandardConstantNaming:
+          pieces.push_back(
+              arena.MakeText("#![allow(nonstandard_constant_naming)]"));
+          pieces.push_back(arena.hard_line());
+      }
+    }
+    pieces.push_back(arena.hard_line());
+  }
+
   std::optional<Pos> last_entity_pos;
   for (size_t i = 0; i < n.top().size(); ++i) {
     const auto& member = n.top()[i];

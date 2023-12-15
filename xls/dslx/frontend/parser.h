@@ -525,6 +525,11 @@ class Parser : public TokenParser {
       absl::flat_hash_map<std::string, Function*>* name_to_fn,
       Bindings& bindings, const Pos& hash_pos);
 
+  // Parses a module-level attribute -- cursor should be over the open bracket.
+  //
+  // Side-effect: module_ is tagged with the parsed attribute on success.
+  absl::Status ParseModuleAttribute();
+
   // Parses DSLX attributes, analogous to Rust's attributes.
   absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
                               std::nullptr_t>>

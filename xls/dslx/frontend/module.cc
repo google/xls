@@ -60,10 +60,27 @@ std::string Module::ToString() const {
     }
     print_top.push_back(member);
   }
-  return absl::StrJoin(print_top, "\n",
-                       [](std::string* out, const ModuleMember& member) {
-                         absl::StrAppend(out, ToAstNode(member)->ToString());
-                       });
+
+  std::string body = absl::StrJoin(
+      print_top, "\n", [](std::string* out, const ModuleMember& member) {
+        absl::StrAppend(out, ToAstNode(member)->ToString());
+      });
+
+  if (!annotations().empty()) {
+    // Make an annotation block above the module contents if there are
+    // annotations.
+    std::string header = absl::StrJoin(
+        annotations(), "\n", [](std::string* out, ModuleAnnotation annotation) {
+          switch (annotation) {
+            case ModuleAnnotation::kAllowNonstandardConstantNaming:
+              absl::StrAppend(out, "#![allow(nonstandard_constant_naming)]");
+              break;
+          }
+        });
+    return absl::StrCat(header, "\n\n", body);
+  }
+
+  return body;
 }
 
 const AstNode* Module::FindNode(AstNodeKind kind, const Span& target) const {

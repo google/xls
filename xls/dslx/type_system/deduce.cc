@@ -421,7 +421,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   // It's common to accidentally use different constant naming conventions
   // coming from other environments -- warn folks if it's not following
   // https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
-  if (!IsScreamingSnakeCase(node->identifier())) {
+  if (!IsScreamingSnakeCase(node->identifier()) &&
+      !node->owner()->annotations().contains(
+          ModuleAnnotation::kAllowNonstandardConstantNaming)) {
     ctx->warnings()->Add(
         node->name_def()->span(), WarningKind::kConstantNaming,
         absl::StrFormat("Standard style is SCREAMING_SNAKE_CASE for constant "

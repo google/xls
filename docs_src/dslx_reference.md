@@ -1080,6 +1080,24 @@ fn test_main() {
 }
 ```
 
+### Module attributes
+
+A limited number of attributes are able to be applied at module scope (currently
+just one), using the following syntax, which is conventionally placed at the top
+of the module (`.x` file):
+
+```dslx-snippet
+#![allow(nonstandard_constant_naming)]
+
+// .. rest of the module ..
+```
+
+This disables the warning that is usually produced for non-standard constant
+names -- typically DSLX warns if they are not `SCREAMING_SNAKE_CASE` as per the
+Rust style guide. (This is useful for things like automatically generated files
+where perhaps we'd prefer not to rewrite names vs leaving them in some other,
+nonstandard, identifier form.)
+
 ### Const
 
 The `const` keyword is used to define module-level constant values. Named

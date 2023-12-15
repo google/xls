@@ -48,6 +48,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner_keywords.inc"
 #include "xls/dslx/frontend/token.h"
@@ -225,6 +226,26 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   return f;
 }
 
+absl::Status Parser::ParseModuleAttribute() {
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
+  Span identifier_span;
+  XLS_ASSIGN_OR_RETURN(std::string identifier,
+                       PopIdentifierOrError(&identifier_span));
+  if (identifier != "allow") {
+    return ParseErrorStatus(
+        identifier_span,
+        "Only 'allow' is supported as a module-level attribute");
+  }
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+  XLS_ASSIGN_OR_RETURN(std::string to_allow, PopIdentifierOrError());
+  if (to_allow == "nonstandard_constant_naming") {
+    module_->AddAnnotation(ModuleAnnotation::kAllowNonstandardConstantNaming);
+  }
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     Bindings* bindings) {
   std::optional<Bindings> stack_bindings;
@@ -312,6 +333,12 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     XLS_ASSIGN_OR_RETURN(std::optional<Token> hash,
                          TryPopToken(TokenKind::kHash));
     if (hash.has_value()) {
+      XLS_ASSIGN_OR_RETURN(bool dropped_bang, TryDropToken(TokenKind::kBang));
+      if (dropped_bang) {
+        XLS_RETURN_IF_ERROR(ParseModuleAttribute());
+        continue;
+      }
+
       XLS_ASSIGN_OR_RETURN(
           auto attribute,
           ParseAttribute(&name_to_fn, *bindings, hash->span().start()));

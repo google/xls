@@ -1802,6 +1802,22 @@ fn f() -> () {
       PositionalErrorColor::kWarningColor));
 }
 
+TEST(TypecheckTest, NonstandardConstantNamingGivesWarning) {
+  const std::string program = R"(const mol = u32:42;)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Standard style is SCREAMING_SNAKE_CASE for constant identifiers; "
+            "got: `mol`");
+}
+
+TEST(TypecheckTest, NonstandardConstantNamingOkViaAllow) {
+  const std::string program = R"(#![allow(nonstandard_constant_naming)]
+const mol = u32:42;)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_TRUE(tm.warnings.warnings().empty());
+}
+
 TEST(TypecheckTest, CatchesBadInvocationCallee) {
   constexpr std::string_view kImported = R"(
 pub fn some_function() -> u32 { u32:0 }

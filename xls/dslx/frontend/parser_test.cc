@@ -30,12 +30,15 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {
@@ -1760,6 +1763,20 @@ fn main(x: u32) -> u32 {
   EXPECT_THAT(module_or.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("A fail label must be unique")));
+}
+
+TEST_F(ParserTest, ParseAllowNonstandardConstantNamingAnnotation) {
+  constexpr std::string_view kProgram = R"(
+#![allow(nonstandard_constant_naming)]
+)";
+
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
+  ASSERT_TRUE(module_or.ok()) << module_or.status();
+  EXPECT_THAT(
+      module_or.value()->annotations(),
+      testing::ElementsAre(ModuleAnnotation::kAllowNonstandardConstantNaming));
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the

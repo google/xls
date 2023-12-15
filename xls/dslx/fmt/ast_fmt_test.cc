@@ -1924,5 +1924,17 @@ fn prop_eq(x: u32, y: u32) -> bool { x == y }
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, ModuleLevelAnnotation) {
+  const std::string_view kProgram = R"(#![allow(nonstandard_constant_naming)]
+
+fn id(x: u32) { x }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 }  // namespace
 }  // namespace xls::dslx

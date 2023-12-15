@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_FRONTEND_MODULE_H_
 #define XLS_DSLX_FRONTEND_MODULE_H_
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <memory>
@@ -25,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -44,6 +46,11 @@ using ModuleMember =
 std::string_view GetModuleMemberTypeName(const ModuleMember& module_member);
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
+
+enum class ModuleAnnotation : uint8_t {
+  // Suppresses the "constant naming" warning.
+  kAllowNonstandardConstantNaming,
+};
 
 // Represents a syntactic module in the AST.
 //
@@ -194,6 +201,16 @@ class Module : public AstNode {
   // "target" position.
   std::vector<const AstNode*> FindIntercepting(const Pos& target) const;
 
+  // Tags this module as having the given module-level annotation "annotation".
+  void AddAnnotation(ModuleAnnotation annotation) {
+    annotations_.insert(annotation);
+  }
+
+  // Returns all the module-level annotation tags.
+  const absl::btree_set<ModuleAnnotation>& annotations() const {
+    return annotations_;
+  }
+
  private:
   template <typename T, typename... Args>
   T* MakeInternal(Args&&... args) {
@@ -247,6 +264,8 @@ class Module : public AstNode {
   // for any particular purpose at this time aside from cleanliness of not
   // having many definition nodes of the same builtin thing floating around.
   absl::flat_hash_map<std::string, BuiltinNameDef*> builtin_name_defs_;
+
+  absl::btree_set<ModuleAnnotation> annotations_;
 };
 
 // Helper for making a ternary expression conditional. This avoids the user
