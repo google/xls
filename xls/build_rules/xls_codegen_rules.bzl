@@ -405,7 +405,7 @@ def xls_ir_verilog_impl(ctx, src):
         outputs = my_generated_files,
         tools = tools,
         inputs = runfiles.files,
-        command = "{} {} {} 2>{}".format(
+        command = "{} {} {} 2>&1 | tee {}".format(
             codegen_tool.path,
             src.path,
             final_args,

@@ -249,7 +249,7 @@ def _optimize_ir(ctx, src):
         tools = [opt_ir_tool],
         # The files required for optimizing the IR file.
         inputs = runfiles.files,
-        command = "{} {} {} 1>{} 2>{}".format(
+        command = "{} {} {} 2>&1 >{} | tee {}".format(
             opt_ir_tool.path,
             src.path,
             my_args,
