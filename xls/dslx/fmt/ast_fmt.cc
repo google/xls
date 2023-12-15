@@ -1936,10 +1936,19 @@ static DocRef Fmt(const Import& n, const Comments& comments, DocArena& arena) {
       arena.MakeAlign(ConcatNGroup(arena, dotted_pieces))};
 
   if (const std::optional<std::string>& alias = n.alias()) {
-    pieces.push_back(arena.break1());
-    pieces.push_back(arena.Make(Keyword::kAs));
-    pieces.push_back(arena.break1());
-    pieces.push_back(arena.MakeText(alias.value()));
+    DocRef alias_text = arena.MakeText(alias.value());
+    DocRef as = arena.Make(Keyword::kAs);
+
+    // Flat version is " as alias"
+    DocRef flat_as =
+        ConcatN(arena, {arena.space(), as, arena.space(), alias_text});
+    // Break version puts the "as alias" at an indent on the next line.
+    DocRef break_as = ConcatN(
+        arena,
+        {arena.hard_line(),
+         arena.MakeNest(ConcatN(arena, {as, arena.space(), alias_text}))});
+    // Choose the flat version if it fits.
+    pieces.push_back(arena.MakeFlatChoice(flat_as, break_as));
   }
 
   return ConcatNGroup(arena, pieces);

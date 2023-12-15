@@ -903,6 +903,18 @@ import stuff
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, ImportSuperLongName) {
+  const std::string_view kProgram = R"(// Module-level comment
+import blahhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
+    as blah
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 TEST(ModuleFmtTest, TypeAliasGroups) {
   const std::string_view kProgram = R"(import thing1
 import float32
