@@ -77,9 +77,9 @@ static void IvToBuffer(const InitVector& iv,
 
 static void PrintTraceMessages(const InterpreterEvents& events) {
   if (absl::GetFlag(FLAGS_print_traces) && !events.trace_msgs.empty()) {
-    std::cout << "Trace messages:" << std::endl;
+    std::cout << "Trace messages:" << '\n';
     for (const auto& tm : events.trace_msgs) {
-      std::cout << " - " << tm << std::endl;
+      std::cout << " - " << tm << '\n';
     }
   }
 }
@@ -213,7 +213,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
   if (reference_ciphertext.size() != xls_ciphertext.size()) {
     std::cout << "Error: XLS and reference ciphertexts differ in num blocks: "
               << "XLS: " << xls_ciphertext.size()
-              << ", ref: " << reference_ciphertext.size() << std::endl;
+              << ", ref: " << reference_ciphertext.size() << '\n';
     return false;
   }
 
@@ -222,7 +222,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
     for (int32_t byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
       if (reference_ciphertext[block_idx][byte_idx] !=
           xls_ciphertext[block_idx][byte_idx]) {
-        std::cout << "Error comparing block " << block_idx << ":" << std::endl;
+        std::cout << "Error comparing block " << block_idx << ":" << '\n';
         PrintFailure(reference_ciphertext[block_idx], xls_ciphertext[block_idx],
                      byte_idx, /*ciphertext=*/true);
         return false;
@@ -246,7 +246,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
   if (sample_data.input_blocks.size() != xls_plaintext.size()) {
     std::cout << "Error: XLS decrypted plaintext and input plaintext differ "
               << "in num blocks XLS: " << xls_ciphertext.size()
-              << ", ref: " << sample_data.input_blocks.size() << std::endl;
+              << ", ref: " << sample_data.input_blocks.size() << '\n';
     return false;
   }
 
@@ -255,7 +255,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
     for (int32_t byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
       if (sample_data.input_blocks[block_idx][byte_idx] !=
           xls_plaintext[block_idx][byte_idx]) {
-        std::cout << "Error comparing block " << block_idx << ":" << std::endl;
+        std::cout << "Error comparing block " << block_idx << ":" << '\n';
         PrintFailure(sample_data.input_blocks[block_idx],
                      xls_plaintext[block_idx], byte_idx,
                      /*ciphertext=*/false);
@@ -319,21 +319,19 @@ static absl::Status RunTest(int32_t num_samples, int32_t key_bits) {
     XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(&encrypt_jit_data, sample_data,
                                                  &xls_encrypt_dur));
     if (!proceed) {
-      std::cout << "Key      : " << FormatKey(sample_data.key) << std::endl;
-      std::cout << "IV       : " << FormatInitVector(sample_data.iv)
-                << std::endl;
-      std::cout << "Plaintext: " << std::endl
-                << FormatBlocks(sample_data.input_blocks, /*indent=*/4)
-                << std::endl;
+      std::cout << "Key      : " << FormatKey(sample_data.key) << '\n';
+      std::cout << "IV       : " << FormatInitVector(sample_data.iv) << '\n';
+      std::cout << "Plaintext: " << '\n'
+                << FormatBlocks(sample_data.input_blocks, /*indent=*/4) << '\n';
       return absl::InternalError(
           absl::StrCat("Testing failed at sample ", i, "."));
     }
   }
 
   std::cout << "AES-CTR: Successfully ran " << num_samples << " samples."
-            << std::endl;
+            << '\n';
   std::cout << "AES-CTR: Avg. XLS encryption time: "
-            << xls_encrypt_dur / num_samples << std::endl;
+            << xls_encrypt_dur / num_samples << '\n';
 
   return absl::OkStatus();
 }

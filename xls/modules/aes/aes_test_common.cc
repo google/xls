@@ -63,10 +63,9 @@ void PrintFailure(const Block& expected_block, const Block& actual_block,
   std::cout << "Mismatch in " << type_str << " at byte " << index << ": "
             << std::hex << "expected: 0x"
             << static_cast<uint32_t>(expected_block[index]) << "; actual: 0x"
-            << static_cast<uint32_t>(actual_block[index]) << std::endl;
-  std::cout << " - Expected block: " << FormatBlock(expected_block)
-            << std::endl;
-  std::cout << " - Actual block  : " << FormatBlock(actual_block) << std::endl;
+            << static_cast<uint32_t>(actual_block[index]) << '\n';
+  std::cout << " - Expected block: " << FormatBlock(expected_block) << '\n';
+  std::cout << " - Actual block  : " << FormatBlock(actual_block) << '\n';
 }
 
 Value InitVectorToValue(const InitVector& iv) {

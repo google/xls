@@ -206,7 +206,7 @@ static bool CompareBlock(const Block& expected, const Block& actual,
                          std::string_view failure_msg, bool is_ciphertext) {
   for (int byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
     if (expected[byte_idx] != actual[byte_idx]) {
-      std::cout << failure_msg << std::endl;
+      std::cout << failure_msg << '\n';
       PrintFailure(expected, actual, byte_idx, is_ciphertext);
       return false;
     }
@@ -245,7 +245,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
       xls_encrypted.output_data.size()) {
     std::cout << "Reference & XLS ciphertext differed in sizes: "
               << "reference: " << reference_encrypted.output_data.size()
-              << ", XLS: " << xls_encrypted.output_data.size() << std::endl;
+              << ", XLS: " << xls_encrypted.output_data.size() << '\n';
     return false;
   }
 
@@ -275,8 +275,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
   if (xls_decrypted.output_data.size() != xls_encrypted.output_data.size()) {
     std::cout << "Input plaintext and XLS deciphered text differed in sizes: "
               << "input: " << sample_data.input_data.size()
-              << ", decrypted: " << xls_decrypted.output_data.size()
-              << std::endl;
+              << ", decrypted: " << xls_decrypted.output_data.size() << '\n';
     return false;
   }
 
@@ -365,21 +364,20 @@ static absl::Status RunTest(int num_samples, int key_bits) {
 
     XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(&jit_data, sample_data));
     if (!proceed) {
-      std::cout << "Key      : " << FormatKey(sample_data.key) << std::endl;
+      std::cout << "Key      : " << FormatKey(sample_data.key) << '\n';
       std::cout << "IV       : " << FormatInitVector(sample_data.init_vector)
-                << std::endl;
-      std::cout << "Plaintext: " << std::endl
-                << FormatBlocks(sample_data.input_data, /*indent=*/4)
-                << std::endl;
-      std::cout << "AAD: " << std::endl
-                << FormatBlocks(sample_data.aad, /*indent=*/4) << std::endl;
+                << '\n';
+      std::cout << "Plaintext: " << '\n'
+                << FormatBlocks(sample_data.input_data, /*indent=*/4) << '\n';
+      std::cout << "AAD: " << '\n'
+                << FormatBlocks(sample_data.aad, /*indent=*/4) << '\n';
       return absl::InternalError(
           absl::StrCat("Testing failed at sample ", sample_idx, "."));
     }
   }
 
   std::cout << "AES-GCM: Successfully ran " << num_samples << " " << key_bits
-            << "-bit samples." << std::endl;
+            << "-bit samples." << '\n';
 
   return absl::OkStatus();
 }

@@ -88,8 +88,8 @@ static absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
   *xls_encrypt_dur += absl::Now() - start_time;
 
   XLS_VLOG(2) << "Reference ciphertext: " << FormatBlock(reference_ciphertext)
-              << std::endl;
-  XLS_VLOG(2) << "XLS ciphertext: " << FormatBlock(xls_ciphertext) << std::endl;
+              << '\n';
+  XLS_VLOG(2) << "XLS ciphertext: " << FormatBlock(xls_ciphertext) << '\n';
 
   // Verify the ciphertexts match, to ensure we're actually doing the encryption
   // properly.
@@ -105,8 +105,7 @@ static absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
   XLS_ASSIGN_OR_RETURN(Block xls_decrypted, XlsDecrypt(key, key_bytes, input));
   *xls_decrypt_dur += absl::Now() - start_time;
 
-  XLS_VLOG(2) << "Decrypted plaintext: " << FormatBlock(xls_decrypted)
-              << std::endl;
+  XLS_VLOG(2) << "Decrypted plaintext: " << FormatBlock(xls_decrypted) << '\n';
 
   // We can just compare the XLS result to the input to verify we're decrypting
   // right.
@@ -140,19 +139,19 @@ static absl::Status RunTest(int32_t key_bits, int32_t num_samples) {
         bool proceed,
         RunSample(input, key, key_bytes, &xls_encrypt_dur, &xls_decrypt_dur));
     if (!proceed) {
-      std::cout << "Plaintext: " << FormatBlock(input) << std::endl;
-      std::cout << "Key: " << FormatKey(key) << std::endl;
+      std::cout << "Plaintext: " << FormatBlock(input) << '\n';
+      std::cout << "Key: " << FormatKey(key) << '\n';
       return absl::InternalError(
           absl::StrCat(key_bits, "-bit validation failed."));
     }
   }
 
   std::cout << "Successfully ran " << num_samples << " " << key_bits
-            << "-bit samples." << std::endl;
+            << "-bit samples." << '\n';
   std::cout << "Avg. XLS encryption time: " << xls_encrypt_dur / num_samples
-            << std::endl;
+            << '\n';
   std::cout << "Avg. XLS decryption time: " << xls_decrypt_dur / num_samples
-            << std::endl;
+            << '\n';
 
   return absl::OkStatus();
 }

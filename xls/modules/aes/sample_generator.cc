@@ -231,7 +231,7 @@ static absl::Status RealMain(EncryptionMode mode, int key_bits,
 
   XLS_ASSIGN_OR_RETURN(Result result, RunGcm(sample));
 
-  std::cout << DslxFormatOutput(sample, result) << std::endl;
+  std::cout << DslxFormatOutput(sample, result) << '\n';
 
   return absl::OkStatus();
 }
