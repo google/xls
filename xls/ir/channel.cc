@@ -19,16 +19,19 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <variant>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -164,6 +167,22 @@ std::string ChannelStrictnessToString(ChannelStrictness in) {
     return "arbitrary_static_order";
   }
   return "unknown";
+}
+
+std::string_view ChannelRefName(ChannelRef ref) {
+  return absl::visit([](const auto& ch) { return ch->name(); }, ref);
+}
+
+Type* ChannelRefType(ChannelRef ref) {
+  if (std::holds_alternative<ChannelReference*>(ref)) {
+    return std::get<ChannelReference*>(ref)->type();
+  }
+  return std::get<Channel*>(ref)->type();
+}
+
+std::string ChannelReference::ToString() const {
+  return absl::StrFormat("%s: %s %s", name(), type()->ToString(),
+                         direction() == Direction::kSend ? "out" : "in");
 }
 
 }  // namespace xls

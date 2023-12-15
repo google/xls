@@ -23,6 +23,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
@@ -303,7 +304,8 @@ TEST_F(ProcTest, Clone) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * clone, proc->Clone("cloned", p.get(),
-                                {{channel->name(), cloned_channel->name()}}));
+                                {{std::string{channel->name()},
+                                  std::string{cloned_channel->name()}}}));
 
   EXPECT_FALSE(clone->IsFunction());
   EXPECT_TRUE(clone->IsProc());

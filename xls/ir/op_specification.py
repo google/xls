@@ -708,7 +708,7 @@ OpClass.kinds['RECEIVE'] = OpClass(
     name='Receive',
     op='Op::kReceive',
     operands=[Operand('token'), OptionalOperand('predicate')],
-    xls_type_expression='GetReceiveType(function->package(), channel_name, is_blocking)',
+    xls_type_expression='GetReceiveType(function, channel_name, is_blocking)',
     extra_methods=[Method(name='token',
                           return_cpp_type='Node*',
                           expression='operand(0)'),

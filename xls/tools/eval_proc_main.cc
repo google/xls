@@ -305,7 +305,8 @@ static absl::Status EvaluateProcs(
         std::optional<Value> out_val = out_queue->Read();
         channel_values[index++] = out_val.value();
       }
-      expected_outputs_for_channels.insert({channel->name(), channel_values});
+      expected_outputs_for_channels.insert(
+          {std::string{channel->name()}, channel_values});
     }
     std::cout << ChannelValuesToString(expected_outputs_for_channels);
   }

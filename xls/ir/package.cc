@@ -604,8 +604,8 @@ Type* Package::GetTypeForValue(const Value& value) {
       return GetBitsType(value.bits().bit_count());
     case ValueKind::kTuple: {
       std::vector<Type*> element_types;
-      for (const Value& value : value.elements()) {
-        element_types.push_back(GetTypeForValue(value));
+      for (const Value& element_value : value.elements()) {
+        element_types.push_back(GetTypeForValue(element_value));
       }
       return GetTupleType(element_types);
     }
@@ -811,24 +811,42 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     std::optional<FifoConfig> fifo_config, FlowControl flow_control,
     ChannelStrictness strictness, const ChannelMetadataProto& metadata,
     std::optional<int64_t> id) {
+  return CreateStreamingChannelInProc(
+      name, supported_ops, type, /*proc=*/nullptr, initial_values, fifo_config,
+      flow_control, strictness, metadata, id);
+}
+
+absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannelInProc(
+    std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
+    absl::Span<const Value> initial_values,
+    std::optional<FifoConfig> fifo_config, FlowControl flow_control,
+    ChannelStrictness strictness, const ChannelMetadataProto& metadata,
+    std::optional<int64_t> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<StreamingChannel>(
       name, actual_id, supported_ops, type, initial_values, fifo_config,
       flow_control, strictness, metadata);
   StreamingChannel* channel_ptr = channel.get();
-  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
+  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel), proc));
   return channel_ptr;
 }
 
 absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
     std::string_view name, ChannelOps supported_ops, Type* type,
     const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
+  return Package::CreateSingleValueChannelInProc(
+      name, supported_ops, type, /*proc=*/nullptr, metadata, id);
+}
+
+absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannelInProc(
+    std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
+    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<SingleValueChannel>(
       name, actual_id, supported_ops, type, metadata);
   SingleValueChannel* channel_ptr = channel.get();
-  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
+  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel), proc));
   return channel_ptr;
 }
 
@@ -864,8 +882,11 @@ absl::Status Package::RemoveChannel(Channel* channel) {
   return absl::OkStatus();
 }
 
-absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
-  std::string name = channel->name();
+absl::Status Package::AddChannel(std::unique_ptr<Channel> channel, Proc* proc) {
+  if (proc != nullptr) {
+    return proc->AddChannel(std::move(channel)).status();
+  }
+  std::string name{channel->name()};
   auto [channel_it, inserted] = channels_.insert({name, std::move(channel)});
   if (!inserted) {
     return absl::InternalError(
@@ -903,28 +924,25 @@ absl::StatusOr<Channel*> Package::GetChannel(int64_t id) const {
       return ch;
     }
   }
-  return absl::NotFoundError(absl::StrFormat(
-      "No channel with id %d (package has %d channels: %s).", id,
-      channels().size(), absl::StrJoin(GetChannelNames(), ", ")));
+  return absl::NotFoundError(absl::StrFormat("No channel with id %d", id));
 }
 
 std::vector<std::string> Package::GetChannelNames() const {
   std::vector<std::string> names;
   names.reserve(channels().size());
   for (Channel* ch : channels()) {
-    names.push_back(ch->name());
+    names.push_back(std::string{ch->name()});
   }
   return names;
 }
 
 absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
   auto it = channels_.find(name);
-  if (it == channels_.end()) {
-    return absl::NotFoundError(absl::StrFormat(
-        "No channel with name `%s` (package has %d channels: %s).", name,
-        channels_.size(), absl::StrJoin(GetChannelNames(), ", ")));
+  if (it != channels_.end()) {
+    return it->second.get();
   }
-  return it->second.get();
+  return absl::NotFoundError(
+      absl::StrFormat("No channel with name `%s`", name));
 }
 
 absl::StatusOr<Channel*> Package::CloneChannel(

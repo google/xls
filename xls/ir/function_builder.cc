@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/memory/memory.h"
@@ -30,17 +31,23 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -1024,7 +1031,79 @@ ProcBuilder::ProcBuilder(std::string_view name, std::string_view token_name,
                   should_verify),
       token_param_(proc()->TokenParam(), this) {}
 
+ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view name,
+                         std::string_view token_name, Package* package,
+                         bool should_verify)
+    : BuilderBase(std::make_unique<Proc>(
+                      name,
+                      /*interface_channels=*/
+                      absl::Span<std::unique_ptr<ChannelReference>>(),
+                      token_name, package),
+                  should_verify),
+      token_param_(proc()->TokenParam(), this) {}
+
 Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
+
+absl::StatusOr<ChannelReferences> ProcBuilder::AddChannel(
+    std::string_view name, Type* type, absl::Span<const Value> initial_values) {
+  XLS_RET_CHECK(proc()->is_new_style_proc());
+  XLS_RETURN_IF_ERROR(proc()
+                          ->package()
+                          ->CreateStreamingChannelInProc(
+                              name, ChannelOps::kSendReceive, type, proc())
+                          .status());
+  ChannelReferences channel_refs;
+  XLS_ASSIGN_OR_RETURN(channel_refs.send_ref,
+                       proc()->GetSendChannelReference(name));
+  XLS_ASSIGN_OR_RETURN(channel_refs.receive_ref,
+                       proc()->GetReceiveChannelReference(name));
+  return channel_refs;
+}
+
+absl::StatusOr<ReceiveChannelReference*> ProcBuilder::AddInputChannel(
+    std::string_view name, Type* type) {
+  XLS_RET_CHECK(proc()->is_new_style_proc());
+  auto channel_ref = std::make_unique<ReceiveChannelReference>(name, type);
+  ReceiveChannelReference* channel_ref_ptr = channel_ref.get();
+  XLS_RETURN_IF_ERROR(proc()->AddInputChannelReference(std::move(channel_ref)));
+  return channel_ref_ptr;
+}
+
+absl::StatusOr<SendChannelReference*> ProcBuilder::AddOutputChannel(
+    std::string_view name, Type* type) {
+  XLS_RET_CHECK(proc()->is_new_style_proc());
+  auto channel_ref = std::make_unique<SendChannelReference>(name, type);
+  SendChannelReference* channel_ref_ptr = channel_ref.get();
+  XLS_RETURN_IF_ERROR(
+      proc()->AddOutputChannelReference(std::move(channel_ref)));
+  return channel_ref_ptr;
+}
+
+bool ProcBuilder::HasSendChannelRef(std::string_view name) const {
+  if (proc()->is_new_style_proc()) {
+    return proc()->HasSendChannelReference(name);
+  }
+  return package()->HasChannelWithName(name);
+}
+
+bool ProcBuilder::HasReceiveChannelRef(std::string_view name) const {
+  if (proc()->is_new_style_proc()) {
+    return proc()->HasReceiveChannelReference(name);
+  }
+  return package()->HasChannelWithName(name);
+}
+
+absl::StatusOr<SendChannelReference*> ProcBuilder::GetSendChannelReference(
+    std::string_view name) {
+  XLS_RET_CHECK(proc()->is_new_style_proc());
+  return proc()->GetSendChannelReference(name);
+}
+
+absl::StatusOr<ReceiveChannelReference*>
+ProcBuilder::GetReceiveChannelReference(std::string_view name) {
+  XLS_RET_CHECK(proc()->is_new_style_proc());
+  return proc()->GetReceiveChannelReference(name);
+}
 
 absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
                                          absl::Span<const BValue> next_state) {
@@ -1068,7 +1147,7 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
 }
 
 BValue ProcBuilder::StateElement(std::string_view name,
-                                 const Value initial_value,
+                                 const Value& initial_value,
                                  const SourceInfo& loc) {
   absl::StatusOr<xls::Param*> param_or =
       proc()->AppendStateElement(name, initial_value);
@@ -1361,7 +1440,25 @@ BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,
   return AddNode<xls::Gate>(loc, condition.node(), data.node(), name);
 }
 
-BValue ProcBuilder::Receive(Channel* channel, BValue token,
+std::string_view ProcBuilder::GetChannelName(SendChannelRef channel) const {
+  if (std::holds_alternative<Channel*>(channel)) {
+    XLS_CHECK(!proc()->is_new_style_proc());
+    return std::get<Channel*>(channel)->name();
+  }
+  XLS_CHECK(proc()->is_new_style_proc());
+  return std::get<SendChannelReference*>(channel)->name();
+}
+
+std::string_view ProcBuilder::GetChannelName(ReceiveChannelRef channel) const {
+  if (std::holds_alternative<Channel*>(channel)) {
+    XLS_CHECK(!proc()->is_new_style_proc());
+    return std::get<Channel*>(channel)->name();
+  }
+  XLS_CHECK(proc()->is_new_style_proc());
+  return std::get<ReceiveChannelReference*>(channel)->name();
+}
+
+BValue ProcBuilder::Receive(ReceiveChannelRef channel, BValue token,
                             const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1374,10 +1471,11 @@ BValue ProcBuilder::Receive(Channel* channel, BValue token,
         loc);
   }
   return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
-                               channel->name(), /*is_blocking=*/true, name);
+                               GetChannelName(channel), /*is_blocking=*/true,
+                               name);
 }
 
-BValue ProcBuilder::ReceiveNonBlocking(Channel* channel, BValue token,
+BValue ProcBuilder::ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
                                        const SourceInfo& loc,
                                        std::string_view name) {
   if (ErrorPending()) {
@@ -1391,11 +1489,13 @@ BValue ProcBuilder::ReceiveNonBlocking(Channel* channel, BValue token,
         loc);
   }
   return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
-                               channel->name(), /*is_blocking=*/false, name);
+                               GetChannelName(channel), /*is_blocking=*/false,
+                               name);
 }
 
-BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
-                              const SourceInfo& loc, std::string_view name) {
+BValue ProcBuilder::ReceiveIf(ReceiveChannelRef channel, BValue token,
+                              BValue pred, const SourceInfo& loc,
+                              std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1414,12 +1514,14 @@ BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
                         pred.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->name(),
+  return AddNode<xls::Receive>(loc, token.node(), pred.node(),
+                               GetChannelName(channel),
                                /*is_blocking=*/true, name);
 }
 
-BValue ProcBuilder::ReceiveIfNonBlocking(Channel* channel, BValue token,
-                                         BValue pred, const SourceInfo& loc,
+BValue ProcBuilder::ReceiveIfNonBlocking(ReceiveChannelRef channel,
+                                         BValue token, BValue pred,
+                                         const SourceInfo& loc,
                                          std::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1439,11 +1541,12 @@ BValue ProcBuilder::ReceiveIfNonBlocking(Channel* channel, BValue token,
                         pred.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->name(),
+  return AddNode<xls::Receive>(loc, token.node(), pred.node(),
+                               GetChannelName(channel),
                                /*is_blocking=*/false, name);
 }
 
-BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
+BValue ProcBuilder::Send(SendChannelRef channel, BValue token, BValue data,
                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1455,10 +1558,11 @@ BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
         loc);
   }
   return AddNode<xls::Send>(loc, token.node(), data.node(),
-                            /*predicate=*/std::nullopt, channel->name(), name);
+                            /*predicate=*/std::nullopt, GetChannelName(channel),
+                            name);
 }
 
-BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
+BValue ProcBuilder::SendIf(SendChannelRef channel, BValue token, BValue pred,
                            BValue data, const SourceInfo& loc,
                            std::string_view name) {
   if (ErrorPending()) {
@@ -1478,7 +1582,7 @@ BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
                     loc);
   }
   return AddNode<xls::Send>(loc, token.node(), data.node(), pred.node(),
-                            channel->name(), name);
+                            GetChannelName(channel), name);
 }
 
 BValue TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,
@@ -1487,7 +1591,8 @@ BValue TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,
   return last_token_;
 }
 
-BValue TokenlessProcBuilder::Receive(Channel* channel, const SourceInfo& loc,
+BValue TokenlessProcBuilder::Receive(ReceiveChannelRef channel,
+                                     const SourceInfo& loc,
                                      std::string_view name) {
   BValue rcv = ProcBuilder::Receive(channel, last_token_, loc, name);
   last_token_ = TupleIndex(rcv, 0);
@@ -1495,13 +1600,13 @@ BValue TokenlessProcBuilder::Receive(Channel* channel, const SourceInfo& loc,
 }
 
 std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveNonBlocking(
-    Channel* channel, const SourceInfo& loc, std::string_view name) {
+    ReceiveChannelRef channel, const SourceInfo& loc, std::string_view name) {
   BValue rcv = ProcBuilder::ReceiveNonBlocking(channel, last_token_, loc, name);
   last_token_ = TupleIndex(rcv, 0, loc);
   return {TupleIndex(rcv, 1), TupleIndex(rcv, 2)};
 }
 
-BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
+BValue TokenlessProcBuilder::ReceiveIf(ReceiveChannelRef channel, BValue pred,
                                        const SourceInfo& loc,
                                        std::string_view name) {
   BValue rcv_if = ProcBuilder::ReceiveIf(channel, last_token_, pred, loc, name);
@@ -1510,7 +1615,7 @@ BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
 }
 
 std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveIfNonBlocking(
-    Channel* channel, BValue pred, const SourceInfo& loc,
+    ReceiveChannelRef channel, BValue pred, const SourceInfo& loc,
     std::string_view name) {
   BValue rcv =
       ProcBuilder::ReceiveIfNonBlocking(channel, last_token_, pred, loc, name);
@@ -1518,15 +1623,15 @@ std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveIfNonBlocking(
   return {TupleIndex(rcv, 1), TupleIndex(rcv, 2)};
 }
 
-BValue TokenlessProcBuilder::Send(Channel* channel, BValue data,
+BValue TokenlessProcBuilder::Send(SendChannelRef channel, BValue data,
                                   const SourceInfo& loc,
                                   std::string_view name) {
   last_token_ = ProcBuilder::Send(channel, last_token_, data, loc, name);
   return last_token_;
 }
 
-BValue TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
-                                    const SourceInfo& loc,
+BValue TokenlessProcBuilder::SendIf(SendChannelRef channel, BValue pred,
+                                    BValue data, const SourceInfo& loc,
                                     std::string_view name) {
   last_token_ =
       ProcBuilder::SendIf(channel, last_token_, pred, data, loc, name);

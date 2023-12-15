@@ -172,29 +172,57 @@ class NodeChecker : public DfsVisitor {
       XLS_RETURN_IF_ERROR(
           ExpectOperandHasBitsType(receive, 1, /*expected_bit_count=*/1));
     }
-    if (!receive->package()->HasChannelWithName(receive->channel_name())) {
+    if (!receive->function_base()->IsProc()) {
       return absl::InternalError(
-          StrFormat("%s refers to channel `%s` which does not exist",
-                    receive->GetName(), receive->channel_name()));
+          StrFormat("Receive node %s is not in a proc", receive->GetName()));
     }
-    XLS_ASSIGN_OR_RETURN(Channel * channel, receive->package()->GetChannel(
-                                                receive->channel_name()));
+    Proc* proc = receive->function_base()->AsProcOrDie();
+    Type* channel_type;
+    bool channel_can_receive = true;
+    if (proc->is_new_style_proc()) {
+      if (!proc->HasChannelReference(receive->channel_name())) {
+        return absl::InternalError(
+            StrFormat("%s refers to channel `%s` which does not exist",
+                      receive->GetName(), receive->channel_name()));
+      }
+      if (!proc->HasReceiveChannelReference(receive->channel_name())) {
+        return absl::InternalError(
+            StrFormat("Cannot receive on channel `%s`, node %s",
+                      receive->channel_name(), receive->GetName()));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          ChannelReference * channel_ref,
+          proc->GetReceiveChannelReference(receive->channel_name()));
+      channel_type = channel_ref->type();
+      channel_can_receive = channel_ref->direction() == Direction::kReceive;
+    } else {
+      if (!receive->package()->HasChannelWithName(receive->channel_name())) {
+        return absl::InternalError(
+            StrFormat("%s refers to channel `%s` which does not exist",
+                      receive->GetName(), receive->channel_name()));
+      }
+      XLS_ASSIGN_OR_RETURN(Channel * channel, receive->package()->GetChannel(
+                                                  receive->channel_name()));
+
+      channel_type = channel->type();
+      channel_can_receive = channel->CanReceive();
+    }
     Type* expected_type =
         receive->is_blocking()
             ? receive->package()->GetTupleType(
-                  {receive->package()->GetTokenType(), channel->type()})
+                  {receive->package()->GetTokenType(), channel_type})
             : receive->package()->GetTupleType(
-                  {receive->package()->GetTokenType(), channel->type(),
+                  {receive->package()->GetTokenType(), channel_type,
                    receive->package()->GetBitsType(1)});
     if (receive->GetType() != expected_type) {
       return absl::InternalError(StrFormat(
           "Expected %s to have type %s, has type %s", receive->GetName(),
           expected_type->ToString(), receive->GetType()->ToString()));
     }
-    if (!channel->CanReceive()) {
-      return absl::InternalError(StrFormat(
-          "Cannot receive over channel %s (%d), receive operation: %s",
-          channel->name(), channel->id(), receive->GetName()));
+    if (!channel_can_receive) {
+      return absl::InternalError(
+          StrFormat("Cannot receive over channel `%s`, receive operation: %s",
+                    receive->channel_name(), receive->GetName()));
     }
     return absl::OkStatus();
   }
@@ -207,20 +235,48 @@ class NodeChecker : public DfsVisitor {
       XLS_RETURN_IF_ERROR(
           ExpectOperandHasBitsType(send, 2, /*expected_bit_count=*/1));
     }
+    if (!send->function_base()->IsProc()) {
+      return absl::InternalError(
+          StrFormat("Send node %s is not in a proc", send->GetName()));
+    }
+    Proc* proc = send->function_base()->AsProcOrDie();
+    Type* channel_type;
+    bool channel_can_send = true;
+    if (proc->is_new_style_proc()) {
+      if (!proc->HasChannelReference(send->channel_name())) {
+        return absl::InternalError(
+            StrFormat("%s refers to channel `%s` which does not exist",
+                      send->GetName(), send->channel_name()));
+      }
+      if (!proc->HasSendChannelReference(send->channel_name())) {
+        return absl::InternalError(
+            StrFormat("Cannot send on channel `%s`, node %s",
+                      send->channel_name(), send->GetName()));
+      }
+      XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
+                           proc->GetSendChannelReference(send->channel_name()));
 
-    if (!send->package()->HasChannelWithName(send->channel_name())) {
-      return absl::InternalError(
-          StrFormat("%s refers to channel `%s` which does not exist",
-                    send->GetName(), send->channel_name()));
+      channel_type = channel_ref->type();
+      channel_can_send = channel_ref->direction() == Direction::kSend;
+
+    } else {
+      if (!send->package()->HasChannelWithName(send->channel_name())) {
+        return absl::InternalError(
+            StrFormat("%s refers to channel `%s` which does not exist",
+                      send->GetName(), send->channel_name()));
+      }
+      XLS_ASSIGN_OR_RETURN(Channel * channel,
+                           send->package()->GetChannel(send->channel_name()));
+      channel_type = channel->type();
+      channel_can_send = channel->CanSend();
     }
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         send->package()->GetChannel(send->channel_name()));
-    if (!channel->CanSend()) {
+
+    if (!channel_can_send) {
       return absl::InternalError(
-          StrFormat("Cannot send over channel %s (%d), send operation: %s",
-                    channel->name(), channel->id(), send->GetName()));
+          StrFormat("Cannot send over channel %s, send operation: %s",
+                    send->channel_name(), send->GetName()));
     }
-    XLS_RETURN_IF_ERROR(ExpectOperandHasType(send, 1, channel->type()));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasType(send, 1, channel_type));
     return absl::OkStatus();
   }
 
@@ -1630,11 +1686,15 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
     channels_by_name[channel->name()] = channel;
   }
 
-  // Verify each channel has the appropriate send/receive node.
-
+  // Verify each package-scoped channel has the appropriate send/receive node.
+  // TODO(https://github.com/google/xls/issues/869): Verify proc-scoped channels
+  // as well.
   absl::flat_hash_map<Channel*, std::vector<Node*>> send_nodes;
   absl::flat_hash_map<Channel*, std::vector<Node*>> receive_nodes;
   for (auto& proc : package->procs()) {
+    if (proc->is_new_style_proc()) {
+      continue;
+    }
     for (Node* node : TopoSort(proc.get())) {
       if (node->Is<Send>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
@@ -1823,6 +1883,9 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
   XLS_VLOG_LINES(4, proc->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
+
+  // TODO(https://github.com/google/xls/issues/869): Verify proc-scoped
+  // channels.
 
   // A Proc has a single token parameter and zero or more state parameters.
   XLS_RET_CHECK_EQ(proc->params().size(), proc->GetStateElementCount() + 1);

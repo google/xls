@@ -1189,7 +1189,7 @@ TEST_F(TranslatorMemoryTest, MemoryTokenNetwork) {
   std::string_view memory_read_request, memory_read_response;
 
   for (xls::Channel* channel : package_->channels()) {
-    const std::string ch_name = channel->name();
+    const std::string ch_name{channel->name()};
     if (ch_name == "memory__read_request") {
       memory_read_request = channel->name();
     } else if (ch_name == "memory__read_response") {
@@ -1243,7 +1243,7 @@ TEST_F(TranslatorMemoryTest, MemoryTokenNetworkReadAfterWrite) {
   std::string_view memory_read_request, memory_write_request;
 
   for (xls::Channel* channel : package_->channels()) {
-    const std::string ch_name = channel->name();
+    const std::string ch_name{channel->name()};
     if (ch_name == "memory__read_request") {
       memory_read_request = channel->name();
     } else if (ch_name == "memory__write_request") {

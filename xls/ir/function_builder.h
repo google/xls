@@ -27,19 +27,23 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
@@ -677,6 +681,16 @@ class FunctionBuilder : public BuilderBase {
   absl::StatusOr<Function*> BuildWithReturnValue(BValue return_value);
 };
 
+// Type used as special argument to ProcBuilder constructor to indicate that the
+// proc to be built is a new style proc (ie, has proc-scoped channels). This
+// makes ProcBuilder definitions self-documenting:
+//
+//   ProcBuilder pb(NewStyleProc(), ...);
+//
+// TODO(https://github.com/google/xls/issues/869): Remove this when all procs
+// are new style.
+struct NewStyleProc {};
+
 // Class for building an XLS Proc (a communicating sequential process).
 class ProcBuilder : public BuilderBase {
  public:
@@ -685,6 +699,10 @@ class ProcBuilder : public BuilderBase {
   // no state elements.
   ProcBuilder(std::string_view name, std::string_view token_name,
               Package* package, bool should_verify = true);
+  // Constructor for new-style procs which have proc-scoped channels.
+  ProcBuilder(NewStyleProc tag, std::string_view name,
+              std::string_view token_name, Package* package,
+              bool should_verify = true);
 
   ~ProcBuilder() override = default;
 
@@ -697,6 +715,34 @@ class ProcBuilder : public BuilderBase {
 
   // Returns the Proc being constructed.
   Proc* proc() const;
+
+  // Add an internal channel scoped to the proc. Only can be called for new
+  // style procs.
+  absl::StatusOr<ChannelReferences> AddChannel(
+      std::string_view name, Type* type,
+      absl::Span<const Value> initial_values);
+
+  // Add an interface channel to the proc. Only can be called for new style
+  // procs.
+  absl::StatusOr<ReceiveChannelReference*> AddInputChannel(
+      std::string_view name, Type* type);
+  absl::StatusOr<SendChannelReference*> AddOutputChannel(std::string_view name,
+                                                         Type* type);
+
+  // Returns true if there is an channel entity (a xls::Channel object for
+  // old-style proc or a proc-scoped channel or interface channel for new style
+  // procs).
+  // TODO(https://github.com/google/xls/issues/869): Rename this Has.*End when
+  // all procs are new style.
+  bool HasSendChannelRef(std::string_view name) const;
+  bool HasReceiveChannelRef(std::string_view name) const;
+
+  // Returns the receive/send channel end with the given name. Only can be
+  // called for new style procs.
+  absl::StatusOr<ReceiveChannelReference*> GetReceiveChannelReference(
+      std::string_view name);
+  absl::StatusOr<SendChannelReference*> GetSendChannelReference(
+      std::string_view name);
 
   // Returns the Param BValue for the state or token parameters. Unlike
   // BuilderBase::Param this does add a Param node to the Proc. Rather the state
@@ -713,7 +759,7 @@ class ProcBuilder : public BuilderBase {
 
   // Adds a state element to the proc with the given initial value. Returns the
   // newly added state parameter.
-  BValue StateElement(std::string_view name, const Value initial_value,
+  BValue StateElement(std::string_view name, const Value& initial_value,
                       const SourceInfo& loc = SourceInfo());
 
   // Overriden Param method is explicitly disabled (returns an error). Use
@@ -723,41 +769,43 @@ class ProcBuilder : public BuilderBase {
 
   // Add a receive operation. The type of the data value received is
   // determined by the channel.
-  BValue Receive(Channel* channel, BValue token,
+  BValue Receive(ReceiveChannelRef channel, BValue token,
                  const SourceInfo& loc = SourceInfo(),
                  std::string_view name = "");
 
   // Add a conditional receive operation. The receive executes conditionally on
   // the value of the predicate "pred". The type of the data value received is
   // determined by the channel.
-  BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
+  BValue ReceiveIf(ReceiveChannelRef channel, BValue token, BValue pred,
                    const SourceInfo& loc = SourceInfo(),
                    std::string_view name = "");
 
   // Add a non-blocking receive operation. The type of the data value received
   // is determined by the channel.
-  BValue ReceiveIfNonBlocking(Channel* channel, BValue token, BValue pred,
-                              const SourceInfo& loc = SourceInfo(),
+  BValue ReceiveIfNonBlocking(ReceiveChannelRef channel, BValue token,
+                              BValue pred, const SourceInfo& loc = SourceInfo(),
                               std::string_view name = "");
 
   // Add a non-blocking receive operation. The type of the data value received
   // is determined by the channel.
-  BValue ReceiveNonBlocking(Channel* channel, BValue token,
+  BValue ReceiveNonBlocking(ReceiveChannelRef channel, BValue token,
                             const SourceInfo& loc = SourceInfo(),
                             std::string_view name = "");
 
   // Add a send operation.
-  BValue Send(Channel* channel, BValue token, BValue data,
-              const SourceInfo& loc = SourceInfo(),
-              std::string_view name = "");
+  BValue Send(SendChannelRef channel, BValue token, BValue data,
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Add a conditional send operation. The send executes conditionally on the
   // value of the predicate "pred".
-  BValue SendIf(Channel* channel, BValue token, BValue pred, BValue data,
+  BValue SendIf(SendChannelRef channel, BValue token, BValue pred, BValue data,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
  private:
+  std::string_view GetChannelName(ReceiveChannelRef channel) const;
+  std::string_view GetChannelName(SendChannelRef channel) const;
+
   // The BValue of the token parameter (parameter 0).
   BValue token_param_;
 
@@ -784,6 +832,12 @@ class TokenlessProcBuilder : public ProcBuilder {
                        Package* package, bool should_verify = true)
       : ProcBuilder(name, token_name, package, should_verify),
         last_token_(GetTokenParam()) {}
+  // Constructor for new-style procs which have proc-scoped channels.
+  TokenlessProcBuilder(NewStyleProc tag, std::string_view name,
+                       std::string_view token_name, Package* package,
+                       bool should_verify = true)
+      : ProcBuilder(tag, name, token_name, package, should_verify),
+        last_token_(GetTokenParam()) {}
 
   ~TokenlessProcBuilder() override = default;
 
@@ -803,7 +857,8 @@ class TokenlessProcBuilder : public ProcBuilder {
   // receive operation itself which produces a tuple containing a token and the
   // data).
   using ProcBuilder::Receive;
-  BValue Receive(Channel* channel, const SourceInfo& loc = SourceInfo(),
+  BValue Receive(ReceiveChannelRef channel,
+                 const SourceInfo& loc = SourceInfo(),
                  std::string_view name = "");
 
   // Add a non-blocking receive operation. The type of the data value received
@@ -811,7 +866,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // the received data itself along with a valid bit.
   using ProcBuilder::ReceiveNonBlocking;
   std::pair<BValue, BValue> ReceiveNonBlocking(
-      Channel* channel, const SourceInfo& loc = SourceInfo(),
+      ReceiveChannelRef channel, const SourceInfo& loc = SourceInfo(),
       std::string_view name = "");
 
   // Add a conditinal receive operation. The receive executes conditionally on
@@ -820,7 +875,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // (*not* the receiveif operation itself which produces a tuple containing a
   // token and the data).
   using ProcBuilder::ReceiveIf;
-  BValue ReceiveIf(Channel* channel, BValue pred,
+  BValue ReceiveIf(ReceiveChannelRef channel, BValue pred,
                    const SourceInfo& loc = SourceInfo(),
                    std::string_view name = "");
 
@@ -829,20 +884,19 @@ class TokenlessProcBuilder : public ProcBuilder {
   // of the received data itself along with a valid bit.
   using ProcBuilder::ReceiveIfNonBlocking;
   std::pair<BValue, BValue> ReceiveIfNonBlocking(
-      Channel* channel, BValue pred, const SourceInfo& loc = SourceInfo(),
-      std::string_view name = "");
+      ReceiveChannelRef channel, BValue pred,
+      const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Add a send operation. Returns the token-typed BValue of the send node.
   using ProcBuilder::Send;
-  BValue Send(Channel* channel, BValue data,
-              const SourceInfo& loc = SourceInfo(),
-              std::string_view name = "");
+  BValue Send(SendChannelRef channel, BValue data,
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Add a conditional send operation. The send executes conditionally on the
   // value of the predicate "pred". Returns the token-typed BValue of the send
   // node.
   using ProcBuilder::SendIf;
-  BValue SendIf(Channel* channel, BValue pred, BValue data,
+  BValue SendIf(SendChannelRef channel, BValue pred, BValue data,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 

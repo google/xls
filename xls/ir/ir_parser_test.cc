@@ -1277,6 +1277,147 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseNewStyleProc) {
+  const std::string input = R"(package test
+
+proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+  send.1: token = send(my_token, my_state, channel=out_ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next (tuple_index.4, my_state)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseNewStyleProcNoInterfaceChannels) {
+  const std::string input = R"(package test
+
+proc my_proc<>(my_token: token, my_state: bits[32], init={42}) {
+  next (my_token, my_state)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseNewStyleProcWithChannelDefinitions) {
+  const std::string input = R"(package test
+
+proc my_proc<>(my_token: token, my_state: bits[32], init={42}) {
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
+  receive.2: (token, bits[32]) = receive(send.1, channel=ch, id=2)
+  tuple_index.3: token = tuple_index(receive.2, index=0, id=3)
+  next (tuple_index.3, my_state)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, NewStyleProcSendOnInput) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc my_proc<in_ch: bits[32] in>(my_token: token, my_state: bits[32], init={42}) {
+  send: token = send(my_token, my_state, channel=in_ch)
+  next (send, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParseProc(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot send on channel `in_ch`")));
+}
+
+TEST(IrParserTest, NewStyleProcReceiveOnOutput) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc my_proc<out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+  rcv: (token, bits[32]) = receive(my_token, channel=out_ch)
+  rcv_token: token = tuple_index(rcv, index=0)
+  next (rcv_token, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParseProc(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot receive on channel `out_ch`")));
+}
+
+TEST(IrParserTest, DeclareChannelInOldStyleProc) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc my_proc(my_token: token, my_state: bits[32], init={42}) {
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  next (rcv_token, my_state)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParseProc(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Channels can only be declared in new-style procs")));
+}
+
+TEST(IrParserTest, DeclareChannelInFunction) {
+  Package p("my_package");
+  const std::string input =
+      R"(fn my_func()  -> bits[1] {
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  ret result: bits[1] = literal(value=0, id=1)
+}
+)";
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("chan keyword only supported in procs")));
+}
+
+TEST(IrParserTest, NewStyleProcUsingGlobalChannel) {
+  const std::string input =
+      R"(package test
+
+chan ch(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc my_proc<>(my_token: token, my_state: bits[32], init={42}) {
+  rcv: (token, bits[32]) = receive(my_token, channel=ch)
+  rcv_token: token = tuple_index(rcv, index=0)
+  next (rcv_token, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("No such channel `ch`")));
+}
+
+TEST(IrParserTest, NewStyleProcWithDuplicateChannelNames) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc my_proc<ch: bits[32] in, ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next (tuple_index.4, my_state)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParseProc(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot add output channel `ch` to proc `my_proc`. "
+                         "Already an input channel of same name on the proc")));
+}
+
+TEST(IrParserTest, ParseNewStyleProcWithComplexChannelTypes) {
+  const std::string input = R"(package test
+
+proc my_proc<in_ch: () in, out_ch: ((), bits[32][1]) out>(my_token: token, my_state: ((), bits[32][1]), init={((), [42])}) {
+  send.1: token = send(my_token, my_state, channel=out_ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, ()) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next (tuple_index.4, my_state)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseSimpleBlock) {
   const std::string input = R"(package test
 

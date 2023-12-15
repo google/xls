@@ -142,9 +142,11 @@ class Parser {
   absl::StatusOr<Block*> ParseBlock(Package* package,
                                     const DeclAttributes& attributes = {});
 
-  // Parse a proc starting at the current scanner position.
+  // Parse a channel starting at the current scanner position. If `proc` is not
+  // null then this is a proc-scoped channel.
   absl::StatusOr<Channel*> ParseChannel(Package* package,
-                                        const DeclAttributes& attributes = {});
+                                        const DeclAttributes& attributes = {},
+                                        Proc* proc = nullptr);
 
   // Parse starting from a function type.
   absl::StatusOr<FunctionType*> ParseFunctionType(Package* package);

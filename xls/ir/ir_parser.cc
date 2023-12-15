@@ -455,9 +455,8 @@ absl::StatusOr<Value> Parser::ParseValueInternal(std::optional<Type*> type) {
     XLS_ASSIGN_OR_RETURN(bool is_negative, literal.IsNegative());
     if (is_negative) {
       return Value(bits_ops::SignExtend(bits_value, bit_count));
-    } else {
-      return Value(bits_ops::ZeroExtend(bits_value, bit_count));
     }
+    return Value(bits_ops::ZeroExtend(bits_value, bit_count));
   }
   if (type_kind == TypeKind::kArray) {
     XLS_RETURN_IF_ERROR(
@@ -1005,18 +1004,30 @@ absl::StatusOr<BValue> Parser::ParseNode(
           "blocking", /*default_value=*/true);
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       // Get the channel from the package.
-      if (!package->HasChannelWithName(channel_name->value)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("No such channel `%s`", channel_name->value));
+      if (!pb->HasReceiveChannelRef(channel_name->value)) {
+        if (!pb->HasSendChannelRef(channel_name->value)) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("No such channel `%s`", channel_name->value));
+        }
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Cannot receive on channel `%s`", channel_name->value));
       }
-      XLS_ASSIGN_OR_RETURN(Channel * channel,
-                           package->GetChannel(channel_name->value));
+      ReceiveChannelRef channel_ref;
+      Type* channel_type;
+      if (pb->proc()->is_new_style_proc()) {
+        XLS_ASSIGN_OR_RETURN(
+            channel_ref, pb->GetReceiveChannelReference(channel_name->value));
+        channel_type = std::get<ReceiveChannelReference*>(channel_ref)->type();
+      } else {
+        XLS_ASSIGN_OR_RETURN(channel_ref,
+                             package->GetChannel(channel_name->value));
+        channel_type = std::get<Channel*>(channel_ref)->type();
+      }
 
       Type* expected_type =
           (*is_blocking)
-              ? package->GetTupleType(
-                    {package->GetTokenType(), channel->type()})
-              : package->GetTupleType({package->GetTokenType(), channel->type(),
+              ? package->GetTupleType({package->GetTokenType(), channel_type})
+              : package->GetTupleType({package->GetTokenType(), channel_type,
                                        package->GetBitsType(1)});
 
       if (expected_type != type) {
@@ -1026,18 +1037,18 @@ absl::StatusOr<BValue> Parser::ParseNode(
       }
       if (predicate->has_value()) {
         if (*is_blocking) {
-          bvalue = pb->ReceiveIf(channel, operands[0], predicate->value(), *loc,
-                                 node_name);
+          bvalue = pb->ReceiveIf(channel_ref, operands[0], predicate->value(),
+                                 *loc, node_name);
         } else {
           bvalue = pb->ReceiveIfNonBlocking(
-              channel, operands[0], predicate->value(), *loc, node_name);
+              channel_ref, operands[0], predicate->value(), *loc, node_name);
         }
       } else {
         if (*is_blocking) {
-          bvalue = pb->Receive(channel, operands[0], *loc, node_name);
+          bvalue = pb->Receive(channel_ref, operands[0], *loc, node_name);
         } else {
           bvalue =
-              pb->ReceiveNonBlocking(channel, operands[0], *loc, node_name);
+              pb->ReceiveNonBlocking(channel_ref, operands[0], *loc, node_name);
         }
       }
       break;
@@ -1053,17 +1064,28 @@ absl::StatusOr<BValue> Parser::ParseNode(
           arg_parser.AddKeywordArg<IdentifierString>("channel");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
-      if (!package->HasChannelWithName(channel_name->value)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("No such channel `%s`", channel_name->value));
+      if (!pb->HasSendChannelRef(channel_name->value)) {
+        if (!pb->HasReceiveChannelRef(channel_name->value)) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("No such channel `%s`", channel_name->value));
+        }
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Cannot send on channel `%s`", channel_name->value));
       }
-      XLS_ASSIGN_OR_RETURN(Channel * channel,
-                           package->GetChannel(channel_name->value));
+      SendChannelRef channel_ref;
+      if (pb->proc()->is_new_style_proc()) {
+        XLS_ASSIGN_OR_RETURN(channel_ref,
+                             pb->GetSendChannelReference(channel_name->value));
+      } else {
+        XLS_ASSIGN_OR_RETURN(channel_ref,
+                             package->GetChannel(channel_name->value));
+      }
       if (predicate->has_value()) {
-        bvalue = pb->SendIf(channel, operands[0], predicate->value(),
+        bvalue = pb->SendIf(channel_ref, operands[0], predicate->value(),
                             operands[1], *loc, node_name);
       } else {
-        bvalue = pb->Send(channel, operands[0], operands[1], *loc, node_name);
+        bvalue =
+            pb->Send(channel_ref, operands[0], operands[1], *loc, node_name);
       }
       break;
     }
@@ -1484,7 +1506,7 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
   while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
     XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
 
-    // Handle "reg" which declares a registers (only supported in blocks).
+    // Handle register, instantiation and channel constructs.
     if (scanner_.TryDropKeyword("reg")) {
       if (!fb->function()->IsBlock()) {
         return absl::InvalidArgumentError(
@@ -1503,6 +1525,23 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
       }
       XLS_RETURN_IF_ERROR(
           ParseInstantiation(fb->function()->AsBlockOrDie()).status());
+      continue;
+    }
+    if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
+        scanner_.PeekToken()->value() == "chan") {
+      if (!fb->function()->IsProc()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("chan keyword only supported in procs @ %s",
+                            peek.pos().ToHumanString()));
+      }
+      Proc* proc = fb->function()->AsProcOrDie();
+      if (!proc->is_new_style_proc()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Channels can only be declared in new-style procs @ %s",
+            peek.pos().ToHumanString()));
+      }
+      XLS_RETURN_IF_ERROR(
+          ParseChannel(package, /*attributes=*/{}, proc).status());
       continue;
     }
 
@@ -1637,10 +1676,48 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   //   proc foo(tok: token, state0: bits[32], state1: bits[42], init={42, 33}) {
   //     ...
   //
+  // OR for "new-style" procs with proc-scoped channels:
+  //
+  //   proc foo<in_ch: bits[32] in: out_ch: bits[8] out>
+  //           (tok: token, state0: bits[32], state1: bits[42], init={42, 33}) {
+  //     ...
+  //
   // The signature being parsed by this method starts at the proc name and ends
   // with the open brace.
   XLS_ASSIGN_OR_RETURN(Token name, scanner_.PopTokenOrError(
                                        LexicalTokenType::kIdent, "proc name"));
+  bool is_new_style_proc = false;
+  std::vector<std::unique_ptr<ChannelReference>> interface_channels;
+  if (scanner_.TryDropToken(LexicalTokenType::kLt)) {
+    is_new_style_proc = true;
+    if (!scanner_.TryDropToken(LexicalTokenType::kGt)) {
+      do {
+        XLS_ASSIGN_OR_RETURN(
+            Token channel_name,
+            scanner_.PopTokenOrError(LexicalTokenType::kIdent, "channel name"));
+        XLS_RETURN_IF_ERROR(
+            scanner_.DropTokenOrError(LexicalTokenType::kColon));
+        XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
+        XLS_ASSIGN_OR_RETURN(Token direction_token,
+                             scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                                      "channel direction"));
+        if (direction_token.value() == "in") {
+          interface_channels.push_back(
+              std::make_unique<ReceiveChannelReference>(channel_name.value(),
+                                                        type));
+        } else if (direction_token.value() == "out") {
+          interface_channels.push_back(std::make_unique<SendChannelReference>(
+              channel_name.value(), type));
+        } else {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Invalid direction string `%s`, expected `in` or `out`",
+              direction_token.value()));
+        }
+      } while (scanner_.TryDropToken(LexicalTokenType::kComma));
+      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kGt));
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(Token open_paren,
                        scanner_.PopTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in proc parameters"));
@@ -1707,9 +1784,28 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
 
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
-  auto builder =
-      std::make_unique<ProcBuilder>(name.value(), token_param.name, package,
-                                    /*should_verify=*/false);
+  std::unique_ptr<ProcBuilder> builder;
+  if (is_new_style_proc) {
+    builder = std::make_unique<ProcBuilder>(NewStyleProc(), name.value(),
+                                            token_param.name, package,
+                                            /*should_verify=*/false);
+    for (const std::unique_ptr<ChannelReference>& channel_ref :
+         interface_channels) {
+      if (channel_ref->direction() == Direction::kReceive) {
+        XLS_RETURN_IF_ERROR(
+            builder->AddInputChannel(channel_ref->name(), channel_ref->type())
+                .status());
+      } else {
+        XLS_RETURN_IF_ERROR(
+            builder->AddOutputChannel(channel_ref->name(), channel_ref->type())
+                .status());
+      }
+    }
+  } else {
+    builder =
+        std::make_unique<ProcBuilder>(name.value(), token_param.name, package,
+                                      /*should_verify=*/false);
+  }
   (*name_to_value)[token_param.name] = builder->GetTokenParam();
   for (int64_t i = 0; i < state_params.size(); ++i) {
     (*name_to_value)[state_params[i].name] =
@@ -1974,8 +2070,9 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package,
   return block;
 }
 
-absl::StatusOr<Channel*> Parser::ParseChannel(
-    Package* package, const DeclAttributes& attributes) {
+absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
+                                              const DeclAttributes& attributes,
+                                              Proc* proc) {
   if (!attributes.empty()) {
     return absl::InvalidArgumentError(
         "Attributes are not supported on channel declarations.");
@@ -2157,15 +2254,26 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
         fifo_config->depth = *fifo_depth;
         fifo_config->bypass = bypass.value_or(true);
       }
-      return package->CreateStreamingChannel(
-          channel_name.value(), *supported_ops, type, initial_values,
+      if (proc == nullptr) {
+        return package->CreateStreamingChannel(
+            channel_name.value(), *supported_ops, type, initial_values,
+            fifo_config, flow_control.value_or(FlowControl::kNone),
+            strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive),
+            *metadata, id);
+      }
+      return package->CreateStreamingChannelInProc(
+          channel_name.value(), *supported_ops, type, proc, initial_values,
           fifo_config, flow_control.value_or(FlowControl::kNone),
           strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive),
           *metadata, id);
     }
     case ChannelKind::kSingleValue: {
-      return package->CreateSingleValueChannel(
-          channel_name.value(), *supported_ops, type, *metadata, id);
+      if (proc == nullptr) {
+        return package->CreateSingleValueChannel(
+            channel_name.value(), *supported_ops, type, *metadata, id);
+      }
+      return package->CreateSingleValueChannelInProc(
+          channel_name.value(), *supported_ops, type, proc, *metadata, id);
     }
   }
 

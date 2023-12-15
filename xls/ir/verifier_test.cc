@@ -25,7 +25,6 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 
@@ -360,8 +359,7 @@ proc my_proc(t: token, s: bits[42], init={45}) {
       VerifyPackage(p.get()),
       StatusIs(
           absl::StatusCode::kInternal,
-          HasSubstr(
-              "Cannot send over channel ch (42), send operation: send.1")));
+          HasSubstr("Cannot send over channel ch, send operation: send.1")));
 }
 
 TEST_F(VerifierTest, DynamicCountedForBodyParamterCountMismatch) {

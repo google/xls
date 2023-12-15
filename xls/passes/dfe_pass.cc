@@ -152,9 +152,9 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
   channels_to_remove.reserve(p->channels().size());
   for (Channel* channel : p->channels()) {
     if (!top_proc_representative_channel.has_value() ||
-        channel_union.Find(channel->name()) !=
+        channel_union.Find(std::string{channel->name()}) !=
             *top_proc_representative_channel) {
-      channels_to_remove.push_back(channel->name());
+      channels_to_remove.push_back(std::string{channel->name()});
     }
   }
   // Now remove any channels which are only used by now-removed procs.

@@ -8,6 +8,7 @@
 #include "xls/ir/instantiation.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -53,19 +54,21 @@ Type* GetMapType(Node* operand, Function* to_apply) {
                                  to_apply->return_value()->GetType());
 }
 
-Type* GetReceivePayloadType(Package* package, std::string_view channel_name) {
-  return package->GetChannel(channel_name).value()->type();
+Type* GetReceivePayloadType(FunctionBase* function_base, std::string_view channel_name) {
+  return function_base->AsProcOrDie()->GetChannelReferenceType(channel_name).value();
 }
 
-Type* GetReceiveType(Package* package, std::string_view channel_name, bool is_blocking) {
+Type* GetReceiveType(FunctionBase* function_base, std::string_view channel_name, bool is_blocking) {
   if(is_blocking) {
-    return package->GetTupleType({package->GetTokenType(),
-                                  GetReceivePayloadType(package, channel_name)});
+    return function_base->package()->GetTupleType(
+        {function_base->package()->GetTokenType(),
+         GetReceivePayloadType(function_base, channel_name)});
   }
 
-  return package->GetTupleType({package->GetTokenType(),
-                           GetReceivePayloadType(package, channel_name),
-                           package->GetBitsType(1)});
+  return function_base->package()->GetTupleType(
+      {function_base->package()->GetTokenType(),
+       GetReceivePayloadType(function_base, channel_name),
+       function_base->package()->GetBitsType(1)});
 }
 
 }  // namespace
@@ -237,7 +240,7 @@ absl::StatusOr<Node*> Trace::CloneInNewFunction(
 }
 
 Type* Receive::GetPayloadType() const {
-  return GetReceivePayloadType(function_base_->package(), channel_name_);
+  return GetReceivePayloadType(function_base_, channel_name_);
 }
 
 void Receive::ReplaceChannel(std::string_view new_channel_name) {

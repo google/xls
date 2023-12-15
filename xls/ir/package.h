@@ -255,6 +255,23 @@ class Package {
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
 
+  // Variants which add a channel on a proc for new style procs.
+  // TODO(https://github.com/google/xls/issues/869): Move these methods to
+  // xls::Proc.
+  absl::StatusOr<StreamingChannel*> CreateStreamingChannelInProc(
+      std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
+      absl::Span<const Value> initial_values = {},
+      std::optional<FifoConfig> fifo_config = std::nullopt,
+      FlowControl flow_control = FlowControl::kReadyValid,
+      ChannelStrictness strictness =
+          ChannelStrictness::kProvenMutuallyExclusive,
+      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
+      std::optional<int64_t> id = std::nullopt);
+  absl::StatusOr<SingleValueChannel*> CreateSingleValueChannelInProc(
+      std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
+      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
+      std::optional<int64_t> id = std::nullopt);
+
   // Returns a span of the channels owned by the package. Sorted by channel ID.
   absl::Span<Channel* const> channels() const { return channel_vec_; }
 
@@ -354,7 +371,7 @@ class Package {
   std::vector<std::string> GetChannelNames() const;
 
   // Adds the given channel to the package.
-  absl::Status AddChannel(std::unique_ptr<Channel> channel);
+  absl::Status AddChannel(std::unique_ptr<Channel> channel, Proc* proc);
 
   friend class FunctionBuilder;
 

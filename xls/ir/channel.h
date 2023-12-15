@@ -21,6 +21,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -82,7 +83,7 @@ class Channel {
   virtual ~Channel() = default;
 
   // Returns the name of the channel.
-  const std::string& name() const { return name_; }
+  std::string_view name() const { return name_; }
 
   // Returns the ID of the channel. The ID is unique within the scope of a
   // package.
@@ -304,6 +305,70 @@ inline std::ostream& operator<<(std::ostream& os, const Channel* channel) {
                             : channel->name());
   return os;
 }
+
+enum class Direction : int8_t { kSend, kReceive };
+
+// Abstraction representing a reference to a channel. The reference can be typed
+// to refer to the send or receive side. With proc-scoped channels (new style
+// procs), channel-using operations such as send/receive refer to channel
+// references rather than channel objects. In elaboration these channel
+// references are bound to channel objects.
+class ChannelReference {
+ public:
+  ChannelReference(std::string_view name, Type* type)
+      : name_(name), type_(type) {}
+  virtual ~ChannelReference() {}
+
+  // Like most IR constructs, ChannelReferences are passed around by pointer and
+  // are not copyable.
+  ChannelReference(const ChannelReference&) = delete;
+  ChannelReference& operator=(const ChannelReference&) = delete;
+
+  std::string_view name() const { return name_; }
+  Type* type() const { return type_; }
+  virtual Direction direction() const = 0;
+
+  std::string ToString() const;
+
+ private:
+  std::string name_;
+  Type* type_;
+};
+
+class SendChannelReference : public ChannelReference {
+ public:
+  SendChannelReference(std::string_view name, Type* type)
+      : ChannelReference(name, type) {}
+  ~SendChannelReference() override {}
+  Direction direction() const override { return Direction::kSend; }
+};
+
+class ReceiveChannelReference : public ChannelReference {
+ public:
+  ReceiveChannelReference(std::string_view name, Type* type)
+      : ChannelReference(name, type) {}
+  ~ReceiveChannelReference() override {}
+  Direction direction() const override { return Direction::kReceive; }
+};
+
+// Abstraction holding pointers hold both ends of a particular channel.
+struct ChannelReferences {
+  SendChannelReference* send_ref;
+  ReceiveChannelReference* receive_ref;
+};
+
+// Type which holds a channel or channel reference. This is a type used to
+// transition to proc-scoped channels. In the proc-scoped channel universe all
+// uses of channels use ChannelReferences rather than Channel objects.
+// TODO(https://github.com/google/xls/issues/869): Remove these and replace with
+// ChannelReference* when all procs are new style.
+using ChannelRef = std::variant<Channel*, ChannelReference*>;
+using SendChannelRef = std::variant<Channel*, SendChannelReference*>;
+using ReceiveChannelRef = std::variant<Channel*, ReceiveChannelReference*>;
+
+// Return the name/type of a channel reference.
+std::string_view ChannelRefName(ChannelRef ref);
+Type* ChannelRefType(ChannelRef ref);
 
 }  // namespace xls
 

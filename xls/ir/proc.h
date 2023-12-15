@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/btree_set.h"
@@ -27,6 +28,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -48,7 +51,22 @@ class Proc : public FunctionBase {
        Package* package)
       : FunctionBase(name, package),
         next_token_(AddNode(std::make_unique<Param>(
-            SourceInfo(), token_param_name, package->GetTokenType(), this))) {}
+            SourceInfo(), token_param_name, package->GetTokenType(), this))),
+        is_new_style_proc_(false) {}
+
+  // Creates a new-style proc which supports proc-scoped channels.
+  Proc(std::string_view name,
+       absl::Span<std::unique_ptr<ChannelReference>> interface,
+       std::string_view token_param_name, Package* package)
+      : FunctionBase(name, package),
+        next_token_(AddNode(std::make_unique<Param>(
+            SourceInfo(), token_param_name, package->GetTokenType(), this))),
+        is_new_style_proc_(true) {
+    for (std::unique_ptr<ChannelReference>& channel_ref : interface) {
+      channel_refs_.push_back(std::move(channel_ref));
+      interface_.push_back(channel_refs_.back().get());
+    }
+  }
 
   ~Proc() override = default;
 
@@ -161,16 +179,74 @@ class Proc : public FunctionBase {
 
   std::string DumpIr() const override;
 
+  // Returns true if this is a new-style proc which has proc-scoped channels.
+  bool is_new_style_proc() const { return is_new_style_proc_; }
+
+  // Returns the type of the channel reference (Channel or ChannelReference)
+  // with the given name.
+  absl::StatusOr<Type*> GetChannelReferenceType(std::string_view name) const;
+
+  // Return the ordered list of the channel references which form the interface
+  // of the proc. Only can be called for new style procs.
+  absl::Span<ChannelReference* const> interface() const {
+    XLS_CHECK(is_new_style_proc());
+    return interface_;
+  }
+
+  // Return the channels defined in this proc. Only can be called for new style
+  // procs.
+  absl::Span<Channel* const> channels() const {
+    XLS_CHECK(is_new_style_proc());
+    return channel_vec_;
+  }
+
+  // Add a channel definition to the proc.  Only can be called for new style
+  // procs. Returns a data structure holding pointers to the references to the
+  // two sides of the channel.
+  absl::StatusOr<ChannelReferences> AddChannel(
+      std::unique_ptr<Channel> channel);
+
+  // Add an input/output channel to the interface of the proc. Only can ee
+  // called for new style procs.
+  absl::Status AddInputChannelReference(
+      std::unique_ptr<ReceiveChannelReference> channel_ref);
+  absl::Status AddOutputChannelReference(
+      std::unique_ptr<SendChannelReference> channel_ref);
+
+  // Returns whether this proc has a channel reference of the given name. Only
+  // can be called for new style procs.
+  bool HasChannelReference(std::string_view name) const;
+  bool HasSendChannelReference(std::string_view name) const;
+  bool HasReceiveChannelReference(std::string_view name) const;
+
+  // Returns the Send/Receive channel reference with the given name.
+  absl::StatusOr<SendChannelReference*> GetSendChannelReference(
+      std::string_view name) const;
+  absl::StatusOr<ReceiveChannelReference*> GetReceiveChannelReference(
+      std::string_view name) const;
+
  private:
   std::vector<Value> init_values_;
 
   // The nodes representing the token/state values for the next iteration of the
   // proc.
   Node* next_token_;
+  bool is_new_style_proc_;
   std::vector<Node*> next_state_;
 
   // A map from the `next_state_` nodes back to the indices they control.
   absl::flat_hash_map<Node*, absl::btree_set<int64_t>> next_state_indices_;
+
+  // All channel references in this proc. Channel references can be part of the
+  // interface or the references of channels declared in this proc.
+  std::vector<std::unique_ptr<ChannelReference>> channel_refs_;
+
+  // Channel references which form interface of the proc.
+  std::vector<ChannelReference*> interface_;
+
+  // Channels declared in this proc indexed by channel name.
+  absl::flat_hash_map<std::string, std::unique_ptr<Channel>> channels_;
+  std::vector<Channel*> channel_vec_;
 };
 
 }  // namespace xls
