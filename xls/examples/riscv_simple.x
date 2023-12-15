@@ -29,22 +29,22 @@ const REG_COUNT = u32:32;
 const DMEM_SIZE = u32:16;  // Bytes
 
 // (Typed) Register shortcuts.
-const r0 = u5:0;
-const r1 = u5:1;
-const r2 = u5:2;
-const r3 = u5:3;
-const r4 = u5:4;
-const r5 = u5:5;
-const r6 = u5:6;
-const r7 = u5:7;
-const r8 = u5:8;
-const r9 = u5:9;
-const r10 = u5:10;
-const r11 = u5:11;
-const r12 = u5:12;
-const r13 = u5:13;
-const r14 = u5:14;
-const r15 = u5:15;
+const R0 = u5:0;
+const R1 = u5:1;
+const R2 = u5:2;
+const R3 = u5:3;
+const R4 = u5:4;
+const R5 = u5:5;
+const R6 = u5:6;
+const R7 = u5:7;
+const R8 = u5:8;
+const R9 = u5:9;
+const R10 = u5:10;
+const R11 = u5:11;
+const R12 = u5:12;
+const R13 = u5:13;
+const R14 = u5:14;
+const R15 = u5:15;
 
 // Instruction classes (called Opcode in RISC-V)
 const I_LD     = u7:0b0000011;
@@ -534,11 +534,11 @@ fn run_instruction(pc: u32,
       UJ_CLASS => run_uj_instruction(pc, ins, regs, dmem),
       _ => fail!("unsupported_func3", (pc, regs, dmem)),
     };
-    (pc, update(regs, u32:0, u32:0), dmem) // to ensure r0 == 0 at all times.
+    (pc, update(regs, u32:0, u32:0), dmem) // to ensure R0 == 0 at all times.
 }
 
 // Make an R-type instruction.
-fn make_r_insn(op: u3, rdest: u5, r1: u5, r2: u5) -> u32 {
+fn make_r_insn(op: u3, rdest: u5, R1: u5, R2: u5) -> u32 {
   let funct7 = match op {
      ADD => ADD_FUNCT7,
      SUB => SUB_FUNCT7,
@@ -547,33 +547,33 @@ fn make_r_insn(op: u3, rdest: u5, r1: u5, r2: u5) -> u32 {
      SCD => SCD_FUNCT7,
      _   => u7:0
   };
-  funct7 ++ r2 ++ r1 ++ op ++ rdest ++ R_CLASS
+  funct7 ++ R2 ++ R1 ++ op ++ rdest ++ R_CLASS
 }
 
 #[test]
 fn round_trip_r_insn_test() {
-  let i = make_r_insn(ADD, r6, r8, r7);
+  let i = make_r_insn(ADD, R6, R8, R7);
   let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(i);
   assert_eq(funct7, u7:0);
-  assert_eq(rs2, r7);
-  assert_eq(rs1, r8);
+  assert_eq(rs2, R7);
+  assert_eq(rs1, R8);
   assert_eq(funct3, u3:0);
-  assert_eq(rd, r6);
+  assert_eq(rd, R6);
   assert_eq(opcode, R_CLASS);
 }
 
 // Make an I-type instruction for I_ARITH and I_LD
-fn make_i_insn(op: u3, rdest: u5, r1: u5, imm12: u12) -> u32 {
+fn make_i_insn(op: u3, rdest: u5, R1: u5, imm12: u12) -> u32 {
   let itype : u7 = match op {
      ADDI | SLLI | XORI | SRLI | SRAI | ORI | ANDI => I_ARITH,
      _    => I_LD
   };
-  imm12 ++ r1 ++ op ++ rdest ++ itype
+  imm12 ++ R1 ++ op ++ rdest ++ itype
 }
 
 // Make an I-Type instruction for JALR.
-fn make_jalr_insn(op: u3, rdest: u5, r1: u5, imm12: u12) -> u32 {
-  imm12 ++ r1 ++ op ++ rdest ++ I_JALR
+fn make_jalr_insn(op: u3, rdest: u5, R1: u5, imm12: u12) -> u32 {
+  imm12 ++ R1 ++ op ++ rdest ++ I_JALR
 }
 
 // Make an S-type instruction.
@@ -618,7 +618,7 @@ fn make_uj_insn(rdest: u5, imm20: u20) -> u32 {
 fn risc_v_example_test() {
   // Create an initial machine / process.
   //
-  // Create an initial set of registers. All 0's except r1 and r2,
+  // Create an initial set of registers. All 0's except R1 and R2,
   // which are 1 and 2 correspondingly.
   let regs = u32[REG_COUNT]:[0, 1, 2, 0, ...];
 
@@ -630,46 +630,46 @@ fn risc_v_example_test() {
 
   // Run instructions in sequence
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_r_insn(XOR, r3, r1, r2), regs, dmem);  // 3
-  assert_eq(regs[r3],  u32:3);
+                         make_r_insn(XOR, R3, R1, R2), regs, dmem);  // 3
+  assert_eq(regs[R3],  u32:3);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_r_insn(ADD, r6, r3, r3), regs, dmem);  // 6
-  assert_eq(regs[r3],  u32:3);
-  assert_eq(regs[r6],  u32:6);
+                         make_r_insn(ADD, R6, R3, R3), regs, dmem);  // 6
+  assert_eq(regs[R3],  u32:3);
+  assert_eq(regs[R6],  u32:6);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_s_insn(SW, r6, r0, u12:4), regs, dmem);  // 6
+                         make_s_insn(SW, R6, R0, u12:4), regs, dmem);  // 6
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_i_insn(ADDI, r7, r6, u12:1), regs, dmem); // 7
-  assert_eq(regs[r7],  u32:7);
+                         make_i_insn(ADDI, R7, R6, u12:1), regs, dmem); // 7
+  assert_eq(regs[R7],  u32:7);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_i_insn(LW, r8, r0, u12:4), regs, dmem); // 6
-  assert_eq(regs[r8],  u32:6);
+                         make_i_insn(LW, R8, R0, u12:4), regs, dmem); // 6
+  assert_eq(regs[R8],  u32:6);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_r_insn(ADD, r6, r8, r7), regs, dmem);  // 13
-  assert_eq(regs[r6],  u32:13);
+                         make_r_insn(ADD, R6, R8, R7), regs, dmem);  // 13
+  assert_eq(regs[R6],  u32:13);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_jalr_insn(JALR, r1, r6, u12:128), regs, dmem);
+                         make_jalr_insn(JALR, R1, R6, u12:128), regs, dmem);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_u_insn(r9, u20:0x80001), regs, dmem);
+                         make_u_insn(R9, u20:0x80001), regs, dmem);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_uj_insn(r10, u20:8), regs, dmem);
+                         make_uj_insn(R10, u20:8), regs, dmem);
 
-  assert_eq(regs[r6],  u32:13);
-  assert_eq(regs[r1],  u32:0x1c);
+  assert_eq(regs[R6],  u32:13);
+  assert_eq(regs[R1],  u32:0x1c);
   assert_eq(PC,        u32:0xa0);
-  assert_eq(regs[r9],  u32:0x80001000);
-  assert_eq(regs[r10], u32:0x94);
+  assert_eq(regs[R9],  u32:0x80001000);
+  assert_eq(regs[R10], u32:0x94);
 
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_b_insn(BEQ, r6, r6, u12:8), regs, dmem);
+                         make_b_insn(BEQ, R6, R6, u12:8), regs, dmem);
   assert_eq(PC, u32:0xb0);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_b_insn(BNE, r6, r6, u12:8), regs, dmem);
+                         make_b_insn(BNE, R6, R6, u12:8), regs, dmem);
   assert_eq(PC, u32:0xb4);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_b_insn(BGE, r1, r2, u12:8), regs, dmem);
+                         make_b_insn(BGE, R1, R2, u12:8), regs, dmem);
   assert_eq(PC, u32:0xc4);
   let (PC, _regs, _dmem) = run_instruction(PC,
-                         make_b_insn(BLT, r2, r1, s12:-8 as u12), regs, dmem);
+                         make_b_insn(BLT, R2, R1, s12:-8 as u12), regs, dmem);
   assert_eq(PC, u32:0xb4);
 }

@@ -14,11 +14,13 @@
 
 #include "xls/dslx/warning_kind.h"
 
+#include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/status_macros.h"
 
@@ -44,6 +46,8 @@ absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind) {
       return "useless_expression_statement";
     case WarningKind::kTrailingTupleAfterSemi:
       return "trailing_tuple_after_semi";
+    case WarningKind::kConstantNaming:
+      return "constant_naming";
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Invalid warning kind: ", static_cast<int>(kind)));
@@ -57,8 +61,12 @@ absl::StatusOr<WarningKind> WarningKindFromString(std::string_view s) {
       return kind;
     }
   }
-  return absl::InvalidArgumentError(
-      absl::StrCat("Unknown warning kind: `", s, "`"));
+  return absl::InvalidArgumentError(absl::StrCat(
+      "Unknown warning kind: `", s, "`; all warning kinds: ",
+      absl::StrJoin(kAllWarningKinds, ", ",
+                    [](std::string* out, WarningKind k) {
+                      absl::StrAppend(out, WarningKindToString(k).value());
+                    })));
 }
 
 absl::StatusOr<WarningKindSet> WarningKindSetFromDisabledString(

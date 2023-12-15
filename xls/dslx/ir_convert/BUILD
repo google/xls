@@ -316,6 +316,7 @@ cc_binary(
     srcs = ["ir_converter_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":convert_options",
         ":ir_converter",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
@@ -323,6 +324,7 @@ cc_binary(
         "@com_google_absl//absl/types:span",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
+        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:warning_kind",

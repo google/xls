@@ -53,4 +53,15 @@ std::string Escape(std::string_view original) {
   return absl::StrReplaceAll(result, {{"\\x00", "\\0"}});
 }
 
+bool IsScreamingSnakeCase(std::string_view identifier) {
+  for (char c : identifier) {
+    bool acceptable =
+        ('0' <= c && c <= '9') || ('A' <= c && c <= 'Z') || c == '_';
+    if (!acceptable) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace xls::dslx

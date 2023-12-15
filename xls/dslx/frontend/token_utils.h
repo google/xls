@@ -40,6 +40,9 @@ GetSizedTypeKeywordsMetadata();
 // character '\0' over the hex one that CHexEscape uses.
 std::string Escape(std::string_view original);
 
+// Returns whether the given identifier is in SCREAMING_SNAKE_CASE style.
+bool IsScreamingSnakeCase(std::string_view identifier);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_TOKEN_UTILS_H_

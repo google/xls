@@ -20,7 +20,7 @@ fn checked_divide(x: u32, y: u32) -> u32 {
     }
 }
 
-const three = checked_divide(u32:6, u32:2);
+const THREE = checked_divide(u32:6, u32:2);
 
 fn main() -> u32 {
     // TODO(https://github.com/google/xls/issues/496) 2021-09-16:
@@ -29,4 +29,4 @@ fn main() -> u32 {
 }
 
 #[test]
-fn compute_without_fail_test() { assert_eq(u32:3, three); }
+fn compute_without_fail_test() { assert_eq(u32:3, THREE); }
