@@ -1513,6 +1513,8 @@ cc_test(
     srcs = ["proc_test.cc"],
     deps = [
         ":bits",
+        ":channel",
+        ":channel_ops",
         ":function_builder",
         ":ir",
         ":ir_matcher",

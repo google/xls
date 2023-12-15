@@ -19,6 +19,8 @@
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -320,6 +322,47 @@ TEST_F(ProcTest, Clone) {
   add.17: bits[32] = add(add.14, tuple_index.15, id=17)
   send_9: token = send(tuple_index.16, add.17, channel=cloned_chan, id=18)
   next (send_9, add.17)
+}
+)");
+}
+
+TEST_F(ProcTest, CloneNewStyle) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * ch_a,
+                           pb.AddInputChannel("a", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelReference * ch_b,
+                           pb.AddOutputChannel("b", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences ch_c,
+                           pb.AddChannel("c", p->GetBitsType(32), {}));
+
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue recv_a = pb.Receive(ch_a);
+  BValue recv_c = pb.Receive(ch_c.receive_ref);
+  pb.Send(ch_b, state);
+  pb.Send(ch_c.send_ref, state);
+  BValue add = pb.Add(recv_a, recv_c);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({add}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * clone, proc->Clone("cloned", p.get()));
+
+  EXPECT_FALSE(clone->IsFunction());
+  EXPECT_TRUE(clone->IsProc());
+
+  EXPECT_EQ(
+      clone->DumpIr(),
+      R"(proc cloned<a: bits[32] in, b: bits[32] out>(tkn: token, st: bits[32], init={42}) {
+  chan c(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+  receive_3: (token, bits[32]) = receive(tkn, channel=a, id=14)
+  tuple_index.15: token = tuple_index(receive_3, index=0, id=15)
+  receive_6: (token, bits[32]) = receive(tuple_index.15, channel=c, id=16)
+  tuple_index.17: token = tuple_index(receive_6, index=0, id=17)
+  send_9: token = send(tuple_index.17, st, channel=b, id=18)
+  tuple_index.19: bits[32] = tuple_index(receive_3, index=1, id=19)
+  tuple_index.20: bits[32] = tuple_index(receive_6, index=1, id=20)
+  send_10: token = send(send_9, st, channel=c, id=21)
+  add.22: bits[32] = add(tuple_index.19, tuple_index.20, id=22)
+  next (send_10, add.22)
 }
 )");
 }

@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -329,12 +330,23 @@ absl::StatusOr<Proc*> Proc::Clone(
     absl::flat_hash_map<std::string, std::string> channel_remapping,
     absl::flat_hash_map<const FunctionBase*, FunctionBase*> call_remapping)
     const {
+  if (is_new_style_proc()) {
+    XLS_RET_CHECK(channel_remapping.empty());
+  }
+
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   if (target_package == nullptr) {
     target_package = package();
   }
-  Proc* cloned_proc = target_package->AddProc(std::make_unique<Proc>(
-      new_name, TokenParam()->GetName(), target_package));
+  Proc* cloned_proc;
+  if (is_new_style_proc()) {
+    cloned_proc = target_package->AddProc(std::make_unique<Proc>(
+        new_name, /*interface=*/absl::Span<std::unique_ptr<ChannelReference>>(),
+        TokenParam()->GetName(), target_package));
+  } else {
+    cloned_proc = target_package->AddProc(std::make_unique<Proc>(
+        new_name, TokenParam()->GetName(), target_package));
+  }
   original_to_clone[TokenParam()] = cloned_proc->TokenParam();
   for (int64_t i = 0; i < GetStateElementCount(); ++i) {
     XLS_ASSIGN_OR_RETURN(Param * cloned_param, cloned_proc->AppendStateElement(
@@ -342,6 +354,39 @@ absl::StatusOr<Proc*> Proc::Clone(
                                                    GetInitValueElement(i)));
     original_to_clone[GetStateParam(i)] = cloned_param;
   }
+  if (is_new_style_proc()) {
+    for (ChannelReference* channel_ref : interface()) {
+      if (channel_ref->direction() == Direction::kSend) {
+        XLS_RETURN_IF_ERROR(cloned_proc->AddOutputChannelReference(
+            std::make_unique<SendChannelReference>(channel_ref->name(),
+                                                   channel_ref->type())));
+      } else {
+        XLS_RETURN_IF_ERROR(cloned_proc->AddInputChannelReference(
+            std::make_unique<ReceiveChannelReference>(channel_ref->name(),
+                                                      channel_ref->type())));
+      }
+    }
+    for (Channel* channel : channels()) {
+      std::unique_ptr<Channel> new_channel;
+      if (channel->kind() == ChannelKind::kStreaming) {
+        StreamingChannel* streaming_channel =
+            down_cast<StreamingChannel*>(channel);
+        new_channel = std::make_unique<StreamingChannel>(
+            channel->name(), channel->id(), channel->supported_ops(),
+            channel->type(), channel->initial_values(),
+            streaming_channel->fifo_config(),
+            streaming_channel->GetFlowControl(),
+            streaming_channel->GetStrictness(), channel->metadata());
+      } else {
+        new_channel = std::make_unique<SingleValueChannel>(
+            channel->name(), channel->id(), channel->supported_ops(),
+            channel->type(), channel->metadata());
+      }
+      XLS_RETURN_IF_ERROR(
+          cloned_proc->AddChannel(std::move(new_channel)).status());
+    }
+  }
+
   for (Node* node : TopoSort(const_cast<Proc*>(this))) {
     std::vector<Node*> cloned_operands;
     for (Node* operand : node->operands()) {
@@ -354,31 +399,54 @@ absl::StatusOr<Proc*> Proc::Clone(
       }
       case Op::kReceive: {
         Receive* src = node->As<Receive>();
-        std::string channel = channel_remapping.contains(src->channel_name())
-                                  ? channel_remapping.at(src->channel_name())
-                                  : src->channel_name();
-        XLS_ASSIGN_OR_RETURN(original_to_clone[node],
-                             cloned_proc->MakeNodeWithName<Receive>(
-                                 src->loc(), cloned_operands[0],
-                                 cloned_operands.size() == 2
-                                     ? std::optional<Node*>(cloned_operands[1])
-                                     : std::nullopt,
-                                 channel, src->is_blocking(), src->GetName()));
+        if (is_new_style_proc()) {
+          XLS_ASSIGN_OR_RETURN(
+              original_to_clone[node],
+              cloned_proc->MakeNodeWithName<Receive>(
+                  src->loc(), cloned_operands[0],
+                  cloned_operands.size() == 2
+                      ? std::optional<Node*>(cloned_operands[1])
+                      : std::nullopt,
+                  src->channel_name(), src->is_blocking(), src->GetName()));
+        } else {
+          std::string channel = channel_remapping.contains(src->channel_name())
+                                    ? channel_remapping.at(src->channel_name())
+                                    : src->channel_name();
+          XLS_ASSIGN_OR_RETURN(
+              original_to_clone[node],
+              cloned_proc->MakeNodeWithName<Receive>(
+                  src->loc(), cloned_operands[0],
+                  cloned_operands.size() == 2
+                      ? std::optional<Node*>(cloned_operands[1])
+                      : std::nullopt,
+                  channel, src->is_blocking(), src->GetName()));
+        }
         break;
       }
       case Op::kSend: {
         Send* src = node->As<Send>();
-        std::string channel = channel_remapping.contains(src->channel_name())
-                                  ? channel_remapping.at(src->channel_name())
-                                  : src->channel_name();
-        XLS_ASSIGN_OR_RETURN(
-            original_to_clone[node],
-            cloned_proc->MakeNodeWithName<Send>(
-                src->loc(), cloned_operands[0], cloned_operands[1],
-                cloned_operands.size() == 3
-                    ? std::optional<Node*>(cloned_operands[2])
-                    : std::nullopt,
-                channel, src->GetName()));
+        if (is_new_style_proc()) {
+          XLS_ASSIGN_OR_RETURN(
+              original_to_clone[node],
+              cloned_proc->MakeNodeWithName<Send>(
+                  src->loc(), cloned_operands[0], cloned_operands[1],
+                  cloned_operands.size() == 3
+                      ? std::optional<Node*>(cloned_operands[2])
+                      : std::nullopt,
+                  src->channel_name(), src->GetName()));
+        } else {
+          std::string channel = channel_remapping.contains(src->channel_name())
+                                    ? channel_remapping.at(src->channel_name())
+                                    : src->channel_name();
+          XLS_ASSIGN_OR_RETURN(
+              original_to_clone[node],
+              cloned_proc->MakeNodeWithName<Send>(
+                  src->loc(), cloned_operands[0], cloned_operands[1],
+                  cloned_operands.size() == 3
+                      ? std::optional<Node*>(cloned_operands[2])
+                      : std::nullopt,
+                  channel, src->GetName()));
+        }
         break;
       }
       // Remap CountedFor body.
