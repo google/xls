@@ -85,6 +85,10 @@ ABSL_FLAG(bool, meta_out_text, false, "Output metadata as textproto?");
 ABSL_FLAG(std::string, verilog_line_map_out, "",
           "Path at which to output Verilog line map protobuf");
 
+ABSL_FLAG(bool, error_on_uninitialized, false,
+          "Generate an error when a variable is uninitialized, or has the "
+          "wrong number of initializers.");
+
 ABSL_FLAG(bool, error_on_init_interval, false,
           "Generate an error when an initiation interval is requested greater "
           "than supported");
@@ -124,6 +128,7 @@ static absl::Status Run(std::string_view cpp_path) {
   }
 
   xlscc::Translator translator(absl::GetFlag(FLAGS_error_on_init_interval),
+                               absl::GetFlag(FLAGS_error_on_uninitialized),
                                absl::GetFlag(FLAGS_max_unroll_iters),
                                absl::GetFlag(FLAGS_warn_unroll_iters),
                                absl::GetFlag(FLAGS_z3_rlimit),

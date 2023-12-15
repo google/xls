@@ -1081,7 +1081,8 @@ class Translator {
  public:
   // Make unrolling configurable from main
   explicit Translator(
-      bool error_on_init_interval = false, int64_t max_unroll_iters = 1000,
+      bool error_on_init_interval = false, bool error_on_uninitialized = false,
+      int64_t max_unroll_iters = 1000,
       int64_t warn_unroll_iters = 100, int64_t z3_rlimit = -1,
       IOOpOrdering op_ordering = IOOpOrdering::kNone,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
@@ -1351,6 +1352,10 @@ class Translator {
 
   // Generate an error when an init interval > supported is requested?
   const bool error_on_init_interval_;
+
+  // Generate an error when a variable is uninitialized, or has the wrong number
+  // of initializers.
+  const bool error_on_uninitialized_;
 
   // How to generate the token dependencies for IO Ops
   const IOOpOrdering op_ordering_;

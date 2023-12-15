@@ -57,7 +57,7 @@ class TranslatorLogicTest : public XlsccTestBase {
 };
 
 TEST_F(TranslatorLogicTest, IntConst) {
-  const std::string content = R"(
+  std::string_view content = R"(
     int my_package(int a) {
       return 123;
     })";
@@ -65,7 +65,7 @@ TEST_F(TranslatorLogicTest, IntConst) {
 }
 
 TEST_F(TranslatorLogicTest, LongConst) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return 123L;
       })";
@@ -74,7 +74,7 @@ TEST_F(TranslatorLogicTest, LongConst) {
 }
 
 TEST_F(TranslatorLogicTest, LongLongConst) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a) {
         return 123L;
       })";
@@ -83,7 +83,7 @@ TEST_F(TranslatorLogicTest, LongLongConst) {
 }
 
 TEST_F(TranslatorLogicTest, LongLongTrueConst) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a) {
         return 123LL;
       })";
@@ -92,7 +92,7 @@ TEST_F(TranslatorLogicTest, LongLongTrueConst) {
 }
 
 TEST_F(TranslatorLogicTest, SyntaxError) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return a+
       })";
@@ -105,7 +105,7 @@ TEST_F(TranslatorLogicTest, SyntaxError) {
 
 TEST_F(TranslatorLogicTest, Assignment) {
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           a = 5;
           return a;
@@ -114,7 +114,7 @@ TEST_F(TranslatorLogicTest, Assignment) {
     Run({{"a", 1000}}, 5, content);
   }
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           a = 5;
           return a = 10;
@@ -125,7 +125,7 @@ TEST_F(TranslatorLogicTest, Assignment) {
 }
 
 TEST_F(TranslatorLogicTest, ChainedAssignment) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         a += 5;
         a += 10;
@@ -136,7 +136,7 @@ TEST_F(TranslatorLogicTest, ChainedAssignment) {
 }
 
 TEST_F(TranslatorLogicTest, UnsignedChar) {
-  const std::string content = R"(
+  std::string_view content = R"(
       unsigned char my_package(unsigned char a) {
         return a+5;
       })";
@@ -145,7 +145,7 @@ TEST_F(TranslatorLogicTest, UnsignedChar) {
 }
 
 TEST_F(TranslatorLogicTest, SignedChar) {
-  const std::string content = R"(
+  std::string_view content = R"(
       bool my_package(signed char a) {
         return a < 1;
       })";
@@ -155,7 +155,7 @@ TEST_F(TranslatorLogicTest, SignedChar) {
 }
 
 TEST_F(TranslatorLogicTest, Bool) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(long long a) {
         return bool(a);
       })";
@@ -166,7 +166,7 @@ TEST_F(TranslatorLogicTest, Bool) {
 }
 
 TEST_F(TranslatorLogicTest, DeclGroup) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         long long aa=a, bb=b;
         return aa+bb;
@@ -176,7 +176,7 @@ TEST_F(TranslatorLogicTest, DeclGroup) {
 }
 
 TEST_F(TranslatorLogicTest, Short) {
-  const std::string content = R"(
+  std::string_view content = R"(
       short my_package(short a, short b) {
         return a+b;
       })";
@@ -185,7 +185,7 @@ TEST_F(TranslatorLogicTest, Short) {
 }
 
 TEST_F(TranslatorLogicTest, UShort) {
-  const std::string content = R"(
+  std::string_view content = R"(
       unsigned short my_package(unsigned short a, unsigned short b) {
         return a+b;
       })";
@@ -194,7 +194,7 @@ TEST_F(TranslatorLogicTest, UShort) {
 }
 
 TEST_F(TranslatorLogicTest, Typedef) {
-  const std::string content = R"(
+  std::string_view content = R"(
       typedef long long my_int;
       my_int my_package(my_int a) {
         return a*10;
@@ -204,7 +204,7 @@ TEST_F(TranslatorLogicTest, Typedef) {
 }
 
 TEST_F(TranslatorLogicTest, IrAsm) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a) {
        int asm_out;
        asm (
@@ -219,7 +219,7 @@ TEST_F(TranslatorLogicTest, IrAsm) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayParam) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(const long long arr[2]) {
          return arr[0]+arr[1];
        })";
@@ -241,7 +241,7 @@ TEST_F(TranslatorLogicTest, ArrayParam) {
 }
 
 TEST_F(TranslatorLogicTest, ArraySet) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          long long arr[4];
          arr[0] = a;
@@ -253,7 +253,7 @@ TEST_F(TranslatorLogicTest, ArraySet) {
 }
 
 TEST_F(TranslatorLogicTest, IncrementInArrayIndex1) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          int arr[4];
          arr[a++] = 5;
@@ -264,7 +264,7 @@ TEST_F(TranslatorLogicTest, IncrementInArrayIndex1) {
 }
 
 TEST_F(TranslatorLogicTest, IncrementInArrayIndex2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Blah {
          int operator=(int x) {
            return 0;
@@ -280,7 +280,7 @@ TEST_F(TranslatorLogicTest, IncrementInArrayIndex2) {
 }
 
 TEST_F(TranslatorLogicTest, IncrementInArrayIndex3) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          int arr[4];
          arr[a] = arr[a++];
@@ -291,7 +291,7 @@ TEST_F(TranslatorLogicTest, IncrementInArrayIndex3) {
 }
 
 TEST_F(TranslatorLogicTest, ThisExprWithCallByReference) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct Blah {
       int val() {
         return 2;
@@ -312,7 +312,7 @@ TEST_F(TranslatorLogicTest, ThisExprWithCallByReference) {
 }
 
 TEST_F(TranslatorLogicTest, ThisExprWithCallByReference2) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct Blah {
       operator int() {
         return 2;
@@ -333,7 +333,7 @@ TEST_F(TranslatorLogicTest, ThisExprWithCallByReference2) {
 }
 
 TEST_F(TranslatorLogicTest, ThisExprWithCallByReference3) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct Blah {
       Blah val() {
         return *this;
@@ -357,7 +357,7 @@ TEST_F(TranslatorLogicTest, ThisExprWithCallByReference3) {
 }
 
 TEST_F(TranslatorLogicTest, ThisExprWithCallByReference4) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct Blah {
       int val()const {
         return 2;
@@ -378,7 +378,7 @@ TEST_F(TranslatorLogicTest, ThisExprWithCallByReference4) {
 }
 
 TEST_F(TranslatorLogicTest, ByReferenceSubExpr) {
-  const std::string content = R"(
+  std::string_view content = R"(
 
     int byref(int offset, int& out) {
       out = out + offset;
@@ -395,7 +395,7 @@ TEST_F(TranslatorLogicTest, ByReferenceSubExpr) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayParamAssign) {
-  const std::string content = R"(
+  std::string_view content = R"(
     void addto(int v[6]) {
       v[3] += 3;
     }
@@ -411,7 +411,7 @@ TEST_F(TranslatorLogicTest, ArrayParamAssign) {
 }
 
 TEST_F(TranslatorLogicTest, DerefPointerToArrayAssign) {
-  const std::string content = R"(
+  std::string_view content = R"(
     int my_package(bool configured) {
       (void)configured;
       int brr[6] = {10,20,30,40,50,60};
@@ -430,7 +430,7 @@ TEST_F(TranslatorLogicTest, DerefPointerToArrayAssign) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayPointerParam) {
-  const std::string content = R"(
+  std::string_view content = R"(
     void addto(int* v) {
       v[3] += 3;
     }
@@ -450,7 +450,7 @@ TEST_F(TranslatorLogicTest, ArrayPointerParam) {
 }
 
 TEST_F(TranslatorLogicTest, Array2D) {
-  const std::string content = R"(
+  std::string_view content = R"(
        int my_package(int a, int b) {
          int x[2][2] = {{b,b}, {b,b}};
          x[1][0] += a;
@@ -461,7 +461,7 @@ TEST_F(TranslatorLogicTest, Array2D) {
 }
 
 TEST_F(TranslatorLogicTest, Array2DParam) {
-  const std::string content = R"(
+  std::string_view content = R"(
        int access_it(int x[2][2]) {
          return x[1][0];
        }
@@ -475,7 +475,7 @@ TEST_F(TranslatorLogicTest, Array2DParam) {
 }
 
 TEST_F(TranslatorLogicTest, Array2DConstParam) {
-  const std::string content = R"(
+  std::string_view content = R"(
        int access_it(const int x[2][2]) {
          return x[1][0];
        }
@@ -489,7 +489,7 @@ TEST_F(TranslatorLogicTest, Array2DConstParam) {
 }
 
 TEST_F(TranslatorLogicTest, Array2DInit) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct ts {
          ts(int v) : x(v) { };
          operator int () const { return x; }
@@ -505,7 +505,7 @@ TEST_F(TranslatorLogicTest, Array2DInit) {
 }
 
 TEST_F(TranslatorLogicTest, Array2DClass) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct ts {
          ts(int v) : x(v) { };
          operator int () const { return x; }
@@ -521,7 +521,7 @@ TEST_F(TranslatorLogicTest, Array2DClass) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayInitList) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          long long arr[2] = {10, 20};
          arr[0] += a;
@@ -532,7 +532,7 @@ TEST_F(TranslatorLogicTest, ArrayInitList) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayRefParam) {
-  const std::string content = R"(
+  std::string_view content = R"(
        void asd(int b[2]) {
          b[0] += 5;
        }
@@ -545,7 +545,7 @@ TEST_F(TranslatorLogicTest, ArrayRefParam) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayInitListWrongSize) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          long long arr[4] = {10, 20};
          return a;
@@ -554,7 +554,7 @@ TEST_F(TranslatorLogicTest, ArrayInitListWrongSize) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayTooManyInitListValues) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package() {
          long long arr[1] = {4, 5};
          return arr[0];
@@ -566,48 +566,25 @@ TEST_F(TranslatorLogicTest, ArrayTooManyInitListValues) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeMultipleZeros) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package() {
          long long arr[4] = {0, 0};
          return arr[3];
        })";
-  ASSERT_FALSE(SourceToIr(content).ok());
+  XLS_ASSERT_OK(SourceToIr(content));
 }
 
 TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeOneNonZeros) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package() {
          long long arr[4] = {9};
          return arr[3];
        })";
-  ASSERT_FALSE(SourceToIr(content).ok());
-}
-
-TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeOneWithZeros) {
-  const std::string content = R"(
-       long long my_package() {
-         #pragma hls_array_allow_default_pad
-         long long arr[4] = {0};
-         return arr[3];
-       })";
-  Run({}, 0, content);
-}
-
-TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeOneWithDefaultStruct) {
-  const std::string content = R"(
-       struct x {
-         int a;
-       };
-       long long my_package() {
-         #pragma hls_array_allow_default_pad
-         x arr[4] = {{}};
-         return arr[3].a;
-       })";
-  Run({}, 0, content);
+  XLS_ASSERT_OK(SourceToIr(content));
 }
 
 TEST_F(TranslatorLogicTest, ConstInitListExpr) {
-  const std::string content = R"(
+  std::string_view content = R"(
     int my_package(int a) {
       const int test_arr[][6] = {
           {  10,  0,  0,  0,  0,  0 },
@@ -619,7 +596,7 @@ TEST_F(TranslatorLogicTest, ConstInitListExpr) {
 }
 
 TEST_F(TranslatorLogicTest, InitListExpr) {
-  const std::string content = R"(
+  std::string_view content = R"(
     int my_package(int a) {
       int test_arr[][6] = {
           {  10,  0,  0,  0,  0,  0 },
@@ -631,7 +608,7 @@ TEST_F(TranslatorLogicTest, InitListExpr) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayInitLoop) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct tss {
          tss() : ss(15) {}
          tss(const tss &o) : ss(o.ss) {}
@@ -648,7 +625,7 @@ TEST_F(TranslatorLogicTest, ArrayInitLoop) {
 }
 
 TEST_F(TranslatorLogicTest, StringConstantArray) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          const char foo[] = "A";
          return a+foo[0];
@@ -657,7 +634,7 @@ TEST_F(TranslatorLogicTest, StringConstantArray) {
 }
 
 TEST_F(TranslatorLogicTest, GlobalInt) {
-  const std::string content = R"(
+  std::string_view content = R"(
        const int off = 60;
        int foo() {
          // Reference it from another function to test context management
@@ -677,7 +654,7 @@ TEST_F(TranslatorLogicTest, GlobalInt) {
 }
 
 TEST_F(TranslatorLogicTest, GlobalEnum) {
-  const std::string content = R"(
+  std::string_view content = R"(
        enum BlahE {
          A=2,B,C
        };
@@ -688,7 +665,7 @@ TEST_F(TranslatorLogicTest, GlobalEnum) {
 }
 
 TEST_F(TranslatorLogicTest, MaximumEnum) {
-  const std::string content = R"(
+  std::string_view content = R"(
        enum BlahE {
          A=2,
          B=0xFFFFFFFF
@@ -700,7 +677,7 @@ TEST_F(TranslatorLogicTest, MaximumEnum) {
 }
 
 TEST_F(TranslatorLogicTest, CheckRepeatedGlobals) {
-  const std::string content = R"(
+  std::string_view content = R"(
        enum Values {
         A=1000, B=10
        };
@@ -715,7 +692,7 @@ TEST_F(TranslatorLogicTest, CheckRepeatedGlobals) {
 }
 
 TEST_F(TranslatorLogicTest, EnumVarDecl) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package() {
           enum BlahE {
             A=2,B,C
@@ -726,7 +703,7 @@ TEST_F(TranslatorLogicTest, EnumVarDecl) {
 }
 
 TEST_F(TranslatorLogicTest, SetGlobal) {
-  const std::string content = R"(
+  std::string_view content = R"(
        int off = 60;
        long long my_package(long long a) {
          off = 5;
@@ -738,7 +715,7 @@ TEST_F(TranslatorLogicTest, SetGlobal) {
 }
 
 TEST_F(TranslatorLogicTest, UnsequencedAssign) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return (a=7)+a;
       })";
@@ -752,7 +729,7 @@ TEST_F(TranslatorLogicTest, UnsequencedAssign) {
 }
 
 TEST_F(TranslatorLogicTest, TestXlsccCheck) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return a+a;
       })";
@@ -760,7 +737,9 @@ TEST_F(TranslatorLogicTest, TestXlsccCheck) {
   EXPECT_DEATH(
       {
         auto ret = ScanFile(
-            content, {}, false, false,
+            content, {}, /*io_test_mode=*/false,
+            /*error_on_init_interval=*/false,
+            /*error_on_uninitialized=*/false,
             xls::SourceLocation(xls::Fileno(0), xls::Lineno(1), xls::Colno(1)),
             true);
       },
@@ -770,7 +749,7 @@ TEST_F(TranslatorLogicTest, TestXlsccCheck) {
 #if UNSEQUENCED_TESTS
 
 TEST_F(TranslatorLogicTest, UnsequencedRefParam) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int make7(int &a) {
         return a=7;
       }
@@ -785,7 +764,7 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam) {
                                             testing::HasSubstr("unsequenced")));
 }
 TEST_F(TranslatorLogicTest, UnsequencedRefParam2) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int make7(int &a) {
         return a=7;
       }
@@ -801,7 +780,7 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam2) {
 }
 
 TEST_F(TranslatorLogicTest, UnsequencedRefParam3) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int make7(int &a) {
         return a=7;
       }
@@ -817,7 +796,7 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam3) {
 }
 
 TEST_F(TranslatorLogicTest, UnsequencedRefParam4) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return (a=7)?a:11;
       })";
@@ -828,7 +807,7 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam4) {
                                             testing::HasSubstr("unsequenced")));
 }
 TEST_F(TranslatorLogicTest, UnsequencedRefParam5) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return a?a:(a=7);
       })";
@@ -841,7 +820,7 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam5) {
 
 // Okay with one parameter
 TEST_F(TranslatorLogicTest, AvoidUnsequencedRefParamUnary) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long nop(long long a) {
         return a;
       }
@@ -853,7 +832,7 @@ TEST_F(TranslatorLogicTest, AvoidUnsequencedRefParamUnary) {
 }
 
 TEST_F(TranslatorLogicTest, UnsequencedRefParamBinary) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int nop(int a, int b) {
         return a;
       }
@@ -870,7 +849,7 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParamBinary) {
 #endif  // UNSEQUENCED_TESTS
 
 TEST_F(TranslatorLogicTest, OpAssignmentResult) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return a+=5;
       })";
@@ -879,7 +858,7 @@ TEST_F(TranslatorLogicTest, OpAssignmentResult) {
 }
 
 TEST_F(TranslatorLogicTest, UndefinedConditionalAssign) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         int ret;
         if(a) {
@@ -895,7 +874,7 @@ TEST_F(TranslatorLogicTest, UndefinedConditionalAssign) {
 }
 
 TEST_F(TranslatorLogicTest, IfStmt) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a) {
         if(a<-100) a = 1;
         else if(a<-10) a += 3;
@@ -909,7 +888,7 @@ TEST_F(TranslatorLogicTest, IfStmt) {
 }
 
 TEST_F(TranslatorLogicTest, IfAssignOverrideCondition) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         if(a>1000) {
           if(b)
@@ -925,7 +904,7 @@ TEST_F(TranslatorLogicTest, IfAssignOverrideCondition) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchStmt) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          long long ret;
          switch(a) {
@@ -948,7 +927,7 @@ TEST_F(TranslatorLogicTest, SwitchStmt) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchStmtWithUnrollInCase) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          long long ret;
          switch(a) {
@@ -977,7 +956,7 @@ TEST_F(TranslatorLogicTest, SwitchStmtWithUnrollInCase) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchConditionalBreak) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          long long ret;
          switch(a) {
@@ -1001,7 +980,7 @@ TEST_F(TranslatorLogicTest, SwitchConditionalBreak) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchStmtDefaultTop) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          long long ret;
          switch(a) {
@@ -1024,7 +1003,7 @@ TEST_F(TranslatorLogicTest, SwitchStmtDefaultTop) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchMultiCaseMultiLine) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          long long ret=0;
          switch(a) {
@@ -1045,7 +1024,7 @@ TEST_F(TranslatorLogicTest, SwitchMultiCaseMultiLine) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchMultiCaseMultiLineBrace) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          long long ret=0;
          switch(a) {
@@ -1067,7 +1046,7 @@ TEST_F(TranslatorLogicTest, SwitchMultiCaseMultiLineBrace) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchDoubleBreak) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          long long ret=0;
          switch(a) {
@@ -1092,7 +1071,7 @@ TEST_F(TranslatorLogicTest, SwitchDoubleBreak) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchMultiCase) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          long long ret=0;
          switch(a) {
@@ -1111,7 +1090,7 @@ TEST_F(TranslatorLogicTest, SwitchMultiCase) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchReturnStmt) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          switch(a) {
            case 1:
@@ -1129,7 +1108,7 @@ TEST_F(TranslatorLogicTest, SwitchReturnStmt) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchDeepFlatten) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          switch(a) {
            case 1:
@@ -1145,7 +1124,7 @@ TEST_F(TranslatorLogicTest, SwitchDeepFlatten) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchReturnStmt2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          switch(a) {
            case 1:
@@ -1163,7 +1142,7 @@ TEST_F(TranslatorLogicTest, SwitchReturnStmt2) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchDefaultPlusCase) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          switch(a) {
            default:
@@ -1182,7 +1161,7 @@ TEST_F(TranslatorLogicTest, SwitchDefaultPlusCase) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchInFor) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          #pragma hls_unroll yes
          for(int i=0;i<2;++i) {
@@ -1202,7 +1181,7 @@ TEST_F(TranslatorLogicTest, SwitchInFor) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchBreakAfterReturn) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          long long ret=0;
          switch(a) {
@@ -1220,7 +1199,7 @@ TEST_F(TranslatorLogicTest, SwitchBreakAfterReturn) {
 }
 
 TEST_F(TranslatorLogicTest, ForInSwitch) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a) {
          switch(a) {
            case 0:
@@ -1245,7 +1224,7 @@ TEST_F(TranslatorLogicTest, ForInSwitch) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchDeclareInCase) {
-  const std::string content = R"(
+  std::string_view content = R"(
       #pragma hls_top
       long long foo(long long in) {
         switch(in) {
@@ -1263,7 +1242,7 @@ TEST_F(TranslatorLogicTest, SwitchDeclareInCase) {
 }
 
 TEST_F(TranslatorLogicTest, SwitchDeclareInCaseWithoutBraces) {
-  const std::string content = R"(
+  std::string_view content = R"(
       #pragma hls_top
       long long foo(long long in) {
         switch(in) {
@@ -1280,7 +1259,7 @@ TEST_F(TranslatorLogicTest, SwitchDeclareInCaseWithoutBraces) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnroll) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
         for(int i=1;i<=10;++i) {
@@ -1293,7 +1272,7 @@ TEST_F(TranslatorLogicTest, ForUnroll) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollLabel) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
         label:
@@ -1307,7 +1286,7 @@ TEST_F(TranslatorLogicTest, ForUnrollLabel) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollAssignAfterBreak) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1324,7 +1303,7 @@ TEST_F(TranslatorLogicTest, ForUnrollAssignAfterBreak) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollAssignAfterReturn) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1341,7 +1320,7 @@ TEST_F(TranslatorLogicTest, ForUnrollAssignAfterReturn) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollNoIncrementOnBreak) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=0;
         #pragma hls_unroll yes
@@ -1356,7 +1335,7 @@ TEST_F(TranslatorLogicTest, ForUnrollNoIncrementOnBreak) {
 }
 
 TEST_F(TranslatorLogicTest, WhileUnroll) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1371,7 +1350,7 @@ TEST_F(TranslatorLogicTest, WhileUnroll) {
 }
 
 TEST_F(TranslatorLogicTest, DoWhileUnroll) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1387,7 +1366,7 @@ TEST_F(TranslatorLogicTest, DoWhileUnroll) {
 }
 
 TEST_F(TranslatorLogicTest, WhileUnrollShortCircuit) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1404,7 +1383,7 @@ TEST_F(TranslatorLogicTest, WhileUnrollShortCircuit) {
 }
 
 TEST_F(TranslatorLogicTest, WhileUnrollFalseCond) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1419,7 +1398,7 @@ TEST_F(TranslatorLogicTest, WhileUnrollFalseCond) {
 }
 
 TEST_F(TranslatorLogicTest, WhileUnrollFalseCond2) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1434,7 +1413,7 @@ TEST_F(TranslatorLogicTest, WhileUnrollFalseCond2) {
 }
 
 TEST_F(TranslatorLogicTest, WhileUnrollFalseCond3) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1448,7 +1427,7 @@ TEST_F(TranslatorLogicTest, WhileUnrollFalseCond3) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollShortCircuit) {
-  const std::string content = R"(
+  std::string_view content = R"(
 
         long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
@@ -1461,7 +1440,7 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuit) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollShortCircuit2) {
-  const std::string content = R"(
+  std::string_view content = R"(
 
         long long my_package(long long a, long long b) {
         int i=0;
@@ -1476,7 +1455,7 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuit2) {
 
 // Check that continue doesn't skip loop increment
 TEST_F(TranslatorLogicTest, ForUnrollShortCircuit2A) {
-  const std::string content = R"(
+  std::string_view content = R"(
         long long my_package(long long a, long long b) {
          int i=0;
          #pragma hls_unroll yes
@@ -1490,7 +1469,7 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuit2A) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollShortCircuit3) {
-  const std::string content = R"(
+  std::string_view content = R"(
         template<int N>
         long sum(long in[N], int n) {
           long sum = 0;
@@ -1507,7 +1486,7 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuit3) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollShortCircuit4) {
-  const std::string content = R"(
+  std::string_view content = R"(
          struct TestInt {
            TestInt(long long v) : x(v) { }
            int operator[](int i)const {
@@ -1543,7 +1522,7 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuit4) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollShortCircuitClass) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct TestInt {
          TestInt(int v) : x(v) { }
          operator int()const {
@@ -1570,7 +1549,7 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuitClass) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollMultiCondBreak) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
         for(int i=1;i<10;++i) {
@@ -1589,7 +1568,7 @@ TEST_F(TranslatorLogicTest, ForUnrollMultiCondBreak) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollNestedCondBreak) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
         for(int i=1;i<10;++i) {
@@ -1608,7 +1587,7 @@ TEST_F(TranslatorLogicTest, ForUnrollNestedCondBreak) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollClass) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct TestInt {
          TestInt(int v) : x(v) { }
          operator int()const {
@@ -1635,7 +1614,7 @@ TEST_F(TranslatorLogicTest, ForUnrollClass) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollConditionallyAssignLoopVar) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<10;++i) {
@@ -1650,7 +1629,7 @@ TEST_F(TranslatorLogicTest, ForUnrollConditionallyAssignLoopVar) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollNoInit) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         int i=1;
         #pragma hls_unroll yes
@@ -1664,7 +1643,7 @@ TEST_F(TranslatorLogicTest, ForUnrollNoInit) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollNoInc) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
         for(int i=1;i<=10;) {
@@ -1678,7 +1657,7 @@ TEST_F(TranslatorLogicTest, ForUnrollNoInc) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollNoCond) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
         for(int i=1;;++i) {
@@ -1694,7 +1673,7 @@ TEST_F(TranslatorLogicTest, ForUnrollNoCond) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollNoCondBreakInBody) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
         for(int i=1;;++i) {
@@ -1710,7 +1689,7 @@ TEST_F(TranslatorLogicTest, ForUnrollNoCondBreakInBody) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollNoPragma) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         for(int i=1;i<=10;++i) {
           a += b;
@@ -1727,7 +1706,7 @@ TEST_F(TranslatorLogicTest, ForUnrollNoPragma) {
 }
 
 TEST_F(TranslatorLogicTest, ForNestedUnroll) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
         for(int i=1;i<=10;++i) {
@@ -1743,7 +1722,7 @@ TEST_F(TranslatorLogicTest, ForNestedUnroll) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollInfinite) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=1;i<=10;--i) {
@@ -1759,7 +1738,7 @@ TEST_F(TranslatorLogicTest, ForUnrollInfinite) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreak) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<9;++i) {
@@ -1775,7 +1754,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreak) {
 
 // Only one break condition is true, not all conditions after
 TEST_F(TranslatorLogicTest, ForUnrollBreakOnEquals) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<9;++i) {
@@ -1790,7 +1769,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreakOnEquals) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreakAfterAssignNested) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<4;++i) {
@@ -1807,7 +1786,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreakAfterAssignNested) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollContinueNested) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<6;++i) {
@@ -1827,7 +1806,7 @@ TEST_F(TranslatorLogicTest, ForUnrollContinueNested) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreakAfterAssign) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<3;++i) {
@@ -1842,7 +1821,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreakAfterAssign) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreakAfterAssign2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<2;++i) {
@@ -1857,7 +1836,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreakAfterAssign2) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreakTest) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<3;++i) {
@@ -1873,7 +1852,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreakTest) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreak2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<50;++i) {
@@ -1886,7 +1865,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreak2) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreak2Nested) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<50;++i) {
@@ -1901,7 +1880,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreak2Nested) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreak3) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<50;++i) {
@@ -1914,7 +1893,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreak3) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreak4) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<50;++i) {
@@ -1927,7 +1906,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBreak4) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollContinue) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
@@ -1940,7 +1919,7 @@ TEST_F(TranslatorLogicTest, ForUnrollContinue) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollContinue2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
@@ -1953,7 +1932,7 @@ TEST_F(TranslatorLogicTest, ForUnrollContinue2) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollContinue3) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
@@ -1966,7 +1945,7 @@ TEST_F(TranslatorLogicTest, ForUnrollContinue3) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollContinue4) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
@@ -1981,7 +1960,7 @@ TEST_F(TranslatorLogicTest, ForUnrollContinue4) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollContinue5) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
@@ -1996,7 +1975,7 @@ TEST_F(TranslatorLogicTest, ForUnrollContinue5) {
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollContinue6) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
@@ -2011,7 +1990,7 @@ TEST_F(TranslatorLogicTest, ForUnrollContinue6) {
 }
 
 TEST_F(TranslatorLogicTest, ReturnFromFor) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
@@ -2024,7 +2003,7 @@ TEST_F(TranslatorLogicTest, ReturnFromFor) {
 }
 
 TEST_F(TranslatorLogicTest, ReturnFromFor2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
@@ -2037,7 +2016,7 @@ TEST_F(TranslatorLogicTest, ReturnFromFor2) {
 }
 
 TEST_F(TranslatorLogicTest, ReturnFromFor3) {
-  const std::string content = R"(
+  std::string_view content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<10;++i) {
@@ -2050,7 +2029,7 @@ TEST_F(TranslatorLogicTest, ReturnFromFor3) {
 }
 
 TEST_F(TranslatorLogicTest, MaxUnrollItersError) {
-  const std::string content = R"(
+  std::string_view content = R"(
     #pragma hls_top
     int foo(int b) {
       int ret = 0;
@@ -2071,7 +2050,7 @@ TEST_F(TranslatorLogicTest, MaxUnrollItersError) {
 }
 
 TEST_F(TranslatorLogicTest, MaxUnrollItersEquals) {
-  const std::string content = R"(
+  std::string_view content = R"(
     #pragma hls_top
     int foo(int b) {
       int ret = 0;
@@ -2089,7 +2068,7 @@ TEST_F(TranslatorLogicTest, MaxUnrollItersEquals) {
 }
 
 TEST_F(TranslatorLogicTest, ReturnFromForStopsUnrolling) {
-  const std::string content = R"(
+  std::string_view content = R"(
     #pragma hls_top
     int foo(int b) {
       int ret = 0;
@@ -2110,7 +2089,7 @@ TEST_F(TranslatorLogicTest, ReturnFromForStopsUnrolling) {
 }
 
 TEST_F(TranslatorLogicTest, ReturnFromForInSwitchStopsUnrolling) {
-  const std::string content = R"(
+  std::string_view content = R"(
     #pragma hls_top
     int foo(int b) {
       int ret = 0;
@@ -2134,7 +2113,7 @@ TEST_F(TranslatorLogicTest, ReturnFromForInSwitchStopsUnrolling) {
 }
 
 TEST_F(TranslatorLogicTest, BreakFromForStopsUnrolling) {
-  const std::string content = R"(
+  std::string_view content = R"(
     #pragma hls_top
     int foo(int b) {
       int ret = 0;
@@ -2155,7 +2134,7 @@ TEST_F(TranslatorLogicTest, BreakFromForStopsUnrolling) {
 }
 
 TEST_F(TranslatorLogicTest, ConditionalReturnStmt) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         if(b) {
           if(a<200) return 2200;
@@ -2173,7 +2152,7 @@ TEST_F(TranslatorLogicTest, ConditionalReturnStmt) {
 }
 
 TEST_F(TranslatorLogicTest, DoubleReturn) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         if(b) {
           return b;
@@ -2188,7 +2167,7 @@ TEST_F(TranslatorLogicTest, DoubleReturn) {
 }
 
 TEST_F(TranslatorLogicTest, TripleReturn) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         return 66;
         return 66;
@@ -2200,7 +2179,7 @@ TEST_F(TranslatorLogicTest, TripleReturn) {
 }
 
 TEST_F(TranslatorLogicTest, VoidReturn) {
-  const std::string content = R"(
+  std::string_view content = R"(
       void my_package(int &a) {
         a = 22;
       })";
@@ -2210,7 +2189,7 @@ TEST_F(TranslatorLogicTest, VoidReturn) {
 }
 
 TEST_F(TranslatorLogicTest, AssignAfterReturn) {
-  const std::string content = R"(
+  std::string_view content = R"(
       void my_package(int &a) {
         return;
         a = 22;
@@ -2220,7 +2199,7 @@ TEST_F(TranslatorLogicTest, AssignAfterReturn) {
 }
 
 TEST_F(TranslatorLogicTest, AssignAfterReturnInIf) {
-  const std::string content = R"(
+  std::string_view content = R"(
       void my_package(int &a) {
         if(a == 5) {
           return;
@@ -2234,7 +2213,7 @@ TEST_F(TranslatorLogicTest, AssignAfterReturnInIf) {
 }
 
 TEST_F(TranslatorLogicTest, AssignAfterReturn3) {
-  const std::string content = R"(
+  std::string_view content = R"(
       void ff(int x[8]) {
        x[4] = x[2];
        return;
@@ -2258,7 +2237,7 @@ TEST_F(TranslatorLogicTest, AssignAfterReturn3) {
 }
 
 TEST_F(TranslatorLogicTest, CapitalizeFirstLetter) {
-  const std::string content = R"(
+  std::string_view content = R"(
        class State {
         public:
            State()
@@ -2310,7 +2289,7 @@ TEST_F(TranslatorLogicTest, CapitalizeFirstLetter) {
 }
 
 TEST_F(TranslatorLogicTest, AssignmentInBlock) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         int r = a;
         {
@@ -2323,7 +2302,7 @@ TEST_F(TranslatorLogicTest, AssignmentInBlock) {
 }
 
 TEST_F(TranslatorLogicTest, AssignmentInParens) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         int r = a;
         (r) = 55;
@@ -2334,7 +2313,7 @@ TEST_F(TranslatorLogicTest, AssignmentInParens) {
 }
 
 TEST_F(TranslatorLogicTest, ShadowAssigment) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         int r = a;
         {
@@ -2349,7 +2328,7 @@ TEST_F(TranslatorLogicTest, ShadowAssigment) {
 }
 
 TEST_F(TranslatorLogicTest, CompoundStructAccess) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct TestX {
          int x;
        };
@@ -2389,7 +2368,7 @@ TEST_F(TranslatorLogicTest, SubstTemplateType) {
 }
 
 TEST_F(TranslatorLogicTest, TemplateStruct) {
-  const std::string content = R"(
+  std::string_view content = R"(
        template<typename T>
        struct TestX {
          T x;
@@ -2403,7 +2382,7 @@ TEST_F(TranslatorLogicTest, TemplateStruct) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayOfStructsAccess) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct TestX {
          int x;
        };
@@ -2419,7 +2398,7 @@ TEST_F(TranslatorLogicTest, ArrayOfStructsAccess) {
 }
 
 TEST_F(TranslatorLogicTest, StructWithArrayAccess) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct TestX {
          int x[3];
        };
@@ -2435,7 +2414,7 @@ TEST_F(TranslatorLogicTest, StructWithArrayAccess) {
 }
 
 TEST_F(TranslatorLogicTest, StructInitList) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          long long x;
          long long y;
@@ -2449,7 +2428,7 @@ TEST_F(TranslatorLogicTest, StructInitList) {
 }
 
 TEST_F(TranslatorLogicTest, StructConditionalAssign) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          long long x;
          long long y;
@@ -2467,7 +2446,7 @@ TEST_F(TranslatorLogicTest, StructConditionalAssign) {
 }
 
 TEST_F(TranslatorLogicTest, StructInitListWrongCount) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          long long x;
          long long y;
@@ -2481,7 +2460,7 @@ TEST_F(TranslatorLogicTest, StructInitListWrongCount) {
 }
 
 TEST_F(TranslatorLogicTest, StructInitListWithDefaultnt) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          long long x;
          long long y;
@@ -2495,7 +2474,7 @@ TEST_F(TranslatorLogicTest, StructInitListWithDefaultnt) {
 }
 
 TEST_F(TranslatorLogicTest, StructInitListWithDefaultWrongCount) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          long long x;
          long long y;
@@ -2509,7 +2488,7 @@ TEST_F(TranslatorLogicTest, StructInitListWithDefaultWrongCount) {
 }
 
 TEST_F(TranslatorLogicTest, NoTupleStruct) {
-  const std::string content = R"(
+  std::string_view content = R"(
        #pragma hls_no_tuple
        struct Test {
          int x;
@@ -2523,7 +2502,7 @@ TEST_F(TranslatorLogicTest, NoTupleStruct) {
 }
 
 TEST_F(TranslatorLogicTest, NoTupleMultiField) {
-  const std::string content = R"(
+  std::string_view content = R"(
        #pragma hls_no_tuple
        struct Test {
          int x;
@@ -2543,7 +2522,7 @@ TEST_F(TranslatorLogicTest, NoTupleMultiField) {
 }
 
 TEST_F(TranslatorLogicTest, NoTupleMultiFieldLineComment) {
-  const std::string content = R"(
+  std::string_view content = R"(
        //#pragma hls_no_tuple
        struct Test {
          int x;
@@ -2558,7 +2537,7 @@ TEST_F(TranslatorLogicTest, NoTupleMultiFieldLineComment) {
 }
 
 TEST_F(TranslatorLogicTest, NoTupleMultiFieldBlockComment) {
-  const std::string content = R"(
+  std::string_view content = R"(
        /*
        #pragma hls_no_tuple*/
        struct Test {
@@ -2574,7 +2553,7 @@ TEST_F(TranslatorLogicTest, NoTupleMultiFieldBlockComment) {
 }
 
 TEST_F(TranslatorLogicTest, StructMemberOrder) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          int x;
          long y;
@@ -2598,7 +2577,7 @@ TEST_F(TranslatorLogicTest, StructMemberOrder) {
 }
 
 TEST_F(TranslatorLogicTest, ImplicitConversion) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -2617,7 +2596,7 @@ TEST_F(TranslatorLogicTest, ImplicitConversion) {
 }
 
 TEST_F(TranslatorLogicTest, OperatorOverload) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -2642,7 +2621,7 @@ TEST_F(TranslatorLogicTest, OperatorOverload) {
 }
 
 TEST_F(TranslatorLogicTest, OperatorOnBuiltin) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          Test(int v) : x(v) {
          }
@@ -2659,7 +2638,7 @@ TEST_F(TranslatorLogicTest, OperatorOnBuiltin) {
 }
 
 TEST_F(TranslatorLogicTest, UnaryOperatorAvoidUnsequencedError2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -2686,7 +2665,7 @@ TEST_F(TranslatorLogicTest, UnaryOperatorAvoidUnsequencedError2) {
 }
 
 TEST_F(TranslatorLogicTest, UnaryOperatorAvoidUnsequencedError3) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -2714,7 +2693,7 @@ TEST_F(TranslatorLogicTest, UnaryOperatorAvoidUnsequencedError3) {
 }
 
 TEST_F(TranslatorLogicTest, TypedefStruct) {
-  const std::string content = R"(
+  std::string_view content = R"(
        typedef struct {
          int x;
          int y;
@@ -2729,7 +2708,7 @@ TEST_F(TranslatorLogicTest, TypedefStruct) {
 }
 
 TEST_F(TranslatorLogicTest, ConvertToVoid) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct ts {int x;};
        long long my_package(long long a) {
          ts t;
@@ -2740,7 +2719,7 @@ TEST_F(TranslatorLogicTest, ConvertToVoid) {
 }
 
 TEST_F(TranslatorLogicTest, AvoidDoubleAssignmentFromBackwardsEval) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -2768,7 +2747,7 @@ TEST_F(TranslatorLogicTest, AvoidDoubleAssignmentFromBackwardsEval) {
 }
 
 TEST_F(TranslatorLogicTest, CompoundAvoidUnsequenced) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          int x;
        };
@@ -2782,7 +2761,7 @@ TEST_F(TranslatorLogicTest, CompoundAvoidUnsequenced) {
 }
 
 TEST_F(TranslatorLogicTest, CompoundAvoidUnsequenced2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        int my_package(int a) {
          int s1[2] = {a, a};
          s1[0] = ++s1[1];
@@ -2792,7 +2771,7 @@ TEST_F(TranslatorLogicTest, CompoundAvoidUnsequenced2) {
 }
 
 TEST_F(TranslatorLogicTest, DefaultValues) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          int x;
          int y;
@@ -2805,7 +2784,7 @@ TEST_F(TranslatorLogicTest, DefaultValues) {
 }
 
 TEST_F(TranslatorLogicTest, StructMemberReferenceParameter) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          int p;
        };
@@ -2823,7 +2802,7 @@ TEST_F(TranslatorLogicTest, StructMemberReferenceParameter) {
 }
 
 TEST_F(TranslatorLogicTest, AnonStruct) {
-  const std::string content = R"(
+  std::string_view content = R"(
        int my_package(int a) {
          struct {
            int x;
@@ -2837,7 +2816,7 @@ TEST_F(TranslatorLogicTest, AnonStruct) {
 }
 
 TEST_F(TranslatorLogicTest, Inheritance) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Base {
          int x;
        };
@@ -2855,7 +2834,7 @@ TEST_F(TranslatorLogicTest, Inheritance) {
 }
 
 TEST_F(TranslatorLogicTest, BaseConstructor) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Base {
          Base() : x(88) { }
           int x;
@@ -2870,7 +2849,7 @@ TEST_F(TranslatorLogicTest, BaseConstructor) {
 }
 
 TEST_F(TranslatorLogicTest, BaseConstructorNoTuple) {
-  const std::string content = R"(
+  std::string_view content = R"(
        #pragma hls_no_tuple
        struct Base {
          Base() : x(88) { }
@@ -2887,7 +2866,7 @@ TEST_F(TranslatorLogicTest, BaseConstructorNoTuple) {
 }
 
 TEST_F(TranslatorLogicTest, InheritanceNoTuple) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Base {
          int x;
        };
@@ -2906,7 +2885,7 @@ TEST_F(TranslatorLogicTest, InheritanceNoTuple) {
 }
 
 TEST_F(TranslatorLogicTest, InheritanceNoTuple2) {
-  const std::string content = R"(
+  std::string_view content = R"(
        #pragma hls_no_tuple
        struct Base {
          int x;
@@ -2926,7 +2905,7 @@ TEST_F(TranslatorLogicTest, InheritanceNoTuple2) {
 }
 
 TEST_F(TranslatorLogicTest, InheritanceNoTuple4) {
-  const std::string content = R"(
+  std::string_view content = R"(
        #pragma hls_no_tuple
        struct Base {
          int x;
@@ -2949,7 +2928,7 @@ TEST_F(TranslatorLogicTest, InheritanceNoTuple4) {
 }
 
 TEST_F(TranslatorLogicTest, InheritanceTuple) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Base {
          int x;
          void set(int v) { x=v; }
@@ -2970,7 +2949,7 @@ TEST_F(TranslatorLogicTest, InheritanceTuple) {
 }
 
 TEST_F(TranslatorLogicTest, Constructor) {
-  const std::string content = R"(
+  std::string_view content = R"(
       struct Test {
         Test() : x(5) {
           y = 10;
@@ -2986,7 +2965,7 @@ TEST_F(TranslatorLogicTest, Constructor) {
 }
 
 TEST_F(TranslatorLogicTest, Destructor) {
-  const std::string content = R"(
+  std::string_view content = R"(
       struct Test {
         Test() : x(5) {
           y = 10;
@@ -3008,7 +2987,7 @@ TEST_F(TranslatorLogicTest, Destructor) {
 }
 
 TEST_F(TranslatorLogicTest, ConstructorWithArg) {
-  const std::string content = R"(
+  std::string_view content = R"(
       struct Test {
         Test(int v) : x(v) {
           y = 10;
@@ -3024,7 +3003,7 @@ TEST_F(TranslatorLogicTest, ConstructorWithArg) {
 }
 
 TEST_F(TranslatorLogicTest, ConstructorWithThis) {
-  const std::string content = R"(
+  std::string_view content = R"(
       struct Test {
         Test(int v) : x(v) {
           this->y = 10;
@@ -3040,7 +3019,7 @@ TEST_F(TranslatorLogicTest, ConstructorWithThis) {
 }
 
 TEST_F(TranslatorLogicTest, ExplicitDefaultConstructor) {
-  const std::string content = R"(
+  std::string_view content = R"(
          struct TestR {
            int bb;
          };
@@ -3053,7 +3032,7 @@ TEST_F(TranslatorLogicTest, ExplicitDefaultConstructor) {
 }
 
 TEST_F(TranslatorLogicTest, ConditionallyAssignThis) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct ts {
          void blah() {
            return;
@@ -3072,7 +3051,7 @@ TEST_F(TranslatorLogicTest, ConditionallyAssignThis) {
 }
 
 TEST_F(TranslatorLogicTest, SetMemberInnerContext) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
          void set_x(int v) {
            { x = v; }
@@ -3090,7 +3069,7 @@ TEST_F(TranslatorLogicTest, SetMemberInnerContext) {
 }
 
 TEST_F(TranslatorLogicTest, StaticMethod) {
-  const std::string content = R"(
+  std::string_view content = R"(
        struct Test {
           static int foo(int a) {
             return a+5;
@@ -3104,7 +3083,7 @@ TEST_F(TranslatorLogicTest, StaticMethod) {
 
 TEST_F(TranslatorLogicTest, SignExtend) {
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         unsigned long long my_package(long long a) {
           return long(a);
         })";
@@ -3112,7 +3091,7 @@ TEST_F(TranslatorLogicTest, SignExtend) {
     Run({{"a", 3}}, 3, content);
   }
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         long long my_package(long long a) {
           return (unsigned long)a;
         })";
@@ -3123,7 +3102,7 @@ TEST_F(TranslatorLogicTest, SignExtend) {
 }
 
 TEST_F(TranslatorLogicTest, TopFunctionByName) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return a + 1;
       })";
@@ -3132,7 +3111,7 @@ TEST_F(TranslatorLogicTest, TopFunctionByName) {
 }
 
 TEST_F(TranslatorLogicTest, TopFunctionPragma) {
-  const std::string content = R"(
+  std::string_view content = R"(
       #pragma hls_top
       int asdf(int a) {
         return a + 1;
@@ -3142,7 +3121,7 @@ TEST_F(TranslatorLogicTest, TopFunctionPragma) {
 }
 
 TEST_F(TranslatorLogicTest, TopFunctionNoPragma) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int asdf(int a) {
         return a + 1;
       })";
@@ -3153,7 +3132,7 @@ TEST_F(TranslatorLogicTest, TopFunctionNoPragma) {
 }
 
 TEST_F(TranslatorLogicTest, Function) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int do_something(int a) {
         return a;
       }
@@ -3165,7 +3144,7 @@ TEST_F(TranslatorLogicTest, Function) {
 }
 
 TEST_F(TranslatorLogicTest, FunctionNoOutputs) {
-  const std::string content = R"(
+  std::string_view content = R"(
       void do_nothing(int a) {
         (void)a;
       }
@@ -3178,7 +3157,7 @@ TEST_F(TranslatorLogicTest, FunctionNoOutputs) {
 }
 
 TEST_F(TranslatorLogicTest, TopFunctionNoOutputs) {
-  const std::string content = R"(
+  std::string_view content = R"(
       void my_package(int a) {
         (void)a;
       })";
@@ -3189,7 +3168,7 @@ TEST_F(TranslatorLogicTest, TopFunctionNoOutputs) {
 }
 
 TEST_F(TranslatorLogicTest, DefaultArg) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int do_something(int a, int b=2) {
         return a+b;
       }
@@ -3201,7 +3180,7 @@ TEST_F(TranslatorLogicTest, DefaultArg) {
 }
 
 TEST_F(TranslatorLogicTest, FunctionInline) {
-  const std::string content = R"(
+  std::string_view content = R"(
       inline int do_something(int a) {
         return a;
       }
@@ -3213,7 +3192,7 @@ TEST_F(TranslatorLogicTest, FunctionInline) {
 }
 
 TEST_F(TranslatorLogicTest, TemplateFunction) {
-  const std::string content = R"(
+  std::string_view content = R"(
       template<int N>
       int do_something(int a) {
         return a+N;
@@ -3239,7 +3218,7 @@ TEST_F(TranslatorLogicTest, TemplateFunctionBool) {
 }
 
 TEST_F(TranslatorLogicTest, FunctionDeclOrder) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int do_something(int a);
       int my_package(int a) {
         return do_something(a);
@@ -3252,7 +3231,7 @@ TEST_F(TranslatorLogicTest, FunctionDeclOrder) {
 }
 
 TEST_F(TranslatorLogicTest, FunctionDeclMissing) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int do_something(int a);
       int my_package(int a) {
         return do_something(a);
@@ -3265,7 +3244,7 @@ TEST_F(TranslatorLogicTest, FunctionDeclMissing) {
 }
 
 TEST_F(TranslatorLogicTest, ReferenceParameter) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int do_something(int &x, int a) {
         x += a;
         return x;
@@ -3279,7 +3258,7 @@ TEST_F(TranslatorLogicTest, ReferenceParameter) {
 }
 
 TEST_F(TranslatorLogicTest, Namespace) {
-  const std::string content = R"(
+  std::string_view content = R"(
       namespace test {
       int do_something(int a) {
         return a;
@@ -3293,7 +3272,7 @@ TEST_F(TranslatorLogicTest, Namespace) {
 }
 
 TEST_F(TranslatorLogicTest, NamespaceFailure) {
-  const std::string content = R"(
+  std::string_view content = R"(
       namespace test {
       int do_something(int a) {
         return a;
@@ -3311,7 +3290,7 @@ TEST_F(TranslatorLogicTest, NamespaceFailure) {
 }
 
 TEST_F(TranslatorLogicTest, Ternary) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         return a ? a : 11;
       })";
@@ -3322,7 +3301,7 @@ TEST_F(TranslatorLogicTest, Ternary) {
 
 // This is here mainly to check for graceful exit with no memory leaks
 TEST_F(TranslatorLogicTest, ParseFailure) {
-  const std::string content = "int my_package(int a) {";
+  std::string_view content = "int my_package(int a) {";
 
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
@@ -3470,7 +3449,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorXor) {
 }
 
 TEST_F(TranslatorLogicTest, NativeOperatorNot) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(unsigned long long a) {
         return (long long)(~a);
       })";
@@ -3481,7 +3460,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorNot) {
 }
 
 TEST_F(TranslatorLogicTest, NativeOperatorNeg) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a) {
         return (long long)(-a);
       })";
@@ -3492,7 +3471,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorNeg) {
 }
 
 TEST_F(TranslatorLogicTest, NativeOperatorPlus) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a) {
         return (long long)(+a);
       })";
@@ -3516,7 +3495,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorShrSigned) {
   }
 }
 TEST_F(TranslatorLogicTest, NativeOperatorShrUnsigned) {
-  const std::string content = R"(
+  std::string_view content = R"(
       unsigned long long my_package(unsigned long long a, unsigned long long b)
       {
         return a >> b;
@@ -3539,7 +3518,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorShl) {
 }
 TEST_F(TranslatorLogicTest, NativeOperatorPreInc) {
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           return ++a;
         })";
@@ -3547,7 +3526,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorPreInc) {
     Run({{"a", 10}}, 11, content);
   }
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           ++a;
           return a;
@@ -3558,7 +3537,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorPreInc) {
 }
 TEST_F(TranslatorLogicTest, NativeOperatorPostInc) {
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           return a++;
         })";
@@ -3566,7 +3545,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorPostInc) {
     Run({{"a", 10}}, 10, content);
   }
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           a++;
           return a;
@@ -3577,7 +3556,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorPostInc) {
 }
 TEST_F(TranslatorLogicTest, NativeOperatorPreDec) {
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           return --a;
         })";
@@ -3585,7 +3564,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorPreDec) {
     Run({{"a", 10}}, 9, content);
   }
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           --a;
           return a;
@@ -3596,7 +3575,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorPreDec) {
 }
 TEST_F(TranslatorLogicTest, NativeOperatorPostDec) {
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           return a--;
         })";
@@ -3604,7 +3583,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorPostDec) {
     Run({{"a", 10}}, 10, content);
   }
   {
-    const std::string content = R"(
+    std::string_view content = R"(
         int my_package(int a) {
           a--;
           return a;
@@ -3747,7 +3726,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorLOr) {
 }
 
 TEST_F(TranslatorLogicTest, NativeOperatorLNot) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(unsigned long long a) {
         return (long long)(!a);
       })";
@@ -3758,7 +3737,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorLNot) {
 }
 
 TEST_F(TranslatorLogicTest, SizeOf) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package() {
         short foo[3] = {2,3,4};
         return sizeof(foo) / sizeof(foo[0]);
@@ -3768,7 +3747,7 @@ TEST_F(TranslatorLogicTest, SizeOf) {
 }
 
 TEST_F(TranslatorLogicTest, SizeOfDeep) {
-  const std::string content = R"(
+  std::string_view content = R"(
       struct TestInner {
         short foo;
       };
@@ -3784,7 +3763,7 @@ TEST_F(TranslatorLogicTest, SizeOfDeep) {
 }
 
 TEST_F(TranslatorLogicTest, ParenType) {
-  const std::string content = R"(
+  std::string_view content = R"(
     int thing(const int (&arr)[2]) {
       return arr[0] + arr[1];
     }
@@ -3797,7 +3776,7 @@ TEST_F(TranslatorLogicTest, ParenType) {
 }
 
 TEST_F(TranslatorLogicTest, DefaultArrayInit) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct Val {
       Val() : v(0) { }
       Val(const Val&o) : v(o.v) {
@@ -3823,7 +3802,7 @@ TEST_F(TranslatorLogicTest, DefaultArrayInit) {
 }
 
 TEST_F(TranslatorLogicTest, ZeroIterationForLoop) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long my_package(long long a) {
       for(;0;) {}
       return a;
@@ -3832,7 +3811,7 @@ TEST_F(TranslatorLogicTest, ZeroIterationForLoop) {
 }
 
 TEST_F(TranslatorLogicTest, OnlyUnrolledLoops) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long my_package(long long a) {
       for(;1;) {}
       return a;
@@ -3845,7 +3824,7 @@ TEST_F(TranslatorLogicTest, OnlyUnrolledLoops) {
 }
 
 TEST_F(TranslatorLogicTest, InvalidUnrolledLoop) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long my_package(long long a) {
       #pragma hls_unroll yes
       for(;1;) {}
@@ -3859,7 +3838,7 @@ TEST_F(TranslatorLogicTest, InvalidUnrolledLoop) {
 }
 
 TEST_F(TranslatorLogicTest, NonPragmaNestedLoop) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long my_package(long long a) {
       #pragma hls_unroll yes
       for(int i = 0; i < 10; i++) {
@@ -3877,7 +3856,7 @@ TEST_F(TranslatorLogicTest, NonPragmaNestedLoop) {
 }
 
 TEST_F(TranslatorLogicTest, Label) {
-  const std::string content = R"(
+  std::string_view content = R"(
       long long my_package(long long a, long long b) {
         this_loop:
         #pragma hls_unroll yes
@@ -3891,7 +3870,7 @@ TEST_F(TranslatorLogicTest, Label) {
 }
 
 TEST_F(TranslatorLogicTest, DisallowUsed) {
-  const std::string content = R"(
+  std::string_view content = R"(
       #include "/xls_builtin.h"
 
       int foo(int a) {
@@ -3911,7 +3890,7 @@ TEST_F(TranslatorLogicTest, DisallowUsed) {
 }
 
 TEST_F(TranslatorLogicTest, DisallowUnused) {
-  const std::string content = R"(
+  std::string_view content = R"(
       #include "/xls_builtin.h"
 
       int foo(int a) {
@@ -3930,7 +3909,7 @@ TEST_F(TranslatorLogicTest, DisallowUnused) {
 // This won't cause logical incorrectness, but it overcomplicates the IR
 // and can cause loop unrolling to fail.
 TEST_F(TranslatorLogicTest, ConditionsPerVariable) {
-  const std::string content = R"(
+  std::string_view content = R"(
     #pragma hls_top
     int my_package(int a, int b) {
       if(b) {
@@ -3955,7 +3934,7 @@ TEST_F(TranslatorLogicTest, ConditionsPerVariable) {
 }
 
 TEST_F(TranslatorLogicTest, FileNumbersIncluded) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #include "/xls_builtin.h"
 
   #pragma hls_top
@@ -3972,7 +3951,7 @@ TEST_F(TranslatorLogicTest, FileNumbersIncluded) {
 }
 
 TEST_F(TranslatorLogicTest, BooleanOrAssign) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma hls_top
   bool st(bool b) {
     b |= false;
@@ -3983,7 +3962,7 @@ TEST_F(TranslatorLogicTest, BooleanOrAssign) {
 }
 
 TEST_F(TranslatorLogicTest, BooleanAndAssign) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma hls_top
   bool st(bool b) {
     b &= true;
@@ -3994,7 +3973,7 @@ TEST_F(TranslatorLogicTest, BooleanAndAssign) {
 }
 
 TEST_F(TranslatorLogicTest, EnumConstant) {
-  const std::string content = R"(
+  std::string_view content = R"(
   struct Values{
    enum { zero = 2 };
   };
@@ -4008,7 +3987,7 @@ TEST_F(TranslatorLogicTest, EnumConstant) {
 }
 
 TEST_F(TranslatorLogicTest, NonInitEnumConstant) {
-  const std::string content = R"(
+  std::string_view content = R"(
   struct Values{
    enum { zero, one };
   };
@@ -4022,7 +4001,7 @@ TEST_F(TranslatorLogicTest, NonInitEnumConstant) {
 }
 
 TEST_F(TranslatorLogicTest, NonInitOneEnumConstant) {
-  const std::string content = R"(
+  std::string_view content = R"(
   struct Values{
    enum { zero, one };
   };
@@ -4036,7 +4015,7 @@ TEST_F(TranslatorLogicTest, NonInitOneEnumConstant) {
 }
 
 TEST_F(TranslatorLogicTest, TopMemberAccess) {
-  const std::string content = R"(
+  std::string_view content = R"(
       #include "/xls_builtin.h"
 
       struct Test {
@@ -4075,7 +4054,7 @@ TEST_F(TranslatorLogicTest, TopMemberAccess) {
 }
 
 TEST_F(TranslatorLogicTest, ParameterPack) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int inner(int a, int b, int c) {
           return a+2*b+5*c;
       }
@@ -4093,7 +4072,7 @@ TEST_F(TranslatorLogicTest, ParameterPack) {
 }
 
 TEST_F(TranslatorLogicTest, FunctionEnum) {
-  const std::string content = R"(
+  std::string_view content = R"(
     #pragma hls_top
     int sum(int a) {
         enum b { B0 = 0, B1 = 1 };
@@ -4104,7 +4083,7 @@ TEST_F(TranslatorLogicTest, FunctionEnum) {
 }
 
 TEST_F(TranslatorLogicTest, UnusedTemplate) {
-  const std::string content = R"(
+  std::string_view content = R"(
       template<typename T, int N>
       struct StructVal { T data[N]; };
 
@@ -4132,7 +4111,7 @@ TEST_F(TranslatorLogicTest, UnusedTemplate) {
 }
 
 TEST_F(TranslatorLogicTest, BinaryOpComma) {
-  const std::string content = R"(
+  std::string_view content = R"(
       #pragma hls_top
       int test(int a) {
           return (a=5,a+1);
@@ -4142,7 +4121,7 @@ TEST_F(TranslatorLogicTest, BinaryOpComma) {
 
 // Check that hls_array_allow_default_pad pragma fills with 0's
 TEST_F(TranslatorLogicTest, ArrayZeroExtendFillsZeros) {
-  const std::string content = R"(
+  std::string_view content = R"(
         #pragma hls_top
         int my_package(int a) {
          #pragma hls_array_allow_default_pad
@@ -4153,7 +4132,7 @@ TEST_F(TranslatorLogicTest, ArrayZeroExtendFillsZeros) {
 }
 
 TEST_F(TranslatorLogicTest, ArrayZeroExtendFillsZerosLargeMultidimension) {
-  const std::string content = R"(
+  std::string_view content = R"(
         #pragma hls_top
         int my_package(int a) {
          #pragma hls_array_allow_default_pad
@@ -4177,7 +4156,7 @@ TEST_F(TranslatorLogicTest, ArrayZeroExtendFillsZerosLargeMultidimension) {
 
 // Check that hls_array_allow_default_pad pragma maintains supplied values
 TEST_F(TranslatorLogicTest, ArrayZeroExtendMaintainsValues) {
-  const std::string content = R"(
+  std::string_view content = R"(
         #pragma hls_top
         int my_package(int a) {
          #pragma hls_array_allow_default_pad
@@ -4189,7 +4168,7 @@ TEST_F(TranslatorLogicTest, ArrayZeroExtendMaintainsValues) {
 
 // Check that hls_array_allow_default_pad pragma maintains supplied values
 TEST_F(TranslatorLogicTest, ArrayZeroExtendStruct) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct y {
           int z;
         };
@@ -4205,7 +4184,7 @@ TEST_F(TranslatorLogicTest, ArrayZeroExtendStruct) {
 // Check that hls_array_allow_default_pad pragma
 // works on structs with constructors
 TEST_F(TranslatorLogicTest, ArrayZeroExtendStructWithConstructor) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct y {
           int z;
           y() : z(7) {}
@@ -4222,7 +4201,7 @@ TEST_F(TranslatorLogicTest, ArrayZeroExtendStructWithConstructor) {
 
 // Check that enum array initializers function properly
 TEST_F(TranslatorLogicTest, EnumArrayInitializer) {
-  const std::string content = R"(
+  std::string_view content = R"(
         typedef enum {
           VAL_1,
           VAL_2
@@ -4236,7 +4215,7 @@ TEST_F(TranslatorLogicTest, EnumArrayInitializer) {
 }
 
 TEST_F(TranslatorLogicTest, ChannelTemplateType) {
-  const std::string content = R"(
+  std::string_view content = R"(
       #include "/xls_builtin.h"
       #pragma hls_top
       void test(int& in, int& out) {
@@ -4273,7 +4252,7 @@ TEST_F(TranslatorLogicTest, ChannelTemplateType) {
 }
 
 TEST_F(TranslatorLogicTest, ClassMemberInit) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct Foo {
       int x = 10;
     };
@@ -4286,7 +4265,7 @@ TEST_F(TranslatorLogicTest, ClassMemberInit) {
 }
 
 TEST_F(TranslatorLogicTest, CXXRecordDecl) {
-  const std::string content = R"(
+  std::string_view content = R"(
   int my_package(int a) {
    struct foo {
      int bar;
@@ -4429,7 +4408,7 @@ TEST_F(TranslatorLogicTest, EnumAutoNumberedNegative) {
 }
 
 TEST_F(TranslatorLogicTest, TypeAlias) {
-  const std::string content = R"(
+  std::string_view content = R"(
     template<class T>
     struct Bar {
       T val;
@@ -4446,7 +4425,7 @@ TEST_F(TranslatorLogicTest, TypeAlias) {
 }
 
 TEST_F(TranslatorLogicTest, AssignmentInInitialization) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int a;
           int b = a;
@@ -4461,7 +4440,7 @@ TEST_F(TranslatorLogicTest, AssignmentInInitialization) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitialization) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int a;
           int b = a;
@@ -4475,7 +4454,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitialization) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitialization2) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int a = 55;
           int b = a;
@@ -4489,7 +4468,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitialization2) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitialization3) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int a = 55;
           int b;
@@ -4504,7 +4483,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitialization3) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationLValue) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int& a;
           int& b = a;
@@ -4520,7 +4499,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationLValue) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationCtor) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           LeafBlock(int a) : a_(a) {
           }
@@ -4537,7 +4516,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationCtor) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationCtorLValue) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           LeafBlock(int& a) : a_(a) {
           }
@@ -4559,7 +4538,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationCtorLValue) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchical) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int a;
           int b;
@@ -4579,7 +4558,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchical) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchical2) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int a;
           int b;
@@ -4602,7 +4581,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchical2) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchicalLValues) {
-  const std::string content = R"(
+  std::string_view content = R"(
 
         struct LeafBlock {
           int& a;
@@ -4619,7 +4598,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchicalLValues) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationAssignment) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int a;
           int b;
@@ -4639,7 +4618,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationAssignment) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchicalLValue) {
-  const std::string content = R"(
+  std::string_view content = R"(
         struct LeafBlock {
           int& a;
           int& b;
@@ -4663,7 +4642,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchicalLValue) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct LeafBlock {
       int a;
       int b;  
@@ -4692,7 +4671,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass2) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct LeafBlock {
       int a;
       int b;  
@@ -4722,7 +4701,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass2) {
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingHierarchicalChannelsGenerates) {
-  const std::string content = R"(
+  std::string_view content = R"(
     struct LeafBlock {
       __xls_channel<long, __xls_channel_dir_Out> out;
     };
@@ -4749,7 +4728,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingHierarchicalChannelsGenerates) {
 }
 
 TEST_F(TranslatorLogicTest, DoubleSupportToInt) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long my_package() {
       const auto x = 5.5;
       return (int)x;
@@ -4758,7 +4737,7 @@ TEST_F(TranslatorLogicTest, DoubleSupportToInt) {
 }
 
 TEST_F(TranslatorLogicTest, FloatSupportToInt) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long my_package() {
       const auto x = 5.5f;
       return (int)x;
@@ -4767,7 +4746,7 @@ TEST_F(TranslatorLogicTest, FloatSupportToInt) {
 }
 
 TEST_F(TranslatorLogicTest, FloatConvertToInt) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long convert(float value) {
       return (long long)value;
     }
@@ -4778,7 +4757,7 @@ TEST_F(TranslatorLogicTest, FloatConvertToInt) {
 }
 
 TEST_F(TranslatorLogicTest, ConstexprBinaryOperatorsForDouble) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long my_package() {
       const double x = 5.5 + 1.0;
       return (int)(x * 3);
@@ -4787,7 +4766,7 @@ TEST_F(TranslatorLogicTest, ConstexprBinaryOperatorsForDouble) {
 }
 
 TEST_F(TranslatorLogicTest, ConstexprBinaryOperatorsForFloat) {
-  const std::string content = R"(
+  std::string_view content = R"(
     long long my_package() {
       const float x = 5.5f + 1.0f;
       return (int)(x * 3);
@@ -4796,7 +4775,7 @@ TEST_F(TranslatorLogicTest, ConstexprBinaryOperatorsForFloat) {
 }
 
 TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIncorrectlyFormatted) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma top
   int st() {
     return 1;
@@ -4811,7 +4790,7 @@ TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIncorrectlyFormatted) {
 }
 
 TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIsUppercase) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma HLS_TOP
   int st() {
     return 1;
@@ -4826,7 +4805,7 @@ TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIsUppercase) {
 }
 
 TEST_F(TranslatorLogicTest, PragmaAllowsCommentsBetween) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma hls_top
   // some comment
   int st() {
@@ -4836,7 +4815,7 @@ TEST_F(TranslatorLogicTest, PragmaAllowsCommentsBetween) {
 }
 
 TEST_F(TranslatorLogicTest, PragmaAllowsBlankLines) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma hls_top
 
   int st() {
@@ -4846,7 +4825,7 @@ TEST_F(TranslatorLogicTest, PragmaAllowsBlankLines) {
 }
 
 TEST_F(TranslatorLogicTest, PragmaIgnoresSpaces) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma    hls_top  
   int st() {
     return 1;
@@ -4855,7 +4834,7 @@ TEST_F(TranslatorLogicTest, PragmaIgnoresSpaces) {
 }
 
 TEST_F(TranslatorLogicTest, PragmaHlsPartialUnrollTreatedAsFullUnroll) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma hls_top  
   int st() {
     int sum = 0;
@@ -4869,7 +4848,7 @@ TEST_F(TranslatorLogicTest, PragmaHlsPartialUnrollTreatedAsFullUnroll) {
 }
 
 TEST_F(TranslatorLogicTest, CommentedPragmaIgnored) {
-  const std::string content = R"(
+  std::string_view content = R"(
   // #pragma    hls_top  
   int st() {
     return 1;
@@ -4881,7 +4860,7 @@ TEST_F(TranslatorLogicTest, CommentedPragmaIgnored) {
 }
 
 TEST_F(TranslatorLogicTest, AllowEmptyInitializerList) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma hls_top  
   int st() {
     int a[20] = {};
@@ -4891,7 +4870,7 @@ TEST_F(TranslatorLogicTest, AllowEmptyInitializerList) {
 }
 
 TEST_F(TranslatorLogicTest, UnknownPragmasIgnored) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma unknown pragma
   #pragma top
   
@@ -4907,7 +4886,7 @@ TEST_F(TranslatorLogicTest, UnknownPragmasIgnored) {
 }
 
 TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma unknown pragma
   
   #pragma once
@@ -4922,7 +4901,7 @@ TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
 }
 
 TEST_F(TranslatorLogicTest, OnlyValidPragmasGiveNoWarnings) {
-  const std::string content = R"(
+  std::string_view content = R"(
   #pragma hls_top
   int st() {
     #pragma hls_array_allow_default_pad
@@ -4935,7 +4914,7 @@ TEST_F(TranslatorLogicTest, OnlyValidPragmasGiveNoWarnings) {
 }
 
 TEST_F(TranslatorLogicTest, MultipleCallsInTree) {
-  const std::string content = R"(
+  std::string_view content = R"(
     int xls_int(int x) {
       return x;
     }
@@ -4951,7 +4930,7 @@ TEST_F(TranslatorLogicTest, MultipleCallsInTree) {
 }
 
 TEST_F(TranslatorLogicTest, Recursion) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int do_something(int a) {
         if(a > 100) {
           return do_something(a / 2);
@@ -4969,7 +4948,7 @@ TEST_F(TranslatorLogicTest, Recursion) {
 }
 
 TEST_F(TranslatorLogicTest, TopRecursion) {
-  const std::string content = R"(
+  std::string_view content = R"(
       int my_package(int a) {
         if(a > 100) {
           return my_package(a / 2);
@@ -4981,6 +4960,134 @@ TEST_F(TranslatorLogicTest, TopRecursion) {
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
                                             testing::HasSubstr("ecursion")));
+}
+
+TEST_F(TranslatorLogicTest, ErrorOnUninitializedBasic) {
+  std::string_view content = R"(
+    struct HierBlock {
+      __xls_channel<long, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void Run() {
+        int y;
+        (void)y;
+        out.write(y);
+      }
+    };)";
+
+  ASSERT_THAT(
+      ScanFile(content, /*clang_argv=*/{},
+               /*io_test_mode=*/false,
+               /*error_on_init_interval=*/false,
+               /*error_on_uninitialized=*/true),
+      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                    testing::HasSubstr("Unable to parse")));
+}
+
+TEST_F(TranslatorLogicTest, ErrorOnUninitializedArray) {
+  std::string_view content = R"(
+    struct HierBlock {
+      __xls_channel<long, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void Run() {
+        int y[2];
+        out.write(y[1]);
+      }
+    };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false,
+                         /*error_on_uninitialized=*/true));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  ASSERT_THAT(translator_
+                  ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                              /*top_level_init_interval=*/0)
+                  .status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                            testing::HasSubstr("efault init")));
+}
+
+TEST_F(TranslatorLogicTest, ErrorOnUninitializedWrongCount) {
+  std::string_view content = R"(
+    struct HierBlock {
+      __xls_channel<long, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void Run() {
+        int y[2] = {1};
+        out.write(y[1]);
+      }
+    };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false,
+                         /*error_on_uninitialized=*/true));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  ASSERT_THAT(
+      translator_
+          ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                      /*top_level_init_interval=*/0)
+          .status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                    testing::HasSubstr("number of init")));
+}
+
+TEST_F(TranslatorLogicTest, ErrorOnUninitializedWrongCountPragma) {
+  std::string_view content = R"(
+    struct HierBlock {
+      __xls_channel<long, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void Run() {
+        #pragma hls_array_allow_default_pad
+        int y[2] = {1};
+        out.write(y[1]);
+      }
+    };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false,
+                         /*error_on_uninitialized=*/true));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  ASSERT_THAT(translator_
+                  ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                              /*top_level_init_interval=*/0)
+                  .status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kOk));
+}
+
+TEST_F(TranslatorLogicTest, ErrorOnUninitializedDefaultMember) {
+  std::string_view content = R"(
+    struct HierBlock {
+      __xls_channel<long, __xls_channel_dir_Out> out;
+
+      int y;
+
+      #pragma hls_top
+      void Run() {
+        out.write(y);
+      }
+    };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false,
+                         /*error_on_uninitialized=*/true));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  ASSERT_THAT(translator_
+                  ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                              /*top_level_init_interval=*/0)
+                  .status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                            testing::HasSubstr("not init")));
 }
 
 }  // namespace

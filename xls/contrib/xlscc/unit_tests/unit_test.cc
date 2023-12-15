@@ -218,8 +218,8 @@ std::string ErrorMessage(const xls::SourceInfo& loc,
 
 absl::Status XlsccTestBase::ScanFile(
     xls::TempFile& temp, std::vector<std::string_view> clang_argv,
-    bool io_test_mode, bool error_on_init_interval, xls::SourceLocation loc,
-    bool fail_xlscc_check, int64_t max_unroll_iters,
+    bool io_test_mode, bool error_on_init_interval, bool error_on_uninitialized,
+    xls::SourceLocation loc, bool fail_xlscc_check, int64_t max_unroll_iters,
     const char* top_class_name) {
   auto parser = std::make_unique<xlscc::CCParser>();
   XLS_RETURN_IF_ERROR(ScanTempFileWithContent(
@@ -231,6 +231,7 @@ absl::Status XlsccTestBase::ScanFile(
   // the test run in a reasonable time.
   translator_.reset(new xlscc::Translator(
       error_on_init_interval,
+      /*error_on_uninitialized=*/error_on_uninitialized,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
       /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser)));
@@ -246,13 +247,14 @@ absl::Status XlsccTestBase::ScanFile(
 
 absl::Status XlsccTestBase::ScanFile(
     std::string_view cpp_src, std::vector<std::string_view> clang_argv,
-    bool io_test_mode, bool error_on_init_interval, xls::SourceLocation loc,
-    bool fail_xlscc_check, int64_t max_unroll_iters,
+    bool io_test_mode, bool error_on_init_interval, bool error_on_uninitialized,
+    xls::SourceLocation loc, bool fail_xlscc_check, int64_t max_unroll_iters,
     const char* top_class_name) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return ScanFile(temp, clang_argv, io_test_mode, error_on_init_interval, loc,
-                  fail_xlscc_check, max_unroll_iters, top_class_name);
+  return ScanFile(temp, clang_argv, io_test_mode, error_on_init_interval,
+                  error_on_uninitialized, loc, fail_xlscc_check,
+                  max_unroll_iters, top_class_name);
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
@@ -308,6 +310,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     log_entries_.clear();
     XLS_RETURN_IF_ERROR(ScanFile(temp, clang_argv, io_test_mode,
                                  /*error_on_init_interval=*/false,
+                                 /*error_on_uninitialized=*/false,
                                  /*loc=*/xls::SourceLocation(),
                                  /*fail_xlscc_check=*/false, max_unroll_iters));
     package_.reset(new xls::Package("my_package"));
@@ -333,7 +336,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
 }
 
 void XlsccTestBase::ProcTest(
-    std::string content, std::optional<xlscc::HLSBlock> block_spec,
+    std::string_view content, std::optional<xlscc::HLSBlock> block_spec,
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
         inputs_by_channel,
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
@@ -355,6 +358,7 @@ void XlsccTestBase::ProcTest(
                            /*clang_argv=*/{},
                            /*io_test_mode=*/false,
                            /*error_on_init_interval=*/false,
+                           /*error_on_uninitialized=*/false,
                            xls::SourceLocation(),
                            /*fail_xlscc_check=*/false,
                            /*max_unroll_iters=*/0,

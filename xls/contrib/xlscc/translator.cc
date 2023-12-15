@@ -147,14 +147,15 @@ bool Translator::IOChannelInCurrentFunction(IOChannel* to_find,
   return false;
 }
 
-Translator::Translator(bool error_on_init_interval, int64_t max_unroll_iters,
-                       int64_t warn_unroll_iters, int64_t z3_rlimit,
-                       IOOpOrdering op_ordering,
+Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
+                       int64_t max_unroll_iters, int64_t warn_unroll_iters,
+                       int64_t z3_rlimit, IOOpOrdering op_ordering,
                        std::unique_ptr<CCParser> existing_parser)
     : max_unroll_iters_(max_unroll_iters),
       warn_unroll_iters_(warn_unroll_iters),
       z3_rlimit_(z3_rlimit),
       error_on_init_interval_(error_on_init_interval),
+      error_on_uninitialized_(error_on_uninitialized),
       op_ordering_(op_ordering) {
   context_stack_.push_front(TranslationContext());
   if (existing_parser != nullptr) {
@@ -1494,6 +1495,10 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
       XLSCC_CHECK(!lvalue->is_null(), loc);
     }
   } else {
+    if (error_on_uninitialized_) {
+      return absl::InvalidArgumentError(ErrorMessage(
+          loc, "Default initialization with error_on_uninitialized set"));
+    }
     XLS_ASSIGN_OR_RETURN(init_val, CreateDefaultValue(ctype, loc));
     if (ctype->Is<CPointerType>()) {
       lvalue = std::make_shared<LValue>();
@@ -1609,6 +1614,10 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
         }
       }
     } else {
+      if (error_on_uninitialized_) {
+        return absl::InvalidArgumentError(ErrorMessage(
+            loc, "Variable '%s' uninitialized", decl->getNameAsString()));
+      }
       XLS_ASSIGN_OR_RETURN(
           std::shared_ptr<CType> type,
           TranslateTypeFromClang(var_decl->getType(), global_loc));
@@ -3994,7 +4003,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     if (ctype->Is<CStructType>()) {
       XLS_RETURN_IF_ERROR(
           FailIfTypeHasDtors(ctor->getType()->getAsCXXRecordDecl()));
-
       XLS_ASSIGN_OR_RETURN(xls::BValue this_inout,
                            CreateDefaultValue(octype, loc));
       std::vector<const clang::Expr*> args;
@@ -4015,6 +4023,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     // A built-in type is being constructed. Create default value if there's
     //  no constructor parameter
     if (ctor->getNumArgs() == 0) {
+      if (error_on_uninitialized_) {
+        return absl::InvalidArgumentError(
+            ErrorMessage(loc, "Built-in type %s defaulted in constructor '%s'",
+                         std::string(*octype),
+                         ctor->getConstructor()->getQualifiedNameAsString()));
+      }
       XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
       return CValue(dv, octype);
     }
@@ -4405,8 +4419,8 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
                          FindPragmaForLoc(init_list->getBeginLoc()));
     if (pragma.type() != Pragma_ArrayAllowDefaultPad &&
         array_t->GetSize() != init_list->getNumInits() &&
-        init_list->getNumInits() != 0) {
-      return absl::UnimplementedError(
+        init_list->getNumInits() != 0 && error_on_uninitialized_) {
+      return absl::InvalidArgumentError(
           ErrorMessage(loc, "Wrong number of initializers"));
     }
     std::vector<xls::BValue> element_vals;

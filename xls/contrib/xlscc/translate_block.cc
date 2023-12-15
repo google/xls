@@ -881,6 +881,14 @@ absl::StatusOr<CValue> Translator::GenerateTopClassInitValue(
 
     CValue field_val;
     if (!field_decl->hasInClassInitializer()) {
+      XLS_ASSIGN_OR_RETURN(bool contains_lvalues,
+                           field_type->ContainsLValues(*this));
+      if (error_on_uninitialized_ && !contains_lvalues) {
+        return absl::InvalidArgumentError(ErrorMessage(
+            field_decl_loc,
+            "Class member %s not initialized with error_on_uninitialized set",
+            field_decl->getQualifiedNameAsString()));
+      }
       XLS_ASSIGN_OR_RETURN(field_val,
                            CreateDefaultCValue(field_type, field_decl_loc));
     } else {

@@ -91,6 +91,7 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
                         std::vector<std::string_view> clang_argv = {},
                         bool io_test_mode = false,
                         bool error_on_init_interval = false,
+                        bool error_on_uninitialized = false,
                         xls::SourceLocation loc = xls::SourceLocation(),
                         bool fail_xlscc_check = false,
                         int64_t max_unroll_iters = 0,
@@ -100,6 +101,7 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
                         std::vector<std::string_view> clang_argv = {},
                         bool io_test_mode = false,
                         bool error_on_init_interval = false,
+                        bool error_on_uninitialized = false,
                         xls::SourceLocation loc = xls::SourceLocation(),
                         bool fail_xlscc_check = false,
                         int64_t max_unroll_iters = 0,
@@ -136,8 +138,11 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
         : name(name), value(value), condition(condition) {}
     IOOpTest(std::string name, xls::Value value, const char* message,
              xlscc::TraceType trace_type, std::string label = "")
-        : name(name), value(value), message(message), trace_type(trace_type),
-          label(label){}
+        : name(name),
+          value(value),
+          message(message),
+          trace_type(trace_type),
+          label(label) {}
 
     std::string name;
     xls::Value value;
@@ -147,7 +152,8 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
     std::string label;
   };
 
-  void ProcTest(std::string content, std::optional<xlscc::HLSBlock> block_spec,
+  void ProcTest(std::string_view content,
+                std::optional<xlscc::HLSBlock> block_spec,
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
                     inputs_by_channel,
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
@@ -176,8 +182,7 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
       xls::FunctionBase* proc, std::string_view channel);
   static absl::Status TokensForNode(
       xls::Node* node, absl::flat_hash_set<xls::Node*>& predecessors);
-  absl::StatusOr<bool> NodeIsAfterTokenWise(xls::Proc* proc,
-                                            xls::Node* before,
+  absl::StatusOr<bool> NodeIsAfterTokenWise(xls::Proc* proc, xls::Node* before,
                                             xls::Node* after);
 
   absl::StatusOr<std::vector<xls::Node*>> GetOpsForChannel(
