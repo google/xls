@@ -32,7 +32,7 @@ namespace synthesis {
 
 absl::StatusOr<int64_t> ParseNextpnrOutput(std::string_view nextpnr_output) {
   bool found = false;
-  double max_mhz;
+  double max_mhz = 0.0;
   // We're looking for lines of the form:
   //
   //   Info: Max frequency for clock 'foo': 125.28 MHz (PASS at 100.00 MHz)
