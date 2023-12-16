@@ -14,14 +14,18 @@
 
 #include "xls/dslx/type_system/parametric_instantiator_internal.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -33,6 +37,7 @@
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -41,8 +46,11 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_bind.h"
+#include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
@@ -219,7 +227,7 @@ ParametricInstantiator::ParametricInstantiator(
   //                                    ^~~~~~~~~^
   //  The underlined portion wants a concrete type definition so it can
   //  interpret the expression to an InterpValue.
-  ctx_->AddDerivedTypeInfo();
+  derived_type_info_ = ctx_->AddDerivedTypeInfo();
 
   // Explicit constraints are conceptually evaluated before other parametric
   // expressions.
@@ -252,7 +260,7 @@ ParametricInstantiator::ParametricInstantiator(
 }
 
 ParametricInstantiator::~ParametricInstantiator() {
-  XLS_CHECK_OK(ctx_->PopDerivedTypeInfo());
+  XLS_CHECK_OK(ctx_->PopDerivedTypeInfo(derived_type_info_));
 }
 
 absl::Status ParametricInstantiator::InstantiateOneArg(

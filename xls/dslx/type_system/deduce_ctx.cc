@@ -20,8 +20,21 @@
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/import_routines.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/parametric_expression.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/type_mismatch_error_data.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
@@ -99,8 +112,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCtx::Deduce(
   return result;
 }
 
-void DeduceCtx::AddDerivedTypeInfo() {
+TypeInfo* DeduceCtx::AddDerivedTypeInfo() {
   type_info_ = type_info_owner().New(module(), /*parent=*/type_info_).value();
+  return type_info_;
 }
 
 absl::Status DeduceCtx::PushTypeInfo(TypeInfo* ti) {
@@ -109,8 +123,12 @@ absl::Status DeduceCtx::PushTypeInfo(TypeInfo* ti) {
   return absl::OkStatus();
 }
 
-absl::Status DeduceCtx::PopDerivedTypeInfo() {
+absl::Status DeduceCtx::PopDerivedTypeInfo(TypeInfo* expect_popped) {
   XLS_RET_CHECK(type_info_->parent() != nullptr);
+
+  // Check that the type info we're popping is the one we expected to pop.
+  XLS_RET_CHECK_EQ(type_info_, expect_popped);
+
   type_info_ = type_info_->parent();
   return absl::OkStatus();
 }

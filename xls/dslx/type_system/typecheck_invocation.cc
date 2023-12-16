@@ -414,7 +414,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   ctx->AddFnStackEntry(FnStackEntry::Make(
       callee_fn, callee_tab.parametric_env, invocation,
       callee_fn->proc().has_value() ? WithinProc::kYes : WithinProc::kNo));
-  ctx->AddDerivedTypeInfo();
+  TypeInfo* derived_type_info = ctx->AddDerivedTypeInfo();
 
   if (callee_fn->proc().has_value()) {
     Proc* p = callee_fn->proc().value();
@@ -503,7 +503,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   original_ti->SetInvocationTypeInfo(invocation, callee_tab.parametric_env,
                                      ctx->type_info());
 
-  XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
+  XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo(derived_type_info));
   ctx->PopFnStackEntry();
 
   // Implementation note: though we could have all functions have

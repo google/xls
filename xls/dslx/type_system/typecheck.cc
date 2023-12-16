@@ -410,13 +410,15 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   // Proc typechecking (see `DeduceParam()`) would conflict/override those
   // declared in a TestProc and passed to it.
   TypeInfo* original_ti = ctx->type_info();
+  TypeInfo* derived_type_info = nullptr;
   if (f->proc().has_value()) {
     absl::StatusOr<TypeInfo*> proc_ti =
         ctx->type_info()->GetTopLevelProcTypeInfo(f->proc().value());
     if (proc_ti.ok()) {
       XLS_RETURN_IF_ERROR(ctx->PushTypeInfo(proc_ti.value()));
+      derived_type_info = proc_ti.value();
     } else {
-      ctx->AddDerivedTypeInfo();
+      derived_type_info = ctx->AddDerivedTypeInfo();
     }
   }
 
@@ -493,10 +495,12 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   XLS_RETURN_IF_ERROR(WarnOnDefinedButUnused(f, ctx));
 
   if (f->tag() != Function::Tag::kNormal) {
+    XLS_RET_CHECK(derived_type_info != nullptr);
+
     // i.e., if this is a proc function.
     XLS_RETURN_IF_ERROR(original_ti->SetTopLevelProcTypeInfo(f->proc().value(),
                                                              ctx->type_info()));
-    XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
+    XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo(derived_type_info));
 
     // Need to capture the initial value for top-level procs. For spawned procs,
     // DeduceSpawn() handles this.

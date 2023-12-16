@@ -23,12 +23,15 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 namespace internal {
@@ -109,6 +112,10 @@ class ParametricInstantiator {
   // provides context we need to use when we do constexpr evaluation of
   // parametric constraints (e.g. type info, import data).
   DeduceCtx* ctx_;
+
+  // The "derived type information" mapping we use in evaluating the parametric
+  // types in this instantiation.
+  TypeInfo* derived_type_info_ = nullptr;
 
   // Notes the iteration order in the original parametric bindings.
   std::vector<std::string> constraint_order_;

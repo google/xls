@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
@@ -181,14 +182,17 @@ class DeduceCtx {
   TypeInfo* type_info() const { return type_info_; }
 
   // Creates a new TypeInfo that has the current type_info_ as its parent.
-  void AddDerivedTypeInfo();
+  //
+  // Returns the new (derived) type info object. This can later be passed to
+  // "PopDerivedTypeInfo()" to check soundness of our type info stack.
+  TypeInfo* AddDerivedTypeInfo();
 
   // Puts the given TypeInfo on top of the current stack.
   absl::Status PushTypeInfo(TypeInfo* ti);
 
   // Pops the current type_info_ and sets the type_info_ to be the popped
   // value's parent (conceptually an inverse of AddDerivedTypeInfo()).
-  absl::Status PopDerivedTypeInfo();
+  absl::Status PopDerivedTypeInfo(TypeInfo* expect_popped);
 
   // Adds an entry to the stack of functions currently being deduced.
   void AddFnStackEntry(FnStackEntry entry);
