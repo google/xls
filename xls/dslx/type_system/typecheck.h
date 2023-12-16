@@ -18,11 +18,13 @@
 #include <optional>
 #include <variant>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/type_and_parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
@@ -32,14 +34,6 @@ using TopNode =
 // Assigns concrete types and validates such on all elements of `f`, which must
 // be a non-parametric user-defined function.
 absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
-
-// Assigns concrete types and validates such on all elements of the function
-// "invoked" by the given invocation. The target function may be builtin and/or
-// parametric.
-absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
-    DeduceCtx* ctx, const Invocation* invocation,
-    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
-                              InterpValue>& constexpr_env);
 
 // Validates type annotations on all functions within "module".
 //
