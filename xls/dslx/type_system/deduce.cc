@@ -1537,7 +1537,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
         number != nullptr && number->type_annotation() == nullptr) {
       ctx->type_info()->SetItem(member, element_type);
       const BitsType* bits_type = dynamic_cast<const BitsType*>(&element_type);
-      XLS_RET_CHECK(bits_type != nullptr);
+      if (bits_type == nullptr) {
+        return TypeInferenceErrorStatus(
+            number->span(), &element_type,
+            absl::StrFormat("Annotated element type for array cannot be "
+                            "applied to a literal number"));
+      }
       XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *bits_type));
     }
   }

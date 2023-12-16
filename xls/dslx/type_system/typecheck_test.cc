@@ -967,6 +967,13 @@ TEST(TypecheckTest, OutOfRangeNumberInConstantArray) {
           HasSubstr("Value '256' does not fit in the bitwidth of a uN[8]")));
 }
 
+TEST(TypecheckErrorTest, BadTypeForConstantArrayOfNumbers) {
+  EXPECT_THAT(Typecheck("const A = u8[3][4]:[1, 2, 3, 4];"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Annotated element type for array cannot be "
+                                 "applied to a literal number")));
+}
+
 TEST(TypecheckErrorTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
   EXPECT_THAT(Typecheck("const MY_ARRAY = u32[1]:[];"),
               StatusIs(absl::StatusCode::kInvalidArgument,
