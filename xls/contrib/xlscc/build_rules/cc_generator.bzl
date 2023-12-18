@@ -14,13 +14,18 @@
 
 """Provides fuzz test functionality for XLScc"""
 
-def xls_int_fuzz_binaries(name, seed_start, seed_count):
+def xls_int_fuzz_binaries(name, deps, seed_start, seed_count):
     """Generate fuzz test binaries for a range of seeds and the result comparison binary
 
     Args:
-          name: descriptive name of the fuzz test
-          seed_start: start seed of test to generate
-          seed_count: number of tests to generate
+          name: descriptive name of the fuzz test.
+          deps: dependencies required by the fuzzer.
+          seed_start: start seed of test to generate.
+          seed_count: number of tests to generate.
+
+    Returns:
+          All of the outputs of the fuzzing process.
+          Including generated source code and binaries.
     """
     all_outputs = []
     for x in range(seed_count):
@@ -37,7 +42,10 @@ def xls_int_fuzz_binaries(name, seed_start, seed_count):
         native.cc_binary(
             name = "{}_{}".format(name, str(seed)),
             srcs = [srcfile],
-            deps = ["@com_github_hlslibs_ac_types//:ac_int"],
+            deps = [
+                "@com_github_hlslibs_ac_types//:ac_int",
+                "@com_github_hlslibs_ac_types//:ac_fixed",
+            ],
         )
         all_outputs.append("{}_{}".format(name, str(seed)))
         all_outputs.append(srcfile)
@@ -89,5 +97,6 @@ def xls_int_fuzz_binaries(name, seed_start, seed_count):
             "//xls/passes:optimization_pass_pipeline",
             "//xls/simulation:module_simulator",
             "//xls/simulation:verilog_simulators",
-        ],
+        ] + deps,
     )
+    return [DefaultInfo(files = depset(all_outputs))]

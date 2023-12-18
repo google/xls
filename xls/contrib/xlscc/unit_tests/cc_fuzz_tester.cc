@@ -13,35 +13,39 @@
 // limitations under the License.
 
 #include <cstdlib>
-#include <ctime>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <vector>
 
+#include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/flags/flag.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass_pipeline.h"
@@ -79,7 +83,7 @@ class GeneratedTester : public XlsccTestBase {
     auto expected = xls::Value(xls::Bits(expected_in));
     XLS_ASSIGN_OR_RETURN(auto calc_result, RunIntTest(expected, test_content));
     if (calc_result != expected) {
-      std::cout << expected << " " << calc_result << std::endl;
+      std::cout << expected << " " << calc_result << '\n';
       return absl::InternalError("test failed");
     }
     return absl::OkStatus();
@@ -216,9 +220,7 @@ TEST_F(GeneratedTester, Simple) {
 
   if (!run_failed) {
     if (!crash_path.empty()) {
-      std::error_code error;
-      std::filesystem::create_directory(crash_path, error);
-      if (error) {
+      if (!std::filesystem::create_directory(crash_path)) {
         XLS_LOG(WARNING) << "failed to create crash path: " << crash_path;
       }
     } else {
@@ -246,9 +248,9 @@ TEST_F(GeneratedTester, Simple) {
         exe_path = exe_path.substr(0, exe_path.size() - 3);
         absl::Status test_result = tester.RunExisting(file, exe_path);
         if (!test_result.ok()) {
-          std::cout << "test failed: " << file << std::endl;
+          std::cout << "test failed: " << file << '\n';
         } else {
-          std::cout << "test succeeded: " << file << std::endl;
+          std::cout << "test succeeded: " << file << '\n';
         }
       }
     }

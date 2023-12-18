@@ -23,10 +23,6 @@ load(
     "xls_ir_verilog_impl",
 )
 load(
-    "//xls/build_rules:xls_toolchains.bzl",
-    "xls_toolchain_attrs",
-)
-load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_default_to_args",
     "args_to_string",
@@ -46,6 +42,10 @@ load(
     "xls_ir_opt_ir_impl",
 )
 load("//xls/build_rules:xls_providers.bzl", "ConvIRInfo")
+load(
+    "//xls/build_rules:xls_toolchains.bzl",
+    "xls_toolchain_attrs",
+)
 load(
     "//xls/build_rules:xls_type_check_helpers.bzl",
     "bool_type_check",

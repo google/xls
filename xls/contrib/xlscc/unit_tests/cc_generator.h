@@ -21,6 +21,7 @@
 namespace xlscc {
 
   std::string GenerateIntTest(uint32_t seed);
+  std::string GenerateFixedTest(uint32_t seed);
 
 }  // namespace xlscc
 

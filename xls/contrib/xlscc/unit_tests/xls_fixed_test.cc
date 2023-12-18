@@ -1036,6 +1036,18 @@ TEST_F(XlsFixedTest, SubtractOneHalfDifferentWidth) {
   RunAcDatatypeTest({{"a", 0}}, 500, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsFixedTest, MixedAssignmentOperator) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long long a) {
+      XlsFixed<20, 20, false, ac_datatypes::AC_TRN, ac_datatypes::AC_SAT> result = a;
+      XlsInt<20, false> g = 34;
+      result += g;
+      return result.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 12}}, 46, content, xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

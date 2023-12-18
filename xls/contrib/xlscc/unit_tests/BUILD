@@ -377,17 +377,12 @@ cc_binary(
         "@com_github_hlslibs_ac_types//:ac_types_as_data",
     ],
     deps = [
-        "//xls/codegen:combinational_generator",
+        ":cc_generator",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
-        "//xls/contrib/xlscc/unit_tests:cc_generator",
-        "//xls/passes:optimization_pass_pipeline",
-        "//xls/simulation:verilog_simulators",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -396,4 +391,13 @@ xls_int_fuzz_binaries(
     name = "sample_fuzz",
     seed_count = 9,
     seed_start = 10,
+    deps = [
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:vast",
+        "//xls/common:source_location",
+        "//xls/common:xls_gunit",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+    ],
 )

@@ -279,17 +279,18 @@ class XlsFixed {
 
   // Undefined behavior if the double is out of 32 bit signed integer range
   inline XlsFixed(double value)
-    : val(XlsInt<Width, Signed>(
-          Adjustment<Width, IntegerWidth, Signed, 64, 32, false, Quantization,
-                      Overflow>::
-              Adjust(__xlscc_fixed_32_32_bits_for_double(value)))) {}
+      : val(XlsInt<Width, Signed>(
+            Adjustment<Width, IntegerWidth, Signed, 64, 32, false, Quantization,
+                       Overflow>::
+                Adjust(__xlscc_fixed_32_32_bits_for_double(value)))) {}
 
   // Undefined behavior if the double is out of 32 bit signed integer range
   inline XlsFixed(float value)
-    : val(XlsInt<Width, Signed>(
-          Adjustment<Width, IntegerWidth, Signed, 64, 32, false, Quantization,
-                      Overflow>::
-              Adjust(__xlscc_fixed_32_32_bits_for_float(value)))) {}
+      : val(XlsInt<Width, Signed>(
+            Adjustment<
+                Width, IntegerWidth, Signed, 64, 32, false, Quantization,
+                Overflow>::Adjust(__xlscc_fixed_32_32_bits_for_float(value)))) {
+  }
 
   XlsInt<Width, false> val;
   static constexpr int width = Width;
@@ -833,6 +834,80 @@ FX_OPS_WITH_INT(long, 64, true)
 FX_OPS_WITH_INT(unsigned long, 64, false)
 FX_OPS_WITH_INT(long long, 64, true)
 FX_OPS_WITH_INT(unsigned long long, 64, false)
+
+#undef FX_BIN_OP_WITH_AC_INT_1
+#define FX_BIN_OP_WITH_AC_INT_1(BIN_OP, RTYPE)                      \
+  template <int W, int I, bool S, ac_datatypes::ac_q_mode Q,        \
+            ac_datatypes::ac_o_mode O, int WI, bool SI>             \
+  inline typename XlsFixed<WI, WI, SI>::template rt<W, I, S>::RTYPE \
+  operator BIN_OP(const XlsInt<WI, SI> &i_op,                       \
+                  const XlsFixed<W, I, S, Q, O> &op) {              \
+    return XlsFixed<WI, WI, SI>(i_op).operator BIN_OP(op);          \
+  }
+
+#undef FX_BIN_OP_WITH_AC_INT_2
+#define FX_BIN_OP_WITH_AC_INT_2(BIN_OP, RTYPE)                      \
+  template <int W, int I, bool S, ac_datatypes::ac_q_mode Q,        \
+            ac_datatypes::ac_o_mode O, int WI, bool SI>             \
+  inline typename XlsFixed<W, I, S>::template rt<WI, WI, SI>::RTYPE \
+  operator BIN_OP(const XlsFixed<W, I, S, Q, O> &op,                \
+                  const XlsInt<WI, SI> &i_op) {                     \
+    return op.operator BIN_OP(XlsFixed<WI, WI, SI>(i_op));          \
+  }
+
+FX_BIN_OP_WITH_AC_INT(*, mult)
+FX_BIN_OP_WITH_AC_INT(+, plus)
+FX_BIN_OP_WITH_AC_INT(-, minus)
+FX_BIN_OP_WITH_AC_INT(/, div)
+FX_BIN_OP_WITH_AC_INT(&, logic)
+FX_BIN_OP_WITH_AC_INT(|, logic)
+FX_BIN_OP_WITH_AC_INT(^, logic)
+
+#undef FX_REL_OP_WITH_AC_INT
+#define FX_REL_OP_WITH_AC_INT(REL_OP)                              \
+  template <int W, int I, bool S, ac_datatypes::ac_q_mode Q,       \
+            ac_datatypes::ac_o_mode O, int WI, bool SI>            \
+  inline bool operator REL_OP(const XlsFixed<W, I, S, Q, O> &op,   \
+                              const XlsInt<WI, SI> &op2) {         \
+    return op.operator REL_OP(XlsFixed<WI, WI, SI>(op2));          \
+  }                                                                \
+  template <int W, int I, bool S, ac_datatypes::ac_q_mode Q,       \
+            ac_datatypes::ac_o_mode O, int WI, bool SI>            \
+  inline bool operator REL_OP(XlsInt<WI, SI> &op2,                 \
+                              const XlsFixed<W, I, S, Q, O> &op) { \
+    return XlsFixed<WI, WI, SI>(op2).operator REL_OP(op);          \
+  }
+
+FX_REL_OP_WITH_AC_INT(==)
+FX_REL_OP_WITH_AC_INT(!=)
+FX_REL_OP_WITH_AC_INT(>)
+FX_REL_OP_WITH_AC_INT(>=)
+FX_REL_OP_WITH_AC_INT(<)
+FX_REL_OP_WITH_AC_INT(<=)
+
+#undef XLS_FX_ASSIGN_OP_WITH_AC_INT
+#define XLS_FX_ASSIGN_OP_WITH_AC_INT(ASSIGN_OP)                 \
+  template <int W, int I, bool S, ac_datatypes::ac_q_mode Q,    \
+            ac_datatypes::ac_o_mode O, int WI, bool SI>         \
+  inline const XlsFixed<W, I, S, Q, O> operator ASSIGN_OP(      \
+      XlsFixed<W, I, S, Q, O> &op, const XlsInt<WI, SI> &op2) { \
+    return op.operator ASSIGN_OP(XlsFixed<WI, WI, SI>(op2));    \
+  }                                                             \
+  template <int W, int I, bool S, ac_datatypes::ac_q_mode Q,    \
+            ac_datatypes::ac_o_mode O, int WI, bool SI>         \
+  inline const XlsInt<WI, SI> operator ASSIGN_OP(               \
+      XlsInt<WI, SI> &op, const XlsFixed<W, I, S, Q, O> &op2) { \
+    return op.operator ASSIGN_OP(op2.to_ac_int());              \
+  }
+
+XLS_FX_ASSIGN_OP_WITH_AC_INT(+=)
+XLS_FX_ASSIGN_OP_WITH_AC_INT(-=)
+XLS_FX_ASSIGN_OP_WITH_AC_INT(*=)
+XLS_FX_ASSIGN_OP_WITH_AC_INT(/=)
+XLS_FX_ASSIGN_OP_WITH_AC_INT(%=)
+XLS_FX_ASSIGN_OP_WITH_AC_INT(&=)
+XLS_FX_ASSIGN_OP_WITH_AC_INT(|=)
+XLS_FX_ASSIGN_OP_WITH_AC_INT(^=)
 
 #undef ac_fixed
 
