@@ -374,11 +374,8 @@ The LLVM tool `opt` optimizes the LLVM IR and can be piped to `lli` like so:
 ```
 
 The LLVM IR can also compiled to an object file using `llc` and driven using a
-C/C++ test harness. The directory `xls/fuzzer/debug` includes a script and
-example demonstrating how to run JIT-generated LLVM IR in this manner.
-
-TODO(allight): Update the `xls/fuzzer/debug` debug script to use the
-main_wrapper functionality.
+generated llvm test wrapper. The directory `xls/fuzzer/debug` includes a script
+and example demonstrating how to run JIT-generated LLVM IR in this manner.
 
 ##### Running LLVM code generation
 

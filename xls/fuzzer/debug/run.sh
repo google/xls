@@ -17,23 +17,25 @@
 # XLS IR input and uses the JIT to generate LLVM IR which is invoked in several
 # ways (with/without optimizations).
 #
+# This script is primarially illustrative and should be modified as appropriate
+# for each persons debugging task.
+#
 # Usage:
 #  (1) Set SRC_TOP to top of source tree.
 #  (2) Point XLS_IR to the XLS IR sample and set XLS_INPUT to the
 #      value which triggers the issue.
-#  (3) Tweak main.c to pass-in and return appropriate arguments/return value.
+#  (3) Tweak the script as appropriate to use your llvm tools.
 #  (4) Run script. Artifacts will be dumped in a newly created temp directory.
 
-SRC_TOP=
+SRC_TOP=$PWD
 if [[ -z ${SRC_TOP} ]]; then
   echo "SRC_TOP must be set to the top directory of the source repo."
   exit 1
 fi
 BIN=${SRC_TOP}/bazel-bin
 
-XLS_IR=test.ir
+XLS_IR=xls/fuzzer/debug/test.ir
 XLS_INPUT="bits[8]:0xef;bits[16]:0x1234"
-MAIN_C=main.c
 LLVM_OPT_LEVEL=2
 
 LLVM_BIN_DIR=${SRC_TOP}/bazel-bin/llvm/llvm-project/llvm
@@ -50,6 +52,9 @@ CLANG=/usr/bin/clang
 
 echo "=== Building tools..."
 cd ${SRC_TOP}
+# TODO(allight): 2023-12-12: Really we should build and use clang here too.
+# Getting this to work is a bit annoying however since by default it doesn't
+# seem to have the library search paths configured?
 bazel build -c opt xls/tools:all llvm/llvm-project/llvm:all
 cd -
 
@@ -57,6 +62,7 @@ OUTDIR=`mktemp -d xls_fuzzer_debug.XXXXXX --tmpdir`
 echo "=== Output directory: ${OUTDIR}"
 
 echo "=== Evaluating XLS IR and dumping LLVM IR..."
+MAIN_IR=${OUTDIR}/test.main.ll
 DUMPED_LLVM_IR=${OUTDIR}/test.ll
 DUMPED_LLVM_OPT_IR=${OUTDIR}/jitopt.test.ll
 ${BIN}/xls/tools/eval_ir_main \
@@ -65,6 +71,8 @@ ${BIN}/xls/tools/eval_ir_main \
   --llvm_jit_ir_output=${DUMPED_LLVM_IR} \
   --llvm_jit_opt_ir_output=${DUMPED_LLVM_OPT_IR} \
   --llvm_opt_level=${LLVM_OPT_LEVEL} \
+  --llvm_jit_main_wrapper_output=${MAIN_IR} \
+  --llvm_jit_main_wrapper_write_is_linked \
   ${XLS_IR}
 
 echo "=== Optimizing LLVM IR"
@@ -85,22 +93,16 @@ function build_and_run() {
   ${LLVM_BIN_DIR}/llc ${LLVM_IR} -O${LLVM_OPT_LEVEL} -filetype=obj -o ${TEST_O}
 
   echo "=== $2 [$1]: Building binary..."
-  ${CLANG} ${TEST_O} ${MAIN_C} -o ${OUTDIR}/$1.main
+  ${CLANG} ${TEST_O} ${MAIN_IR} -o ${OUTDIR}/$1.main
 
   echo "=== $2 [$1]: Running binary..."
-  ${OUTDIR}/$1.main
+  ${OUTDIR}/$1.main | hd
 }
 
 build_and_run "test" "Unoptimized"
 build_and_run "opt.test" "Optimized at -O${LLVM_OPT_LEVEL}"
 build_and_run "inlined.test" "Only inlined"
 build_and_run "opt.inlined.test" "Inlined then optimized at -O${LLVM_OPT_LEVEL}"
-
-echo "== Compiling main to LLVM IR..."
-MAIN_IR=${OUTDIR}/main.ll
-${CLANG} -S -emit-llvm ${MAIN_C} -o ${MAIN_IR}
-# Swap in the datalayout used in the JIT
-sed -i 's/^target datalayout.*/target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"/' ${OUTDIR}/main.ll
 
 function link_and_run_ll() {
   LLVM_IR=${OUTDIR}/$1.ll
@@ -110,7 +112,7 @@ function link_and_run_ll() {
   ${LLVM_BIN_DIR}/llvm-link ${LLVM_IR} ${MAIN_IR} -S -o ${COMBINED_IR}
 
   echo "=== $2 [$1]: Running with lli..."
-  ${LLVM_BIN_DIR}/lli ${LLVM_OPTS} ${COMBINED_IR}
+  ${LLVM_BIN_DIR}/lli ${LLVM_OPTS} ${COMBINED_IR} | hd
 }
 
 link_and_run_ll "test" "Unoptimized"
