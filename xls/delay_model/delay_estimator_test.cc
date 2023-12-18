@@ -82,6 +82,84 @@ TEST_F(DelayEstimatorTest, DelayEstimatorManager) {
               StatusIs(absl::StatusCode::kNotFound));
 }
 
+TEST_F(DelayEstimatorTest, LogicalEffortForAndReduces) {
+  {
+    // 10bit AndReduce.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue x = fb.Param("x", p->GetBitsType(10));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.AndReduce(x)));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(50));
+  }
+
+  {
+    // 100bit AndReduce.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue x = fb.Param("x", p->GetBitsType(100));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.AndReduce(x)));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(350));
+  }
+}
+
+TEST_F(DelayEstimatorTest, LogicalEffortForOrReduces) {
+  {
+    // 10bit OrReduce.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue x = fb.Param("x", p->GetBitsType(10));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.OrReduce(x)));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(80));
+  }
+
+  {
+    // 100bit OrReduce.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue x = fb.Param("x", p->GetBitsType(100));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.OrReduce(x)));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(680));
+  }
+}
+
+TEST_F(DelayEstimatorTest, LogicalEffortForXorReduces) {
+  {
+    // 10bit XORReduce.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue x = fb.Param("x", p->GetBitsType(10));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.XorReduce(x)));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(160));
+  }
+
+  {
+    // 100bit xorreduce.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue x = fb.Param("x", p->GetBitsType(100));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.XorReduce(x)));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(280));
+  }
+}
+
 TEST_F(DelayEstimatorTest, LogicalEffortForXors) {
   {
     // Two-input XOR.

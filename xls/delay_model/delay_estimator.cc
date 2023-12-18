@@ -109,7 +109,7 @@ namespace {
   };
   auto get_reduction_logical_effort =
       [node](netlist::CellKind kind, bool invert) -> absl::StatusOr<int64_t> {
-    const int64_t bit_count = node->BitCountOrDie();
+    const int64_t bit_count = node->operand(0)->BitCountOrDie();
     if (bit_count < 2) {
       return 0;
     }
