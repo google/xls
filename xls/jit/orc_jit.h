@@ -74,14 +74,14 @@ class OrcJit {
   static absl::StatusOr<llvm::DataLayout> CreateDataLayout(
       bool aot_specification);
 
+  static absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
+  CreateTargetMachine(bool aot_specification);
+
   bool emit_object_code() const { return emit_object_code_; }
 
  private:
   OrcJit(int64_t opt_level, bool emit_object_code);
   absl::Status Init();
-
-  static absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
-  CreateTargetMachine(bool aot_specification);
 
   // Method which optimizes the given module. Used within the JIT to form an IR
   // transform layer.

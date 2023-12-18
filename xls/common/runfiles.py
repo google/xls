@@ -22,12 +22,14 @@ from rules_python.python.runfiles import runfiles
 _BASE_PATH = 'com_google_xls'
 
 
-def get_path(relpath: str) -> str:
-  path = os.path.join(_BASE_PATH, relpath)
+def get_path(relpath: str, *, repository: str = _BASE_PATH) -> str:
+  path = os.path.join(repository, relpath)
   r = runfiles.Create()
   runfile_path = r.Rlocation(path)
   if not os.path.exists(runfile_path):
-    raise FileNotFoundError(f'Cannot find runfile {relpath}')
+    raise FileNotFoundError(
+        f'Cannot find runfile {relpath} (repository: {repository})'
+    )
   return runfile_path
 
 
