@@ -1259,6 +1259,7 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
 

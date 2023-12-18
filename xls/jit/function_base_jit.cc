@@ -755,6 +755,17 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
   return outputs;
 }
 
+// Mangle the name to avoid important POSIX symbol names. (eg 'main').
+std::string MangleForLLVM(std::string_view name) {
+  if (name == "main") {
+    return "__XLS__main";
+  }
+  if (name == "write") {
+    return "__XLS__write";
+  }
+  return std::string(name);
+}
+
 // Build an llvm::Function implementing the given FunctionBase. The jitted
 // function contains a sequence of calls to partition functions where each
 // partition only implements a subset of the FunctionBase's nodes. This
@@ -809,7 +820,7 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
   std::vector<Node*> inputs = GetJittedFunctionInputs(xls_function);
   std::vector<Node*> outputs = GetJittedFunctionOutputs(xls_function);
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
-      xls_function->name(), inputs, outputs,
+      MangleForLLVM(xls_function->name()), inputs, outputs,
       llvm::Type::getInt64Ty(jit_context.context()), jit_context,
       LlvmFunctionWrapper::FunctionArg{
           .name = "continuation_point",
@@ -1271,7 +1282,7 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
   }
   XLS_RET_CHECK(top_function != nullptr);
 
-  std::string function_name = top_function->getName().str();
+  std::string function_name = MangleForLLVM(top_function->getName().str());
   std::string packed_wrapper_name;
   if (build_packed_wrapper) {
     XLS_ASSIGN_OR_RETURN(
