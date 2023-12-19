@@ -444,14 +444,13 @@ NetlistTranslator::ValueCone NetlistTranslator::GetValueCone(
 void NetlistTranslator::PrintValueCone(const ValueCone& value_cone,
                                        Z3_model model, int level) {
   std::string prefix(level * 2, ' ');
-  std::cerr << prefix << value_cone.ref->name() << ": " << std::endl;
+  std::cerr << prefix << value_cone.ref->name() << ": " << '\n';
   std::cerr << prefix << "Parent: "
             << (value_cone.parent_cell == nullptr
                     ? "<null>"
                     : value_cone.parent_cell->name())
-            << std::endl;
-  std::cerr << prefix << QueryNode(ctx_, model, value_cone.node, true)
-            << std::endl;
+            << '\n';
+  std::cerr << prefix << QueryNode(ctx_, model, value_cone.node, true) << '\n';
   for (const NetlistTranslator::ValueCone& parent : value_cone.parents) {
     PrintValueCone(parent, model, level + 1);
   }

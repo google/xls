@@ -370,7 +370,7 @@ TEST(NetlistTranslatorTest_Standalone, HandlesSubmodules) {
   XLS_ASSERT_OK_AND_ASSIGN(Z3_ast z3_output,
                            translator->GetTranslation(module_3.outputs()[0]));
   std::string ast_text = Z3_ast_to_string(ctx, z3_output);
-  XLS_VLOG(1) << "Z3 AST:" << std::endl << ast_text;
+  XLS_VLOG(1) << "Z3 AST:" << '\n' << ast_text;
   int not_pos = ast_text.find("bvnot");
   int and_pos = ast_text.find("bvand");
   int or_pos = ast_text.find("bvor");

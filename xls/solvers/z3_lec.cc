@@ -418,10 +418,10 @@ void Lec::DumpIrTree() {
     const Node* node = to_process.front();
     to_process.pop_front();
 
-    std::cout << "Node: " << node->ToString() << std::endl;
+    std::cout << "Node: " << node->ToString() << '\n';
     std::pair<std::string, std::string> outputs = GetComparisonStrings(node);
-    std::cout << "  IR: " << outputs.first << std::endl;
-    std::cout << "  NL: " << outputs.second << std::endl << std::endl;
+    std::cout << "  IR: " << outputs.first << '\n';
+    std::cout << "  NL: " << outputs.second << '\n' << '\n';
 
     for (const Node* operand : node->operands()) {
       if (!seen.contains(operand) && schedule_->cycle(operand) == stage_) {
