@@ -33,6 +33,8 @@ load(
 )
 load(
     "//xls/build_rules:xls_config_rules.bzl",
+    "DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL",
+    "delay_model_to_standard_cells",
     "enable_generated_file_wrapper",
 )
 load(
@@ -632,7 +634,7 @@ Examples:
         if k not in IR_OPT_FLAGS or k in SHARED_FLAGS
     }
 
-    opt_ir_target = name + ".default_asap7.opt_ir"
+    opt_ir_target = name + ".default.opt_ir"
     _xls_ir_opt_ir_macro(
         name = opt_ir_target,
         src = src,
@@ -641,13 +643,13 @@ Examples:
 
     # Add default codegen args
     full_codegen_args = {
-        "delay_model": "asap7",
+        "delay_model": DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL,
         "generator": "pipeline",
         "pipeline_stages": "1",
         "reset": "rst",
         "reset_data_path": "false",
         "use_system_verilog": "false",
-        "module_name": name + "_default_asap7",
+        "module_name": name + "_default",
     }
     full_codegen_args.update(benchmark_ir_codegen_args)
     full_codegen_args.update(codegen_args)
@@ -655,14 +657,12 @@ Examples:
         full_codegen_args.pop("pipeline_stages")
     codegen_args = full_codegen_args
 
+    delay_model = codegen_args["delay_model"]
     if standard_cells == None:
-        # Use default standard cells for the given delay model; supports SKY130 and ASAP7.
-        if codegen_args["delay_model"] == "sky130":
-            standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"
-        else:
-            standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x"
+        # Use default standard cells for the given delay model.
+        standard_cells = delay_model_to_standard_cells(delay_model)
 
-    codegen_target = name + ".default_asap7.codegen"
+    codegen_target = "{}.default_{}.codegen".format(name, delay_model)
     verilog_file = codegen_target + ".v"
     xls_ir_verilog(
         name = codegen_target,
@@ -670,14 +670,14 @@ Examples:
         codegen_args = codegen_args,
         verilog_file = verilog_file,
     )
-    verilog_target = name + ".default_asap7.verilog"
+    verilog_target = "{}.default_{}.verilog".format(name, delay_model)
     verilog_library(
         name = verilog_target,
         srcs = [
             ":" + verilog_file,
         ],
     )
-    synth_target = name + ".default_asap7.synth"
+    synth_target = "{}.default_{}.synth".format(name, delay_model)
     synthesize_rtl(
         name = synth_target,
         standard_cells = standard_cells,
@@ -687,6 +687,6 @@ Examples:
         ],
     )
     benchmark_synth(
-        name = name + ".default_asap7.benchmark_synth",
+        name = "{}.default_{}.benchmark_synth".format(name, delay_model),
         synth_target = ":" + synth_target,
     )

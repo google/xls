@@ -22,6 +22,8 @@ CONFIG = {
     },
 }
 
+DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL = "asap7"
+
 def enable_generated_file_wrapper(**kwargs):  # @unused
     """The function is a placeholder for enable_generated_file_wrapper.
 
@@ -31,3 +33,21 @@ def enable_generated_file_wrapper(**kwargs):  # @unused
       **kwargs: Keyword arguments. Named arguments.
     """
     pass
+
+def delay_model_to_standard_cells(delay_model):
+    """Maps the delay model to the corresponding standard cells target
+
+    Args:
+      delay_model: string, the delay model's name.
+
+    Returns:
+      the target for the corresponding standard cells
+    """
+    if delay_model == "sky130":
+        return "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"
+    if delay_model == "asap7":
+        return "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x"
+    if delay_model == "unit":
+        # No real delay model used; default to ASAP7 for now.
+        return "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x"
+    fail("No cells known for delay model: {}".format(delay_model))

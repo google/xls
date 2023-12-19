@@ -21,8 +21,12 @@ This module exposes the configuration parameters for the XLS build rules. It
 load(
     "//xls/build_rules:xls_oss_config_rules.bzl",
     _CONFIG = "CONFIG",
+    _DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL = "DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL",
+    _delay_model_to_standard_cells = "delay_model_to_standard_cells",
     _enable_generated_file_wrapper = "enable_generated_file_wrapper",
 )
 
 CONFIG = _CONFIG
+DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL = _DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL
+delay_model_to_standard_cells = _delay_model_to_standard_cells
 enable_generated_file_wrapper = _enable_generated_file_wrapper
