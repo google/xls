@@ -47,6 +47,6 @@ int main(int argc, char** argv) {
   XLS_LOG(INFO) << "Performing Adler32 on " << data.size()
                 << " byte(s) of input data (string).";
   uint32_t result = Adler32Sequential(data, data.size());
-  std::cout << std::hex << result << std::endl;
+  std::cout << std::hex << result << '\n';
   return 0;
 }

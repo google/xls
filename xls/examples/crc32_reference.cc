@@ -50,6 +50,6 @@ int main(int argc, char** argv) {
   XLS_LOG(INFO) << "Performing CRC on " << data.size()
                 << " byte(s) of input data.";
   uint32_t result = Crc32Reference(data, absl::GetFlag(FLAGS_polynomial));
-  std::cout << std::hex << result << std::endl;
+  std::cout << std::hex << result << '\n';
   return 0;
 }
