@@ -832,6 +832,33 @@ static absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
   return result;
 }
 
+// Create a signal that is true if stage 0 has no active inputs.
+//
+// In other words, there is no receive op whose predicate is true.
+static absl::StatusOr<Node*> Stage0HasNoActiveRecvs(
+    std::vector<std::vector<StreamingInput>>& streaming_inputs, Block* block) {
+  XLS_CHECK(!streaming_inputs.empty());
+
+  if (streaming_inputs[0].empty()) {
+    // Note that a proc with no receives at all would have this signal be a
+    // literal 1.
+    return block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1)));
+  }
+
+  std::vector<Node*> recv_if_preds;
+  for (StreamingInput& streaming_input : streaming_inputs[0]) {
+    if (streaming_input.predicate.has_value()) {
+      recv_if_preds.push_back(streaming_input.predicate.value());
+    } else {
+      // There is an unconditional receive node, return literal 0
+      return block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(0, 1)));
+    }
+  }
+
+  // Stage 0 has only conditional receives, return NOR of their predicates.
+  return NaryNorIfNeeded(block, recv_if_preds);
+}
+
 // For each input streaming channel add a corresponding valid port (input port).
 // Combinationally combine those valid signals with their predicates
 // to generate an all_active_inputs_valid signal.
@@ -1678,6 +1705,12 @@ static absl::Status AddOneShotOutputLogic(const CodegenOptions& options,
 static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
                                   StreamingIOPipeline& streaming_io,
                                   Block* block) {
+  // The block is not idle (and is implcitly valid), if there are no
+  // active recvs that can block it.
+  XLS_ASSIGN_OR_RETURN(Node * stage_0_has_no_active_recvs,
+                       Stage0HasNoActiveRecvs(streaming_io.inputs, block));
+  valid_nodes.push_back(stage_0_has_no_active_recvs);
+
   for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
       valid_nodes.push_back(input.signal_valid);

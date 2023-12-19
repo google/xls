@@ -4527,6 +4527,277 @@ proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   // model to evaluate the block with.
 }
 
+TEST_F(ProcConversionTestFixture, ProcIdleWithoutInputChannels) {
+  const std::string ir_text = R"(package test
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc proc_ut(tkn: token, st: bits[32], init={0}) {
+  lit1: bits[32] = literal(value=1)
+  next_state: bits[32] = add(st, lit1)
+  send.1: token = send(tkn, st, channel=out, id=1)
+  next (send.1, next_state)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("proc_ut"));
+
+  Node* next_state_node = FindNode("next_state", proc);
+  Node* send_node = FindNode("send.1", proc);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions()
+              .pipeline_stages(2)
+              .add_constraint(NodeInCycleConstraint(next_state_node, 0))
+              .add_constraint(NodeInCycleConstraint(send_node, 1))));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.add_idle_output(true);
+  options.module_name("proc_ut");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::vector<ChannelSource> sources{};
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out_data", "out_valid", "out_ready", 1.0, unit.block,
+                  /*reset_behavior=*/ChannelSink::kAttendValid),
+  };
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> non_streaming_inputs(
+      25, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{reset_name, reset_active}},
+                                     non_streaming_inputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          unit.block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+          non_streaming_inputs, options.reset()));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+      results.inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+      results.outputs;
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  XLS_VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"idle", SignalType::kOutput},
+                              {"out_data", SignalType::kOutput},
+                              {"out_valid", SignalType::kOutput},
+                              {"out_ready", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  // Check that idle is false, even during reset.
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    if (i < 10) {
+      EXPECT_EQ(inputs[i]["rst"], 1)
+          << absl::StrFormat("Cycle %d, expected rst==1", i);
+    } else {
+      EXPECT_EQ(inputs[i]["rst"], 0)
+          << absl::StrFormat("Cycle %d, expected rst==0", i);
+    }
+
+    EXPECT_EQ(outputs[i]["idle"], 0)
+        << absl::StrFormat("Cycle %d, expected idle==0", i);
+  }
+}
+
+TEST_F(ProcConversionTestFixture, ProcIdleWithStageZeroRecvIfs) {
+  const std::string ir_text = R"(package test
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc proc_ut(tkn: token, st: bits[32], init={0}) {
+  lit1: bits[32] = literal(value=1)
+  lit5: bits[32] = literal(value=5)
+  lit10: bits[32] = literal(value=10)
+
+  st_gt_5: bits[1] = ult(lit5, st)
+  st_lt_10: bits[1] = ult(st, lit10)
+  recv_pred: bits[1] = and(st_gt_5, st_lt_10)
+
+  recv_plus_token: (token, bits[32]) = receive(tkn, predicate=recv_pred, channel=in, id=0)
+  recv_token : token = tuple_index(recv_plus_token, index=0)
+  in_data : bits[32] = tuple_index(recv_plus_token, index=1)
+
+  recv_plus_one: bits[32] = add(in_data, lit1)
+  next_state: bits[32] = add(st, recv_plus_one)
+
+  send_token: token = send(tkn, st, channel=out, id=1)
+
+  next_token: token = after_all(recv_token, send_token)
+  next (next_token, next_state)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("proc_ut"));
+
+  Node* next_state_node = FindNode("next_state", proc);
+  Node* send_node = FindNode("send_token", proc);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions()
+              .pipeline_stages(2)
+              .add_constraint(NodeInCycleConstraint(next_state_node, 0))
+              .add_constraint(NodeInCycleConstraint(send_node, 1))));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.add_idle_output(true);
+  options.module_name("proc_ut");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"rst", 1}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 15, {{"rst", 0}, {"in_valid", 0}, {"in_data", 1}, {"out_ready", 1}},
+      inputs));
+
+  // Cycle 16: Blocked on input, stage 1 has valid so stil not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      16, 16, {{"rst", 0}, {"in_valid", 0}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 17-18: Blocked on input, stage 1 no longer has valid so idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      17, 18, {{"rst", 0}, {"in_valid", 0}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 19: No longer blocked, so not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      19, 19, {{"rst", 0}, {"in_valid", 1}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 20: Blocked on input, again, but not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 20, {{"rst", 0}, {"in_valid", 0}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      21, 21, {{"rst", 0}, {"in_valid", 1}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      22, 22, {{"rst", 0}, {"in_valid", 1}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      23, 23, {{"rst", 0}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      24, 24, {{"rst", 0}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
+                           InterpretSequentialBlock(unit.block, inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  XLS_VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"idle", SignalType::kOutput},
+                              {"in_data", SignalType::kInput},
+                              {"in_valid", SignalType::kInput},
+                              {"in_ready", SignalType::kOutput},
+                              {"out_data", SignalType::kOutput},
+                              {"out_valid", SignalType::kOutput},
+                              {"out_ready", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    if (i < 10) {
+      EXPECT_EQ(inputs[i]["rst"], 1)
+          << absl::StrFormat("Cycle %d, expected rst==1", i);
+      EXPECT_EQ(outputs[i]["idle"], 0)
+          << absl::StrFormat("Cycle %d, expected idle==1", i);
+    } else if (i == 17 || i == 18) {
+      EXPECT_EQ(inputs[i]["rst"], 0)
+          << absl::StrFormat("Cycle %d, expected rst==0", i);
+      EXPECT_EQ(outputs[i]["idle"], 1)
+          << absl::StrFormat("Cycle %d, expected idle==1", i);
+    } else {
+      EXPECT_EQ(inputs[i]["rst"], 0)
+          << absl::StrFormat("Cycle %d, expected rst==0", i);
+      EXPECT_EQ(outputs[i]["idle"], 0)
+          << absl::StrFormat("Cycle %d, expected idle==0", i);
+    }
+  }
+}
+
+TEST_F(ProcConversionTestFixture, b315378547) {
+  const std::string ir_text = R"(package test
+
+chan out(bits[8], id=0, kind=single_value, ops=send_only, metadata="""""")
+
+top proc proc_ut(tkn: token, _ZZN4Test4mainEvE1i__1: bits[8], init={4}) {
+  literal.35: bits[8] = literal(value=1, id=35, pos=[(1,2,1)])
+  add.37: bits[8] = add(_ZZN4Test4mainEvE1i__1, literal.35, id=37, pos=[(1,10,3)])
+  send.41: token = send(tkn, _ZZN4Test4mainEvE1i__1, channel=out, id=41, pos=[(1,9,6)])
+  next (send.41, add.37)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("proc_ut"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.add_idle_output(true);
+  options.module_name("proc_ut");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls
