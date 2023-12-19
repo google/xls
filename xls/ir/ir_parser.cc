@@ -59,6 +59,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -1353,6 +1354,92 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
   return block->AddRegister(reg_name.value(), reg_type, reset);
 }
 
+absl::StatusOr<ProcInstantiation*> Parser::ParseProcInstantiation(Proc* proc) {
+  // A proc instantiation declaration has the following forms:
+  //
+  //   proc_instantiation foo(ch0, ch1, proc=my_proc);
+  //
+  // When this function is called, the token `proc_instantiation` should already
+  // have been popped.
+  XLS_ASSIGN_OR_RETURN(
+      Token instantiation_name,
+      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "instantiation name"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+
+  std::vector<std::string> channel_arg_names;
+  // Parse channels arguments first.
+  do {
+    if (scanner_.PeekNthTokenIs(1, LexicalTokenType::kEquals)) {
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(Token channel_name,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                                  "channel reference name"));
+    channel_arg_names.push_back(channel_name.value());
+  } while (scanner_.TryDropToken(LexicalTokenType::kComma));
+
+  // Then parse keyword arguments.
+  absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+
+  std::optional<Proc*> instantiated_proc;
+  handlers["proc"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token instantiated_proc_name,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    absl::StatusOr<Proc*> instantiated_proc_status =
+        proc->package()->GetProc(instantiated_proc_name.value());
+    if (!instantiated_proc_status.ok()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "No such proc '%s' @ %s", instantiated_proc_name.value(),
+          instantiated_proc_name.pos().ToHumanString()));
+    }
+    if (!instantiated_proc_status.value()->is_new_style_proc()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Proc `%s` is not a new style proc and cannot be instantiated @ %s",
+          instantiated_proc_name.value(),
+          instantiated_proc_name.pos().ToHumanString()));
+    }
+    instantiated_proc = instantiated_proc_status.value();
+    return absl::OkStatus();
+  };
+  XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers,
+                                            /*mandatory_keywords=*/{"proc"}));
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+
+  // Convert channel names to ChannelReferences and create the instantiation.
+  if (channel_arg_names.size() !=
+      instantiated_proc.value()->interface().size()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Proc `%s` expects %d channel arguments, got %d @ %s",
+        instantiated_proc.value()->name(),
+        instantiated_proc.value()->interface().size(), channel_arg_names.size(),
+        instantiation_name.pos().ToHumanString()));
+  }
+
+  std::vector<ChannelReference*> channel_args;
+  for (int64_t i = 0; i < channel_arg_names.size(); ++i) {
+    ChannelReference* interface_channel =
+        instantiated_proc.value()->interface()[i];
+    if (!proc->HasChannelReference(channel_arg_names[i],
+                                   interface_channel->direction())) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("No such %s channel `%s` for proc instantiation arg "
+                          "%d in proc instantiation `%s` @ %s",
+                          DirectionToString(interface_channel->direction()),
+                          channel_arg_names[i], i, instantiation_name.value(),
+                          instantiation_name.pos().ToHumanString()));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        ChannelReference * channel_arg,
+        proc->GetChannelReference(channel_arg_names[i],
+                                  interface_channel->direction()));
+    channel_args.push_back(channel_arg);
+  }
+
+  return proc->AddProcInstantiation(instantiation_name.value(), channel_args,
+                                    instantiated_proc.value());
+};
+
 absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
   // A instantiation declaration has the following forms:
   //
@@ -1542,6 +1629,21 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
       }
       XLS_RETURN_IF_ERROR(
           ParseChannel(package, /*attributes=*/{}, proc).status());
+      continue;
+    }
+    if (scanner_.TryDropKeyword("proc_instantiation")) {
+      if (!fb->function()->IsProc()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "proc_instantiation keyword only supported in procs @ %s",
+            peek.pos().ToHumanString()));
+      }
+      Proc* proc = fb->function()->AsProcOrDie();
+      if (!proc->is_new_style_proc()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Proc instantiations can only be declared in new-style procs @ %s",
+            peek.pos().ToHumanString()));
+      }
+      XLS_RETURN_IF_ERROR(ParseProcInstantiation(proc).status());
       continue;
     }
 

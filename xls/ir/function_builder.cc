@@ -1081,14 +1081,14 @@ absl::StatusOr<SendChannelReference*> ProcBuilder::AddOutputChannel(
 
 bool ProcBuilder::HasSendChannelRef(std::string_view name) const {
   if (proc()->is_new_style_proc()) {
-    return proc()->HasSendChannelReference(name);
+    return proc()->HasChannelReference(name, Direction::kSend);
   }
   return package()->HasChannelWithName(name);
 }
 
 bool ProcBuilder::HasReceiveChannelRef(std::string_view name) const {
   if (proc()->is_new_style_proc()) {
-    return proc()->HasReceiveChannelReference(name);
+    return proc()->HasChannelReference(name, Direction::kReceive);
   }
   return package()->HasChannelWithName(name);
 }
@@ -1103,6 +1103,14 @@ absl::StatusOr<ReceiveChannelReference*>
 ProcBuilder::GetReceiveChannelReference(std::string_view name) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
   return proc()->GetReceiveChannelReference(name);
+}
+
+absl::Status ProcBuilder::InstantiateProc(
+    std::string_view name, Proc* instantiated_proc,
+    absl::Span<ChannelReference* const> channel_references) {
+  return proc()
+      ->AddProcInstantiation(name, channel_references, instantiated_proc)
+      .status();
 }
 
 absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,

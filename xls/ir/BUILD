@@ -463,6 +463,7 @@ cc_library(
         "nodes.cc",
         "package.cc",
         "proc.cc",
+        "proc_instantiation.cc",
         "verifier.cc",
     ],
     hdrs = [
@@ -478,6 +479,7 @@ cc_library(
         "nodes.h",
         "package.h",
         "proc.h",
+        "proc_instantiation.h",
         "verifier.h",
     ],
     deps = [

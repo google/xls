@@ -27,7 +27,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -744,10 +743,17 @@ class ProcBuilder : public BuilderBase {
   absl::StatusOr<SendChannelReference*> GetSendChannelReference(
       std::string_view name);
 
+  // Instantiates the specified proc in this proc. `channel_references` must
+  // match the number, type, and direction of channels on the interface of the
+  // instantiated proc.
+  absl::Status InstantiateProc(
+      std::string_view name, Proc* instantiated_proc,
+      absl::Span<ChannelReference* const> channel_references);
+
   // Returns the Param BValue for the state or token parameters. Unlike
-  // BuilderBase::Param this does add a Param node to the Proc. Rather the state
-  // and token parameters are added to the Proc at construction time and these
-  // methods return references to these parameters.
+  // BuilderBase::Param this does add a Param node to the Proc. Rather the
+  // state and token parameters are added to the Proc at construction time
+  // and these methods return references to these parameters.
   BValue GetTokenParam() const { return token_param_; }
   BValue GetStateParam(int64_t index) const { return state_params_.at(index); }
 

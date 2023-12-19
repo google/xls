@@ -34,6 +34,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_instantiation.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -62,9 +63,9 @@ class Proc : public FunctionBase {
         next_token_(AddNode(std::make_unique<Param>(
             SourceInfo(), token_param_name, package->GetTokenType(), this))),
         is_new_style_proc_(true) {
-    for (std::unique_ptr<ChannelReference>& channel_ref : interface) {
-      channel_refs_.push_back(std::move(channel_ref));
-      interface_.push_back(channel_refs_.back().get());
+    for (std::unique_ptr<ChannelReference>& channel_reference : interface) {
+      channel_references_.push_back(std::move(channel_reference));
+      interface_.push_back(channel_references_.back().get());
     }
   }
 
@@ -213,17 +214,33 @@ class Proc : public FunctionBase {
   absl::Status AddOutputChannelReference(
       std::unique_ptr<SendChannelReference> channel_ref);
 
+  // Create and add a proc instantiation to the proc.
+  absl::StatusOr<ProcInstantiation*> AddProcInstantiation(
+      std::string_view name, absl::Span<ChannelReference* const> channel_args,
+      Proc* proc);
+
   // Returns whether this proc has a channel reference of the given name. Only
   // can be called for new style procs.
-  bool HasChannelReference(std::string_view name) const;
-  bool HasSendChannelReference(std::string_view name) const;
-  bool HasReceiveChannelReference(std::string_view name) const;
+  bool HasChannelReference(std::string_view name, Direction direction) const;
 
-  // Returns the Send/Receive channel reference with the given name.
+  // Returns the (Send/Receive) channel reference with the given name.
+  absl::StatusOr<ChannelReference*> GetChannelReference(
+      std::string_view name, Direction direction) const;
   absl::StatusOr<SendChannelReference*> GetSendChannelReference(
       std::string_view name) const;
   absl::StatusOr<ReceiveChannelReference*> GetReceiveChannelReference(
       std::string_view name) const;
+
+  absl::Span<const std::unique_ptr<ChannelReference>> channel_references()
+      const {
+    return channel_references_;
+  }
+
+  // Returns the list of instantiations of other procs in this proc.
+  absl::Span<const std::unique_ptr<ProcInstantiation>> proc_instantiations()
+      const {
+    return proc_instantiations_;
+  }
 
  private:
   std::vector<Value> init_values_;
@@ -239,10 +256,13 @@ class Proc : public FunctionBase {
 
   // All channel references in this proc. Channel references can be part of the
   // interface or the references of channels declared in this proc.
-  std::vector<std::unique_ptr<ChannelReference>> channel_refs_;
+  std::vector<std::unique_ptr<ChannelReference>> channel_references_;
 
   // Channel references which form interface of the proc.
   std::vector<ChannelReference*> interface_;
+
+  // Instantiations of other procs within this proc.
+  std::vector<std::unique_ptr<ProcInstantiation>> proc_instantiations_;
 
   // Channels declared in this proc indexed by channel name.
   absl::flat_hash_map<std::string, std::unique_ptr<Channel>> channels_;

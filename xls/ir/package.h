@@ -227,8 +227,10 @@ class Package {
 
   std::vector<std::string> GetFunctionNames() const;
 
-  // Returns whether this package contains a function with the "target" name.
+  // Returns whether this package contains a function/proc with the "target"
+  // name.
   bool HasFunctionWithName(std::string_view target) const;
+  bool HasProcWithName(std::string_view target) const;
 
   int64_t next_node_id() const { return next_node_id_; }
 

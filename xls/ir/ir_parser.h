@@ -44,6 +44,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 
@@ -248,6 +249,9 @@ class Parser {
 
   // Parses an instantiation declaration. Only supported in blocks.
   absl::StatusOr<Instantiation*> ParseInstantiation(Block* block);
+
+  // Parses a proc instantiation declaration. Only supported in procs.
+  absl::StatusOr<ProcInstantiation*> ParseProcInstantiation(Proc* proc);
 
   struct ProcNext {
     BValue next_token;

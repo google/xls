@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -58,6 +59,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -178,23 +180,17 @@ class NodeChecker : public DfsVisitor {
     }
     Proc* proc = receive->function_base()->AsProcOrDie();
     Type* channel_type;
-    bool channel_can_receive = true;
     if (proc->is_new_style_proc()) {
-      if (!proc->HasChannelReference(receive->channel_name())) {
+      if (!proc->HasChannelReference(receive->channel_name(),
+                                     Direction::kReceive)) {
         return absl::InternalError(
-            StrFormat("%s refers to channel `%s` which does not exist",
-                      receive->GetName(), receive->channel_name()));
-      }
-      if (!proc->HasReceiveChannelReference(receive->channel_name())) {
-        return absl::InternalError(
-            StrFormat("Cannot receive on channel `%s`, node %s",
+            StrFormat("No receivable channel named `%s`, node %s",
                       receive->channel_name(), receive->GetName()));
       }
-      XLS_ASSIGN_OR_RETURN(
-          ChannelReference * channel_ref,
-          proc->GetReceiveChannelReference(receive->channel_name()));
+      XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
+                           proc->GetChannelReference(receive->channel_name(),
+                                                     Direction::kReceive));
       channel_type = channel_ref->type();
-      channel_can_receive = channel_ref->direction() == Direction::kReceive;
     } else {
       if (!receive->package()->HasChannelWithName(receive->channel_name())) {
         return absl::InternalError(
@@ -205,7 +201,11 @@ class NodeChecker : public DfsVisitor {
                                                   receive->channel_name()));
 
       channel_type = channel->type();
-      channel_can_receive = channel->CanReceive();
+      if (!channel->CanReceive()) {
+        return absl::InternalError(
+            StrFormat("Cannot receive over channel `%s`, receive operation: %s",
+                      receive->channel_name(), receive->GetName()));
+      }
     }
     Type* expected_type =
         receive->is_blocking()
@@ -218,11 +218,6 @@ class NodeChecker : public DfsVisitor {
       return absl::InternalError(StrFormat(
           "Expected %s to have type %s, has type %s", receive->GetName(),
           expected_type->ToString(), receive->GetType()->ToString()));
-    }
-    if (!channel_can_receive) {
-      return absl::InternalError(
-          StrFormat("Cannot receive over channel `%s`, receive operation: %s",
-                    receive->channel_name(), receive->GetName()));
     }
     return absl::OkStatus();
   }
@@ -243,14 +238,9 @@ class NodeChecker : public DfsVisitor {
     Type* channel_type;
     bool channel_can_send = true;
     if (proc->is_new_style_proc()) {
-      if (!proc->HasChannelReference(send->channel_name())) {
+      if (!proc->HasChannelReference(send->channel_name(), Direction::kSend)) {
         return absl::InternalError(
-            StrFormat("%s refers to channel `%s` which does not exist",
-                      send->GetName(), send->channel_name()));
-      }
-      if (!proc->HasSendChannelReference(send->channel_name())) {
-        return absl::InternalError(
-            StrFormat("Cannot send on channel `%s`, node %s",
+            StrFormat("No sendable channel named `%s`, node %s",
                       send->channel_name(), send->GetName()));
       }
       XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
@@ -1687,8 +1677,6 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
   }
 
   // Verify each package-scoped channel has the appropriate send/receive node.
-  // TODO(https://github.com/google/xls/issues/869): Verify proc-scoped channels
-  // as well.
   absl::flat_hash_map<Channel*, std::vector<Node*>> send_nodes;
   absl::flat_hash_map<Channel*, std::vector<Node*>> receive_nodes;
   for (auto& proc : package->procs()) {
@@ -1878,14 +1866,153 @@ absl::Status VerifyFunction(Function* function, bool codegen) {
   return absl::OkStatus();
 }
 
+static absl::Status VerifyProcScopedChannels(Proc* proc) {
+  // Verify channel references contains exactly the set expected from the
+  // interface and channel definitions. Map value is used to track how many
+  // times channel reference appears in the interface and channel definitions
+  // (should always be one).
+  absl::flat_hash_map<std::pair<std::string_view, Direction>, int>
+      channel_references;
+  for (const std::unique_ptr<ChannelReference>& channel_ref :
+       proc->channel_references()) {
+    if (!channel_references
+             .insert({{channel_ref->name(), channel_ref->direction()}, 1})
+             .second) {
+      return absl::InternalError(absl::StrFormat(
+          "Duplicate channel reference, name `%s` and direction `%s`",
+          channel_ref->name(), DirectionToString(channel_ref->direction())));
+    }
+  }
+
+  // Verifies that the channel reference with the given name and direction exist
+  // and is unique.
+  auto check_channel_ref_unique = [&](std::string_view name,
+                                      Direction direction) -> absl::Status {
+    if (!channel_references.contains({name, direction})) {
+      return absl::InternalError(
+          absl::StrFormat("Channel reference with name `%s` and direction `%s` "
+                          "does not exist in list of channel references",
+                          name, DirectionToString(direction)));
+    }
+    if (--channel_references[{name, direction}] != 0) {
+      return absl::InternalError(absl::StrFormat(
+          "Duplicate channel reference, name `%s` and direction `%s`", name,
+          DirectionToString(direction)));
+    }
+    return absl::OkStatus();
+  };
+
+  // Verify no duplicate channel names.
+  absl::flat_hash_set<std::string_view> channel_names;
+  for (ChannelReference* channel_ref : proc->interface()) {
+    if (!channel_names.insert(channel_ref->name()).second) {
+      return absl::InternalError(
+          absl::StrFormat("Duplicate channel name `%s` in proc `%s`",
+                          channel_ref->name(), proc->name()));
+    }
+    XLS_RETURN_IF_ERROR(check_channel_ref_unique(channel_ref->name(),
+                                                 channel_ref->direction()));
+  }
+  for (Channel* channel : proc->channels()) {
+    if (!channel_names.insert(channel->name()).second) {
+      return absl::InternalError(
+          absl::StrFormat("Duplicate channel name `%s` in proc `%s`",
+                          channel->name(), proc->name()));
+    }
+    XLS_RETURN_IF_ERROR(
+        check_channel_ref_unique(channel->name(), Direction::kSend));
+    XLS_RETURN_IF_ERROR(
+        check_channel_ref_unique(channel->name(), Direction::kReceive));
+  }
+
+  // All channel references returned by Proc::GetChannelReferences should be
+  // accounted for by the interface and channel declarations.
+  for (const std::unique_ptr<ChannelReference>& channel_ref :
+       proc->channel_references()) {
+    if (channel_references[{channel_ref->name(), channel_ref->direction()}] !=
+        0) {
+      return absl::InternalError(absl::StrFormat(
+          "%s channel reference `%s` appears in Proc::GetChannelReferences() "
+          "but not in the interface or declared channels",
+          DirectionToString(channel_ref->direction()), channel_ref->name()));
+    }
+  }
+
+  for (Node* node : proc->nodes()) {
+    if (node->Is<Send>()) {
+      if (!proc->HasChannelReference(node->As<Send>()->channel_name(),
+                                     Direction::kSend)) {
+        return absl::InternalError(absl::StrFormat(
+            "No send channel reference `%s` in proc `%s`, used by node `%s`",
+            node->As<Send>()->channel_name(), proc->name(), node->GetName()));
+      }
+    }
+    if (node->Is<Receive>()) {
+      if (!proc->HasChannelReference(node->As<Receive>()->channel_name(),
+                                     Direction::kReceive)) {
+        return absl::InternalError(absl::StrFormat(
+            "No receive channel reference `%s` in proc `%s`, used by node `%s`",
+            node->As<Receive>()->channel_name(), proc->name(),
+            node->GetName()));
+      }
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+static absl::Status VerifyProcInstantiations(Proc* proc) {
+  for (const std::unique_ptr<ProcInstantiation>& instantiation :
+       proc->proc_instantiations()) {
+    bool found_proc = false;
+    for (const std::unique_ptr<Proc>& package_proc : proc->package()->procs()) {
+      if (instantiation->proc() == package_proc.get()) {
+        found_proc = true;
+        break;
+      }
+    }
+    if (!found_proc) {
+      return absl::InternalError(
+          absl::StrFormat("Proc instantiation `%s` in proc `%s` does not refer "
+                          "to proc in package",
+                          instantiation->name(), proc->name()));
+    }
+    XLS_RET_CHECK(instantiation->proc()->is_new_style_proc());
+
+    // Verify types and direction match for each channel argument.
+    XLS_RET_CHECK_EQ(instantiation->channel_args().size(),
+                     instantiation->proc()->interface().size())
+        << absl::StrFormat("instantiation `%s` in proc `%s`",
+                           instantiation->name(), proc->name());
+    for (int64_t i = 0; i < instantiation->channel_args().size(); ++i) {
+      if (instantiation->channel_args()[i]->direction() !=
+          instantiation->proc()->interface()[i]->direction()) {
+        return absl::InternalError(absl::StrFormat(
+            "In proc instantiation `%s` in proc `%s`, expected direction of "
+            "channel argument %d (`%s`) to be %s, got %s",
+            instantiation->name(), proc->name(), i,
+            instantiation->channel_args()[i]->name(),
+            DirectionToString(
+                instantiation->proc()->interface()[i]->direction()),
+            DirectionToString(instantiation->channel_args()[i]->direction())));
+      }
+      XLS_RET_CHECK_EQ(instantiation->channel_args()[i]->type(),
+                       instantiation->proc()->interface()[i]->type());
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::Status VerifyProc(Proc* proc, bool codegen) {
   XLS_VLOG(4) << "Verifying proc:\n";
   XLS_VLOG_LINES(4, proc->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
 
-  // TODO(https://github.com/google/xls/issues/869): Verify proc-scoped
-  // channels.
+  if (proc->is_new_style_proc()) {
+    XLS_RETURN_IF_ERROR(VerifyProcScopedChannels(proc));
+    XLS_RETURN_IF_ERROR(VerifyProcInstantiations(proc));
+  }
 
   // A Proc has a single token parameter and zero or more state parameters.
   XLS_RET_CHECK_EQ(proc->params().size(), proc->GetStateElementCount() + 1);

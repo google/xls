@@ -169,6 +169,15 @@ std::string ChannelStrictnessToString(ChannelStrictness in) {
   return "unknown";
 }
 
+std::string DirectionToString(Direction direction) {
+  switch (direction) {
+    case Direction::kSend:
+      return "send";
+    case Direction::kReceive:
+      return "receive";
+  }
+}
+
 std::string_view ChannelRefName(ChannelRef ref) {
   return absl::visit([](const auto& ch) { return ch->name(); }, ref);
 }
