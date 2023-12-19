@@ -232,6 +232,7 @@ absl::Status XlsccTestBase::ScanFile(
   translator_.reset(new xlscc::Translator(
       error_on_init_interval,
       /*error_on_uninitialized=*/error_on_uninitialized,
+      /*generate_fsms_for_pipelined_loops=*/generate_fsms_for_pipelined_loops_,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
       /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser)));
@@ -498,6 +499,9 @@ absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
             already_found->name(), proc->name()));
       }
       for (xls::Param* state_param : proc->StateParams()) {
+        if (absl::StartsWith(state_param->name(), "__fsm")) {
+          continue;
+        }
         ret += state_param->GetType()->GetFlatBitCount();
       }
       already_found = proc.get();

@@ -191,6 +191,7 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
   std::unique_ptr<xls::Package> package_;
   std::unique_ptr<xlscc::Translator> translator_;
   xlscc::HLSBlock block_spec_;
+  bool generate_fsms_for_pipelined_loops_ = false;
 
  protected:
   std::vector<CapturedLogEntry> log_entries_;

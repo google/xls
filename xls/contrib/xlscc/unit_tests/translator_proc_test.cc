@@ -49,11 +49,40 @@
 namespace xlscc {
 namespace {
 
-class TranslatorProcTest : public XlsccTestBase {
- public:
+using ::testing::Values;
+
+struct TestParams {
+  bool generate_fsms_for_pipelined_loops;
 };
 
-TEST_F(TranslatorProcTest, IOProcMux) {
+class TranslatorProcTestWithoutFSMParam : public XlsccTestBase {
+ public:
+  TranslatorProcTestWithoutFSMParam() {
+    generate_fsms_for_pipelined_loops_ = false;
+  }
+};
+
+class TranslatorProcTest : public TranslatorProcTestWithoutFSMParam,
+                           public ::testing::WithParamInterface<TestParams> {
+ protected:
+  TranslatorProcTest() {
+    generate_fsms_for_pipelined_loops_ =
+        GetParam().generate_fsms_for_pipelined_loops;
+  }
+};
+
+std::string GetTestInfo(const ::testing::TestParamInfo<TestParams>& info) {
+  return absl::StrFormat(
+      "With%sFSM", info.param.generate_fsms_for_pipelined_loops ? "" : "out");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TranslatorProcTest, TranslatorProcTest,
+    Values(TestParams{.generate_fsms_for_pipelined_loops = true},
+           TestParams{.generate_fsms_for_pipelined_loops = false}),
+    GetTestInfo);
+
+TEST_P(TranslatorProcTest, IOProcMux) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -122,7 +151,7 @@ TEST_F(TranslatorProcTest, IOProcMux) {
 }
 
 // Multiple unused channels for determinism check
-TEST_F(TranslatorProcTest, IOProcUnusedChannels) {
+TEST_P(TranslatorProcTest, IOProcUnusedChannels) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -217,7 +246,7 @@ TEST_F(TranslatorProcTest, IOProcUnusedChannels) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcUnusedDirectIn) {
+TEST_P(TranslatorProcTest, IOProcUnusedDirectIn) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -279,7 +308,7 @@ TEST_F(TranslatorProcTest, IOProcUnusedDirectIn) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcMux2) {
+TEST_P(TranslatorProcTest, IOProcMux2) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -348,7 +377,7 @@ TEST_F(TranslatorProcTest, IOProcMux2) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcOneOp) {
+TEST_P(TranslatorProcTest, IOProcOneOp) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -383,7 +412,7 @@ TEST_F(TranslatorProcTest, IOProcOneOp) {
   ProcTest(content, block_spec, inputs, outputs);
 }
 
-TEST_F(TranslatorProcTest, IOProcOneLine) {
+TEST_P(TranslatorProcTest, IOProcOneLine) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -428,7 +457,7 @@ TEST_F(TranslatorProcTest, IOProcOneLine) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcMuxMethod) {
+TEST_P(TranslatorProcTest, IOProcMuxMethod) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -488,7 +517,7 @@ TEST_F(TranslatorProcTest, IOProcMuxMethod) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcMuxConstDir) {
+TEST_P(TranslatorProcTest, IOProcMuxConstDir) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -556,7 +585,7 @@ TEST_F(TranslatorProcTest, IOProcMuxConstDir) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcChainedConditionalRead) {
+TEST_P(TranslatorProcTest, IOProcChainedConditionalRead) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -622,7 +651,7 @@ TEST_F(TranslatorProcTest, IOProcChainedConditionalRead) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcStaticClassState) {
+TEST_P(TranslatorProcTest, IOProcStaticClassState) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -678,7 +707,7 @@ TEST_F(TranslatorProcTest, IOProcStaticClassState) {
   EXPECT_EQ(top_proc_state_bits, 32);
 }
 
-TEST_F(TranslatorProcTest, ForPipelined) {
+TEST_P(TranslatorProcTest, ForPipelined) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -739,7 +768,69 @@ TEST_F(TranslatorProcTest, ForPipelined) {
   EXPECT_EQ(channel_bits_in, 32);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
+TEST_P(TranslatorProcTest, ForPipelinedUseReceivedFromOldState) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+      int off = 0;
+
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=4;++i) {
+        off += i;
+      }
+
+      out.write(a + off);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
+                           GetBitsForChannelNameContains("__for_1_ctx_out"));
+  EXPECT_EQ(channel_bits_out, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
+                           GetBitsForChannelNameContains("__for_1_ctx_in"));
+  EXPECT_EQ(channel_bits_in, 32);
+}
+
+TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -772,7 +863,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
+TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -806,7 +897,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationAndPragma) {
+TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationAndPragma) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -839,7 +930,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationAndPragma) {
                                 testing::HasSubstr("intrinsic and a #pragma")));
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationFarAway) {
+TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationFarAway) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -873,7 +964,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationFarAway) {
                                             testing::HasSubstr("missing")));
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedII2) {
+TEST_P(TranslatorProcTest, ForPipelinedII2) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -926,7 +1017,7 @@ TEST_F(TranslatorProcTest, ForPipelinedII2) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedII2Error) {
+TEST_P(TranslatorProcTest, ForPipelinedII2Error) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -969,7 +1060,7 @@ TEST_F(TranslatorProcTest, ForPipelinedII2Error) {
           testing::HasSubstr("nly initiation interval 1")));
 }
 
-TEST_F(TranslatorProcTest, WhilePipelined) {
+TEST_P(TranslatorProcTest, WhilePipelined) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1025,7 +1116,7 @@ TEST_F(TranslatorProcTest, WhilePipelined) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, DoWhilePipelined) {
+TEST_P(TranslatorProcTest, DoWhilePipelined) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1091,7 +1182,7 @@ TEST_F(TranslatorProcTest, DoWhilePipelined) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedSerial) {
+TEST_P(TranslatorProcTest, ForPipelinedSerial) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1152,7 +1243,7 @@ TEST_F(TranslatorProcTest, ForPipelinedSerial) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedSerialIO) {
+TEST_P(TranslatorProcTest, ForPipelinedSerialIO) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1215,7 +1306,7 @@ TEST_F(TranslatorProcTest, ForPipelinedSerialIO) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedReturnInBody) {
+TEST_P(TranslatorProcTest, ForPipelinedReturnInBody) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1259,7 +1350,7 @@ TEST_F(TranslatorProcTest, ForPipelinedReturnInBody) {
           testing::HasSubstr("eturns in pipelined loop body unimplemented")));
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedMoreVars) {
+TEST_P(TranslatorProcTest, ForPipelinedMoreVars) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1324,7 +1415,7 @@ TEST_F(TranslatorProcTest, ForPipelinedMoreVars) {
   EXPECT_EQ(channel_bits_in, 32);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedBlank) {
+TEST_P(TranslatorProcTest, ForPipelinedBlank) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1383,7 +1474,7 @@ TEST_F(TranslatorProcTest, ForPipelinedBlank) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedPreCondBreak) {
+TEST_P(TranslatorProcTest, ForPipelinedPreCondBreak) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1439,7 +1530,7 @@ TEST_F(TranslatorProcTest, ForPipelinedPreCondBreak) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedInIf) {
+TEST_P(TranslatorProcTest, ForPipelinedInIf) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1486,7 +1577,7 @@ TEST_F(TranslatorProcTest, ForPipelinedInIf) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIfInBody) {
+TEST_P(TranslatorProcTest, ForPipelinedIfInBody) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1533,7 +1624,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIfInBody) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedContinue) {
+TEST_P(TranslatorProcTest, ForPipelinedContinue) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1581,7 +1672,7 @@ TEST_F(TranslatorProcTest, ForPipelinedContinue) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedBreak) {
+TEST_P(TranslatorProcTest, ForPipelinedBreak) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1639,7 +1730,7 @@ TEST_F(TranslatorProcTest, ForPipelinedBreak) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedInFunction) {
+TEST_P(TranslatorProcTest, ForPipelinedInFunction) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1697,7 +1788,7 @@ TEST_F(TranslatorProcTest, ForPipelinedInFunction) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedInMethod) {
+TEST_P(TranslatorProcTest, ForPipelinedInMethod) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1758,7 +1849,7 @@ TEST_F(TranslatorProcTest, ForPipelinedInMethod) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedInMethodWithMember) {
+TEST_P(TranslatorProcTest, ForPipelinedInMethodWithMember) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1823,7 +1914,7 @@ TEST_F(TranslatorProcTest, ForPipelinedInMethodWithMember) {
   EXPECT_EQ(top_proc_state_bits, 32);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedInFunctionInIf) {
+TEST_P(TranslatorProcTest, ForPipelinedInFunctionInIf) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1886,7 +1977,7 @@ TEST_F(TranslatorProcTest, ForPipelinedInFunctionInIf) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedStaticInBody) {
+TEST_P(TranslatorProcTest, ForPipelinedStaticInBody) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -1951,7 +2042,7 @@ TEST_F(TranslatorProcTest, ForPipelinedStaticInBody) {
   EXPECT_EQ(channel_bits_in, 32);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedStaticOuter) {
+TEST_P(TranslatorProcTest, ForPipelinedStaticOuter) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2006,7 +2097,7 @@ TEST_F(TranslatorProcTest, ForPipelinedStaticOuter) {
   EXPECT_EQ(top_proc_state_bits, 16);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedStaticOuter2) {
+TEST_P(TranslatorProcTest, ForPipelinedStaticOuter2) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2061,7 +2152,7 @@ TEST_F(TranslatorProcTest, ForPipelinedStaticOuter2) {
   EXPECT_EQ(top_proc_state_bits, 16);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedNested) {
+TEST_P(TranslatorProcTest, ForPipelinedNested) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2109,7 +2200,6 @@ TEST_F(TranslatorProcTest, ForPipelinedNested) {
 
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 16);
   }
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t innermost_proc_state_bits,
                            GetStateBitsForProcNameContains("for_2"));
   EXPECT_EQ(innermost_proc_state_bits, 1 + 32 + 64);
@@ -2123,7 +2213,91 @@ TEST_F(TranslatorProcTest, ForPipelinedNested) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedNested2) {
+// Test that the FSM is generated
+TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedCheckFSM) {
+  const std::string content = R"(
+  class Block {
+     public:
+      __xls_channel<int , __xls_channel_dir_In>& in;
+      __xls_channel<long, __xls_channel_dir_Out>& out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+
+        #pragma hls_pipeline_init_interval 1
+        for(long i=1;i<=4;++i) {
+          a += i;
+        }
+
+        out.write(a);
+      }
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
+          .status());
+
+  xls::Proc* found_proc_with_fsm = nullptr;
+  for (std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (xls::Param* state_param : proc->StateParams()) {
+      if (!absl::StartsWith(state_param->name(), "__fsm")) {
+        continue;
+      }
+      found_proc_with_fsm = proc.get();
+    }
+  }
+
+  EXPECT_NE(found_proc_with_fsm, nullptr);
+}
+
+// Test that this case errors out
+TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedNestedFSM) {
+  const std::string content = R"(
+    class Block {
+     public:
+      __xls_channel<int , __xls_channel_dir_In>& in;
+      __xls_channel<long, __xls_channel_dir_Out>& out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+
+        #pragma hls_pipeline_init_interval 1
+        for(long i=1;i<=4;++i) {
+          __xlscc_trace("Value is {:d}", i);
+          #pragma hls_pipeline_init_interval 1
+          for(long j=1;j<=4;++j) {
+            ++a;
+          }
+        }
+
+        out.write(a);
+      }
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(), xls::status_testing::StatusIs(
+                                absl::StatusCode::kUnimplemented,
+                                testing::HasSubstr("ipelined loops with FSM")));
+}
+
+TEST_P(TranslatorProcTest, ForPipelinedNested2) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2186,7 +2360,7 @@ TEST_F(TranslatorProcTest, ForPipelinedNested2) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedNestedInheritIIWithLabel) {
+TEST_P(TranslatorProcTest, ForPipelinedNestedInheritIIWithLabel) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2250,7 +2424,7 @@ TEST_F(TranslatorProcTest, ForPipelinedNestedInheritIIWithLabel) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedNestedWithIO) {
+TEST_P(TranslatorProcTest, ForPipelinedNestedWithIO) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2312,7 +2486,7 @@ TEST_F(TranslatorProcTest, ForPipelinedNestedWithIO) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBody) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBody) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2364,7 +2538,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBody) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedNestedNoPragma) {
+TEST_P(TranslatorProcTest, ForPipelinedNestedNoPragma) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2425,7 +2599,7 @@ TEST_F(TranslatorProcTest, ForPipelinedNestedNoPragma) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2480,7 +2654,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine2) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine2) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2534,7 +2708,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine2) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutineMultiCall) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutineMultiCall) {
   const std::string content = R"(
     bool call_b(long arg1) {
       long ret = arg1;
@@ -2589,7 +2763,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutineMultiCall) {
   ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 2);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2648,7 +2822,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine2) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine2) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2720,7 +2894,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine2) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine3) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine3) {
   const std::string content = R"(
     struct ChannelContainer {
       __xls_channel<int> ch;
@@ -2775,7 +2949,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine3) {
           testing::HasSubstr("parameters containing LValues")));
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutineDeclOrder) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutineDeclOrder) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2830,7 +3004,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutineDeclOrder) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine3) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine3) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2880,7 +3054,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine3) {
                              "with multiple different channel arguments")));
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine4) {
+TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine4) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2937,7 +3111,7 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine4) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedNoPragma) {
+TEST_P(TranslatorProcTest, ForPipelinedNoPragma) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -2991,7 +3165,7 @@ TEST_F(TranslatorProcTest, ForPipelinedNoPragma) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopUsingMemberChannel) {
+TEST_P(TranslatorProcTest, PipelinedLoopUsingMemberChannel) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        struct Foo {
@@ -3049,7 +3223,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopUsingMemberChannel) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopUsingMemberChannelAndVariable) {
+TEST_P(TranslatorProcTest, PipelinedLoopUsingMemberChannelAndVariable) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        struct Foo {
@@ -3109,7 +3283,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopUsingMemberChannelAndVariable) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopWithOuterRef) {
+TEST_P(TranslatorProcTest, PipelinedLoopWithOuterRef) {
   const std::string content = R"(
        class Block {
         public:
@@ -3138,7 +3312,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopWithOuterRef) {
            /* min_ticks = */ 3);
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopWithOuterChannelRef) {
+TEST_P(TranslatorProcTest, PipelinedLoopWithOuterChannelRef) {
   const std::string content = R"(
        class Block {
         public:
@@ -3167,7 +3341,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopWithOuterChannelRef) {
            /* min_ticks = */ 3);
 }
 
-TEST_F(TranslatorProcTest, IOProcClass) {
+TEST_P(TranslatorProcTest, IOProcClass) {
   const std::string content = R"(
        class Block {
         public:
@@ -3218,7 +3392,7 @@ TEST_F(TranslatorProcTest, IOProcClass) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
-TEST_F(TranslatorProcTest, IOProcClassStructData) {
+TEST_P(TranslatorProcTest, IOProcClassStructData) {
   const std::string content = R"(
       struct Thing {
         long val;
@@ -3256,7 +3430,7 @@ TEST_F(TranslatorProcTest, IOProcClassStructData) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcClassLocalStatic) {
+TEST_P(TranslatorProcTest, IOProcClassLocalStatic) {
   const std::string content = R"(
        class Block {
         public:
@@ -3287,7 +3461,7 @@ TEST_F(TranslatorProcTest, IOProcClassLocalStatic) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcClassState) {
+TEST_P(TranslatorProcTest, IOProcClassState) {
   const std::string content = R"(
        class Block {
         public:
@@ -3319,7 +3493,7 @@ TEST_F(TranslatorProcTest, IOProcClassState) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcClassNotInline) {
+TEST_P(TranslatorProcTest, IOProcClassNotInline) {
   const std::string content = R"(
        class Block {
         public:
@@ -3352,7 +3526,7 @@ TEST_F(TranslatorProcTest, IOProcClassNotInline) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcClassStateWithLocalStatic) {
+TEST_P(TranslatorProcTest, IOProcClassStateWithLocalStatic) {
   const std::string content = R"(
        class Block {
         public:
@@ -3387,7 +3561,7 @@ TEST_F(TranslatorProcTest, IOProcClassStateWithLocalStatic) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcClassConstTop) {
+TEST_P(TranslatorProcTest, IOProcClassConstTop) {
   const std::string content = R"(
        class Block {
         public:
@@ -3412,7 +3586,7 @@ TEST_F(TranslatorProcTest, IOProcClassConstTop) {
                                             testing::HasSubstr("Const top")));
 }
 
-TEST_F(TranslatorProcTest, IOProcClassConstructor) {
+TEST_P(TranslatorProcTest, IOProcClassConstructor) {
   const std::string content = R"(
        class Block {
         public:
@@ -3444,7 +3618,7 @@ TEST_F(TranslatorProcTest, IOProcClassConstructor) {
                   testing::HasSubstr("onstructors in top class")));
 }
 
-TEST_F(TranslatorProcTest, IOProcClassNonVoidReturn) {
+TEST_P(TranslatorProcTest, IOProcClassNonVoidReturn) {
   const std::string content = R"(
        class Block {
         public:
@@ -3471,7 +3645,7 @@ TEST_F(TranslatorProcTest, IOProcClassNonVoidReturn) {
                   testing::HasSubstr("Non-void top method return")));
 }
 
-TEST_F(TranslatorProcTest, IOProcClassParameters) {
+TEST_P(TranslatorProcTest, IOProcClassParameters) {
   const std::string content = R"(
        class Block {
         public:
@@ -3497,7 +3671,7 @@ TEST_F(TranslatorProcTest, IOProcClassParameters) {
                   testing::HasSubstr("method parameters unsupported")));
 }
 
-TEST_F(TranslatorProcTest, IOProcClassStaticMethod) {
+TEST_P(TranslatorProcTest, IOProcClassStaticMethod) {
   const std::string content = R"(
        class Block {
         public:
@@ -3519,7 +3693,7 @@ TEST_F(TranslatorProcTest, IOProcClassStaticMethod) {
                        testing::HasSubstr("Unable to parse")));
 }
 
-TEST_F(TranslatorProcTest, IOProcClassWithPipelinedLoop) {
+TEST_P(TranslatorProcTest, IOProcClassWithPipelinedLoop) {
   const std::string content = R"(
        class Block {
         public:
@@ -3549,7 +3723,7 @@ TEST_F(TranslatorProcTest, IOProcClassWithPipelinedLoop) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcClassWithPipelinedLoopInSubroutine) {
+TEST_P(TranslatorProcTest, IOProcClassWithPipelinedLoopInSubroutine) {
   const std::string content = R"(
        class Block {
         public:
@@ -3583,7 +3757,7 @@ TEST_F(TranslatorProcTest, IOProcClassWithPipelinedLoopInSubroutine) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcClassSubClass) {
+TEST_P(TranslatorProcTest, IOProcClassSubClass) {
   const std::string content = R"(
        class Sub {
         private:
@@ -3657,7 +3831,7 @@ TEST_F(TranslatorProcTest, IOProcClassSubClass) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
-TEST_F(TranslatorProcTest, IOProcClassSubClass2) {
+TEST_P(TranslatorProcTest, IOProcClassSubClass2) {
   const std::string content = R"(
        class Sub {
         private:
@@ -3708,7 +3882,7 @@ TEST_F(TranslatorProcTest, IOProcClassSubClass2) {
            /* min_ticks = */ 6);
 }
 
-TEST_F(TranslatorProcTest, IOProcClassLValueMember) {
+TEST_P(TranslatorProcTest, IOProcClassLValueMember) {
   const std::string content = R"(
        class Block {
         public:
@@ -3742,7 +3916,7 @@ TEST_F(TranslatorProcTest, IOProcClassLValueMember) {
                       "Don't know how to create LValue for member ptr")));
 }
 
-TEST_F(TranslatorProcTest, IOProcClassDirectIn) {
+TEST_P(TranslatorProcTest, IOProcClassDirectIn) {
   const std::string content = R"(
        class Block {
         public:
@@ -3777,7 +3951,7 @@ TEST_F(TranslatorProcTest, IOProcClassDirectIn) {
                   testing::HasSubstr("direct-ins not implemented yet")));
 }
 
-TEST_F(TranslatorProcTest, IOProcClassPropagateVars) {
+TEST_P(TranslatorProcTest, IOProcClassPropagateVars) {
   const std::string content = R"(
     class Block {
     public:
@@ -3821,7 +3995,7 @@ TEST_F(TranslatorProcTest, IOProcClassPropagateVars) {
   EXPECT_EQ(proc_state_bits, 32);
 }
 
-TEST_F(TranslatorProcTest, IOProcClassPropagateVars2) {
+TEST_P(TranslatorProcTest, IOProcClassPropagateVars2) {
   const std::string content = R"(
     class Block {
     public:
@@ -3863,7 +4037,7 @@ TEST_F(TranslatorProcTest, IOProcClassPropagateVars2) {
   EXPECT_EQ(proc_state_bits, 32);
 }
 
-TEST_F(TranslatorProcTest, IOProcClassWithoutRef) {
+TEST_P(TranslatorProcTest, IOProcClassWithoutRef) {
   const std::string content = R"(
     class Block {
     public:
@@ -3905,7 +4079,7 @@ TEST_F(TranslatorProcTest, IOProcClassWithoutRef) {
   EXPECT_EQ(proc_state_bits, 32);
 }
 
-TEST_F(TranslatorProcTest, IOProcClassEnumMember) {
+TEST_P(TranslatorProcTest, IOProcClassEnumMember) {
   const std::string content = R"(
        enum MyEnum {
          A = 3,
@@ -3960,7 +4134,7 @@ TEST_F(TranslatorProcTest, IOProcClassEnumMember) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
-TEST_F(TranslatorProcTest, IOProcClassMemberSetConstruct) {
+TEST_P(TranslatorProcTest, IOProcClassMemberSetConstruct) {
   const std::string content = R"(
       struct State {
         int val;
@@ -4020,7 +4194,7 @@ TEST_F(TranslatorProcTest, IOProcClassMemberSetConstruct) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
-TEST_F(TranslatorProcTest, IOProcClassMemberSetConstruct2) {
+TEST_P(TranslatorProcTest, IOProcClassMemberSetConstruct2) {
   const std::string content = R"(
     struct Foo {
       int x;
@@ -4075,7 +4249,7 @@ TEST_F(TranslatorProcTest, IOProcClassMemberSetConstruct2) {
   }
 }
 
-TEST_F(TranslatorProcTest, IOProcClassLValueInit) {
+TEST_P(TranslatorProcTest, IOProcClassLValueInit) {
   const std::string content = R"(
        class Block {
         public:
@@ -4131,7 +4305,7 @@ TEST_F(TranslatorProcTest, IOProcClassLValueInit) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
-TEST_F(TranslatorProcTest, IOProcClassHierarchicalLValue) {
+TEST_P(TranslatorProcTest, IOProcClassHierarchicalLValue) {
   const std::string content = R"(
     struct LeafBlock {
       __xls_channel<int, __xls_channel_dir_Out> leaf_out1;
@@ -4196,7 +4370,7 @@ TEST_F(TranslatorProcTest, IOProcClassHierarchicalLValue) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedWithChannelTernary) {
+TEST_P(TranslatorProcTest, ForPipelinedWithChannelTernary) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -4273,7 +4447,7 @@ TEST_F(TranslatorProcTest, ForPipelinedWithChannelTernary) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedWithChannelTernaryNested) {
+TEST_P(TranslatorProcTest, ForPipelinedWithChannelTernaryNested) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -4372,7 +4546,7 @@ TEST_F(TranslatorProcTest, ForPipelinedWithChannelTernaryNested) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedWithChannelTernaryMultiple) {
+TEST_P(TranslatorProcTest, ForPipelinedWithChannelTernaryMultiple) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -4462,7 +4636,7 @@ TEST_F(TranslatorProcTest, ForPipelinedWithChannelTernaryMultiple) {
   }
 }
 
-TEST_F(TranslatorProcTest, ForPipelinedWithChannelInStructTernary) {
+TEST_P(TranslatorProcTest, ForPipelinedWithChannelInStructTernary) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -4543,7 +4717,7 @@ TEST_F(TranslatorProcTest, ForPipelinedWithChannelInStructTernary) {
   }
 }
 
-TEST_F(TranslatorProcTest, DebugAssert) {
+TEST_P(TranslatorProcTest, DebugAssert) {
   const std::string content = R"(
        class Block {
         public:
@@ -4593,7 +4767,7 @@ TEST_F(TranslatorProcTest, DebugAssert) {
   }
 }
 
-TEST_F(TranslatorProcTest, DebugAssertInSubroutine) {
+TEST_P(TranslatorProcTest, DebugAssertInSubroutine) {
   const std::string content = R"(
        class Block {
         public:
@@ -4647,7 +4821,7 @@ TEST_F(TranslatorProcTest, DebugAssertInSubroutine) {
   }
 }
 
-TEST_F(TranslatorProcTest, DebugTrace) {
+TEST_P(TranslatorProcTest, DebugTrace) {
   const std::string content = R"(
        class Block {
         public:
@@ -4697,7 +4871,7 @@ TEST_F(TranslatorProcTest, DebugTrace) {
   }
 }
 
-TEST_F(TranslatorProcTest, DebugTraceInPipelinedLoop) {
+TEST_P(TranslatorProcTest, DebugTraceInPipelinedLoop) {
   const std::string content = R"(
        class Block {
         public:
@@ -4741,7 +4915,7 @@ TEST_F(TranslatorProcTest, DebugTraceInPipelinedLoop) {
   }
 }
 
-TEST_F(TranslatorProcTest, NonblockingRead) {
+TEST_P(TranslatorProcTest, NonblockingRead) {
   const std::string content = R"(
        class Block {
         public:
@@ -4771,7 +4945,7 @@ TEST_F(TranslatorProcTest, NonblockingRead) {
   }
 }
 
-TEST_F(TranslatorProcTest, NonblockingReadInSubroutine) {
+TEST_P(TranslatorProcTest, NonblockingReadInSubroutine) {
   const std::string content = R"(
        class Block {
         public:
@@ -4806,7 +4980,7 @@ TEST_F(TranslatorProcTest, NonblockingReadInSubroutine) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannel) {
+TEST_P(TranslatorProcTest, LocalChannel) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -4836,7 +5010,7 @@ TEST_F(TranslatorProcTest, LocalChannel) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelUsedInSubroutine) {
+TEST_P(TranslatorProcTest, LocalChannelUsedInSubroutine) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -4869,7 +5043,7 @@ TEST_F(TranslatorProcTest, LocalChannelUsedInSubroutine) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelDeclaredInSubroutine) {
+TEST_P(TranslatorProcTest, LocalChannelDeclaredInSubroutine) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -4902,7 +5076,7 @@ TEST_F(TranslatorProcTest, LocalChannelDeclaredInSubroutine) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelPipelinedLoop) {
+TEST_P(TranslatorProcTest, LocalChannelPipelinedLoop) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -4938,7 +5112,7 @@ TEST_F(TranslatorProcTest, LocalChannelPipelinedLoop) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelPipelinedLoopDeclaredInSubroutine) {
+TEST_P(TranslatorProcTest, LocalChannelPipelinedLoopDeclaredInSubroutine) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -4982,7 +5156,7 @@ TEST_F(TranslatorProcTest, LocalChannelPipelinedLoopDeclaredInSubroutine) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelPipelinedLoopUsedInSubroutine) {
+TEST_P(TranslatorProcTest, LocalChannelPipelinedLoopUsedInSubroutine) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -5026,7 +5200,7 @@ TEST_F(TranslatorProcTest, LocalChannelPipelinedLoopUsedInSubroutine) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelSubBlock) {
+TEST_P(TranslatorProcTest, LocalChannelSubBlock) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -5062,7 +5236,7 @@ TEST_F(TranslatorProcTest, LocalChannelSubBlock) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelSubBlockNonStatic) {
+TEST_P(TranslatorProcTest, LocalChannelSubBlockNonStatic) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -5100,7 +5274,7 @@ TEST_F(TranslatorProcTest, LocalChannelSubBlockNonStatic) {
                   testing::HasSubstr("declaration uninitialized")));
 }
 
-TEST_F(TranslatorProcTest, LocalChannelPassUpAndDown) {
+TEST_P(TranslatorProcTest, LocalChannelPassUpAndDown) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -5139,7 +5313,7 @@ TEST_F(TranslatorProcTest, LocalChannelPassUpAndDown) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelDeclaredInTopClassUnspecified) {
+TEST_P(TranslatorProcTest, LocalChannelDeclaredInTopClassUnspecified) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -5169,7 +5343,7 @@ TEST_F(TranslatorProcTest, LocalChannelDeclaredInTopClassUnspecified) {
                                             testing::HasSubstr("unspecified")));
 }
 
-TEST_F(TranslatorProcTest, LocalChannelDeclaredInTopClass) {
+TEST_P(TranslatorProcTest, LocalChannelDeclaredInTopClass) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -5201,7 +5375,7 @@ TEST_F(TranslatorProcTest, LocalChannelDeclaredInTopClass) {
                   testing::HasSubstr("Internal (InOut) channels")));
 }
 
-TEST_F(TranslatorProcTest, ChannelDeclaredInClassInitialized) {
+TEST_P(TranslatorProcTest, ChannelDeclaredInClassInitialized) {
   const std::string content = R"(
     class Impl {
     private:
@@ -5253,7 +5427,7 @@ TEST_F(TranslatorProcTest, ChannelDeclaredInClassInitialized) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassUninitialized) {
+TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassUninitialized) {
   const std::string content = R"(
     class Impl {
     private:
@@ -5302,7 +5476,7 @@ TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassUninitialized) {
                                 testing::HasSubstr("marked as InOut")));
 }
 
-TEST_F(TranslatorProcTest, LocalChannelDeclaredInClass) {
+TEST_P(TranslatorProcTest, LocalChannelDeclaredInClass) {
   const std::string content = R"(
     class Impl {
     private:
@@ -5349,7 +5523,7 @@ TEST_F(TranslatorProcTest, LocalChannelDeclaredInClass) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassNonStatic) {
+TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassNonStatic) {
   const std::string content = R"(
     class Impl {
     private:
@@ -5396,7 +5570,7 @@ TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassNonStatic) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelAddCondition) {
+TEST_P(TranslatorProcTest, LocalChannelAddCondition) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -5439,7 +5613,7 @@ TEST_F(TranslatorProcTest, LocalChannelAddCondition) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelAddCondition2) {
+TEST_P(TranslatorProcTest, LocalChannelAddCondition2) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -5482,7 +5656,7 @@ TEST_F(TranslatorProcTest, LocalChannelAddCondition2) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassNonStaticAddCondition) {
+TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassNonStaticAddCondition) {
   const std::string content = R"(
     class Impl {
     private:
@@ -5538,7 +5712,7 @@ TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassNonStaticAddCondition) {
 }
 
 // Test serialization of loops via min ticks
-TEST_F(TranslatorProcTest, PipelinedLoopSerial) {
+TEST_P(TranslatorProcTest, PipelinedLoopSerial) {
   const std::string content = R"(
        class Block {
         public:
@@ -5573,7 +5747,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopSerial) {
   }
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopASAP) {
+TEST_P(TranslatorProcTest, PipelinedLoopASAP) {
   const std::string content = R"(
        class Block {
         public:
@@ -5615,7 +5789,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopASAP) {
   }
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopASAPDataDependency) {
+TEST_P(TranslatorProcTest, PipelinedLoopASAPDataDependency) {
   const std::string content = R"(
        class Block {
         public:
@@ -5655,7 +5829,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopASAPDataDependency) {
                                 testing::HasSubstr("variable in outside")));
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopASAPDataDependencyMethod) {
+TEST_P(TranslatorProcTest, PipelinedLoopASAPDataDependencyMethod) {
   const std::string content = R"(
        class Block {
         int value = 0;
@@ -5703,7 +5877,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopASAPDataDependencyMethod) {
   }
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopSerialDataDependency) {
+TEST_P(TranslatorProcTest, PipelinedLoopSerialDataDependency) {
   const std::string content = R"(
        class Block {
         public:
@@ -5741,7 +5915,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopSerialDataDependency) {
   }
 }
 
-TEST_F(TranslatorProcTest, PipelinedLoopSerialAfterASAP) {
+TEST_P(TranslatorProcTest, PipelinedLoopSerialAfterASAP) {
   const std::string content = R"(
        class Block {
         public:

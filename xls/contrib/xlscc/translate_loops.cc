@@ -560,6 +560,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   XLS_ASSIGN_OR_RETURN(xls::Type * context_in_struct_xls_type,
                        TranslateTypeToXLS(context_in_cvars_struct_ctype, loc));
 
+  // Pick a construct to correlate the channels for this construct
+  const clang::Stmt* identify_channels_stmt = body;
+  XLSCC_CHECK(identify_channels_stmt != nullptr, loc);
+
   // Create context channels
   IOChannel* context_out_channel = nullptr;
   {
@@ -575,6 +579,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     new_channel.unique_name = ch_name;
     new_channel.generated = xls_channel;
     context_out_channel = AddChannel(new_channel, loc);
+    pipeline_loops_by_internal_channel[xls_channel] = identify_channels_stmt;
   }
   IOChannel* context_in_channel = nullptr;
   {
@@ -590,6 +595,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     new_channel.unique_name = ch_name;
     new_channel.generated = xls_channel;
     context_in_channel = AddChannel(new_channel, loc);
+    pipeline_loops_by_internal_channel[xls_channel] = identify_channels_stmt;
   }
 
   // Fill in context variables for sub proc
@@ -734,7 +740,6 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
     context() = TranslationContext();
     context().propagate_up = false;
-
     context().fb = absl::implicit_cast<xls::BuilderBase*>(&body_builder);
     context().sf = generated_func.get();
     context().ast_context = prev_context.ast_context;
@@ -1042,6 +1047,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   // For utility functions like MakeStructXls()
   PushContextGuard pb_guard(*this, loc);
   context().fb = absl::implicit_cast<xls::BuilderBase*>(&pb);
+  context().in_pipelined_for_body = true;
 
   xls::BValue token = pb.GetTokenParam();
 
@@ -1151,6 +1157,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
                              /*this_decl=*/nullptr,
                              /*top_decls=*/{}, loc));
 
+  context().in_pipelined_for_body = true;
+
   XLS_ASSIGN_OR_RETURN(xls::BValue ret_tup,
                        GenerateIOInvokes(prepared, pb, loc));
 
@@ -1203,6 +1211,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
 
     next_state_values.push_back(pb.TupleIndex(
         ret_tup, prepared.return_index_for_static.at(namedecl), loc));
+  }
+  if (prepared.fsm_state_next_value.valid()) {
+    next_state_values.push_back(prepared.fsm_state_next_value);
   }
 
   XLS_RETURN_IF_ERROR(pb.Build(token, next_state_values).status());

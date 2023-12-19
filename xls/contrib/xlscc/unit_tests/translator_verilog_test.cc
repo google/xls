@@ -103,6 +103,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   auto translator = std::make_unique<xlscc::Translator>(
       /*error_on_init_interval=*/false,
       /*error_on_uninitialized=*/false,
+      /*generate_fsms_for_pipelined_loops=*/false,
       /*warn_unroll_iters=*/100,
       /*max_unroll_iters=*/100,
       /*z3_rlimit=*/-1,
@@ -240,6 +241,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   std::unique_ptr<xlscc::Translator> translator(
       new xlscc::Translator(/*error_on_init_interval=*/false,
       /*error_on_uninitialized=*/false,
+      /*generate_fsms_for_pipelined_loops=*/false,
                             /*max_unroll_iters=*/100,
                             /*warn_unroll_iters=*/100,
                             /*z3_rlimit=*/-1,

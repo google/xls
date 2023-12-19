@@ -93,6 +93,11 @@ ABSL_FLAG(bool, error_on_init_interval, false,
           "Generate an error when an initiation interval is requested greater "
           "than supported");
 
+ABSL_FLAG(
+    bool, generate_fsms_for_pipelined_loops, false,
+    "Generate an FSM for pipelined loops. This can allow for area savings "
+    "in some cases, for example where maximum throughput isn't required.");
+
 ABSL_FLAG(int, top_level_init_interval, 1,
           "Initiation interval of block top level (Run/main function)");
 
@@ -127,12 +132,13 @@ static absl::Status Run(std::string_view cpp_path) {
               << absl::GetFlag(FLAGS_io_op_token_ordering) << std::endl;
   }
 
-  xlscc::Translator translator(absl::GetFlag(FLAGS_error_on_init_interval),
-                               absl::GetFlag(FLAGS_error_on_uninitialized),
-                               absl::GetFlag(FLAGS_max_unroll_iters),
-                               absl::GetFlag(FLAGS_warn_unroll_iters),
-                               absl::GetFlag(FLAGS_z3_rlimit),
-                               io_op_token_ordering);
+  xlscc::Translator translator(
+      absl::GetFlag(FLAGS_error_on_init_interval),
+      absl::GetFlag(FLAGS_error_on_uninitialized),
+      absl::GetFlag(FLAGS_generate_fsms_for_pipelined_loops),
+      absl::GetFlag(FLAGS_max_unroll_iters),
+      absl::GetFlag(FLAGS_warn_unroll_iters), absl::GetFlag(FLAGS_z3_rlimit),
+      io_op_token_ordering);
 
   const std::string block_pb_name = absl::GetFlag(FLAGS_block_pb);
 

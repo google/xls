@@ -1082,9 +1082,9 @@ class Translator {
   // Make unrolling configurable from main
   explicit Translator(
       bool error_on_init_interval = false, bool error_on_uninitialized = false,
-      int64_t max_unroll_iters = 1000,
-      int64_t warn_unroll_iters = 100, int64_t z3_rlimit = -1,
-      IOOpOrdering op_ordering = IOOpOrdering::kNone,
+      bool generate_fsms_for_pipelined_loops = false,
+      int64_t max_unroll_iters = 1000, int64_t warn_unroll_iters = 100,
+      int64_t z3_rlimit = -1, IOOpOrdering op_ordering = IOOpOrdering::kNone,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
   ~Translator();
 
@@ -1357,6 +1357,9 @@ class Translator {
   // of initializers.
   const bool error_on_uninitialized_;
 
+  // Generates an FSM to implement pipelined loops.
+  const bool generate_fsms_for_pipelined_loops_;
+
   // How to generate the token dependencies for IO Ops
   const IOOpOrdering op_ordering_;
 
@@ -1432,6 +1435,9 @@ class Translator {
   // then subroutine parameters are added as their headers are translated.
   absl::btree_multimap<const IOChannel*, ChannelBundle>
       external_channels_by_internal_channel_;
+
+  absl::flat_hash_map<const xls::Channel*, const clang::Stmt*>
+      pipeline_loops_by_internal_channel;
 
   static bool ContainsKeyValuePair(
       const absl::btree_multimap<const IOChannel*, ChannelBundle>& map,
@@ -1549,6 +1555,7 @@ class Translator {
         state_index_for_static;
     int64_t state_init_count = 0;
     xls::BValue token;
+    xls::BValue fsm_state_next_value;
   };
 
   struct ExternalChannelInfo {
@@ -1606,16 +1613,35 @@ class Translator {
                                    xls::ProcBuilder& pb,
                                    const xls::SourceInfo& loc);
 
+  struct InvokeToGenerate {
+    const IOOp& op;
+    xls::BValue extra_condition;
+  };
+
+  static xls::BValue ConditionWithExtra(xls::BuilderBase& builder,
+                                        xls::BValue condition,
+                                        const InvokeToGenerate& invoke,
+                                        const xls::SourceInfo& op_loc);
+
   // Returns last invoke's return value
   absl::StatusOr<xls::BValue> GenerateIOInvokes(
       PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
+  // Generates only the listed ops. A token network will be created between
+  // only these ops.
+  absl::StatusOr<xls::BValue> GenerateIOInvokes(
+      PreparedBlock& prepared, xls::ProcBuilder& pb,
+      const xls::SourceInfo& body_loc,
+      const std::list<InvokeToGenerate>& invokes_to_generate,
+      absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens);
+
   // Returns new token
   absl::StatusOr<xls::BValue> GenerateTrace(xls::BValue trace_out_value,
                                             xls::BValue before_token,
                                             const IOOp& op,
-                                            xls::ProcBuilder& pb);
+                                            xls::ProcBuilder& pb,
+                                            const InvokeToGenerate& invoke);
 
   struct IOOpReturn {
     bool generate_expr;

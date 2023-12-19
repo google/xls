@@ -95,6 +95,17 @@ xls_cc_ir(
     ir_file = "block_from_class.ir",
 )
 
+xls_cc_ir(
+    name = "simple_pipelined_loop_fsm_ir",
+    src = "simple_pipelined_loop.cc",
+    block_from_class = "MyBlock",
+    block_pb_out = "simple_pipelined_loop_fsm.pbtxt",
+    ir_file = "simple_pipelined_loop_fsm.ir",
+    xlscc_args = {
+        "generate_fsms_for_pipelined_loops": "true",
+    },
+)
+
 [
     # Benchmarks for multiple memory accesses.
     # The example performs N reads and a write on a 1R1W memory, codegens + synthesizes the result.

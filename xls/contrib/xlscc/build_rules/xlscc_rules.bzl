@@ -192,6 +192,7 @@ def _xls_cc_ir_impl(ctx):
         "meta_out_text",
         "block_from_class",
         "z3_rlimit",
+        "generate_fsms_for_pipelined_loops",
     )
 
     xlscc_args = append_default_to_args(
