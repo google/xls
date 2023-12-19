@@ -26,6 +26,7 @@
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Value.h"
+#include "llvm/include/llvm/TargetParser/Triple.h"
 #include "xls/ir/node.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/llvm_type_converter.h"
@@ -50,7 +51,9 @@ class JitBuilderContext {
         type_converter_(
             orc_jit.GetContext(),
             OrcJit::CreateDataLayout(orc_jit.emit_object_code()).value()),
-        queue_manager_(queue_mgr) {}
+        queue_manager_(queue_mgr) {
+    module_->setTargetTriple(orc_jit.target_triple());
+  }
 
   llvm::Module* module() const { return module_.get(); }
   llvm::LLVMContext& context() const { return module_->getContext(); }

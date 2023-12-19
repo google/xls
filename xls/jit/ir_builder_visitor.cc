@@ -566,7 +566,7 @@ void PerformFormatStep(JitRuntime* runtime, const xls::Type* type,
                        const uint8_t* value, uint64_t format_u64,
                        std::string* buffer) {
   FormatPreference format = static_cast<FormatPreference>(format_u64);
-  Value ir_value = runtime->UnpackBuffer(value, type, /*unpoison=*/true);
+  Value ir_value = runtime->UnpackBuffer(value, type);
   absl::StrAppend(buffer, ir_value.ToHumanString(format));
 }
 

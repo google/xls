@@ -65,24 +65,18 @@ absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
   return absl::OkStatus();
 }
 
-Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type,
-                               bool unpoison) {
+Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type) {
   absl::MutexLock lock(&mutex_);
-  return UnpackBufferInternal(buffer, result_type, unpoison);
+  return UnpackBufferInternal(buffer, result_type);
 }
 
 Value JitRuntime::UnpackBufferInternal(const uint8_t* buffer,
-                                       const Type* result_type, bool unpoison) {
+                                       const Type* result_type) {
   switch (result_type->kind()) {
     case TypeKind::kBits: {
       const BitsType* bits_type = result_type->AsBitsOrDie();
       int64_t bit_count = bits_type->bit_count();
       int64_t byte_count = CeilOfRatio(bit_count, kCharBit);
-#ifdef ABSL_HAVE_MEMORY_SANITIZER
-      if (unpoison) {
-        __msan_unpoison(buffer, byte_count);
-      }
-#endif  // ABSL_HAVE_MEMORY_SANITIZER
       return Value(
           Bits::FromBytes(absl::MakeSpan(buffer, byte_count), bit_count));
     }
@@ -97,9 +91,8 @@ Value JitRuntime::UnpackBufferInternal(const uint8_t* buffer,
       std::vector<Value> values;
       values.reserve(tuple_type->size());
       for (int i = 0; i < tuple_type->size(); ++i) {
-        Value value =
-            UnpackBufferInternal(buffer + layout->getElementOffset(i),
-                                 tuple_type->element_type(i), unpoison);
+        Value value = UnpackBufferInternal(buffer + layout->getElementOffset(i),
+                                           tuple_type->element_type(i));
         values.push_back(value);
       }
       return Value::TupleOwned(std::move(values));
@@ -124,8 +117,7 @@ Value JitRuntime::UnpackBufferInternal(const uint8_t* buffer,
                 .value();
         int64_t offset =
             data_layout_.getIndexedOffsetInType(llvm_element_type, index);
-        Value value =
-            UnpackBufferInternal(buffer + offset, element_type, unpoison);
+        Value value = UnpackBufferInternal(buffer + offset, element_type);
         values.push_back(value);
       }
 

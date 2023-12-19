@@ -1108,6 +1108,12 @@ def _xls_ir_cc_library_impl(ctx):
     aot_compiler_args.add("-output_object", object_file.path)
     aot_compiler_args.add("-output_source", unformatted_source_file.path)
     aot_compiler_args.add("-header_include_path", header_file.short_path)
+
+    if ctx.attr.with_msan:
+        aot_compiler_args.add("-include_msan")
+    else:
+        aot_compiler_args.add("-noinclude_msan")
+
     if ctx.attr.namespaces:
         aot_compiler_args.add("-namespaces", ctx.attr.namespaces)
 
@@ -1199,6 +1205,10 @@ xls_ir_cc_library = rule(
                 allow_files = True,
                 cfg = "exec",
                 default = Label("@llvm_toolchain_llvm//:bin/clang-format"),
+            ),
+            "with_msan": attr.bool(
+                doc = "if the jit code should be compiled with msan",
+                mandatory = True,
             ),
         },
     ),

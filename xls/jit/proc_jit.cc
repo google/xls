@@ -67,8 +67,7 @@ std::vector<Value> ProcJitContinuation::GetState() const {
   for (Param* state_param : proc()->StateParams()) {
     int64_t param_index = proc()->GetParamIndex(state_param).value();
     state.push_back(jit_runtime_->UnpackBuffer(input_.pointers()[param_index],
-                                               state_param->GetType(),
-                                               /*unpoison=*/true));
+                                               state_param->GetType()));
   }
   return state;
 }

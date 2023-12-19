@@ -45,10 +45,8 @@ class JitRuntime {
 
   // Returns a Value constructed from the data inside "buffer" whose
   // contents are laid out according to the LLVM interpretation of the passed-in
-  // type. If "unpoison" is set the buffer is marked as MSAN-unpoisoned as we
-  // determine its extent (from the result_type).
-  Value UnpackBuffer(const uint8_t* buffer, const Type* result_type,
-                     bool unpoison = false);
+  // type.
+  Value UnpackBuffer(const uint8_t* buffer, const Type* result_type);
 
   // Splats the value into the buffer according to the data layout expected by
   // LLVM.
@@ -108,8 +106,8 @@ class JitRuntime {
   }
 
  private:
-  Value UnpackBufferInternal(const uint8_t* buffer, const Type* result_type,
-                             bool unpoison) ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+  Value UnpackBufferInternal(const uint8_t* buffer, const Type* result_type)
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   void BlitValueToBufferInternal(const Value& value, const Type* type,
                                  absl::Span<uint8_t> buffer)
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);

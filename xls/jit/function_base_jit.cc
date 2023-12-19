@@ -41,6 +41,7 @@
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Instructions.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/Type.h"
 #include "llvm/include/llvm/IR/Value.h"
 #include "llvm/include/llvm/Support/Casting.h"
@@ -59,9 +60,9 @@
 #include "xls/ir/register.h"
 #include "xls/ir/type.h"
 #include "xls/jit/ir_builder_visitor.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/jit_buffer.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
@@ -84,33 +85,6 @@ llvm::Value* LoadPointerFromPointerArray(int64_t index,
       });
 
   return builder->CreateLoad(llvm::PointerType::get(context, 0), gep);
-}
-
-// Marks the given buffer of the given size (in bytes) as "unpoisoned" for MSAN
-// - in other words, prevent false positives from being thrown when running
-// under MSAN (since it can't yet follow values into LLVM space (it might be
-// able to _technically_, but we've not enabled it).
-void UnpoisonBuffer(llvm::Value* buffer, int64_t size,
-                    llvm::IRBuilder<>* builder) {
-#ifdef ABSL_HAVE_MEMORY_SANITIZER
-  llvm::LLVMContext& context = builder->getContext();
-  llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(context),
-                             absl::bit_cast<uint64_t>(&__msan_unpoison));
-  llvm::Type* void_type = llvm::Type::getVoidTy(context);
-  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
-  llvm::Type* size_t_type =
-      llvm::Type::getIntNTy(context, sizeof(size_t) * CHAR_BIT);
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, {ptr_type, size_t_type}, false);
-  llvm::Value* fn_ptr =
-      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-
-  std::vector<llvm::Value*> args = {buffer,
-                                    llvm::ConstantInt::get(size_t_type, size)};
-
-  builder->CreateCall(fn_type, fn_ptr, args);
-#endif
 }
 
 // Abstraction around an LLVM function of type `JitFunctionType`. Signature of
@@ -803,16 +777,13 @@ std::string MangleForLLVM(std::string_view name) {
 //      return 0;
 //   }
 //
-// If `unpoison_outputs` is true then when built with sanizers enabled, the
-// output buffers of the function will be unpoisoned to avoid uninitialized
-// memory use errors.
 struct PartitionedFunction {
   llvm::Function* function;
   std::vector<Partition> partitions;
 };
 absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
     FunctionBase* xls_function, BufferAllocator& allocator,
-    JitBuilderContext& jit_context, bool unpoison_outputs) {
+    JitBuilderContext& jit_context) {
   XLS_VLOG(4) << "BuildFunction:";
   XLS_VLOG(4) << xls_function->DumpIr();
   std::vector<Partition> partitions = PartitionFunctionBase(xls_function);
@@ -897,17 +868,6 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
     }
   }
 
-  if (unpoison_outputs) {
-    for (Node* output : outputs) {
-      int64_t index = wrapper.GetOutputArgIndices(output).front();
-      llvm::Value* output_buffer = LoadPointerFromPointerArray(
-          index, wrapper.GetOutputsArg(), builder.get());
-      UnpoisonBuffer(
-          output_buffer,
-          jit_context.type_converter().GetTypeByteSize(OutputType(output)),
-          builder.get());
-    }
-  }
   // Return zero indicating that the execution of the FunctionBase completed.
   builder->CreateRet(builder->getInt64(0));
 
@@ -1223,11 +1183,6 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
         unpacked_output_buffer, packed_output_buffer, OutputType(output),
         /*bit_offset=*/0, jit_context.type_converter(),
         &wrapper.entry_builder()));
-
-    UnpoisonBuffer(
-        packed_output_buffer,
-        jit_context.type_converter().GetPackedTypeByteSize(OutputType(output)),
-        &wrapper.entry_builder());
   }
 
   // Return value of zero means that the FunctionBase completed execution.
@@ -1270,10 +1225,8 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
   llvm::Function* top_function = nullptr;
   std::vector<Partition> top_partitions;
   for (FunctionBase* f : functions) {
-    XLS_ASSIGN_OR_RETURN(
-        PartitionedFunction partitioned_function,
-        BuildFunctionInternal(f, allocator, jit_context,
-                              /*unpoison_outputs=*/f == xls_function));
+    XLS_ASSIGN_OR_RETURN(PartitionedFunction partitioned_function,
+                         BuildFunctionInternal(f, allocator, jit_context));
     jit_context.SetLlvmFunction(f, partitioned_function.function);
     if (f == xls_function) {
       top_function = partitioned_function.function;

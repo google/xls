@@ -40,7 +40,7 @@ std::optional<Value> ReadValueFromQueue(Type* type, JitRuntime& runtime,
   if (!queue.Read(buffer.data())) {
     return std::nullopt;
   }
-  return runtime.UnpackBuffer(buffer.data(), type, /*unpoision=*/true);
+  return runtime.UnpackBuffer(buffer.data(), type);
 }
 
 }  // namespace

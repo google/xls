@@ -104,7 +104,6 @@ cc_library(
         ":jit_runtime",
         ":llvm_type_converter",
         ":orc_jit",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -123,6 +122,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:TargetParser",
     ],
 )
 
@@ -412,12 +412,13 @@ cc_library(
     hdrs = ["orc_jit.h"],
     deps = [
         ":observer",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/logging:vlog_is_on",
@@ -427,8 +428,11 @@ cc_library(
         "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Analysis",
         "@llvm-project//llvm:ExecutionEngine",
+        "@llvm-project//llvm:IRPrinter",
+        "@llvm-project//llvm:Instrumentation",
         "@llvm-project//llvm:JITLink",  # build_cleaner: keep
         "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:OrcShared",
         "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",

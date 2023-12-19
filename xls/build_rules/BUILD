@@ -118,10 +118,16 @@ bzl_library(
 )
 
 bzl_library(
+    name = "xls_internal_build_defs_bzl",
+    srcs = ["xls_internal_build_defs.bzl"],
+)
+
+bzl_library(
     name = "xls_ir_macros_bzl",
     srcs = ["xls_ir_macros.bzl"],
     deps = [
         ":xls_config_rules_bzl",
+        ":xls_internal_build_defs_bzl",
         ":xls_ir_rules_bzl",
         ":xls_type_check_helpers_bzl",
     ],

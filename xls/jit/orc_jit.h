@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,8 +28,11 @@
 #include "llvm/include/llvm/ExecutionEngine/Orc/IRCompileLayer.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/IRTransformLayer.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/Support/Error.h"
+#include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "xls/jit/observer.h"
 
@@ -47,9 +51,24 @@ class OrcJit {
   // observer as compilation proceeds.
   static absl::StatusOr<std::unique_ptr<OrcJit>> Create(
       int64_t opt_level = kDefaultOptLevel, bool emit_object_code = false,
+      JitObserver* observer = nullptr) {
+    return Create(opt_level, emit_object_code, std::nullopt, observer);
+  }
+
+  // Create an LLVM orc jit. This can be used by the AOT generator to manually
+  // control whether asan calls should be included. Users other than the AOT
+  // compiler should use the 3-argument version above. Passing nullopt to
+  // emit_msan directs the jit to use MSAN if the running binary is MSAN and
+  // vice-versa.
+  static absl::StatusOr<std::unique_ptr<OrcJit>> Create(
+      int64_t opt_level, bool emit_object_code, std::optional<bool> emit_msan,
       JitObserver* observer = nullptr);
 
   void SetJitObserver(JitObserver* o) { jit_observer_ = o; }
+
+  std::string target_triple() const {
+    return this->target_machine_->getTargetTriple().getTriple();
+  }
 
   JitObserver* jit_observer() const { return jit_observer_; }
 
@@ -80,7 +99,7 @@ class OrcJit {
   bool emit_object_code() const { return emit_object_code_; }
 
  private:
-  OrcJit(int64_t opt_level, bool emit_object_code);
+  OrcJit(int64_t opt_level, bool emit_object_code, bool include_msan);
   absl::Status Init();
 
   // Method which optimizes the given module. Used within the JIT to form an IR
@@ -110,6 +129,10 @@ class OrcJit {
   std::vector<uint8_t> object_code_;
 
   JitObserver* jit_observer_ = nullptr;
+
+  // If the jitted code should include msan calls. Defaults to whatever 'this'
+  // process is doing and should only be overridden for AOT generators.
+  bool include_msan_;
 };
 
 // Calls the dump method on the given LLVM object and returns the string.

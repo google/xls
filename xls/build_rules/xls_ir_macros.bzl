@@ -21,6 +21,10 @@ load(
     "enable_generated_file_wrapper",
 )
 load(
+    "//xls/build_rules:xls_internal_build_defs.bzl",
+    "XLS_IS_MSAN_BUILD",
+)
+load(
     "//xls/build_rules:xls_ir_rules.bzl",
     "append_xls_dslx_ir_generated_files",
     "append_xls_ir_opt_ir_generated_files",
@@ -247,6 +251,7 @@ def xls_ir_cc_library_macro(
         src = src,
         top = top,
         namespaces = namespaces,
+        with_msan = XLS_IS_MSAN_BUILD,
     )
 
     native.cc_library(

@@ -15,38 +15,56 @@
 #include "xls/jit/orc_jit.h"
 
 #include <cerrno>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
 #include <utility>
 #include <vector>
 
+#include "absl/base/call_once.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/span.h"
 #include "llvm/include/llvm-c/Target.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/StringExtras.h"
 #include "llvm/include/llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/include/llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/CompileUtils.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/IRTransformLayer.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/Layer.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/Shared/ExecutorSymbolDef.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/include/llvm/ExecutionEngine/SectionMemoryManager.h"
+#include "llvm/include/llvm/IR/Argument.h"
+#include "llvm/include/llvm/IR/BasicBlock.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/Instruction.h"
 #include "llvm/include/llvm/IR/LegacyPassManager.h"
+#include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/IR/PassManager.h"
+#include "llvm/include/llvm/IR/Use.h"
+#include "llvm/include/llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/include/llvm/Passes/OptimizationLevel.h"
 #include "llvm/include/llvm/Passes/PassBuilder.h"
+#include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/CodeGen.h"
+#include "llvm/include/llvm/Support/Error.h"
+#include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/include/llvm/TargetParser/X86TargetParser.h"
+#include "llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
@@ -95,7 +113,7 @@ char BadOptLevelError::ID;
 
 }  // namespace
 
-OrcJit::OrcJit(int64_t opt_level, bool emit_object_code)
+OrcJit::OrcJit(int64_t opt_level, bool emit_object_code, bool include_msan)
     : context_(std::make_unique<llvm::LLVMContext>()),
       execution_session_(
           std::make_unique<llvm::orc::UnsupportedExecutorProcessControl>()),
@@ -105,7 +123,8 @@ OrcJit::OrcJit(int64_t opt_level, bool emit_object_code)
       dylib_(execution_session_.createBareJITDylib("main")),
       opt_level_(opt_level),
       emit_object_code_(emit_object_code),
-      data_layout_("") {}
+      data_layout_(""),
+      include_msan_(include_msan) {}
 
 OrcJit::~OrcJit() {
   if (auto err = execution_session_.endSession()) {
@@ -131,6 +150,13 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
   llvm::ModuleAnalysisManager mam;
   llvm::PassBuilder pass_builder;
 
+  if (include_msan_) {
+    pass_builder.registerPipelineStartEPCallback(
+        [](llvm::ModulePassManager& mpm, llvm::OptimizationLevel) -> void {
+          mpm.addPass(
+              llvm::MemorySanitizerPass(llvm::MemorySanitizerOptions()));
+        });
+  }
   pass_builder.registerModuleAnalyses(mam);
   pass_builder.registerCGSCCAnalyses(cgam);
   pass_builder.registerFunctionAnalyses(fam);
@@ -198,12 +224,17 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
   return module;
 }
 
-absl::StatusOr<std::unique_ptr<OrcJit>> OrcJit::Create(int64_t opt_level,
-                                                       bool emit_object_code,
-                                                       JitObserver* observer) {
+absl::StatusOr<std::unique_ptr<OrcJit>> OrcJit::Create(
+    int64_t opt_level, bool emit_object_code, std::optional<bool> emit_msan,
+    JitObserver* observer) {
   absl::call_once(once, OnceInit);
-  std::unique_ptr<OrcJit> jit =
-      absl::WrapUnique(new OrcJit(opt_level, emit_object_code));
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+  constexpr bool kHasMsan = true;
+#else
+  constexpr bool kHasMsan = false;
+#endif
+  std::unique_ptr<OrcJit> jit = absl::WrapUnique(
+      new OrcJit(opt_level, emit_object_code, emit_msan.value_or(kHasMsan)));
   jit->SetJitObserver(observer);
   XLS_RETURN_IF_ERROR(jit->Init());
   return std::move(jit);
@@ -269,6 +300,77 @@ OrcJit::CreateTargetMachine(bool aot_specification) {
   return std::move(error_or_target_machine.get());
 }
 
+namespace {
+// Based on https://github.com/google/sanitizers/wiki/MemorySanitizerJIT
+// tutorial.
+
+// Identifiers we use to pick out the actual thread-local buffers shared with
+// host msan. Basically the msan ABI is:
+// %x = load-symbol __emutls_v.__msan_param_tls
+// %y = load-symbol __emutls_get_address
+// %tls_slot = invoke %y (%x)
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+static constexpr uintptr_t kParamTlsEntry = 1;
+static constexpr uintptr_t kRetvalTlsEntry = 2;
+// TODO(allight): Technically if we want to support origin-tracking we could but
+// we'd need to add more of the locals from MSan.cpp here.
+extern "C" __thread unsigned long long  // NOLINT(runtime/int)
+    __msan_param_tls[];
+extern "C" __thread unsigned long long  // NOLINT(runtime/int)
+    __msan_retval_tls[];
+void* GetMsanTLSAddr(void* ctx) {
+  switch (absl::bit_cast<uintptr_t>(ctx)) {
+    case kParamTlsEntry:
+      return absl::bit_cast<void*>(&__msan_param_tls);
+    case kRetvalTlsEntry:
+      return absl::bit_cast<void*>(&__msan_retval_tls);
+    default:
+      XLS_LOG(ERROR) << "Unexpected TLS addr request: " << ctx;
+      return nullptr;
+  }
+}
+#endif
+
+class MsanHostEmuTls : public llvm::orc::DefinitionGenerator {
+ public:
+  llvm::Error tryToGenerate(llvm::orc::LookupState&, llvm::orc::LookupKind,
+                            llvm::orc::JITDylib& dylib,
+                            llvm::orc::JITDylibLookupFlags,
+                            const llvm::orc::SymbolLookupSet& targets) final {
+#ifndef ABSL_HAVE_MEMORY_SANITIZER
+    // No actual msan so don't do anything.
+    return llvm::Error::success();
+#else
+    llvm::orc::SymbolMap result;
+    for (auto& kv : targets) {
+      auto name = (*kv.first).str();
+      if (name == "__emutls_get_address") {
+        result[kv.first] = llvm::orc::ExecutorSymbolDef(
+            {llvm::orc::ExecutorAddr::fromPtr(GetMsanTLSAddr),
+             llvm::JITSymbolFlags::Exported});
+      }
+      if (name == "__emutls_v.__msan_param_tls") {
+        result[kv.first] = llvm::orc::ExecutorSymbolDef(
+            {llvm::orc::ExecutorAddr::fromPtr(
+                 absl::bit_cast<void*>(kParamTlsEntry)),
+             llvm::JITSymbolFlags::Exported});
+      }
+      if (name == "__emutls_v.__msan_retval_tls") {
+        result[kv.first] = llvm::orc::ExecutorSymbolDef(
+            {llvm::orc::ExecutorAddr::fromPtr(
+                 absl::bit_cast<void*>(kRetvalTlsEntry)),
+             llvm::JITSymbolFlags::Exported});
+      }
+    }
+    if (result.empty()) {
+      return llvm::Error::success();
+    }
+    return dylib.define(llvm::orc::absoluteSymbols(std::move(result)));
+#endif
+  }
+};
+}  // namespace
+
 absl::Status OrcJit::Init() {
   XLS_ASSIGN_OR_RETURN(target_machine_, CreateTargetMachine(emit_object_code_));
   if (XLS_VLOG_IS_ON(1)) {
@@ -288,6 +390,7 @@ absl::Status OrcJit::Init() {
   data_layout_ = target_machine_->createDataLayout();
 
   execution_session_.runSessionLocked([this]() {
+    dylib_.addGenerator(std::make_unique<MsanHostEmuTls>());
     dylib_.addGenerator(
         cantFail(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
             data_layout_.getGlobalPrefix())));

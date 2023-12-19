@@ -63,6 +63,14 @@ ABSL_FLAG(
     "is copied verbatim into an #include directive in the generated source "
     "file (the .cc file specified with --output_source). This flag is "
     "required.");
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+static constexpr bool kHasMsan = true;
+#else
+static constexpr bool kHasMsan = false;
+#endif
+ABSL_FLAG(bool, include_msan, kHasMsan,
+          "Whether to include msan calls in the jitted code. This *must* match "
+          "the configuration of the binary the jitted code is included in.");
 
 namespace xls {
 namespace {
@@ -141,8 +149,8 @@ absl::StatusOr<xls::Value> {{wrapper_fn_name}}({{wrapper_params}});
 // reduce the tax paid during normal execution.
 absl::StatusOr<std::string> GenerateWrapperSource(
     Function* f, const JitObjectCode& object_code,
-    const std::string& header_path,
-    const std::vector<std::string>& namespaces) {
+    const std::string& header_path, const std::vector<std::string>& namespaces,
+    bool include_msan) {
   constexpr std::string_view kTemplate =
       R"~(// AUTO-GENERATED FILE! DO NOT EDIT!
 #include "{{header_path}}"
@@ -167,6 +175,16 @@ void {{extern_fn}}(const uint8_t* const* inputs,
 {{open_ns}}
 
 namespace {
+
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+static constexpr bool kTargetHasSanitizer = true;
+#else
+static constexpr bool kTargetHasSanitizer = false;
+#endif
+static constexpr bool kExternHasSanitizer = {{extern_sanitizer}};
+
+static_assert(kTargetHasSanitizer == kExternHasSanitizer,
+              "sanitizer states do not match!");
 
 const char* kArgLayouts = R"|({{arg_layouts_proto}})|";
 const char* kResultLayout = R"|({{result_layout_proto}})|";
@@ -199,12 +217,14 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
 )~";
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit,
                        OrcJit::Create(/*opt_level=*/OrcJit::kDefaultOptLevel,
-                                      /*emit_object_code=*/true));
+                                      /*emit_object_code=*/true,
+                                      /*emit_msan=*/include_msan));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
                        OrcJit::CreateDataLayout(/*aot_specification=*/true));
   LlvmTypeConverter type_converter(orc_jit->GetContext(), data_layout);
 
   absl::flat_hash_map<std::string, std::string> substitution_map;
+  substitution_map["{{extern_sanitizer}}"] = include_msan ? "true" : "false";
   substitution_map["{{header_path}}"] = header_path;
   substitution_map["{{extern_fn}}"] = object_code.function_name;
   substitution_map["{{arg_layouts_proto}}"] =
@@ -268,7 +288,8 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
                       const std::string& output_header_path,
                       const std::string& output_source_path,
                       const std::string& header_include_path,
-                      const std::vector<std::string>& namespaces) {
+                      const std::vector<std::string>& namespaces,
+                      bool include_msan) {
   XLS_ASSIGN_OR_RETURN(std::string input_ir, GetFileContents(input_ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(input_ir, input_ir_path));
@@ -292,7 +313,8 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
 
   XLS_ASSIGN_OR_RETURN(
       std::string source_text,
-      GenerateWrapperSource(f, object_code, header_include_path, namespaces));
+      GenerateWrapperSource(f, object_code, header_include_path, namespaces,
+                            include_msan));
   XLS_RETURN_IF_ERROR(SetFileContents(output_source_path, source_text));
 
   return absl::OkStatus();
@@ -324,9 +346,10 @@ int main(int argc, char** argv) {
   if (!namespaces_string.empty()) {
     namespaces = absl::StrSplit(namespaces_string, ',');
   }
-  absl::Status status =
-      xls::RealMain(input_ir_path, top, output_object_path, output_header_path,
-                    output_source_path, header_include_path, namespaces);
+  bool include_msan = absl::GetFlag(FLAGS_include_msan);
+  absl::Status status = xls::RealMain(
+      input_ir_path, top, output_object_path, output_header_path,
+      output_source_path, header_include_path, namespaces, include_msan);
   if (!status.ok()) {
     std::cout << status.message();
     return 1;
