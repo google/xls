@@ -72,10 +72,14 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "simple_mod",
+    # Some delay models do not characterize mod.
+    benchmark_ir = False,
 )
 
 dslx_lang_test(
     name = "simple_div",
+    # Some delay models do not characterize div.
+    benchmark_ir = False,
 )
 
 dslx_lang_test(
