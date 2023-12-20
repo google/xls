@@ -25,7 +25,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
 #include "../z3/src/api/c++/z3++.h"
 

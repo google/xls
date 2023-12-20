@@ -140,6 +140,7 @@ cc_library(
     hdrs = ["init_xls.h"],
     deps = [
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
         "//xls/common/logging:vlog_is_on",

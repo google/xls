@@ -15,7 +15,8 @@
 #include "xls/common/logging/logging_test_base.h"
 
 #include "gmock/gmock.h"
-#include "xls/common/logging/log_sink_registry.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink_registry.h"
 
 namespace xls {
 namespace logging_internal {
@@ -26,7 +27,7 @@ using ::testing::Not;
 
 CapturedLogEntry::CapturedLogEntry() = default;
 
-CapturedLogEntry::CapturedLogEntry(const ::xls::LogEntry& entry)
+CapturedLogEntry::CapturedLogEntry(const ::absl::LogEntry& entry)
     : text_message(entry.text_message()),
       log_severity(entry.log_severity()),
       verbosity(entry.verbosity()),
@@ -35,11 +36,11 @@ CapturedLogEntry::CapturedLogEntry(const ::xls::LogEntry& entry)
       source_line(entry.source_line()),
       prefix(entry.prefix()) {}
 
-LoggingTestBase::LoggingTestBase() { ::xls::AddLogSink(this); }
+LoggingTestBase::LoggingTestBase() { ::absl::AddLogSink(this); }
 
-LoggingTestBase::~LoggingTestBase() { ::xls::RemoveLogSink(this); }
+LoggingTestBase::~LoggingTestBase() { ::absl::RemoveLogSink(this); }
 
-void LoggingTestBase::Send(const ::xls::LogEntry& entry) {
+void LoggingTestBase::Send(const ::absl::LogEntry& entry) {
   entries_.emplace_back(entry);
 }
 

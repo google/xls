@@ -15,12 +15,9 @@
 #ifndef XLS_COMMON_LOGGING_LOG_LINES_H_
 #define XLS_COMMON_LOGGING_LOG_LINES_H_
 
-#include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/base/log_severity.h"
-#include "xls/common/logging/logging_internal.h"
 #include "xls/common/logging/vlog_is_on.h"
 
 namespace xls {
@@ -46,9 +43,9 @@ void LogLines(absl::LogSeverity severity, std::string_view text,
 // (e.g., printing multi-line protocol buffers)
 //
 // Note that STRING is evaluated regardless of whether it will be logged.
-#define XLS_LOG_LINES(SEVERITY, STRING)                                      \
-  ::xls::logging::LogLines(XLS_LOGGING_INTERNAL_SEVERITY_##SEVERITY, STRING, \
-                           __FILE__, __LINE__)
+#define XLS_LOG_LINES(SEVERITY, STRING)                                        \
+  ::xls::logging::LogLines(ABSL_RAW_LOG_INTERNAL_##SEVERITY, STRING, __FILE__, \
+                           __LINE__)
 
 // Like XLS_LOG_LINES, but for VLOG.
 // Example:

@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// NOTE: Because Abseil has released logging support, these macros mostly (with
+// the notable exception of VLOG() and friends) directly wrap Abseil macros.
+// They still exist because historically we needed our own logging
+// implementation before Abseil released logging. XLS developers should continue
+// to use the XLS_-prefixed macros for now.
+//
 // Defines a set of logging macros and related APIs.  The two most basic
 // invocations look like this:
 //
@@ -98,11 +104,10 @@
 #define XLS_COMMON_LOGGING_LOGGING_H_
 
 #include "absl/base/optimization.h"
+#include "absl/log/check.h"
+#include "absl/log/die_if_null.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "xls/common/logging/check_ops.h"
-#include "xls/common/logging/condition.h"
-#include "xls/common/logging/log_sink.h"
-#include "xls/common/logging/logging_internal.h"
 #include "xls/common/logging/vlog_is_on.h"
 
 // -----------------------------------------------------------------------------
@@ -159,10 +164,7 @@
 // in comprise the logged message. Example:
 //
 //   XLS_LOG(INFO) << "Found " << num_cookies << " cookies";
-#define XLS_LOG(severity) \
-  switch (0)              \
-  default:                \
-    XLS_LOGGING_INTERNAL_LOG_##severity.stream()
+#define XLS_LOG(severity) LOG(severity)
 
 // `XLS_VLOG` uses numeric levels to provide verbose logging that can configured
 // at runtime, including at a per-module level.  `XLS_VLOG` statements are
@@ -182,17 +184,10 @@
 // If the condition is false, nothing is logged. Example:
 //
 //   XLS_LOG_IF(INFO, num_cookies > 10) << "Got lots of cookies";
-#define XLS_LOG_IF(severity, condition)       \
-  switch (0)                                  \
-  default:                                    \
-    XLS_LOGGING_INTERNAL_CONDITION(condition) \
-  XLS_LOGGING_INTERNAL_LOG_##severity.stream()
-#define XLS_VLOG_IF(verbose_level, condition)                     \
-  switch (0)                                                      \
-  default:                                                        \
-    XLS_LOGGING_INTERNAL_CONDITION((condition) &&                 \
-                                   XLS_VLOG_IS_ON(verbose_level)) \
-  XLS_LOGGING_INTERNAL_LOG_INFO.WithVerbosity(verbose_level).stream()
+#define XLS_LOG_IF(severity, condition) LOG_IF(severity, condition)
+#define XLS_VLOG_IF(verbose_level, condition)                  \
+  LOG_IF(INFO, ((condition) && XLS_VLOG_IS_ON(verbose_level))) \
+      .WithVerbosity(verbose_level)
 
 // -----------------------------------------------------------------------------
 // `XLS_CHECK` Macros
@@ -215,102 +210,33 @@
 // Might produce a message like:
 //
 //   Check failed: !cheese.empty() Out of Cheese
-#define XLS_CHECK(condition)                                         \
-  switch (0)                                                         \
-  default:                                                           \
-    XLS_LOGGING_INTERNAL_CONDITION(ABSL_PREDICT_FALSE(!(condition))) \
-  XLS_LOGGING_INTERNAL_CHECK(#condition).stream()
+#define XLS_CHECK(condition) CHECK(condition)
+#define XLS_CHECK_EQ(val1, val2) CHECK_EQ(val1, val2)
+#define XLS_CHECK_NE(val1, val2) CHECK_NE(val1, val2)
+#define XLS_CHECK_LE(val1, val2) CHECK_LE(val1, val2)
+#define XLS_CHECK_LT(val1, val2) CHECK_LT(val1, val2)
+#define XLS_CHECK_GE(val1, val2) CHECK_GE(val1, val2)
+#define XLS_CHECK_GT(val1, val2) CHECK_GT(val1, val2)
 
-// `XLS_QCHECK` behaves like `XLS_CHECK` but does not print a full stack trace
-// and does not run registered error handlers (as `QFATAL`).  It is useful when
-// the problem is definitely unrelated to program flow, e.g. when validating
-// user input.
-#define XLS_QCHECK(condition)                                        \
-  switch (0)                                                         \
-  default:                                                           \
-    XLS_LOGGING_INTERNAL_CONDITION(ABSL_PREDICT_FALSE(!(condition))) \
-  XLS_LOGGING_INTERNAL_QCHECK(#condition).stream()
+#define XLS_QCHECK(condition) QCHECK(condition)
+#define XLS_QCHECK_EQ(val1, val2) QCHECK_EQ(val1, val2)
+#define XLS_QCHECK_NE(val1, val2) QCHECK_NE(val1, val2)
+#define XLS_QCHECK_LE(val1, val2) QCHECK_LE(val1, val2)
+#define XLS_QCHECK_LT(val1, val2) QCHECK_LT(val1, val2)
+#define XLS_QCHECK_GE(val1, val2) QCHECK_GE(val1, val2)
+#define XLS_QCHECK_GT(val1, val2) QCHECK_GT(val1, val2)
 
-// `XLS_DCHECK` behaves like `XLS_CHECK` in debug mode and does nothing
-// otherwise.  Unlike with `XLS_CHECK`, it is not safe to rely on evaluation of
-// `condition`.
-#ifndef NDEBUG
-#define XLS_DCHECK(condition) XLS_CHECK(condition)
-#else
-#define XLS_DCHECK(condition)  \
-  while (false && (condition)) \
-  ::xls::logging_internal::NullStreamFatal().stream()
-#endif
+#define XLS_DCHECK(condition) DCHECK(condition)
+#define XLS_DCHECK_EQ(val1, val2) DCHECK_EQ(val1, val2)
+#define XLS_DCHECK_NE(val1, val2) DCHECK_NE(val1, val2)
+#define XLS_DCHECK_LE(val1, val2) DCHECK_LE(val1, val2)
+#define XLS_DCHECK_LT(val1, val2) DCHECK_LT(val1, val2)
+#define XLS_DCHECK_GE(val1, val2) DCHECK_GE(val1, val2)
+#define XLS_DCHECK_GT(val1, val2) DCHECK_GT(val1, val2)
 
-// `XLS_CHECK_EQ` and friends are syntactic sugar for `XLS_CHECK(x == y)` that
-// automatically output the expression being tested and the evaluated values on
-// either side. Example:
-//
-//   int x = 3, y = 5;
-//   XLS_CHECK_EQ(2 * x, y) << "oops!";
-//
-// Might produce a message like:
-//
-//   Check failed: 2 * x == y (6 vs. 5) oops!
-//
-// The values must implement the appropriate comparison operator as well as
-// `operator<<(std::ostream&, ...)`.  Care is taken to ensure that each
-// argument is evaluated exactly once, and that anything which is legal to pass
-// as a function argument is legal here.  In particular, the arguments may be
-// temporary expressions which will end up being destroyed at the end of the
-// statement. Example:
-//
-//   XLS_CHECK_EQ(std::string("abc")[1], 'b');
-//
-// WARNING: Passing `NULL` as an argument to `XLS_CHECK_EQ` and similar macros
-// does not compile.  Use `nullptr` instead.
-#define XLS_CHECK_EQ(val1, val2) \
-  XLS_LOGGING_INTERNAL_CHECK_OP(Check_EQ, ==, val1, val2)
-#define XLS_CHECK_NE(val1, val2) \
-  XLS_LOGGING_INTERNAL_CHECK_OP(Check_NE, !=, val1, val2)
-#define XLS_CHECK_LE(val1, val2) \
-  XLS_LOGGING_INTERNAL_CHECK_OP(Check_LE, <=, val1, val2)
-#define XLS_CHECK_LT(val1, val2) \
-  XLS_LOGGING_INTERNAL_CHECK_OP(Check_LT, <, val1, val2)
-#define XLS_CHECK_GE(val1, val2) \
-  XLS_LOGGING_INTERNAL_CHECK_OP(Check_GE, >=, val1, val2)
-#define XLS_CHECK_GT(val1, val2) \
-  XLS_LOGGING_INTERNAL_CHECK_OP(Check_GT, >, val1, val2)
-#define XLS_QCHECK_EQ(val1, val2) \
-  XLS_LOGGING_INTERNAL_QCHECK_OP(Check_EQ, ==, val1, val2)
-#define XLS_QCHECK_NE(val1, val2) \
-  XLS_LOGGING_INTERNAL_QCHECK_OP(Check_NE, !=, val1, val2)
-#define XLS_QCHECK_LE(val1, val2) \
-  XLS_LOGGING_INTERNAL_QCHECK_OP(Check_LE, <=, val1, val2)
-#define XLS_QCHECK_LT(val1, val2) \
-  XLS_LOGGING_INTERNAL_QCHECK_OP(Check_LT, <, val1, val2)
-#define XLS_QCHECK_GE(val1, val2) \
-  XLS_LOGGING_INTERNAL_QCHECK_OP(Check_GE, >=, val1, val2)
-#define XLS_QCHECK_GT(val1, val2) \
-  XLS_LOGGING_INTERNAL_QCHECK_OP(Check_GT, >, val1, val2)
-
-#ifndef NDEBUG
-#define XLS_DCHECK_EQ(val1, val2) XLS_CHECK_EQ(val1, val2)
-#define XLS_DCHECK_NE(val1, val2) XLS_CHECK_NE(val1, val2)
-#define XLS_DCHECK_LE(val1, val2) XLS_CHECK_LE(val1, val2)
-#define XLS_DCHECK_LT(val1, val2) XLS_CHECK_LT(val1, val2)
-#define XLS_DCHECK_GE(val1, val2) XLS_CHECK_GE(val1, val2)
-#define XLS_DCHECK_GT(val1, val2) XLS_CHECK_GT(val1, val2)
-#else
-#define XLS_DCHECK_EQ(val1, val2) XLS_LOGGING_INTERNAL_DCHECK_NOP(val1, val2)
-#define XLS_DCHECK_NE(val1, val2) XLS_LOGGING_INTERNAL_DCHECK_NOP(val1, val2)
-#define XLS_DCHECK_LE(val1, val2) XLS_LOGGING_INTERNAL_DCHECK_NOP(val1, val2)
-#define XLS_DCHECK_LT(val1, val2) XLS_LOGGING_INTERNAL_DCHECK_NOP(val1, val2)
-#define XLS_DCHECK_GE(val1, val2) XLS_LOGGING_INTERNAL_DCHECK_NOP(val1, val2)
-#define XLS_DCHECK_GT(val1, val2) XLS_LOGGING_INTERNAL_DCHECK_NOP(val1, val2)
-#endif
-
-// absl::Status success comparison.
-// This is better than CHECK((val).ok()) because the embedded
-// error string gets printed by the CHECK_EQ.
-#define XLS_CHECK_OK(val) XLS_CHECK_EQ(::absl::OkStatus(), (val))
-#define XLS_QCHECK_OK(val) XLS_QCHECK_EQ(::absl::OkStatus(), (val))
-#define XLS_DCHECK_OK(val) XLS_DCHECK_EQ(::absl::OkStatus(), (val))
+#define XLS_CHECK_OK(val) CHECK_OK(val)
+#define XLS_QCHECK_OK(val) QCHECK_OK(val)
+#define XLS_DCHECK_OK(val) DCHECK_OK(val)
 
 // `XLS_DIE_IF_NULL` behaves as `XLS_CHECK_NE` vs `nullptr` but *also* "returns"
 // its argument.  It is useful in initializers where statements (like
@@ -325,7 +251,6 @@
 //
 // Use `XLS_CHECK(ptr != nullptr)` if the returned pointer is
 // unused.
-#define XLS_DIE_IF_NULL(val) \
-  ::xls::logging_internal::DieIfNull(__FILE__, __LINE__, #val, (val))
+#define XLS_DIE_IF_NULL(val) ABSL_DIE_IF_NULL(val)
 
 #endif  // XLS_COMMON_LOGGING_LOGGING_H_

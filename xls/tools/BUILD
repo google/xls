@@ -1395,7 +1395,6 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",

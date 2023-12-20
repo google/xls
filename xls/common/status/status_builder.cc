@@ -22,11 +22,14 @@
 
 #include "absl/base/log_severity.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/source_location.h"
 #include "xls/common/symbolized_stacktrace.h"
 
 namespace xabsl {
@@ -131,7 +134,7 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
     }
   }
 
-  xls::LogSink* const sink = rep_->sink;
+  absl::LogSink* const sink = rep_->sink;
   const std::string maybe_stack_trace =
       rep_->should_log_stack_trace
           ? absl::StrCat("\n", xls::GetSymbolizedStackTraceAsString(
@@ -139,12 +142,21 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
           : "";
   const int verbose_level = rep_->logging_mode == Rep::LoggingMode::kVLog
                                 ? rep_->verbose_level
-                                : xls::LogEntry::kNoVerboseLevel;
-  XLS_LOG(LEVEL(severity))
-          .AtLocation(loc_)
-          .ToSinkAlso(sink)
-          .WithVerbosity(verbose_level)
-      << status << maybe_stack_trace;
+                                : absl::LogEntry::kNoVerboseLevel;
+  if (sink) {
+    XLS_LOG(LEVEL(severity))
+            .AtLocation(loc_.file_name(), loc_.line())
+            .ToSinkAlso(sink)
+            .WithVerbosity(verbose_level)
+        << status << maybe_stack_trace;
+  } else {
+    // sink == nullptr indicates not to call ToSinkAlso(), which dies if sink is
+    // nullptr. Unfortunately, this means we reproduce the above macro call.
+    XLS_LOG(LEVEL(severity))
+            .AtLocation(loc_.file_name(), loc_.line())
+            .WithVerbosity(verbose_level)
+        << status << maybe_stack_trace;
+  }
 }
 
 void StatusBuilder::SetStatusCode(absl::StatusCode canonical_code,

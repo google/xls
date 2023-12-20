@@ -26,10 +26,9 @@
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log_sink.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
-#include "xls/common/logging/log_entry.h"
-#include "xls/common/logging/log_sink.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
@@ -41,7 +40,7 @@
 
 struct CapturedLogEntry {
   CapturedLogEntry();
-  explicit CapturedLogEntry(const ::xls::LogEntry& entry);
+  explicit CapturedLogEntry(const ::absl::LogEntry& entry);
 
   std::string text_message;
   absl::LogSeverity log_severity;
@@ -54,13 +53,13 @@ struct CapturedLogEntry {
 
 // Support for XLS[cc] related tests, such as invoking XLS[cc]
 //  with the appropriate parameters for the test environment
-class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
+class XlsccTestBase : public xls::IrTestBase, public ::absl::LogSink {
  public:
   XlsccTestBase();
 
   ~XlsccTestBase() override;
 
-  void Send(const ::xls::LogEntry& entry) override;
+  void Send(const ::absl::LogEntry& entry) override;
 
   void Run(const absl::flat_hash_map<std::string, uint64_t>& args,
            uint64_t expected, std::string_view cpp_source,

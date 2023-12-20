@@ -49,7 +49,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
     ],
 )
 
@@ -74,7 +73,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
         "@z3//:api",
     ],
 )
@@ -89,7 +87,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
     ],
 )
 
@@ -101,7 +98,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
         "@com_google_ortools//ortools/linear_solver",
     ],
 )
@@ -115,7 +111,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
     ],
 )
 
@@ -128,7 +123,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
     ],
 )
 
@@ -142,7 +136,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
     ],
 )
 
@@ -231,7 +224,6 @@ cc_library(
         "//xls/common:strong_int",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
-        "//xls/common/logging:log_message",
         "//xls/common/logging:vlog_is_on",
     ],
 )
@@ -360,7 +352,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
     ],
 )
 

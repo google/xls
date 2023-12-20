@@ -20,9 +20,3 @@ ABSL_DECLARE_FLAG(bool, logtostderr);
 ABSL_DECLARE_FLAG(bool, alsologtostderr);
 ABSL_DECLARE_FLAG(int, stderrthreshold);
 ABSL_DECLARE_FLAG(bool, log_prefix);
-
-namespace absl {
-
-absl::LogSeverityAtLeast StderrThreshold();
-
-}  // namespace absl

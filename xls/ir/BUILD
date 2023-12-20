@@ -261,7 +261,6 @@ cc_library(
         ":bits_ops",
         ":interval",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

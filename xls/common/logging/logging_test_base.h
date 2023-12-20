@@ -19,9 +19,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "xls/common/logging/log_entry.h"
-#include "xls/common/logging/log_sink.h"
-#include "xls/common/logging/logging.h"
+#include "absl/base/log_severity.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink.h"
 
 namespace xls {
 namespace logging_internal {
@@ -29,7 +29,7 @@ namespace testing {
 
 struct CapturedLogEntry {
   CapturedLogEntry();
-  explicit CapturedLogEntry(const ::xls::LogEntry& entry);
+  explicit CapturedLogEntry(const ::absl::LogEntry& entry);
 
   std::string text_message;
   absl::LogSeverity log_severity;
@@ -40,13 +40,13 @@ struct CapturedLogEntry {
   bool prefix = false;
 };
 
-class LoggingTestBase : public ::testing::Test, public ::xls::LogSink {
+class LoggingTestBase : public ::testing::Test, public ::absl::LogSink {
  public:
   LoggingTestBase();
 
   ~LoggingTestBase() override;
 
-  void Send(const ::xls::LogEntry& entry) override;
+  void Send(const ::absl::LogEntry& entry) override;
 
   CapturedLogEntry GetSingleEntry();
 

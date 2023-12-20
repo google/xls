@@ -20,7 +20,6 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/union_find_map.h"
 

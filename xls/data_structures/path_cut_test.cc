@@ -23,7 +23,6 @@
 
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
-#include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/strong_int.h"
 

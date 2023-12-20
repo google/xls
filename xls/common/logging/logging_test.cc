@@ -22,7 +22,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/capture_stream.h"
-#include "xls/common/logging/log_entry.h"
 #include "xls/common/logging/logging_test_base.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"

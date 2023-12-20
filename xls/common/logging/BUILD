@@ -50,18 +50,6 @@ cc_test(
 )
 
 cc_library(
-    name = "condition",
-    hdrs = [
-        "condition.h",
-    ],
-    visibility = ["//visibility:private"],
-    deps = [
-        ":log_message",
-        ":null_stream",
-    ],
-)
-
-cc_library(
     name = "errno_saver",
     hdrs = [
         "errno_saver.h",
@@ -81,31 +69,6 @@ cc_test(
 )
 
 cc_library(
-    name = "log_entry",
-    srcs = ["log_entry.cc"],
-    hdrs = ["log_entry.h"],
-    deps = [
-        ":log_flags",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-    ],
-)
-
-cc_test(
-    name = "log_entry_test",
-    srcs = ["log_entry_test.cc"],
-    deps = [
-        ":log_entry",
-        "@com_google_absl//absl/base:log_severity",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
-    ],
-)
-
-cc_library(
     name = "log_lines",
     srcs = ["log_lines.cc"],
     hdrs = ["log_lines.h"],
@@ -114,7 +77,6 @@ cc_library(
         ":logging",
         ":vlog_is_on",
         "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -124,7 +86,6 @@ cc_test(
     deps = [
         ":log_lines",
         ":scoped_mock_log",
-        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
     ],
@@ -142,6 +103,7 @@ cc_library(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:flags",
     ],
+    alwayslink = 1,
 )
 
 cc_test(
@@ -150,7 +112,10 @@ cc_test(
     deps = [
         ":capture_stream",
         ":log_flags",
+        ":logging",
         ":logging_test_base",
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -159,121 +124,26 @@ cc_test(
     ],
 )
 
-cc_library(
-    name = "log_message",
-    srcs = [
-        "log_message.cc",
-    ],
-    hdrs = [
-        "log_message.h",
-    ],
-    deps = [
-        ":errno_saver",
-        ":log_entry",
-        ":log_flags",
-        ":log_sink",
-        ":log_sink_registry",
-        ":null_guard",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/container:inlined_vector",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/hash",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
-        "//xls/common:source_location",
-        "//xls/common:strerror",
-        "//xls/common:symbolized_stacktrace",
-    ],
-)
-
 config_setting(
     name = "opt",
     values = {"compilation_mode": "opt"},
 )
 
-cc_test(
-    name = "log_message_test",
-    srcs = ["log_message_test.cc"],
-    defines = select({
-        ":opt": ["MAIN_IS_MAYBE_STRIPPED"],
-        "//conditions:default": [],
-    }),
-    deps = [
-        ":log_flags",
-        ":log_message",
-        ":logging",
-        ":logging_test_base",
-        ":scoped_mock_log",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "//xls/common:source_location",
-        "//xls/common:strerror",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
-    ],
-)
-
-cc_library(
-    name = "log_sink",
-    hdrs = [
-        "log_sink.h",
-    ],
-    deps = [
-        ":log_entry",
-    ],
-)
-
-cc_library(
-    name = "log_sink_registry",
-    srcs = ["log_sink_registry.cc"],
-    hdrs = ["log_sink_registry.h"],
-    deps = [
-        ":log_entry",
-        ":log_sink",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
 cc_library(
     name = "logging",
-    srcs = [
-        "logging.cc",
-    ],
     hdrs = [
-        "check_ops.h",
         "logging.h",
-        "logging_internal.h",
     ],
     deps = [
-        ":condition",
-        ":log_message",
-        ":log_sink",
-        ":null_guard",
+        ":log_flags",
         ":vlog_is_on",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "check_ops_test",
-    srcs = ["check_ops_test.cc"],
-    deps = [
-        ":logging",
-        "//xls/common:casts",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
     ],
 )
 
@@ -282,7 +152,6 @@ cc_test(
     srcs = ["logging_test.cc"],
     deps = [
         ":capture_stream",
-        ":log_entry",
         ":logging",
         ":logging_test_base",
         "@com_google_absl//absl/flags:flag",
@@ -301,53 +170,12 @@ cc_library(
     srcs = ["logging_test_base.cc"],
     hdrs = ["logging_test_base.h"],
     deps = [
-        ":log_entry",
-        ":log_sink",
-        ":log_sink_registry",
-        ":logging",
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/log:log_entry",
+        "@com_google_absl//absl/log:log_sink",
+        "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "null_guard",
-    hdrs = [
-        "null_guard.h",
-    ],
-    visibility = ["//visibility:private"],
-)
-
-cc_test(
-    name = "null_guard_test",
-    srcs = ["null_guard_test.cc"],
-    deps = [
-        ":null_guard",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
-    ],
-)
-
-cc_library(
-    name = "null_stream",
-    hdrs = [
-        "null_stream.h",
-    ],
-    visibility = ["//visibility:private"],
-    deps = [
-        ":log_sink",
-        "@com_google_absl//absl/strings",
-        "//xls/common:source_location",
-    ],
-)
-
-cc_test(
-    name = "null_stream_test",
-    srcs = ["null_stream_test.cc"],
-    deps = [
-        ":null_stream",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
     ],
 )
 
@@ -356,10 +184,10 @@ cc_library(
     testonly = True,
     hdrs = ["scoped_mock_log.h"],
     deps = [
-        ":log_entry",
-        ":log_sink",
-        ":log_sink_registry",
         "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/log:log_entry",
+        "@com_google_absl//absl/log:log_sink",
+        "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
@@ -374,6 +202,7 @@ cc_library(
     hdrs = ["vlog_is_on.h"],
     deps = [
         ":errno_saver",
+        ":log_flags",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/flags:flag",

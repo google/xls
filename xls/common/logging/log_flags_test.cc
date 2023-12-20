@@ -18,11 +18,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/log_severity.h"
+#include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/capture_stream.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/logging/logging_test_base.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 
 namespace {
 

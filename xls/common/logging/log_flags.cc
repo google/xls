@@ -14,33 +14,48 @@
 
 #include "xls/common/logging/log_flags.h"
 
+#include "absl/log/globals.h"
+
+namespace {
+// Deduces the value of stderr threshold, based on the value of flags
+// FLAGS_logtostderr
+// FLAGS_alsologtostderr
+// `turning_on_off` indicates that we are deducing the threshold, while turning
+// above flags on or off. The deduction logic differs in these cases, since
+// flags may start to contradict each other.
+void DeduceStderrThreshold(bool turning_on_off) {
+  // Turning on case
+  // set threshold to INFO
+  if (turning_on_off) {
+    absl::log_internal::RawSetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    return;
+  }
+  // Turning off case
+  // if flags contradict each other, keep current threshold
+  // otherwise set threshold to at least ERROR.
+  if (!absl::GetFlag(FLAGS_logtostderr) &&
+      !absl::GetFlag(FLAGS_alsologtostderr)) {
+    absl::log_internal::RawSetStderrThreshold(
+        (std::max)(absl::LogSeverityAtLeast::kError, absl::StderrThreshold()));
+  }
+}
+}  // namespace
+
 ABSL_FLAG(bool, logtostderr, false,
-          "log messages go to stderr instead of logfiles");
+          "log messages go to stderr instead of logfiles")
+    .OnUpdate([] {
+      bool turning_on_off = absl::GetFlag(FLAGS_logtostderr);
+      DeduceStderrThreshold(turning_on_off);
+      // TODO(rigge): when abseil logging logs to files by default, disable
+      // logging to file here. Maybe on that glorious day logtostderr will be
+      // part of abseil.
+      // EnableLogToFiles(!turning_on_off);
+    });
 
 ABSL_FLAG(bool, alsologtostderr, false,
-          "log messages go to stderr in addition to logfiles");
+          "log messages go to stderr in addition to logfiles")
+    .OnUpdate([] {
+      bool turning_on_off = absl::GetFlag(FLAGS_alsologtostderr);
+      DeduceStderrThreshold(turning_on_off);
+    });
 
-
-namespace absl {
-
-// Normalize the given value to a valid LogSeverityAtLeast value. Out of bounds
-// values are clipped to kInfo (0) or kFatal (3).
-static absl::LogSeverityAtLeast NormalizedSeverity(int parameter) {
-  if (parameter < 0) {
-    return absl::LogSeverityAtLeast::kInfo;
-  } else if (parameter > 3) {
-    return absl::LogSeverityAtLeast::kFatal;
-  }
-  return static_cast<absl::LogSeverityAtLeast>(parameter);
-}
-
-absl::LogSeverityAtLeast StderrThreshold() {
-  if (absl::GetFlag(FLAGS_logtostderr) ||
-      absl::GetFlag(FLAGS_alsologtostderr)) {
-    return absl::LogSeverityAtLeast::kInfo;
-  } else {
-    return NormalizedSeverity(absl::GetFlag(FLAGS_stderrthreshold));
-  }
-}
-
-}  // namespace absl

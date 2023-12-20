@@ -21,12 +21,11 @@ cc_library(
     srcs = ["unit_test.cc"],
     hdrs = ["unit_test.h"],
     deps = [
+        "//xls/common:source_location",
         "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_file",
         "//xls/common/logging",
-        "//xls/common/logging:log_entry",
-        "//xls/common/logging:log_sink",
-        "//xls/common/logging:log_sink_registry",
+        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/contrib/xlscc:cc_parser",
@@ -44,6 +43,9 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:log_entry",
+        "@com_google_absl//absl/log:log_sink",
+        "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -60,6 +62,7 @@ cc_test(
     shard_count = 32,
     deps = [
         ":unit_test",
+        "//xls/common:source_location",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
@@ -279,14 +282,8 @@ cc_test(
     ],
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
+        "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -304,14 +301,8 @@ cc_test(
     ],
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
+        "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -348,14 +339,9 @@ cc_test(
     ],
     deps = [
         ":unit_test",
+        "//xls/common:source_location",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

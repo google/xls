@@ -15,18 +15,19 @@
 #include "xls/common/status/status_builder.h"
 
 #include <string>
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "xls/common/logging/log_entry.h"
-#include "xls/common/logging/log_sink.h"
 #include "xls/common/logging/scoped_mock_log.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/source_location.h"
@@ -56,11 +57,11 @@ struct Locs {
   static const xabsl::SourceLocation kBar;
 };
 
-class StringSink : public xls::LogSink {
+class StringSink : public absl::LogSink {
  public:
   StringSink() = default;
 
-  void Send(const xls::LogEntry& entry) override {
+  void Send(const absl::LogEntry& entry) override {
     absl::StrAppend(&message_, entry.source_basename(), ":",
                     entry.source_line(), " - ", entry.text_message());
   }

@@ -24,9 +24,9 @@
 #include <utility>
 
 #include "absl/base/log_severity.h"
+#include "absl/log/log_sink.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
-#include "xls/common/logging/log_sink.h"
 #include "xls/common/source_location.h"
 
 // The xabsl namespace has types that are anticipated to become available in
@@ -168,8 +168,8 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   // time this builder is converted to a status. Has no effect if this builder
   // is not configured to log by calling any of the LogXXX methods. Returns
   // `*this` to allow method chaining.
-  StatusBuilder& AlsoOutputToSink(xls::LogSink* sink) &;
-  StatusBuilder&& AlsoOutputToSink(xls::LogSink* sink) &&;
+  StatusBuilder& AlsoOutputToSink(absl::LogSink* sink) &;
+  StatusBuilder&& AlsoOutputToSink(absl::LogSink* sink) &&;
 
   // Appends to the extra message that will be added to the original status.  By
   // default, the extra message is added to the original message and includes a
@@ -400,7 +400,7 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
 
     // If not nullptr, specifies the log sink where log output should be also
     // sent to.  Only used when `logging_mode != LoggingMode::kDisabled`.
-    xls::LogSink* sink = nullptr;
+    absl::LogSink* sink = nullptr;
   };
 
   // The status that the result will be based on.
@@ -614,7 +614,7 @@ inline StatusBuilder&& StatusBuilder::EmitStackTrace() && {
   return std::move(EmitStackTrace());
 }
 
-inline StatusBuilder& StatusBuilder::AlsoOutputToSink(xls::LogSink* sink) & {
+inline StatusBuilder& StatusBuilder::AlsoOutputToSink(absl::LogSink* sink) & {
   if (status_.ok()) {
     return *this;
   }
@@ -624,7 +624,7 @@ inline StatusBuilder& StatusBuilder::AlsoOutputToSink(xls::LogSink* sink) & {
   rep_->sink = sink;
   return *this;
 }
-inline StatusBuilder&& StatusBuilder::AlsoOutputToSink(xls::LogSink* sink) && {
+inline StatusBuilder&& StatusBuilder::AlsoOutputToSink(absl::LogSink* sink) && {
   return std::move(AlsoOutputToSink(sink));
 }
 

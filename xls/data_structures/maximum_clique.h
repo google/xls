@@ -23,7 +23,6 @@
 #include "absl/container/btree_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
 #include "ortools/linear_solver/linear_solver.h"
 

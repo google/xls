@@ -19,6 +19,7 @@
 
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/log/initialize.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls {
@@ -38,7 +39,7 @@ std::vector<std::string_view> InitXls(std::string_view usage, int argc,
 }
 
 namespace internal {
-void InitXlsPostAbslFlagParse() {}
+void InitXlsPostAbslFlagParse() { absl::InitializeLog(); }
 }  // namespace internal
 
 }  // namespace xls

@@ -28,6 +28,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -35,8 +37,9 @@
 #include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/get_runfile_path.h"
-#include "xls/common/logging/log_sink_registry.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -57,7 +60,7 @@ const int determinism_test_repeat_count = 3;
 
 CapturedLogEntry::CapturedLogEntry() = default;
 
-CapturedLogEntry::CapturedLogEntry(const ::xls::LogEntry& entry)
+CapturedLogEntry::CapturedLogEntry(const ::absl::LogEntry& entry)
     : text_message(entry.text_message()),
       log_severity(entry.log_severity()),
       verbosity(entry.verbosity()),
@@ -66,11 +69,11 @@ CapturedLogEntry::CapturedLogEntry(const ::xls::LogEntry& entry)
       source_line(entry.source_line()),
       prefix(entry.prefix()) {}
 
-XlsccTestBase::XlsccTestBase() { ::xls::AddLogSink(this); }
+XlsccTestBase::XlsccTestBase() { ::absl::AddLogSink(this); }
 
-XlsccTestBase::~XlsccTestBase() { ::xls::RemoveLogSink(this); }
+XlsccTestBase::~XlsccTestBase() { ::absl::RemoveLogSink(this); }
 
-void XlsccTestBase::Send(const ::xls::LogEntry& entry) {
+void XlsccTestBase::Send(const ::absl::LogEntry& entry) {
   log_entries_.emplace_back(entry);
 }
 

@@ -1943,7 +1943,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
-        "//xls/common/logging:log_message",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",

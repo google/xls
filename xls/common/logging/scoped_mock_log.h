@@ -22,9 +22,9 @@
 
 #include "gmock/gmock.h"
 #include "absl/base/log_severity.h"
-#include "xls/common/logging/log_entry.h"
-#include "xls/common/logging/log_sink.h"
-#include "xls/common/logging/log_sink_registry.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink.h"
+#include "absl/log/log_sink_registry.h"
 
 namespace xls {
 namespace testing {
@@ -91,7 +91,7 @@ namespace testing {
 // kDoNotCaptureLogsYet.
 enum LogCapturingState_ { kDoNotCaptureLogsYet };
 
-class ScopedMockLog : public LogSink {
+class ScopedMockLog : public absl::LogSink {
  public:
   // A user can use the syntax
   //   ScopedMockLog log(kDoNotCaptureLogsYet);
@@ -122,7 +122,7 @@ class ScopedMockLog : public LogSink {
         "object is not capturing logs.");
 
     is_capturing_logs_ = true;
-    xls::AddLogSink(this);
+    absl::AddLogSink(this);
   }
 
   // Stops log capturing if the object is capturing logs.  Otherwise
@@ -140,7 +140,7 @@ class ScopedMockLog : public LogSink {
         "object is capturing logs.");
 
     is_capturing_logs_ = false;
-    xls::RemoveLogSink(this);
+    absl::RemoveLogSink(this);
   }
 
   // Implements the mock method:
@@ -164,7 +164,7 @@ class ScopedMockLog : public LogSink {
   // Implements the Send() virtual function in class LogSink.
   // Whenever a LOG() statement is executed, this function will be
   // invoked with information presented in the LOG().
-  void Send(const LogEntry& entry) override {
+  void Send(const absl::LogEntry& entry) override {
     // We are only interested in the log severity, full file name, and
     // log message.
     MessageInfo message_info;
