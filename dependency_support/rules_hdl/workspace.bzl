@@ -38,18 +38,14 @@ def repo():
     )
 
     # Current as of 2023-12-05
-    git_hash = "37efe7ca7b8469454eacd3b70ef5fe5ddfea2cf4"
+    git_hash = "f9c7107c189fd7c82d4b21b755dcb93641141709"
     archive_sha256 = "d32c5d3a0864e351ca8e6e40d3cf1bb4b78cfc85ea81b5c52bd44b23d274d321"
 
     maybe(
         http_archive,
         name = "rules_hdl",
-        sha256 = archive_sha256,
         strip_prefix = "bazel_rules_hdl-%s" % git_hash,
         urls = [
-            "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
+            "https://github.com/antmicro/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
         ],
-        repo_mapping = {
-            "@rules_hdl_cpython": "@python39",
-        },
     )

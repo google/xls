@@ -14,9 +14,10 @@
 
 # Build rules for XLS examples.
 
-load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
@@ -32,6 +33,7 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load("//xls/build_rules:dashboard.bzl", "dashboard")
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 
 package(
@@ -454,7 +456,16 @@ verilog_library(
 )
 
 synthesize_rtl(
-    name = "find_index_5000ps_model_unit_verilog_synth",
+    name = "find_index_5000ps_model_unit_verilog_synth_sky130",
+    top_module = "find_index",
+    deps = [
+        ":find_index_5000ps_model_unit_verilog",
+    ],
+)
+
+synthesize_rtl(
+    name = "find_index_5000ps_model_unit_verilog_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt",
     top_module = "find_index",
     deps = [
         ":find_index_5000ps_model_unit_verilog",
@@ -693,13 +704,33 @@ verilog_library(
 )
 
 place_and_route(
-    name = "find_index_place_and_route",
+    name = "find_index_place_and_route_sky130",
     # ~64 MhZ
     clock_period = "15.42857143",
-    core_padding_microns = 30,
+    core_padding_microns = 10,
     placement_density = "0.8",
-    synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth",
+    synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth_sky130",
     target_die_utilization_percentage = "30",
+)
+
+gds_write(
+    name = "find_index_gds_sky130",
+    implemented_rtl = ":find_index_place_and_route_sky130",
+)
+
+place_and_route(
+    name = "find_index_place_and_route_asap7",
+    # ~64 MhZ
+    clock_period = "15.42857143",
+    core_padding_microns = 2,
+    placement_density = "0.8",
+    synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth_asap7",
+    target_die_utilization_percentage = "30",
+)
+
+gds_write(
+    name = "find_index_gds_asap7",
+    implemented_rtl = ":find_index_place_and_route_asap7",
 )
 
 xls_dslx_library(
@@ -750,4 +781,69 @@ filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
     visibility = ["//xls:xls_internal"],
+)
+
+xls_dslx_library(
+    name = "passthrough_dslx",
+    srcs = [
+        "passthrough.x",
+    ],
+)
+
+xls_dslx_verilog(
+    name = "passthrough_verilog",
+    codegen_args = {
+        "module_name": "passthrough",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "use_system_verilog": "false",
+        "streaming_channel_data_suffix": "_data",
+    },
+    dslx_top = "Passthrough",
+    library = "passthrough_dslx",
+    verilog_file = "passthrough.v",
+)
+
+xls_dslx_test(
+    name = "passthrough_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":passthrough_dslx",
+)
+
+py_test(
+    name = "passthrough_cocotb_test",
+    srcs = ["passthrough_cocotb_test.py"],
+    data = [
+        ":passthrough_verilog",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/simulation/cocotb:cocotb_xls",
+    ],
+)
+
+dashboard(
+    name = "passthrough_dashboard",
+    title = "Passthrough Dashboard",
+    tests = [
+        {
+            "name": "passthrough_cocotb_test",
+            "file_parsers": {
+                "//xls/tools/dashboard:cocotb_results_xml_parser": "sim_build/results.xml"
+            },
+        },
+        {
+            "name": "passthrough_test",
+            "output_parsers": [
+                "//xls/tools/dashboard:dslx_test_parser",
+            ],
+        },
+    ],
+    files = []
 )

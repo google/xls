@@ -24,7 +24,6 @@ load("@python39//:defs.bzl", python_interpreter_target = "interpreter")
 load("@rules_7zip//:setup.bzl", "setup_7zip")  # needed by rules_hdl
 load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
 load("@rules_hdl//dependency_support:dependency_support.bzl", rules_hdl_dependency_support = "dependency_support")
-load("@rules_hdl//toolchains/cpython:cpython_toolchain.bzl", rules_hdl_register_cpython_repository = "register_cpython_repository")
 load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
 load("@rules_python//python:pip.bzl", "pip_parse")
 load("@rules_python//python:repositories.bzl", "py_repositories")
@@ -33,7 +32,6 @@ def initialize_external_repositories():
     """Calls set-up methods for external repositories that require that."""
     bazel_skylib_workspace()
     protobuf_deps()
-    rules_hdl_register_cpython_repository()
     rules_hdl_init(python_interpreter_target = python_interpreter_target)
     rules_hdl_dependency_support()
     setup_7zip()
