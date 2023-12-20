@@ -505,7 +505,7 @@ absl::StatusOr<std::vector<Value>> Eval(
       XLS_ASSIGN_OR_RETURN(
           result, DropInterpreterEvents(InterpretFunction(f, arg_set.args)));
     }
-    std::cout << result.ToString(FormatPreference::kHex) << std::endl;
+    std::cout << result.ToString(FormatPreference::kHex) << '\n';
 
     if (arg_set.expected.has_value()) {
       if (result != *arg_set.expected) {

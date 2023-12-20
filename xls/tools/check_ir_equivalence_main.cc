@@ -162,7 +162,7 @@ static absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
   // Finally, print the output to the terminal in gorgeous two-color ASCII.
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   std::cout << solvers::z3::SolverResultToString(ctx, solver, satisfiable)
-            << std::endl;
+            << '\n';
 
   Z3_solver_dec_ref(ctx, solver);
 

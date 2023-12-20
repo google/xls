@@ -102,7 +102,7 @@ absl::Status RealMain(std::string_view input_path) {
     if (packages.size() > 1) {
       // Use endl to flush cout so the banner appears before starting work on
       // the BDD.
-      std::cout << "================== " << name << std::endl;
+      std::cout << "================== " << name << '\n';
     }
     std::optional<FunctionBase*> top = package->GetTop();
     if (!top.has_value()) {

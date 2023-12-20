@@ -80,7 +80,7 @@ absl::Status RealMain(absl::Span<const std::string_view> args) {
   absl::StatusOr<Value> rpc_status =
       drpc->CallUnnamed(*function_type, arguments);
   if (rpc_status.ok()) {
-    std::cout << rpc_status->ToString(FormatPreference::kHex) << std::endl;
+    std::cout << rpc_status->ToString(FormatPreference::kHex) << '\n';
   }
   return rpc_status.status();
 }

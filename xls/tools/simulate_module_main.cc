@@ -116,7 +116,7 @@ absl::Status RunProc(const verilog::ModuleSimulator& simulator,
       MapT channel_outputs,
       simulator.RunInputSeriesProc(proc_input.channel_inputs,
                                    proc_input.output_channel_counts));
-  std::cout << ChannelValuesToString(channel_outputs) << std::endl;
+  std::cout << ChannelValuesToString(channel_outputs) << '\n';
   return absl::OkStatus();
 }
 
@@ -139,7 +139,7 @@ absl::Status RunFunction(const verilog::ModuleSimulator& simulator,
                        simulator.RunBatched(args_sets));
 
   for (const Value& output : outputs) {
-    std::cout << output.ToString(FormatPreference::kHex) << std::endl;
+    std::cout << output.ToString(FormatPreference::kHex) << '\n';
   }
   return absl::OkStatus();
 }

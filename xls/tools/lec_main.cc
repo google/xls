@@ -204,7 +204,7 @@ absl::Status AutoStage(const solvers::z3::LecParams& lec_params,
         std::cout << "PASSED!\n";
       } else {
         std::cout << "FAILED!\n";
-        std::cout << std::endl << "IR/netlist value dump:" << std::endl;
+        std::cout << '\n' << "IR/netlist value dump:" << '\n';
         lec->DumpIrTree();
       }
     }
@@ -212,9 +212,9 @@ absl::Status AutoStage(const solvers::z3::LecParams& lec_params,
     std::cout << "Performing full LEC.\n";
     XLS_ASSIGN_OR_RETURN(auto lec, solvers::z3::Lec::Create(lec_params));
     bool equal = lec->Run();
-    std::cout << lec->ResultToString() << std::endl;
+    std::cout << lec->ResultToString() << '\n';
     if (!equal) {
-      std::cout << std::endl << "IR/netlist value dump:" << std::endl;
+      std::cout << '\n' << "IR/netlist value dump:" << '\n';
       lec->DumpIrTree();
     }
   }
@@ -296,9 +296,9 @@ static absl::Status RealMain(
     return absl::DeadlineExceededError("LEC timed out.");
   }
 
-  std::cout << lec->ResultToString() << std::endl;
+  std::cout << lec->ResultToString() << '\n';
   if (!equal) {
-    std::cout << std::endl << "IR/netlist value dump:" << std::endl;
+    std::cout << '\n' << "IR/netlist value dump:" << '\n';
     lec->DumpIrTree();
   }
 

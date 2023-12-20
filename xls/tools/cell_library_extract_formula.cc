@@ -59,7 +59,7 @@ absl::Status DumpOutputPinExpressions(std::string_view cell_name,
     }
     if (pin_entry->GetKVOrDie("direction") == "output") {
       std::cout << cell_name << "::" << pin_entry->args[0] << " = "
-                << pin_entry->GetKVOrDie("function") << std::endl;
+                << pin_entry->GetKVOrDie("function") << '\n';
     }
   }
   return absl::OkStatus();
@@ -108,7 +108,7 @@ absl::Status RealMain(std::string_view path, std::string_view cell_name,
   }
 
   std::cout << "No cell named \"" << cell_name << "\" found among "
-            << library->CountEntries("cell") << " cells." << std::endl;
+            << library->CountEntries("cell") << " cells." << '\n';
   return absl::OkStatus();
 }
 

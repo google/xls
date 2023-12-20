@@ -150,7 +150,7 @@ static absl::Status RealMain(const std::string& netlist_path,
     output = Value(output_bits);
   }
 
-  std::cout << output.ToString(FormatPreference::kHex) << std::endl;
+  std::cout << output.ToString(FormatPreference::kHex) << '\n';
   return absl::OkStatus();
 }
 

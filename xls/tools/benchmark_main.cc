@@ -160,7 +160,7 @@ void PrintNodeBreakdown(FunctionBase* f) {
   }
   std::sort(ops.begin(), ops.end(),
             [&](Op a, Op b) { return op_count.at(a) > op_count.at(b); });
-  std::cout << "Breakdown by op of all nodes in the graph:" << std::endl;
+  std::cout << "Breakdown by op of all nodes in the graph:" << '\n';
   for (Op op : ops) {
     std::cout << absl::StreamFormat("  %15s : %5d (%5.2f%%)\n", OpToString(op),
                                     op_count.at(op),
@@ -241,7 +241,7 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
             });
   std::cout << "Pass run durations (# of times pass changed IR / # of times "
                "pass was run):"
-            << std::endl;
+            << '\n';
   for (const std::string& name : pass_names) {
     std::cout << absl::StreamFormat("  %-20s : %-5dms (%3d / %3d)\n", name,
                                     DurationToMs(pass_times.at(name)),
@@ -264,7 +264,7 @@ absl::Status PrintCriticalPath(
                                critical_path.size());
 
   absl::flat_hash_map<Op, std::pair<int64_t, int64_t>> op_to_sum;
-  std::cout << "Critical path:" << std::endl;
+  std::cout << "Critical path:" << '\n';
   std::cout << CriticalPathToString(
       critical_path, [&query_engine](Node* n) -> std::string {
         if (absl::GetFlag(FLAGS_show_known_bits)) {

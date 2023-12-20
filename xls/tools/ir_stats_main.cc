@@ -43,15 +43,15 @@ static absl::Status RealMain(std::string_view ir_path,
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(contents));
 
-  std::cout << "Package \"" << package->name() << "\"" << std::endl;
+  std::cout << "Package \"" << package->name() << "\"" << '\n';
   for (const auto& f : package->functions()) {
     if (restrict_fn && restrict_fn.value() != f->name()) {
       continue;
     }
-    std::cout << "  Function: \"" << f->name() << "\"" << std::endl;
-    std::cout << "    Signature: " << f->GetType()->ToString() << std::endl;
-    std::cout << "    Nodes: " << f->node_count() << std::endl;
-    std::cout << std::endl;
+    std::cout << "  Function: \"" << f->name() << "\"" << '\n';
+    std::cout << "    Signature: " << f->GetType()->ToString() << '\n';
+    std::cout << "    Nodes: " << f->node_count() << '\n';
+    std::cout << '\n';
   }
   return absl::OkStatus();
 }
