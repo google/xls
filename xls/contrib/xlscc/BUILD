@@ -206,7 +206,10 @@ filegroup(
 
 cc_binary(
     name = "xlscc",
-    srcs = ["main.cc"],
+    srcs = [
+        "flags.h",
+        "main.cc",
+    ],
     visibility = ["//xls:xls_users"],
     deps = [
         ":hls_block_cc_proto",
@@ -215,6 +218,7 @@ cc_binary(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
@@ -223,6 +227,7 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/logging:log_flags",
         "//xls/common/status:status_macros",
+        "//xls/ir:channel",
         "@llvm-project//clang:ast",
     ],
 )

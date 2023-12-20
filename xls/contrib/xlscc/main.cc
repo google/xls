@@ -22,11 +22,14 @@
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "clang/include/clang/AST/Decl.h"
@@ -36,9 +39,11 @@
 #include "xls/common/logging/log_flags.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/flags.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/ir/channel.h"
 
 const char kUsage[] = R"(
 Generates XLS IR from a given C++ file, or generates Verilog in the special
@@ -109,6 +114,10 @@ ABSL_FLAG(int, warn_unroll_iters, 100,
 
 ABSL_FLAG(int, z3_rlimit, -1,
           "rlimit to set for z3 solver (eg for loop unrolling)");
+
+ABSL_FLAG(xlscc::ChannelStrictnessMap, channel_strictness,
+          xlscc::ChannelStrictnessMap(),
+          "Comma separated map of channels to strictness modes");
 
 ABSL_FLAG(std::string, io_op_token_ordering, "none",
           "none (default), channel_wise, lexical");
@@ -244,12 +253,14 @@ static absl::Status Run(std::string_view cpp_path) {
       XLS_ASSIGN_OR_RETURN(
           proc,
           translator.GenerateIR_Block(
-              &package, block, absl::GetFlag(FLAGS_top_level_init_interval)));
+              &package, block, absl::GetFlag(FLAGS_top_level_init_interval),
+              absl::GetFlag(FLAGS_channel_strictness).map));
     } else {
       XLS_ASSIGN_OR_RETURN(
           proc,
           translator.GenerateIR_BlockFromClass(
-              &package, &block, absl::GetFlag(FLAGS_top_level_init_interval)));
+              &package, &block, absl::GetFlag(FLAGS_top_level_init_interval),
+              absl::GetFlag(FLAGS_channel_strictness).map));
 
       if (!block_pb_name.empty()) {
         XLS_RETURN_IF_ERROR(xls::SetTextProtoFile(block_pb_name, block));

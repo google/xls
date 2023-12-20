@@ -131,6 +131,7 @@ cc_test(
     shard_count = 32,
     deps = [
         ":unit_test",
+        "//xls/common:casts",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",

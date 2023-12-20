@@ -30,6 +30,7 @@
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
+#include "xls/common/casts.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -3949,6 +3950,79 @@ TEST_P(TranslatorProcTest, IOProcClassDirectIn) {
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("direct-ins not implemented yet")));
+}
+
+TEST_P(TranslatorProcTest, IODefaultStrictness) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          out.write(3*in.read());
+         }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec));
+
+  for (xls::Channel* channel : package_->channels()) {
+    EXPECT_EQ(channel->kind(), xls::ChannelKind::kStreaming)
+        << "Non-streaming channel: " << channel->name();
+    if (channel->kind() != xls::ChannelKind::kStreaming) {
+      continue;
+    }
+    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->GetStrictness(),
+              xls::ChannelStrictness::kArbitraryStaticOrder)
+        << "Incorrect strictness for channel: " << channel->name();
+  }
+}
+
+TEST_P(TranslatorProcTest, IOWithStrictnessSpecified) {
+  const std::string content = R"(
+       class Block {
+        public:
+       #pragma hls_channel_strictness proven_mutually_exclusive
+         __xls_channel<int , __xls_channel_dir_In>& in;
+       #pragma hls_channel_strictness arbitrary_static_order
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          out.write(3*in.read());
+         }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec));
+
+  for (xls::Channel* channel : package_->channels()) {
+    EXPECT_EQ(channel->kind(), xls::ChannelKind::kStreaming)
+        << "Non-streaming channel: " << channel->name();
+    if (channel->kind() != xls::ChannelKind::kStreaming) {
+      continue;
+    }
+    EXPECT_THAT(channel->name(), testing::AnyOf("in", "out"));
+    xls::ChannelStrictness expected_strictness =
+        channel->name() == "in"
+            ? xls::ChannelStrictness::kProvenMutuallyExclusive
+            : xls::ChannelStrictness::kArbitraryStaticOrder;
+    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->GetStrictness(),
+              expected_strictness)
+        << "Incorrect strictness for channel: " << channel->name();
+  }
 }
 
 TEST_P(TranslatorProcTest, IOProcClassPropagateVars) {

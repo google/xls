@@ -32,6 +32,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
@@ -49,6 +50,37 @@ using std::string;
 using std::vector;
 
 namespace xlscc {
+
+absl::StatusOr<std::optional<xls::ChannelStrictness>>
+Translator::GetChannelStrictness(
+    const clang::NamedDecl& decl,
+    const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
+        channel_strictness_map) {
+  std::optional<xls::ChannelStrictness> channel_strictness;
+  XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(decl.getLocation()));
+  if (pragma.type() == Pragma_ChannelStrictness) {
+    XLS_ASSIGN_OR_RETURN(
+        channel_strictness,
+        xls::ChannelStrictnessFromString(pragma.str_argument()),
+        _.SetPrepend() << ErrorMessage(
+            GetLoc(decl), "Invalid hls_channel_strictness pragma: "));
+  }
+  if (auto it = channel_strictness_map.find(decl.getNameAsString());
+      it != channel_strictness_map.end()) {
+    if (channel_strictness.has_value() && *channel_strictness != it->second) {
+      return absl::InvalidArgumentError(ErrorMessage(
+          GetLoc(decl),
+          "Command-line-specified channel strictness contradicts "
+          "hls_channel_strictness pragma for channel: %s (command-line: %s, "
+          "pragma: %s)",
+          decl.getNameAsString(),
+          xls::ChannelStrictnessToString(channel_strictness.value()),
+          xls::ChannelStrictnessToString(it->second)));
+    }
+    channel_strictness = it->second;
+  }
+  return channel_strictness;
+}
 
 absl::Status Translator::GenerateExternalChannels(
     std::list<ExternalChannelInfo>& top_decls,
@@ -77,9 +109,7 @@ absl::Status Translator::GenerateExternalChannels(
               decl->getNameAsString(), xls_channel_op, data_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
-              // TODO(google/xls#1023): Make channel strictness
-              // frontend-configurable.
-              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+              /*strictness=*/top_decl.strictness));
       unused_external_channels_.push_back(new_channel.regular);
     } else if (top_decl.interface_type == InterfaceType::kDirect) {
       XLS_CHECK(top_decl.is_input);
@@ -101,9 +131,7 @@ absl::Status Translator::GenerateExternalChannels(
               read_request_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
-              // TODO(google/xls#1023): Make channel strictness
-              // frontend-configurable.
-              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+              /*strictness=*/top_decl.strictness));
       unused_external_channels_.push_back(new_channel.read_request);
 
       XLS_ASSIGN_OR_RETURN(
@@ -116,9 +144,7 @@ absl::Status Translator::GenerateExternalChannels(
               read_response_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
-              // TODO(google/xls#1023): Make channel strictness
-              // frontend-configurable.
-              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+              /*strictness=*/top_decl.strictness));
       unused_external_channels_.push_back(new_channel.read_response);
 
       XLS_ASSIGN_OR_RETURN(
@@ -131,9 +157,7 @@ absl::Status Translator::GenerateExternalChannels(
               write_request_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
-              // TODO(google/xls#1023): Make channel strictness
-              // frontend-configurable.
-              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+              /*strictness=*/top_decl.strictness));
       unused_external_channels_.push_back(new_channel.write_request);
 
       XLS_ASSIGN_OR_RETURN(
@@ -146,9 +170,7 @@ absl::Status Translator::GenerateExternalChannels(
               write_response_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
-              // TODO(google/xls#1023): Make channel strictness
-              // frontend-configurable.
-              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+              /*strictness=*/top_decl.strictness));
       unused_external_channels_.push_back(new_channel.write_response);
     } else {
       return absl::InvalidArgumentError(
@@ -164,7 +186,9 @@ absl::Status Translator::GenerateExternalChannels(
 }
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
-    xls::Package* package, const HLSBlock& block, int top_level_init_interval) {
+    xls::Package* package, const HLSBlock& block, int top_level_init_interval,
+    const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
+        channel_strictness_map) {
   package_ = package;
 
   absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
@@ -210,6 +234,13 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
               channel_spec.type() == ChannelType::MEMORY);
 
     ExternalChannelInfo channel_info = {.decl = param};
+
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<xls::ChannelStrictness> channel_strictness,
+        GetChannelStrictness(*param, channel_strictness_map));
+    if (channel_strictness.has_value()) {
+      channel_info.strictness = *channel_strictness;
+    }
 
     if (channel_spec.type() == ChannelType::DIRECT_IN) {
       channel_info.interface_type = InterfaceType::kDirect;
@@ -343,7 +374,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
     xls::Package* package, HLSBlock* block_spec_out,
-    int top_level_init_interval) {
+    int top_level_init_interval,
+    const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
+        channel_strictness_map) {
   package_ = package;
   block_spec_out->Clear();
 
@@ -429,6 +462,14 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
             .channel_type = channel_type,
             .interface_type = InterfaceType::kFIFO,
             .is_input = channel_type->GetOpType() == OpType::kRecv};
+
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<xls::ChannelStrictness> channel_strictness,
+            GetChannelStrictness(*field->name(), channel_strictness_map));
+        if (channel_strictness.has_value()) {
+          channel_info.strictness = *channel_strictness;
+        }
+
         top_decls.push_back(channel_info);
       } else if (channel_type->GetMemorySize() > 0) {
         xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
@@ -441,6 +482,14 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
             .decl = field->name(),
             .channel_type = channel_type,
             .interface_type = InterfaceType::kMemory};
+
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<xls::ChannelStrictness> channel_strictness,
+            GetChannelStrictness(*field->name(), channel_strictness_map));
+        if (channel_strictness.has_value()) {
+          channel_info.strictness = *channel_strictness;
+        }
+
         top_decls.push_back(channel_info);
       } else {
         return absl::InvalidArgumentError(
@@ -464,6 +513,14 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
                                              /*memory_size=*/-1),
           .interface_type = InterfaceType::kDirect,
           .is_input = true};
+
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<xls::ChannelStrictness> channel_strictness,
+          GetChannelStrictness(*field->name(), channel_strictness_map));
+      if (channel_strictness.has_value()) {
+        channel_info.strictness = *channel_strictness;
+      }
+
       top_decls.push_back(channel_info);
     }
   }

@@ -44,6 +44,7 @@ enum PragmaType {
   Pragma_ArrayAllowDefaultPad,
   Pragma_SyntheticInt,
   Pragma_Block,
+  Pragma_ChannelStrictness,
 };
 
 class Pragma {

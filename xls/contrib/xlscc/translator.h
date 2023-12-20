@@ -1122,15 +1122,19 @@ class Translator {
       int default_init_interval = 0);
 
   // Generates IR as an HLS block / XLS proc.
-  absl::StatusOr<xls::Proc*> GenerateIR_Block(xls::Package* package,
-                                              const HLSBlock& block,
-                                              int top_level_init_interval = 0);
+  absl::StatusOr<xls::Proc*> GenerateIR_Block(
+      xls::Package* package, const HLSBlock& block,
+      int top_level_init_interval = 0,
+      const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
+          channel_strictness_map = {});
 
   // Generates IR as an HLS block / XLS proc.
   // Top is a method, block specification is extracted from the class.
   absl::StatusOr<xls::Proc*> GenerateIR_BlockFromClass(
       xls::Package* package, HLSBlock* block_spec_out,
-      int top_level_init_interval = 0);
+      int top_level_init_interval = 0,
+      const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
+          channel_strictness_map = {});
 
   // Ideally, this would be done using the opt_main tool, but for now
   //  codegen is done by XLS[cc] for combinational blocks.
@@ -1565,6 +1569,8 @@ class Translator {
     bool extra_return = false;
     bool is_input = false;
     ChannelBundle external_channels;
+    xls::ChannelStrictness strictness =
+        xls::ChannelStrictness::kArbitraryStaticOrder;
   };
 
   absl::StatusOr<xls::Proc*> GenerateIR_Block(
@@ -2038,6 +2044,10 @@ class Translator {
   std::string LocString(const xls::SourceInfo& loc);
   xls::SourceInfo GetLoc(const clang::Stmt& stmt);
   xls::SourceInfo GetLoc(const clang::Decl& decl);
+  absl::StatusOr<std::optional<xls::ChannelStrictness>> GetChannelStrictness(
+      const clang::NamedDecl& decl,
+      const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
+          channel_strictness_map = {});
   inline std::string LocString(const clang::Decl& decl) {
     return LocString(GetLoc(decl));
   }

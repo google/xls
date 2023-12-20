@@ -256,6 +256,7 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
       {"synthetic_int", Pragma_SyntheticInt},
       {"top", Pragma_Top},
       {"unroll", Pragma_Unroll},
+      {"channel_strictness", Pragma_ChannelStrictness},
   };
   int lineno = 1;
   PragmaLoc prev_location;
@@ -359,6 +360,9 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
             break;
           case Pragma_Block:
             hls_pragmas_[location] = Pragma(pragma_val);
+            break;
+          case Pragma_ChannelStrictness:
+            hls_pragmas_[location] = Pragma(pragma_val, params);
             break;
         }
       }
