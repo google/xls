@@ -37,9 +37,9 @@ def repo():
         sha256 = "fd9e99f6ccb9e946755f9bc444abefbdd1eedb32c372c56dcacc7eb486aed178",
     )
 
-    # Current as of 2023-12-05
-    git_hash = "37efe7ca7b8469454eacd3b70ef5fe5ddfea2cf4"
-    archive_sha256 = "d32c5d3a0864e351ca8e6e40d3cf1bb4b78cfc85ea81b5c52bd44b23d274d321"
+    # Current as of 2023-12-21
+    git_hash = "d40ce302bf3f766052ab88c0675cb0844e0b24c2"
+    archive_sha256 = "a5e61a2d7eeaee695a165addb2b9fa8d3a48240274012e98cf67e33272e079f5"
 
     maybe(
         http_archive,
@@ -49,7 +49,4 @@ def repo():
         urls = [
             "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
         ],
-        repo_mapping = {
-            "@rules_hdl_cpython": "@python39",
-        },
     )
