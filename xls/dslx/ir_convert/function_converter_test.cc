@@ -17,6 +17,9 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/package.h"
 
@@ -86,6 +89,36 @@ fn f() -> u32 { u32:42 }
                 ->ForeignFunctionData()
                 ->code_template(),
             "extern_foobar {fn} (.out({return}));");
+}
+
+TEST(FunctionConverterTest, ConvertsLastExprAndImplicitTokenWithoutError) {
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(R"(
+fn f() {
+    let acc: u32 = u32:0;
+    for (i, acc): (u32, u32) in range(u32:0, u32:8) {
+        let acc = acc + i;
+        trace_fmt!("Do nothing");
+        acc
+    }(acc);
+}
+)",
+                        "test_module.x", "test_module", &import_data));
+
+  Function* f = tm.module->GetFunction("f").value();
+  ASSERT_NE(f, nullptr);
+  EXPECT_FALSE(f->extern_verilog_module().has_value());
+
+  const ConvertOptions convert_options;
+  xls::Package package("test_module_package");
+  PackageData package_data{&package};
+  FunctionConverter converter(package_data, tm.module, &import_data,
+                              convert_options, /*proc_data=*/nullptr,
+                              /*is_top=*/true);
+  XLS_ASSERT_OK(
+      converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 }
 
 }  // namespace

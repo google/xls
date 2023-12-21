@@ -204,13 +204,15 @@ cc_test(
     name = "function_converter_test",
     srcs = ["function_converter_test.cc"],
     deps = [
+        ":convert_options",
         ":function_converter",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
         "//xls/ir",
     ],
 )

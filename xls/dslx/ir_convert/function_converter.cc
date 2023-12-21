@@ -1267,8 +1267,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   // is simpler because it keeps all the params in the same spot regardless of
   // whether it's a function body or any other kind of function.
   if (implicit_token_data_.has_value()) {
-    XLS_ASSIGN_OR_RETURN(BValue retval,
-                         body_converter.function_builder_->GetLastValue());
+    XLS_ASSIGN_OR_RETURN(BValue retval, body_converter.Use(node->body()));
     std::vector<BValue> after_all_tokens(
         body_converter.implicit_token_data_->control_tokens.begin(),
         body_converter.implicit_token_data_->control_tokens.end());
