@@ -695,6 +695,20 @@ struct IOChannel {
   bool internal_to_function = false;
 };
 
+struct ContinuationItem {
+  const clang::NamedDecl* decl = nullptr;
+  std::shared_ptr<CType> ctype;
+};
+
+// Must be aggregated across calls
+struct Continuation {
+  // These are the values to pass out and back in across the IO op
+  std::vector<ContinuationItem> vars_to_pass;
+  std::vector<const clang::NamedDecl*> vars_accessed_since_last_continuation;
+  // InternalTuple (bits[1]: active, vars_to_pass types...)
+  std::shared_ptr<CType> param_part_ctype = nullptr;
+};
+
 // Tracks information about an IO op on an __xls_channel parameter to a function
 struct IOOp {
   // --- Preserved across calls ---
@@ -721,10 +735,15 @@ struct IOOp {
 
   // --- Not preserved across calls ---
 
+  std::string final_param_name;
+
   // Must be sequenced after these ops via tokens
   // This is translated across calls
   // Ops must be in GeneratedFunction::io_ops respecting this order
   std::vector<const IOOp*> after_ops;
+
+  // Must be aggregated across calls
+  Continuation continuation;
 
   IOChannel* channel = nullptr;
 
@@ -750,6 +769,7 @@ struct SideEffectingParameter {
   std::string param_name;
   IOOp* io_op = nullptr;
   const clang::NamedDecl* static_value = nullptr;
+  xls::Type* xls_io_param_type = nullptr;
 };
 
 struct GeneratedFunction;
@@ -785,7 +805,9 @@ struct PipelinedLoopSubProc {
 
   std::vector<const clang::NamedDecl*> variable_fields_order;
   std::vector<const clang::NamedDecl*> vars_changed_in_body;
-  std::vector<const clang::NamedDecl*> vars_accessed_in_body;
+  // (Decl, access count)
+  std::vector<std::pair<const clang::NamedDecl*, int64_t>>
+      vars_accessed_in_body;
 };
 
 // Encapsulates values produced when generating IR for a function
@@ -1062,8 +1084,12 @@ struct TranslationContext {
 
   const clang::CallExpr* last_intrinsic_call = nullptr;
 
+  // Number of times a variable is accessed
   // Always propagates up
-  absl::flat_hash_set<const clang::NamedDecl*> variables_accessed;
+  absl::flat_hash_map<const clang::NamedDecl*, int64_t> variables_accessed;
+  absl::flat_hash_map<const clang::NamedDecl*, int64_t>
+      variables_accessed_at_last_continuation;
+  absl::flat_hash_set<const clang::NamedDecl*> variables_masked_by_assignment;
 };
 
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
@@ -1150,6 +1176,16 @@ class Translator {
   void AddSourceInfoToPackage(xls::Package& package);
 
   inline void SetIOTestMode() { io_test_mode_ = true; }
+
+  absl::StatusOr<const clang::FunctionDecl*> GetTopFunction() const {
+    XLS_CHECK_NE(parser_, nullptr);
+    return parser_->GetTopFunction();
+  }
+
+  const GeneratedFunction* GetGeneratedFunction(
+      const clang::FunctionDecl* decl) const {
+    return inst_functions_.at(decl).get();
+  }
 
  private:
   friend class CInstantiableTypeAlias;
@@ -1551,8 +1587,8 @@ class Translator {
     // Not used for direct-ins
     absl::flat_hash_map<IOChannel*, ChannelBundle>
         xls_channel_by_function_channel;
-    absl::flat_hash_map<const IOOp*, int> arg_index_for_op;
-    absl::flat_hash_map<const IOOp*, int> return_index_for_op;
+    absl::flat_hash_map<const IOOp*, int64_t> arg_index_for_op;
+    absl::flat_hash_map<const IOOp*, int64_t> return_index_for_op;
     absl::flat_hash_map<const clang::NamedDecl*, int64_t>
         return_index_for_static;
     absl::flat_hash_map<const clang::NamedDecl*, int64_t>
@@ -1630,7 +1666,7 @@ class Translator {
                                         const xls::SourceInfo& op_loc);
 
   // Returns last invoke's return value
-  absl::StatusOr<xls::BValue> GenerateIOInvokes(
+  absl::StatusOr<xls::BValue> GenerateIOInvokesWithFSM(
       PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
@@ -1660,14 +1696,33 @@ class Translator {
       const CValue assignment_value = CValue());
 
   // IOOp must have io_call, and op members filled in
+  // This will add parameters for IO, including continuation inputs,
+  // so any aggregate continuation information must be present when it is called
+  // ret_value must be valid if add_continuation_to_return = true,
+  // otherwise AddContinuationToIOReturn() must be called later.
   // Returns permanent IOOp pointer
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceInfo& loc,
-                                       bool mask = false);
+                                       bool mask = false,
+                                       bool add_continuation_to_return = true);
+  absl::Status AddToContinuationNonDestructively(Continuation& continuation,
+                                                 const xls::SourceInfo& loc);
+
+  // Returns IO value
+  absl::StatusOr<xls::BValue> UnpackAndApplyContinuationIn(
+      const IOOp& op, xls::BValue param_in_bval, bool includes_io_value,
+      const xls::SourceInfo& loc);
+  absl::StatusOr<xls::BValue> GetContinuationOut(
+      const Continuation& continuation, const xls::SourceInfo& loc,
+      std::string_view node_name_prefix);
+
   absl::StatusOr<std::optional<const IOOp*>> GetPreviousOp(
       const IOOp& op, const xls::SourceInfo& loc);
 
   absl::StatusOr<xls::BValue> AddConditionToIOReturn(
+      const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc);
+
+  absl::StatusOr<xls::BValue> AddContinuationToIOReturn(
       const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc);
 
   absl::StatusOr<std::shared_ptr<LValue>> CreateChannelParam(
@@ -1800,7 +1855,8 @@ class Translator {
   absl::StatusOr<CValue> GetOnReset(const xls::SourceInfo& loc);
   absl::StatusOr<bool> DeclIsOnReset(const clang::NamedDecl* decl);
   absl::StatusOr<CValue> GetIdentifier(const clang::NamedDecl* decl,
-                                       const xls::SourceInfo& loc);
+                                       const xls::SourceInfo& loc,
+                                       bool record_access = true);
 
   absl::StatusOr<CValue> TranslateVarDecl(const clang::VarDecl* decl,
                                           const xls::SourceInfo& loc);
@@ -2010,8 +2066,8 @@ class Translator {
   // index is the index of the field
   // n_fields is the total number of fields
   // op_name is passed to the FunctionBuilder
-  xls::BValue GetFlexTupleField(xls::BValue val, int index, int n_fields,
-                                const xls::SourceInfo& loc,
+  xls::BValue GetFlexTupleField(xls::BValue val, int64_t index,
+                                int64_t n_fields, const xls::SourceInfo& loc,
                                 std::string_view op_name = "");
   // Changes the value of a field in a "flexible tuple"
   // tuple_val is the "flexible tuple" value

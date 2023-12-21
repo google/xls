@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
@@ -41,6 +42,8 @@
 
 namespace xlscc {
 namespace {
+
+using ::testing::UnorderedElementsAre;
 
 class TranslatorIOTest : public XlsccTestBase {
  public:
@@ -2025,6 +2028,152 @@ TEST_F(TranslatorIOTest, DebugTraceStructWithReference) {
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
                                             testing::HasSubstr("LValue")));
+}
+
+TEST_F(TranslatorIOTest, ContinuationVarsAccessed) {
+  const std::string content = R"(
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int x = in.read();
+         int y = x * 3;
+         int z = in.read();
+         out.write(y + z);
+       })";
+
+  xlscc::GeneratedFunction* func;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
+                           SourceToIr(content, &func, /* clang_argv= */ {},
+                                      /* io_test_mode= */ true));
+
+  ASSERT_EQ(func->io_ops.size(), 3);
+
+  auto op_it = func->io_ops.begin();
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre());
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre("x"));
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre("y", "z"));
+  ++op_it;
+}
+
+TEST_F(TranslatorIOTest, ContinuationVarsToPass) {
+  const std::string content = R"(
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int x = in.read();
+         int y = x * 3;
+         int z = in.read();
+         out.write(y + z);
+       })";
+
+  xlscc::GeneratedFunction* func;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
+                           SourceToIr(content, &func, /* clang_argv= */ {},
+                                      /* io_test_mode= */ true));
+
+  ASSERT_EQ(func->io_ops.size(), 3);
+
+  auto op_it = func->io_ops.begin();
+
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre());
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre("x", "y"));
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre("x", "y", "z"));
+  ++op_it;
+}
+
+TEST_F(TranslatorIOTest, ContinuationCallAggregate) {
+  const std::string content = R"(
+       int read_it(__xls_channel<int>& in) {
+        int w = 5;
+        w++;
+        w += in.read();
+        return w;
+       }
+  
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int x = in.read();
+         int y = x * 3;
+         int z = read_it(in);
+         out.write(y + z);
+       })";
+
+  xlscc::GeneratedFunction* func;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
+                           SourceToIr(content, &func, /* clang_argv= */ {},
+                                      /* io_test_mode= */ true));
+
+  ASSERT_EQ(func->io_ops.size(), 3);
+
+  auto op_it = func->io_ops.begin();
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre());
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre());
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre("w", "x"));
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre("x", "w", "y"));
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre("y", "z"));
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre("x", "y", "z"));
+  ++op_it;
+}
+
+TEST_F(TranslatorIOTest, ContinuationVarExcludedByAssignment) {
+  const std::string content = R"(
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int x = in.read();
+         int y = x * 3;
+         int z = in.read();
+         y = 9;
+         out.write(y + z);
+       })";
+
+  xlscc::GeneratedFunction* func;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
+                           SourceToIr(content, &func, /* clang_argv= */ {},
+                                      /* io_test_mode= */ true));
+
+  ASSERT_EQ(func->io_ops.size(), 3);
+
+  auto op_it = func->io_ops.begin();
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre());
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre("x"));
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsAccessedSinceLast(op_it->continuation),
+              UnorderedElementsAre("z"));
+  ++op_it;
 }
 
 }  // namespace

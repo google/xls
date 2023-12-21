@@ -330,7 +330,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                                              this_decl, top_decls, body_loc));
 
   XLS_ASSIGN_OR_RETURN(xls::BValue last_ret_val,
-                       GenerateIOInvokes(prepared, pb, body_loc));
+                       GenerateIOInvokesWithFSM(prepared, pb, body_loc));
 
   // Generate default ops for unused external channels
   XLS_RETURN_IF_ERROR(GenerateDefaultIOOps(prepared, pb, body_loc));
@@ -575,7 +575,7 @@ absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
   return absl::OkStatus();
 }
 
-absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
+absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithFSM(
     PreparedBlock& prepared, xls::ProcBuilder& pb,
     const xls::SourceInfo& body_loc) {
   struct State {
@@ -792,7 +792,21 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
     const IOOp& op = invoke.op;
 
     xls::SourceInfo op_loc = op.op_location;
-    const int return_index = prepared.return_index_for_op.at(&op);
+    const int64_t return_index = prepared.return_index_for_op.at(&op);
+
+    // Extract continuation from last_ret_val
+    xls::BValue ret_value_with_continuation = GetFlexTupleField(
+        last_ret_val, return_index, prepared.xls_func->return_value_count,
+        op_loc,
+        /*name=*/
+        absl::StrFormat("%s_ret_value_with_continuation", op.final_param_name));
+
+    XLS_ASSIGN_OR_RETURN(
+        xls::BValue ret_io_value,
+        UnpackAndApplyContinuationIn(op, ret_value_with_continuation,
+                                     /*includes_io_value=*/true, op_loc));
+
+    xls::BValue arg_io_val;
 
     xls::BValue new_token;
     const ChannelBundle* bundle_ptr = nullptr;
@@ -807,12 +821,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       unused_external_channels_.remove(xls_channel);
 
       XLS_CHECK_NE(xls_channel, nullptr);
-      const int arg_index = prepared.arg_index_for_op.at(&op);
-      XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
 
-      xls::BValue condition = GetFlexTupleField(
-          last_ret_val, return_index, prepared.xls_func->return_value_count,
-          op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
+      xls::BValue condition = ret_io_value;
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       condition = ConditionWithExtra(pb, condition, invoke, op_loc);
       xls::BValue receive;
@@ -831,26 +841,17 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
         in_val =
             pb.Tuple({pb.TupleIndex(receive, 1), pb.TupleIndex(receive, 2)});
       }
-      prepared.args[arg_index] = in_val;
-
-      // The function is invoked again with the value received from the channel
-      //  for each read() Op. The final invocation will produce all complete
-      //  outputs.
-      last_ret_val =
-          pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
-      XLSCC_CHECK(last_ret_val.valid(), op_loc);
+      arg_io_val = in_val;
     } else if (op.op == OpType::kSend) {
       xls::Channel* xls_channel = bundle_ptr->regular;
 
       unused_external_channels_.remove(xls_channel);
 
       XLS_CHECK_NE(xls_channel, nullptr);
-      xls::BValue send_tup =
-          GetFlexTupleField(last_ret_val, return_index,
-                            prepared.xls_func->return_value_count, op_loc);
-      xls::BValue val = pb.TupleIndex(send_tup, 0, op_loc);
-      xls::BValue condition = pb.TupleIndex(
-          send_tup, 1, op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
+      xls::BValue val = pb.TupleIndex(ret_io_value, 0, op_loc);
+      xls::BValue condition =
+          pb.TupleIndex(ret_io_value, 1, op_loc,
+                        absl::StrFormat("%s_pred", xls_channel->name()));
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
@@ -863,15 +864,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       unused_external_channels_.remove(bundle_ptr->read_request);
       unused_external_channels_.remove(bundle_ptr->read_response);
 
-      const int arg_index = prepared.arg_index_for_op.at(&op);
-      XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
-
-      xls::BValue read_tup =
-          GetFlexTupleField(last_ret_val, return_index,
-                            prepared.xls_func->return_value_count, op_loc);
-
-      xls::BValue addr = pb.TupleIndex(read_tup, 0, op_loc);
-      xls::BValue condition = pb.TupleIndex(read_tup, 1, op_loc);
+      xls::BValue addr = pb.TupleIndex(ret_io_value, 0, op_loc);
+      xls::BValue condition = pb.TupleIndex(ret_io_value, 1, op_loc);
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
@@ -888,14 +882,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       xls::BValue response_tup = pb.TupleIndex(receive, 1, op_loc);
       xls::BValue response = pb.TupleIndex(response_tup, 0, op_loc);
 
-      prepared.args[arg_index] = response;
-
-      // The function is invoked again with the value received from the channel
-      //  for each read() Op. The final invocation will produce all complete
-      //  outputs.
-      last_ret_val =
-          pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
-      XLSCC_CHECK(last_ret_val.valid(), op_loc);
+      arg_io_val = response;
     } else if (op.op == OpType::kWrite) {
       XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
       XLS_CHECK_NE(bundle_ptr->write_request, nullptr);
@@ -904,13 +891,10 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       unused_external_channels_.remove(bundle_ptr->write_request);
       unused_external_channels_.remove(bundle_ptr->write_response);
 
-      xls::BValue send_tup =
-          GetFlexTupleField(last_ret_val, return_index,
-                            prepared.xls_func->return_value_count, op_loc);
       // This has (addr, value)
-      xls::BValue send_tuple = pb.TupleIndex(send_tup, 0, op_loc);
+      xls::BValue send_tuple = pb.TupleIndex(ret_io_value, 0, op_loc);
       xls::BValue condition = pb.TupleIndex(
-          send_tup, 1, op_loc,
+          ret_io_value, 1, op_loc,
           absl::StrFormat("%s_pred", bundle_ptr->write_request->name()));
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       condition = ConditionWithExtra(pb, condition, invoke, op_loc);
@@ -929,15 +913,24 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       new_token = pb.TupleIndex(receive, 0);
       // Ignore received value, should be an empty tuple
     } else if (op.op == OpType::kTrace) {
-      xls::BValue trace_out_value =
-          GetFlexTupleField(last_ret_val, return_index,
-                            prepared.xls_func->return_value_count, op_loc);
       XLS_ASSIGN_OR_RETURN(
-          new_token,
-          GenerateTrace(trace_out_value, before_token, op, pb, invoke));
+          new_token, GenerateTrace(ret_io_value, before_token, op, pb, invoke));
     } else {
       XLS_CHECK("Unknown IOOp type" == nullptr);
     }
+
+    // Add the continuation to the IO argument and store
+    const int64_t arg_index = prepared.arg_index_for_op.at(&op);
+    XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
+    XLS_ASSIGN_OR_RETURN(prepared.args[arg_index],
+                         AddContinuationToIOReturn(op, arg_io_val, op_loc));
+
+    // The function is invoked again with the value received from the channel
+    //  for each read() Op. The final invocation will produce all complete
+    //  outputs.
+    last_ret_val =
+        pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
+    XLSCC_CHECK(last_ret_val.valid(), op_loc);
     return new_token;
   };
 
@@ -1304,23 +1297,10 @@ absl::Status Translator::GenerateIRBlockPrepare(
     switch (param.type) {
       case xlscc::SideEffectingParameterType::kIOOp: {
         const IOOp& op = *param.io_op;
-        if (op.op == OpType::kRecv) {
-          XLS_ASSIGN_OR_RETURN(
-              xls::BValue val,
-              CreateDefaultValue(op.channel->item_type, body_loc));
-          if (!op.is_blocking) {
-            val = pb.Tuple({val, pb.Literal(xls::UBits(1, 1), body_loc)},
-                           body_loc);
-          }
-          prepared.arg_index_for_op[&op] = prepared.args.size();
-          prepared.args.push_back(val);
-        } else if (op.op == OpType::kRead) {
-          XLS_ASSIGN_OR_RETURN(
-              xls::BValue default_value,
-              CreateDefaultValue(op.channel->item_type, body_loc));
-          prepared.arg_index_for_op[&op] = prepared.args.size();
-          prepared.args.push_back(default_value);
-        }
+        xls::BValue val =
+            pb.Literal(xls::ZeroOfType(param.xls_io_param_type), body_loc);
+        prepared.arg_index_for_op[&op] = prepared.args.size();
+        prepared.args.push_back(val);
         break;
       }
       case xlscc::SideEffectingParameterType::kStatic: {

@@ -416,7 +416,11 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     std::vector<xls::BValue> lvalue_conditions;
 
     for (const clang::NamedDecl* decl : variable_fields_order) {
-      const CValue& cvalue = context().variables.at(decl);
+      // Don't mark access
+      // These are handled below based on what's really used in the loop body
+      // const CValue& cvalue = context().variables.at(decl);
+      XLS_ASSIGN_OR_RETURN(const CValue& cvalue,
+                           GetIdentifier(decl, loc, /*record_access=*/false));
 
       if (cvalue.rvalue().valid()) {
         const uint64_t field_idx = context_field_indices.size();
@@ -463,10 +467,14 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
           variable_fields_order, &uses_on_reset, loc));
 
   // Propagate variables accessed to the outer context. Necessary for nested
-  // loops
-  for (const clang::NamedDecl* decl : sub_proc.vars_accessed_in_body) {
+  // loops.
+  // Context in doesn't mark usage so that only things really used
+  // in the loop body are counted.
+  for (const std::pair<const clang::NamedDecl*, int64_t>& accessed :
+       sub_proc.vars_accessed_in_body) {
+    const clang::NamedDecl* decl = accessed.first;
     if (context().variables.contains(decl)) {
-      context().variables_accessed.insert(decl);
+      context().variables_accessed[decl] += accessed.second;
     }
   }
 
@@ -483,7 +491,9 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     std::vector<xls::BValue> context_out_tuple_values;
 
     absl::flat_hash_set<const clang::NamedDecl*> vars_accessed_in_body_set;
-    for (const clang::NamedDecl* decl : sub_proc.vars_accessed_in_body) {
+    for (const std::pair<const clang::NamedDecl*, int64_t>& accessed :
+         sub_proc.vars_accessed_in_body) {
+      const clang::NamedDecl* decl = accessed.first;
       vars_accessed_in_body_set.insert(decl);
     }
 
@@ -491,7 +501,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       if (!vars_accessed_in_body_set.contains(decl)) {
         continue;
       }
-      const CValue& cvalue = context().variables.at(decl);
+      XLS_ASSIGN_OR_RETURN(const CValue& cvalue,
+                           GetIdentifier(decl, loc, /*record_access=*/false));
       // Not concerned with LValues
       if (!cvalue.rvalue().valid()) {
         continue;
@@ -709,7 +720,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
         context_field_indices,
     const std::vector<const clang::NamedDecl*>& variable_fields_order,
     bool* uses_on_reset, const xls::SourceInfo& loc) {
-  std::vector<const clang::NamedDecl*> vars_accessed_in_body;
+  std::vector<std::pair<const clang::NamedDecl*, int64_t>>
+      vars_accessed_in_body;
   std::vector<const clang::NamedDecl*> vars_changed_in_body;
 
   GeneratedFunction& enclosing_func = *context().sf;
@@ -929,10 +941,11 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     // iterating over variable_fields_order
 
     for (const clang::NamedDecl* decl : variable_fields_order) {
-      if (!context().variables_accessed.contains(decl)) {
+      auto found = context().variables_accessed.find(decl);
+      if (found == context().variables_accessed.end()) {
         continue;
       }
-      vars_accessed_in_body.push_back(decl);
+      vars_accessed_in_body.push_back(std::make_pair(decl, found->second));
       XLSCC_CHECK(context().sf->declaration_order_by_name_.contains(decl), loc);
     }
     // vars_accessed_in_body is already sorted deterministically due to
@@ -981,8 +994,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
       pipelined_loop_proc.variable_fields_order;
   const std::vector<const clang::NamedDecl*>& vars_changed_in_body =
       pipelined_loop_proc.vars_changed_in_body;
-  const std::vector<const clang::NamedDecl*>& vars_accessed_in_body =
-      pipelined_loop_proc.vars_accessed_in_body;
+  const std::vector<std::pair<const clang::NamedDecl*, int64_t>>&
+      vars_accessed_in_body = pipelined_loop_proc.vars_accessed_in_body;
   const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
       context_field_indices = pipelined_loop_proc.context_field_indices;
   const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
@@ -1005,8 +1018,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
     for (const clang::NamedDecl* decl : vars_changed_in_body) {
       vars_to_save_between_iters_set.insert(decl);
     }
-    for (const clang::NamedDecl* decl : vars_accessed_in_body) {
-      vars_to_save_between_iters_set.insert(decl);
+    for (const std::pair<const clang::NamedDecl*, int64_t>& accessed :
+         vars_accessed_in_body) {
+      vars_to_save_between_iters_set.insert(accessed.first);
     }
 
     for (const clang::NamedDecl* decl : vars_to_save_between_iters_set) {
@@ -1160,7 +1174,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   context().in_pipelined_for_body = true;
 
   XLS_ASSIGN_OR_RETURN(xls::BValue ret_tup,
-                       GenerateIOInvokes(prepared, pb, loc));
+                       GenerateIOInvokesWithFSM(prepared, pb, loc));
 
   token = prepared.token;
 

@@ -187,6 +187,12 @@ class XlsccTestBase : public xls::IrTestBase, public ::absl::LogSink {
   absl::StatusOr<std::vector<xls::Node*>> GetOpsForChannel(
       std::string_view channel);
 
+  static absl::flat_hash_set<std::string> NameSetForVarsAccessedSinceLast(
+      const xlscc::Continuation& continuation);
+
+  static absl::flat_hash_set<std::string> NameSetForVarsToPass(
+      const xlscc::Continuation& continuation);
+
   std::unique_ptr<xls::Package> package_;
   std::unique_ptr<xlscc::Translator> translator_;
   xlscc::HLSBlock block_spec_;

@@ -24,13 +24,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
-#include "xls/common/casts.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -44,12 +45,17 @@
 #include "xls/ir/events.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/pass_base.h"
 
 namespace xlscc {
 namespace {
 
+using ::testing::UnorderedElementsAre;
 using ::testing::Values;
 
 struct TestParams {
@@ -763,6 +769,67 @@ TEST_P(TranslatorProcTest, ForPipelined) {
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
                            GetBitsForChannelNameContains("__for_1_ctx_out"));
   EXPECT_EQ(channel_bits_out, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
+                           GetBitsForChannelNameContains("__for_1_ctx_in"));
+  EXPECT_EQ(channel_bits_in, 32);
+}
+
+TEST_P(TranslatorProcTest, ForPipelinedJustAssign) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=4;++i) {
+        a = i;
+      }
+
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(4, 32)),
+                      xls::Value(xls::SBits(4, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
+                           GetBitsForChannelNameContains("__for_1_ctx_out"));
+  EXPECT_EQ(channel_bits_out, 1 + 64);
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
                            GetBitsForChannelNameContains("__for_1_ctx_in"));
@@ -4350,10 +4417,6 @@ TEST_P(TranslatorProcTest, IOProcClassLValueInit) {
 
   XLS_ASSERT_OK_AND_ASSIGN(xlscc::HLSBlock meta, GetBlockSpec());
 
-  fprintf(stderr, "meta.DebugString() {\n");
-  fprintf(stderr, "%s", meta.DebugString().c_str());
-  fprintf(stderr, "meta.DebugString() }\n");
-
   const std::string ref_meta_str = R"(
     channels 	 {
       name: "in"
@@ -6019,6 +6082,198 @@ TEST_P(TranslatorProcTest, PipelinedLoopSerialAfterASAP) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(), xls::status_testing::IsOk());
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam, OpDuplicationAcrossIO) {
+  const std::string content = R"(
+    class Block {
+    public:
+      __xls_channel<int, __xls_channel_dir_In>& in1;
+      __xls_channel<int, __xls_channel_dir_In>& in2;
+      __xls_channel<int, __xls_channel_dir_Out>& out1;
+      __xls_channel<int, __xls_channel_dir_Out>& out2;
+
+#pragma hls_top
+      void foo() {
+        int x = in1.read();
+
+        x *= 3;
+
+        int y = in2.read();
+
+        x += y;
+
+        out1.write(x);
+        out2.write(x);
+      }
+    };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(), xls::status_testing::IsOk());
+
+  // Run inliner to expose the duplication
+  // But don't run other passes that might eliminate it (cse etc)
+  {
+    std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
+        xls::CreateOptimizationPassPipeline();
+    xls::OptimizationPassOptions options;
+    xls::PassResults results;
+
+    // Don't do cse so that the duplication shows
+    // bdd_cse pass wants a delay estimator
+    options.run_only_passes = {"inlining", "dce"};
+
+    XLS_ASSERT_OK(pipeline->Run(package_.get(), options, &results).status());
+  }
+
+  int64_t multiply_op_count = 0;
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, package_->GetProc("Block_proc"));
+  for (xls::Node* node : proc->nodes()) {
+    if (node->op() == xls::Op::kSMul || node->op() == xls::Op::kUMul ||
+        node->op() == xls::Op::kSMulp || node->op() == xls::Op::kUMulp) {
+      ++multiply_op_count;
+    }
+  }
+
+  // TODO(seanhaskell): Should be =1 when continuations are finished.
+  EXPECT_GT(multiply_op_count, 1);
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam,
+       ContinuationVarsAccessedPipelinedLoop) {
+  const std::string content = R"(
+      #pragma hls_top
+      void my_package(__xls_channel<int>& in,
+                      __xls_channel<int>& out) {
+        int x = in.read();
+        int y = x * 3;
+        int z = 0;
+        #pragma hls_pipeline_init_interval 1
+        for(int i=0;i<2;++i) {
+          z += in.read();
+        }
+        out.write(y + z);
+      })";
+
+  // Test without FSM so that the boundary is intact and easy to reason about
+  generate_fsms_for_pipelined_loops_ = false;
+
+  // Use function, rather than block, as top, to avoid needing to deal with
+  // "this" in the test
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  XLS_ASSERT_OK(ScanFile(content));
+  package_.reset(new xls::Package("my_package"));
+  XLS_ASSERT_OK(translator_->GenerateIR_Block(package_.get(), block_spec));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                           translator_->GetTopFunction());
+
+  const GeneratedFunction* func = translator_->GetGeneratedFunction(top_decl);
+
+  ASSERT_EQ(func->io_ops.size(), 4);
+
+  auto op_it = func->io_ops.begin();
+
+  EXPECT_EQ(NameSetForVarsAccessedSinceLast(op_it->continuation),
+            (absl::flat_hash_set<std::string>{}));
+  ++op_it;
+
+  EXPECT_EQ(NameSetForVarsAccessedSinceLast(op_it->continuation),
+            (absl::flat_hash_set<std::string>{"x", "i", "z"}));
+  ++op_it;
+
+  EXPECT_EQ(NameSetForVarsAccessedSinceLast(op_it->continuation),
+            (absl::flat_hash_set<std::string>{}));
+  ++op_it;
+
+  EXPECT_EQ(NameSetForVarsAccessedSinceLast(op_it->continuation),
+            (absl::flat_hash_set<std::string>{"y", "z"}));
+  ++op_it;
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam, ContinuationVarsPassed) {
+  const std::string content = R"(
+      #pragma hls_top
+      void my_package(__xls_channel<int>& in,
+                      __xls_channel<int>& out) {
+        int x = in.read();
+        int y = x * 3;
+        int z = 0;
+        #pragma hls_pipeline_init_interval 1
+        for(int i=0;i<2;++i) {
+          z += in.read();
+        }
+        out.write(y + z);
+      })";
+
+  // Test without FSM so that the boundary is intact and easy to reason about
+  generate_fsms_for_pipelined_loops_ = false;
+
+  // Use function, rather than block, as top, to avoid needing to deal with
+  // "this" in the test
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  XLS_ASSERT_OK(ScanFile(content));
+  package_.reset(new xls::Package("my_package"));
+  XLS_ASSERT_OK(translator_->GenerateIR_Block(package_.get(), block_spec));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                           translator_->GetTopFunction());
+
+  const GeneratedFunction* func = translator_->GetGeneratedFunction(top_decl);
+
+  ASSERT_EQ(func->io_ops.size(), 4);
+
+  auto op_it = func->io_ops.begin();
+
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre());
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre("x", "y", "z", "i"));
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre("x", "y", "z", "i"));
+  ++op_it;
+
+  EXPECT_THAT(NameSetForVarsToPass(op_it->continuation),
+              UnorderedElementsAre("x", "y", "z"));
+  ++op_it;
 }
 
 }  // namespace
