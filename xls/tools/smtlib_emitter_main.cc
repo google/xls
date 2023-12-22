@@ -60,7 +60,7 @@ static absl::Status RealMain(const std::filesystem::path& ir_path,
                        solvers::z3::IrTranslator::CreateAndTranslate(function));
   Z3_set_ast_print_mode(translator->ctx(), Z3_PRINT_SMTLIB2_COMPLIANT);
   std::cout << Z3_ast_to_string(translator->ctx(), translator->GetReturnNode())
-            << std::endl;
+            << '\n';
   return absl::OkStatus();
 }
 

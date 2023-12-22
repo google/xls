@@ -76,7 +76,7 @@ absl::Status RealMain() {
   absl::StatusOr<verilog::Module*> module_status = verilog::WrapIO(
       wrapped_module_name, instance_name, signature, io_strategy.get(), &f);
   if (module_status.ok()) {
-    std::cout << f.Emit() << std::endl;
+    std::cout << f.Emit() << '\n';
   }
   return module_status.status();
 }

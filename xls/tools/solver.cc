@@ -84,7 +84,7 @@ absl::Status RealMain(std::string_view ir_path,
       solvers::z3::TryProve(f, subject, predicate.value(), timeout));
   std::cout << "Proved " << subject_node_name << " " << predicate->ToString()
             << " holds for all input?"
-            << ": " << (proved ? "true" : "false") << std::endl;
+            << ": " << (proved ? "true" : "false") << '\n';
   return absl::OkStatus();
 }
 
