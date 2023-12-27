@@ -374,45 +374,64 @@ llvm::Value* EmitShiftOp(Node* shift, llvm::Value* lhs, llvm::Value* rhs,
              : builder->CreateTrunc(result, lhs->getType());
 }
 
-llvm::Value* EmitDiv(llvm::Value* lhs, llvm::Value* rhs, int64_t bit_count,
+llvm::Value* EmitDiv(llvm::Value* num, llvm::Value* denom, int64_t bit_count,
                      bool is_signed, LlvmTypeConverter* type_converter,
                      llvm::IRBuilder<>* builder) {
   // XLS div semantics differ from LLVM's (and most software's) here: in XLS,
   // division by zero returns the greatest value of that type, so 255 for an
-  // unsigned byte, and either -128 or 127 for a signed one.
-  // Thus, a little more work is necessary to emit LLVM IR matching the XLS
-  // div op than just IRBuilder::Create[SU]Div().
-  llvm::Value* zero = llvm::ConstantInt::get(rhs->getType(), 0);
-  llvm::Value* rhs_eq_zero = builder->CreateICmpEQ(rhs, zero);
+  // unsigned byte, and either -128 or 127 for a signed one. Also, division of
+  // the minimum signed value by -1 returns the minimum signed value, avoiding
+  // overflow. Thus, a little more work is necessary to emit LLVM IR matching
+  // the XLS div op than just IRBuilder::Create[SU]Div().
+  llvm::Value* zero = llvm::ConstantInt::get(denom->getType(), 0);
+  llvm::Value* denom_eq_zero = builder->CreateICmpEQ(denom, zero);
 
-  // To avoid div by zero make a never-zero rhs. This works because in the case
-  // of a zero rhs this value is not used.
-  llvm::Value* safe_rhs = builder->CreateSelect(
-      rhs_eq_zero, llvm::ConstantInt::get(rhs->getType(), 1), rhs);
-  if (is_signed) {
-    llvm::Value* lhs_ge_zero = builder->CreateICmpSGE(lhs, zero);
-    llvm::Value* max_value =
+  // To avoid div by zero, make a never-zero denom. This works because in the
+  // case of a zero denom this value is not used.
+  llvm::Value* safe_denom = builder->CreateSelect(
+      denom_eq_zero, llvm::ConstantInt::get(denom->getType(), 1), denom);
+  if (!is_signed) {
+    return builder->CreateSelect(
+        denom_eq_zero,
         type_converter
-            ->ToLlvmConstant(rhs->getType(), Value(Bits::MaxSigned(bit_count)))
-            .value();
-    llvm::Value* min_value =
-        type_converter
-            ->ToLlvmConstant(rhs->getType(), Value(Bits::MinSigned(bit_count)))
-            .value();
-
-    llvm::Value* rhs_is_zero_result =
-        builder->CreateSelect(lhs_ge_zero, max_value, min_value);
-
-    return builder->CreateSelect(rhs_eq_zero, rhs_is_zero_result,
-                                 builder->CreateSDiv(lhs, safe_rhs));
+            ->ToLlvmConstant(denom->getType(), Value(Bits::AllOnes(bit_count)))
+            .value(),
+        builder->CreateUDiv(num, safe_denom));
   }
 
-  return builder->CreateSelect(
-      rhs_eq_zero,
+  // Division by 0 gives the value furthest from zero with matching sign.
+  llvm::Value* lhs_ge_zero = builder->CreateICmpSGE(num, zero);
+  llvm::Value* max_value =
       type_converter
-          ->ToLlvmConstant(rhs->getType(), Value(Bits::AllOnes(bit_count)))
-          .value(),
-      builder->CreateUDiv(lhs, safe_rhs));
+          ->ToLlvmConstant(denom->getType(), Value(Bits::MaxSigned(bit_count)))
+          .value();
+  llvm::Value* min_value =
+      type_converter
+          ->ToLlvmConstant(denom->getType(), Value(Bits::MinSigned(bit_count)))
+          .value();
+  llvm::Value* rhs_is_zero_result =
+      builder->CreateSelect(lhs_ge_zero, max_value, min_value);
+
+  // Division by -1 gets converted to negation; this prevents potential overflow
+  // when dividing min_value by -1.
+  llvm::Value* denom_eq_neg_one = builder->CreateICmpEQ(
+      denom,
+      type_converter
+          ->ToLlvmConstant(denom->getType(), Value(Bits::AllOnes(bit_count)))
+          .value());
+  llvm::Value* denom_is_neg_one_result = builder->CreateSub(zero, num);
+
+  // Since overflow is UB, make sure the denominator can't create overflow; this
+  // works because it won't be used in the case of a -1 denom.
+  safe_denom = builder->CreateSelect(
+      denom_eq_neg_one, llvm::ConstantInt::get(denom->getType(), 1),
+      safe_denom);
+  llvm::Value* normal_result = builder->CreateSDiv(num, safe_denom);
+
+  return builder->CreateSelect(
+      denom_eq_zero, rhs_is_zero_result,
+      builder->CreateSelect(denom_eq_neg_one, denom_is_neg_one_result,
+                            normal_result));
 }
 
 llvm::Value* EmitMod(llvm::Value* lhs, llvm::Value* rhs, bool is_signed,
