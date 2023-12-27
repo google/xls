@@ -359,7 +359,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     }
 
     ran += 1;
-    std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
+    std::cerr << "[ RUN UNITTEST  ] " << test_name << '\n';
     absl::Status status;
     ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
     BytecodeInterpreterOptions interpreter_options;
@@ -379,7 +379,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     }
 
     if (status.ok()) {
-      std::cerr << "[            OK ]" << std::endl;
+      std::cerr << "[            OK ]" << '\n';
     } else {
       handle_error(status, test_name, /*is_quickcheck=*/false);
     }
@@ -388,7 +388,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
   std::cerr << absl::StreamFormat(
                    "[===============] %d test(s) ran; %d failed; %d skipped.",
                    ran, failed, skipped)
-            << std::endl;
+            << '\n';
 
   // Run quickchecks, but only if the JIT is enabled.
   if (!entry_module->GetQuickChecks().empty()) {
