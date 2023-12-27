@@ -208,7 +208,7 @@ struct PositiveValidator {
   template <class T, class U>
   static bool ValidateInit(U i) {
     if (i < 0) {
-      std::cerr << "PositiveValidator" << std::endl;
+      std::cerr << "PositiveValidator" << '\n';
       abort();
     }
     return true;
