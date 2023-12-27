@@ -29,13 +29,11 @@
 //   proc_ticks: 0
 //   known_failure {
 //     tool: ".*codegen_main"
-//     stderr_regex: ".*Impossible to schedule proc .* as specified; cannot achieve the specified
-//     pipeline length.*"
+//     stderr_regex: ".*Impossible to schedule proc .* as specified; cannot achieve the specified pipeline length.*"
 //   }
 //   known_failure {
 //     tool: ".*codegen_main"
-//     stderr_regex: ".*Impossible to schedule proc .* as specified; cannot achieve full
-//     throughput.*"
+//     stderr_regex: ".*Impossible to schedule proc .* as specified; cannot achieve full throughput.*"
 //   }
 // }
 // inputs {
