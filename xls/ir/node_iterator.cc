@@ -19,11 +19,11 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/inlined_vector.h"
-#include "absl/strings/str_join.h"
+#include "absl/container/flat_hash_set.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 
@@ -83,19 +83,12 @@ void NodeIterator::Initialize() {
     // We want to be careful to only bump down our operands once, since we're a
     // single user, even though we may refer to them multiple times in our
     // operands sequence.
-    absl::InlinedVector<Node*, 16> seen_operands;
+    absl::flat_hash_set<Node*> seen_operands;
+    seen_operands.reserve(r->operand_count());
     for (auto it = r->operands().rbegin(); it != r->operands().rend(); ++it) {
-      Node* o = *it;
-      bool found = false;
-      for (auto seen : seen_operands) {
-        if (seen == o) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        bump_down_remaining_users(o);
-        seen_operands.push_back(o);
+      Node* operand = *it;
+      if (auto [_, inserted] = seen_operands.insert(operand); inserted) {
+        bump_down_remaining_users(operand);
       }
     }
   };
