@@ -244,7 +244,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
             node->ReplaceUsesWithNew<Literal>(Value(Bits(known_prefix)))
                 .status());
         return true;
-      } else if (SplitsEnabled(opt_level)) {
+      }
+      if (SplitsEnabled(opt_level)) {
         std::vector<Node*> old_users(node->users().begin(),
                                      node->users().end());
         std::vector<Node*> concat_elements;
