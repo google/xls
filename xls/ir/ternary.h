@@ -15,7 +15,6 @@
 #ifndef XLS_IR_TERNARY_H_
 #define XLS_IR_TERNARY_H_
 
-#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <ostream>
@@ -26,8 +25,6 @@
 #include "absl/algorithm/container.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 
 namespace xls {
@@ -63,23 +60,10 @@ inline std::ostream& operator<<(std::ostream& os, const TernaryVector& vector) {
 
 namespace ternary_ops {
 
-inline TernaryVector FromKnownBits(const Bits& known_bits,
-                                   const Bits& known_bits_values) {
-  XLS_CHECK_EQ(known_bits.bit_count(), known_bits_values.bit_count());
-  TernaryVector result;
-  result.reserve(known_bits.bit_count());
-
-  for (int64_t i = 0; i < known_bits.bit_count(); ++i) {
-    if (known_bits.Get(i)) {
-      result.push_back(known_bits_values.Get(i) ? TernaryValue::kKnownOne
-                                                : TernaryValue::kKnownZero);
-    } else {
-      result.push_back(TernaryValue::kUnknown);
-    }
-  }
-
-  return result;
-}
+// Returns a vector with known bits as represented in `known_bits`, with values
+// as given in `known_bits_values`.
+TernaryVector FromKnownBits(const Bits& known_bits,
+                            const Bits& known_bits_values);
 
 // Returns a `Bits` that contains a 1 for each element of the given ternary
 // vector that is either `kKnownZero` or `kKnownOne`, and a 0 otherwise.
@@ -92,148 +76,52 @@ Bits ToKnownBitsValues(const TernaryVector& ternary_vector);
 // Returns a vector with known positions for each bit known in `lhs` that isn't
 // known in `rhs`. If `lhs` and `rhs` conflict, returns `std::nullopt`.
 // CHECK fails if `lhs` and `rhs` have different lengths.
-inline std::optional<TernaryVector> Difference(const TernaryVector& lhs,
-                                               const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
-  const int64_t size = lhs.size();
-
-  TernaryVector result;
-  result.reserve(size);
-  for (int64_t i = 0; i < size; ++i) {
-    if (lhs[i] != TernaryValue::kUnknown) {
-      if (rhs[i] == TernaryValue::kUnknown) {
-        result.push_back(lhs[i]);
-      } else {
-        if (lhs[i] != rhs[i]) {
-          return std::nullopt;
-        }
-        result.push_back(TernaryValue::kUnknown);
-      }
-    } else {
-      result.push_back(TernaryValue::kUnknown);
-    }
-  }
-
-  return result;
-}
+std::optional<TernaryVector> Difference(const TernaryVector& lhs,
+                                        const TernaryVector& rhs);
 
 // Returns a vector with known positions for each bit known to have a value in
 // either `lhs` or `rhs`, or an error if `lhs` and `rhs` are incompatible (have
 // known bits that disagree). CHECK fails if `lhs` and `rhs` have different
 // lengths.
-inline absl::StatusOr<TernaryVector> Union(const TernaryVector& lhs,
-                                           const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
-  const int64_t size = lhs.size();
-
-  TernaryVector result;
-  result.reserve(size);
-  for (int64_t i = 0; i < size; ++i) {
-    if (lhs[i] == TernaryValue::kUnknown) {
-      result.push_back(rhs[i]);
-    } else if (rhs[i] == TernaryValue::kUnknown) {
-      result.push_back(lhs[i]);
-    } else if (lhs[i] == rhs[i]) {
-      result.push_back(lhs[i]);
-    } else {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Incompatible values (mismatch at bit %d); cannot unify %s and %s", i,
-          ToString(lhs), ToString(rhs)));
-    }
-  }
-
-  return result;
-}
+absl::StatusOr<TernaryVector> Union(const TernaryVector& lhs,
+                                    const TernaryVector& rhs);
 
 // Updates `lhs` to include additional known information from `rhs`, or an error
 // if `lhs` and `rhs` are incompatible (have known bits that disagree). CHECK
 // fails if `lhs` and `rhs` have different lengths.
-inline absl::Status UpdateWithUnion(TernaryVector& lhs,
-                                    const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
-
-  for (int64_t i = 0; i < lhs.size(); ++i) {
-    if (rhs[i] == TernaryValue::kUnknown) {
-      continue;
-    }
-
-    if (lhs[i] == TernaryValue::kUnknown) {
-      lhs[i] = rhs[i];
-    } else if (lhs[i] != rhs[i]) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Incompatible values (mismatch at bit %d); cannot update %s with %s",
-          i, ToString(lhs), ToString(rhs)));
-    }
-  }
-
-  return absl::OkStatus();
-}
+absl::Status UpdateWithUnion(TernaryVector& lhs, const TernaryVector& rhs);
 
 // Returns a vector with known positions for each bit known to have the same
 // value in both `lhs` and `rhs`. CHECK fails if `lhs` and `rhs` have different
 // lengths.
-inline TernaryVector Intersection(const TernaryVector& lhs,
-                                  const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
-  const int64_t size = lhs.size();
-
-  TernaryVector result;
-  result.reserve(size);
-  for (int64_t i = 0; i < size; ++i) {
-    if (lhs[i] != rhs[i]) {
-      result.push_back(TernaryValue::kUnknown);
-    } else {
-      result.push_back(lhs[i]);
-    }
-  }
-
-  return result;
-}
+TernaryVector Intersection(const TernaryVector& lhs, const TernaryVector& rhs);
 
 // Updates `lhs`, turning it into a vector of bits known to have the same value
 // in both `lhs` and `rhs`. CHECK fails if `lhs` and `rhs` have different
 // lengths.
-inline void UpdateWithIntersection(TernaryVector& lhs,
-                                   const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
-
-  for (int64_t i = 0; i < lhs.size(); ++i) {
-    if (lhs[i] != rhs[i]) {
-      lhs[i] = TernaryValue::kUnknown;
-    }
-  }
-}
-inline void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.bit_count());
-
-  for (int64_t i = 0; i < lhs.size(); ++i) {
-    if (lhs[i] == TernaryValue::kUnknown) {
-      continue;
-    }
-    const bool lhs_bit = lhs[i] == TernaryValue::kKnownOne;
-    const bool rhs_bit = rhs.Get(i);
-    if (lhs_bit != rhs_bit) {
-      lhs[i] = TernaryValue::kUnknown;
-    }
-  }
-}
+void UpdateWithIntersection(TernaryVector& lhs, const TernaryVector& rhs);
+void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs);
 
 // Returns the number of known bits in the given `TernaryVector`.
-inline int64_t NumberOfKnownBits(const TernaryVector& vec) {
-  int64_t result = 0;
-  for (TernaryValue value : vec) {
-    if (value != TernaryValue::kUnknown) {
-      ++result;
-    }
-  }
-  return result;
-}
+int64_t NumberOfKnownBits(const TernaryVector& vec);
 
 inline bool IsKnown(TernaryValue t) { return t != TernaryValue::kUnknown; }
 inline bool IsUnknown(TernaryValue t) { return t == TernaryValue::kUnknown; }
 
+inline bool IsFullyKnown(const TernaryVector& ternary) {
+  return absl::c_all_of(ternary, IsKnown);
+}
 inline bool AllUnknown(const TernaryVector& v) {
-  return std::all_of(v.begin(), v.end(), IsUnknown);
+  return absl::c_all_of(v, IsUnknown);
+}
+
+inline bool IsKnownOne(const TernaryVector& ternary) {
+  return absl::c_all_of(
+      ternary, [](TernaryValue v) { return v == TernaryValue::kKnownOne; });
+}
+inline bool IsKnownZero(const TernaryVector& ternary) {
+  return absl::c_all_of(
+      ternary, [](TernaryValue v) { return v == TernaryValue::kKnownZero; });
 }
 
 inline TernaryValue And(const TernaryValue& a, const TernaryValue& b) {
@@ -270,27 +158,7 @@ inline TernaryValue Or(const TernaryValue& a, const TernaryValue& b) {
   return TernaryValue::kUnknown;
 }
 
-inline TernaryVector BitsToTernary(const Bits& bits) {
-  TernaryVector result;
-  result.resize(bits.bit_count());
-  for (int64_t i = 0; i < bits.bit_count(); ++i) {
-    result[i] = static_cast<TernaryValue>(bits.Get(i));
-  }
-  return result;
-}
-
-inline bool IsKnownOne(const TernaryVector& ternary) {
-  return absl::c_all_of(
-      ternary, [](TernaryValue v) { return v == TernaryValue::kKnownOne; });
-}
-inline bool IsKnownZero(const TernaryVector& ternary) {
-  return absl::c_all_of(
-      ternary, [](TernaryValue v) { return v == TernaryValue::kKnownZero; });
-}
-inline bool IsFullyKnown(const TernaryVector& ternary) {
-  return absl::c_none_of(
-      ternary, [](TernaryValue v) { return v == TernaryValue::kUnknown; });
-}
+TernaryVector BitsToTernary(const Bits& bits);
 
 }  // namespace ternary_ops
 }  // namespace xls
