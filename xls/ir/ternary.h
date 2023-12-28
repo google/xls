@@ -24,7 +24,9 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 
@@ -109,6 +111,34 @@ inline std::optional<TernaryVector> Difference(const TernaryVector& lhs,
       }
     } else {
       result.push_back(TernaryValue::kUnknown);
+    }
+  }
+
+  return result;
+}
+
+// Returns a vector with known positions for each bit known to have a value in
+// either `lhs` or `rhs`, or an error if `lhs` and `rhs` are incompatible (have
+// known bits that disagree). CHECK fails if `lhs` and `rhs` have different
+// lengths.
+inline absl::StatusOr<TernaryVector> Union(const TernaryVector& lhs,
+                                           const TernaryVector& rhs) {
+  XLS_CHECK_EQ(lhs.size(), rhs.size());
+  const int64_t size = lhs.size();
+
+  TernaryVector result;
+  result.reserve(size);
+  for (int64_t i = 0; i < size; ++i) {
+    if (lhs[i] == TernaryValue::kUnknown) {
+      result.push_back(rhs[i]);
+    } else if (rhs[i] == TernaryValue::kUnknown) {
+      result.push_back(lhs[i]);
+    } else if (lhs[i] == rhs[i]) {
+      result.push_back(lhs[i]);
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Incompatible values; cannot unify %s and %s",
+                          ToString(lhs), ToString(rhs)));
     }
   }
 

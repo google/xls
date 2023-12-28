@@ -201,26 +201,25 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       Node* to_replace, const QueryEngine& query_engine,
       const std::function<absl::Status(const Value&)>& replace_with,
       std::string_view context) {
-    LeafTypeTree<IntervalSet> intervals = query_engine.GetIntervals(to_replace);
-    for (Type* leaf_type : intervals.leaf_types()) {
+    LeafTypeTree<TernaryVector> ternary = query_engine.GetTernary(to_replace);
+    for (Type* leaf_type : ternary.leaf_types()) {
       if (leaf_type->IsToken()) {
         XLS_RETURN_IF_ERROR(NoChange());
         return false;
       }
     }
-    for (const IntervalSet& interval_set : intervals.elements()) {
-      if (!interval_set.IsPrecise()) {
+    for (const TernaryVector& ternary_vector : ternary.elements()) {
+      if (!ternary_ops::IsFullyKnown(ternary_vector)) {
         XLS_RETURN_IF_ERROR(NoChange());
         return false;
       }
     }
     LeafTypeTree<Value> value_tree =
-        LeafTypeTree<Value>::Zip<IntervalSet, Type*>(
-            [](const IntervalSet& interval_set, Type* type) -> Value {
-              return Value(interval_set.GetPreciseValue().value());
+        LeafTypeTree<Value>::Zip<TernaryVector, Type*>(
+            [](const TernaryVector& ternary_vector, Type* type) -> Value {
+              return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
             },
-            intervals,
-            LeafTypeTree<Type*>(intervals.type(), intervals.leaf_types()));
+            ternary, LeafTypeTree<Type*>(ternary.type(), ternary.leaf_types()));
     XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_tree));
     XLS_RETURN_IF_ERROR(replace_with(value));
     XLS_VLOG(3) << absl::StreamFormat(

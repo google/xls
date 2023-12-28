@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/variant.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -38,6 +39,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
@@ -134,7 +136,12 @@ class RangeQueryEngine : public QueryEngine {
   }
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
-    XLS_CHECK(node->GetType()->IsBits());
+    if (!node->GetType()->IsBits()) {
+      return LeafTypeTree<TernaryVector>(node->GetType(), [](Type* leaf_type) {
+        return TernaryVector(leaf_type->GetFlatBitCount(),
+                             TernaryValue::kUnknown);
+      });
+    }
     TernaryVector tvec = ternary_ops::FromKnownBits(known_bits_.at(node),
                                                     known_bit_values_.at(node));
     LeafTypeTree<TernaryVector> tree(node->GetType());

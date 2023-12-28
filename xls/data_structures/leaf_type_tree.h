@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 #define XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -70,6 +71,14 @@ class LeafTypeTree {
   LeafTypeTree(Type* type, const T& init_value)
       : type_(type), elements_(type->leaf_count(), init_value) {
     MakeLeafTypes(type);
+  }
+  LeafTypeTree(Type* type, std::function<T(Type*)> init_function)
+      : type_(type) {
+    elements_.reserve(type->leaf_count());
+    MakeLeafTypes(type);
+    for (Type* leaf_type : leaf_types_) {
+      elements_.push_back(init_function(leaf_type));
+    }
   }
 
   // Constructor for tuples/arrays where members are provided as a span.

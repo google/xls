@@ -20,10 +20,13 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/data_structures/leaf_type_tree.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
@@ -58,21 +61,22 @@ bool UnionQueryEngine::IsTracked(Node* node) const {
 }
 
 LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
-
-  Bits known(node->GetType()->GetFlatBitCount());
-  Bits known_values(node->GetType()->GetFlatBitCount());
+  LeafTypeTree<TernaryVector> result(node->GetType(), [](Type* leaf_type) {
+    return TernaryVector(leaf_type->GetFlatBitCount(), TernaryValue::kUnknown);
+  });
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
-      TernaryVector ternary = engine->GetTernary(node).Get({});
-      known = bits_ops::Or(known, ternary_ops::ToKnownBits(ternary));
-      known_values =
-          bits_ops::Or(known_values, ternary_ops::ToKnownBitsValues(ternary));
+      LeafTypeTree<TernaryVector> ternary = engine->GetTernary(node);
+      result = LeafTypeTree<TernaryVector>::Zip<TernaryVector, TernaryVector>(
+          [](const TernaryVector& v1,
+             const TernaryVector& v2) -> TernaryVector {
+            absl::StatusOr<TernaryVector> r = ternary_ops::Union(v1, v2);
+            XLS_CHECK_OK(r);
+            return *r;
+          },
+          result, ternary);
     }
   }
-
-  LeafTypeTree<TernaryVector> result(node->GetType());
-  result.Set({}, ternary_ops::FromKnownBits(known, known_values));
   return result;
 }
 

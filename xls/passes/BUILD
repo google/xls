@@ -582,6 +582,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
         "//xls/common:math_util",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
@@ -593,6 +594,7 @@ cc_library(
         "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
         "//xls/ir:ternary",
+        "//xls/ir:type",
         "//xls/ir:value_helpers",
     ],
 )
@@ -665,12 +667,13 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:bits",
-        "//xls/ir:bits_ops",
         "//xls/ir:interval_set",
         "//xls/ir:ternary",
+        "//xls/ir:type",
     ],
 )
 
