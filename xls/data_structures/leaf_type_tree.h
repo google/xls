@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 #define XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <utility>
@@ -221,6 +222,20 @@ class LeafTypeTree {
     }
 
     return LeafTypeTree<T>(lhs.type(), new_elements);
+  }
+
+  // Use the given function to update each leaf element in this `LeafTypeTree`
+  // using the corresponding element in the `other`. CHECK fails if the given
+  // `LeafTypeTree`s are not generated from the same type.
+  template <typename U>
+  void UpdateFrom(const LeafTypeTree<U>& other,
+                  std::function<void(T&, const U&)> update) {
+    XLS_CHECK(type_->IsEqualTo(other.type()));
+    XLS_CHECK_EQ(elements_.size(), other.size());
+
+    for (int64_t i = 0; i < size(); ++i) {
+      update(elements_[i], other.elements()[i]);
+    }
   }
 
   friend bool operator==(const LeafTypeTree<T>& lhs,

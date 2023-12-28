@@ -15,6 +15,7 @@
 #include "xls/passes/range_query_engine.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <optional>
@@ -36,12 +37,13 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
-#include "xls/ir/interval_set.h"
 #include "xls/ir/interval_ops.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/query_engine.h"
 
@@ -431,17 +433,18 @@ IntervalSetTree RangeQueryEngine::GetIntervalSetTree(Node* node) const {
 
 void RangeQueryEngine::SetIntervalSetTree(
     Node* node, const IntervalSetTree& interval_sets) {
-  IntervalSetTree old_ist = GetIntervalSetTree(node);
-  IntervalSetTree new_ist =
-      LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
-          IntervalSet::Intersect, old_ist, interval_sets);
+  IntervalSetTree ist = GetIntervalSetTree(node);
+  ist.UpdateFrom<IntervalSet>(interval_sets,
+                              [](IntervalSet& lhs, const IntervalSet& rhs) {
+                                lhs = IntervalSet::Intersect(lhs, rhs);
+                              });
   if (node->GetType()->IsBits()) {
     interval_ops::KnownBits bits =
-        interval_ops::ExtractKnownBits(new_ist.Get({}), /*source=*/node);
+        interval_ops::ExtractKnownBits(ist.Get({}), /*source=*/node);
     known_bits_[node] = bits.known_bits;
     known_bit_values_[node] = bits.known_bit_values;
   }
-  interval_sets_[node] = new_ist;
+  interval_sets_[node] = ist;
 }
 
 void RangeQueryEngine::InitializeNode(Node* node) {
@@ -933,11 +936,10 @@ absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
     }
   }
 
-  IntervalSetTree result(array_index->GetType());
-  result = LeafTypeTree<Type*>(result.type(), result.leaf_types())
-               .Map<IntervalSet>([](Type* type) -> IntervalSet {
-                 return IntervalSet(type->GetFlatBitCount());
-               });
+  IntervalSetTree result(array_index->GetType(),
+                         [](Type* leaf_type) -> IntervalSet {
+                           return IntervalSet(leaf_type->GetFlatBitCount());
+                         });
 
   // Returns true if the given interval set covers the given index value for an
   // array of dimension `dim`. Includes handling of OOB conditions.
@@ -968,9 +970,11 @@ absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
         return false;
       }
     }
-    result = IntervalSetTree::Zip<IntervalSet, IntervalSet>(
-        IntervalSet::Combine, result,
-        array_interval_set_tree.CopySubtree(indexes));
+    result.UpdateFrom<IntervalSet>(
+        array_interval_set_tree.CopySubtree(indexes),
+        [](IntervalSet& lhs, const IntervalSet& rhs) {
+          lhs = IntervalSet::Combine(lhs, rhs);
+        });
     return false;
   });
 
@@ -1061,12 +1065,12 @@ absl::Status RangeQueryVisitor::HandleOneHotSel(OneHotSelect* sel) {
 absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
   INITIALIZE_OR_SKIP(sel);
   IntervalSet selector_intervals = GetIntervalSetTree(sel->selector()).Get({});
-  LeafTypeTree<IntervalSet> result(sel->GetType());
-  for (int64_t i = 0; i < result.elements().size(); ++i) {
-    // Initialize all interval sets to empty
-    result.elements()[i] =
-        IntervalSet(result.leaf_types()[i]->GetFlatBitCount());
-  }
+
+  // Initialize all interval sets to empty
+  LeafTypeTree<IntervalSet> result(sel->GetType(), [](Type* leaf_type) {
+    return IntervalSet(leaf_type->GetFlatBitCount());
+  });
+
   if (selector_intervals.CoversZero()) {  // possible to see default
     LeafTypeTree<IntervalSet> all_zero_default(sel->GetType());
     for (int64_t i = 0; i < all_zero_default.elements().size(); ++i) {
@@ -1074,20 +1078,21 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
       all_zero_default.elements()[i] = IntervalSet::Precise(
           UBits(0, all_zero_default.leaf_types()[i]->GetFlatBitCount()));
     }
-    result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
-        IntervalSet::Combine, result, all_zero_default);
+    result.UpdateFrom<IntervalSet>(
+        all_zero_default, [](IntervalSet& lhs, const IntervalSet& rhs) {
+          lhs = IntervalSet::Combine(lhs, rhs);
+        });
   }
-  auto combine = [&](Node* node) {
-    LeafTypeTree<IntervalSet> tree = GetIntervalSetTree(node);
-    result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
-        IntervalSet::Combine, result, tree);
-  };
   for (int64_t i = 0; i < sel->cases().size(); ++i) {
     // TODO(vmirian): Make implementation more efficient by considering only the
     // ranges of interest.
     if (selector_intervals.IsTrueWhenMaskWith(
             bits_ops::ShiftLeftLogical(UBits(1, sel->cases().size()), i))) {
-      combine(sel->cases()[i]);
+      result.UpdateFrom<IntervalSet>(
+          GetIntervalSetTree(sel->cases()[i]),
+          [](IntervalSet& lhs, const IntervalSet& rhs) {
+            lhs = IntervalSet::Combine(lhs, rhs);
+          });
     }
   }
   for (IntervalSet& intervals : result.elements()) {
@@ -1216,27 +1221,31 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
       return false;
     });
   }
+
   // TODO(taktoa): check if sel->cases().size() is greater than the number of
   // representable values in the type of the selector, and set default_possible
   // false in that case.
-  LeafTypeTree<IntervalSet> result(sel->GetType());
-  for (int64_t i = 0; i < result.elements().size(); ++i) {
-    // Initialize all interval sets to empty
-    result.elements()[i] =
-        IntervalSet(result.leaf_types()[i]->GetFlatBitCount());
-  }
-  auto combine = [&](Node* node) {
-    LeafTypeTree<IntervalSet> tree = GetIntervalSetTree(node);
-    result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
-        IntervalSet::Combine, result, tree);
-  };
+
+  // Initialize all interval sets to empty
+  LeafTypeTree<IntervalSet> result(sel->GetType(), [](Type* leaf_type) {
+    return IntervalSet(leaf_type->GetFlatBitCount());
+  });
+
   for (int64_t i = 0; i < sel->cases().size(); ++i) {
     if (selector_values.contains(i)) {
-      combine(sel->cases()[i]);
+      result.UpdateFrom<IntervalSet>(
+          GetIntervalSetTree(sel->cases()[i]),
+          [](IntervalSet& lhs, const IntervalSet& rhs) {
+            lhs = IntervalSet::Combine(lhs, rhs);
+          });
     }
   }
   if (default_possible && sel->default_value().has_value()) {
-    combine(sel->default_value().value());
+    result.UpdateFrom<IntervalSet>(
+        GetIntervalSetTree(sel->default_value().value()),
+        [](IntervalSet& lhs, const IntervalSet& rhs) {
+          lhs = IntervalSet::Combine(lhs, rhs);
+        });
   }
   for (IntervalSet& intervals : result.elements()) {
     intervals = MinimizeIntervals(intervals);

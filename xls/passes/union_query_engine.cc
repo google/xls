@@ -66,15 +66,11 @@ LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
   });
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
-      LeafTypeTree<TernaryVector> ternary = engine->GetTernary(node);
-      result = LeafTypeTree<TernaryVector>::Zip<TernaryVector, TernaryVector>(
-          [](const TernaryVector& v1,
-             const TernaryVector& v2) -> TernaryVector {
-            absl::StatusOr<TernaryVector> r = ternary_ops::Union(v1, v2);
-            XLS_CHECK_OK(r);
-            return *r;
-          },
-          result, ternary);
+      result.UpdateFrom<TernaryVector>(
+          engine->GetTernary(node),
+          [](TernaryVector& lhs, const TernaryVector& rhs) {
+            XLS_CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
+          });
     }
   }
   return result;
@@ -98,8 +94,11 @@ LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervals(Node* node) const {
   }
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
-      result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
-          IntervalSet::Intersect, result, engine->GetIntervals(node));
+      result.UpdateFrom<IntervalSet>(
+          engine->GetIntervals(node),
+          [](IntervalSet& lhs, const IntervalSet& rhs) {
+            lhs = IntervalSet::Intersect(lhs, rhs);
+          });
     }
   }
   return result;

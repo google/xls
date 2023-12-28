@@ -136,13 +136,37 @@ inline absl::StatusOr<TernaryVector> Union(const TernaryVector& lhs,
     } else if (lhs[i] == rhs[i]) {
       result.push_back(lhs[i]);
     } else {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Incompatible values; cannot unify %s and %s",
-                          ToString(lhs), ToString(rhs)));
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Incompatible values (mismatch at bit %d); cannot unify %s and %s", i,
+          ToString(lhs), ToString(rhs)));
     }
   }
 
   return result;
+}
+
+// Updates `lhs` to include additional known information from `rhs`, or an error
+// if `lhs` and `rhs` are incompatible (have known bits that disagree). CHECK
+// fails if `lhs` and `rhs` have different lengths.
+inline absl::Status UpdateWithUnion(TernaryVector& lhs,
+                                    const TernaryVector& rhs) {
+  XLS_CHECK_EQ(lhs.size(), rhs.size());
+
+  for (int64_t i = 0; i < lhs.size(); ++i) {
+    if (rhs[i] == TernaryValue::kUnknown) {
+      continue;
+    }
+
+    if (lhs[i] == TernaryValue::kUnknown) {
+      lhs[i] = rhs[i];
+    } else if (lhs[i] != rhs[i]) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Incompatible values (mismatch at bit %d); cannot update %s with %s",
+          i, ToString(lhs), ToString(rhs)));
+    }
+  }
+
+  return absl::OkStatus();
 }
 
 // Returns a vector with known positions for each bit known to have the same

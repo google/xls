@@ -93,15 +93,12 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
     }
     // We know exactly what value the next state will hold, no matter what
     // happens.
-    LeafTypeTree<Value> next_value_tree =
-        LeafTypeTree<Value>::Zip<TernaryVector, Type*>(
-            [](const TernaryVector& ternary_vector, Type* type) -> Value {
+    XLS_ASSIGN_OR_RETURN(
+        Value next_value,
+        LeafTypeTreeToValue(next_state.Map<Value>(
+            [](const TernaryVector& ternary_vector) -> Value {
               return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
-            },
-            next_state,
-            LeafTypeTree<Type*>(next_state.type(), next_state.leaf_types()));
-    XLS_ASSIGN_OR_RETURN(Value next_value,
-                         LeafTypeTreeToValue(next_value_tree));
+            })));
     const Value& initial_value = proc->GetInitValueElement(i);
     if (initial_value == next_value) {
       to_remove.push_back(i);

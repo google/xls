@@ -214,13 +214,12 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         return false;
       }
     }
-    LeafTypeTree<Value> value_tree =
-        LeafTypeTree<Value>::Zip<TernaryVector, Type*>(
-            [](const TernaryVector& ternary_vector, Type* type) -> Value {
+    XLS_ASSIGN_OR_RETURN(
+        Value value,
+        LeafTypeTreeToValue(ternary.Map<Value>(
+            [](const TernaryVector& ternary_vector) -> Value {
               return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
-            },
-            ternary, LeafTypeTree<Type*>(ternary.type(), ternary.leaf_types()));
-    XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_tree));
+            })));
     XLS_RETURN_IF_ERROR(replace_with(value));
     XLS_VLOG(3) << absl::StreamFormat(
         "Range analysis found precise value for %s == %s %s, replacing with "
