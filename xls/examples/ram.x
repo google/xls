@@ -657,7 +657,7 @@ proc RamModel2RW<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
       state
     };
     let state = if valid1 && request1.we {
-      update(state, request0.addr, request0.data)
+      update(state, request1.addr, request1.data)
     } else {
       state
     };
