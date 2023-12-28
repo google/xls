@@ -552,8 +552,7 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update,
 // of the optimized away update operations or nullopt is no optimization was
 // performed.
 absl::StatusOr<std::optional<std::vector<ArrayUpdate*>>>
-FlattenArrayUpdateChain(ArrayUpdate* array_update,
-                        const QueryEngine& query_engine) {
+FlattenArrayUpdateChain(ArrayUpdate* array_update) {
   // Identify cases where an array is constructed via a sequence of array update
   // operations and replace with a flat kArray operation gathering all the array
   // values.
@@ -660,12 +659,10 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
 // Walk the function and replace chains of sequential array updates with kArray
 // operations with gather the update values.
 absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func) {
-  TernaryQueryEngine query_engine;
-  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
   absl::flat_hash_set<ArrayUpdate*> flattened_updates;
   bool changed = false;
   // Perform this optimization in reverse topo sort order because we are looking
-  // for a seqence of array update operations and the search progress upwards
+  // for a sequence of array update operations and the search progress upwards
   // (toward parameters).
   for (Node* node : ReverseTopoSort(func)) {
     if (!node->Is<ArrayUpdate>()) {
@@ -675,9 +672,8 @@ absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func) {
     if (flattened_updates.contains(array_update)) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<std::vector<ArrayUpdate*>> flattened_vec,
-        FlattenArrayUpdateChain(array_update, query_engine));
+    XLS_ASSIGN_OR_RETURN(std::optional<std::vector<ArrayUpdate*>> flattened_vec,
+                         FlattenArrayUpdateChain(array_update));
     if (flattened_vec.has_value()) {
       changed = true;
       flattened_updates.insert(flattened_vec->begin(), flattened_vec->end());
