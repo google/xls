@@ -93,7 +93,8 @@ class InlineBitmap {
 
   explicit InlineBitmap(int64_t bit_count, bool fill = false)
       : bit_count_(bit_count),
-        data_(CeilOfRatio(bit_count, kWordBits), fill ? -1ULL : 0ULL) {
+        data_(CeilOfRatio(bit_count, kWordBits),
+              fill ? ~uint64_t{0} : uint64_t{0}) {
     XLS_DCHECK_GE(bit_count, 0);
     // If we initialized our data to zero, no need to mask out the bits past the
     // end of the bitmap; they're already zero.

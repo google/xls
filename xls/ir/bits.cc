@@ -70,7 +70,7 @@ void Bits::SetRange(int64_t start_index, int64_t end_index, bool value) {
 
 /* static */
 Bits Bits::AllOnes(int64_t bit_count) {
-  return bit_count == 0 ? Bits() : SBits(-1, bit_count);
+  return Bits::FromBitmap(InlineBitmap(bit_count, /*fill=*/true));
 }
 
 /* static */
