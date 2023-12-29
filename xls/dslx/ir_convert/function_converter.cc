@@ -2277,11 +2277,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   // "next" functions actually have _explicit_ tokens. We can unconditionally
   // hook into the implicit token stuff in case any downstream functions need
   // it.
-  implicit_token_data_.emplace();
-  implicit_token_data_->entry_token = builder_ptr->GetTokenParam();
-  implicit_token_data_->activated = builder_ptr->Literal(Value::Bool(true));
-  implicit_token_data_->create_control_predicate = [this]() {
-    return implicit_token_data_->activated;
+  implicit_token_data_ = ImplicitTokenData{
+      .entry_token = builder_ptr->GetTokenParam(),
+      .activated = builder_ptr->Literal(Value::Bool(true)),
+      .create_control_predicate =
+          [this]() { return implicit_token_data_->activated; },
   };
 
   // Now bind the recurrent state element.
