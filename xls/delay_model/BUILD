@@ -16,6 +16,8 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype binary, test, library
 load("@rules_python//python:proto.bzl", "py_proto_library")
+load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
+load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_delay_model_generation")
 
 package(
@@ -317,117 +319,62 @@ py_test(
     ],
 )
 
+exports_files([
+    "samples.textproto",
+])
+
+# Skywater 130nm open source PDK
+# ========================================================================
+# Default model for SKY130
 xls_delay_model_generation(
-    name = "sky130_data_points",
+    name = "data_points-sky130",
     samples_file = ":samples.textproto",
     standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
 )
 
+[
+    xls_delay_model_generation(
+        name = "data_points-" + cell_name,
+        samples_file = ":samples.textproto",
+        standard_cells = cell_target,
+        tags = ["manual"],
+    )
+    for cell_name, cell_target in for_each_sky130_cells("sc_hd")
+]
+
+# ASAP 7nm fake open source PDK
+# ========================================================================
+# Default model for ASAP7
+xls_delay_model_generation(
+    name = "data_points-asap7",
+    samples_file = ":samples.textproto",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+)
+
+[
+    xls_delay_model_generation(
+        name = "data_points-" + cell_name,
+        samples_file = ":samples.textproto",
+        standard_cells = cell_target,
+        tags = ["manual"],
+    )
+    for cell_name, cell_target in for_each_asap7_cells("sc7p5t_rev27")
+]
+
+[
+    xls_delay_model_generation(
+        name = "data_points-" + cell_name,
+        samples_file = ":samples.textproto",
+        standard_cells = cell_target,
+        tags = ["manual"],
+    )
+    for cell_name, cell_target in for_each_asap7_cells("sc7p5t_rev28")
+]
+
 # Special ASAP7 rev27 standard cells scaled up 4x
 xls_delay_model_generation(
-    name = "asap7sc7p5t_rev27_rvt_4x-data_points",
+    name = "data_points-asap7-sc7p5t_rev27_rvt_4x",
     samples_file = ":samples.textproto",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",
     tags = ["manual"],
 )
-
-# ASAP7 rev27 standard cells
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev27_rvt-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt-ccs_ss",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev27_lvt-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_lvt-ccs_ss",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev27_slvt-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_slvt-ccs_ss",
-    tags = ["manual"],
-)
-
-# ASAP7 rev28 "current" standard cells (hence do all the corners)
-# Standard cell types
-#  * slvt - Standard cells using super low voltage threshold transistors (fastest but power hungry)
-#  * lvt - Standard cells using low voltage threshold transistors
-#  * rvt - Standard cells using regular voltage threshold transistors (slowest)
-# Corners
-#  * ss - Slow corner
-#  * tt - Typical corner
-#  * ff - Fast corner
-#
-# The `asap7sc7p5t_rev28_slvt-ff` model is expected to always be the *fastest* and
-# the `asap7sc7p5t_rev28_rvt-ss` model is expected to always be the slowest.
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_rvt-ss-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt-ccs_ss",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_rvt-tt-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt-ccs_tt",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_rvt-ff-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt-ccs_ff",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_lvt-ss-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_lvt-ccs_ss",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_lvt-tt-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_lvt-ccs_tt",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_lvt-ff-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_lvt-ccs_ff",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_slvt-ss-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_slvt-ccs_ss",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_slvt-tt-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_slvt-ccs_tt",
-    tags = ["manual"],
-)
-
-xls_delay_model_generation(
-    name = "asap7sc7p5t_rev28_slvt-ff-data_points",
-    samples_file = ":samples.textproto",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_slvt-ccs_ff",
-    tags = ["manual"],
-)
-
-exports_files([
-    "samples.textproto",
-])
