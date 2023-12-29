@@ -53,12 +53,12 @@ proc BlockDecoder {
     output_s: chan<SequenceExecutorPacket> out;
 
     config (input_r: chan<BlockDataPacket> in, output_s: chan<SequenceExecutorPacket> out) {
-        let (demux_raw_s, demux_raw_r) = chan<BlockDataPacket>;
-        let (demux_rle_s, demux_rle_r) = chan<BlockDataPacket>;
-        let (demux_cmp_s, demux_cmp_r) = chan<BlockDataPacket>;
-        let (mux_raw_s, mux_raw_r) = chan<ExtendedBlockDataPacket>;
-        let (mux_rle_s, mux_rle_r) = chan<ExtendedBlockDataPacket>;
-        let (mux_cmp_s, mux_cmp_r) = chan<ExtendedBlockDataPacket>;
+        let (demux_raw_s, demux_raw_r) = chan<BlockDataPacket, u32:1>;
+        let (demux_rle_s, demux_rle_r) = chan<BlockDataPacket, u32:1>;
+        let (demux_cmp_s, demux_cmp_r) = chan<BlockDataPacket, u32:1>;
+        let (mux_raw_s, mux_raw_r) = chan<ExtendedBlockDataPacket, u32:1>;
+        let (mux_rle_s, mux_rle_r) = chan<ExtendedBlockDataPacket, u32:1>;
+        let (mux_cmp_s, mux_cmp_r) = chan<ExtendedBlockDataPacket, u32:1>;
 
         spawn demux::DecoderDemux(input_r, demux_raw_s, demux_rle_s, demux_cmp_s);
         spawn raw::RawBlockDecoder(demux_raw_r, mux_raw_s);
