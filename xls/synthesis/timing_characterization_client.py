@@ -178,7 +178,7 @@ def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 
   logging.info('Running %s with %d / %s', op, result_bit_count,
                ', '.join([str(x) for x in operand_bit_counts]))
-  module_name = 'top'
+  module_name = 'main'
   mod_generator_result = op_module_generator.generate_verilog_module(
       module_name, ir_text)
 
