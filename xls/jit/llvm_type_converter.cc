@@ -173,22 +173,12 @@ int64_t LlvmTypeConverter::GetTypeAbiAlignment(const Type* type) const {
   return data_layout_.getABITypeAlign(ConvertToLlvmType(type)).value();
 }
 int64_t LlvmTypeConverter::GetTypePreferredAlignment(const Type* type) const {
-  // NB We ask for stack alignment since we often memcpy things around which is
-  // slightly faster at higher alignments.
-  llvm::Align alignment =
-      data_layout_.getPrefTypeAlign(ConvertToLlvmType(type));
-  if (data_layout_.exceedsNaturalStackAlignment(alignment)) {
-    return alignment.value();
-  }
-  return data_layout_.getStackAlignment().value();
+  return data_layout_.getPrefTypeAlign(ConvertToLlvmType(type)).value();
 }
 int64_t LlvmTypeConverter::AlignFor(const Type* type, int64_t offset) const {
   llvm::Align alignment =
       data_layout_.getPrefTypeAlign(ConvertToLlvmType(type));
-  if (data_layout_.exceedsNaturalStackAlignment(alignment)) {
-    return llvm::alignTo(offset, alignment);
-  }
-  return llvm::alignTo(offset, data_layout_.getStackAlignment());
+  return llvm::alignTo(offset, alignment);
 }
 
 llvm::Type* LlvmTypeConverter::GetTokenType() const {
