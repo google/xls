@@ -31,6 +31,13 @@ void LogLines(absl::LogSeverity severity, std::string_view text,
 }  // namespace logging
 }  // namespace xls
 
+#define XLS_LOG_INTERNAL_INFO ::absl::LogSeverity::kInfo
+#define XLS_LOG_INTERNAL_WARNING ::absl::LogSeverity::kWarning
+#define XLS_LOG_INTERNAL_ERROR ::absl::LogSeverity::kError
+#define XLS_LOG_INTERNAL_FATAL ::absl::LogSeverity::kFatal
+#define XLS_LOG_INTERNAL_DFATAL ::absl::kLogDebugFatal
+#define XLS_LOG_INTERNAL_LEVEL(severity) ::absl::NormalizeLogSeverity(severity)
+
 // If you're trying to output something longer than the log buffer size it'll
 // get truncated. Here is a macro for logging a long string by breaking it up
 // into multiple lines and logging each line separately. Nothing will be
@@ -43,8 +50,8 @@ void LogLines(absl::LogSeverity severity, std::string_view text,
 // (e.g., printing multi-line protocol buffers)
 //
 // Note that STRING is evaluated regardless of whether it will be logged.
-#define XLS_LOG_LINES(SEVERITY, STRING)                                        \
-  ::xls::logging::LogLines(ABSL_RAW_LOG_INTERNAL_##SEVERITY, STRING, __FILE__, \
+#define XLS_LOG_LINES(SEVERITY, STRING)                                   \
+  ::xls::logging::LogLines(XLS_LOG_INTERNAL_##SEVERITY, STRING, __FILE__, \
                            __LINE__)
 
 // Like XLS_LOG_LINES, but for VLOG.
