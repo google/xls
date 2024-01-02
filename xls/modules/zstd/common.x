@@ -54,3 +54,10 @@ pub struct SequenceExecutorPacket {
     content: CopyOrMatchContent, // Literal data or match offset
     last: bool, // Last packet in frame
 }
+
+// Defines output format of the ZSTD Decoder
+pub struct ZstdDecodedPacket {
+    data: BlockData,
+    length: BlockPacketLength, // valid bits in data
+    last: bool, // Last decoded packet in frame
+}
