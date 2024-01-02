@@ -828,3 +828,79 @@ place_and_route(
     target_die_utilization_percentage = "10",
     tags = ["manual"],
 )
+
+xls_dslx_library(
+    name = "repacketizer_dslx",
+    srcs = [
+        "repacketizer.x",
+    ],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "repacketizer_dslx_test",
+    library = ":repacketizer_dslx",
+)
+
+xls_dslx_verilog(
+    name = "repacketizer_verilog",
+    codegen_args = {
+        "module_name": "Repacketizer",
+        "delay_model": "asap7",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "Repacketizer",
+    library = ":repacketizer_dslx",
+    verilog_file = "repacketizer.v",
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "repacketizer_opt_ir_benchmark",
+    src = ":repacketizer_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "asap7",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "repacketizer_verilog_lib",
+    srcs = [
+        ":repacketizer.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "repacketizer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "Repacketizer",
+    deps = [
+        ":repacketizer_verilog_lib",
+    ],
+    tags = ["manual"],
+)
+
+benchmark_synth(
+    name = "repacketizer_benchmark_synth",
+    synth_target = ":repacketizer_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "repacketizer_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":repacketizer_synth_asap7",
+    target_die_utilization_percentage = "10",
+    tags = ["manual"],
+)
