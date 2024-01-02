@@ -702,3 +702,18 @@ place_and_route(
     synthesized_rtl = ":sequence_executor_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "repacketizer_dslx",
+    srcs = [
+        "repacketizer.x",
+    ],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "repacketizer_dslx_test",
+    library = ":repacketizer_dslx",
+)
