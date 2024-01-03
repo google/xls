@@ -89,7 +89,7 @@ DistributedRoutingTable::ComputeRoute(NetworkComponentId source,
     if (route.size() > max_hops) {
       std::stringstream route_error_msg;
       route_error_msg << "Network components in the route thus far are:"
-                      << std::endl;
+                      << '\n';
       for (const NetworkComponentId nc_id : route) {
         XLS_ASSIGN_OR_RETURN(
             NetworkComponentParam nc_param,
@@ -100,7 +100,7 @@ DistributedRoutingTable::ComputeRoute(NetworkComponentId source,
         } else if (std::holds_alternative<LinkParam>(nc_param)) {
           name = std::get<LinkParam>(nc_param).GetName();
         }
-        route_error_msg << name << std::endl;
+        route_error_msg << name << '\n';
       }
       return absl::InternalError(absl::StrFormat(
           "Route from source %x to sink %x exceeded max hops %d. %s",
