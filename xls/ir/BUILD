@@ -1594,6 +1594,48 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "elaboration",
+    srcs = ["elaboration.cc"],
+    hdrs = ["elaboration.h"],
+    deps = [
+        ":channel",
+        ":channel_ops",
+        ":ir",
+        ":value",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "elaboration_test",
+    srcs = ["elaboration_test.cc"],
+    deps = [
+        ":channel",
+        ":elaboration",
+        ":function_builder",
+        ":ir",
+        ":ir_test_base",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_test(
     name = "call_graph_test",
     srcs = ["call_graph_test.cc"],

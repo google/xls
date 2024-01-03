@@ -691,4 +691,17 @@ absl::StatusOr<ReceiveChannelReference*> Proc::GetReceiveChannelReference(
   return down_cast<ReceiveChannelReference*>(channel_ref);
 }
 
+absl::StatusOr<ProcInstantiation*> Proc::GetProcInstantiation(
+    std::string_view instantiation_name) const {
+  for (const std::unique_ptr<ProcInstantiation>& instantiation :
+       proc_instantiations()) {
+    if (instantiation->name() == instantiation_name) {
+      return instantiation.get();
+    }
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("No proc instantiation named `%s` in proc `%s`",
+                      instantiation_name, name()));
+}
+
 }  // namespace xls

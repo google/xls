@@ -38,6 +38,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -719,7 +720,7 @@ class ProcBuilder : public BuilderBase {
   // style procs.
   absl::StatusOr<ChannelReferences> AddChannel(
       std::string_view name, Type* type,
-      absl::Span<const Value> initial_values);
+      absl::Span<const Value> initial_values = {});
 
   // Add an interface channel to the proc. Only can be called for new style
   // procs.

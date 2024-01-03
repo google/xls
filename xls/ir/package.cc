@@ -884,6 +884,7 @@ absl::Status Package::RemoveChannel(Channel* channel) {
 
 absl::Status Package::AddChannel(std::unique_ptr<Channel> channel, Proc* proc) {
   if (proc != nullptr) {
+    next_channel_id_ = std::max(next_channel_id_, channel->id() + 1);
     return proc->AddChannel(std::move(channel)).status();
   }
   std::string name{channel->name()};

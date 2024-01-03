@@ -14,16 +14,21 @@
 
 #include "xls/passes/proc_state_optimization_pass.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/ir/function.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -131,12 +136,10 @@ TEST_F(ProcStateOptimizationPassTest, CrissCrossDeadAndLiveElements) {
 
 TEST_F(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
   auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
-                                               p->GetBitsType(32)));
-
-  TokenlessProcBuilder pb("p", "tkn", p.get());
+  TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 0)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelReference * out,
+                           pb.AddOutputChannel("out", p->GetBitsType(32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   BValue send = pb.Send(out, pb.Concat({x, y}));
 

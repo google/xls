@@ -242,6 +242,9 @@ class Proc : public FunctionBase {
     return proc_instantiations_;
   }
 
+  absl::StatusOr<ProcInstantiation*> GetProcInstantiation(
+      std::string_view instantiation_name) const;
+
  private:
   std::vector<Value> init_values_;
 
