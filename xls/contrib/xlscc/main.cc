@@ -138,7 +138,7 @@ static absl::Status Run(std::string_view cpp_path) {
     io_op_token_ordering = IOOpOrdering::kLexical;
   } else {
     std::cerr << "Unknown --io_op_token_ordering: "
-              << absl::GetFlag(FLAGS_io_op_token_ordering) << std::endl;
+              << absl::GetFlag(FLAGS_io_op_token_ordering) << '\n';
   }
 
   xlscc::Translator translator(
@@ -203,7 +203,7 @@ static absl::Status Run(std::string_view cpp_path) {
     clang_argv.push_back(i);
   }
 
-  std::cerr << "Parsing file '" << cpp_path << "' with clang..." << std::endl;
+  std::cerr << "Parsing file '" << cpp_path << "' with clang..." << '\n';
   XLS_RETURN_IF_ERROR(translator.ScanFile(
       cpp_path, clang_argv.empty()
                     ? absl::Span<std::string_view>()
@@ -234,7 +234,7 @@ static absl::Status Run(std::string_view cpp_path) {
     return absl::OkStatus();
   };
 
-  std::cerr << "Generating IR..." << std::endl;
+  std::cerr << "Generating IR..." << '\n';
   xls::Package package(package_name);
   if (block_pb_name.empty()) {
     absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
@@ -268,7 +268,7 @@ static absl::Status Run(std::string_view cpp_path) {
     }
 
     XLS_RETURN_IF_ERROR(package.SetTop(proc));
-    std::cerr << "Saving Package IR..." << std::endl;
+    std::cerr << "Saving Package IR..." << '\n';
     translator.AddSourceInfoToPackage(package);
     XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n")));
   }
