@@ -29,8 +29,8 @@
 #include "xls/ir/function.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
-#include "xls/jit/jit_runtime.h"
 #include "xls/jit/jit_buffer.h"
+#include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
@@ -151,6 +151,10 @@ class FunctionJit {
 
   // Returns the function that the JIT executes.
   Function* function() { return xls_function_; }
+
+  const JittedFunctionBase& jitted_function_base() const {
+    return jitted_function_base_;
+  }
 
   // Gets the size of the compiled function's arguments (or return value) in the
   // native LLVM data layout (not the packed layout).

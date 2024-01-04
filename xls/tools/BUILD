@@ -595,6 +595,7 @@ cc_binary(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/jit:function_jit",
+        "//xls/jit:jit_buffer",
         "//xls/jit:llvm_type_converter",
         "//xls/jit:observer",
         "//xls/jit:orc_jit",
@@ -602,6 +603,7 @@ cc_binary(
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/random:bit_gen_ref",
@@ -613,6 +615,7 @@ cc_binary(
         "@llvm-project//llvm:CodeGen",
         "@llvm-project//llvm:ExecutionEngine",
         "@llvm-project//llvm:IRReader",
+        "@llvm-project//llvm:Interpreter",  # buildcleaner:keep
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
         "@llvm-project//llvm:ir_headers",
@@ -1241,6 +1244,7 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
 

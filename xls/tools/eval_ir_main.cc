@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/casts.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
@@ -40,6 +41,8 @@
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/CodeGen/CommandFlags.h"
 #include "llvm/include/llvm/ExecutionEngine/ExecutionEngine.h"
+#include "llvm/include/llvm/ExecutionEngine/GenericValue.h"
+#include "llvm/include/llvm/ExecutionEngine/Interpreter.h"  // IWYU pragma: keep
 #include "llvm/include/llvm/IR/Attributes.h"
 #include "llvm/include/llvm/IR/BasicBlock.h"
 #include "llvm/include/llvm/IR/Constant.h"
@@ -58,7 +61,9 @@
 #include "llvm/include/llvm/IRReader/IRReader.h"
 #include "llvm/include/llvm/Support/Alignment.h"
 #include "llvm/include/llvm/Support/Casting.h"
+#include "llvm/include/llvm/Support/CodeGen.h"
 #include "llvm/include/llvm/Support/ModRef.h"
+#include "llvm/include/llvm/Support/SourceMgr.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "xls/common/exit_status.h"
@@ -87,6 +92,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
@@ -210,6 +216,13 @@ ABSL_FLAG(
 ABSL_FLAG(bool, llvm_jit_main_wrapper_write_is_linked, false,
           "Make the main wrapper call the write libc function instead of just "
           "doing a volatile memmove, incompatible with interpreter.");
+// TODO(allight): It would be nice to enable doing this automatically if the
+// llvm jit code crashes or something.
+ABSL_FLAG(
+    bool, use_llvm_jit_interpreter, false,
+    "Instead of compiling jitted XLS ir code and executing it, compile it to "
+    "LLVM ir and then interpret the LLVM IR. --use_llvm_jit must be true. Use "
+    "--llvm_opt_level=0 if you want to execute the unoptimized llvm ir.");
 
 namespace xls {
 namespace {
@@ -233,14 +246,18 @@ class EvalIrJitObserver final : public JitObserver {
  public:
   EvalIrJitObserver(std::optional<std::string> ir,
                     std::optional<std::string> opt_ir,
+                    bool interpreter,
                     std::optional<std::string> assembly)
       : ir_(std::move(ir)),
         opt_ir_(std::move(opt_ir)),
+        interpreter_(interpreter),
         assembly_(std::move(assembly)) {}
+  std::string_view saved_opt_ir() const { return saved_opt_ir_; }
   JitObserverRequests GetNotificationOptions() const final {
-    return JitObserverRequests{.unoptimized_module = ir_.has_value(),
-                               .optimized_module = opt_ir_.has_value(),
-                               .assembly_code_str = assembly_.has_value()};
+    return JitObserverRequests{
+        .unoptimized_module = ir_.has_value(),
+        .optimized_module = opt_ir_.has_value() || interpreter_,
+        .assembly_code_str = assembly_.has_value()};
   }
 
   void UnoptimizedModule(const llvm::Module* module) final {
@@ -253,12 +270,13 @@ class EvalIrJitObserver final : public JitObserver {
     }
   }
   void OptimizedModule(const llvm::Module* module) final {
-    if (opt_ir_) {
-      std::string buffer;
-      llvm::raw_string_ostream ostream(buffer);
+    if (absl::GetFlag(FLAGS_use_llvm_jit_interpreter) || opt_ir_) {
+      llvm::raw_string_ostream ostream(saved_opt_ir_);
       module->print(ostream, nullptr);
       ostream.flush();
-      XLS_CHECK_OK(SetFileContents(*opt_ir_, buffer));
+      if (opt_ir_) {
+        XLS_CHECK_OK(SetFileContents(*opt_ir_, saved_opt_ir_));
+      }
     }
   }
   void AssemblyCodeString(const llvm::Module* module,
@@ -271,8 +289,104 @@ class EvalIrJitObserver final : public JitObserver {
  private:
   std::optional<std::filesystem::path> ir_;
   std::optional<std::filesystem::path> opt_ir_;
+  bool interpreter_;
   std::optional<std::filesystem::path> assembly_;
+  std::string saved_opt_ir_;
 };
+
+absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
+    std::string_view llvm_ir, FunctionJit* jit, absl::Span<const Value> args) {
+  llvm::SMDiagnostic diag;
+  llvm::LLVMContext ctx;
+  std::string ir_id =
+      absl::StrFormat("in-memory-data-for-%s", jit->GetJittedFunctionName());
+  std::unique_ptr<llvm::Module> mod(
+      llvm::parseIR(llvm::MemoryBufferRef(llvm_ir, ir_id), diag, ctx));
+
+  if (mod == nullptr) {
+    std::string buffer;
+    llvm::raw_string_ostream ostream(buffer);
+    diag.print("eval_ir_main___llvm_jit_interpreter", ostream,
+               /*ShowColors=*/false);
+    ostream.flush();
+    return absl::InternalError(absl::StrFormat(
+        "Failed to initialize llvm interpreter. Error was:\n%s", buffer));
+  }
+
+  std::string error;
+  llvm::EngineBuilder builder(std::move(mod));
+  // Whole point is to use an interpreter.
+  builder.setEngineKind(llvm::EngineKind::Interpreter);
+  builder.setVerifyModules(true);
+  // Don't mess with the module code we give llvm, we've already compiled it.
+  builder.setOptLevel(llvm::CodeGenOptLevel::None);
+  builder.setErrorStr(&error);
+
+  std::unique_ptr<llvm::ExecutionEngine> exec(builder.create());
+
+  XLS_RET_CHECK(exec != nullptr)
+      << "Failed to create llvm execution engine. Error was\n"
+      << error;
+
+  // Really don't compile anything!
+  exec->DisableLazyCompilation();
+
+  llvm::Function* function =
+      exec->FindFunctionNamed(jit->GetJittedFunctionName());
+  XLS_RET_CHECK(function != nullptr)
+      << "Unable to find function named \"" << jit->GetJittedFunctionName()
+      << "\" in module code\n"
+      << llvm_ir;
+
+  InterpreterEvents events;
+  // Turn values into llvm values.
+  // TODO(allight): Deduplicate with FunctionJit::Run
+  std::vector<Type*> arg_types;
+  arg_types.reserve(args.size());
+  absl::c_transform(jit->function()->params(), std::back_inserter(arg_types),
+                    [](const Param* p) { return p->GetType(); });
+  JitTempBuffer temp_buffer(jit->jitted_function_base().CreateTempBuffer());
+  JitArgumentSet input_set(jit->jitted_function_base().CreateInputBuffer());
+  JitArgumentSet output_set(jit->jitted_function_base().CreateOutputBuffer());
+  XLS_RETURN_IF_ERROR(
+      jit->runtime()->PackArgs(args, arg_types, input_set.pointers()))
+      << "Unable to pack arguments.";
+  std::vector<llvm::GenericValue> llvm_arg_values(7);
+  // input_ptrs
+  llvm_arg_values[0].PointerVal = absl::bit_cast<void*>(input_set.get());
+  // output_ptrs
+  llvm_arg_values[1].PointerVal = absl::bit_cast<void*>(output_set.get());
+  // tmp_buffer
+  llvm_arg_values[2].PointerVal = temp_buffer.get();
+  // events
+  llvm_arg_values[3].PointerVal = &events;
+  // user_data
+  llvm_arg_values[4].PointerVal = nullptr;
+  // runtime
+  llvm_arg_values[5].PointerVal = jit->runtime();
+  // continuation. This is a function so always 0.
+  llvm_arg_values[6].IntVal =
+      llvm::APInt(/*numBits=*/64, /*val=*/0, /*isSigned=*/true);
+
+  // Run Static constructors (probably not really needed since our code doesn't
+  // have any but might as well be future proof).
+  exec->runStaticConstructorsDestructors(/*isDtors=*/false);
+  // Run the interpreter
+  // TODO(allight): It would be nice to have some better back tracing support
+  // here since the interpreter has a pretty easy to read stack structure but
+  // its private. Getting it while running this under gdb isn't that bad at
+  // least.
+  llvm::GenericValue result = exec->runFunction(function, llvm_arg_values);
+  XLS_RET_CHECK_EQ(result.IntVal.getZExtValue(), 0)
+      << "Function returned non-zero?";
+  if (exec->hasError()) {
+    return absl::InternalError(exec->getErrorMessage());
+  }
+
+  Value result_value = jit->runtime()->UnpackBuffer(
+      output_set.pointers()[0], jit->function()->GetType()->return_type());
+  return InterpreterResult<Value>{std::move(result_value), std::move(events)};
+}
 
 absl::Status WriteMainWrapper(Function* f, FunctionJit* jit,
                               absl::Span<const ArgSet> arg_sets_in,
@@ -470,6 +584,7 @@ absl::StatusOr<std::vector<Value>> Eval(
     std::string_view expected_src = "expected") {
   EvalIrJitObserver observer(absl::GetFlag(FLAGS_llvm_jit_ir_output),
                              absl::GetFlag(FLAGS_llvm_jit_opt_ir_output),
+                             absl::GetFlag(FLAGS_use_llvm_jit_interpreter),
                              absl::GetFlag(FLAGS_llvm_jit_asm_output));
   std::unique_ptr<FunctionJit> jit;
   if (use_jit) {
@@ -491,8 +606,14 @@ absl::StatusOr<std::vector<Value>> Eval(
     Value result;
     if (use_jit) {
       if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
-        XLS_ASSIGN_OR_RETURN(result,
-                             DropInterpreterEvents(jit->Run(arg_set.args)));
+        if (absl::GetFlag(FLAGS_use_llvm_jit_interpreter)) {
+          XLS_ASSIGN_OR_RETURN(
+              result, DropInterpreterEvents(RunLlvmInterpreter(
+                          observer.saved_opt_ir(), jit.get(), arg_set.args)));
+        } else {
+          XLS_ASSIGN_OR_RETURN(result,
+                               DropInterpreterEvents(jit->Run(arg_set.args)));
+        }
       } else {
         XLS_ASSIGN_OR_RETURN(result, Parser::ParseTypedValue(absl::GetFlag(
                                          FLAGS_test_only_inject_jit_result)));

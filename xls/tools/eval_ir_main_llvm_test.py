@@ -38,6 +38,17 @@ class EvalMainLLVMTest(parameterized.TestCase):
   way that lli functions.
   """
 
+  def test_one_input_jit_interpreter(self):
+    ir_file = self.create_tempfile(content=ADD_IR)
+    result = subprocess.check_output([
+        EVAL_IR_MAIN_PATH,
+        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--use_llvm_jit=true',
+        '--use_llvm_jit_interpreter=true',
+        ir_file.full_path,
+    ])
+    self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x165')
+
   def test_generate_main_includes_used_inputs(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     main_wrapper = self.create_tempfile()
