@@ -27,6 +27,7 @@
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -321,6 +322,16 @@ TEST_F(ArithSimplificationPassTest, CompareNeNegatedConstantWithOtherUse) {
   EXPECT_THAT(f->return_value(),
               m::Concat(m::Ne(m::Neg(m::Param("x")), m::Literal(3)),
                         m::Neg(m::Param("x"))));
+}
+
+TEST_F(ArithSimplificationPassTest, SubFallsToZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto param = fb.Param("x", p->GetBitsType(32));
+  fb.Subtract(param, param);
+  XLS_ASSERT_OK_AND_ASSIGN(Function* f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(0));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedLtNegated) {

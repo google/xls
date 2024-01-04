@@ -714,6 +714,15 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
+  // Sub(X, X) => Literal(0)
+  if (n->op() == Op::kSub && all_operands_same(n)) {
+    XLS_VLOG(2) << "FOUND: Sub of value with itself";
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
+            .status());
+    return true;
+  }
+
   auto is_same_opcode = [&](Node* other) { return n->op() == other->op(); };
 
   // Flatten nested associative nary ops into their root op:
