@@ -15,16 +15,25 @@
 #include "xls/interpreter/channel_queue.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/type.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/elaboration.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -34,7 +43,7 @@ absl::Status ChannelQueue::AttachGenerator(GeneratorFn generator) {
   if (generator_.has_value()) {
     return absl::InternalError("ChannelQueue already has a generator attached");
   }
-  if (channel_->kind() == ChannelKind::kSingleValue) {
+  if (channel()->kind() == ChannelKind::kSingleValue) {
     return absl::InternalError(
         absl::StrFormat("ChannelQueues for single-value channels cannot have a "
                         "generator. Channel: %s",
@@ -45,17 +54,18 @@ absl::Status ChannelQueue::AttachGenerator(GeneratorFn generator) {
 }
 
 absl::Status ChannelQueue::Write(const Value& value) {
-  XLS_VLOG(4) << absl::StreamFormat("Writing value to channel %s: { %s }",
-                                    channel_->name(), value.ToString());
+  XLS_VLOG(4) << absl::StreamFormat(
+      "Writing value to channel instance `%s`: { %s }",
+      channel_instance()->ToString(), value.ToString());
   absl::MutexLock lock(&mutex_);
   if (generator_.has_value()) {
     return absl::InternalError(
         "Cannot write to ChannelQueue because it has a generator function.");
   }
-  if (!ValueConformsToType(value, channel_->type())) {
+  if (!ValueConformsToType(value, channel()->type())) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Channel %s expects values to have type %s, got: %s", channel_->name(),
-        channel_->type()->ToString(), value.ToString()));
+        "Channel `%s` expects values to have type %s, got: %s",
+        channel()->name(), channel()->type()->ToString(), value.ToString()));
   }
 
   WriteInternal(value);
@@ -90,7 +100,8 @@ std::optional<Value> ChannelQueue::Read() {
   }
   std::optional<Value> value = ReadInternal();
   XLS_VLOG(4) << absl::StreamFormat(
-      "Reading data from channel %s: %s", channel_->name(),
+      "Reading data from channel instance %s: %s",
+      channel_instance()->ToString(),
       value.has_value() ? value->ToString() : "(none)");
   XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements",
                                     queue_.size());
@@ -110,62 +121,76 @@ std::optional<Value> ChannelQueue::ReadInternal() {
   return std::move(value);
 }
 
+/* static */ absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
+ChannelQueueManager::Create(Package* package) {
+  XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
+                       Elaboration::ElaborateOldStylePackage(package));
+  return Create(std::move(elaboration));
+}
+
 /* static */
 absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
 ChannelQueueManager::Create(std::vector<std::unique_ptr<ChannelQueue>>&& queues,
-                            Package* package) {
+                            Elaboration elaboration) {
   // Verify there is exactly one queue per channel.
-  absl::flat_hash_set<Channel*> proc_channels(package->channels().begin(),
-                                              package->channels().end());
-  absl::flat_hash_set<Channel*> queue_channels;
+  absl::flat_hash_set<ChannelInstance*> channel_instances(
+      elaboration.channel_instances().begin(),
+      elaboration.channel_instances().end());
+  absl::flat_hash_set<ChannelInstance*> queue_chan_instances;
   for (const std::unique_ptr<ChannelQueue>& queue : queues) {
-    if (!proc_channels.contains(queue->channel())) {
+    if (!channel_instances.contains(queue->channel_instance())) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Channel `%s` for queue does not exist in package `%s`",
-          queue->channel()->name(), package->name()));
+          "Channel instance `%s` for queue does not exist in package `%s`",
+          queue->channel_instance()->ToString(),
+          elaboration.package()->name()));
     }
-    auto [ir, inserted] = queue_channels.insert(queue->channel());
+    auto [ir, inserted] =
+        queue_chan_instances.insert(queue->channel_instance());
     if (!inserted) {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Multiple queues specified for channel `%s`",
-                          queue->channel()->name()));
+          absl::StrFormat("Multiple queues specified for channel instance `%s`",
+                          queue->channel_instance()->ToString()));
     }
   }
-  for (Channel* channel : package->channels()) {
-    if (!queue_channels.contains(channel)) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "No queue specified for channel `%s`", channel->name()));
+  for (ChannelInstance* instance : elaboration.channel_instances()) {
+    if (!queue_chan_instances.contains(instance)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("No queue specified for channel instance `%s`",
+                          instance->ToString()));
     }
   }
 
-  return absl::WrapUnique(new ChannelQueueManager(package, std::move(queues)));
+  return absl::WrapUnique(
+      new ChannelQueueManager(std::move(elaboration), std::move(queues)));
 }
 
 /* static */
 absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
-ChannelQueueManager::Create(Package* package) {
+ChannelQueueManager::Create(Elaboration elaboration) {
   std::vector<std::unique_ptr<ChannelQueue>> queues;
 
-  // Create a queue per channel in the package.
-  for (Channel* channel : package->channels()) {
-    if (channel->kind() != ChannelKind::kStreaming &&
-        channel->kind() != ChannelKind::kSingleValue) {
+  // Create a queue per channel instance in the elaboration.
+  for (ChannelInstance* channel_instance : elaboration.channel_instances()) {
+    if (channel_instance->channel->kind() != ChannelKind::kStreaming &&
+        channel_instance->channel->kind() != ChannelKind::kSingleValue) {
       return absl::UnimplementedError(
           "Only streaming and single-value channels are supported.");
     }
-    queues.push_back(std::make_unique<ChannelQueue>(channel));
+    queues.push_back(std::make_unique<ChannelQueue>(channel_instance));
   }
 
-  return absl::WrapUnique(new ChannelQueueManager(package, std::move(queues)));
+  return absl::WrapUnique(
+      new ChannelQueueManager(std::move(elaboration), std::move(queues)));
 }
 
 ChannelQueueManager::ChannelQueueManager(
-    Package* package, std::vector<std::unique_ptr<ChannelQueue>>&& queues)
-    : package_(package) {
+    Elaboration elaboration,
+    std::vector<std::unique_ptr<ChannelQueue>>&& queues)
+    : elaboration_(std::move(elaboration)) {
   for (std::unique_ptr<ChannelQueue>& queue : queues) {
-    Channel* channel = queue->channel();
-    queues_[channel] = std::move(queue);
-    queue_vec_.push_back(queues_[channel].get());
+    ChannelInstance* instance = queue->channel_instance();
+    queues_[instance] = std::move(queue);
+    queue_vec_.push_back(queues_[instance].get());
   }
   // Stably sort the queues by channel ID.
   std::sort(queue_vec_.begin(), queue_vec_.end(),
@@ -176,14 +201,18 @@ ChannelQueueManager::ChannelQueueManager(
 
 absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueById(
     int64_t channel_id) {
-  XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(channel_id));
-  return queues_.at(channel).get();
+  XLS_ASSIGN_OR_RETURN(Channel * channel, package()->GetChannel(channel_id));
+  XLS_ASSIGN_OR_RETURN(ChannelInstance * instance,
+                       elaboration().GetUniqueInstance(channel));
+  return queues_.at(instance).get();
 }
 
 absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueByName(
     std::string_view name) {
-  XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
-  return queues_.at(channel).get();
+  XLS_ASSIGN_OR_RETURN(Channel * channel, package()->GetChannel(name));
+  XLS_ASSIGN_OR_RETURN(ChannelInstance * instance,
+                       elaboration().GetUniqueInstance(channel));
+  return queues_.at(instance).get();
 }
 
 }  // namespace xls

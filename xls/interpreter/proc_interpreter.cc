@@ -21,14 +21,21 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/proc_evaluator.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
@@ -72,7 +79,7 @@ class ProcIrInterpreter : public IrInterpreter {
     if (!value.has_value()) {
       if (receive->is_blocking()) {
         // Record the channel this receive instruction is blocked on and exit.
-        blocked_channel_ = queue->channel();
+        blocked_channel_instance_ = queue->channel_instance();
         return absl::OkStatus();
       }
       // A non-blocking receive returns a zero data value with a zero valid bit
@@ -98,7 +105,7 @@ class ProcIrInterpreter : public IrInterpreter {
       }
     }
     // Indicate that data is sent on this channel.
-    sent_channel_ = queue->channel();
+    sent_channel_instance_ = queue->channel_instance();
 
     XLS_RETURN_IF_ERROR(queue->Write(ResolveAsValue(send->data())));
 
@@ -119,16 +126,16 @@ class ProcIrInterpreter : public IrInterpreter {
   // Executes a single node and return whether the node is blocked on a channel
   // (for receive nodes) or whether data was sent on a channel (for send nodes).
   struct NodeResult {
-    std::optional<Channel*> blocked_channel;
-    std::optional<Channel*> sent_channel;
+    std::optional<ChannelInstance*> blocked_channel_instance;
+    std::optional<ChannelInstance*> sent_channel_instance;
   };
   absl::StatusOr<NodeResult> ExecuteNode(Node* node) {
     // Send/Receive handlers might set these values so clear them before hand.
-    blocked_channel_ = std::nullopt;
-    sent_channel_ = std::nullopt;
+    blocked_channel_instance_ = std::nullopt;
+    sent_channel_instance_ = std::nullopt;
     XLS_RETURN_IF_ERROR(node->VisitSingleNode(this));
-    return NodeResult{.blocked_channel = blocked_channel_,
-                      .sent_channel = sent_channel_};
+    return NodeResult{.blocked_channel_instance = blocked_channel_instance_,
+                      .sent_channel_instance = sent_channel_instance_};
   }
 
  private:
@@ -137,8 +144,8 @@ class ProcIrInterpreter : public IrInterpreter {
 
   // Ephemeral values set by the send/receive handlers indicating the channel
   // execution is blocked on or the channel on which data was sent.
-  std::optional<Channel*> blocked_channel_;
-  std::optional<Channel*> sent_channel_;
+  std::optional<ChannelInstance*> blocked_channel_instance_;
+  std::optional<ChannelInstance*> sent_channel_instance_;
 };
 
 }  // namespace
@@ -148,8 +155,9 @@ ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
       queue_manager_(queue_manager),
       execution_order_(TopoSort(proc).AsVector()) {}
 
-std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation() const {
-  return std::make_unique<ProcInterpreterContinuation>(proc());
+std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation(
+    ProcInstance* proc_instance) const {
+  return std::make_unique<ProcInterpreterContinuation>(proc_instance);
 }
 
 absl::StatusOr<TickResult> ProcInterpreter::Tick(
@@ -158,7 +166,6 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
       dynamic_cast<ProcInterpreterContinuation*>(&continuation);
   XLS_RET_CHECK_NE(cont, nullptr) << "ProcInterpreter requires a continuation "
                                      "of type ProcInterpreterContinuation";
-  std::vector<Channel*> sent_channels;
 
   ProcIrInterpreter ir_interpreter(cont->GetState(), &cont->GetNodeValues(),
                                    &cont->GetEvents(), queue_manager_);
@@ -170,7 +177,7 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
     Node* node = execution_order_[i];
     XLS_ASSIGN_OR_RETURN(ProcIrInterpreter::NodeResult result,
                          ir_interpreter.ExecuteNode(node));
-    if (result.sent_channel.has_value()) {
+    if (result.sent_channel_instance.has_value()) {
       // Early exit: proc sent on a channel. Execution should resume _after_ the
       // send.
       cont->SetNodeExecutionIndex(i + 1);
@@ -179,10 +186,10 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
       XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
       return TickResult{
           .execution_state = TickExecutionState::kSentOnChannel,
-          .channel = result.sent_channel.value(),
+          .channel_instance = result.sent_channel_instance,
           .progress_made = cont->GetNodeExecutionIndex() != starting_index};
     }
-    if (result.blocked_channel.has_value()) {
+    if (result.blocked_channel_instance.has_value()) {
       // Early exit: proc is blocked at a receive node waiting for data on a
       // channel. Execution should resume at the send.
       cont->SetNodeExecutionIndex(i);
@@ -191,7 +198,7 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
       XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
       return TickResult{
           .execution_state = TickExecutionState::kBlockedOnReceive,
-          .channel = result.blocked_channel.value(),
+          .channel_instance = result.blocked_channel_instance,
           .progress_made = cont->GetNodeExecutionIndex() != starting_index};
     }
   }
@@ -210,7 +217,7 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
   XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
 
   return TickResult{.execution_state = TickExecutionState::kCompleted,
-                    .channel = std::nullopt,
+                    .channel_instance = std::nullopt,
                     .progress_made = true};
 }
 

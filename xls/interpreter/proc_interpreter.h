@@ -23,7 +23,9 @@
 #include "absl/status/statusor.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
+#include "xls/ir/node.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 
@@ -34,9 +36,10 @@ class ProcInterpreterContinuation : public ProcContinuation {
  public:
   // Construct a new continuation. Execution the proc begins with the state set
   // to its initial values with no proc nodes yet executed.
-  explicit ProcInterpreterContinuation(Proc* proc)
-      : node_index_(0),
-        state_(proc->InitValues().begin(), proc->InitValues().end()) {}
+  explicit ProcInterpreterContinuation(ProcInstance* proc_instance)
+      : ProcContinuation(proc_instance),
+        node_index_(0),
+        state_(proc()->InitValues().begin(), proc()->InitValues().end()) {}
 
   ~ProcInterpreterContinuation() override = default;
 
@@ -84,7 +87,8 @@ class ProcInterpreter : public ProcEvaluator {
 
   ~ProcInterpreter() override = default;
 
-  std::unique_ptr<ProcContinuation> NewContinuation() const override;
+  std::unique_ptr<ProcContinuation> NewContinuation(
+      ProcInstance* proc_instance) const override;
   absl::StatusOr<TickResult> Tick(
       ProcContinuation& continuation) const override;
 

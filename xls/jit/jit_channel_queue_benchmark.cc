@@ -13,12 +13,14 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
 #include "include/benchmark/benchmark.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
@@ -42,7 +44,11 @@ static void BM_QueueWriteThenRead(benchmark::State& state) {
           .CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                   package.GetBitsType(8 * element_size_bytes))
           .value();
-  QueueT queue(channel, jit_runtime.get());
+  Elaboration elaboration =
+      Elaboration::ElaborateOldStylePackage(&package).value();
+
+  QueueT queue(elaboration.GetUniqueInstance(channel).value(),
+               jit_runtime.get());
 
   int64_t send_count = state.range(1);
   XLS_CHECK(queue.IsEmpty());

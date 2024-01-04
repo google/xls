@@ -14,28 +14,23 @@
 #ifndef XLS_JIT_JIT_CHANNEL_QUEUE_H_
 #define XLS_JIT_JIT_CHANNEL_QUEUE_H_
 
-#include <algorithm>
-#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
-#include <string>
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/container/inlined_vector.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "xls/common/logging/logging.h"
-#include "xls/common/math_util.h"
-#include "xls/common/status/ret_check.h"
+#include "absl/synchronization/mutex.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/orc_jit.h"
 
 namespace xls {
 
@@ -122,7 +117,7 @@ class ByteQueue {
 // xls::Values.
 class JitChannelQueue : public ChannelQueue {
  public:
-  JitChannelQueue(Channel* channel, JitRuntime* jit_runtime)
+  JitChannelQueue(ChannelInstance* channel, JitRuntime* jit_runtime)
       : ChannelQueue(channel), jit_runtime_(jit_runtime) {}
   ~JitChannelQueue() override = default;
 
@@ -137,10 +132,12 @@ class JitChannelQueue : public ChannelQueue {
 // mutex.
 class ThreadSafeJitChannelQueue : public JitChannelQueue {
  public:
-  ThreadSafeJitChannelQueue(Channel* channel, JitRuntime* jit_runtime)
-      : JitChannelQueue(channel, jit_runtime),
-        byte_queue_(jit_runtime->GetTypeByteSize(channel->type()),
-                    channel->kind() == ChannelKind::kSingleValue) {}
+  ThreadSafeJitChannelQueue(ChannelInstance* channel_instance,
+                            JitRuntime* jit_runtime)
+      : JitChannelQueue(channel_instance, jit_runtime),
+        byte_queue_(
+            jit_runtime->GetTypeByteSize(channel_instance->channel->type()),
+            channel_instance->channel->kind() == ChannelKind::kSingleValue) {}
   ~ThreadSafeJitChannelQueue() override = default;
 
   // Write raw bytes representing a value in LLVM's native format.
@@ -175,10 +172,12 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
 // A thread-unsafe version of the JIT channel queue.
 class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
  public:
-  ThreadUnsafeJitChannelQueue(Channel* channel, JitRuntime* jit_runtime)
-      : JitChannelQueue(channel, jit_runtime),
-        byte_queue_(jit_runtime->GetTypeByteSize(channel->type()),
-                    channel->kind() == ChannelKind::kSingleValue) {}
+  ThreadUnsafeJitChannelQueue(ChannelInstance* channel_instance,
+                              JitRuntime* jit_runtime)
+      : JitChannelQueue(channel_instance, jit_runtime),
+        byte_queue_(
+            jit_runtime->GetTypeByteSize(channel_instance->channel->type()),
+            channel_instance->channel->kind() == ChannelKind::kSingleValue) {}
   ~ThreadUnsafeJitChannelQueue() override = default;
 
   void WriteRaw(const uint8_t* data) override { byte_queue_.Write(data); }
@@ -217,10 +216,10 @@ class JitChannelQueueManager : public ChannelQueueManager {
   JitRuntime& runtime() { return *runtime_; }
 
  protected:
-  JitChannelQueueManager(Package* package,
+  JitChannelQueueManager(Elaboration elaboration,
                          std::vector<std::unique_ptr<ChannelQueue>>&& queues,
                          std::unique_ptr<JitRuntime> runtime)
-      : ChannelQueueManager(package, std::move(queues)),
+      : ChannelQueueManager(std::move(elaboration), std::move(queues)),
         runtime_(std::move(runtime)) {}
 
   std::unique_ptr<JitRuntime> runtime_;

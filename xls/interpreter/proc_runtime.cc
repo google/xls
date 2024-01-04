@@ -15,14 +15,29 @@
 #include "xls/interpreter/proc_runtime.h"
 
 #include <algorithm>
-#include <deque>
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/proc_evaluator.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/elaboration.h"
+#include "xls/ir/package.h"
+#include "xls/jit/jit_channel_queue.h"
 
 namespace xls {
 
@@ -30,13 +45,13 @@ ProcRuntime::ProcRuntime(
     Package* package,
     absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>>&& evaluators,
     std::unique_ptr<ChannelQueueManager>&& queue_manager)
-    : package_(package), queue_manager_(std::move(queue_manager)) {
-  for (const std::unique_ptr<Proc>& proc : package_->procs()) {
+    : package_(package),
+      queue_manager_(std::move(queue_manager)),
+      evaluators_(std::move(evaluators)) {
+  for (ProcInstance* instance : elaboration().proc_instances()) {
     std::unique_ptr<ProcContinuation> continuation =
-        evaluators.at(proc.get())->NewContinuation();
-    evaluator_contexts_[proc.get()] =
-        EvaluatorContext{.evaluator = std::move(evaluators.at(proc.get())),
-                         .continuation = std::move(continuation)};
+        evaluators_.at(instance->proc())->NewContinuation(instance);
+    continuations_[instance] = std::move(continuation);
   }
 }
 
@@ -46,9 +61,12 @@ absl::Status ProcRuntime::Tick() {
   if (!result.progress_made) {
     // Not a single instruction executed on any proc. This is necessarily a
     // deadlock.
-    return absl::InternalError(
-        absl::StrFormat("Proc network is deadlocked. Blocked channels: %s",
-                        absl::StrJoin(result.blocked_channels, ", ")));
+    return absl::InternalError(absl::StrFormat(
+        "Proc network is deadlocked. Blocked channel instances: %s",
+        absl::StrJoin(result.blocked_channel_instances, ", ",
+                      [](std::string* s, ChannelInstance* c) {
+                        return absl::StrAppend(s, c->ToString());
+                      })));
   }
   return absl::OkStatus();
 }
@@ -59,7 +77,7 @@ absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
   XLS_VLOG(3) << absl::StreamFormat("TickUntilOutput on package %s",
                                     package_->name());
   // Create a deterministically sorted vector of the output channels for
-  // determistic behavior and error messages.
+  // deterministic behavior and error messages.
   std::vector<Channel*> output_channels;
   for (auto [channel, _] : output_counts) {
     output_channels.push_back(channel);
@@ -128,9 +146,9 @@ absl::StatusOr<int64_t> ProcRuntime::TickUntilBlocked(
 }
 
 void ProcRuntime::ResetState() {
-  for (const std::unique_ptr<Proc>& proc : package_->procs()) {
-    EvaluatorContext& context = evaluator_contexts_[proc.get()];
-    context.continuation = context.evaluator->NewContinuation();
+  for (ProcInstance* instance : elaboration().proc_instances()) {
+    continuations_[instance] =
+        evaluators_.at(instance->proc())->NewContinuation(instance);
   }
 }
 

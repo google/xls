@@ -850,11 +850,12 @@ top proc test_proc(tkn: token, state:(), init={()}) {
           //  out_send1 fires after out_send0, so sending pred1 should not cause
           //  any sends to go through.
           XLS_RETURN_IF_ERROR(pred1q->Write(Value(UBits(1, /*bit_count=*/1))));
-          EXPECT_THAT(interpreter->TickUntilOutput({{outq->channel(), 1}},
-                                                   /*max_ticks=*/10),
-                      AnyOf(StatusIs(absl::StatusCode::kDeadlineExceeded),
-                            StatusIs(absl::StatusCode::kInternal,
-                                     HasSubstr("Blocked channels: pred0"))));
+          EXPECT_THAT(
+              interpreter->TickUntilOutput({{outq->channel(), 1}},
+                                           /*max_ticks=*/10),
+              AnyOf(StatusIs(absl::StatusCode::kDeadlineExceeded),
+                    StatusIs(absl::StatusCode::kInternal,
+                             HasSubstr("Blocked channel instances: pred0"))));
           EXPECT_EQ(outq->GetSize(), 0);
 
           // Send 0 to first predicate, runtime_mutually_exclusive will work b/c
@@ -869,11 +870,12 @@ top proc test_proc(tkn: token, state:(), init={()}) {
           //  out_send1 fires after out_send0, so sending pred1 should not cause
           //  any sends to go through.
           XLS_RETURN_IF_ERROR(pred1q->Write(Value(UBits(1, /*bit_count=*/1))));
-          EXPECT_THAT(interpreter->TickUntilOutput({{outq->channel(), 1}},
-                                                   /*max_ticks=*/10),
-                      AnyOf(StatusIs(absl::StatusCode::kDeadlineExceeded),
-                            StatusIs(absl::StatusCode::kInternal,
-                                     HasSubstr("Blocked channels: pred0"))));
+          EXPECT_THAT(
+              interpreter->TickUntilOutput({{outq->channel(), 1}},
+                                           /*max_ticks=*/10),
+              AnyOf(StatusIs(absl::StatusCode::kDeadlineExceeded),
+                    StatusIs(absl::StatusCode::kInternal,
+                             HasSubstr("Blocked channel instances: pred0"))));
           EXPECT_EQ(outq->GetSize(), 0);
 
           // Sending 1 to the first predicate should cause

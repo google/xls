@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include "absl/status/statusor.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/package.h"
 

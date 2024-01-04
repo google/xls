@@ -17,11 +17,13 @@
 
 #include <functional>
 #include <memory>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/ir_test_base.h"
 
 namespace xls {
@@ -29,16 +31,17 @@ namespace xls {
 class ChannelQueueTestParam {
  public:
   // `new_queue` is a factory which creates a channel queue to test.
-  ChannelQueueTestParam(
-      std::function<std::unique_ptr<ChannelQueue>(Channel*)> new_queue)
-      : new_queue_(new_queue) {}
+  explicit ChannelQueueTestParam(
+      std::function<std::unique_ptr<ChannelQueue>(ChannelInstance*)> new_queue)
+      : new_queue_(std::move(new_queue)) {}
 
-  std::unique_ptr<ChannelQueue> CreateQueue(Channel* channel) const {
-    return new_queue_(channel);
+  std::unique_ptr<ChannelQueue> CreateQueue(
+      ChannelInstance* channel_instance) const {
+    return new_queue_(channel_instance);
   }
 
  private:
-  std::function<std::unique_ptr<ChannelQueue>(Channel*)> new_queue_;
+  std::function<std::unique_ptr<ChannelQueue>(ChannelInstance*)> new_queue_;
 };
 
 // A suite of test which can be run against arbitrary ChannelQueue

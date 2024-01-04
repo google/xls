@@ -15,6 +15,7 @@
 #ifndef XLS_INTERPRETER_PROC_EVALUATOR_H_
 #define XLS_INTERPRETER_PROC_EVALUATOR_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -22,7 +23,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "xls/ir/channel.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
@@ -34,6 +35,8 @@ namespace xls {
 // of a proc tick.
 class ProcContinuation {
  public:
+  explicit ProcContinuation(ProcInstance* proc_instance)
+      : proc_instance_(proc_instance) {}
   virtual ~ProcContinuation() = default;
 
   // Returns the Proc state at the beginning of the tick currently being
@@ -49,10 +52,16 @@ class ProcContinuation {
   // of a tick, rather than, for example, blocked on a receive in the middle of
   // a tick execution.
   virtual bool AtStartOfTick() const = 0;
+
+  ProcInstance* proc_instance() const { return proc_instance_; }
+  Proc* proc() const { return proc_instance_->proc(); }
+
+ private:
+  ProcInstance* proc_instance_;
 };
 
 // The execution state that a proc may be left in after callin Tick.
-enum class TickExecutionState {
+enum class TickExecutionState : int8_t {
   // The proc tick completed.
   kCompleted,
   // The proc tick was blocked on a blocking receive.
@@ -69,8 +78,8 @@ struct TickResult {
   TickExecutionState execution_state;
 
   // If tick state is kBlockedOnReceive or kSentOnChannel then this field holds
-  // the respective channel.
-  std::optional<Channel*> channel;
+  // the respective channel instance.
+  std::optional<ChannelInstance*> channel_instance;
 
   // Whether any progress was made (at least one instruction was executed).
   bool progress_made;
@@ -93,7 +102,8 @@ class ProcEvaluator {
   // Creates and returns a new continuation for the proc. The continuation is
   // initialized to start execution at the beginning of the proc with state set
   // to its initial value.
-  virtual std::unique_ptr<ProcContinuation> NewContinuation() const = 0;
+  virtual std::unique_ptr<ProcContinuation> NewContinuation(
+      ProcInstance* proc_instance) const = 0;
 
   // Runs the proc from the given continuation until the tick is complete or
   // execution exits early (e.g., blocked on a receive operation). The

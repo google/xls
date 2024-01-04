@@ -14,13 +14,23 @@
 
 #include "xls/interpreter/channel_queue_test_base.h"
 
+#include <cstdint>
+#include <optional>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -35,7 +45,11 @@ TEST_P(ChannelQueueTestBase, FifoChannelQueueTest) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(32)));
-  auto queue = GetParam().CreateQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
+                           Elaboration::ElaborateOldStylePackage(&package));
+  auto queue =
+      GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
+
   EXPECT_EQ(queue->channel(), channel);
   EXPECT_EQ(queue->GetSize(), 0);
   EXPECT_TRUE(queue->IsEmpty());
@@ -65,7 +79,11 @@ TEST_P(ChannelQueueTestBase, SingleValueChannelQueueTest) {
       Channel * channel,
       package.CreateSingleValueChannel("my_channel", ChannelOps::kSendReceive,
                                        package.GetBitsType(32)));
-  auto queue = GetParam().CreateQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
+                           Elaboration::ElaborateOldStylePackage(&package));
+  auto queue =
+      GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
+
   EXPECT_EQ(queue->channel(), channel);
   EXPECT_EQ(queue->GetSize(), 0);
   EXPECT_TRUE(queue->IsEmpty());
@@ -97,14 +115,16 @@ TEST_P(ChannelQueueTestBase, ErrorConditions) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(1)));
-
-  auto queue = GetParam().CreateQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
+                           Elaboration::ElaborateOldStylePackage(&package));
+  auto queue =
+      GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
 
   EXPECT_EQ(queue->Read(), std::nullopt);
 
   EXPECT_THAT(queue->Write(Value(UBits(44, 123))),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Channel my_channel expects values to have "
+                       HasSubstr("Channel `my_channel` expects values to have "
                                  "type bits[1], got: bits[123]:0x2c")));
 }
 
@@ -114,7 +134,11 @@ TEST_P(ChannelQueueTestBase, IotaGenerator) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kReceiveOnly,
                                      package.GetBitsType(32)));
-  auto queue = GetParam().CreateQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
+                           Elaboration::ElaborateOldStylePackage(&package));
+  auto queue =
+      GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
+
   int64_t counter = 42;
   XLS_ASSERT_OK(queue->AttachGenerator(
       [&]() -> std::optional<Value> { return Value(UBits(counter++, 32)); }));
@@ -135,7 +159,11 @@ TEST_P(ChannelQueueTestBase, FixedValueGenerator) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kReceiveOnly,
                                      package.GetBitsType(32)));
-  auto queue = GetParam().CreateQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
+                           Elaboration::ElaborateOldStylePackage(&package));
+  auto queue =
+      GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
+
   XLS_ASSERT_OK(queue->AttachGenerator(FixedValueGenerator(
       {Value(UBits(22, 32)), Value(UBits(44, 32)), Value(UBits(55, 32))})));
 
@@ -152,7 +180,10 @@ TEST_P(ChannelQueueTestBase, EmptyGenerator) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kReceiveOnly,
                                      package.GetBitsType(32)));
-  auto queue = GetParam().CreateQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
+                           Elaboration::ElaborateOldStylePackage(&package));
+  auto queue =
+      GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
   XLS_ASSERT_OK(queue->AttachGenerator(
       []() -> std::optional<Value> { return std::nullopt; }));
 
@@ -165,7 +196,10 @@ TEST_P(ChannelQueueTestBase, ChannelWithEmptyTuple) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetTupleType({})));
-  auto queue = GetParam().CreateQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
+                           Elaboration::ElaborateOldStylePackage(&package));
+  auto queue =
+      GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
 
   EXPECT_EQ(queue->channel(), channel);
   EXPECT_EQ(queue->GetSize(), 0);

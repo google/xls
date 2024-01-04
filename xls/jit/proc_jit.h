@@ -15,6 +15,7 @@
 #ifndef XLS_JIT_PROC_JIT_H_
 #define XLS_JIT_PROC_JIT_H_
 
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -24,6 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
@@ -45,7 +47,8 @@ class ProcJitContinuation : public ProcContinuation {
   // specifies the size of a flat buffer used to hold temporary xls::Node values
   // during execution of the JITed function. The size of the buffer is
   // determined at JIT compile time and known by the ProcJit.
-  explicit ProcJitContinuation(Proc* proc, JitRuntime* jit_runtime,
+  explicit ProcJitContinuation(ProcInstance* proc_instance,
+                               JitRuntime* jit_runtime,
                                const JittedFunctionBase& jit_func);
 
   ~ProcJitContinuation() override = default;
@@ -77,10 +80,7 @@ class ProcJitContinuation : public ProcContinuation {
   // state to the "next" value computed in the previous tick.
   void NextTick();
 
-  Proc* proc() const { return proc_; }
-
  private:
-  Proc* proc_;
   int64_t continuation_point_;
   JitRuntime* jit_runtime_;
 
@@ -105,7 +105,8 @@ class ProcJit : public ProcEvaluator {
 
   ~ProcJit() override = default;
 
-  std::unique_ptr<ProcContinuation> NewContinuation() const override;
+  std::unique_ptr<ProcContinuation> NewContinuation(
+      ProcInstance* proc_instance) const override;
   absl::StatusOr<TickResult> Tick(
       ProcContinuation& continuation) const override;
 
@@ -115,12 +116,15 @@ class ProcJit : public ProcEvaluator {
 
  private:
   explicit ProcJit(Proc* proc, JitRuntime* jit_runtime,
+                   JitChannelQueueManager* queue_mgr,
                    std::unique_ptr<OrcJit> orc_jit)
       : ProcEvaluator(proc),
         jit_runtime_(jit_runtime),
+        queue_mgr_(queue_mgr),
         orc_jit_(std::move(orc_jit)) {}
 
   JitRuntime* jit_runtime_;
+  JitChannelQueueManager* queue_mgr_;
   std::unique_ptr<OrcJit> orc_jit_;
   JittedFunctionBase jitted_function_base_;
 };

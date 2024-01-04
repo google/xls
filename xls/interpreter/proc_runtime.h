@@ -15,15 +15,20 @@
 #ifndef XLS_INTERPRETER_PROC_RUNTIME_H_
 #define XLS_INTERPRETER_PROC_RUNTIME_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
 
 namespace xls {
@@ -76,22 +81,34 @@ class ProcRuntime {
   absl::StatusOr<JitChannelQueueManager*> GetJitChannelQueueManager();
 
   // Returns the state values for a proc in the network.
+  std::vector<Value> ResolveState(ProcInstance* instance) const {
+    return continuations_.at(instance)->GetState();
+  }
   std::vector<Value> ResolveState(Proc* proc) const {
-    return evaluator_contexts_.at(proc).continuation->GetState();
+    return continuations_.at(elaboration().GetUniqueInstance(proc).value())
+        ->GetState();
   }
 
   // Reset the state of all of the procs to their initial state.
   void ResetState();
 
   // Returns the events for each proc in the network.
+  const InterpreterEvents& GetInterpreterEvents(ProcInstance* instance) const {
+    return continuations_.at(instance)->GetEvents();
+  }
   const InterpreterEvents& GetInterpreterEvents(Proc* proc) const {
-    return evaluator_contexts_.at(proc).continuation->GetEvents();
+    return continuations_.at(elaboration().GetUniqueInstance(proc).value())
+        ->GetEvents();
   }
 
   void ClearInterpreterEvents() const {
-    for (const auto& [proc, context] : evaluator_contexts_) {
-      context.continuation->ClearEvents();
+    for (const auto& [_, continuation] : continuations_) {
+      continuation->ClearEvents();
     }
+  }
+
+  const Elaboration& elaboration() const {
+    return queue_manager_->elaboration();
   }
 
  protected:
@@ -103,17 +120,15 @@ class ProcRuntime {
     // Whether any instruction on a proc with IO executed
     bool progress_made_on_io_procs;
 
-    std::vector<Channel*> blocked_channels;
+    std::vector<ChannelInstance*> blocked_channel_instances;
   };
   virtual absl::StatusOr<NetworkTickResult> TickInternal() = 0;
 
   Package* package_;
   std::unique_ptr<ChannelQueueManager> queue_manager_;
-  struct EvaluatorContext {
-    std::unique_ptr<ProcEvaluator> evaluator;
-    std::unique_ptr<ProcContinuation> continuation;
-  };
-  absl::flat_hash_map<Proc*, EvaluatorContext> evaluator_contexts_;
+  absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>> evaluators_;
+  absl::flat_hash_map<ProcInstance*, std::unique_ptr<ProcContinuation>>
+      continuations_;
 };
 
 }  // namespace xls

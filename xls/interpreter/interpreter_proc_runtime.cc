@@ -18,20 +18,28 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/proc_interpreter.h"
-#include "xls/ir/proc.h"
+#include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/elaboration.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
 CreateInterpreterSerialProcRuntime(Package* package) {
+  // TODO(https://github.com/google/xls/issues/869): Support new-style procs.
+  XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
+                       Elaboration::ElaborateOldStylePackage(package));
+
   // Create a queue manager for the queues. This factory verifies that there an
   // receive only queue for every receive only channel.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                       ChannelQueueManager::Create(package));
+                       ChannelQueueManager::Create(std::move(elaboration)));
 
   // Create a ProcInterpreter for each Proc.
   std::vector<std::unique_ptr<ProcEvaluator>> proc_interpreters;

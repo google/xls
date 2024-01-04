@@ -15,13 +15,24 @@
 #include "xls/jit/jit_channel_queue.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/ir/elaboration.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
+#include "xls/jit/jit_runtime.h"
 
 namespace xls {
 namespace {
@@ -117,26 +128,32 @@ std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
 JitChannelQueueManager::CreateThreadSafe(Package* package) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
                        JitRuntime::Create());
+  XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
+                       Elaboration::ElaborateOldStylePackage(package));
+
   std::vector<std::unique_ptr<ChannelQueue>> queues;
-  for (Channel* channel : package->channels()) {
-    queues.push_back(
-        std::make_unique<ThreadSafeJitChannelQueue>(channel, runtime.get()));
+  for (ChannelInstance* channel_instance : elaboration.channel_instances()) {
+    queues.push_back(std::make_unique<ThreadSafeJitChannelQueue>(
+        channel_instance, runtime.get()));
   }
-  return absl::WrapUnique(new JitChannelQueueManager(package, std::move(queues),
-                                                     std::move(runtime)));
+  return absl::WrapUnique(new JitChannelQueueManager(
+      std::move(elaboration), std::move(queues), std::move(runtime)));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
 JitChannelQueueManager::CreateThreadUnsafe(Package* package) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
                        JitRuntime::Create());
+  XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
+                       Elaboration::ElaborateOldStylePackage(package));
+
   std::vector<std::unique_ptr<ChannelQueue>> queues;
-  for (Channel* channel : package->channels()) {
-    queues.push_back(
-        std::make_unique<ThreadUnsafeJitChannelQueue>(channel, runtime.get()));
+  for (ChannelInstance* channel_instance : elaboration.channel_instances()) {
+    queues.push_back(std::make_unique<ThreadUnsafeJitChannelQueue>(
+        channel_instance, runtime.get()));
   }
-  return absl::WrapUnique(new JitChannelQueueManager(package, std::move(queues),
-                                                     std::move(runtime)));
+  return absl::WrapUnique(new JitChannelQueueManager(
+      std::move(elaboration), std::move(queues), std::move(runtime)));
 }
 
 JitChannelQueue& JitChannelQueueManager::GetJitQueue(Channel* channel) {

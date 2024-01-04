@@ -15,15 +15,21 @@
 #include "xls/interpreter/proc_evaluator_test_base.h"
 
 #include <memory>
+#include <optional>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -44,18 +50,19 @@ TEST_P(ProcEvaluatorTestBase, EmptyProc) {
   std::unique_ptr<ProcEvaluator> evaluator =
       GetParam().CreateEvaluator(proc, queue_manager.get());
 
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
 
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
 
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
 }
 
@@ -71,17 +78,21 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
   BValue counter = pb.StateElement("cnt", Value(UBits(42, 32)));
   BValue send_token = pb.Send(channel, pb.GetTokenParam(), counter);
   BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
-  XLS_ASSERT_OK(pb.Build(send_token, {new_value}).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_token, {new_value}));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
   std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
       FindProc("iota", package.get()), queue_manager.get());
   ChannelQueue& ch0_queue = queue_manager->GetQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * channel_instance,
+      queue_manager->elaboration().GetUniqueInstance(channel));
 
   ASSERT_TRUE(ch0_queue.IsEmpty());
 
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
 
   // Before running, the state should be the initial value.
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(42, 32))));
@@ -89,12 +100,12 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = channel,
+                  .channel_instance = channel_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
 
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(49, 32))));
@@ -109,36 +120,36 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = channel,
+                  .channel_instance = channel_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(56, 32))));
 
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = channel,
+                  .channel_instance = channel_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(63, 32))));
 
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = channel,
+                  .channel_instance = channel_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(70, 32))));
 
@@ -177,31 +188,39 @@ TEST_P(ProcEvaluatorTestBase, ProcWhichReturnsPreviousResults) {
   ChannelQueue& input_queue = queue_manager->GetQueue(ch_in);
   ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
 
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_in_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_in));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_out_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_out));
+
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(42, 32))}));
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(123, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_out,
+                  .channel_instance = ch_out_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_out,
+                  .channel_instance = ch_out_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
@@ -214,7 +233,7 @@ TEST_P(ProcEvaluatorTestBase, ProcWhichReturnsPreviousResults) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kBlockedOnReceive,
-                  .channel = ch_in,
+                  .channel_instance = ch_in_instance,
                   .progress_made = true}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(123, 32))));
   EXPECT_FALSE(continuation->AtStartOfTick());
@@ -225,12 +244,12 @@ TEST_P(ProcEvaluatorTestBase, ProcWhichReturnsPreviousResults) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_out,
+                  .channel_instance = ch_out_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_TRUE(continuation->AtStartOfTick());
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(111, 32))));
@@ -273,12 +292,26 @@ TEST_P(ProcEvaluatorTestBase, MultipleReceives) {
   ChannelQueue& in2_queue = queue_manager->GetQueue(ch_in2);
   ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
 
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_in0_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_in0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_in1_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_in1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_in2_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_in2));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_out_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_out));
+
   // Initially should be blocked on in0.
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kBlockedOnReceive,
-                  .channel = ch_in0,
+                  .channel_instance = ch_in0_instance,
                   .progress_made = true}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
@@ -288,7 +321,7 @@ TEST_P(ProcEvaluatorTestBase, MultipleReceives) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kBlockedOnReceive,
-                  .channel = ch_in1,
+                  .channel_instance = ch_in1_instance,
                   .progress_made = true}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
@@ -298,7 +331,7 @@ TEST_P(ProcEvaluatorTestBase, MultipleReceives) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kBlockedOnReceive,
-                  .channel = ch_in2,
+                  .channel_instance = ch_in2_instance,
                   .progress_made = true}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
@@ -308,13 +341,13 @@ TEST_P(ProcEvaluatorTestBase, MultipleReceives) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_out,
+                  .channel_instance = ch_out_instance,
                   .progress_made = true}));
   // Finally, should run to completion.
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
@@ -327,12 +360,12 @@ TEST_P(ProcEvaluatorTestBase, MultipleReceives) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_out,
+                  .channel_instance = ch_out_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
@@ -369,6 +402,10 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
   ChannelQueue& input_queue = queue_manager->GetQueue(ch_in);
   ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
 
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_out_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_out));
+
   ASSERT_TRUE(input_queue.IsEmpty());
   ASSERT_TRUE(output_queue.IsEmpty());
 
@@ -378,16 +415,17 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
   // In the first iteration, the receive_if should read a value because the
   // proc state value (which is the receive_if predicate) is initialized to
   // true.
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_out,
+                  .channel_instance = ch_out_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(42, 32))));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(0, 1))));
@@ -398,12 +436,12 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_out,
+                  .channel_instance = ch_out_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(0, 32))));
 
@@ -412,12 +450,12 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_out,
+                  .channel_instance = ch_out_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(123, 32))));
 
@@ -439,7 +477,7 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
                          pb.Literal(UBits(0, 1)));
   BValue send_if = pb.SendIf(channel, pb.GetTokenParam(), is_even, prev);
   BValue new_value = pb.Add(prev, pb.Literal(UBits(1, 32)));
-  XLS_ASSERT_OK(pb.Build(send_if, {new_value}).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_if, {new_value}));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
@@ -447,17 +485,21 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
       FindProc("even", &package), queue_manager.get());
 
   ChannelQueue& queue = queue_manager->GetQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * channel_instance,
+      queue_manager->elaboration().GetUniqueInstance(channel));
 
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = channel,
+                  .channel_instance = channel_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_EQ(queue.GetSize(), 1);
   EXPECT_THAT(queue.Read(), Optional(Value(UBits(0, 32))));
@@ -465,38 +507,38 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_TRUE(queue.IsEmpty());
 
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = channel,
+                  .channel_instance = channel_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(queue.Read(), Optional(Value(UBits(2, 32))));
 
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_TRUE(queue.IsEmpty());
 
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = channel,
+                  .channel_instance = channel_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(queue.Read(), Optional(Value(UBits(4, 32))));
 }
@@ -542,6 +584,13 @@ TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * b_queue,
                            queue_manager->GetQueueByName("b"));
 
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_a_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_a));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * ch_b_instance,
+      queue_manager->elaboration().GetUniqueInstance(ch_b));
+
   // Set the direction to output B and write a bunch of values.
   XLS_ASSERT_OK(dir_queue->Write(Value(UBits(0, 1))));
   XLS_ASSERT_OK(in_queue->Write(Value(UBits(1, 32))));
@@ -549,18 +598,19 @@ TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
   XLS_ASSERT_OK(in_queue->Write(Value(UBits(3, 32))));
   XLS_ASSERT_OK(in_queue->Write(Value(UBits(4, 32))));
 
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
 
   // Tick twice and verify that the expected outputs appear at output B.
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_b,
+                  .channel_instance = ch_b_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_TRUE(a_queue->IsEmpty());
   EXPECT_FALSE(b_queue->IsEmpty());
@@ -569,12 +619,12 @@ TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_b,
+                  .channel_instance = ch_b_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(b_queue->Read(), Optional(Value(UBits(2, 32))));
   EXPECT_TRUE(a_queue->IsEmpty());
@@ -587,12 +637,12 @@ TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_a,
+                  .channel_instance = ch_a_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_FALSE(a_queue->IsEmpty());
   EXPECT_TRUE(b_queue->IsEmpty());
@@ -602,12 +652,12 @@ TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = ch_a,
+                  .channel_instance = ch_a_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
 
   EXPECT_THAT(a_queue->Read(), Optional(Value(UBits(4, 32))));
@@ -640,19 +690,24 @@ TEST_P(ProcEvaluatorTestBase, StatelessProc) {
   ChannelQueue& input_queue = queue_manager->GetQueue(channel_in);
   ChannelQueue& output_queue = queue_manager->GetQueue(channel_out);
 
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * channel_out_instance,
+      queue_manager->elaboration().GetUniqueInstance(channel_out));
+
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(1, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
 
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = channel_out,
+                  .channel_instance = channel_out_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(43, 32))));
 
@@ -683,7 +738,8 @@ TEST_P(ProcEvaluatorTestBase, MultiStateElementProc) {
       GetParam().CreateQueueManager(package.get());
   std::unique_ptr<ProcEvaluator> evaluator =
       GetParam().CreateEvaluator(proc, queue_manager.get());
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
 
   ChannelQueue& input_queue = queue_manager->GetQueue(channel_in);
   XLS_ASSERT_OK(input_queue.Write({Value(UBits(1, 32))}));
@@ -693,21 +749,21 @@ TEST_P(ProcEvaluatorTestBase, MultiStateElementProc) {
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(1, 32)), Value(UBits(99, 32))));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(11, 32)), Value(UBits(89, 32))));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(31, 32)), Value(UBits(69, 32))));
@@ -753,12 +809,17 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceives) {
       GetParam().CreateQueueManager(package.get());
   std::unique_ptr<ProcEvaluator> evaluator =
       GetParam().CreateEvaluator(proc, queue_manager.get());
-  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
 
   ChannelQueue& in0_queue = queue_manager->GetQueue(in0);
   ChannelQueue& in1_queue = queue_manager->GetQueue(in1);
   ChannelQueue& in2_queue = queue_manager->GetQueue(in2);
   ChannelQueue& out0_queue = queue_manager->GetQueue(out0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * out0_instance,
+      queue_manager->elaboration().GetUniqueInstance(out0));
 
   // Initialize the single value queue.
   XLS_ASSERT_OK(in2_queue.Write(Value(UBits(10, 32))));
@@ -770,12 +831,12 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceives) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = out0,
+                  .channel_instance = out0_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
 
   EXPECT_TRUE(in0_queue.IsEmpty());
@@ -793,12 +854,12 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceives) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = out0,
+                  .channel_instance = out0_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
 
   EXPECT_TRUE(in0_queue.IsEmpty());
@@ -816,12 +877,12 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceives) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = out0,
+                  .channel_instance = out0_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
 
   EXPECT_TRUE(in0_queue.IsEmpty());
@@ -840,12 +901,12 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceives) {
   EXPECT_THAT(evaluator->Tick(*continuation),
               IsOkAndHolds(TickResult{
                   .execution_state = TickExecutionState::kSentOnChannel,
-                  .channel = out0,
+                  .channel_instance = out0_instance,
                   .progress_made = true}));
   EXPECT_THAT(
       evaluator->Tick(*continuation),
       IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
-                              .channel = std::nullopt,
+                              .channel_instance = std::nullopt,
                               .progress_made = true}));
 
   EXPECT_TRUE(in0_queue.IsEmpty());

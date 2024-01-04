@@ -21,41 +21,41 @@
 #include <vector>
 
 #include "absl/memory/memory.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/proc_evaluator.h"
-#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
-#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
+#include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
 
-ProcJitContinuation::ProcJitContinuation(Proc* proc, JitRuntime* jit_runtime,
+ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
+                                         JitRuntime* jit_runtime,
                                          const JittedFunctionBase& jit_func)
-    : proc_(proc),
+    : ProcContinuation(proc_instance),
       continuation_point_(0),
       jit_runtime_(jit_runtime),
       input_(jit_func.CreateInputOutputBuffer().value()),
       output_(jit_func.CreateInputOutputBuffer().value()),
       temp_buffer_(jit_func.CreateTempBuffer()) {
   // Write initial state value to the input_buffer.
-  for (Param* state_param : proc->StateParams()) {
-    int64_t param_index = proc->GetParamIndex(state_param).value();
-    int64_t state_index = proc->GetStateParamIndex(state_param).value();
+  for (Param* state_param : proc()->StateParams()) {
+    int64_t param_index = proc()->GetParamIndex(state_param).value();
+    int64_t state_index = proc()->GetStateParamIndex(state_param).value();
     jit_runtime->BlitValueToBuffer(
-        proc->GetInitValueElement(state_index), state_param->GetType(),
+        proc()->GetInitValueElement(state_index), state_param->GetType(),
         absl::Span<uint8_t>(
             input_.pointers()[param_index],
             jit_runtime_->GetTypeByteSize(state_param->GetType())));
@@ -85,8 +85,8 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
     JitObserver* observer) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
   orc_jit->SetJitObserver(observer);
-  auto jit =
-      absl::WrapUnique(new ProcJit(proc, jit_runtime, std::move(orc_jit)));
+  auto jit = absl::WrapUnique(
+      new ProcJit(proc, jit_runtime, queue_mgr, std::move(orc_jit)));
   XLS_ASSIGN_OR_RETURN(
       jit->jitted_function_base_,
       JittedFunctionBase::Build(proc, queue_mgr, jit->GetOrcJit()));
@@ -94,9 +94,11 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
   return jit;
 }
 
-std::unique_ptr<ProcContinuation> ProcJit::NewContinuation() const {
-  return std::make_unique<ProcJitContinuation>(
-      proc(), jit_runtime_, jitted_function_base_);
+std::unique_ptr<ProcContinuation> ProcJit::NewContinuation(
+    ProcInstance* proc_instance) const {
+  XLS_CHECK_EQ(proc_instance->proc(), proc());
+  return std::make_unique<ProcJitContinuation>(proc_instance, jit_runtime_,
+                                               jitted_function_base_);
 }
 
 absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
@@ -116,7 +118,7 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
     // The proc successfully completed its tick.
     cont->NextTick();
     return TickResult{.execution_state = TickExecutionState::kCompleted,
-                      .channel = std::nullopt,
+                      .channel_instance = std::nullopt,
                       .progress_made = true};
   }
   // The proc did not complete the tick. Determine at which node execution was
@@ -131,19 +133,26 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
     XLS_ASSIGN_OR_RETURN(Channel * sent_channel,
                          proc()->package()->GetChannel(
                              early_exit_node->As<Send>()->channel_name()));
+    XLS_ASSIGN_OR_RETURN(
+        ChannelInstance * channel_instance,
+        queue_mgr_->elaboration().GetUniqueInstance(sent_channel));
+
     // The send executed so some progress should have been made.
     XLS_RET_CHECK_NE(next_continuation_point, start_continuation_point);
     return TickResult{.execution_state = TickExecutionState::kSentOnChannel,
-                      .channel = sent_channel,
+                      .channel_instance = channel_instance,
                       .progress_made = true};
   }
   XLS_RET_CHECK(early_exit_node->Is<Receive>());
   XLS_ASSIGN_OR_RETURN(Channel * blocked_channel,
                        proc()->package()->GetChannel(
                            early_exit_node->As<Receive>()->channel_name()));
+  XLS_ASSIGN_OR_RETURN(
+      ChannelInstance * channel_instance,
+      queue_mgr_->elaboration().GetUniqueInstance(blocked_channel));
   return TickResult{
       .execution_state = TickExecutionState::kBlockedOnReceive,
-      .channel = blocked_channel,
+      .channel_instance = channel_instance,
       .progress_made = next_continuation_point != start_continuation_point};
 }
 

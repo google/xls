@@ -14,6 +14,7 @@
 
 #include "xls/interpreter/proc_runtime_test_base.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -21,13 +22,19 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/proc_runtime.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -367,12 +374,10 @@ TEST_P(ProcRuntimeTestBase, DeadlockedProc) {
   // can actually execute initially (e.g., the parameters). A subsequent call to
   // Tick() will detect the deadlock.
   XLS_ASSERT_OK(runtime->Tick());
-  EXPECT_THAT(
-      runtime->Tick(),
-      StatusIs(
-          absl::StatusCode::kInternal,
-          HasSubstr(
-              "Proc network is deadlocked. Blocked channels: my_channel")));
+  EXPECT_THAT(runtime->Tick(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Proc network is deadlocked. Blocked channel "
+                                 "instances: my_channel")));
 }
 
 TEST_P(ProcRuntimeTestBase, RunLengthDecoding) {

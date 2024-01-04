@@ -17,12 +17,16 @@
 #include <ostream>
 #include <string>
 
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 
 namespace xls {
 
 bool TickResult::operator==(const TickResult& other) const {
-  return execution_state == other.execution_state && channel == other.channel &&
+  return execution_state == other.execution_state &&
+         channel_instance == other.channel_instance &&
          progress_made == other.progress_made;
 }
 
@@ -31,11 +35,12 @@ bool TickResult::operator!=(const TickResult& other) const {
 }
 
 std::string TickResult::ToString() const {
-  return absl::StrFormat(
-      "{ state=%s, channel=%s, progress_made=%s }",
-      ::xls::ToString(execution_state),
-      channel.has_value() ? channel.value()->ToString() : "(none)",
-      progress_made ? "true" : "false");
+  return absl::StrFormat("{ state=%s, channel_instance=%s, progress_made=%s }",
+                         ::xls::ToString(execution_state),
+                         channel_instance.has_value()
+                             ? channel_instance.value()->ToString()
+                             : "(none)",
+                         progress_made ? "true" : "false");
 }
 
 std::string ToString(TickExecutionState state) {
