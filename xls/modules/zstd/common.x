@@ -47,3 +47,10 @@ pub struct ExtendedBlockDataPacket {
     msg_type: SequenceExecutorMessageType,
     packet: BlockDataPacket,
 }
+
+pub struct SequenceExecutorPacket {
+    msg_type: SequenceExecutorMessageType,
+    length: CopyOrMatchLength, // Literal length or match length
+    content: CopyOrMatchContent, // Literal data or match offset
+    last: bool, // Last packet in frame
+}
