@@ -78,7 +78,7 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
     return SetFileContents(output_path->c_str(), output);
   }
   XLS_ASSIGN_OR_RETURN(std::string humanized, ToHumanString(tip, import_data));
-  std::cout << humanized << std::endl;
+  std::cout << humanized << '\n';
   return absl::OkStatus();
 }
 
