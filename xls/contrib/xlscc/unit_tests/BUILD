@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@rules_python//python:defs.bzl", "py_test")
-load("//xls/contrib/xlscc/build_rules:cc_generator.bzl", "xls_int_fuzz_binaries")
+load("//xls/contrib/xlscc/build_rules:cc_generator.bzl", "xls_ac_fuzz_binaries")
 
 cc_library(
     name = "unit_test",
@@ -381,10 +381,29 @@ cc_binary(
     ],
 )
 
-xls_int_fuzz_binaries(
-    name = "sample_fuzz",
-    seed_count = 9,
+xls_ac_fuzz_binaries(
+    name = "fuzz_int",
+    seed_count = 10,
     seed_start = 10,
+    test_ac_fixed = False,
+    test_ac_int = True,
+    deps = [
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:vast",
+        "//xls/common:source_location",
+        "//xls/common:xls_gunit",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+xls_ac_fuzz_binaries(
+    name = "fuzz_fixed",
+    seed_count = 10,
+    seed_start = 10,
+    test_ac_fixed = True,
+    test_ac_int = False,
     deps = [
         "//xls/codegen:codegen_options",
         "//xls/codegen:vast",

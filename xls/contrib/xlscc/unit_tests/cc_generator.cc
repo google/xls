@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -45,11 +46,12 @@ class Variable {
   }
   static Variable GenerateFixed(char variable_number) {
     std::vector<std::string> ac_q_mode{
-        "AC_TRN", "AC_RND", "AC_TRN_ZERO", "AC_RND_ZERO", "AC_RND_INF",
-        "AC_RND_MIN_INF", "AC_RND_CONV", "AC_RND_CONV_ODD"};
+        "AC_TRN",     "AC_RND",         "AC_TRN_ZERO", "AC_RND_ZERO",
+        "AC_RND_INF", "AC_RND_MIN_INF", "AC_RND_CONV", "AC_RND_CONV_ODD"};
     std::vector<std::string> ac_o_mode{"AC_WRAP", "AC_SAT", "AC_SAT_ZERO",
                                        "AC_SAT_SYM"};
 
+    bool isFloat = (std::rand() % 2) == 0;
     int bit_width = (std::rand() % 100) + 1;
     int max = bit_width >= 31 ? RAND_MAX
                               : static_cast<int>(std::pow(2, bit_width)) + 10;
@@ -57,11 +59,21 @@ class Variable {
     bool is_signed = ((std::rand() % 2) == 0);
     std::string quantization = ac_q_mode[std::rand() % ac_q_mode.size()];
     std::string overflow = ac_o_mode[std::rand() % ac_o_mode.size()];
+    std::string value;
+    double min_value = is_signed ? -(max / 2.0) : 0.0;
+    double max_value = is_signed ? (max / 2) : max;
+    if (isFloat) {
+      std::uniform_real_distribution<double> unif(min_value, max_value);
+      std::default_random_engine re;
+      re.seed(std::rand());
+      value = std::to_string(unif(re));
+    } else {
+      value = is_signed ? std::to_string((std::rand() % max) - (max / 2))
+                              : std::to_string(std::rand() % max);
+    }
+
     Variable var = {
-        std::string(1, 'a' + variable_number),
-        "ac_fixed",
-        is_signed ? std::to_string((std::rand() % max) - (max / 2))
-                  : std::to_string(std::rand() % max),
+        std::string(1, 'a' + variable_number), "ac_fixed", value,
         {std::to_string(bit_width), std::to_string(integer_width),
          is_signed ? "true" : "false", quantization, overflow},
     };

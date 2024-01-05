@@ -14,7 +14,7 @@
 
 """Provides fuzz test functionality for XLScc"""
 
-def xls_int_fuzz_binaries(name, deps, seed_start, seed_count):
+def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test_ac_int):
     """Generate fuzz test binaries for a range of seeds and the result comparison binary
 
     Args:
@@ -31,11 +31,12 @@ def xls_int_fuzz_binaries(name, deps, seed_start, seed_count):
     for x in range(seed_count):
         seed = seed_start + x
         srcfile = "{}_{}.cc".format(name, str(seed))
-
+        cmd = "./$(location cc_generate_test) -seed=" + str(seed) + " --cc_filepath=$(OUTS) \
+          --test_ac_int=" + str(test_ac_int) + " --test_ac_fixed=" + str(test_ac_fixed)
         native.genrule(
             name = "fuzzfiles_{}_{}".format(name, str(seed)),
             outs = [srcfile],
-            cmd = "./$(location cc_generate_test) -seed=" + str(seed) + " -cc_filepath=$(OUTS)",
+            cmd = cmd,
             tools = ["cc_generate_test"],
         )
 
@@ -62,13 +63,14 @@ def xls_int_fuzz_binaries(name, deps, seed_start, seed_count):
     ])
 
     native.cc_test(
-        name = "cc_fuzz_tester",
+        name = name,
         testonly = 1,
         srcs = ["cc_fuzz_tester.cc"],
         data = all_outputs,
         args = [
             "--seed={}".format(seed_start),
             "--sample_count={}".format(seed_count),
+            "--input_path=xls/contrib/xlscc/unit_tests/{}_".format(name),
         ],
         deps = [
             ":cc_generator",

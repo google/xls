@@ -203,6 +203,7 @@ TEST_F(GeneratedTester, Simple) {
   xlscc::GeneratedTester tester;
   int seed = absl::GetFlag(FLAGS_seed);
   int sample_count = absl::GetFlag(FLAGS_sample_count);
+  std::string input_path = absl::GetFlag(FLAGS_input_path);
   std::string crash_path = absl::GetFlag(FLAGS_crash_path);
   bool run_failed = absl::GetFlag(FLAGS_run_failed);
 
@@ -229,8 +230,7 @@ TEST_F(GeneratedTester, Simple) {
     for (int i = seed; i < sample_count; i++) {
       XLS_ASSERT_OK_AND_ASSIGN(
           std::filesystem::path exec_filename,
-          xls::GetXlsRunfilePath("xls/contrib/xlscc/sample_fuzz_" +
-                                 std::to_string(i)));
+          xls::GetXlsRunfilePath(input_path + std::to_string(i)));
 
       std::filesystem::path cc_filepath = exec_filename.string() + ".cc";
       absl::Status status = RunExisting(cc_filepath, exec_filename);

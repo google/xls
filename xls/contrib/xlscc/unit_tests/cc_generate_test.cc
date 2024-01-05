@@ -61,14 +61,12 @@ int main(int argc, char** argv) {
   int seed = absl::GetFlag(FLAGS_seed);
   std::string cc_filepath = absl::GetFlag(FLAGS_cc_filepath);
 
-  if (absl::GetFlag(FLAGS_test_ac_fixed) &&
-      GenerateTest(seed, cc_filepath, TestType::kAcFixed)) {
-    return EXIT_SUCCESS;
+  bool success = true;
+  if (absl::GetFlag(FLAGS_test_ac_fixed)) {
+    success &= GenerateTest(seed, cc_filepath, TestType::kAcFixed);
   }
-  if (absl::GetFlag(FLAGS_test_ac_int) &&
-      GenerateTest(seed, cc_filepath, TestType::kAcInt)) {
-    return EXIT_SUCCESS;
+  if (absl::GetFlag(FLAGS_test_ac_int)) {
+    success &= GenerateTest(seed, cc_filepath, TestType::kAcInt);
   }
-
-  return EXIT_FAILURE;
+  return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -958,6 +958,17 @@ TEST_F(XlsFixedTest, DoubleConstructor) {
   RunAcDatatypeTest({}, 11, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsFixedTest, NegativeDoubleConstructor) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package() {
+      XlsFixed<8, 5, true> x(-5.5);
+      x = x * 2;
+      return x.to_int();
+    })";
+  RunAcDatatypeTest({}, -11, content, xabsl::SourceLocation::current());
+}
+
 TEST_F(XlsFixedTest, DoubleConstructor2) {
   const std::string content = R"(
     #include "xls_fixed.h"

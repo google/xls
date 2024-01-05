@@ -3892,12 +3892,11 @@ absl::StatusOr<std::optional<CValue>> Translator::EvaluateNumericConstExpr(
     apf.convert(decimal_shift.getSemantics(), llvm::RoundingMode::TowardZero,
                 &losesInfo);
     apf.multiply(decimal_shift, llvm::RoundingMode::TowardZero);
-    llvm::APSInt shifted(64);
+    llvm::APSInt shifted(64, false);
     bool exact = false;
     apf.convertToInteger(shifted, llvm::RoundingMode::TowardZero, &exact);
     // Raw data is in little endian format
     auto api_raw = reinterpret_cast<const uint8_t*>(shifted.getRawData());
-    vector<uint8_t> truncated;
     for (int i = 0; i < 8; ++i) {
       formatted.push_back(api_raw[i]);
     }
