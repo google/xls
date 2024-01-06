@@ -1655,6 +1655,35 @@ pub proc q {
   EXPECT_EQ(got, kProgram);
 }
 
+TEST(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
+  const std::string_view kProgram =
+      R"(pub proc p {
+    cin: chan<u32> in;
+    ca: chan<u32> out;
+    cb: chan<u32> out;
+    cc: chan<u32> out;
+    cd: chan<u32> out;
+    ce: chan<u32> out;
+    cf: chan<u32> out;
+    cg: chan<u32> out;
+
+    config(cin: chan<u32> in, ca: chan<u32> out, cb: chan<u32> out, cc: chan<u32> out,
+           cd: chan<u32> out, ce: chan<u32> out, cf: chan<u32> out, cg: chan<u32> out) {
+        (cin, ca, cb, cc, cd, ce, cf, cg)
+    }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 // Based on report in https://github.com/google/xls/issues/1216
 TEST(ModuleFmtTest, ProcSpawnImported) {
   const std::string_view kProgram =
@@ -1940,6 +1969,42 @@ TEST(ModuleFmtTest, ModuleLevelAnnotation) {
   const std::string_view kProgram = R"(#![allow(nonstandard_constant_naming)]
 
 fn id(x: u32) { x }
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, GithubIssue1229) {
+  // Note: we just need it to parse, no need for it to typecheck.
+  const std::string_view kProgram = R"(struct ReadReq<X: u32> {}
+struct ReadResp<X: u32> {}
+struct WriteReq<X: u32, Y: u32> {}
+struct WriteResp {}
+struct AllCSR<X: u32, Y: u32> {}
+
+proc CSR<X: u32, Y: u32, Z: u32> {
+    config() { () }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+
+proc csr_8_32_14 {
+    config(read_req: chan<ReadReq<u32:8>> in, read_resp: chan<ReadResp<u32:32>> out,
+           write_req: chan<WriteReq<u32:8, u32:32>> in, write_resp: chan<WriteResp> out,
+           all_csr: chan<AllCSR<u32:32, u32:14>> out) {
+        spawn CSR<u32:8, u32:32, u32:14>(read_req, read_resp, write_req, write_resp, all_csr);
+        ()
+    }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
 )";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,

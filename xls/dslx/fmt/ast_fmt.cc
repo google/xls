@@ -269,7 +269,7 @@ DocRef Fmt(const ChannelTypeAnnotation& n, const Comments& comments,
       arena.oangle(),
       Fmt(*n.payload(), comments, arena),
       arena.cangle(),
-      arena.break1(),
+      arena.space(),
       arena.Make(n.direction() == ChannelDirection::kIn ? Keyword::kIn
                                                         : Keyword::kOut),
   };
@@ -1518,22 +1518,23 @@ DocRef FmtStatement(const Statement& n, const Comments& comments,
 // Formats parameters (i.e. function parameters) with leading '(' and trailing
 // ')'.
 static DocRef FmtParams(absl::Span<const Param* const> params,
-                        const Comments& comments, DocArena& arena) {
-  std::vector<DocRef> pieces = {arena.oparen()};
-  for (size_t i = 0; i < params.size(); ++i) {
-    const Param* param = params[i];
-    DocRef type = Fmt(*param->type_annotation(), comments, arena);
-    std::vector<DocRef> param_pieces = {arena.MakeText(param->identifier()),
-                                        arena.break0(), arena.colon(),
-                                        arena.break1(), type};
-    if (i + 1 != params.size()) {
-      param_pieces.push_back(arena.comma());
-      param_pieces.push_back(arena.break1());
-    }
-    pieces.push_back(ConcatNGroup(arena, param_pieces));
+                        const Comments& comments, DocArena& arena,
+                        bool align_after_oparen) {
+  DocRef guts = FmtJoin<const Param*>(
+      params, Joiner::kCommaBreak1AsGroupNoTrailingComma,
+      [](const Param* param, const Comments& comments, DocArena& arena) {
+        DocRef type = Fmt(*param->type_annotation(), comments, arena);
+        return ConcatN(arena, {arena.MakeText(param->identifier()),
+                               arena.colon(), arena.space(), type});
+      },
+      comments, arena);
+
+  if (align_after_oparen) {
+    return ConcatNGroup(
+        arena, {arena.oparen(),
+                arena.MakeAlign(arena.MakeConcat(guts, arena.cparen()))});
   }
-  pieces.push_back(arena.cparen());
-  return ConcatNGroup(arena, pieces);
+  return ConcatNGroup(arena, {arena.oparen(), guts, arena.cparen()});
 }
 
 static DocRef Fmt(const ParametricBinding& n, const Comments& comments,
@@ -1602,7 +1603,8 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
     std::vector<DocRef> params_pieces;
 
     params_pieces.push_back(arena.break0());
-    params_pieces.push_back(FmtParams(n.params(), comments, arena));
+    params_pieces.push_back(
+        FmtParams(n.params(), comments, arena, /*align_after_oparen=*/true));
 
     if (n.return_type() == nullptr) {
       params_pieces.push_back(arena.break1());
@@ -1682,7 +1684,8 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
 
   std::vector<DocRef> config_pieces = {
       arena.MakeText("config"),
-      FmtParams(n.config()->params(), comments, arena),
+      FmtParams(n.config()->params(), comments, arena,
+                /*align_after_oparen=*/true),
       arena.space(),
       arena.ocurl(),
       arena.break1(),
@@ -1703,7 +1706,8 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
 
   std::vector<DocRef> next_pieces = {
       arena.MakeText("next"),
-      FmtParams(n.next()->params(), comments, arena),
+      FmtParams(n.next()->params(), comments, arena,
+                /*align_after_oparen=*/true),
       arena.space(),
       arena.ocurl(),
       arena.break1(),
@@ -2094,6 +2098,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
       pieces.push_back(arena.hard_line());
     } else if (AreGroupedMembers<Import>(member, n.top()[i + 1]) ||
                AreGroupedMembers<TypeAlias>(member, n.top()[i + 1]) ||
+               AreGroupedMembers<StructDef>(member, n.top()[i + 1]) ||
                AreGroupedMembers<ConstantDef>(member, n.top()[i + 1])) {
       // If two (e.g. imports) are adjacent to each other (i.e. no intervening
       // newline) we keep them adjacent to each other in the formatted output.
