@@ -21,6 +21,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/function_ref.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -119,7 +120,7 @@ class DelayManager {
   // given stochastic_ratio. "ratio" should always > 0.0 and <= 1.0.
   absl::StatusOr<std::vector<PathInfo>> GetTopNPathsStochastically(
       int64_t number_paths, float stochastic_ratio,
-      const PathExtractOptions &options,
+      const PathExtractOptions &options, absl::BitGenRef bit_gen,
       absl::FunctionRef<bool(Node *, Node *)> except = GetFalse,
       absl::FunctionRef<float(Node *, Node *)> score = GetZeroScore) const;
 

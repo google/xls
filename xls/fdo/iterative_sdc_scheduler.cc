@@ -18,12 +18,14 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -170,7 +172,8 @@ absl::Status GetMergedWindows(const std::vector<PathInfo> &paths,
 absl::Status RefineDelayEstimations(
     FunctionBase *f, const ScheduleCycleMap &cycle_map,
     DelayManager &delay_manager, absl::flat_hash_set<NodeCut> &evaluated_cuts,
-    int64_t min_pipeline_length, const IterativeSDCSchedulingOptions &options) {
+    int64_t min_pipeline_length, const IterativeSDCSchedulingOptions &options,
+    absl::BitGenRef bit_gen) {
   XLS_ASSIGN_OR_RETURN(
       NodeCutMap cut_map,
       EnumerateMaxCutInSchedule(f, min_pipeline_length, cycle_map));
@@ -197,18 +200,19 @@ absl::Status RefineDelayEstimations(
   PathExtractOptions path_extract_options;
   path_extract_options.cycle_map = &cycle_map;
   path_extract_options.exclude_single_node_path = true;
-  XLS_ASSIGN_OR_RETURN(std::vector<PathInfo> targeted_paths,
-                       delay_manager.GetTopNPathsStochastically(
-                           options.delay_driven_path_number,
-                           options.stochastic_ratio, path_extract_options,
-                           /*except=*/except_evaluated_cuts));
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<PathInfo> targeted_paths,
+      delay_manager.GetTopNPathsStochastically(
+          options.delay_driven_path_number, options.stochastic_ratio,
+          path_extract_options, bit_gen,
+          /*except=*/except_evaluated_cuts));
 
   // Extract fan-out driven paths.
   XLS_ASSIGN_OR_RETURN(
       const std::vector<PathInfo> &fanout_driven_paths,
       delay_manager.GetTopNPathsStochastically(
           options.fanout_driven_path_number, options.stochastic_ratio,
-          path_extract_options, /*except=*/except_evaluated_cuts,
+          path_extract_options, bit_gen, /*except=*/except_evaluated_cuts,
           /*score=*/get_normalized_fanout));
 
   for (auto path_info : fanout_driven_paths) {
@@ -396,6 +400,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
 
   ScheduleCycleMap cycle_map;
   absl::flat_hash_set<NodeCut> evaluated_cuts;
+  std::mt19937_64 bit_gen;
   for (int64_t i = 0; i < options.iteration_number; ++i) {
     IterativeSDCSchedulingModel model(f, delay_manager);
 
@@ -483,9 +488,9 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
 
     // Run delay estimation refinement except the last iteration.
     if (i != options.iteration_number - 1) {
-      XLS_RET_CHECK_OK(RefineDelayEstimations(f, cycle_map, delay_manager,
-                                              evaluated_cuts,
-                                              min_pipeline_length, options));
+      XLS_RET_CHECK_OK(
+          RefineDelayEstimations(f, cycle_map, delay_manager, evaluated_cuts,
+                                 min_pipeline_length, options, bit_gen));
     }
   }
   return cycle_map;
