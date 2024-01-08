@@ -561,6 +561,9 @@ def xls_full_benchmark_ir_macro(
         codegen_args = {},
         benchmark_ir_args = {},
         standard_cells = None,
+        tags = None,
+        ir_tags = None,
+        synth_tags = None,
         **kwargs):
     """Executes the benchmark tool on an IR file.
 
@@ -594,18 +597,33 @@ Examples:
         name: A unique name for this target.
         src: The IR source file for the rule. A single source file must be provided. The file must
           have a '.ir' extension.
+        synthesize: Add a synthesis benchmark in addition to the IR benchmark.
+        codegen_args: Arguments of the codegen tool. For details on the arguments,
+          refer to the codegen_main application at
+          //xls/tools/codegen_main.cc.
         benchmark_ir_args: Arguments of the benchmark IR tool. For details on the arguments, refer
           to the benchmark_main application at //xls/tools/benchmark_main.cc.
-        scheduling_options_proto: Protobuf filename of scheduling arguments to the benchmark IR
-          tool. For details on the arguments, refer to the benchmark_main application at
-          //xls/tools/benchmark_main.cc.
-        top: The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top'
-          argument of the IR tool/application.
+        standard_cells: Label for the PDK (possibly specifying a
+          non-default corner), with the assumption that $location will
+          return the timing (Liberty) library for the PDK corner. Unused if synthesize == False.
+        tags: Tags for IR and synthesis benchmark targets.
+        ir_tags: Tags for the IR benchmark target only.
+        synth_tags: Tags for the synthesis benchmark target only. Unused if synthesize == False.
+        **kwargs: Keyword arguments for the IR benchmark target only.
     """
+
+    list_type_check("tags", tags, can_be_none = True)
+    list_type_check("ir_tags", ir_tags, can_be_none = True)
+    list_type_check("synth_tags", synth_tags, can_be_none = True)
+    tags = tags if tags != None else []
+    ir_tags = ir_tags if ir_tags != None else []
+    synth_tags = synth_tags if synth_tags != None else []
+
     xls_benchmark_ir(
         name = name,
         src = src,
         benchmark_ir_args = benchmark_ir_args,
+        tags = ir_tags + tags,
         **kwargs
     )
     if not synthesize:
@@ -689,4 +707,5 @@ Examples:
     benchmark_synth(
         name = "{}.default_{}.benchmark_synth".format(name, delay_model),
         synth_target = ":" + synth_target,
+        tags = synth_tags + tags,
     )

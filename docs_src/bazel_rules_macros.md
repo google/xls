@@ -568,7 +568,8 @@ The "mangled" symbol string.
 ## xls_benchmark_ir
 
 <pre>
-xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-synthesize">synthesize</a>, <a href="#xls_benchmark_ir-codegen_args">codegen_args</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-standard_cells">standard_cells</a>, <a href="#xls_benchmark_ir-kwargs">kwargs</a>)
+xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-synthesize">synthesize</a>, <a href="#xls_benchmark_ir-codegen_args">codegen_args</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-standard_cells">standard_cells</a>, <a href="#xls_benchmark_ir-tags">tags</a>,
+                 <a href="#xls_benchmark_ir-ir_tags">ir_tags</a>, <a href="#xls_benchmark_ir-synth_tags">synth_tags</a>, <a href="#xls_benchmark_ir-kwargs">kwargs</a>)
 </pre>
 
 Executes the benchmark tool on an IR file.
@@ -603,13 +604,19 @@ Examples:
         name: A unique name for this target.
         src: The IR source file for the rule. A single source file must be provided. The file must
           have a '.ir' extension.
+        synthesize: Add a synthesis benchmark in addition to the IR benchmark.
+        codegen_args: Arguments of the codegen tool. For details on the arguments,
+          refer to the codegen_main application at
+          //xls/tools/codegen_main.cc.
         benchmark_ir_args: Arguments of the benchmark IR tool. For details on the arguments, refer
           to the benchmark_main application at //xls/tools/benchmark_main.cc.
-        scheduling_options_proto: Protobuf filename of scheduling arguments to the benchmark IR
-          tool. For details on the arguments, refer to the benchmark_main application at
-          //xls/tools/benchmark_main.cc.
-        top: The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top'
-          argument of the IR tool/application.
+        standard_cells: Label for the PDK (possibly specifying a
+          non-default corner), with the assumption that $location will
+          return the timing (Liberty) library for the PDK corner. Unused if synthesize == False.
+        tags: Tags for IR and synthesis benchmark targets.
+        ir_tags: Tags for the IR benchmark target only.
+        synth_tags: Tags for the synthesis benchmark target only. Unused if synthesize == False.
+        **kwargs: Keyword arguments for the IR benchmark target only.
 
 **PARAMETERS**
 
@@ -622,6 +629,9 @@ Examples:
 | <a id="xls_benchmark_ir-codegen_args"></a>codegen_args |  <p align="center"> - </p>   |  `{}` |
 | <a id="xls_benchmark_ir-benchmark_ir_args"></a>benchmark_ir_args |  <p align="center"> - </p>   |  `{}` |
 | <a id="xls_benchmark_ir-standard_cells"></a>standard_cells |  <p align="center"> - </p>   |  `None` |
+| <a id="xls_benchmark_ir-tags"></a>tags |  <p align="center"> - </p>   |  `None` |
+| <a id="xls_benchmark_ir-ir_tags"></a>ir_tags |  <p align="center"> - </p>   |  `None` |
+| <a id="xls_benchmark_ir-synth_tags"></a>synth_tags |  <p align="center"> - </p>   |  `None` |
 | <a id="xls_benchmark_ir-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
