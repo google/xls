@@ -18,6 +18,7 @@ load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -147,8 +148,8 @@ place_and_route(
     # ~1 GHz
     clock_period = "750",
     core_padding_microns = 1,
-    die_height_microns = 15,
-    die_width_microns = 15,
+    die_height_microns = 25,
+    die_width_microns = 25,
     min_pin_distance = "0.2",
     placement_density = "0.95",
     synthesized_rtl = ":rle_enc_synth_asap7",
@@ -293,6 +294,18 @@ xls_benchmark_ir(
         "pipeline_stages": "2",
         "delay_model": "unit",
     },
+)
+
+build_test(
+    name = "rle_build_test",
+    targets = [
+        "rle_enc_verilog",
+        "rle_enc_gds_sky130",
+        "rle_enc_gds_asap7",
+        "rle_dec_verilog",
+        "rle_dec_gds_sky130",
+        "rle_dec_gds_asap7",
+    ],
 )
 
 filegroup(
