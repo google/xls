@@ -83,16 +83,22 @@ pub proc DecoderMux {
         let raw_id = if state.raw_data_valid { state.raw_data.packet.id } else { MAX_ID };
         let rle_id = if state.rle_data_valid { state.rle_data.packet.id } else { MAX_ID };
         let compressed_id = if state.compressed_data_valid { state.compressed_data.packet.id } else { MAX_ID };
+        let any_valid = state.raw_data_valid || state.rle_data_valid || state.compressed_data_valid;
 
-        if state.prev_last_block && state.prev_last {
-            if (std::umin(std::umin(rle_id, raw_id), compressed_id) != u32:0) {
-                fail!("wrong_id_expected_0", ())
-            } else {()};
-        } else {
-            if (state.prev_id > (std::umin(std::umin(rle_id, raw_id), compressed_id))) && (state.prev_valid) {
-                fail!("wrong_id", ())
-            } else {()};
-        };
+        if (any_valid) {
+            if state.prev_last_block && state.prev_last {
+                let min_id = std::umin(std::umin(rle_id, raw_id), compressed_id);
+                trace_fmt!("rle_id: {}, raw_id: {}, compressed_id: {}", rle_id, raw_id, compressed_id);
+                trace_fmt!("min_id: {}", min_id);
+                if (min_id != u32:0) {
+                    fail!("wrong_id_expected_0", ())
+                } else {()};
+            } else {
+                if (state.prev_id > (std::umin(std::umin(rle_id, raw_id), compressed_id))) && (state.prev_valid) {
+                    fail!("wrong_id", ())
+                } else {()};
+            };
+        } else {()};
 
         let (do_send, data_to_send, state) = if (state.raw_data_valid &&
           ((state.raw_data.packet.id < std::umin(rle_id, compressed_id)) ||
