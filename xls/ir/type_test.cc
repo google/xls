@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -152,20 +153,58 @@ TEST(TypeTest, ArrayDimensionAndIndex) {
 
   EXPECT_THAT(GetIndexedElementType(&b32, 0), IsOkAndHolds(&b32));
   EXPECT_THAT(GetIndexedElementType(&b32, 1),
-              status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("Index has more elements (1) than type "
-                                     "bits[32] has array dimensions (0)")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Index has more elements (1) than type "
+                                 "bits[32] has array dimensions (0)")));
 
   EXPECT_THAT(GetIndexedElementType(&a_1d, 0), IsOkAndHolds(&a_1d));
   EXPECT_THAT(GetIndexedElementType(&a_1d, 1), IsOkAndHolds(&b32));
   EXPECT_THAT(GetIndexedElementType(&a_1d, 2),
-              status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("Index has more elements (2) than type "
-                                     "bits[32][7] has array dimensions (1)")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Index has more elements (2) than type "
+                                 "bits[32][7] has array dimensions (1)")));
 
   EXPECT_THAT(GetIndexedElementType(&a_3d, 3), IsOkAndHolds(&b32));
+}
+
+TEST(TypeTest, AsXTypeCallsWork) {
+  BitsType b32(32);
+  TupleType t_empty({});
+  TupleType t1({&b32, &b32});
+  ArrayType a1(7, &b32);
+
+  XLS_EXPECT_OK(b32.AsBits());
+  XLS_EXPECT_OK(t_empty.AsTuple());
+  XLS_EXPECT_OK(t1.AsTuple());
+  XLS_EXPECT_OK(a1.AsArray());
+
+  EXPECT_THAT(b32.AsArray(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type is not an array: bits[32]")));
+  EXPECT_THAT(b32.AsTuple(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type is not a tuple: bits[32]")));
+
+  EXPECT_THAT(t_empty.AsBits(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                         HasSubstr("Type is not 'bits': ()")));
+  EXPECT_THAT(t_empty.AsArray(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type is not an array: ()")));
+
+  EXPECT_THAT(t1.AsBits(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type is not 'bits': (bits[32], bits[32])")));
+  EXPECT_THAT(
+      t1.AsArray(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Type is not an array: (bits[32], bits[32])")));
+
+  EXPECT_THAT(a1.AsBits(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type is not 'bits': bits[32][7]")));
+  EXPECT_THAT(a1.AsTuple(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type is not a tuple: bits[32][7]")));
 }
 
 }  // namespace

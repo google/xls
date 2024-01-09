@@ -388,6 +388,7 @@ cc_library(
         ":xls_type_cc_proto",
         "//xls/common:casts",
         "//xls/common/logging",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -940,6 +941,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -1675,4 +1677,28 @@ proto_library(
 cc_proto_library(
     name = "ram_rewrite_cc_proto",
     deps = [":ram_rewrite_proto"],
+)
+
+cc_library(
+    name = "fuzz_type_domain",
+    testonly = True,
+    srcs = ["fuzz_type_domain.cc"],
+    hdrs = ["fuzz_type_domain.h"],
+    deps = [
+        ":xls_type_cc_proto",
+        "//xls/common:math_util",
+        "//xls/common/logging",
+        "@com_google_fuzztest//fuzztest",
+    ],
+)
+
+cc_test(
+    name = "fuzz_type_domain_test",
+    srcs = ["fuzz_type_domain_test.cc"],
+    deps = [
+        ":fuzz_type_domain",
+        ":xls_type_cc_proto",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+    ],
 )

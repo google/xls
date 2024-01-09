@@ -14,14 +14,17 @@
 
 #include "xls/ir/type.h"
 
+#include <cstdint>
 #include <ostream>
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/logging/logging.h"
 
 namespace xls {
 
@@ -48,14 +51,24 @@ absl::StatusOr<BitsType*> Type::AsBits() {
   if (IsBits()) {
     return AsBitsOrDie();
   }
-  return absl::InvalidArgumentError("Type is not 'bits': " + ToString());
+  return absl::InvalidArgumentError(
+      absl::StrCat("Type is not 'bits': ", *this));
 }
 
 absl::StatusOr<ArrayType*> Type::AsArray() {
   if (IsArray()) {
     return AsArrayOrDie();
   }
-  return absl::InvalidArgumentError("Type is not an array: " + ToString());
+  return absl::InvalidArgumentError(
+      absl::StrCat("Type is not an array: ", *this));
+}
+
+absl::StatusOr<TupleType*> Type::AsTuple() {
+  if (IsTuple()) {
+    return AsTupleOrDie();
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Type is not a tuple: ", *this));
 }
 
 TypeProto BitsType::ToProto() const {

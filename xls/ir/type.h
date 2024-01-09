@@ -70,6 +70,8 @@ class Type {
   const ArrayType* AsArrayOrDie() const;
   absl::StatusOr<ArrayType*> AsArray();
 
+  absl::StatusOr<TupleType*> AsTuple();
+
   bool IsToken() const { return kind_ == TypeKind::kToken; }
   TokenType* AsTokenOrDie();
   const TokenType* AsTokenOrDie() const;

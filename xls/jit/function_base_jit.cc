@@ -15,9 +15,7 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <ios>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -44,6 +42,7 @@
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/Type.h"
 #include "llvm/include/llvm/IR/Value.h"
+#include "llvm/include/llvm/Support/Alignment.h"
 #include "llvm/include/llvm/Support/Casting.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -75,12 +74,10 @@ llvm::Value* LoadPointerFromPointerArray(int64_t index,
                                          llvm::Value* pointer_array,
                                          llvm::IRBuilder<>* builder) {
   llvm::LLVMContext& context = builder->getContext();
-  llvm::Type* pointer_array_type =
-      llvm::ArrayType::get(llvm::PointerType::getUnqual(context), 0);
+  llvm::Type* pointer_type = llvm::PointerType::getUnqual(context);
   llvm::Value* gep = builder->CreateGEP(
-      pointer_array_type, pointer_array,
+      pointer_type, pointer_array,
       {
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0),
           llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), index),
       });
 
@@ -267,7 +264,7 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
 };
 
 // The kinds of allocations assigned to xls::Nodes by BufferAllocator.
-enum class AllocationKind {
+enum class AllocationKind : uint8_t {
   // The node should be allocated a buffer in the temp block. The temp block is
   // passed in to the top-level JITted functions so temp buffers persist across
   // partitions and continuation points.
@@ -393,7 +390,7 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
   absl::flat_hash_set<int64_t> resume_partitions;
   // Partitions at which execution may exit early. Value is whether execution
   // resumes after or at the point where execution broke.
-  enum Resume { kNextPartition, kThisPartition };
+  enum class Resume : uint8_t { kNextPartition, kThisPartition };
   absl::flat_hash_map<int64_t, Resume> early_exit_partitions;
 
   // Naively assign nodes to partitions based on a topological sort. First N
@@ -896,7 +893,7 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
 // `unpacked_buffer`. `bit_offset` is a value maintained across recursive
 // calls of this function indicating the offset within `packed_buffer` to read
 // the packed value.
-// TODO(meheff): 2022/10/03 Consider loading values in granuality larger than
+// TODO(meheff): 2022/10/03 Consider loading values in granularity larger than
 // bytes when unpacking values.
 absl::Status UnpackValue(llvm::Value* packed_buffer,
                          llvm::Value* unpacked_buffer, Type* xls_type,
@@ -920,9 +917,14 @@ absl::Status UnpackValue(llvm::Value* packed_buffer,
       int64_t bytes_to_load =
           CeilOfRatio(xls_type->GetFlatBitCount() + remainder, int64_t{8});
 
+      // The packed interface has no alignment assumptions, so make accesses
+      // align(1).
+      llvm::Align packed_alignment(1);
       // Load the bits and shift by the remainder.
       llvm::Value* loaded_value = builder->CreateLShr(
-          builder->CreateLoad(builder->getIntNTy(bytes_to_load * 8), byte_ptr),
+          builder->CreateAlignedLoad(
+              builder->getIntNTy(static_cast<unsigned int>(bytes_to_load * 8)),
+              byte_ptr, packed_alignment),
           remainder);
 
       // Convert to the native type and mask off any extra bits.
@@ -1015,16 +1017,19 @@ absl::Status PackValue(llvm::Value* unpacked_buffer, llvm::Value* packed_buffer,
                               unpacked_buffer),
           loaded_type, /*isSigned=*/false);
 
+      // The packed interface has no alignment assumptions, so make accesses
+      // align(1).
+      llvm::Align packed_alignment(1);
       if (remainder == 0) {
         // The packed value is on a byte boundary. Just write the value into the
         // buffer.
-        builder->CreateStore(unpacked_value, byte_ptr);
+        builder->CreateAlignedStore(unpacked_value, byte_ptr, packed_alignment);
       } else {
         // Packed value is not on a byte boundary. Load in the packed value at
         // the location and do some masking and shifting. First load the packed
         // bits in the location to be written to.
         llvm::Value* loaded_packed_value =
-            builder->CreateLoad(loaded_type, byte_ptr);
+            builder->CreateAlignedLoad(loaded_type, byte_ptr, packed_alignment);
 
         // Mask off any beyond the remainder bits.
         llvm::Value* remainder_mask =
@@ -1040,7 +1045,7 @@ absl::Status PackValue(llvm::Value* unpacked_buffer, llvm::Value* packed_buffer,
         // Or the value to write with the existing bits in the loaded value.
         llvm::Value* value = builder->CreateOr(shifted_unpacked_value,
                                                masked_loaded_packed_value);
-        builder->CreateStore(value, byte_ptr);
+        builder->CreateAlignedStore(value, byte_ptr, packed_alignment);
       }
       return absl::OkStatus();
     }
@@ -1405,7 +1410,7 @@ std::optional<int64_t> JittedFunctionBase::RunPackedJittedFunction(
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
     int64_t continuation_point) const {
-  // TODO(allight): Do actual checks here.
+  // Packed Jit makes no alignment assumptions, so nothing to check.
   if (packed_function_) {
     return (*packed_function_)(inputs, outputs, temp_buffer, events, user_data,
                                jit_runtime, continuation_point);
