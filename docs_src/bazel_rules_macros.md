@@ -615,7 +615,7 @@ Examples:
           return the timing (Liberty) library for the PDK corner. Unused if synthesize == False.
         tags: Tags for IR and synthesis benchmark targets.
         ir_tags: Tags for the IR benchmark target only.
-        synth_tags: Tags for the synthesis benchmark target only. Unused if synthesize == False.
+        synth_tags: Tags for the synthesis and synthesis benchmark targets. Unused if synthesize == False.
         **kwargs: Keyword arguments for the IR benchmark target only.
 
 **PARAMETERS**
