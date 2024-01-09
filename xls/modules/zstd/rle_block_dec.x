@@ -333,9 +333,9 @@ pub proc RleBlockDecoder {
     output_s: chan<ExtendedBlockDataPacket> out;
 
     config(input_r: chan<BlockDataPacket> in, output_s: chan<ExtendedBlockDataPacket> out) {
-        let (in_s, in_r) = chan<RleInput>;
-        let (out_s, out_r) = chan<RleOutput>;
-        let (sync_s, sync_r) = chan<BlockSyncData>;
+        let (in_s, in_r) = chan<RleInput, u32:1>;
+        let (out_s, out_r) = chan<RleOutput, u32:1>;
+        let (sync_s, sync_r) = chan<BlockSyncData, u32:1>;
 
         spawn RleDataPacker(input_r, in_s, sync_s);
         spawn rle_dec::RunLengthDecoder<SYMBOL_WIDTH, BLOCK_SIZE_WIDTH>(
