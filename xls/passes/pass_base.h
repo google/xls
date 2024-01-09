@@ -15,18 +15,26 @@
 #ifndef XLS_PASSES_PASS_BASE_H_
 #define XLS_PASSES_PASS_BASE_H_
 
+#include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/log_lines.h"
@@ -178,10 +186,15 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
   // Returns a pointer to the newly constructed pass.
   template <typename T, typename... Args>
   T* Add(Args&&... args) {
-    auto* pass = new T(std::forward<Args>(args)...);
-    passes_.emplace_back(pass);
-    pass_ptrs_.push_back(pass);
-    return pass;
+    return AddOwned(std::make_unique<T>(std::forward<Args>(args)...));
+  }
+
+  template <typename T>
+  T* AddOwned(std::unique_ptr<T> pass) {
+    T* out = pass.get();
+    pass_ptrs_.push_back(out);
+    passes_.emplace_back(std::move(pass));
+    return out;
   }
 
   absl::Span<Pass* const> passes() const { return pass_ptrs_; }

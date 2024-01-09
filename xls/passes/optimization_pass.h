@@ -30,6 +30,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pipeline_generator.h"
 
 namespace xls {
 
@@ -137,6 +138,8 @@ using OptimizationCompoundPass =
 using OptimizationFixedPointCompoundPass =
     FixedPointCompoundPassBase<Package, OptimizationPassOptions>;
 using OptimizationInvariantChecker = OptimizationCompoundPass::InvariantChecker;
+using OptimizationPipelineGenerator =
+    PipelineGeneratorBase<Package, OptimizationPassOptions>;
 
 inline constexpr int64_t kMaxOptLevel = 3;
 

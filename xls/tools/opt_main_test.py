@@ -57,8 +57,9 @@ class OptMainTest(test_base.TestCase):
   def test_no_options(self):
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
 
-    optimized_ir = subprocess.check_output([OPT_MAIN_PATH,
-                                            ir_file.full_path]).decode('utf-8')
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, ir_file.full_path]
+    ).decode('utf-8')
 
     # The add with zero should be eliminated.
     self.assertIn('ret x', optimized_ir)
@@ -68,7 +69,8 @@ class OptMainTest(test_base.TestCase):
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
 
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, '-v=5', ir_file.full_path]).decode('utf-8')
+        [OPT_MAIN_PATH, '-v=5', ir_file.full_path]
+    ).decode('utf-8')
 
     # The add with zero should be eliminated.
     self.assertIn('ret x', optimized_ir)
@@ -77,8 +79,8 @@ class OptMainTest(test_base.TestCase):
     ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)
 
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, '--run_only_passes=arith_simp,dce',
-         ir_file.full_path]).decode('utf-8')
+        [OPT_MAIN_PATH, '--run_only_passes=arith_simp,dce', ir_file.full_path]
+    ).decode('utf-8')
 
     # The add with zero should be eliminated.
     self.assertIn('add(', ADD_ZERO_IR)
@@ -90,14 +92,16 @@ class OptMainTest(test_base.TestCase):
   def test_skip_dfe(self):
     ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)
 
-    optimized_ir = subprocess.check_output([OPT_MAIN_PATH,
-                                            ir_file.full_path]).decode('utf-8')
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, ir_file.full_path]
+    ).decode('utf-8')
 
     # Without skipping DFE, the dead function should be removed.
     self.assertNotIn('dead_function', optimized_ir)
 
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, '--skip_passes=dfe', ir_file.full_path]).decode('utf-8')
+        [OPT_MAIN_PATH, '--skip_passes=dfe', ir_file.full_path]
+    ).decode('utf-8')
 
     # Skipping DFE should leave the dead function in the IR.
     self.assertIn('dead_function', optimized_ir)
@@ -110,23 +114,46 @@ class OptMainTest(test_base.TestCase):
     #
     #   concat(add(0xffff, x[16:32]), x[0:16])
     #
-    optimized_ir = subprocess.check_output([OPT_MAIN_PATH,
-                                            ir_file.full_path]).decode('utf-8')
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, ir_file.full_path]
+    ).decode('utf-8')
     self.assertIn('bits[16] = add', optimized_ir)
     self.assertIn('concat', optimized_ir)
 
     # Opt_level 3 should produce the same results as without opt_level
     # specified.
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, '--opt_level=3', ir_file.full_path]).decode('utf-8')
+        [OPT_MAIN_PATH, '--opt_level=3', ir_file.full_path]
+    ).decode('utf-8')
     self.assertIn('bits[16] = add', optimized_ir)
     self.assertIn('concat', optimized_ir)
 
     # At opt_level 1 the full width add should remain.
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, '--opt_level=1', ir_file.full_path]).decode('utf-8')
+        [OPT_MAIN_PATH, '--opt_level=1', ir_file.full_path]
+    ).decode('utf-8')
     self.assertIn('bits[32] = add', optimized_ir)
     self.assertNotIn('concat', optimized_ir)
+
+  def test_explicit_pipeline(self):
+    """Check that arith_simp gets the add-zero gone."""
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, ir_file.full_path, '--passes', 'arith_simp dce']
+    ).decode('utf-8')
+    self.assertNotIn('bits[32] = add', optimized_ir)
+
+  def test_explicit_single_pass_pipeline(self):
+    """Check that dce is not run."""
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    optimized_ir = subprocess.check_output(
+        [OPT_MAIN_PATH, ir_file.full_path, '--passes', 'arith_simp']
+    ).decode('utf-8')
+    # add is not removed since the DCE was not run.
+    self.assertIn('bits[32] = add', optimized_ir)
+
+  # TODO: https://github.com/google/xls/issues/1245 - Get an example that can
+  # see the fixed-point pipeline doing something.
 
 
 if __name__ == '__main__':

@@ -20,9 +20,24 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/package.h"
+
+// LINT.IfChange(pass_includes)
+// Every pass we include in this file should be accessible to the opt --passes
+// flag by adding it with an appropriate name to the pass map.
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
 #include "xls/passes/bdd_cse_pass.h"
@@ -45,6 +60,7 @@
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/proc_inlining_pass.h"
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
@@ -62,6 +78,7 @@
 #include "xls/passes/useless_assert_removal_pass.h"
 #include "xls/passes/useless_io_removal_pass.h"
 #include "xls/passes/verifier_checker.h"
+// LINT.ThenChange(:pass_maps)
 
 namespace xls {
 
@@ -200,6 +217,170 @@ absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
       CreateOptimizationPassPipeline();
   PassResults results;
   return pipeline->Run(package, OptimizationPassOptions(), &results);
+}
+
+namespace {
+class BaseAdd {
+ public:
+  virtual ~BaseAdd() = default;
+  virtual absl::Status Add(OptimizationCompoundPass* pass) const = 0;
+};
+template <typename PassClass, typename... Args>
+class Adder final : public BaseAdd {
+ public:
+  explicit Adder(Args... args) : args_(std::forward_as_tuple(args...)) {}
+  absl::Status Add(OptimizationCompoundPass* pass) const final {
+    auto function = [&](auto... args) {
+      pass->Add<PassClass>(std::forward<decltype(args)>(args)...);
+    };
+    std::apply(function, args_);
+    return absl::OkStatus();
+  }
+
+ private:
+  std::tuple<Args...> args_;
+};
+template <typename PassType, typename... Args>
+std::unique_ptr<BaseAdd> Pass(Args... args) {
+  return std::make_unique<Adder<PassType, Args...>>(
+      std::forward<Args>(args)...);
+}
+
+absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>> MakeOptMap(
+    int64_t opt_level) {
+  // TODO(https://github.com/google/xls/issues/1254): 2024-1-8: This should
+  // really be done by the pass libraries themselves registering their passes to
+  // a central location.
+  absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>> passes;
+
+  // LINT.IfChange(pass_maps)
+  // This map should include every pass in every configuration needed to
+  // recreate at a minimum the standard optimization pipeline.
+  passes["arith_simp"] = Pass<ArithSimplificationPass>(opt_level);
+  passes["array_simp"] = Pass<ArraySimplificationPass>(opt_level);
+  passes["bdd_cse"] = Pass<BddCsePass>();
+  passes["bdd_simp"] =
+      Pass<BddSimplificationPass>(std::min(int64_t{2}, opt_level));
+  passes["bdd_simp(2)"] =
+      Pass<BddSimplificationPass>(std::min(int64_t{2}, opt_level));
+  passes["bdd_simp(3)"] =
+      Pass<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
+  passes["bitslice_simp"] = Pass<BitSliceSimplificationPass>(opt_level);
+  passes["bool_simp"] = Pass<BooleanSimplificationPass>();
+  passes["canon"] = Pass<CanonicalizationPass>();
+  passes["channel_legalization"] = Pass<ChannelLegalizationPass>();
+  passes["comparison_simp"] = Pass<ComparisonSimplificationPass>();
+  passes["concat_simp"] = Pass<ConcatSimplificationPass>(opt_level);
+  passes["cond_spec"] = Pass<ConditionalSpecializationPass>(/*use_bdd=*/true);
+  passes["cond_spec(false)"] =
+      Pass<ConditionalSpecializationPass>(/*use_bdd=*/false);
+  passes["cond_spec(true)"] =
+      Pass<ConditionalSpecializationPass>(/*use_bdd=*/true);
+  passes["const_fold"] = Pass<ConstantFoldingPass>();
+  passes["cse"] = Pass<CsePass>();
+  passes["dce"] = Pass<DeadCodeEliminationPass>();
+  passes["dfe"] = Pass<DeadFunctionEliminationPass>();
+  passes["ident_remove"] = Pass<IdentityRemovalPass>();
+  passes["ident_remove"] = Pass<IdentityRemovalPass>();
+  passes["inlining"] = Pass<InliningPass>();
+  passes["label-recovery"] = Pass<LabelRecoveryPass>();
+  passes["label_recovery"] = Pass<LabelRecoveryPass>();
+  passes["literal_uncommon"] = Pass<LiteralUncommoningPass>();
+  passes["loop_unroll"] = Pass<UnrollPass>();
+  passes["map_inlining"] = Pass<MapInliningPass>();
+  passes["narrow"] =
+      Pass<NarrowingPass>(NarrowingPass::AnalysisType::kRange, opt_level);
+  passes["narrow(Bdd)"] =
+      Pass<NarrowingPass>(NarrowingPass::AnalysisType::kBdd, opt_level);
+  passes["narrow(Context)"] = Pass<NarrowingPass>(
+      NarrowingPass::AnalysisType::kRangeWithContext, opt_level);
+  passes["narrow(OptionalContext)"] = Pass<NarrowingPass>(
+      NarrowingPass::AnalysisType::kRangeWithOptionalContext, opt_level);
+  passes["narrow(Range)"] =
+      Pass<NarrowingPass>(NarrowingPass::AnalysisType::kRange, opt_level);
+  passes["proc_inlining"] = Pass<ProcInliningPass>();
+  passes["proc_state_flat"] = Pass<ProcStateFlatteningPass>();
+  passes["proc_state_opt"] = Pass<ProcStateOptimizationPass>();
+  passes["ram_rewrite"] = Pass<RamRewritePass>();
+  passes["reassociation"] = Pass<ReassociationPass>();
+  passes["recv_default"] = Pass<ReceiveDefaultValueSimplificationPass>();
+  passes["select_simp"] = Pass<SelectSimplificationPass>();
+  passes["simp"] = Pass<SimplificationPass>(std::min(int64_t{2}, opt_level));
+  passes["simp(2)"] = Pass<SimplificationPass>(std::min(int64_t{2}, opt_level));
+  passes["simp(3)"] = Pass<SimplificationPass>(std::min(int64_t{3}, opt_level));
+  passes["sparsify_select"] = Pass<SparsifySelectPass>();
+  passes["strength_red"] = Pass<StrengthReductionPass>(opt_level);
+  passes["table_switch"] = Pass<TableSwitchPass>();
+  passes["token_dependency"] = Pass<TokenDependencyPass>();
+  passes["token_simp"] = Pass<TokenSimplificationPass>();
+  passes["tuple_simp"] = Pass<TupleSimplificationPass>();
+  passes["useless_assert_remove"] = Pass<UselessAssertRemovalPass>();
+  passes["useless_io_remove"] = Pass<UselessIORemovalPass>();
+  return passes;
+}
+std::vector<absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>>>
+BuildPassMaps() {
+  std::vector<absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>>>
+      result;
+
+  result.reserve(kMaxOptLevel + 1);
+  for (int i = 0; i < kMaxOptLevel + 1; ++i) {
+    result.emplace_back(MakeOptMap(i));
+  }
+
+  return result;
+}
+
+// Generate the static maps for pass names to constructors.
+const absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>>& GetMap(
+    int64_t opt_level) {
+  // Avoid potential issues with destructors running during shutdown.
+  static std::vector<absl::flat_hash_map<std::string_view,
+                                         std::unique_ptr<BaseAdd>>>* kPassMaps =
+      new std::vector<
+          absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>>>(
+          BuildPassMaps());
+  XLS_CHECK_GE(opt_level, 0);
+  XLS_CHECK_LE(opt_level, kMaxOptLevel);
+  return (*kPassMaps)[opt_level];
+}
+
+}  // namespace
+
+absl::Status OptimizationPassPipelineGenerator::AddPassToPipeline(
+    OptimizationCompoundPass* pass, std::string_view pass_name) const {
+  const auto& map = GetMap(opt_level_);
+  if (map.contains(pass_name)) {
+    return map.at(pass_name)->Add(pass);
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("'%v' is not a valid pass name!", pass_name));
+}
+std::string OptimizationPassPipelineGenerator::GetAvailablePassesStr() const {
+  std::ostringstream oss;
+  oss << "[";
+  bool first = true;
+  auto all_passes = GetAvailablePasses();
+  absl::c_sort(all_passes);
+  for (auto v : all_passes) {
+    if (!first) {
+      oss << ", ";
+    }
+    first = false;
+    oss << v;
+  }
+  oss << "]";
+  return oss.str();
+}
+
+std::vector<std::string_view>
+OptimizationPassPipelineGenerator::GetAvailablePasses() const {
+  std::vector<std::string_view> results;
+  results.reserve(GetMap(opt_level_).size());
+  for (const auto& [k, _] : GetMap(opt_level_)) {
+    results.push_back(k);
+  }
+  return results;
 }
 
 }  // namespace xls

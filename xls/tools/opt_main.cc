@@ -15,11 +15,14 @@
 // Takes in an IR file and produces an IR file that has been run through the
 // standard optimization pipeline.
 
+#include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/exit_status.h"
@@ -29,6 +32,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 #include "xls/tools/opt.h"
 
@@ -76,6 +80,22 @@ ABSL_FLAG(bool, use_context_narrowing_analysis, false,
           "but might produce better results in some circumstances by using "
           "usage context to narrow values more aggressively.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
+ABSL_FLAG(
+    std::optional<std::string>, passes, std::nullopt,
+    absl::StrFormat(
+        "Explicit list of passes to run in a specific order. Passes are named "
+        "by 'short_name' and if they have non-opt-level arguments these are "
+        "placed in (). Fixed point sets of passes can be put within []. Pass "
+        "names are separated based on spaces. For example a simple pipeline "
+        "might be \"dfe dce [ ident_remove const_fold dce canon dce arith dce "
+        "comparison_simp ] loop_unroll map_inline\". This should not be used "
+        "with --skip_passes or --run_only_passes. If this is given the "
+        "standard optimization pipeline is ignored entierly, care should be "
+        "taken to ensure the given pipeline will run in reasonable amount of "
+        "time. See the map in passes/optimization_pass_pipeline.cc for pass "
+        "mappings. Available passes: %s",
+        xls::GetOptimizationPipelineGenerator(xls::kMaxOptLevel)
+            .GetAvailablePassesStr()));
 
 namespace xls::tools {
 namespace {
@@ -96,6 +116,7 @@ absl::Status RealMain(std::string_view input_path) {
   std::string ram_rewrites_pb = absl::GetFlag(FLAGS_ram_rewrites_pb);
   bool use_context_narrowing_analysis =
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
+  std::optional<std::string> pass_list = absl::GetFlag(FLAGS_passes);
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
@@ -107,7 +128,8 @@ absl::Status RealMain(std::string_view input_path) {
           /*convert_array_index_to_select=*/convert_array_index_to_select,
           /*inline_procs=*/inline_procs,
           /*ram_rewrites_pb=*/ram_rewrites_pb,
-          /*use_context_narrowing_analysis=*/use_context_narrowing_analysis));
+          /*use_context_narrowing_analysis=*/use_context_narrowing_analysis,
+          /*pass_list=*/pass_list));
   std::cout << opt_ir;
   return absl::OkStatus();
 }

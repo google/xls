@@ -17,7 +17,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <string_view>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/passes/optimization_pass.h"
 
@@ -37,6 +39,32 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
 // options.
 absl::StatusOr<bool> RunOptimizationPassPipeline(
     Package* package, int64_t opt_level = kMaxOptLevel);
+
+class OptimizationPassPipelineGenerator final
+    : public OptimizationPipelineGenerator {
+ public:
+  OptimizationPassPipelineGenerator(std::string_view short_name,
+                                    std::string_view long_name,
+                                    int64_t opt_level)
+      : OptimizationPipelineGenerator(short_name, long_name),
+        opt_level_(opt_level) {}
+
+  std::vector<std::string_view> GetAvailablePasses() const;
+  std::string GetAvailablePassesStr() const;
+
+ protected:
+  absl::Status AddPassToPipeline(OptimizationCompoundPass* pass,
+                                 std::string_view pass_name) const final;
+
+ private:
+  int64_t opt_level_;
+};
+
+inline OptimizationPassPipelineGenerator GetOptimizationPipelineGenerator(
+    int64_t opt_level) {
+  return OptimizationPassPipelineGenerator(
+      "opt_pipeline", "optimization_pass_pipeline_generator", opt_level);
+}
 
 }  // namespace xls
 

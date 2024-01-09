@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -29,6 +30,7 @@
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/verifier_checker.h"
 
 namespace xls::tools {
 
@@ -53,8 +55,19 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
   }
   XLS_VLOG(3) << "Top entity: '" << top.value()->name() << "'";
 
-  std::unique_ptr<OptimizationCompoundPass> pipeline =
-      CreateOptimizationPassPipeline(options.opt_level);
+  std::unique_ptr<OptimizationCompoundPass> pipeline;
+  if (!options.pass_list) {
+    pipeline = CreateOptimizationPassPipeline(options.opt_level);
+  } else {
+    XLS_RET_CHECK(options.skip_passes.empty() &&
+                  !options.run_only_passes.has_value())
+        << "Skipping/restricting passes while running a custom pipeline is "
+           "probably not something you want to do.";
+    XLS_ASSIGN_OR_RETURN(pipeline,
+                         GetOptimizationPipelineGenerator(options.opt_level)
+                             .GeneratePipeline(*options.pass_list));
+    pipeline->AddInvariantChecker<VerifierChecker>();
+  }
   OptimizationPassOptions pass_options;
   pass_options.ir_dump_path = options.ir_dump_path;
   pass_options.run_only_passes = options.run_only_passes;
@@ -77,7 +90,8 @@ absl::StatusOr<std::string> OptimizeIrForTop(
     absl::Span<const std::string> run_only_passes,
     absl::Span<const std::string> skip_passes,
     int64_t convert_array_index_to_select, bool inline_procs,
-    std::string_view ram_rewrites_pb, bool use_context_narrowing_analysis) {
+    std::string_view ram_rewrites_pb, bool use_context_narrowing_analysis,
+    std::optional<std::string> pass_list) {
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
   std::vector<RamRewrite> ram_rewrites;
   if (!ram_rewrites_pb.empty()) {
@@ -104,6 +118,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(
       .inline_procs = inline_procs,
       .ram_rewrites = std::move(ram_rewrites),
       .use_context_narrowing_analysis = use_context_narrowing_analysis,
+      .pass_list = std::move(pass_list),
   };
   return OptimizeIrForTop(ir, options);
 }
