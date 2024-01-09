@@ -133,6 +133,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
+        "//xls/ir:format_strings",
     ],
 )
 

@@ -233,6 +233,10 @@ absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
 absl::StatusOr<std::vector<const NameDef*>> CollectReferencedUnder(
     const AstNode* root, bool want_types = false);
 
+// Wrapper around the above that checks whether name_ref refers to a builtin
+// name def and whether that builtin name is a parametric function.
+bool IsBuiltinParametricNameRef(const NameRef* name_ref);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

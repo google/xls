@@ -2204,5 +2204,15 @@ fn f(x: Point1D) -> Point1D { x }
                  HasSubstr("Parametric type being returned from function")));
 }
 
+TEST(TypecheckErrorTest, OperatorOnParametricBuiltin) {
+  EXPECT_THAT(Typecheck(R"(
+fn f() { fail!%2 }
+)")
+                  .status(),
+              IsPosError("TypeInferenceError",
+                         HasSubstr("Name 'fail!' is a parametric function, but "
+                                   "it is not being invoked")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

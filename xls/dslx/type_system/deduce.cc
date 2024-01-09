@@ -71,6 +71,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 namespace {
@@ -3239,7 +3240,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
   // If this has no corresponding type because it is a parametric function that
   // is not being invoked, we give an error instead of propagating
   // "TypeMissing".
-  if (IsParametricFunction(node->GetDefiner()) &&
+  if ((IsParametricFunction(node->GetDefiner()) ||
+       IsBuiltinParametricNameRef(node)) &&
       !ParentIsInvocationWithCallee(node)) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,

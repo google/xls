@@ -35,8 +35,10 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
@@ -649,6 +651,14 @@ absl::StatusOr<std::vector<const NameDef*>> CollectReferencedUnder(
     }
   }
   return name_defs;
+}
+
+bool IsBuiltinParametricNameRef(const NameRef* name_ref) {
+  // Implementation note: we also check IsNameParametricBuiltin() as future
+  // proofing -- we may add a built-in name that is not a type or parametric
+  // function.
+  return std::holds_alternative<BuiltinNameDef*>(name_ref->name_def()) &&
+         IsNameParametricBuiltin(name_ref->identifier());
 }
 
 }  // namespace xls::dslx

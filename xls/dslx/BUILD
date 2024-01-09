@@ -352,10 +352,12 @@ cc_library(
     srcs = ["dslx_builtins.cc"],
     hdrs = ["dslx_builtins.h"],
     deps = [
+        ":channel_direction",
         ":errors",
         ":interp_value",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/frontend:pos",

@@ -109,6 +109,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
         "//xls/ir:code_template",
         "//xls/ir:foreign_function",
         "//xls/ir:format_strings",
@@ -163,6 +164,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/type_system:type_info",
     ],
 )
@@ -286,6 +288,7 @@ cc_library(
     hdrs = ["bindings.h"],
     deps = [
         ":ast",
+        ":pos",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
