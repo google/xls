@@ -526,3 +526,58 @@ xls_dslx_test(
     name = "dec_demux_dslx_test",
     library = ":dec_demux_dslx",
 )
+
+xls_dslx_verilog(
+    name = "dec_demux_verilog",
+    codegen_args = {
+        "module_name": "DecoderDemux",
+        "delay_model": "asap7",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "DecoderDemux",
+    library = ":dec_demux_dslx",
+    verilog_file = "dec_demux.v",
+)
+
+xls_benchmark_ir(
+    name = "dec_demux_opt_ir_benchmark",
+    src = ":dec_demux_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "asap7",
+    },
+)
+
+verilog_library(
+    name = "dec_demux_verilog_lib",
+    srcs = [
+        ":dec_demux.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "dec_demux_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "DecoderDemux",
+    deps = [
+        ":dec_demux_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "dec_demux_benchmark_synth",
+    synth_target = ":dec_demux_synth_asap7",
+)
+
+place_and_route(
+    name = "dec_demux_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    skip_detailed_routing = True,
+    synthesized_rtl = ":dec_demux_synth_asap7",
+    target_die_utilization_percentage = "5",
+)
