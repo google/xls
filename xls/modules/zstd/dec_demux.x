@@ -196,7 +196,7 @@ proc DecoderDemuxTest {
   init {}
 
   config (terminator: chan<bool> out) {
-    let (raw_s, raw_r) = chan<BlockDataPacket>;
+    let (raw_s, raw_r) = chan<BlockDataPacket, u32:1>;
     let (rle_s, rle_r) = chan<BlockDataPacket>;
     let (cmp_s, cmp_r) = chan<BlockDataPacket>;
     let (input_s, input_r) = chan<BlockDataPacket>;
