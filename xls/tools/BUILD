@@ -776,17 +776,20 @@ cc_library(
     hdrs = ["opt.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx/ir_convert:ir_converter",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
+        "//xls/passes:pass_base",
         "//xls/passes:verifier_checker",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

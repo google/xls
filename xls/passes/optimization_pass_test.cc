@@ -14,6 +14,7 @@
 
 #include "xls/passes/optimization_pass.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,18 +28,20 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/utility/utility.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/examples/sample_packages.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/type.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -339,68 +342,6 @@ class RecordingPass : public OptimizationPass {
   std::vector<std::string>* record_;
 };
 
-TEST(PassesTest, RunOnlyPassesOption) {
-  std::unique_ptr<Package> p = BuildShift0().first;
-
-  std::vector<std::string> record;
-  OptimizationCompoundPass compound_0("compound_0", "Compound pass 0");
-  compound_0.Add<RecordingPass>("foo", &record);
-  compound_0.Add<RecordingPass>("bar", &record);
-  auto compound_1 =
-      compound_0.Add<OptimizationCompoundPass>("compound_1", "Compound pass 1");
-  compound_1->Add<RecordingPass>("qux", &record);
-  compound_1->Add<RecordingPass>("foo", &record);
-
-  {
-    OptimizationPassOptions options;
-    PassResults results;
-    record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results),
-                IsOkAndHolds(false));
-    EXPECT_THAT(record, ElementsAre("foo", "bar", "qux", "foo"));
-  }
-
-  {
-    OptimizationPassOptions options;
-    options.run_only_passes = {"foo"};
-    PassResults results;
-    record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results),
-                IsOkAndHolds(false));
-    EXPECT_THAT(record, ElementsAre("foo", "foo"));
-  }
-
-  {
-    OptimizationPassOptions options;
-    options.run_only_passes = {"bar", "qux"};
-    PassResults results;
-    record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results),
-                IsOkAndHolds(false));
-    EXPECT_THAT(record, ElementsAre("bar", "qux"));
-  }
-
-  {
-    OptimizationPassOptions options;
-    options.run_only_passes = std::vector<std::string>();
-    PassResults results;
-    record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results),
-                IsOkAndHolds(false));
-    EXPECT_THAT(record, ElementsAre());
-  }
-
-  {
-    OptimizationPassOptions options;
-    options.run_only_passes = {"blah"};
-    PassResults results;
-    record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results),
-                IsOkAndHolds(false));
-    EXPECT_THAT(record, ElementsAre());
-  }
-}
-
 TEST(PassesTest, SkipPassesOption) {
   std::unique_ptr<Package> p = BuildShift0().first;
 
@@ -444,30 +385,6 @@ TEST(PassesTest, SkipPassesOption) {
   }
 }
 
-TEST(PassesTest, RunOnlyAndSkipPassesOption) {
-  std::unique_ptr<Package> p = BuildShift0().first;
-
-  std::vector<std::string> record;
-  OptimizationCompoundPass compound_0("compound_0", "Compound pass 0");
-  compound_0.Add<RecordingPass>("foo", &record);
-  compound_0.Add<RecordingPass>("bar", &record);
-  auto compound_1 =
-      compound_0.Add<OptimizationCompoundPass>("compound_1", "Compound pass 1");
-  compound_1->Add<RecordingPass>("qux", &record);
-  compound_1->Add<RecordingPass>("foo", &record);
-
-  {
-    OptimizationPassOptions options;
-    options.run_only_passes = {"foo", "qux"};
-    options.skip_passes = {"foo", "bar"};
-    PassResults results;
-    record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results),
-                IsOkAndHolds(false));
-    EXPECT_THAT(record, ElementsAre("qux"));
-  }
-}
-
 class NaiveDcePass : public OptimizationFunctionBasePass {
  public:
   NaiveDcePass() : OptimizationFunctionBasePass("naive_dce", "naive dce") {}
@@ -493,7 +410,7 @@ TEST(PassesTest, TestTransformNodesToFixedPointWhileRemovingNodes) {
   BValue a = fb.Not(fb.Add(x, x));
   BValue b = fb.Concat({x, x, x, x, x, x});
   fb.Tuple({a, b, fb.Concat({a, x})});
-  // Make paramter x the return value which means everything is dead but x.
+  // Make parameter x the return value which means everything is dead but x.
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(x));
   PassResults results;
   EXPECT_EQ(f->node_count(), 6);

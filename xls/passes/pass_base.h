@@ -56,9 +56,6 @@ struct PassOptionsBase {
   // intermediate IR files.
   std::filesystem::path ir_dump_path;
 
-  // If present, only passes whose short names are in this list will be run.
-  std::optional<std::vector<std::string>> run_only_passes;
-
   // If present, passes whose short names are in this list will be skipped. If
   // both run_only_passes and skip_passes are present, then only passes which
   // are present in run_only_passes and not present in skip_passes will be run.
@@ -322,16 +319,6 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     XLS_VLOG(1) << absl::StreamFormat("Running %s (%s) pass on package %s",
                                       pass->long_name(), pass->short_name(),
                                       ir->name());
-
-    if (!pass->IsCompound() && options.run_only_passes.has_value() &&
-        std::find_if(options.run_only_passes->begin(),
-                     options.run_only_passes->end(),
-                     [&](const std::string& name) {
-                       return pass->short_name() == name;
-                     }) == options.run_only_passes->end()) {
-      XLS_VLOG(1) << "Skipping pass. Not contained in run_only_passes option.";
-      continue;
-    }
 
     if (std::find_if(options.skip_passes.begin(), options.skip_passes.end(),
                      [&](const std::string& name) {

@@ -153,11 +153,25 @@ def optimize_ir(ir: str, opt_level: str) -> str:
         stderr=subprocess.PIPE,
         encoding='utf-8')
   elif opt_level == 'inline-only':
+    # Run:
+    # 1) DeadCodeElimination
+    # 2) DeadFunctionElimination
+    # 3) Inlining
+    # 4) DeadFunctionElimination
+    # 5) DeadCodeElimination
+    # 6) CommonSubexpressionElimination
+    # 7) DeadCodeElimination
     r = subprocess.check_output(
-        [OPT_MAIN_PATH, '--run_only_passes=inlining,dfe,cse,dce', tmp_ir.name],
+        [
+            OPT_MAIN_PATH,
+            '--passes',
+            'dce dfe inlining dfe dce cse dce',
+            tmp_ir.name,
+        ],
         stdin=None,
         stderr=subprocess.PIPE,
-        encoding='utf-8')
+        encoding='utf-8',
+    )
   else:
     raise ValueError(f'Invalid opt_level: {opt_level}')
 

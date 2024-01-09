@@ -14,6 +14,8 @@
 
 #include "xls/tools/opt.h"
 
+#include <cstdint>
+#include <filesystem>  // NOLINT[build/c++17]: XLS Standard
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,14 +24,19 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ir_convert/ir_converter.h"
-#include "xls/dslx/parse_and_typecheck.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/verifier_checker.h"
 
 namespace xls::tools {
@@ -59,8 +66,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
   if (!options.pass_list) {
     pipeline = CreateOptimizationPassPipeline(options.opt_level);
   } else {
-    XLS_RET_CHECK(options.skip_passes.empty() &&
-                  !options.run_only_passes.has_value())
+    XLS_RET_CHECK(options.skip_passes.empty())
         << "Skipping/restricting passes while running a custom pipeline is "
            "probably not something you want to do.";
     XLS_ASSIGN_OR_RETURN(pipeline,
@@ -70,7 +76,6 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
   }
   OptimizationPassOptions pass_options;
   pass_options.ir_dump_path = options.ir_dump_path;
-  pass_options.run_only_passes = options.run_only_passes;
   pass_options.skip_passes = options.skip_passes;
   pass_options.inline_procs = options.inline_procs;
   pass_options.convert_array_index_to_select =
@@ -86,9 +91,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
 
 absl::StatusOr<std::string> OptimizeIrForTop(
     std::string_view input_path, int64_t opt_level, std::string_view top,
-    std::string_view ir_dump_path,
-    absl::Span<const std::string> run_only_passes,
-    absl::Span<const std::string> skip_passes,
+    std::string_view ir_dump_path, absl::Span<const std::string> skip_passes,
     int64_t convert_array_index_to_select, bool inline_procs,
     std::string_view ram_rewrites_pb, bool use_context_narrowing_analysis,
     std::optional<std::string> pass_list) {
@@ -104,11 +107,6 @@ absl::StatusOr<std::string> OptimizeIrForTop(
       .opt_level = opt_level,
       .top = top,
       .ir_dump_path = std::string(ir_dump_path),
-      .run_only_passes =
-          run_only_passes.empty()
-              ? std::nullopt
-              : std::make_optional(std::vector<std::string>(
-                    run_only_passes.begin(), run_only_passes.end())),
       .skip_passes =
           std::vector<std::string>(skip_passes.begin(), skip_passes.end()),
       .convert_array_index_to_select =

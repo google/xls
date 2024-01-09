@@ -504,7 +504,7 @@ xls_ir_opt_ir(
     name = "chaining_example_triple_run_only_opt_ir",
     src = ":chaining_example_ir.ir",
     opt_ir_args = {
-        "run_only_passes": "arith_simp",
+        "passes": "arith_simp",
     },
     opt_ir_file = "chaining_example_triple_run_only_opt_ir.opt.ir",
     top = get_mangled_ir_symbol("chaining_example", "triple"),

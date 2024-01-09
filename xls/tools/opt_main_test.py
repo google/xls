@@ -76,10 +76,12 @@ class OptMainTest(test_base.TestCase):
     self.assertIn('ret x', optimized_ir)
 
   def test_run_only_arith_simp_and_dce_passes(self):
+    # NB This used to test a deprecated --run_only_passes flag that is
+    # superseeded by the --passes flag.
     ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)
 
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, '--run_only_passes=arith_simp,dce', ir_file.full_path]
+        [OPT_MAIN_PATH, '--passes=arith_simp dce', ir_file.full_path]
     ).decode('utf-8')
 
     # The add with zero should be eliminated.

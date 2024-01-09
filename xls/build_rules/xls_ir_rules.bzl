@@ -200,7 +200,7 @@ def _optimize_ir(ctx, src):
     opt_ir_args = dict(ctx.attr.opt_ir_args)
     IR_OPT_FLAGS = (
         "ir_dump_path",
-        "run_only_passes",
+        "passes",
         "skip_passes",
         "opt_level",
         "convert_array_index_to_select",

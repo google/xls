@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 
 // TODO(meheff): 2021-10-04 Remove this header.
+#include "absl/types/span.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls::tools {
@@ -37,7 +38,6 @@ struct OptOptions {
   std::string_view top;
   std::string ir_dump_path = "";
   std::optional<std::string> ir_path = std::nullopt;
-  std::optional<std::vector<std::string>> run_only_passes = std::nullopt;
   std::vector<std::string> skip_passes;
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
   bool inline_procs;
@@ -53,12 +53,10 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
                                              const OptOptions& options);
 
 // Convenience wrapper around the above that builds an OptOptions appropriately.
-// Analagous to calling opt_main with each argument being a flag.
+// Analogous to calling opt_main with each argument being a flag.
 absl::StatusOr<std::string> OptimizeIrForTop(
     std::string_view input_path, int64_t opt_level, std::string_view top,
-    std::string_view ir_dump_path,
-    absl::Span<const std::string> run_only_passes,
-    absl::Span<const std::string> skip_passes,
+    std::string_view ir_dump_path, absl::Span<const std::string> skip_passes,
     int64_t convert_array_index_to_select, bool inline_procs,
     std::string_view ram_rewrites_pb, bool use_context_narrowing_analysis,
     std::optional<std::string> pass_list);

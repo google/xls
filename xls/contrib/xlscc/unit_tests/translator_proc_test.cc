@@ -6120,14 +6120,14 @@ TEST_F(TranslatorProcTestWithoutFSMParam, OpDuplicationAcrossIO) {
   // Run inliner to expose the duplication
   // But don't run other passes that might eliminate it (cse etc)
   {
-    std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
-        xls::CreateOptimizationPassPipeline();
-    xls::OptimizationPassOptions options;
-    xls::PassResults results;
-
     // Don't do cse so that the duplication shows
     // bdd_cse pass wants a delay estimator
-    options.run_only_passes = {"inlining", "dce"};
+    std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
+        xls::GetOptimizationPipelineGenerator(/*opt_level=*/3)
+            .GeneratePipeline("inlining dce")
+            .value();
+    xls::OptimizationPassOptions options;
+    xls::PassResults results;
 
     XLS_ASSERT_OK(pipeline->Run(package_.get(), options, &results).status());
   }

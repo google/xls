@@ -55,14 +55,9 @@ Example invocation:
 ABSL_FLAG(std::string, top, "", "Top entity to optimize.");
 ABSL_FLAG(std::string, ir_dump_path, "",
           "Dump all intermediate IR files to the given directory");
-ABSL_FLAG(std::vector<std::string>, run_only_passes, {},
-          "If specified, only passes in this comma-separated list of (short) "
-          "pass names are be run.");
 ABSL_FLAG(std::vector<std::string>, skip_passes, {},
           "If specified, passes in this comma-separated list of (short) "
-          "pass names are skipped. If both --run_only_passes and --skip_passes "
-          "are specified only passes which are present in --run_only_passes "
-          "and not present in --skip_passes will be run.");
+          "pass names are skipped.");
 ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
           "If specified, convert array indexes with fewer than or "
           "equal to the given number of possible indices (by range analysis) "
@@ -89,11 +84,11 @@ ABSL_FLAG(
         "names are separated based on spaces. For example a simple pipeline "
         "might be \"dfe dce [ ident_remove const_fold dce canon dce arith dce "
         "comparison_simp ] loop_unroll map_inline\". This should not be used "
-        "with --skip_passes or --run_only_passes. If this is given the "
-        "standard optimization pipeline is ignored entierly, care should be "
-        "taken to ensure the given pipeline will run in reasonable amount of "
-        "time. See the map in passes/optimization_pass_pipeline.cc for pass "
-        "mappings. Available passes: %s",
+        "with --skip_passes. If this is given the standard optimization "
+        "pipeline is ignored entierly, care should be taken to ensure the "
+        "given pipeline will run in reasonable amount of time. See the map in "
+        "passes/optimization_pass_pipeline.cc for pass mappings. Available "
+        "passes: %s",
         xls::GetOptimizationPipelineGenerator(xls::kMaxOptLevel)
             .GetAvailablePassesStr()));
 
@@ -107,8 +102,6 @@ absl::Status RealMain(std::string_view input_path) {
   int64_t opt_level = absl::GetFlag(FLAGS_opt_level);
   std::string top = absl::GetFlag(FLAGS_top);
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
-  std::vector<std::string> run_only_passes =
-      absl::GetFlag(FLAGS_run_only_passes);
   std::vector<std::string> skip_passes = absl::GetFlag(FLAGS_skip_passes);
   int64_t convert_array_index_to_select =
       absl::GetFlag(FLAGS_convert_array_index_to_select);
@@ -123,7 +116,6 @@ absl::Status RealMain(std::string_view input_path) {
           /*input_path=*/input_path, /*opt_level=*/opt_level,
           /*top=*/top,
           /*ir_dump_path=*/ir_dump_path,
-          /*run_only_passes=*/run_only_passes,
           /*skip_passes=*/skip_passes,
           /*convert_array_index_to_select=*/convert_array_index_to_select,
           /*inline_procs=*/inline_procs,
