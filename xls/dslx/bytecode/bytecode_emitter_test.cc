@@ -18,21 +18,24 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -663,7 +666,7 @@ TEST(BytecodeEmitterTest, ImportedEnumRef) {
 }
 )";
   constexpr std::string_view kBaseProgram = R"(
-import import_0
+import import_0;
 
 #[test]
 fn imported_enum_ref() -> import_0::ImportedEnum {
@@ -703,7 +706,7 @@ TEST(BytecodeEmitterTest, ImportedConstant) {
   constexpr std::string_view kImportedProgram =
       R"(pub const MY_CONST = u3:2;)";
   constexpr std::string_view kBaseProgram = R"(
-import import_0
+import import_0;
 
 #[test]
 fn imported_enum_ref() -> u3 {
@@ -1228,7 +1231,7 @@ pub enum ImportedEnum : u32 {
 })";
 
   constexpr std::string_view kProgram = R"(
-import imported
+import imported;
 
 type MyEnum = imported::ImportedEnum;
 type MyStruct = imported::ImportedStruct<16>;
@@ -1423,7 +1426,7 @@ TEST(BytecodeEmitterTest, EmitExpressionWithImport) {
 pub const MY_CONST = u32:4;
 )";
   constexpr std::string_view kProgram = R"(
-import imported as mod
+import imported as mod;
 
 #[test]
 fn main() -> u32 {

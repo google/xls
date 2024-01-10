@@ -20,11 +20,11 @@
 // TODOs:
 //  - Support partial blocks of plaintext and AAD (additional authenticated data).
 //  - Parameterize the proc in terms of number of CTR units.
-import std
-import xls.modules.aes.aes
-import xls.modules.aes.aes_common
-import xls.modules.aes.aes_ctr
-import xls.modules.aes.ghash
+import std;
+import xls.modules.aes.aes;
+import xls.modules.aes.aes_common;
+import xls.modules.aes.aes_ctr;
+import xls.modules.aes.ghash;
 
 type Block = aes_common::Block;
 type InitVector = aes_common::InitVector;

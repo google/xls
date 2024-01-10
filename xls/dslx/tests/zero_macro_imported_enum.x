@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_simple_enum
+import xls.dslx.tests.mod_simple_enum;
 
 fn f() -> mod_simple_enum::EnumType { zero!<mod_simple_enum::EnumType>() }
 

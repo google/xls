@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.examples.dslx_module.some_caps
+import xls.examples.dslx_module.some_caps;
 
 pub proc some_caps_streaming<N:u32> {
   bytes_src: chan<u8[N]> in;

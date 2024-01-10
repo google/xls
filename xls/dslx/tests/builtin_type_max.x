@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.number_of_imported_type_import as noiti
+import xls.dslx.tests.number_of_imported_type_import as noiti;
 
 type MyU128 = uN[128];
 type MyU256 = uN[256];

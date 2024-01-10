@@ -868,7 +868,7 @@ fn triple(x: u32) -> u32 { u32:3 * x }
 
 TEST(ModuleFmtTest, OverLongImport) {
   const std::string_view kProgram =
-      "import very_long.name_here.made_of.dotted_components";
+      "import very_long.name_here.made_of.dotted_components;";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
                            ParseModule(kProgram, "fake.x", "fake", &comments));
@@ -877,11 +877,11 @@ TEST(ModuleFmtTest, OverLongImport) {
             "import very_long.\n"
             "       name_here.\n"
             "       made_of.\n"
-            "       dotted_components\n");
+            "       dotted_components;\n");
 }
 
 TEST(ModuleFmtTest, ImportAs) {
-  const std::string_view kProgram = "import foo as bar\n";
+  const std::string_view kProgram = "import foo as bar;\n";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
                            ParseModule(kProgram, "fake.x", "fake", &comments));
@@ -890,11 +890,11 @@ TEST(ModuleFmtTest, ImportAs) {
 }
 
 TEST(ModuleFmtTest, ImportGroups) {
-  const std::string_view kProgram = R"(import thing1
-import thing2
+  const std::string_view kProgram = R"(import thing1;
+import thing2;
 
-import other
-import stuff
+import other;
+import stuff;
 )";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
@@ -906,7 +906,7 @@ import stuff
 TEST(ModuleFmtTest, ImportSuperLongName) {
   const std::string_view kProgram = R"(// Module-level comment
 import blahhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-    as blah
+    as blah;
 )";
   std::vector<CommentData> comments;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
@@ -916,8 +916,8 @@ import blahhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 }
 
 TEST(ModuleFmtTest, TypeAliasGroups) {
-  const std::string_view kProgram = R"(import thing1
-import float32
+  const std::string_view kProgram = R"(import thing1;
+import float32;
 
 type F32 = float32::F32;
 type FloatTag = float32::FloatTag;
@@ -1175,7 +1175,7 @@ fn f() -> u8 { p<8>(u8:42) }
 
 TEST(ModuleFmtTest, SimpleParametricStructInstantiation) {
   const std::string_view kProgram =
-      R"(import mol
+      R"(import mol;
 
 struct Point<N: u32> { x: bits[N], y: bits[N] }
 
@@ -1237,7 +1237,7 @@ TEST(ModuleFmtTest, TypeRefChannelTypeAnnotation) {
 
 TEST(ModuleFmtTest, ColonRefWithImportSubject) {
   const std::string_view kProgram =
-      R"(import foo
+      R"(import foo;
 
 fn f() -> u32 { foo::bar }
 )";
@@ -1253,7 +1253,7 @@ fn f() -> u32 { foo::bar }
 
 TEST(ModuleFmtTest, NestedColonRefWithImportSubject) {
   const std::string_view kProgram =
-      R"(import foo
+      R"(import foo;
 
 fn f() -> u32 { foo::bar::baz::bat }
 )";
@@ -1269,7 +1269,7 @@ fn f() -> u32 { foo::bar::baz::bat }
 
 TEST(ModuleFmtTest, ModuleLevelConstAssert) {
   const std::string_view kProgram =
-      R"(import foo
+      R"(import foo;
 
 const_assert!(foo::bar == u32:42);
 )";
@@ -1687,7 +1687,7 @@ TEST(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
 // Based on report in https://github.com/google/xls/issues/1216
 TEST(ModuleFmtTest, ProcSpawnImported) {
   const std::string_view kProgram =
-      R"(import some_import
+      R"(import some_import;
 
 proc p {
     config() {
@@ -1729,7 +1729,7 @@ proc p_test {
 
 TEST(ModuleFmtTest, MatchLongWildcardArmExpression) {
   const std::string_view kProgram =
-      R"(import float32
+      R"(import float32;
 
 fn f(input_float: float32::F32) -> float32::F32 {
     match f.bexp {
@@ -1792,7 +1792,7 @@ pub fn uadd_with_overflow
 
 TEST(ModuleFmtTest, TypeAliasToColonRefInstantiated) {
   const std::string_view kProgram =
-      R"(import float32
+      R"(import float32;
 
 type F32 = float32::F32;
 
@@ -1807,7 +1807,7 @@ pub fn f() -> F32 { F32 { blah: u32:42 } }
 
 TEST(ModuleFmtTest, AttrEquality) {
   const std::string_view kProgram =
-      R"(import m
+      R"(import m;
 
 const SOME_BOOL = true;
 
@@ -1822,7 +1822,7 @@ fn f(x: m::MyStruct, y: m::MyStruct) -> bool { (x.foo == y.foo) || SOME_BOOL }
 
 TEST(ModuleFmtTest, ArrowReturnTypePackedOnOneLine) {
   const std::string_view kProgram =
-      R"(import apfloat
+      R"(import apfloat;
 
 fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>
     (a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
@@ -1921,7 +1921,7 @@ fn f() {
 
 // See github issue https://github.com/google/xls/issues/1193
 TEST(ModuleFmtTest, LongLetLeader) {
-  const std::string_view kProgram = R"(import std
+  const std::string_view kProgram = R"(import std;
 
 fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_too_short: u32) {
     type SomeTypeNameThatIsNotTooShort = s64;
@@ -1937,7 +1937,7 @@ fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_to
 }
 
 TEST(ModuleFmtTest, LongLetRhs) {
-  const std::string_view kProgram = R"(import std
+  const std::string_view kProgram = R"(import std;
 
 fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_too_short: u32) {
     type SomeTypeNameThatIsNotTooShort = sN[u32:96];

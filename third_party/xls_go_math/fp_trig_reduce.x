@@ -22,10 +22,10 @@
 // Note: This module will not give meaningful results for
 // x == infinity or x = NaN.
 
-import apfloat
-import float32
-import float64
-import std
+import apfloat;
+import float32;
+import float64;
+import std;
 
 type F32 = float32::F32;
 type F64 = float64::F64;

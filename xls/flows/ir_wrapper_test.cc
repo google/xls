@@ -15,19 +15,29 @@
 #include "xls/flows/ir_wrapper.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/events.h"
+#include "xls/ir/function.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+#include "xls/jit/function_jit.h"
 
 namespace xls {
 namespace {
@@ -48,7 +58,7 @@ TEST(IrWrapperTest, DslxToIrOk) {
 }
 pub const params = ParamsProto { latency: sN[64]:7 };)";
 
-  constexpr std::string_view kTopDslx = R"(import param
+  constexpr std::string_view kTopDslx = R"(import param;
 pub fn GetLatency() -> s64 {
     param::params.latency
 })";

@@ -16,7 +16,7 @@
 // points, exercising some interesting features of JIT invocation; e.g.
 // matching floating point type, boolean, uint32_t, and fallibility.
 
-import std
+import std;
 
 pub fn umul_with_overflow_21_21_18(x: uN[21], y: uN[18]) -> (bool, uN[21]) {
   std::umul_with_overflow<u32:21>(x, y)

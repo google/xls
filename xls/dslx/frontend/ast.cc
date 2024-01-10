@@ -751,10 +751,10 @@ Import::~Import() = default;
 
 std::string Import::ToString() const {
   if (alias_.has_value()) {
-    return absl::StrFormat("import %s as %s", absl::StrJoin(subject_, "."),
+    return absl::StrFormat("import %s as %s;", absl::StrJoin(subject_, "."),
                            *alias_);
   }
-  return absl::StrFormat("import %s", absl::StrJoin(subject_, "."));
+  return absl::StrFormat("import %s;", absl::StrJoin(subject_, "."));
 }
 
 // -- class ColonRef

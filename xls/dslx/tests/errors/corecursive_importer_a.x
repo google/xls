@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.errors.corecursive_importer_b
+import xls.dslx.tests.errors.corecursive_importer_b;
 
 // Note: we'll never get to process this function, we should error on the
 // import.

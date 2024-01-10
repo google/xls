@@ -765,7 +765,7 @@ We can create an alias for an imported type:
 
 ```dslx
 // Note: this imports an external file in the codebase.
-import xls.dslx.tests.mod_imported
+import xls.dslx.tests.mod_imported;
 
 type MyEnum = mod_imported::MyEnum;
 
@@ -993,7 +993,7 @@ languages like Go).
 The import statement takes the following form (note the lack of semicolon):
 
 ```
-import path.to.my.imported_module
+import path.to.my.imported_module;
 ```
 
 With that statement, the module will be accessible as (the trailing identifier
@@ -1016,7 +1016,7 @@ If you want to change the name of the imported module (for reference inside of
 the importing file) you can use the `as` keyword:
 
 ```dslx-snippet
-import path.to.my.imported_module as im
+import path.to.my.imported_module as im;
 ```
 
 Just using the above construct,
@@ -1025,8 +1025,8 @@ Just using the above construct,
 different lines:
 
 ```dslx-snippet
-import path.to.my.imported_module
-import path.to.my.imported_module as im
+import path.to.my.imported_module;
+import path.to.my.imported_module as im;
 ```
 
 In this case, either `im::IMPORTED_MODULE_PUBLIC_CONSTANT` or
@@ -1039,8 +1039,8 @@ same module:
 ```dslx
 // Note: this imports an external file in the codebase under two different
 // names.
-import xls.dslx.tests.mod_imported
-import xls.dslx.tests.mod_imported as mi
+import xls.dslx.tests.mod_imported;
+import xls.dslx.tests.mod_imported as mi;
 
 fn main(x: u3) -> u1 {
   mod_imported::my_lsb(x) || mi::my_lsb(x)
@@ -1067,8 +1067,8 @@ This applies to other things defined at module scope as well: functions, enums,
 type aliases, etc.
 
 ```dslx
-import xls.dslx.tests.mod_imported
-import xls.dslx.tests.mod_imported as mi
+import xls.dslx.tests.mod_imported;
+import xls.dslx.tests.mod_imported as mi;
 
 fn main(x: u3) -> u1 {
   mod_imported::my_lsb(x) || mi::my_lsb(x)

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import apfloat
+import apfloat;
 
 fn main() -> u32 {
     apfloat::APFloat::SOME_CONSTANT_THAT_DOES_NOT_EXIST

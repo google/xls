@@ -21,9 +21,9 @@
 // delay proc's state holds on to the other read/write depending on whether it
 // is reading from or writing to the RAM. This proc can run fully pipelined,
 // i.e. consuming an input and producing an output every cycle.
-import std
+import std;
 
-import xls.examples.ram
+import xls.examples.ram;
 
 type RamReq = ram::RWRamReq;
 type RamResp = ram::RWRamResp;

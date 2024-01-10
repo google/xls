@@ -17,7 +17,7 @@
 //
 // Regression test for example given in https://github.com/google/xls/issues/259
 
-import xls.dslx.tests.mod_simple_const
+import xls.dslx.tests.mod_simple_const;
 
 const LOCAL_FOUR = mod_simple_const::FOUR;
 

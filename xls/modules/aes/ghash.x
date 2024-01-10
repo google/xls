@@ -15,8 +15,8 @@
 // XLS implementation of the GHASH subroutine of the Galois counter mode of operation for
 // block ciphers, as described in NIST Special Publication 800-38D: "Recommendation for Block
 // Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC".
-import xls.modules.aes.aes
-import xls.modules.aes.aes_common
+import xls.modules.aes.aes;
+import xls.modules.aes.aes_common;
 
 type Block = aes_common::Block;
 type Key = aes_common::Key;

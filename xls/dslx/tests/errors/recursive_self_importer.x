@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.errors.recursive_self_importer
+import xls.dslx.tests.errors.recursive_self_importer;
 
 // Note: we'll never get to process this function, we should error on the
 // self-import.

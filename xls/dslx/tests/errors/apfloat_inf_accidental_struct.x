@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import apfloat
+import apfloat;
 
 fn main() -> apfloat::APFloat<8, 24> {
     apfloat::APFloat::inf(true)

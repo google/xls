@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
+import std;
 
 // Create some wrappers around the builtins so we validate that we can
 // typecheck them (typechecking doesn't apply to test code at the moment).

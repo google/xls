@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
+import std;
 
 fn do_rev_rev<N: u32>(x: uN[N]) -> bool {
     let a: bool[N] = std::convert_to_bools_lsb0(x);

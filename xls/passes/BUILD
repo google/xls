@@ -1944,8 +1944,11 @@ cc_test(
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",
         "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:events",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
     ],
 )
 

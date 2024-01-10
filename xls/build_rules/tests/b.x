@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.build_rules.tests.a
+import xls.build_rules.tests.a;
 
 pub fn b() -> u32 {
   u32: 1 + a::CONST_A

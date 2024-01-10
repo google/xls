@@ -43,7 +43,7 @@ fn parametric_call_local_parametric() {
 }
 
 // #2: Test invoking a imported ("ColonRef") parametric.
-import std
+import std;
 
 fn dot_product_modref
     <BITCOUNT: u32, LENGTH: u32, IDX_BITS: u32 = {std::clog2<u32:32>(LENGTH) + u32:1}>

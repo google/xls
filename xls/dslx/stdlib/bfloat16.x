@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // bfloat16 routines.
-import apfloat
+import apfloat;
 
 pub type BF16 = apfloat::APFloat<8, 7>;
 pub type FloatTag = apfloat::APFloatTag;

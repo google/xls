@@ -15,7 +15,7 @@
 // Imports a module that holds an enum definition, and uses it inside of a match
 // expression inside of a for loop.
 
-import xls.dslx.tests.mod_simple_enum
+import xls.dslx.tests.mod_simple_enum;
 
 type EnumType = mod_simple_enum::EnumType;
 

@@ -16,8 +16,8 @@
 // * of an array defined as a constant in one module, with...
 // * a parametric function defined in another module
 
-import xls.dslx.tests.mod_imported_array
-import xls.dslx.tests.mod_imported_lsb
+import xls.dslx.tests.mod_imported_array;
+import xls.dslx.tests.mod_imported_lsb;
 
 fn f() -> u1[4] { map(mod_imported_array::A, mod_imported_lsb::lsb_u32) }
 

@@ -14,7 +14,7 @@
 
 // Imports a struct via a user-defined struct via a type alias and uses it.
 
-import xls.dslx.tests.mod_struct_point
+import xls.dslx.tests.mod_struct_point;
 
 type Point = mod_struct_point::Point;
 

@@ -14,7 +14,7 @@
 
 // Demonstrates that numbers of imported types can be used.
 
-import xls.dslx.tests.number_of_imported_type_import as noiti
+import xls.dslx.tests.number_of_imported_type_import as noiti;
 
 pub type other_type = bits[16];
 

@@ -24,7 +24,7 @@
 // Source: https://en.wikipedia.org/wiki/Bitonic_sorter
 ////////////////////////////////////////////////////////////////////////////////
 
-import std
+import std;
 
 fn swap<B: u32, N: u32>(array: uN[B][N], i: u32, j: u32) -> uN[B][N] {
     let i_element = array[i];

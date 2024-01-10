@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
+import std;
 
 const THING_COUNT_IN_CRUMBS = u32:2;
 

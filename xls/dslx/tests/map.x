@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
+import std;
 
 fn umul_2(x: u4) -> u4 { std::umul(x, u4:2) as u4 }
 

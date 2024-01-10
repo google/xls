@@ -78,10 +78,10 @@
 //  - Input denormals are treated as/flushed to 0.
 //      (denormals-are-zero / DAZ).
 
-import std
-import float32
+import std;
+import float32;
 
-import third_party.xls_go_math.fp_trig_reduce
+import third_party.xls_go_math.fp_trig_reduce;
 
 type F32 = float32::F32;
 

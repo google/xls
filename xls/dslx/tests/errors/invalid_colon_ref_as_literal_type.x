@@ -17,7 +17,7 @@
 // ColonRef-as-scalar-TypeDef (pub type Foo = u8; ... mod::Foo:7;), but not
 // as StructDefs.
 
-import xls.dslx.tests.errors.invalid_colon_ref_as_literal_type_mod as imported
+import xls.dslx.tests.errors.invalid_colon_ref_as_literal_type_mod as imported;
 
 fn invalid_colon_ref_as_literal_type(x: u8) -> u8 {
   x + imported::ModType:7

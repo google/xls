@@ -15,7 +15,7 @@
 // A module that *uses* the parametric function "id" that has a default
 // parametric value.
 
-import xls.dslx.tests.mod_parametric_id_with_default
+import xls.dslx.tests.mod_parametric_id_with_default;
 
 fn main() -> (u5, u8) {
     let x: u5 = mod_parametric_id_with_default::id();

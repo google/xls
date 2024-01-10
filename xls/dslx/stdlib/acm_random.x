@@ -22,7 +22,7 @@
 // output may wish to guess earlier/later output values would be very
 // bad.
 
-import std
+import std;
 
 const M = u32:2147483647;
 

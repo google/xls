@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_simple_const
+import xls.dslx.tests.mod_simple_const;
 
 const LOCAL_FOUR = u32:4;
 

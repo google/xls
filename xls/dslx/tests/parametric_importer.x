@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.parametric_import
+import xls.dslx.tests.parametric_import;
 
 type LocalType = parametric_import::Type<1, 2>;
 

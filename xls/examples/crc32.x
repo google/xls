@@ -14,7 +14,7 @@
 
 // Performs a table-less crc32 of the input data as in Hacker's Delight:
 // https://www.hackersdelight.org/hdcodetxt/crc.c.txt (roughly flavor b)
-import std
+import std;
 
 const U32_MAX = std::unsigned_max_value<u32:32>();
 

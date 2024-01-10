@@ -40,7 +40,7 @@ infer them:
 Explicit specification:
 
 ```dslx
-import std
+import std;
 
 fn foo(a: u32, b: u16) -> u64 {
   std::umax<u32:64>(a as u64, b as u64)
@@ -53,7 +53,7 @@ are.
 Parametric inference:
 
 ```dslx
-import std
+import std;
 
 fn foo(a: u32, b: u16) -> u64 {
   std::umax(a as u64, b as u64)

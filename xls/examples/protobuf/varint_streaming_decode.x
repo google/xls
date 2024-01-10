@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
-import xls.examples.protobuf.varint_decode
+import std;
+import xls.examples.protobuf.varint_decode;
 
 // Convenience for use with map().
 fn not(x: bool) -> bool { !x }

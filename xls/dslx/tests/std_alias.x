@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std as my_std
+import std as my_std;
 
 fn main(x: u2) -> u1 { my_std::lsb(x) }
 

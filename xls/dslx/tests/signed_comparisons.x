@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
+import std;
 
 const U32_NEG_2 = u32:0xfffffffe;
 

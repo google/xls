@@ -33,9 +33,9 @@
 // Based on:
 // https://github.com/breagen/MachSuite/blob/master/fft/strided/fft.c
 
-import float32
-import std
-import third_party.xls_machsuite.fft.test_data.dslx_test_data
+import float32;
+import std;
+import third_party.xls_machsuite.fft.test_data.dslx_test_data;
 
 type F32 = float32::F32;
 

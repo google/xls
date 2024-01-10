@@ -18,7 +18,7 @@
 //
 // Regression tests noted in https://github.com/google/xls/issues/230
 
-import std
+import std;
 
 const VALUE_LIMIT = u32:16;
 

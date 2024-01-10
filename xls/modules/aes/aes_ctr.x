@@ -13,9 +13,9 @@
 // limitations under the License.
 
 // Implements the CTR mode of operation, using AES as the block cipher.
-import std
-import xls.modules.aes.aes
-import xls.modules.aes.aes_common
+import std;
+import xls.modules.aes.aes;
+import xls.modules.aes.aes_common;
 
 type Block = aes_common::Block;
 type InitVector = aes_common::InitVector;

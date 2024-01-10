@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_imported
-import xls.dslx.tests.mod_imported as mi
+import xls.dslx.tests.mod_imported;
+import xls.dslx.tests.mod_imported as mi;
 
 fn main(x: u3) -> u1 {
     let lhs: u1 = mod_imported::my_lsb(x);

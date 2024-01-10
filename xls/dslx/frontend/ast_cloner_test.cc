@@ -151,7 +151,7 @@ fn main() -> MyStruct {
 
 TEST(AstClonerTest, ColonRefToImportedStruct) {
   constexpr std::string_view kProgram = R"(
-import my.module as foo
+import my.module as foo;
 
 fn main() -> foo::ImportedStruct {
     let bar = foo::ImportedStruct { a: u32:0, b: s64:0xbeef };
@@ -350,7 +350,7 @@ fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
 }
 
 TEST(AstClonerTest, CloneModule) {
-  constexpr std::string_view kProgram = R"(import my_import
+  constexpr std::string_view kProgram = R"(import my_import;
 enum MyEnum : u8 {
     DOGS = 0,
     ARE = 1,
@@ -378,7 +378,7 @@ proc my_proc {
 
   // Note that we're dealing with a post-parsing AST, which means that the proc
   // config and next functions will be present as top-level functions.
-  constexpr std::string_view kExpected = R"(import my_import
+  constexpr std::string_view kExpected = R"(import my_import;
 enum MyEnum : u8 {
     DOGS = 0,
     ARE = 1,
@@ -487,7 +487,7 @@ TEST(AstClonerTest, FormatMacro) {
 TEST(AstClonerTest, Match) {
   // Try to every potential NameDefTree Leaf type (NameRef, NameDef,
   // WildcardPattern, Number, ColonRef).
-  constexpr std::string_view kProgram = R"(import foo
+  constexpr std::string_view kProgram = R"(import foo;
 fn main(x: u32, y: u32) -> u32 {
     match (x, y) {
         (u32:0, y) => y,
@@ -555,7 +555,7 @@ TEST(AstClonerTest, TupleIndex) {
 }
 
 TEST(AstClonerTest, SendsAndRecvsAndSpawns) {
-  constexpr std::string_view kProgram = R"(import other_module
+  constexpr std::string_view kProgram = R"(import other_module;
 proc MyProc {
     input_p: chan<u32> out;
     output_c: chan<u64> out;
@@ -577,7 +577,7 @@ proc MyProc {
         state + foo
     }
 })";
-  constexpr std::string_view kExpected = R"(import other_module
+  constexpr std::string_view kExpected = R"(import other_module;
 fn MyProc.config() -> (chan<u32> out, chan<u64> out) {
     let (input_p, input_c) = chan<u32>;
     let (output_p, output_c) = chan<u64>;

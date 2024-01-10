@@ -18,7 +18,7 @@
 // TODO(rspringer): 2021-09-16, issue #497: The channel declarations here are a
 // bit unwieldy; if we can use arrays-of-channels, that'll make things cleaner.
 
-import float32
+import float32;
 
 type F32 = float32::F32;
 

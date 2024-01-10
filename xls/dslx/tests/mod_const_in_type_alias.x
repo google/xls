@@ -14,7 +14,7 @@
 
 // Uses an externally-defined constant in a type alias as a dimension.
 
-import xls.dslx.tests.mod_simple_const
+import xls.dslx.tests.mod_simple_const;
 
 type U32X4 = u32[mod_simple_const::FOUR];
 

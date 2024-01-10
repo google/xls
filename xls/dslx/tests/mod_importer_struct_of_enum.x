@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_imported_struct_of_enum
+import xls.dslx.tests.mod_imported_struct_of_enum;
 
 type MyEnum2 = mod_imported_struct_of_enum::MyEnum;
 type MyStruct2 = mod_imported_struct_of_enum::MyStruct;

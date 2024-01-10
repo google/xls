@@ -44,8 +44,8 @@
 // last                                         ┌─────┐           ┌─────┐
 // (output channel)     ────────────────────────┘     └───────────┘     └────
 
-import std
-import xls.modules.rle.rle_common as rle_common
+import std;
+import xls.modules.rle.rle_common as rle_common;
 
 type EncInData  = rle_common::PlainData;
 type EncOutData = rle_common::CompressedData;

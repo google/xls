@@ -26,7 +26,7 @@ DSLX implementation of
 which computes `C = A * B + C`:
 
 ```dslx
-import float32
+import float32;
 
 type F32 = float32::F32;
 

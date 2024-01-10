@@ -16,7 +16,7 @@
 // find_index standard library function. This will be used as a synthesis
 // flow example to determine how well the gate-level mapping is performed.
 
-import std
+import std;
 
 fn find_index(x: u4[4], target: u4) -> (bool, u2) {
   let (found, index) = std::find_index(x, target);

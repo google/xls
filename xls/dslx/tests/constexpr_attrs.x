@@ -15,7 +15,7 @@
 // Tests to verify constant struct members can be used to define
 // constants and array types.
 
-import xls.dslx.tests.constexpr
+import xls.dslx.tests.constexpr;
 
 struct LocalStruct { a: bits[32] }
 

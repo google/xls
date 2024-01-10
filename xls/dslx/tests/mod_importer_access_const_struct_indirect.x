@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_imported_access_const_struct
+import xls.dslx.tests.mod_imported_access_const_struct;
 
 const SIX = mod_imported_access_const_struct::FOUR as u32 + mod_imported_access_const_struct::TWO;
 

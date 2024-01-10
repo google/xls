@@ -1251,7 +1251,7 @@ TEST(IrConverterTest, ConstexprImport) {
   // Place the *imported* module into the import cache.
   auto import_data = CreateImportDataForTest();
   const char* imported_program = R"(
-import std
+import std;
 
 pub const MY_CONST = bits[32]:5;
 pub const MY_OTHER_CONST = std::clog2(MY_CONST);
@@ -1265,7 +1265,7 @@ pub fn constexpr_fn(arg: u32) -> u32 {
       ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
                         "fake.imported.stuff", &import_data));
   const char* importer_program = R"(
-import fake.imported.stuff
+import fake.imported.stuff;
 
 fn f() -> u32 {
   let x = stuff::constexpr_fn(stuff::MY_OTHER_CONST);
@@ -1300,7 +1300,7 @@ pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
       ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
                         "fake.imported.stuff", &import_data));
   const char* importer_program = R"(
-import fake.imported.stuff
+import fake.imported.stuff;
 
 fn f() -> u32 {
   let x = stuff::constexpr_fn(stuff::MY_CONST);
@@ -1343,7 +1343,7 @@ TEST(IrConverterTest, ImportEnumValue) {
   auto import_data = CreateImportDataForTest();
 
   const std::string kImportModule = R"(
-import std
+import std;
 
 pub const MY_CONST = u32:5;
 pub enum ImportEnum : u16 {
@@ -1359,7 +1359,7 @@ pub enum ImportEnum : u16 {
   (void)tm;  // Already placed in import cache.
 
   const std::string kImporterModule = R"(
-import fake.imported.stuff
+import fake.imported.stuff;
 
 type ImportedEnum = stuff::ImportEnum;
 
@@ -1389,7 +1389,7 @@ pub fn a() -> u32 {
       ParseAndTypecheck(kImportModule, "a.x", "a", &import_data).status());
 
   const std::string kImporterModule = R"(
-import a
+import a;
 
 fn main(x: u32) -> u32 {
   a::a()

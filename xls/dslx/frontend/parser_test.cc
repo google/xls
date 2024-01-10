@@ -1270,11 +1270,13 @@ TEST_F(ParserTest, ParametricColonRefInvocation) {
 
 TEST_F(ParserTest, ModuleWithTypeAlias) { RoundTrip("type MyType = u32;"); }
 
-TEST_F(ParserTest, ModuleWithImport) { RoundTrip("import thing"); }
+TEST_F(ParserTest, ModuleWithImport) { RoundTrip("import thing;"); }
 
-TEST_F(ParserTest, ModuleWithImportDots) { RoundTrip("import thing.subthing"); }
+TEST_F(ParserTest, ModuleWithImportDots) {
+  RoundTrip("import thing.subthing;");
+}
 
-TEST_F(ParserTest, ModuleWithImportAs) { RoundTrip("import thing as other"); }
+TEST_F(ParserTest, ModuleWithImportAs) { RoundTrip("import thing as other;"); }
 
 TEST_F(ParserTest, ConstArrayOfEnumRefs) {
   RoundTrip(R"(enum MyEnum : u3 {
@@ -1925,7 +1927,7 @@ TEST_F(ParserTest, UnterminatedEscapedHexChar) {
 }
 
 TEST_F(ParserTest, ConstShadowsImport) {
-  constexpr std::string_view kProgram = R"(import x
+  constexpr std::string_view kProgram = R"(import x;
 const x)";
   Scanner s{"test.x", std::string(kProgram)};
   Parser parser{"test", &s};
@@ -1947,8 +1949,8 @@ TEST_F(ParserTest, ZeroLengthStringAtEof) {
 }
 
 TEST_F(ParserTest, RepetitiveImport) {
-  constexpr std::string_view kProgram = R"(import repetitively
-import repetitively)";
+  constexpr std::string_view kProgram = R"(import repetitively;
+import repetitively;)";
   Scanner s{"test.x", std::string(kProgram)};
   Parser parser{"test", &s};
   auto module_or = parser.ParseModule();

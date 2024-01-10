@@ -17,7 +17,7 @@
 // Note that throughout, "row" and "column" seem to be swapped: that's because
 // DSLX is a row-major language, whereas AES is described in a column-major
 // manner.
-import xls.modules.aes.constants
+import xls.modules.aes.constants;
 
 pub const MAX_KEY_BITS = u32:256;
 pub const MAX_KEY_BYTES = MAX_KEY_BITS >> 3;

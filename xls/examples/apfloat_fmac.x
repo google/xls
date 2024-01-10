@@ -15,7 +15,7 @@
 // DSLX implementation of a fused multiply-accumulate module, calculating
 // `acc = a * b + acc`
 // This is, effectively, an FMA unit that stores its result between ticks.
-import apfloat
+import apfloat;
 
 type APFloat = apfloat::APFloat;
 

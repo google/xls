@@ -90,7 +90,7 @@
 // representation for NaN (qnan) but accept all NaN
 // respresentations as input).
 
-import float32
+import float32;
 
 type F32 = float32::F32;
 

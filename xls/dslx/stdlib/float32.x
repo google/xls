@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // 32-bit floating point routines.
-import apfloat
-import std
+import apfloat;
+import std;
 
 const F32_EXP_SZ = u32:8;        // Exponent bits
 const F32_FRACTION_SZ = u32:23;  // Fraction bits

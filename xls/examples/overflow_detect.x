@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
+import std;
 
 // Example usage of detecting addition and multiplication overflows.
 fn main(x : u16, y : u16) -> bool {

@@ -15,7 +15,7 @@
 // Accesses the fields defined in mod_imported_const_struct and flattens them
 // against the module-scoped namespace.
 
-import xls.dslx.tests.mod_imported_const_struct
+import xls.dslx.tests.mod_imported_const_struct;
 
 pub const TWO = mod_imported_const_struct::MY_POINT.x;
 

@@ -1830,7 +1830,7 @@ TEST(TypecheckTest, CatchesBadInvocationCallee) {
 pub fn some_function() -> u32 { u32:0 }
 )";
   constexpr std::string_view kProgram = R"(
-import imported
+import imported;
 
 fn main() -> u32 {
   imported.some_function()

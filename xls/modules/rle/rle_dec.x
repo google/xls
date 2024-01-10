@@ -46,8 +46,8 @@
 // (output channel)     ──────────────────┘     └─────────────────┘     └────
 
 
-import std
-import xls.modules.rle.rle_common as rle_common
+import std;
+import xls.modules.rle.rle_common as rle_common;
 
 type DecInData  = rle_common::CompressedData;
 type DecOutData = rle_common::PlainData;

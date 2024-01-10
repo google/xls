@@ -11,9 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import std
-import xls.modules.aes.aes_common
-import xls.modules.aes.constants
+import std;
+import xls.modules.aes.aes_common;
+import xls.modules.aes.constants;
 
 const MAX_NUM_ROUNDS = u32:14;
 

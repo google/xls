@@ -15,7 +15,7 @@
 // This implements a parametric delay proc implemented using loopback channels that are ultimately
 // generated as FIFOs.
 
-import std
+import std;
 
 // TODO(google/xls#889): Make top parametric when supported.
 const DATA_WIDTH = u32:32;

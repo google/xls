@@ -15,7 +15,7 @@
 // Uses an externally-defined constant (via import) in a range expression as the
 // upper limit.
 
-import xls.dslx.tests.mod_simple_const
+import xls.dslx.tests.mod_simple_const;
 
 fn main(x: u32) -> u32 {
     for (i, accum): (u32, u32) in u32:0..mod_simple_const::FOUR {

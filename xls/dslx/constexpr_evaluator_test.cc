@@ -23,12 +23,14 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -261,7 +263,7 @@ pub const MY_CONST = u32:100;
   )";
 
   constexpr std::string_view kProgram = R"(
-import imported
+import imported;
 fn main() -> u32 {
   imported::MY_CONST
 })";
@@ -296,7 +298,7 @@ pub enum MyEnum : u4 {
 })";
 
   constexpr std::string_view kProgram = R"(
-import imported
+import imported;
 fn main() -> imported::MyEnum {
   imported::MyEnum::HELLO
 })";

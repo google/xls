@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_imported_const_struct
+import xls.dslx.tests.mod_imported_const_struct;
 
 const TWO = mod_imported_const_struct::MY_POINT.x;
 

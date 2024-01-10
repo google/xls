@@ -15,7 +15,7 @@
 // Sample a cubic polynomial f(x) with coefficients a, b, c with no constant.
 // f(x) = a * x + b * x ** 2 + c * x ** 3
 
-import std
+import std;
 
 // The function parameters are represented as fixed point rational numbers.
 // The parameters are passed with the following precisions:

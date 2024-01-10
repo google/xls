@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.errors.mod_simple_struct
+import xls.dslx.tests.errors.mod_simple_struct;
 
 fn main() -> mod_simple_struct::MyStruct {
     mod_simple_struct::MyStruct

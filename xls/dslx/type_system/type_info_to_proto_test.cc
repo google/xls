@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system/type_info_to_proto.h"
 
+#include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
 #include <string_view>
@@ -21,6 +22,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -128,7 +132,7 @@ pub enum Foo : u32 {
   (void)tm;
 
   std::string program = R"(
-import my_imported_module
+import my_imported_module;
 
 type MyFoo = my_imported_module::Foo;
 )";

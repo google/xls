@@ -81,7 +81,7 @@ the elements of an original array to produce the resulting "mapped' array.
 taking the absolute value of each element in an input array:
 
 ```dslx
-import std
+import std;
 
 fn main(x: s3[3]) -> s3[3] {
   let y: s3[3] = map(x, std::abs);
@@ -612,7 +612,7 @@ significant bit** in the resulting bit value. Similarly, the last index of the
 array becomes the **least significant bit** in the resulting bit value.
 
 ```dslx
-import std
+import std;
 
 #[test]
 fn convert_to_bits_test() {

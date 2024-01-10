@@ -33,7 +33,7 @@ namespace xls::dslx {
 
 absl::StatusOr<InterpValue> InterpValueFromString(
     std::string_view s, const std::filesystem::path& dslx_stdlib_path) {
-  std::string program = absl::StrFormat("import std const C = (%s);", s);
+  std::string program = absl::StrFormat("import std; const C = (%s);", s);
   ImportData import_data = CreateImportData(
       dslx_stdlib_path,
       /*additional_search_paths=*/absl::Span<const std::filesystem::path>{},

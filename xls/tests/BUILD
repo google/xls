@@ -60,6 +60,7 @@ cc_test(
         "//xls/common/file:temp_file",
         "//xls/common/logging",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/dslx:mangle",
         "//xls/ir",
         "//xls/ir:ir_matcher",
@@ -67,6 +68,7 @@ cc_test(
         "//xls/ir:op",
         "//xls/passes:optimization_pass_pipeline",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

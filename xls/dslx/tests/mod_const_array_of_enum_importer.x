@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_simple_const_array_of_enums
+import xls.dslx.tests.mod_simple_const_array_of_enums;
 
 fn main(i: u2) -> mod_simple_const_array_of_enums::MyEnum {
     mod_simple_const_array_of_enums::ENUMS[i]

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // 64-bit floating point routines.
-import apfloat
+import apfloat;
 
 const F64_EXP_SZ = u32:11;       // Exponent bits
 const F64_FRACTION_SZ = u32:52;  // Fraction bits

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // This import should blow up!
-import xls.dslx.tests.errors.has_type_error
+import xls.dslx.tests.errors.has_type_error;
 
 fn main(x: u32) -> u8 {
   has_type_error::f(x)

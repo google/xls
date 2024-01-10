@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // This file implements types and models for RAMs.
-import std
+import std;
 
 
 // Abstract RAM requests and responses (arbitrary ports, options, etc.)

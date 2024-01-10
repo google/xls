@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Arbitrary-precision floating point routines.
-import std
+import std;
 
 pub struct APFloat<EXP_SZ:u32, FRACTION_SZ:u32> {
   sign: bits[1],  // Sign bit.

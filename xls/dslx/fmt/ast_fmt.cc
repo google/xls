@@ -1944,15 +1944,17 @@ static DocRef Fmt(const Import& n, const Comments& comments, DocArena& arena) {
     DocRef as = arena.Make(Keyword::kAs);
 
     // Flat version is " as alias"
-    DocRef flat_as =
-        ConcatN(arena, {arena.space(), as, arena.space(), alias_text});
+    DocRef flat_as = ConcatN(
+        arena, {arena.space(), as, arena.space(), alias_text, arena.semi()});
     // Break version puts the "as alias" at an indent on the next line.
     DocRef break_as = ConcatN(
-        arena,
-        {arena.hard_line(),
-         arena.MakeNest(ConcatN(arena, {as, arena.space(), alias_text}))});
+        arena, {arena.hard_line(),
+                arena.MakeNest(ConcatN(
+                    arena, {as, arena.space(), alias_text, arena.semi()}))});
     // Choose the flat version if it fits.
     pieces.push_back(arena.MakeFlatChoice(flat_as, break_as));
+  } else {
+    pieces.push_back(arena.semi());
   }
 
   return ConcatNGroup(arena, pieces);

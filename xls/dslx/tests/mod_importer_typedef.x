@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_imported_typedef
+import xls.dslx.tests.mod_imported_typedef;
 
 type MyBits = mod_imported_typedef::MyBits;
 

@@ -93,9 +93,9 @@
 //      NaN (qnan) but accept all NaN respresentations
 //      as input
 
-import std
-import float32
-import third_party.xls_berkeley_softfloat.fpdiv_2x32
+import std;
+import float32;
+import third_party.xls_berkeley_softfloat.fpdiv_2x32;
 
 type F32 = float32::F32;
 

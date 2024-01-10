@@ -14,6 +14,7 @@
 
 #include "xls/passes/bdd_function.h"
 
+#include <cstdint>
 #include <memory>
 #include <random>
 #include <string>
@@ -27,9 +28,12 @@
 #include "xls/examples/sample_packages.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/bdd_function_test.inc"
 
 namespace xls {

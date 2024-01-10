@@ -16,7 +16,7 @@
 // points, exercising some interesting features of JIT invocation; e.g.
 // matching floating point type, boolean, uint32_t, and fallibility.
 
-import float32
+import float32;
 
 type F32 = float32::F32;
 

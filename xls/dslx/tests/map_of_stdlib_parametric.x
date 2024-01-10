@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
+import std;
 
 fn main(x: s3[3]) -> s3[3] {
     let y: s3[3] = map(x, std::abs);

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.build_rules.tests.simple_example_four as four
+import xls.build_rules.tests.simple_example_four as four;
 
 fn five() -> u32 {
   u32: 5

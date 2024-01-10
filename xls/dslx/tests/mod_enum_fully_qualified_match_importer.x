@@ -18,7 +18,7 @@
 // expression. In this case we do through an alias, just because it's more
 // interesting than without an alias.
 
-import xls.dslx.tests.mod_simple_enum as exporter
+import xls.dslx.tests.mod_simple_enum as exporter;
 
 fn main(x: exporter::EnumType) -> u32 {
     match x {

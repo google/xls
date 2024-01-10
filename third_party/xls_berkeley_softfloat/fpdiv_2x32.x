@@ -34,8 +34,8 @@
 // implementations, modulo exact fraction values in the NaN case (we emit a
 // single, canonical representation for NaN (qnan) but accept all NaN
 // respresentations as input).
-import float32
-import std
+import float32;
+import std;
 
 type F32 = float32::F32;
 

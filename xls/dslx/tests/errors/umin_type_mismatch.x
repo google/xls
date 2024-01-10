@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
+import std;
 
 const MY_U32 = u42:42;
 const MY_U8 = u8:42;

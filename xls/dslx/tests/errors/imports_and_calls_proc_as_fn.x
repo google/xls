@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.errors.mod_simple_proc
+import xls.dslx.tests.errors.mod_simple_proc;
 
 fn f() -> () {
   mod_simple_proc::p()

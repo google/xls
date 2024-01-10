@@ -16,9 +16,9 @@
 // A sobel filter, used in image and video processing, applies stencils
 // on an image to sharpen edges.
 
-import xls.examples.sobel_filter
+import xls.examples.sobel_filter;
 
-import float32
+import float32;
 
 type F32 = float32::F32;
 

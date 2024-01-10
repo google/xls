@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_struct_point
+import xls.dslx.tests.mod_struct_point;
 
 const ZERO_POINT = mod_struct_point::Point {
   x: u32:0,

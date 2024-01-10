@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.build_rules.tests.a
-import xls.build_rules.tests.d
+import xls.build_rules.tests.a;
+import xls.build_rules.tests.d;
 
 pub fn e() -> u32 {
   d::d() + a::CONST_A

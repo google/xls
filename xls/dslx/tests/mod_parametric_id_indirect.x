@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_parametric_id
+import xls.dslx.tests.mod_parametric_id;
 
 pub fn id_indirect<M: u32>(x: bits[M]) -> bits[M] { mod_parametric_id::id(x) }
