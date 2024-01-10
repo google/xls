@@ -502,7 +502,10 @@ cc_library(
         ":token_provenance_analysis",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
@@ -510,6 +513,8 @@ cc_library(
         "//xls/ir",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:type",
     ],
 )
 

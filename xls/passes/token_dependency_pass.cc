@@ -19,7 +19,10 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -27,6 +30,8 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/token_provenance_analysis.h"
@@ -148,15 +153,33 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
   XLS_VLOG(3) << "IO to receive:";
   XLS_VLOG_LINES(3, relation_to_string(io_to_receive));
 
-  // A relation similar to `io_to_receive`, except that only the earliest
-  // effectful nodes are included. For example, if `io_to_receive` contains
-  // three keys `A`, `B`, and `C`, and `C` is transitively token-dependent
-  // on `B`, then `minimal_io_to_receive` will only contain `A` and `B`.
+  // A relation similar to `io_to_receive`, except that receives are only
+  // included at the earliest points where they have an effect. For example, if
+  // `C` is token-dependent on both `A` and `B`, and `io_to_receive` contains
+  // all of `A`, `B`, and `C`, with
+  //
+  //   - `io_to_receive[A]` containing `recv1`,
+  //   - `io_to_receive[B]` containing `recv2`,
+  //   - `io_to_receive[C]` containing `recv1`, `recv2`, and `recv3`,
+  //
+  // then `minimal_io_to_receive[C]` will only include `recv3`.
   NodeRelation minimal_io_to_receive = io_to_receive;
-  for (const auto& [io, receive] : io_to_receive) {
+  for (const auto& [io, receives] : io_to_receive) {
     for (Node* downstream_of_io : token_deps_closure.at(io)) {
-      if (downstream_of_io != io) {
-        minimal_io_to_receive.erase(downstream_of_io);
+      if (downstream_of_io == io) {
+        continue;
+      }
+
+      auto it = minimal_io_to_receive.find(downstream_of_io);
+      if (it == minimal_io_to_receive.end()) {
+        continue;
+      }
+      absl::flat_hash_set<Node*>& downstream_receives = it->second;
+      for (Node* receive : receives) {
+        downstream_receives.erase(receive);
+      }
+      if (downstream_receives.empty()) {
+        minimal_io_to_receive.erase(it);
       }
     }
   }
@@ -165,7 +188,7 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
 
   bool changed = false;
 
-  // Before touching the IR create a determistic sort of the keys of the
+  // Before touching the IR create a deterministic sort of the keys of the
   // relation.
   std::vector<Node*> minimal_io_to_receive_keys;
   minimal_io_to_receive_keys.reserve(minimal_io_to_receive.size());

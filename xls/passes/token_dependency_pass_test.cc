@@ -14,6 +14,8 @@
 
 #include "xls/passes/token_dependency_pass.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
@@ -139,6 +141,42 @@ TEST_F(TokenDependencyPassTest, DependentSends) {
                                               proc->TokenParam()),
                                   m::TupleIndex()),
                           m::TupleIndex()));
+}
+
+TEST_F(TokenDependencyPassTest, DependentSendsMultipleReceives) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
+     package test_module
+
+     chan test_channel(
+       bits[32], id=0, kind=streaming, ops=send_receive,
+       flow_control=ready_valid, metadata="""""")
+
+     top proc main(__token: token, __state: (), init={()}) {
+       receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
+       tuple_index.2: token = tuple_index(receive.1, index=0)
+       tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+       receive.4: (token, bits[32]) = receive(__token, channel=test_channel)
+       tuple_index.5: token = tuple_index(receive.4, index=0)
+       tuple_index.6: bits[32] = tuple_index(receive.4, index=1)
+       send.7: token = send(__token, tuple_index.3, channel=test_channel)
+       add.8: bits[32] = add(tuple_index.3, tuple_index.6)
+       send.9: token = send(send.7, add.8, channel=test_channel)
+       after_all.10: token = after_all(send.7, send.9, tuple_index.2, tuple_index.5)
+       tuple.11: () = tuple()
+       next (after_all.10, tuple.11)
+     }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(
+      proc->NextToken(),
+      m::AfterAll(
+          m::Send(
+              m::AfterAll(m::TupleIndex(m::Receive(), 0), proc->TokenParam()),
+              m::TupleIndex(m::Receive(), 1)),
+          m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0), m::Send()),
+                  m::Add()),
+          m::TupleIndex(m::Receive(), 0), m::TupleIndex(m::Receive(), 0)));
 }
 
 TEST_F(TokenDependencyPassTest, SideEffectingNontokenOps) {
