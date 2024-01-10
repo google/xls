@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
+#include "absl/random/distributions.h"
 
 namespace xls {
 namespace {
@@ -141,18 +142,17 @@ TEST(MaximumCliqueTest, Big) {
 
   absl::btree_map<V, absl::btree_set<V>> graph;
 
-  std::mt19937_64 gen;
-  std::bernoulli_distribution coin(0.5);
+  std::mt19937_64 bit_gen;
   for (const V& x : nodes) {
     for (const V& y : nodes) {
-      if (coin(gen)) {
+      if (absl::Bernoulli(bit_gen, 0.5)) {
         graph[x].insert(y);
       }
     }
   }
 
   absl::btree_set<V> clique = CliqueFromMap(graph);
-  EXPECT_EQ(clique.size(), 17);
+  EXPECT_EQ(clique.size(), 16);
   EXPECT_TRUE(IsValidClique(graph, clique));
 }
 

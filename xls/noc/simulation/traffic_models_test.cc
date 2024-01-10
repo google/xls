@@ -77,7 +77,7 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
 
   EXPECT_EQ(bits_sent, monitor.MeasuredBitsSent());
   EXPECT_EQ(num_packets, monitor.MeasuredPacketCount());
-  EXPECT_EQ(num_packets / 1000, static_cast<int64_t>(lambda * cycle) / 1000);
+  EXPECT_NEAR(num_packets, lambda * cycle, 2e3);
   EXPECT_NEAR(measured_traffic, expected_traffic, 1e1);
   EXPECT_DOUBLE_EQ(expected_traffic,
                    lambda * 128.0 / 500.0e-12 / 1024.0 / 1024.0 / 8.0);

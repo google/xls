@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <iterator>
@@ -28,6 +29,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/random/bit_gen_ref.h"
+#include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -999,7 +1001,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
       node_counts.reserve(bases.size());
       absl::c_transform(bases, std::back_inserter(node_counts),
                         [](FunctionBase* f) { return f->node_count(); });
-      std::discrete_distribution<int64_t> distribution(node_counts.cbegin(),
+      absl::discrete_distribution<size_t> distribution(node_counts.cbegin(),
                                                        node_counts.cend());
       candidate = bases[distribution(rng)];
     }

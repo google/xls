@@ -14,14 +14,22 @@
 
 #include "xls/contrib/xlscc/unit_tests/cc_generator.h"
 
+#include <sys/stat.h>
+
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
+#include "absl/types/span.h"
+#include "xls/common/random_util.h"
 
 namespace xlscc {
 namespace {
@@ -32,44 +40,54 @@ class Variable {
   std::string type;
   std::string value;
   std::vector<std::string> templated_parameters;
-  static Variable GenerateInt(char variable_number) {
-    int bit_width = (std::rand() % 100) + 1;
-    int max = bit_width >= 31 ? RAND_MAX
-                              : static_cast<int>(std::pow(2, bit_width)) + 10;
-    bool is_signed = ((std::rand() % 2) == 0);
-    Variable var = {std::string(1, 'a' + variable_number),
-                    "ac_int",
-                    is_signed ? std::to_string((std::rand() % max) - (max / 2))
-                              : std::to_string(std::rand() % max),
-                    {std::to_string(bit_width), is_signed ? "true" : "false"}};
+  static Variable GenerateInt(char variable_number, absl::BitGenRef bit_gen) {
+    bool is_signed = absl::Bernoulli(bit_gen, 0.5);
+    int64_t bit_width = absl::Uniform(absl::IntervalClosed, bit_gen, 1, 100);
+    int64_t max_value = std::numeric_limits<int64_t>::max();
+    int64_t min_value = std::numeric_limits<int64_t>::min();
+    if (bit_width + static_cast<int64_t>(is_signed) < 64) {
+      int64_t range = (int64_t{1} << bit_width) + 10;
+      max_value = is_signed ? range / 2 : range;
+      min_value = is_signed ? -range / 2 : 0;
+    }
+    Variable var = {
+        std::string(1, 'a' + variable_number),
+        "ac_int",
+        std::to_string(absl::Uniform(bit_gen, min_value, max_value)),
+        {std::to_string(bit_width), is_signed ? "true" : "false"}};
     return var;
   }
-  static Variable GenerateFixed(char variable_number) {
+  static Variable GenerateFixed(char variable_number, absl::BitGenRef bit_gen) {
     std::vector<std::string> ac_q_mode{
         "AC_TRN",     "AC_RND",         "AC_TRN_ZERO", "AC_RND_ZERO",
         "AC_RND_INF", "AC_RND_MIN_INF", "AC_RND_CONV", "AC_RND_CONV_ODD"};
     std::vector<std::string> ac_o_mode{"AC_WRAP", "AC_SAT", "AC_SAT_ZERO",
                                        "AC_SAT_SYM"};
 
-    bool isFloat = (std::rand() % 2) == 0;
-    int bit_width = (std::rand() % 100) + 1;
-    int max = bit_width >= 31 ? RAND_MAX
-                              : static_cast<int>(std::pow(2, bit_width)) + 10;
-    int integer_width = bit_width - (std::rand() % bit_width);
-    bool is_signed = ((std::rand() % 2) == 0);
-    std::string quantization = ac_q_mode[std::rand() % ac_q_mode.size()];
-    std::string overflow = ac_o_mode[std::rand() % ac_o_mode.size()];
+    bool is_float = absl::Bernoulli(bit_gen, 0.5);
+    bool is_signed = absl::Bernoulli(bit_gen, 0.5);
+    std::string quantization = xls::RandomChoice(ac_q_mode, bit_gen);
+    std::string overflow = xls::RandomChoice(ac_o_mode, bit_gen);
+    int64_t bit_width = absl::Uniform(absl::IntervalClosed, bit_gen, 1, 100);
+    int64_t integer_width =
+        absl::Uniform(absl::IntervalClosed, bit_gen, 1, bit_width);
+
+    int64_t max_value = std::numeric_limits<int64_t>::max();
+    int64_t min_value = std::numeric_limits<int64_t>::min();
+    if (bit_width + static_cast<int64_t>(is_signed) < 64) {
+      int64_t range = (int64_t{1} << bit_width) + 10;
+      max_value = is_signed ? range / 2 : range;
+      min_value = is_signed ? -range / 2 : 0;
+    }
+
     std::string value;
-    double min_value = is_signed ? -(max / 2.0) : 0.0;
-    double max_value = is_signed ? (max / 2) : max;
-    if (isFloat) {
-      std::uniform_real_distribution<double> unif(min_value, max_value);
-      std::default_random_engine re;
-      re.seed(std::rand());
-      value = std::to_string(unif(re));
+    if (is_float) {
+      value = std::to_string(
+          absl::Uniform<double>(bit_gen, static_cast<double>(min_value),
+                                static_cast<double>(max_value)));
     } else {
-      value = is_signed ? std::to_string((std::rand() % max) - (max / 2))
-                              : std::to_string(std::rand() % max);
+      value =
+          std::to_string(absl::Uniform<int64_t>(bit_gen, min_value, max_value));
     }
 
     Variable var = {
@@ -101,19 +119,19 @@ class Variable {
 }  // namespace
 
 std::string GenerateIntTest(uint32_t seed) {
-  int max_variables_count = 10;
+  char max_variables_count = 10;
 
-  std::srand(seed);
+  std::mt19937_64 bit_gen(seed);
   std::vector<std::string> operations = {"+", "-", "*", "/", "|", "&", "^"};
   std::vector<Variable> variables;
 
-  int8_t variables_count =
-      static_cast<int8_t>(std::rand() % max_variables_count + 2);
+  char variables_count =
+      absl::Uniform<char>(bit_gen, char{2}, max_variables_count + char{2});
 
-  Variable var = Variable::GenerateInt(0);
+  Variable var = Variable::GenerateInt(0, bit_gen);
   variables.reserve(variables_count);
   for (char i = 0; i < variables_count; i++) {
-    variables.push_back(Variable::GenerateInt(i + 1));
+    variables.push_back(Variable::GenerateInt(i + 1, bit_gen));
   }
   std::stringstream content;
   content << "#ifndef __SYNTHESIS__\n";
@@ -129,22 +147,23 @@ std::string GenerateIntTest(uint32_t seed) {
   }
 
   for (int i = 0; i < variables.size(); i++) {
-    int operation = std::rand() % operations.size();
-    Variable var1 = variables[std::rand() % variables.size()];
-    Variable var2 = variables[std::rand() % variables.size()];
-    content << "auto var" << i << " = " << var1.name << " "
-            << operations[operation] << " " << var2.name << ";\n";
-    operation = std::rand() % operations.size();
+    std::string operation1 = xls::RandomChoice(operations, bit_gen);
+    Variable var1 = xls::RandomChoice(variables, bit_gen);
+    Variable var2 = xls::RandomChoice(variables, bit_gen);
+    content << "auto var" << i << " = " << var1.name << " " << operation1 << " "
+            << var2.name << ";\n";
+    std::string operation2 = xls::RandomChoice(operations, bit_gen);
     Variable var3 = variables[i];
-    Variable var4 = variables[std::rand() % variables.size()];
-    content << var3.name << " = var" << i << " " << operations[operation] << " "
+    Variable var4 = xls::RandomChoice(variables, bit_gen);
+    content << var3.name << " = var" << i << " " << operation2 << " "
             << var4.name << ";\n";
   }
   content << var.Declaration() << " = ";
   Variable var3 = variables.back();
-  int operation = std::rand() % operations.size();
-  content << var3.name << " " << operations[operation] << " ";
-  Variable final_var = variables[std::rand() % (variables.size() - 1)];
+  std::string operation = xls::RandomChoice(operations, bit_gen);
+  content << var3.name << " " << operation << " ";
+  Variable final_var = xls::RandomChoice(
+      absl::MakeConstSpan(variables).first(variables.size() - 1), bit_gen);
   content << final_var.name;
 
   content << ";\n";
@@ -160,19 +179,19 @@ std::string GenerateIntTest(uint32_t seed) {
 }
 
 std::string GenerateFixedTest(uint32_t seed) {
-  int max_variables_count = 10;
+  char max_variables_count = 10;
 
-  std::srand(seed);
+  std::mt19937_64 bit_gen(seed);
   std::vector<std::string> operations = {"+", "-", "*", "/", "|", "&", "^"};
   std::vector<Variable> variables;
 
-  int8_t variables_count =
-      static_cast<int8_t>(std::rand() % max_variables_count + 2);
+  char variables_count =
+      absl::Uniform<char>(bit_gen, char{2}, max_variables_count + char{2});
 
-  Variable var = Variable::GenerateFixed(0);
+  Variable var = Variable::GenerateFixed(0, bit_gen);
   variables.reserve(variables_count);
   for (char i = 0; i < variables_count; i++) {
-    variables.push_back(Variable::GenerateFixed(i + 1));
+    variables.push_back(Variable::GenerateFixed(i + 1, bit_gen));
   }
   std::stringstream content;
   content << "#ifndef __SYNTHESIS__\n";
@@ -188,22 +207,23 @@ std::string GenerateFixedTest(uint32_t seed) {
   }
 
   for (int i = 0; i < variables.size(); i++) {
-    int operation = std::rand() % operations.size();
-    Variable var1 = variables[std::rand() % variables.size()];
-    Variable var2 = variables[std::rand() % variables.size()];
-    content << "auto var" << i << " = " << var1.name << " "
-            << operations[operation] << " " << var2.name << ";\n";
-    operation = std::rand() % operations.size();
+    std::string operation1 = xls::RandomChoice(operations, bit_gen);
+    Variable var1 = xls::RandomChoice(variables, bit_gen);
+    Variable var2 = xls::RandomChoice(variables, bit_gen);
+    content << "auto var" << i << " = " << var1.name << " " << operation1 << " "
+            << var2.name << ";\n";
+    std::string operation2 = xls::RandomChoice(operations, bit_gen);
     Variable var3 = variables[i];
-    Variable var4 = variables[std::rand() % variables.size()];
-    content << var3.name << " = var" << i << " " << operations[operation] << " "
+    Variable var4 = xls::RandomChoice(variables, bit_gen);
+    content << var3.name << " = var" << i << " " << operation2 << " "
             << var4.name << ";\n";
   }
   content << var.Declaration() << " = ";
   Variable var3 = variables.back();
-  int operation = std::rand() % operations.size();
-  content << var3.name << " " << operations[operation] << " ";
-  Variable final_var = variables[std::rand() % (variables.size() - 1)];
+  std::string operation = xls::RandomChoice(operations, bit_gen);
+  content << var3.name << " " << operation << " ";
+  Variable final_var = xls::RandomChoice(
+      absl::MakeConstSpan(variables).first(variables.size() - 1), bit_gen);
   content << final_var.name;
 
   content << ";\n";

@@ -19,6 +19,7 @@
 #include <iterator>
 
 #include "absl/random/bit_gen_ref.h"
+#include "xls/common/logging/logging.h"
 
 namespace xls {
 

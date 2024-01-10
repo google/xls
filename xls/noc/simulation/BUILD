@@ -344,6 +344,8 @@ cc_library(
     name = "random_number_interface",
     hdrs = ["random_number_interface.h"],
     deps = [
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:distributions",
     ],
 )
 

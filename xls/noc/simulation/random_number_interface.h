@@ -15,7 +15,11 @@
 #ifndef XLS_NOC_SIMULATION_RANDOM_NUMBER_INTERFACE_H_
 #define XLS_NOC_SIMULATION_RANDOM_NUMBER_INTERFACE_H_
 
+#include <cstdint>
 #include <random>
+
+#include "absl/random/distributions.h"
+#include "absl/random/random.h"
 
 // This file contains classes used manage and obtain random numbers
 // from different distributions.
@@ -27,27 +31,25 @@ class RandomNumberInterface {
  public:
   RandomNumberInterface() {
     // Default to a deterministic seed if nothing else is done.
-    random_engine_.seed(0);
+    bit_gen_.seed(0);
   }
 
   // Sets seed of random number generator.
-  void SetSeed(int16_t seed) { random_engine_.seed(seed); }
+  void SetSeed(uint64_t seed) { bit_gen_.seed(seed); }
 
   // Set a random seed to the random number generator.
-  void SetRandomSeed() { SetSeed(std::random_device()()); }
+  void SetRandomSeed() { SetSeed(absl::Uniform<uint64_t>(absl::BitGen())); }
 
   // These distributions have no internal state.
 
   // Returns True with probability p.
-  bool BernoilliDistribution(double p) {
-    return std::bernoulli_distribution(p)(random_engine_);
-  }
+  bool BernoulliDistribution(double p) { return absl::Bernoulli(bit_gen_, p); }
 
-  // Return number of trails until success.
-  //  - sucess at each trail is with probability p
+  // Return number of trials until success.
+  //  - sucess at each trial is with probability p
   //  - mean is 1/p
   int64_t GeometricDistribution(double p) {
-    return std::geometric_distribution<int64_t>(p)(random_engine_);
+    return std::geometric_distribution<int64_t>(p)(bit_gen_);
   }
 
   // Returns next inter-arrival time.
@@ -56,7 +58,7 @@ class RandomNumberInterface {
   //  - average arrival time is 1/lambda
   //  - probability of a burst is burst_prob
   int64_t GeneralizedGeometric(double lambda, double burst_prob) {
-    bool burst = BernoilliDistribution(burst_prob);
+    bool burst = BernoulliDistribution(burst_prob);
     if (burst) {
       return 0;
     }
@@ -67,7 +69,7 @@ class RandomNumberInterface {
 
  private:
   // Random engine with a single int as state.
-  std::minstd_rand random_engine_;
+  std::minstd_rand bit_gen_;
 };
 
 }  // namespace xls::noc

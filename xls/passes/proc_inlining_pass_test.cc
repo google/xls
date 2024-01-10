@@ -15,6 +15,7 @@
 #include "xls/passes/proc_inlining_pass.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <numeric>
@@ -28,6 +29,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -2711,11 +2713,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
   // Maximum number of procs in the network.
   const int kMaxProcCount = 10;
 
-  std::minstd_rand engine;
-  std::uniform_int_distribution<int> proc_count_generator(1, kMaxProcCount);
-  std::uniform_int_distribution<int> iteration_count_generator(
-      1, kMaxIterationCount);
-  std::bernoulli_distribution coin_flip(0.5);
+  std::minstd_rand bit_gen;
 
   for (int sample = 0; sample < kNumberSamples; ++sample) {
     auto p = CreatePackage();
@@ -2753,7 +2751,8 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
     std::vector<ChannelPair> channel_pairs;
 
     // Construct set of non-top-level procs
-    int proc_count = proc_count_generator(engine);
+    int proc_count =
+        absl::Uniform(absl::IntervalClosed, bit_gen, 1, kMaxProcCount);
     std::vector<Proc*> procs;
     for (int proc_number = 0; proc_number < proc_count; ++proc_number) {
       // Generate channels to talk with proc.
@@ -2763,14 +2762,18 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
               absl::StrFormat("top_to_proc%d", proc_number),
               ChannelOps::kSendReceive, u32,
               /*initial_values=*/{},
-              /*fifo_config=*/FifoConfig{.depth = int64_t{coin_flip(engine)}}));
+              /*fifo_config=*/
+              FifoConfig{.depth = absl::Uniform<int64_t>(absl::IntervalClosed,
+                                                         bit_gen, 0, 1)}));
       XLS_ASSERT_OK_AND_ASSIGN(
           Channel * to_top,
           p->CreateStreamingChannel(
               absl::StrFormat("proc%d_to_top", proc_number),
               ChannelOps::kSendReceive, u32,
               /*initial_values=*/{},
-              /*fifo_config=*/FifoConfig{.depth = int64_t{coin_flip(engine)}}));
+              /*fifo_config=*/
+              FifoConfig{.depth = absl::Uniform<int64_t>(absl::IntervalClosed,
+                                                         bit_gen, 0, 1)}));
 
       channel_pairs.push_back(ChannelPair{.send_channel = from_top,
                                           .sent = false,
@@ -2779,7 +2782,8 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
                                           .received = false});
 
       // Generate proc with random loop iteration count.
-      int64_t iteration_count = iteration_count_generator(engine);
+      int64_t iteration_count =
+          absl::Uniform(absl::IntervalClosed, bit_gen, 1, kMaxIterationCount);
       XLS_ASSERT_OK(
           MakeLoopingAccumulatorProc(absl::StrFormat("proc%d", proc_number),
                                      from_top, to_top,
@@ -2800,7 +2804,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
     // on, pick a random channel and add a corresponging send/receive node.
     while (!channel_pairs.empty()) {
       // Choose a random channel to send/receive on.
-      std::shuffle(channel_pairs.begin(), channel_pairs.end(), engine);
+      std::shuffle(channel_pairs.begin(), channel_pairs.end(), bit_gen);
       ChannelPair& pair = channel_pairs.back();
 
       bool send_on_channel;
@@ -2818,17 +2822,17 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
 
       if (send_on_channel) {
         // Choose random token predecessors.
-        std::shuffle(tokens.begin(), tokens.end(), engine);
-        int64_t token_count =
-            std::uniform_int_distribution<int>(1, tokens.size())(engine);
+        std::shuffle(tokens.begin(), tokens.end(), bit_gen);
+        size_t token_count = absl::Uniform<size_t>(absl::IntervalClosed,
+                                                   bit_gen, 1, tokens.size());
         std::vector<BValue> token_predecessors;
         token_predecessors.reserve(token_count);
-        for (int i = 0; i < token_count; i++) {
+        for (size_t i = 0; i < token_count; i++) {
           token_predecessors.push_back(tokens[i]);
         }
 
         // Pick a random receive to get data from.
-        std::shuffle(receives.begin(), receives.end(), engine);
+        std::shuffle(receives.begin(), receives.end(), bit_gen);
         BValue receive = receives.front();
         BValue data = b.TupleIndex(receive, 1);
 

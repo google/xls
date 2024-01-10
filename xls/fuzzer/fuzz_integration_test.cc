@@ -22,6 +22,8 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/random/distributions.h"
+#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
@@ -92,8 +94,7 @@ TEST(FuzzIntegrationTest, Fuzzing) {
                            GetCrasherDir());
   uint64_t seed = absl::GetFlag(FLAGS_seed);
   if (absl::GetFlag(FLAGS_use_nondeterministic_seed)) {
-    std::random_device rd;
-    seed = (static_cast<uint64_t>(rd()) << 32) | static_cast<uint64_t>(rd());
+    seed = absl::Uniform<uint64_t>(absl::BitGen());
     XLS_LOG(INFO) << "Random seed (generated nondeterministically): " << seed;
   } else {
     XLS_LOG(INFO) << "Random seed specified via flag: " << seed;

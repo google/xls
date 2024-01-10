@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -443,11 +444,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
       cycle_map = ScheduleCycleMap();
       for (Node* node : TopoSort(f)) {
-        int64_t lower_bound = bounds.lb(node);
-        int64_t upper_bound = bounds.ub(node);
-        std::uniform_int_distribution<int64_t> distrib(lower_bound,
-                                                       upper_bound);
-        int64_t cycle = distrib(gen);
+        int64_t cycle = absl::Uniform<int64_t>(
+            absl::IntervalClosed, gen, bounds.lb(node), bounds.ub(node));
         XLS_RETURN_IF_ERROR(bounds.TightenNodeLb(node, cycle));
         XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());
         XLS_RETURN_IF_ERROR(bounds.TightenNodeUb(node, cycle));

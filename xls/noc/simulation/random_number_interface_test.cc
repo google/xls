@@ -39,9 +39,9 @@ TEST(RandomNumberInterfaceTest, SmokeTest) {
     bool different_seeds_same = true;
 
     for (int64_t i = 0; i < trails; ++i) {
-      bool b0 = rnd0.BernoilliDistribution(p);
-      bool b1 = rnd1.BernoilliDistribution(p);
-      bool b2 = rnd2.BernoilliDistribution(p);
+      bool b0 = rnd0.BernoulliDistribution(p);
+      bool b1 = rnd1.BernoulliDistribution(p);
+      bool b2 = rnd2.BernoulliDistribution(p);
 
       int64_t g0 = rnd0.GeometricDistribution(p);
       int64_t g1 = rnd1.GeometricDistribution(p);

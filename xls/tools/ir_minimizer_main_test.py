@@ -141,12 +141,12 @@ class IrMinimizerMainTest(absltest.TestCase):
         """package foo
 
 fn mul(a: bits[8], b: bits[8]) -> bits[8] {
-  ret literal.15: bits[8] = literal(value=0, id=15)
+  ret literal.21: bits[8] = literal(value=0, id=21)
 }
 
 top fn muladdadd(a: bits[8], b: bits[8], c: bits[8], d: bits[8]) -> bits[8] {
-  literal.57: bits[8] = literal(value=0, id=57)
-  ret invoke.59: bits[8] = invoke(literal.57, literal.57, to_apply=mul, id=59)
+  literal.55: bits[8] = literal(value=0, id=55)
+  ret invoke.45: bits[8] = invoke(literal.55, literal.55, to_apply=mul, id=45)
 }
 """,
     )
@@ -167,12 +167,14 @@ top fn muladdadd(a: bits[8], b: bits[8], c: bits[8], d: bits[8]) -> bits[8] {
     self.assertEqual(minimized_ir.decode('utf-8'), """package foo
 
 fn bar(x: bits[8][8]) -> bits[8][4] {
-  ret literal.43: bits[8][4] = literal(value=[0, 0, 0, 0], id=43)
+  ret literal.57: bits[8][4] = literal(value=[0, 0, 0, 0], id=57)
 }
 
-top fn foo(x: bits[8], y: bits[8]) -> bits[8][4] {
-  literal.48: bits[8][8] = literal(value=[0, 0, 0, 0, 0, 0, 0, 0], id=48)
-  ret invoke.26: bits[8][4] = invoke(literal.48, to_apply=bar, id=26)
+top fn foo(x: bits[8], y: bits[8]) -> bits[8][2] {
+  literal.62: bits[8][8] = literal(value=[0, 0, 0, 0, 0, 0, 0, 0], id=62)
+  invoke.26: bits[8][4] = invoke(literal.62, to_apply=bar, id=26)
+  literal.64: bits[1] = literal(value=0, id=64)
+  ret array_slice.65: bits[8][2] = array_slice(invoke.26, literal.64, width=2, id=65)
 }
 """)
 
@@ -192,8 +194,8 @@ top fn foo(x: bits[8], y: bits[8]) -> bits[8][4] {
         """package foo
 
 top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
-  literal.10: bits[32] = literal(value=0, id=10)
-  ret add.2: bits[32] = add(literal.10, literal.10, id=2)
+  literal.15: bits[32] = literal(value=0, id=15)
+  ret add.2: bits[32] = add(literal.15, literal.15, id=2)
 }
 """,
     )
@@ -214,8 +216,8 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
         """package foo
 
 top fn foo() -> bits[32] {
-  literal.12: bits[32] = literal(value=0, id=12)
-  ret add.2: bits[32] = add(literal.12, literal.12, id=2)
+  literal.13: bits[32] = literal(value=0, id=13)
+  ret add.2: bits[32] = add(literal.13, literal.13, id=2)
 }
 """,
     )
@@ -621,7 +623,7 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
         """package foo
 
 fn bar(x: bits[32]) -> bits[1] {
-  ret literal.10: bits[1] = literal(value=0, id=10)
+  ret literal.12: bits[1] = literal(value=0, id=12)
 }
 
 top fn foo(x: bits[32], y: bits[32]) -> bits[1] {
@@ -661,11 +663,11 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[1] {
         """package foo
 
 fn baz() -> bits[1] {
-  ret literal.25: bits[1] = literal(value=0, id=25)
+  ret literal.28: bits[1] = literal(value=0, id=28)
 }
 
 top fn foo() -> bits[1] {
-  ret invoke.19: bits[1] = invoke(to_apply=baz, id=19)
+  ret invoke.29: bits[1] = invoke(to_apply=baz, id=29)
 }
 """,
     )
@@ -701,13 +703,12 @@ top fn foo() -> bits[1] {
         minimized_ir.decode('utf-8'),
         """package foo
 
-fn bar(x: bits[32]) -> bits[1] {
-  ret literal.5: bits[1] = literal(value=0, id=5)
+fn bar() -> bits[1] {
+  ret literal.20: bits[1] = literal(value=0, id=20)
 }
 
 top fn foo() -> bits[1] {
-  literal.66: bits[32] = literal(value=0, id=66)
-  ret invoke.33: bits[1] = invoke(literal.66, to_apply=bar, id=33)
+  ret invoke.21: bits[1] = invoke(to_apply=bar, id=21)
 }
 """,
     )

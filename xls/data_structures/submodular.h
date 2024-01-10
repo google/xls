@@ -15,11 +15,14 @@
 #ifndef XLS_DATA_STRUCTURES_SUBMODULAR_H_
 #define XLS_DATA_STRUCTURES_SUBMODULAR_H_
 
+#include <cstdint>
 #include <limits>
 #include <optional>
 #include <random>
 
 #include "absl/container/btree_set.h"
+#include "absl/random/distributions.h"
+#include "absl/random/random.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls {
@@ -101,12 +104,12 @@ class SubmodularFunction {
     if (options.seed.has_value()) {
       seed = options.seed.value();
     } else {
-      std::random_device r;
-      seed = r();
+      seed = absl::Uniform<int64_t>(absl::IntervalClosed, absl::BitGen(),
+                                    std::numeric_limits<int64_t>::min(),
+                                    std::numeric_limits<int64_t>::max());
     }
 
-    std::mt19937_64 engine(seed);
-    std::bernoulli_distribution coin(0.5);
+    std::mt19937_64 bit_gen(seed);
 
     for (int64_t i = 0; i < options.rounds + 2; ++i) {
       absl::btree_set<T, C> random;
@@ -117,7 +120,7 @@ class SubmodularFunction {
         random = universe_;
       } else {
         for (const T& element : universe_) {
-          if (coin(engine)) {
+          if (absl::Bernoulli(bit_gen, 0.5)) {
             random.insert(element);
           }
         }

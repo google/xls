@@ -346,7 +346,6 @@ cc_test(
     ],
     deps = [
         ":unit_test",
-        "//xls/common:source_location",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
     ],
@@ -357,8 +356,10 @@ cc_library(
     srcs = ["cc_generator.cc"],
     hdrs = ["cc_generator.h"],
     deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
+        "//xls/common:random_util",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

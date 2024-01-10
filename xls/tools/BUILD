@@ -696,6 +696,7 @@ cc_binary(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -835,6 +836,7 @@ cc_binary(
     deps = [
         "//xls/common:exit_status",
         "//xls/common:init_xls",
+        "//xls/common:random_util",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_file",

@@ -35,6 +35,7 @@ cc_library(
     hdrs = ["random_util.h"],
     deps = [
         "@com_google_absl//absl/random:bit_gen_ref",
+        "//xls/common/logging",
     ],
 )
 

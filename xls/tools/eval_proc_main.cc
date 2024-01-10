@@ -32,6 +32,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -582,8 +583,7 @@ static absl::Status RunBlock(
         "Input IR should contain exactly one block");
   }
 
-  std::default_random_engine rand_eng(random_seed);
-  std::uniform_real_distribution<double> rand_distr(0.0, 1.0);
+  std::mt19937_64 bit_gen(random_seed);
 
   Block* block = package->blocks()[0].get();
 
@@ -670,7 +670,7 @@ static absl::Status RunBlock(
         // Don't bring valid low without a transaction
         const bool asserted_valid = asserted_valids.contains(name);
         const bool random_go_head =
-            rand_distr(rand_eng) <= prob_input_valid_assert;
+            absl::Bernoulli(bit_gen, prob_input_valid_assert);
         const bool this_valid =
             asserted_valid || (random_go_head && !queue.empty());
         if (this_valid) {

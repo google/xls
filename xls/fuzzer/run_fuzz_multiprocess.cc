@@ -23,6 +23,8 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/random/distributions.h"
+#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -72,8 +74,7 @@ absl::Status GenerateAndRunSamples(
     rng_seed = *seed + worker_number;
   } else {
     // Choose a nondeterministic seed.
-    std::random_device r;
-    rng_seed = std::uniform_int_distribution<uint64_t>()(r);
+    rng_seed = absl::Uniform<uint64_t>(absl::BitGen());
     XLS_LOG(INFO) << kBlueText << "--- NOTE: Worker #" << worker_number
                   << " chose a nondeterministic seed for value generation: "
                   << absl::StreamFormat("0x%16X", rng_seed) << kDefaultColor;

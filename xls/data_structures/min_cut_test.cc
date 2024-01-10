@@ -14,6 +14,7 @@
 
 #include "xls/data_structures/min_cut.h"
 
+#include <cstdint>
 #include <limits>
 #include <random>
 #include <vector>
@@ -21,11 +22,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/random/distributions.h"
 #include "absl/random/mocking_bit_gen.h"
 #include "absl/random/random.h"
 #include "absl/random/uniform_int_distribution.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/random_util.h"
 
 namespace xls {
 namespace min_cut {
@@ -198,22 +202,22 @@ Graph MakeLargeGraph(bool acyclic, NodeId* source, NodeId* sink,
   for (NodeId node : layers[0]) {
     graph.AddEdge(*source, node, std::numeric_limits<int64_t>::max());
   }
-  std::mt19937_64 gen;
-  std::uniform_int_distribution<int64_t> to_node_id_dis(0, nodes_in_layer - 1);
-  std::uniform_int_distribution<int64_t> to_weight_dis(0, 10);
-  std::uniform_int_distribution<int64_t> fanout_dis(0, kMaxFanOut);
+  std::mt19937_64 bit_gen;
   for (int64_t i = 0; i < layer_count - 1; ++i) {
     // If graph is acyclic then edges can only extend to nodes in later
     // layers. If cyclic, then edges can extend to nodes in any layer.
-    std::uniform_int_distribution<int64_t> to_layer_dis(acyclic ? i + 1 : 0,
-                                                        layer_count - 1);
-    for (int64_t from = 0; from < nodes_in_layer; ++from) {
-      int64_t fanout = fanout_dis(gen);
+    absl::Span<NodeId> from_layer = absl::MakeSpan(layers[i]);
+    absl::Span<std::vector<NodeId>> to_layers =
+        absl::MakeSpan(layers).subspan(acyclic ? i + 1 : 0);
+
+    for (NodeId from : from_layer) {
+      int64_t fanout =
+          absl::Uniform(absl::IntervalClosed, bit_gen, 0, kMaxFanOut);
       for (int64_t j = 0; j < fanout; ++j) {
-        int64_t to_layer = to_layer_dis(gen);
-        int64_t to_id = to_node_id_dis(gen);
-        int64_t weight = to_weight_dis(gen);
-        graph.AddEdge(layers[i][from], layers[to_layer][to_id], weight);
+        std::vector<NodeId> to_layer = RandomChoice(to_layers, bit_gen);
+        NodeId to = RandomChoice(to_layer, bit_gen);
+        int64_t weight = absl::Uniform(absl::IntervalClosed, bit_gen, 0, 10);
+        graph.AddEdge(from, to, weight);
       }
     }
   }

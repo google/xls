@@ -108,9 +108,9 @@ cc_test(
     deps = [
         ":maximum_clique",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/random:distributions",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
     ],
 )
 
@@ -255,6 +255,8 @@ cc_library(
     hdrs = ["submodular.h"],
     deps = [
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:distributions",
         "//xls/common/logging",
     ],
 )
@@ -336,6 +338,8 @@ cc_test(
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/random:mocking_bit_gen",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:random_util",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
