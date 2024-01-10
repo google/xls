@@ -40,16 +40,18 @@ using AlignedPtr = std::unique_ptr<uint8_t[], DeleteAligned>;
 // returns it and the pointers into it that make up each argument.
 std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
     absl::Span<int64_t const> sizes, absl::Span<int64_t const> alignments) {
+  static_assert(sizeof(int64_t) >= sizeof(intptr_t),
+                "More than 64 bit pointers");
   XLS_CHECK_EQ(sizes.size(), alignments.size());
   if (alignments.empty()) {
     return {AlignedPtr(), std::vector<uint8_t*>{}};
   }
   int64_t max_align = *absl::c_max_element(alignments);
-  std::vector<intptr_t> offsets;
+  std::vector<int64_t> offsets;
   offsets.reserve(sizes.size());
   offsets.push_back(0);
   for (int64_t i = 1; i < sizes.size(); ++i) {
-    intptr_t cur_idx = offsets.back() + sizes[i - 1];
+    int64_t cur_idx = offsets.back() + sizes[i - 1];
     offsets.push_back(RoundUpToNearest(cur_idx, alignments[i]));
   }
   int64_t total_size = offsets.back() + sizes.back();
@@ -58,13 +60,13 @@ std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
     return {AlignedPtr(), std::vector<uint8_t*>(sizes.size(), nullptr)};
   }
   std::vector<uint8_t*> ptrs;
-  uint8_t* buffer = absl::bit_cast<uint8_t*>(
-      AllocateAligned(max_align, total_size));
+  uint8_t* buffer =
+      absl::bit_cast<uint8_t*>(AllocateAligned(max_align, total_size));
   XLS_CHECK(buffer != nullptr)
       << "Unable to allocate. align:" << max_align << " size: " << total_size;
   ptrs.reserve(offsets.size());
   absl::c_transform(offsets, std::back_inserter(ptrs),
-                    [&](intptr_t p) { return buffer + p; });
+                    [&](int64_t p) { return buffer + p; });
   return {AlignedPtr(buffer), std::move(ptrs)};
 }
 }  // namespace
