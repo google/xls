@@ -40,6 +40,7 @@ cc_library(
     ]),
     hdrs = [
         "lib/zstd.h",
+        "lib/common/zstd_errors.h",
     ],
     strip_include_prefix = "lib",
     local_defines = [
