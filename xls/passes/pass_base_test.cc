@@ -13,7 +13,10 @@
 // limitations under the License.
 
 #include "xls/passes/pass_base.h"
+
+#include <memory>
 #include <optional>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -23,17 +26,29 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
+#include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 
+namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
+
+using status_testing::IsOk;
+using testing::ElementsAre;
+using testing::Eq;
+using testing::Field;
+using testing::IsEmpty;
+
 class PassBaseTest : public IrTestBase {};
 
 // A sneaky pass that tries to avoid returning unlucky numbers just like
@@ -77,13 +92,46 @@ class ArchitectNumber : public OptimizationFunctionBasePass {
   }
 };
 
+// Bigger numbers are always better!
+// Replace all constant numbers with their successor as long as doing so does
+// not cause the number to wrap around.
+class LevelUpPass : public OptimizationFunctionBasePass {
+ public:
+  LevelUpPass() : OptimizationFunctionBasePass("level_up", "Level up Pass") {}
+  ~LevelUpPass() override = default;
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results) const override {
+    bool changed = false;
+    for (Node* n : TopoSort(f)) {
+      if (n->Is<Literal>() && n->GetType()->IsBits() &&
+          !n->As<Literal>()->value().bits().IsAllOnes()) {
+        changed = true;
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<Literal>(
+                 Value(bits_ops::Increment(n->As<Literal>()->value().bits())))
+                .status());
+      }
+    }
+    return changed;
+  }
+};
+
+auto DceInvoke() { return Field(&PassInvocation::pass_name, Eq("dce")); }
+auto LevelUpInvoke() {
+  return Field(&PassInvocation::pass_name, Eq("level_up"));
+}
+
 TEST_F(PassBaseTest, DetectEasyIncorrectReturn) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(13, 64));
   ASSERT_THAT(fb.Build(), status_testing::IsOk());
   ArchitectNumber pass;
-  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), nullptr),
+  PassResults results;
+  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results),
               status_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::ContainsRegex(
@@ -97,12 +145,147 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturnInCompound) {
   fb.Literal(UBits(13, 64));
   ASSERT_THAT(fb.Build(), status_testing::IsOk());
   ArchitectNumber pass;
-  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), nullptr),
+  PassResults results;
+  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results),
               status_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::ContainsRegex(
                       "Pass architect_number indicated IR unchanged, but IR is "
                       "changed: \\[Before\\] 1 nodes != \\[after\\] 6 nodes")));
+}
+
+TEST_F(PassBaseTest, BisectLimitMid) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
+  OptimizationCompoundPass opt("opt", "opt");
+  PassResults results;
+  for (int i = 0; i < 4; ++i) {
+    opt.Add<LevelUpPass>();
+    opt.Add<DeadCodeEliminationPass>();
+  }
+  // Should run Level DCE level DCE
+  EXPECT_THAT(
+      opt.Run(p.get(),
+              OptimizationPassOptions(PassOptionsBase{.bisect_limit = 4}),
+              &results),
+      IsOk());
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(2, 64)));
+  EXPECT_EQ(f->node_count(), 1);
+}
+
+TEST_F(PassBaseTest, BisectLimitAfterEnd) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
+  OptimizationCompoundPass opt("opt", "opt");
+  PassResults results;
+  for (int i = 0; i < 4; ++i) {
+    opt.Add<LevelUpPass>();
+    opt.Add<DeadCodeEliminationPass>();
+  }
+  // Should run Level DCE Level DCE Level DCE Level DCE
+  EXPECT_THAT(
+      opt.Run(p.get(),
+              OptimizationPassOptions(PassOptionsBase{.bisect_limit = 8}),
+              &results),
+      IsOk());
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 64)));
+  EXPECT_EQ(f->node_count(), 1);
+  EXPECT_EQ(results.invocations.size(), 8);
+  auto is_dce = Field(&PassInvocation::pass_name, Eq("dce"));
+  auto is_level_up = Field(&PassInvocation::pass_name, Eq("level_up"));
+  EXPECT_THAT(
+      results.invocations,
+      ElementsAre(LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke(),
+                  LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke()));
+}
+
+TEST_F(PassBaseTest, BisectLimitInFixedPoint) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 16));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
+  OptimizationCompoundPass opt("opt", "opt");
+  {
+    auto fp =
+        std::make_unique<OptimizationFixedPointCompoundPass>("fixed", "fixed");
+    fp->Add<LevelUpPass>();
+    fp->Add<DeadCodeEliminationPass>();
+    opt.AddOwned(std::move(fp));
+  }
+  PassResults results;
+  EXPECT_THAT(
+      opt.Run(p.get(),
+              OptimizationPassOptions(PassOptionsBase{.bisect_limit = 16}),
+              &results),
+      IsOk());
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(8, 16)));
+  EXPECT_EQ(f->node_count(), 1);
+  EXPECT_EQ(results.invocations.size(), 16);
+  EXPECT_THAT(
+      results.invocations,
+      ElementsAre(LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke(),
+                  LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke(),
+                  LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke(),
+                  LevelUpInvoke(), DceInvoke(), LevelUpInvoke(), DceInvoke()));
+}
+TEST_F(PassBaseTest, BisectLimitInMiddleOfFixedPoint) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 16));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
+  OptimizationCompoundPass opt("opt", "opt");
+  {
+    auto fp =
+        std::make_unique<OptimizationFixedPointCompoundPass>("fixed", "fixed");
+    fp->Add<DeadCodeEliminationPass>();
+    fp->Add<LevelUpPass>();
+    fp->Add<DeadCodeEliminationPass>();
+    fp->Add<DeadCodeEliminationPass>();
+    opt.AddOwned(std::move(fp));
+  }
+  PassResults results;
+  // Run 3 times all the way through then the first 3 passes of one last
+  // go-around.
+  EXPECT_THAT(opt.Run(p.get(),
+                      OptimizationPassOptions(
+                          PassOptionsBase{.bisect_limit = (3 * 4 + 3)}),
+                      &results),
+              IsOk());
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 16)));
+  EXPECT_EQ(f->node_count(), 1);
+  EXPECT_EQ(results.invocations.size(), 15);
+  EXPECT_THAT(
+      results.invocations,
+      ElementsAre(DceInvoke(), LevelUpInvoke(), DceInvoke(), DceInvoke(),
+                  DceInvoke(), LevelUpInvoke(), DceInvoke(), DceInvoke(),
+                  DceInvoke(), LevelUpInvoke(), DceInvoke(), DceInvoke(),
+                  DceInvoke(), LevelUpInvoke(), DceInvoke()));
+}
+
+TEST_F(PassBaseTest, BisectLimitZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
+  OptimizationCompoundPass opt("opt", "opt");
+  PassResults results;
+  for (int i = 0; i < 4; ++i) {
+    opt.Add<LevelUpPass>();
+    opt.Add<DeadCodeEliminationPass>();
+  }
+  // Should run nothing
+  EXPECT_THAT(
+      opt.Run(p.get(),
+              OptimizationPassOptions(PassOptionsBase{.bisect_limit = 0}),
+              &results),
+      IsOk());
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 64)));
+  EXPECT_EQ(f->node_count(), 1);
+  EXPECT_THAT(results.invocations, IsEmpty());
 }
 
 }  // namespace

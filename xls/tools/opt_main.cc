@@ -91,6 +91,9 @@ ABSL_FLAG(
         "passes: %s",
         xls::GetOptimizationPipelineGenerator(xls::kMaxOptLevel)
             .GetAvailablePassesStr()));
+ABSL_FLAG(std::optional<int64_t>, passes_bisect_limit, std::nullopt,
+          "Number of passes to allow to execute. This can be used as compiler "
+          "fuel to ensure the compiler finishes at a particular point.");
 
 namespace xls::tools {
 namespace {
@@ -110,6 +113,8 @@ absl::Status RealMain(std::string_view input_path) {
   bool use_context_narrowing_analysis =
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
   std::optional<std::string> pass_list = absl::GetFlag(FLAGS_passes);
+  std::optional<int64_t> bisect_limit =
+      absl::GetFlag(FLAGS_passes_bisect_limit);
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
@@ -121,7 +126,8 @@ absl::Status RealMain(std::string_view input_path) {
           /*inline_procs=*/inline_procs,
           /*ram_rewrites_pb=*/ram_rewrites_pb,
           /*use_context_narrowing_analysis=*/use_context_narrowing_analysis,
-          /*pass_list=*/pass_list));
+          /*pass_list=*/pass_list,
+          /*bisect_limit=*/bisect_limit));
   std::cout << opt_ir;
   return absl::OkStatus();
 }

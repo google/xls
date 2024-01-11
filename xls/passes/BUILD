@@ -966,12 +966,10 @@ cc_test(
         ":pass_base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
@@ -981,7 +979,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:value",
-        "@com_googlesource_code_re2//:re2",
     ],
 )
 

@@ -25,8 +25,8 @@ OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
 ADD_ZERO_IR = """package add_zero
 
 top fn add_zero(x: bits[32]) -> bits[32] {
-  literal.1: bits[32] = literal(value=0)
-  ret add.2: bits[32] = add(x, literal.1)
+  literal.1: bits[32] = literal(value=0, id=1)
+  ret add.2: bits[32] = add(x, literal.1, id=2)
 }
 """
 
@@ -156,6 +156,33 @@ class OptMainTest(test_base.TestCase):
 
   # TODO: https://github.com/google/xls/issues/1245 - Get an example that can
   # see the fixed-point pipeline doing something.
+
+  def test_bisect_limit(self):
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    optimized_ir = subprocess.check_output([
+        OPT_MAIN_PATH,
+        ir_file.full_path,
+        '--passes',
+        'dce dce dce dce arith_simp',
+        '--passes_bisect_limit',
+        '3',
+    ]).decode('utf-8')
+    # No change since arith_simp is not run
+    self.assertEqual(optimized_ir, ADD_ZERO_IR)
+
+  def test_bisect_limit_allows_changes(self):
+    """Check that dce is not run after arith simp."""
+    ir_file = self.create_tempfile(content=ADD_ZERO_IR)
+    optimized_ir = subprocess.check_output([
+        OPT_MAIN_PATH,
+        ir_file.full_path,
+        '--passes',
+        'dce arith_simp dce',
+        '--passes_bisect_limit',
+        '2',
+    ]).decode('utf-8')
+    # add is not removed since the DCE was not run.
+    self.assertIn('bits[32] = add', optimized_ir)
 
 
 if __name__ == '__main__':

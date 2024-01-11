@@ -60,6 +60,13 @@ struct PassOptionsBase {
   // both run_only_passes and skip_passes are present, then only passes which
   // are present in run_only_passes and not present in skip_passes will be run.
   std::vector<std::string> skip_passes;
+
+  // If present, how many passes will be allowed to run to completion. NB
+  // Passes which do not cause any changes are counted in this limit. When this
+  // limit is reached all subsequent passes perform no changes. NB The total
+  // number of passes executed might change due to setting this field as
+  // fixed-points may complete earlier.
+  std::optional<int64_t> bisect_limit;
 };
 
 // An object containing information about the invocation of a pass (single call
@@ -319,6 +326,13 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     XLS_VLOG(1) << absl::StreamFormat("Running %s (%s) pass on package %s",
                                       pass->long_name(), pass->short_name(),
                                       ir->name());
+
+    if (!pass->IsCompound() && options.bisect_limit &&
+        results->invocations.size() >= options.bisect_limit) {
+      XLS_VLOG(1) << "Skipping pass " << pass->short_name()
+                  << " due to hitting bisect limit.";
+      continue;
+    }
 
     if (std::find_if(options.skip_passes.begin(), options.skip_passes.end(),
                      [&](const std::string& name) {
