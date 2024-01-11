@@ -25,11 +25,13 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/stopwatch.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
@@ -47,18 +49,6 @@
 using std::shared_ptr;
 using std::string;
 using std::vector;
-
-namespace {
-
-// Returns monotonically increasing time in seconds
-double doubletime() {
-  struct timeval tv;
-  struct timezone tz;
-  gettimeofday(&tv, &tz);
-  return tv.tv_sec + static_cast<double>(tv.tv_usec) / 1000000.0;
-}
-
-}  // namespace
 
 namespace xlscc {
 
@@ -200,13 +190,13 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
   // check. Reset the known set before each iteration.
   auto saved_check_ids = unique_decl_ids_;
 
-  double slowest_iter = 0;
+  absl::Duration slowest_iter = absl::ZeroDuration();
 
   for (int64_t nIters = 0;; ++nIters) {
     const bool first_iter = nIters == 0;
     const bool always_this_iter = always_first_iter && first_iter;
 
-    const double iter_start = doubletime();
+    xls::Stopwatch stopwatch;
 
     unique_decl_ids_ = saved_check_ids;
 
@@ -261,14 +251,11 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
       XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
     }
     // Print slow unrolling warning
-    const double iter_end = doubletime();
-    const double iter_seconds = iter_end - iter_start;
-
-    if (iter_seconds > 0.1 && iter_seconds > slowest_iter) {
-      XLS_LOG(WARNING) << ErrorMessage(loc,
-                                       "Slow loop unrolling iteration %i: %fms",
-                                       nIters, iter_seconds * 1000.0);
-      slowest_iter = iter_seconds;
+    const absl::Duration elapsed_time = stopwatch.GetElapsedTime();
+    if (elapsed_time > absl::Seconds(0.1) && elapsed_time > slowest_iter) {
+      XLS_LOG(WARNING) << ErrorMessage(
+          loc, "Slow loop unrolling iteration %i: %v", nIters, elapsed_time);
+      slowest_iter = elapsed_time;
     }
   }
 
