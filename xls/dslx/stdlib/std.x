@@ -909,3 +909,27 @@ fn is_unsigned_msb_set_test() {
     assert_eq(true, is_unsigned_msb_set(u8:128));
     assert_eq(true, is_unsigned_msb_set(u8:129));
 }
+
+// What verilog calls a "part-select" to extract a particular subset of bits
+// from a larger bits type. This does compile-time checking that the values are
+// in-bounds.
+//
+// Note: for new code, prefer direct bit slicing syntax; e.g.
+//
+//  x[LSB +: bits[WIDTH]]
+//
+// This is given for help in porting code from Verilog to DSLX, e.g. if a user
+// wants a more direct transcription.
+fn vslice<MSB: u32, LSB: u32, IN: u32, OUT: u32 = {MSB - LSB + u32:1}>(x: bits[IN]) -> bits[OUT] {
+    // This will help flag if the MSB and LSB are given out of order
+    const_assert!(MSB >= LSB);
+    x[LSB+:bits[OUT]]
+}
+
+#[test]
+fn test_vslice() {
+    assert_eq(vslice<u32:7, u32:0>(u8:0xab), u8:0xab);
+    assert_eq(vslice<u32:3, u32:0>(u8:0xab), u4:0xb);
+    assert_eq(vslice<u32:7, u32:4>(u8:0xab), u4:0xa);
+    assert_eq(vslice<u32:0, u32:0>(u8:0xab), u1:1);
+}

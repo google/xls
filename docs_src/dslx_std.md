@@ -692,6 +692,30 @@ will be in-range.
 
 If `to_exclusive <= from_excsuive`, the result will be a zero-bit `bits[0]`.
 
+#### `std::vslice`
+
+```dslx-snippet
+pub fn vslice<MSB: u32, LSB: u32>(x: bits[IN]) -> bits[OUT]
+```
+
+Similar to `extract_bits` above, but corresponds directly to the "part-select"
+Verilog syntax. That is:
+
+```verilog
+y <= x[3:0];
+```
+
+Corresponds to:
+
+```dslx-snippet
+let y: u4 = vslice<u32:3, u32:0>(x);
+```
+
+This is useful when porting code literally as a way to avoid transcription
+errors. For new code the
+[DSLX first-class slicing syntax](https://google.github.io/xls/dslx_reference/#bit-slice-expressions)
+(either range-slicing or width-slicing) is preferred.
+
 ### Mathematical Functions
 
 #### `std::bounded_minus_1`
