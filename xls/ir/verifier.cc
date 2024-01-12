@@ -2070,6 +2070,20 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
     // Verify that the order of parameters matches the state element order.
     XLS_RET_CHECK_EQ(proc->param(i + 1), proc->GetStateParam(i));
 
+    Param* param = proc->GetStateParam(i);
+    Node* next_state = proc->GetNextStateElement(i);
+    if (next_state == param) {
+      continue;
+    }
+
+    // Verify that this proc does not use `next_value` nodes.
+    if (!proc->next_values().empty()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Proc %s includes both next_value nodes (e.g., %s) and next-state "
+          "values on its 'next' line; both cannot be used at the same time.",
+          proc->name(), proc->next_values().front()->GetName()));
+    }
+
     // Verify type of state param matches type of the corresponding initial
     // value and next state element.
     XLS_RET_CHECK_EQ(proc->GetStateParam(i)->GetType(),

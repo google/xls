@@ -97,6 +97,8 @@ class Proc : public FunctionBase {
   Node* NextToken() const { return next_token_; }
 
   // Returns the nodes holding the next recurrent state value.
+  //
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   absl::Span<Node* const> NextState() const { return next_state_; }
   Node* GetNextStateElement(int64_t index) const {
     return NextState().at(index);
@@ -104,6 +106,8 @@ class Proc : public FunctionBase {
 
   // Return the state element indices for which the given `node` is the next
   // recurrent state value for that element.
+  //
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   absl::btree_set<int64_t> GetNextStateIndices(Node* node) const;
 
   // Returns the type of the given state element.
@@ -120,6 +124,8 @@ class Proc : public FunctionBase {
 
   // Sets the next recurrent state value for the state element of the given
   // index. Node type must match the type of the state element.
+  //
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   absl::Status SetNextStateElement(int64_t index, Node* next);
 
   // Replace all state elements with new state parameters and the given initial
@@ -133,6 +139,8 @@ class Proc : public FunctionBase {
   // than as a std::optional `next_state` argument because initializer lists do
   // not explicitly convert to std::optional<absl::Span> making callsites
   // verbose.
+  //
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   absl::Status ReplaceState(absl::Span<const std::string> state_param_names,
                             absl::Span<const Value> init_values,
                             absl::Span<Node* const> next_state);
@@ -262,9 +270,13 @@ class Proc : public FunctionBase {
   // proc.
   Node* next_token_;
   bool is_new_style_proc_;
+
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   std::vector<Node*> next_state_;
 
   // A map from the `next_state_` nodes back to the indices they control.
+  //
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   absl::flat_hash_map<Node*, absl::btree_set<int64_t>> next_state_indices_;
 
   // All channel references in this proc. Channel references can be part of the

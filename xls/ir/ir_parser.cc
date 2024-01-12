@@ -1687,6 +1687,8 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
             "Proc next token name @ %s  was not previously defined: \"%s\"",
             next_token_name.pos().ToHumanString(), next_token_name.value()));
       }
+
+      // TODO: Remove this once fully transitioned over to `next_value` nodes.
       std::vector<BValue> next_state;
       while (scanner_.TryDropToken(LexicalTokenType::kComma)) {
         XLS_ASSIGN_OR_RETURN(Token next_state_name,
@@ -1699,6 +1701,14 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
         }
         next_state.push_back(name_to_value->at(next_state_name.value()));
       }
+      if (Proc* proc = fb->function()->AsProcOrDie();
+          !next_state.empty() && !proc->next_values().empty()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Proc includes both next_value nodes (e.g., %s) and next-state "
+            "values on its 'next' line; both cannot be used at the same time.",
+            proc->next_values().front()->GetName()));
+      }
+
       XLS_RETURN_IF_ERROR(
           scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
       result =

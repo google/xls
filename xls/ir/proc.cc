@@ -85,9 +85,13 @@ std::string Proc::DumpIr() const {
     }
     absl::StrAppend(&res, "  ", node->ToString(), "\n");
   }
+
   absl::StrAppend(&res, "  next (", NextToken()->GetName());
-  for (Node* node : next_state_) {
-    absl::StrAppend(&res, ", ", node->GetName());
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  if (next_values_.empty()) {
+    for (Node* node : next_state_) {
+      absl::StrAppend(&res, ", ", node->GetName());
+    }
   }
   absl::StrAppend(&res, ")\n}\n");
   return res;
@@ -222,8 +226,11 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
                         "state param %s has uses",
                         index, name(), old_param->GetName()));
   }
+
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   next_state_indices_[next_state_[index]].erase(index);
   next_state_[index] = nullptr;
+
   XLS_RETURN_IF_ERROR(RemoveNode(old_param));
 
   // Construct the new param node, and update all trackers.
@@ -243,6 +250,8 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
         next_state.value()->GetType()->ToString(), init_value.ToString()));
   }
   init_values_[index] = init_value;
+
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   next_state_[index] = next_state.value_or(param);
   next_state_indices_[next_state_[index]].insert(index);
 
@@ -251,6 +260,8 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
 
 absl::Status Proc::RemoveStateElement(int64_t index) {
   XLS_RET_CHECK_LT(index, GetStateElementCount());
+
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   if (index < GetStateElementCount() - 1) {
     for (auto& [_, indices] : next_state_indices_) {
       // Relabel all indices > `index`.
@@ -264,6 +275,7 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
   }
   next_state_indices_[next_state_[index]].erase(index);
   next_state_.erase(next_state_.begin() + index);
+
   Param* old_param = GetStateParam(index);
   if (!old_param->users().empty()) {
     return absl::InvalidArgumentError(
@@ -294,6 +306,8 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
       MakeNodeWithName<Param>(SourceInfo(), state_param_name,
                               package()->GetTypeForValue(init_value)));
   XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index + 1));
+
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   if (next_state.has_value()) {
     if (!ValueConformsToType(init_value, next_state.value()->GetType())) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -316,6 +330,7 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
   }
   next_state_.insert(next_state_.begin() + index, next_state.value_or(param));
   next_state_indices_[next_state_[index]].insert(index);
+
   init_values_.insert(init_values_.begin() + index, init_value);
   return param;
 }
@@ -324,10 +339,13 @@ bool Proc::HasImplicitUse(Node* node) const {
   if (node == NextToken()) {
     return true;
   }
+
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   if (auto it = next_state_indices_.find(node);
       it != next_state_indices_.end() && !it->second.empty()) {
     return true;
   }
+
   return false;
 }
 
@@ -535,10 +553,12 @@ absl::StatusOr<Proc*> Proc::Clone(
   XLS_RETURN_IF_ERROR(
       cloned_proc->SetNextToken(original_to_clone.at(NextToken())));
 
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
   for (int64_t i = 0; i < GetStateElementCount(); ++i) {
     XLS_RETURN_IF_ERROR(cloned_proc->SetNextStateElement(
         i, original_to_clone.at(GetNextStateElement(i))));
   }
+
   return cloned_proc;
 }
 

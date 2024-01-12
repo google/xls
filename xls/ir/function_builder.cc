@@ -1129,14 +1129,16 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
         absl::StrFormat("Recurrent token of proc must be token type, is: %s.",
                         GetType(token)->ToString()));
   }
-  if (next_state.size() != state_params_.size()) {
+
+  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  if (!next_state.empty() && next_state.size() != state_params_.size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Number of recurrent state elements given (%d) does "
                         "not equal the number of state elements in the proc "
                         "(%d)",
                         next_state.size(), state_params_.size()));
   }
-  for (int64_t i = 0; i < state_params_.size(); ++i) {
+  for (int64_t i = 0; i < next_state.size(); ++i) {
     if (GetType(next_state[i]) != GetType(GetStateParam(i))) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Recurrent state type %s does not match proc "

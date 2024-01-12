@@ -1278,7 +1278,6 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
 }
 
 TEST(IrParserTest, ParseProcWithExplicitNext) {
-  // TODO(epastor): Remove the next-value for `my_state` from the last line
   const std::string input = R"(package test
 
 chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
@@ -1289,14 +1288,33 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   next_value.5: () = next_value(param=my_state, value=my_state, id=5)
-  next (tuple_index.4, my_state)
+  next (tuple_index.4)
 }
 )";
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseProcWithMixedNextValueStyles) {
+  const std::string input = R"(package test
+
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc my_proc(my_token: token, my_state_1: bits[32], my_state_2: bits[32], init={42, 64}) {
+  send.1: token = send(my_token, my_state_1, channel=ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next_value.5: () = next_value(param=my_state_2, value=my_state_2, id=5)
+  next (tuple_index.4, my_state_1, my_state_2)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Proc includes both next_value nodes (e.g., "
+                                 "next_value.5) and next-state values")));
+}
+
 TEST(IrParserTest, ParseProcWithBadNextParam) {
-  // TODO(epastor): Remove the next-value for `my_state` from the last line
   const std::string input = R"(package test
 
 chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
@@ -1307,7 +1325,7 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   next_value.5: () = next_value(param=not_my_state, value=my_state, id=5)
-  next (tuple_index.4, my_state)
+  next (tuple_index.4)
 }
 )";
   EXPECT_THAT(Parser::ParsePackage(input).status(),
@@ -1318,7 +1336,6 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
 }
 
 TEST(IrParserTest, ParseProcWithBadNextValueType) {
-  // TODO(epastor): Remove the next-value for `my_state` from the last line
   const std::string input = R"(package test
 
 chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
@@ -1329,7 +1346,7 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   next_value.5: () = next_value(param=my_state, value=literal.2, id=5)
-  next (tuple_index.4, my_state)
+  next (tuple_index.4)
 }
 )";
   EXPECT_THAT(Parser::ParsePackage(input).status(),
