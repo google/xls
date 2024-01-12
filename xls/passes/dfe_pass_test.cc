@@ -40,7 +40,8 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
-using testing::IsEmpty;
+using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAre;
 
 namespace m = xls::op_matchers;
 

@@ -38,6 +38,7 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using ::testing::AnyOf;
 
 class TableSwitchPassTest : public IrTestBase {
  protected:

@@ -31,6 +31,7 @@ namespace xls {
 namespace {
 
 namespace m = xls::op_matchers;
+using ::testing::AllOf;
 
 class ExtractStageTest : public IrTestBase {};
 

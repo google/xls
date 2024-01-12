@@ -52,6 +52,7 @@ using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
+using ::testing::Contains;
 
 // The test is parameterized on whether to use range analysis or not.
 class NarrowingPassTestBase : public IrTestBase {

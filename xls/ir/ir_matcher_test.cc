@@ -218,7 +218,7 @@ TEST(IrMatchersTest, OneHotSelectDoesNotMatchPrioritySelect) {
   fb.OneHotSelect(pred, {x, y});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  EXPECT_THAT(f->return_value(), Not(m::PrioritySelect()));
+  EXPECT_THAT(f->return_value(), ::testing::Not(m::PrioritySelect()));
 }
 
 TEST(IrMatchersTest, PrioritySelectDoesNotMatchOneHotSelect) {
@@ -231,7 +231,7 @@ TEST(IrMatchersTest, PrioritySelectDoesNotMatchOneHotSelect) {
   fb.PrioritySelect(pred, {x, y});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  EXPECT_THAT(f->return_value(), Not(m::OneHotSelect()));
+  EXPECT_THAT(f->return_value(), ::testing::Not(m::OneHotSelect()));
 }
 
 TEST(IrMatchersTest, Select) {
@@ -362,15 +362,14 @@ TEST(IrMatchersTest, SendOps) {
 
   EXPECT_THAT(send.node(), m::Send());
   EXPECT_THAT(send.node(), m::Send(m::Channel(42)));
-  EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), {m::Name("my_state")},
+  EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), m::Name("my_state"),
                                    m::Channel(42)));
   EXPECT_THAT(send.node(), m::Send(m::ChannelWithType("bits[32]")));
 
   EXPECT_THAT(send_if.node(), m::Send());
   EXPECT_THAT(send_if.node(), m::Send(m::Channel(123)));
-  EXPECT_THAT(send_if.node(),
-              m::Send(m::Name("my_token"), {m::Name("my_state")}, m::Literal(),
-                      m::Channel(123)));
+  EXPECT_THAT(send_if.node(), m::Send(m::Name("my_token"), m::Name("my_state"),
+                                      m::Literal(), m::Channel(123)));
   EXPECT_THAT(send_if.node(), m::Send(m::ChannelWithType("bits[32]")));
 }
 
@@ -543,7 +542,8 @@ TEST(IrMatchersTest, FunctionBaseMatcher) {
   EXPECT_THAT(p.GetFunctionBases(),
               UnorderedElementsAre(m::FunctionBase(HasSubstr("f")),
                                    m::FunctionBase(HasSubstr("test"))));
-  EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::FunctionBase("foobar"))));
+  EXPECT_THAT(p.GetFunctionBases(),
+              ::testing::Not(Contains(m::FunctionBase("foobar"))));
 
   // Match Function and Proc.
   EXPECT_THAT(p.GetFunctionBases(),
@@ -551,11 +551,13 @@ TEST(IrMatchersTest, FunctionBaseMatcher) {
   EXPECT_THAT(p.GetFunctionBases(),
               UnorderedElementsAre(m::Function(HasSubstr("f")),
                                    m::Proc(HasSubstr("test"))));
-  EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::Function("test_proc"))));
+  EXPECT_THAT(p.GetFunctionBases(),
+              ::testing::Not(Contains(m::Function("test_proc"))));
   EXPECT_THAT(p.GetFunctionBases(),
               Not(Contains(m::Function(HasSubstr("proc")))));
-  EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::Proc("f"))));
-  EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::Proc(HasSubstr("f")))));
+  EXPECT_THAT(p.GetFunctionBases(), ::testing::Not(Contains(m::Proc("f"))));
+  EXPECT_THAT(p.GetFunctionBases(),
+              ::testing::Not(Contains(m::Proc(HasSubstr("f")))));
 
   EXPECT_THAT(p.procs(), UnorderedElementsAre(m::Proc("test_proc")));
   EXPECT_THAT(p.functions(), UnorderedElementsAre(m::Function("f")));

@@ -40,6 +40,7 @@ namespace {
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using status_testing::IsOkAndHolds;
+using ::testing::AllOf;
 
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
