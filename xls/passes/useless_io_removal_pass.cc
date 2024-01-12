@@ -16,14 +16,13 @@
 
 #include <memory>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -31,15 +30,16 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
 namespace {
 
 using ChannelToSendMap =
-    absl::flat_hash_map<std::string, absl::flat_hash_set<Send*>>;
+    absl::flat_hash_map<ChannelRef, absl::flat_hash_set<Send*>>;
 using ChannelToReceiveMap =
-    absl::flat_hash_map<std::string, absl::flat_hash_set<Receive*>>;
+    absl::flat_hash_map<ChannelRef, absl::flat_hash_set<Receive*>>;
 
 struct ChannelMaps {
   ChannelToSendMap to_send;
@@ -48,18 +48,17 @@ struct ChannelMaps {
 
 absl::StatusOr<ChannelMaps> ComputeChannelMaps(Package* package) {
   ChannelMaps result;
-  if (package->channels().empty()) {
-    return result;
-  }
   for (std::unique_ptr<Proc>& proc : package->procs()) {
     for (Node* node : proc->nodes()) {
       if (node->Is<Send>()) {
-        result.to_send[node->As<Send>()->channel_name()].insert(
-            node->As<Send>());
+        XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
+                             GetChannelRefUsedByNode(node));
+        result.to_send[channel_ref].insert(node->As<Send>());
       }
       if (node->Is<Receive>()) {
-        result.to_receive[node->As<Receive>()->channel_name()].insert(
-            node->As<Receive>());
+        XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
+                             GetChannelRefUsedByNode(node));
+        result.to_receive[channel_ref].insert(node->As<Receive>());
       }
     }
   }
@@ -85,10 +84,12 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         if (!send->predicate().has_value()) {
           continue;
         }
+        XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
+                             GetChannelRefUsedByNode(node));
         Node* predicate = send->predicate().value();
         if (IsLiteralZero(predicate) &&
-            channel_maps.to_send.at(send->channel_name()).size() >= 2) {
-          channel_maps.to_send.at(send->channel_name()).erase(send);
+            channel_maps.to_send.at(channel_ref).size() >= 2) {
+          channel_maps.to_send.at(channel_ref).erase(send);
           replacement = send->token();
         } else if (IsLiteralUnsignedOne(predicate)) {
           XLS_ASSIGN_OR_RETURN(
@@ -102,11 +103,13 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         if (!receive->predicate().has_value()) {
           continue;
         }
+        XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
+                             GetChannelRefUsedByNode(node));
         Node* predicate = receive->predicate().value();
         if (IsLiteralZero(predicate) &&
-            channel_maps.to_receive.at(receive->channel_name()).size() >= 2) {
+            channel_maps.to_receive.at(channel_ref).size() >= 2) {
           XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-          channel_maps.to_receive.at(receive->channel_name()).erase(receive);
+          channel_maps.to_receive.at(channel_ref).erase(receive);
           XLS_ASSIGN_OR_RETURN(Literal * zero,
                                proc->MakeNode<Literal>(
                                    node->loc(), ZeroOfType(channel->type())));

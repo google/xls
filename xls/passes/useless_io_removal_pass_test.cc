@@ -19,12 +19,16 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_scanner.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 
@@ -72,6 +76,20 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlySend) {
   EXPECT_EQ(proc->node_count(), 6);
 }
 
+TEST_F(UselessIORemovalPassTest, DontRemoveOnlySendNewStyle) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "token", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SendChannelReference * channel,
+      pb.AddOutputChannel("test_channel", p->GetBitsType(32)));
+  pb.StateElement("state", Value(UBits(0, 0)));
+  pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
+  EXPECT_EQ(proc->node_count(), 6);
+  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(false));
+  EXPECT_EQ(proc->node_count(), 6);
+}
+
 TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -86,6 +104,24 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
   token = pb.Send(channel, token, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build(token, {pb.Literal(UBits(0, 0))}));
+  EXPECT_EQ(proc->node_count(), 8);
+  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(true));
+  EXPECT_EQ(proc->node_count(), 5);
+  EXPECT_THAT(proc->NextToken(), m::Send(proc->TokenParam(), m::Literal(1)));
+}
+
+TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalseNewStyle) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "token", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SendChannelReference * channel,
+      pb.AddOutputChannel("test_channel", p->GetBitsType(32)));
+  pb.StateElement("state", Value(UBits(0, 0)));
+  pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));
+  // Extra send so that this does something
+  pb.Send(channel, pb.Literal(UBits(1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
+
   EXPECT_EQ(proc->node_count(), 8);
   EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
