@@ -628,7 +628,7 @@ TEST(IrMatchersTest, InstantiationMatcher) {
   BValue x = bb.InputPort("x", u32);
   BValue y = bb.InputPort("y", u32);
 
-  bb.InstantiationInput(add0, "a", x);
+  BValue a = bb.InstantiationInput(add0, "a", x);
   bb.InstantiationInput(add0, "b", y);
   BValue x_plus_y = bb.InstantiationOutput(add0, "result");
   bb.OutputPort("x_plus_y", x_plus_y);
@@ -653,6 +653,31 @@ TEST(IrMatchersTest, InstantiationMatcher) {
   EXPECT_THAT(Explain(block->GetInstantiations().at(0),
                       m::Instantiation(InstantiationKind::kExtern)),
               HasSubstr("add0 has incorrect kind, expected: extern"));
+
+  EXPECT_THAT(
+      block->nodes(),
+      AllOf(
+          Contains(m::InstantiationOutput()),
+          Contains(m::InstantiationOutput("result")),
+          Contains(m::InstantiationOutput(HasSubstr("res"))),
+          Contains(m::InstantiationOutput("result", m::Instantiation("add0"))),
+          Contains(m::InstantiationInput(m::InputPort("x"))),
+          Contains(m::InstantiationInput(m::InputPort(HasSubstr("x")))),
+          Contains(m::InstantiationInput(m::InputPort("x"), "a")),
+          Contains(m::InstantiationInput(m::InputPort("x"), "a",
+                                         m::Instantiation("add0")))));
+  EXPECT_THAT(a.node(), ::testing::Not(m::InstantiationInput(
+                            m::InputPort("x"), HasSubstr("b"),
+                            m::Instantiation("add0"))));
+
+  EXPECT_THAT(Explain(a.node(), m::InstantiationInput(m::InputPort("y"))),
+              HasSubstr("x has incorrect name, expected: y."));
+  EXPECT_THAT(Explain(a.node(), m::InstantiationInput(m::InputPort("x"), "b")),
+              HasSubstr("a has incorrect name, expected: b."));
+  EXPECT_THAT(
+      Explain(a.node(), m::InstantiationInput(m::InputPort("x"), "a",
+                                              m::Instantiation("add1"))),
+      HasSubstr("add0 has incorrect name, expected: add1."));
 }
 
 }  // namespace

@@ -47,6 +47,11 @@ absl::StatusOr<InstantiationKind> StringToInstantiationKind(
     std::string_view str);
 std::ostream& operator<<(std::ostream& os, InstantiationKind kind);
 
+template <typename Sink>
+void AbslStringify(Sink& sink, const InstantiationKind kind) {
+  absl::Format(&sink, "%s", InstantiationKindToString(kind));
+}
+
 struct InstantiationPort {
   std::string name;
   Type* type;

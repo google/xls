@@ -20,6 +20,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -674,14 +675,14 @@ void MinDelayMatcher::DescribeTo(::std::ostream* os) const {
 bool InstantiationMatcher::MatchAndExplain(
     const ::xls::Instantiation* instantiation,
     ::testing::MatchResultListener* listener) const {
-  *listener << instantiation->name();
   if (name_.has_value() &&
       !name_->MatchAndExplain(instantiation->name(), listener)) {
     return false;
   }
 
   if (kind_.has_value() && *kind_ != instantiation->kind()) {
-    *listener << " has incorrect kind, expected: " << *kind_;
+    *listener << absl::StreamFormat("%s has incorrect kind, expected: %v",
+                                    instantiation->name(), *kind_);
     return false;
   }
   return true;
@@ -713,6 +714,80 @@ void InstantiationMatcher::DescribeNegationTo(std::ostream* os) const {
   }
   *os << absl::StreamFormat("Instantiation did not have (name=%s, kind=%s)",
                             name_str, kind_str);
+}
+
+bool InstantiationOutputMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (port_name_.has_value() &&
+      !port_name_->MatchAndExplain(
+          node->As<::xls::InstantiationOutput>()->port_name(), listener)) {
+    return false;
+  }
+  if (instantiation_.has_value() &&
+      !instantiation_->MatchAndExplain(
+          node->As<::xls::InstantiationOutput>()->instantiation(), listener)) {
+    return false;
+  }
+  return true;
+}
+
+void InstantiationOutputMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> additional_fields;
+  if (port_name_.has_value()) {
+    std::stringstream ss;
+    ss << "name=\"";
+    port_name_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(std::move(ss).str());
+  }
+  if (instantiation_.has_value()) {
+    std::stringstream ss;
+    ss << "instantiation=\"";
+    instantiation_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(std::move(ss).str());
+  }
+  DescribeToHelper(os, additional_fields);
+}
+
+bool InstantiationInputMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (name_.has_value() &&
+      !name_->MatchAndExplain(node->As<xls::InstantiationInput>()->port_name(),
+                              listener)) {
+    return false;
+  }
+  if (instantiation_.has_value() &&
+      !instantiation_->MatchAndExplain(
+          node->As<::xls::InstantiationInput>()->instantiation(), listener)) {
+    return false;
+  }
+  return true;
+}
+
+void InstantiationInputMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> additional_fields;
+  if (name_.has_value()) {
+    std::stringstream ss;
+    ss << "name=\"";
+    name_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(std::move(ss).str());
+  }
+  if (instantiation_.has_value()) {
+    std::stringstream ss;
+    ss << "instantiation=\"";
+    instantiation_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(std::move(ss).str());
+  }
+  DescribeToHelper(os, additional_fields);
 }
 
 }  // namespace op_matchers

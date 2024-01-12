@@ -1385,31 +1385,133 @@ class InstantiationMatcher {
   std::optional<InstantiationKind> kind_;
 };
 
-inline InstantiationMatcher Instantiation(
+inline ::testing::Matcher<const ::xls::Instantiation*> Instantiation(
     std::optional<std::string> name = std::nullopt) {
-  return ::xls::op_matchers::InstantiationMatcher(std::move(name),
-                                                  std::nullopt);
+  if (name.has_value()) {
+    return ::xls::op_matchers::InstantiationMatcher(
+        internal::NameMatcherInternal(std::move(name).value()), std::nullopt);
+  }
+  return ::xls::op_matchers::InstantiationMatcher(std::nullopt, std::nullopt);
 }
 
-inline InstantiationMatcher Instantiation(
+inline ::testing::Matcher<const ::xls::Instantiation*> Instantiation(
     std::optional<::testing::Matcher<const std::string>> name = std::nullopt) {
   return ::xls::op_matchers::InstantiationMatcher(std::move(name),
                                                   std::nullopt);
 }
 
-inline InstantiationMatcher Instantiation(std::string name,
-                                          InstantiationKind kind) {
+inline ::testing::Matcher<const ::xls::Instantiation*> Instantiation(
+    std::string name, InstantiationKind kind) {
   return ::xls::op_matchers::InstantiationMatcher(
       internal::NameMatcherInternal(std::move(name)), kind);
 }
 
-inline InstantiationMatcher Instantiation(
+inline ::testing::Matcher<const ::xls::Instantiation*> Instantiation(
     ::testing::Matcher<const std::string> name, InstantiationKind kind) {
   return ::xls::op_matchers::InstantiationMatcher(std::move(name), kind);
 }
 
 inline InstantiationMatcher Instantiation(InstantiationKind kind) {
   return ::xls::op_matchers::InstantiationMatcher(std::nullopt, kind);
+}
+
+class InstantiationOutputMatcher : public NodeMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit InstantiationOutputMatcher(
+      std::optional<::testing::Matcher<std::string>> port_name,
+      std::optional<::testing::Matcher<const class Instantiation*>>
+          instantiation)
+      : NodeMatcher(Op::kInstantiationOutput, /*operands=*/{}),
+        port_name_(std::move(port_name)),
+        instantiation_(std::move(instantiation)) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(::std::ostream* os) const override;
+  void DescribeNegationTo(std::ostream* os) const override {
+    *os << "did not match: ";
+    DescribeTo(os);
+  }
+
+ private:
+  std::optional<::testing::Matcher<std::string>> port_name_;
+  std::optional<::testing::Matcher<const class Instantiation*>> instantiation_;
+};
+
+class InstantiationInputMatcher : public NodeMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit InstantiationInputMatcher(
+      ::testing::Matcher<const ::xls::Node*> data,
+      std::optional<::testing::Matcher<std::string>> name,
+      std::optional<::testing::Matcher<const class Instantiation*>>
+          instantiation)
+      : NodeMatcher(Op::kInstantiationInput,
+                    /*operands=*/{std::move(data)}),
+        name_(std::move(name)),
+        instantiation_(std::move(instantiation)) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(::std::ostream* os) const override;
+  void DescribeNegationTo(std::ostream* os) const override {
+    *os << "did not match: ";
+    DescribeTo(os);
+  }
+
+ private:
+  std::optional<::testing::Matcher<std::string>> name_;
+  std::optional<::testing::Matcher<const class Instantiation*>> instantiation_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> InstantiationOutput() {
+  return ::xls::op_matchers::InstantiationOutputMatcher(std::nullopt,
+                                                        std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> InstantiationOutput(
+    const char* port_name,
+    std::optional<::testing::Matcher<const ::xls::Instantiation*>>
+        instantiation = std::nullopt) {
+  return ::xls::op_matchers::InstantiationOutputMatcher(
+      internal::NameMatcherInternal(std::string{port_name}),
+      std::move(instantiation));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> InstantiationOutput(
+    ::testing::Matcher<std::string> port_name,
+    std::optional<::testing::Matcher<const ::xls::Instantiation*>>
+        instantiation = std::nullopt) {
+  return ::xls::op_matchers::InstantiationOutputMatcher(
+      std::move(port_name), std::move(instantiation));
+}
+
+inline ::xls::op_matchers::InstantiationInputMatcher InstantiationInput(
+    ::testing::Matcher<const ::xls::Node*> data =
+        ::testing::A<const ::xls::Node*>()) {
+  return ::xls::op_matchers::InstantiationInputMatcher(
+      std::move(data), std::nullopt, std::nullopt);
+}
+
+inline ::xls::op_matchers::InstantiationInputMatcher InstantiationInput(
+    ::testing::Matcher<const ::xls::Node*> data,
+    ::testing::Matcher<std::string> name,
+    std::optional<::testing::Matcher<const ::xls::Instantiation*>>
+        instantiation = std::nullopt) {
+  return ::xls::op_matchers::InstantiationInputMatcher(
+      std::move(data), std::move(name), std::move(instantiation));
+}
+
+inline ::xls::op_matchers::InstantiationInputMatcher InstantiationInput(
+    ::testing::Matcher<const ::xls::Node*> data, const char* name,
+    std::optional<::testing::Matcher<const ::xls::Instantiation*>>
+        instantiation = std::nullopt) {
+  return ::xls::op_matchers::InstantiationInputMatcher(
+      std::move(data), internal::NameMatcherInternal(std::string{name}),
+      std::move(instantiation));
 }
 
 }  // namespace op_matchers
