@@ -23,9 +23,8 @@
 
 namespace xls {
 
-// class DeadCodeEliminationPass iterates up from a functions result
-// nodes and marks all visited node. After that, all unvisited nodes
-// are considered dead.
+// This pass removes unreachable procs/blocks/functions from the package. The
+// pass requires `top` be set in order remove any constructs.
 class DeadFunctionEliminationPass : public OptimizationPass {
  public:
   explicit DeadFunctionEliminationPass()

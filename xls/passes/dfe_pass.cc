@@ -18,19 +18,20 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/union_find.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -79,6 +80,81 @@ void MarkReachedFunctions(FunctionBase* func,
     }
   }
 }
+
+// Data structure describing the liveness of global constructs in a package.
+struct FunctionBaseLiveness {
+  // The live roots of the package. This does not include FunctionBases which
+  // are live because they are called/instantiated from other FunctionBases.
+  std::vector<FunctionBase*> live_roots;
+
+  // Set of the live global channels. Only set for old-style procs.
+  absl::flat_hash_set<Channel*> live_global_channels;
+};
+
+absl::StatusOr<FunctionBaseLiveness> LivenessFromTopProc(Proc* top) {
+  if (top->is_new_style_proc()) {
+    XLS_ASSIGN_OR_RETURN(Elaboration elab, Elaboration::Elaborate(top));
+    return FunctionBaseLiveness{.live_roots = std::vector<FunctionBase*>(
+                                    elab.procs().begin(), elab.procs().end()),
+                                .live_global_channels = {}};
+  }
+
+  Package* p = top->package();
+
+  // Mapping from proc to channel, where channel is a representative value for
+  // all the channel names in the UnionFind. If the proc uses no channels then
+  // the value will be nullopt.
+  absl::flat_hash_map<Proc*, std::optional<std::string_view>>
+      representative_channels;
+  representative_channels.reserve(p->procs().size());
+  // Channels in the same proc will be union'd.
+  UnionFind<std::string_view> channel_union;
+  for (const std::unique_ptr<Proc>& proc : p->procs()) {
+    std::optional<std::string_view> representative_proc_channel;
+    for (Node* node : proc->nodes()) {
+      if (IsChannelNode(node)) {
+        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+        channel_union.Insert(channel->name());
+        if (representative_proc_channel.has_value()) {
+          channel_union.Union(representative_proc_channel.value(),
+                              channel->name());
+        } else {
+          representative_proc_channel = channel->name();
+        }
+      }
+    }
+    representative_channels[proc.get()] = representative_proc_channel;
+  }
+
+  FunctionBaseLiveness liveness;
+
+  // Add procs to the live set if they are connnected to `top` via channels.
+  for (const std::unique_ptr<Proc>& proc : p->procs()) {
+    if (proc.get() == top) {
+      liveness.live_roots.push_back(proc.get());
+      continue;
+    }
+    if (representative_channels.at(top).has_value() &&
+        representative_channels.at(proc.get()) &&
+        channel_union.Find(representative_channels.at(top).value()) ==
+            channel_union.Find(
+                representative_channels.at(proc.get()).value())) {
+      liveness.live_roots.push_back(proc.get());
+    }
+  }
+
+  // Add channels to the live set if they are connnected to `top`.
+  if (representative_channels.at(top).has_value()) {
+    for (Channel* channel : p->channels()) {
+      if (channel_union.Find(channel->name()) ==
+          channel_union.Find(representative_channels.at(top).value())) {
+        liveness.live_global_channels.insert(channel);
+      }
+    }
+  }
+  return liveness;
+}
+
 }  // namespace
 
 // Starting from the return_value(s), DFS over all nodes. Unvisited
@@ -91,50 +167,16 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
     return false;
   }
 
-  // Mapping from proc->channel, where channel is a representative value
-  // for all the channel names in the UnionFind.
-  absl::flat_hash_map<Proc*, std::string> representative_channels;
-  representative_channels.reserve(p->procs().size());
-  // Channels in the same proc will be union'd.
-  UnionFind<std::string> channel_union;
-  for (std::unique_ptr<Proc>& proc : p->procs()) {
-    std::optional<std::string> representative_proc_channel;
-    for (Node* node : proc->nodes()) {
-      if (IsChannelNode(node)) {
-        std::string channel;
-        if (node->Is<Send>()) {
-          channel = node->As<Send>()->channel_name();
-        } else if (node->Is<Receive>()) {
-          channel = node->As<Receive>()->channel_name();
-        } else {
-          return absl::NotFoundError(absl::StrFormat(
-              "No channel associated with node %s", node->GetName()));
-        }
-        channel_union.Insert(channel);
-        if (representative_proc_channel.has_value()) {
-          channel_union.Union(representative_proc_channel.value(), channel);
-        } else {
-          representative_proc_channel = channel;
-          representative_channels.insert({proc.get(), channel});
-        }
-      }
-    }
+  FunctionBaseLiveness liveness;
+  if ((*top)->IsProc()) {
+    XLS_ASSIGN_OR_RETURN(liveness, LivenessFromTopProc((*top)->AsProcOrDie()));
+  } else {
+    liveness.live_roots = {*top};
   }
 
   absl::flat_hash_set<FunctionBase*> reached;
-  MarkReachedFunctions(top.value(), &reached);
-  std::optional<std::string> top_proc_representative_channel;
-  if ((*top)->IsProc()) {
-    auto itr = representative_channels.find(top.value()->AsProcOrDie());
-    if (itr != representative_channels.end()) {
-      top_proc_representative_channel = channel_union.Find(itr->second);
-      for (auto [proc, representative_channel] : representative_channels) {
-        if (channel_union.Find(representative_channel) ==
-            *top_proc_representative_channel) {
-          MarkReachedFunctions(proc, &reached);
-        }
-      }
-    }
+  for (FunctionBase* fb : liveness.live_roots) {
+    MarkReachedFunctions(fb, &reached);
   }
 
   // Accumulate a list of FunctionBases to unlink.
@@ -147,19 +189,15 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
     }
   }
 
-  // Find any channels which are only used by now-removed procs.
-  std::vector<std::string> channels_to_remove;
+  // Remove dead channels.
+  std::vector<Channel*> channels_to_remove;
   channels_to_remove.reserve(p->channels().size());
   for (Channel* channel : p->channels()) {
-    if (!top_proc_representative_channel.has_value() ||
-        channel_union.Find(std::string{channel->name()}) !=
-            *top_proc_representative_channel) {
-      channels_to_remove.push_back(std::string{channel->name()});
+    if (!liveness.live_global_channels.contains(channel)) {
+      channels_to_remove.push_back(channel);
     }
   }
-  // Now remove any channels which are only used by now-removed procs.
-  for (const std::string& channel_name : channels_to_remove) {
-    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_name));
+  for (Channel* channel : channels_to_remove) {
     XLS_VLOG(2) << "Removing channel: " << channel->name();
     XLS_RETURN_IF_ERROR(p->RemoveChannel(channel));
     changed = true;

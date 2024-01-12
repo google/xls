@@ -422,6 +422,7 @@ cc_library(
         "//xls/data_structures:union_find",
         "//xls/ir",
         "//xls/ir:channel",
+        "//xls/ir:elaboration",
         "//xls/ir:node_util",
         "//xls/ir:op",
     ],
@@ -2081,11 +2082,14 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
     ],
 )
 

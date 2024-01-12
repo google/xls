@@ -16,18 +16,22 @@
 
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
@@ -54,6 +58,21 @@ class DeadFunctionEliminationPassTest : public IrTestBase {
     FunctionBuilder fb(name, p);
     fb.Param("arg", p->GetBitsType(32));
     return fb.Build();
+  }
+
+  absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
+                                                Package* package) {
+    TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
+    BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+    XLS_ASSIGN_OR_RETURN(ReceiveChannelReference * in_channel,
+                         pb.AddInputChannel("in_ch", package->GetBitsType(32)));
+    BValue input = pb.Receive(in_channel);
+    BValue next_accum = pb.Add(accum, input);
+    XLS_ASSIGN_OR_RETURN(
+        SendChannelReference * out_channel,
+        pb.AddOutputChannel("out_ch", package->GetBitsType(32)));
+    pb.Send(out_channel, next_accum);
+    return pb.Build({next_accum});
   }
 };
 
@@ -428,6 +447,67 @@ proc test_proc3(tkn: token, state:(), init={()}) {
   EXPECT_THAT(p->GetFunctionBases(),
               UnorderedElementsAre(m::Function("negate")));
   EXPECT_THAT(p->channels(), IsEmpty());
+}
+
+TEST_F(DeadFunctionEliminationPassTest, SingleNewStyleProc) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK(CreateNewStyleAccumProc("my_proc", p.get()).status());
+
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("my_proc")));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("my_proc")));
+}
+
+TEST_F(DeadFunctionEliminationPassTest, MultipleNewStyleProcs) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK(CreateNewStyleAccumProc("my_proc1", p.get()).status());
+  XLS_ASSERT_OK(CreateNewStyleAccumProc("my_proc2", p.get()).status());
+  XLS_ASSERT_OK(CreateNewStyleAccumProc("my_proc3", p.get()).status());
+  XLS_ASSERT_OK(p->SetTopByName("my_proc2"));
+
+  EXPECT_THAT(p->GetFunctionBases(),
+              UnorderedElementsAre(m::Proc("my_proc1"), m::Proc("my_proc2"),
+                                   m::Proc("my_proc3")));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("my_proc2")));
+}
+
+TEST_F(DeadFunctionEliminationPassTest, NewStyleProcWithInstantiations) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * my_proc1,
+                           CreateNewStyleAccumProc("my_proc1", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * my_proc2,
+                           CreateNewStyleAccumProc("my_proc2", p.get()));
+  XLS_ASSERT_OK(CreateNewStyleAccumProc("my_proc3", p.get()).status());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences the_channel,
+                           pb.AddChannel("the_channel", p->GetBitsType(32)));
+  XLS_ASSERT_OK(
+      pb.InstantiateProc("inst0", my_proc1,
+                         std::vector<ChannelReference*>{the_channel.receive_ref,
+                                                        the_channel.send_ref}));
+  XLS_ASSERT_OK(
+      pb.InstantiateProc("inst1", my_proc2,
+                         std::vector<ChannelReference*>{the_channel.receive_ref,
+                                                        the_channel.send_ref}));
+  XLS_ASSERT_OK(pb.Build({}).status());
+
+  XLS_ASSERT_OK(p->SetTopByName("top_proc"));
+
+  EXPECT_THAT(p->GetFunctionBases(),
+              UnorderedElementsAre(m::Proc("top_proc"), m::Proc("my_proc1"),
+                                   m::Proc("my_proc2"), m::Proc("my_proc3")));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(p->GetFunctionBases(),
+              UnorderedElementsAre(m::Proc("top_proc"), m::Proc("my_proc1"),
+                                   m::Proc("my_proc2")));
 }
 
 }  // namespace
