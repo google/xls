@@ -248,6 +248,7 @@ bool IsChannelNode(Node* node) {
 }
 
 absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node) {
+  XLS_RET_CHECK(!node->function_base()->AsProcOrDie()->is_new_style_proc());
   std::string_view channel;
   if (node->Is<Send>()) {
     channel = node->As<Send>()->channel_name();
@@ -258,6 +259,28 @@ absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node) {
         absl::StrFormat("No channel associated with node %s", node->GetName()));
   }
   return node->package()->GetChannel(channel);
+}
+
+absl::StatusOr<ChannelReference*> GetChannelReferenceUsedByNode(Node* node) {
+  Proc* proc = node->function_base()->AsProcOrDie();
+  XLS_RET_CHECK(proc->is_new_style_proc());
+  if (node->Is<Send>()) {
+    return proc->GetSendChannelReference(node->As<Send>()->channel_name());
+  }
+  if (node->Is<Receive>()) {
+    return proc->GetReceiveChannelReference(
+        node->As<Receive>()->channel_name());
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "No channel reference associated with node %s", node->GetName()));
+}
+
+absl::StatusOr<ChannelRef> GetChannelRefUsedByNode(Node* node) {
+  Proc* proc = node->function_base()->AsProcOrDie();
+  if (proc->is_new_style_proc()) {
+    return GetChannelReferenceUsedByNode(node);
+  }
+  return GetChannelUsedByNode(node);
 }
 
 absl::Status ReplaceChannelUsedByNode(Node* node,

@@ -194,8 +194,21 @@ absl::StatusOr<Op> OpToNonReductionOp(Op reduce_op);
 bool IsChannelNode(Node* node);
 
 // Returns the channel used by the given node. If node is not a
-// send/sendif/receive/receiveif node then an error is returned.
+// send/sendif/receive/receiveif node then an error is returned. Only supported
+// for old-style procs.
+// TODO(https://github.com/google/xls/issues/869): Remove when all procs are
+// new-style.
 absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node);
+
+// Returns the ChannelReference used by the given node. If node is not a
+// send/sendif/receive/receiveif node then an error is returned. Only supported
+// for  new-style procs.
+absl::StatusOr<ChannelReference*> GetChannelReferenceUsedByNode(Node* node);
+
+// Returns the ChannelRef used by the given node. If node is not a
+// send/sendif/receive/receiveif node then an error is returned. Works for
+// old-style and new-style procs.
+absl::StatusOr<ChannelRef> GetChannelRefUsedByNode(Node* node);
 
 // Replace the channel that node is operating on. If node is not a
 // send/sendif/receive/receiveif node then an error is returned.

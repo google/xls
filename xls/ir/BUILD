@@ -727,6 +727,7 @@ cc_test(
     data = glob(["testdata/*.ir"]),
     deps = [
         ":bits",
+        ":channel",
         ":channel_ops",
         ":function_builder",
         ":ir",
