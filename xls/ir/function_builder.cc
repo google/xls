@@ -1064,19 +1064,14 @@ absl::StatusOr<ReceiveChannelReference*> ProcBuilder::AddInputChannel(
     std::string_view name, Type* type) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
   auto channel_ref = std::make_unique<ReceiveChannelReference>(name, type);
-  ReceiveChannelReference* channel_ref_ptr = channel_ref.get();
-  XLS_RETURN_IF_ERROR(proc()->AddInputChannelReference(std::move(channel_ref)));
-  return channel_ref_ptr;
+  return proc()->AddInputChannelReference(std::move(channel_ref));
 }
 
 absl::StatusOr<SendChannelReference*> ProcBuilder::AddOutputChannel(
     std::string_view name, Type* type) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
   auto channel_ref = std::make_unique<SendChannelReference>(name, type);
-  SendChannelReference* channel_ref_ptr = channel_ref.get();
-  XLS_RETURN_IF_ERROR(
-      proc()->AddOutputChannelReference(std::move(channel_ref)));
-  return channel_ref_ptr;
+  return proc()->AddOutputChannelReference(std::move(channel_ref));
 }
 
 bool ProcBuilder::HasSendChannelRef(std::string_view name) const {

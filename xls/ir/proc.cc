@@ -361,13 +361,19 @@ absl::StatusOr<Proc*> Proc::Clone(
   if (is_new_style_proc()) {
     for (ChannelReference* channel_ref : interface()) {
       if (channel_ref->direction() == Direction::kSend) {
-        XLS_RETURN_IF_ERROR(cloned_proc->AddOutputChannelReference(
-            std::make_unique<SendChannelReference>(channel_ref->name(),
-                                                   channel_ref->type())));
+        XLS_RETURN_IF_ERROR(
+            cloned_proc
+                ->AddOutputChannelReference(
+                    std::make_unique<SendChannelReference>(channel_ref->name(),
+                                                           channel_ref->type()))
+                .status());
       } else {
-        XLS_RETURN_IF_ERROR(cloned_proc->AddInputChannelReference(
-            std::make_unique<ReceiveChannelReference>(channel_ref->name(),
-                                                      channel_ref->type())));
+        XLS_RETURN_IF_ERROR(
+            cloned_proc
+                ->AddInputChannelReference(
+                    std::make_unique<ReceiveChannelReference>(
+                        channel_ref->name(), channel_ref->type()))
+                .status());
       }
     }
     for (Channel* channel : channels()) {
@@ -589,12 +595,26 @@ absl::StatusOr<ChannelReferences> Proc::AddChannel(
   return channel_refs;
 }
 
-absl::Status Proc::AddInputChannelReference(
+absl::StatusOr<ReceiveChannelReference*> Proc::AddInputChannelReference(
     std::unique_ptr<ReceiveChannelReference> channel_ref) {
+  XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref_ptr,
+                       AddInterfaceChannelReference(std::move(channel_ref)));
+  return down_cast<ReceiveChannelReference*>(channel_ref_ptr);
+}
+
+absl::StatusOr<SendChannelReference*> Proc::AddOutputChannelReference(
+    std::unique_ptr<SendChannelReference> channel_ref) {
+  XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref_ptr,
+                       AddInterfaceChannelReference(std::move(channel_ref)));
+  return down_cast<SendChannelReference*>(channel_ref_ptr);
+}
+
+absl::StatusOr<ChannelReference*> Proc::AddInterfaceChannelReference(
+    std::unique_ptr<ChannelReference> channel_ref) {
   XLS_RET_CHECK(is_new_style_proc());
   if (channels_.contains(channel_ref->name())) {
     return absl::InvalidArgumentError(
-        absl::StrFormat("Cannot add input channel `%s` to proc `%s`. Already a "
+        absl::StrFormat("Cannot add channel `%s` to proc `%s`. Already a "
                         "channel of same name defined in the proc.",
                         channel_ref->name(), name()));
   }
@@ -602,7 +622,7 @@ absl::Status Proc::AddInputChannelReference(
        channel_references_) {
     if (other_channel_ref->name() == channel_ref->name()) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Cannot add input channel `%s` to proc `%s`. Already an "
+          "Cannot add channel `%s` to proc `%s`. Already an "
           "%s channel of same name on the proc.",
           channel_ref->name(), name(),
           other_channel_ref->direction() == Direction::kReceive ? "input"
@@ -611,32 +631,7 @@ absl::Status Proc::AddInputChannelReference(
   }
   channel_references_.push_back(std::move(channel_ref));
   interface_.push_back(channel_references_.back().get());
-  return absl::OkStatus();
-}
-
-absl::Status Proc::AddOutputChannelReference(
-    std::unique_ptr<SendChannelReference> channel_ref) {
-  XLS_RET_CHECK(is_new_style_proc());
-  if (channels_.contains(channel_ref->name())) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Cannot add output channel `%s` to proc `%s`. Already a "
-        "channel of same name defined in the proc.",
-        channel_ref->name(), name()));
-  }
-  for (const std::unique_ptr<ChannelReference>& other_channel_ref :
-       channel_references_) {
-    if (other_channel_ref->name() == channel_ref->name()) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Cannot add output channel `%s` to proc `%s`. Already an "
-          "%s channel of same name on the proc.",
-          channel_ref->name(), name(),
-          other_channel_ref->direction() == Direction::kReceive ? "input"
-                                                                : "output"));
-    }
-  }
-  channel_references_.push_back(std::move(channel_ref));
-  interface_.push_back(channel_references_.back().get());
-  return absl::OkStatus();
+  return interface_.back();
 }
 
 absl::StatusOr<ProcInstantiation*> Proc::AddProcInstantiation(
@@ -701,6 +696,14 @@ absl::StatusOr<ProcInstantiation*> Proc::GetProcInstantiation(
   return absl::NotFoundError(
       absl::StrFormat("No proc instantiation named `%s` in proc `%s`",
                       instantiation_name, name()));
+}
+
+absl::Status Proc::ConvertToNewStyle() {
+  if (is_new_style_proc()) {
+    return absl::InternalError("Proc is already new style.");
+  }
+  is_new_style_proc_ = true;
+  return absl::OkStatus();
 }
 
 }  // namespace xls

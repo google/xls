@@ -185,6 +185,13 @@ class FunctionBase {
     absl::Format(&sink, "%s", fb.name());
   }
 
+  // Comparator used for sorting by name.
+  struct NameLessThan {
+    bool operator()(const FunctionBase* a, const FunctionBase* b) const {
+      return a->name() < b->name();
+    }
+  };
+
  protected:
   // Internal virtual helper for adding a node. Returns a pointer to the newly
   // added node.

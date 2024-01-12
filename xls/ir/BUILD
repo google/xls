@@ -1619,6 +1619,47 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "proc_conversion",
+    srcs = ["proc_conversion.cc"],
+    hdrs = ["proc_conversion.h"],
+    deps = [
+        ":channel",
+        ":channel_ops",
+        ":ir",
+        ":node_util",
+        "//xls/common:casts",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "proc_conversion_test",
+    srcs = ["proc_conversion_test.cc"],
+    deps = [
+        ":channel",
+        ":channel_ops",
+        ":elaboration",
+        ":function_builder",
+        ":ir",
+        ":ir_test_base",
+        ":proc_conversion",
+        ":type",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+    ],
+)
+
 cc_test(
     name = "elaboration_test",
     srcs = ["elaboration_test.cc"],

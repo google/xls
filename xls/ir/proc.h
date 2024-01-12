@@ -207,12 +207,14 @@ class Proc : public FunctionBase {
   absl::StatusOr<ChannelReferences> AddChannel(
       std::unique_ptr<Channel> channel);
 
-  // Add an input/output channel to the interface of the proc. Only can ee
+  // Add an input/output channel to the interface of the proc. Only can be
   // called for new style procs.
-  absl::Status AddInputChannelReference(
+  absl::StatusOr<ReceiveChannelReference*> AddInputChannelReference(
       std::unique_ptr<ReceiveChannelReference> channel_ref);
-  absl::Status AddOutputChannelReference(
+  absl::StatusOr<SendChannelReference*> AddOutputChannelReference(
       std::unique_ptr<SendChannelReference> channel_ref);
+  absl::StatusOr<ChannelReference*> AddInterfaceChannelReference(
+      std::unique_ptr<ChannelReference> channel_ref);
 
   // Create and add a proc instantiation to the proc.
   absl::StatusOr<ProcInstantiation*> AddProcInstantiation(
@@ -246,6 +248,12 @@ class Proc : public FunctionBase {
 
   absl::StatusOr<ProcInstantiation*> GetProcInstantiation(
       std::string_view instantiation_name) const;
+
+  // Sets the new-style proc bit to true. Proc may be malformed until the
+  // interface and channel declarations are added.
+  // TODO(https://github.com/google/xls/issues/869): Remove when all procs are
+  // new-style.
+  absl::Status ConvertToNewStyle();
 
  private:
   std::vector<Value> init_values_;

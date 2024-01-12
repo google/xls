@@ -859,6 +859,9 @@ absl::Status Package::RemoveChannel(Channel* channel) {
   // TODO(https://github.com/google/xls/issues/411) 2012/04/24 Avoid iterating
   // through all the nodes after channels are mapped to send/receive nodes.
   for (const auto& proc : procs()) {
+    if (proc->is_new_style_proc()) {
+      continue;
+    }
     for (Node* node : proc->nodes()) {
       if ((node->Is<Send>() &&
            node->As<Send>()->channel_name() == channel->name()) ||

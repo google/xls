@@ -165,6 +165,13 @@ class Channel {
     absl::Format(&sink, "%s", p.name());
   }
 
+  // Comparator used for sorting by name.
+  struct NameLessThan {
+    bool operator()(const Channel* a, const Channel* b) const {
+      return a->name() < b->name();
+    }
+  };
+
  protected:
   Channel(std::string_view name, int64_t id, ChannelOps supported_ops,
           ChannelKind kind, Type* type, absl::Span<const Value> initial_values,

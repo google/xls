@@ -1532,7 +1532,7 @@ TEST(IrParserTest, NewStyleProcWithDuplicateChannelNames) {
   EXPECT_THAT(
       Parser::ParseProc(input, &p).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Cannot add output channel `ch` to proc `my_proc`. "
+               HasSubstr("Cannot add channel `ch` to proc `my_proc`. "
                          "Already an input channel of same name on the proc")));
 }
 
