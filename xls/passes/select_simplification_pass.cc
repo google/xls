@@ -638,6 +638,10 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // AND.
   //
   //  sel(p cases=[x, 0]) => and(sign_ext(p), x)
+  //
+  // Since 'and' can't be reasoned through by conditional specialization and
+  // other passes as easily we want to avoid doing this until fairly late in the
+  // pipeline.
   auto is_select_with_zero = [&](Node* n) {
     if (!n->Is<Select>()) {
       return false;
@@ -647,7 +651,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
            sel->cases().size() == 2 &&
            (IsLiteralZero(sel->get_case(0)) || IsLiteralZero(sel->get_case(1)));
   };
-  if (is_select_with_zero(node)) {
+  if (SplitsEnabled(opt_level) && is_select_with_zero(node)) {
     Select* sel = node->As<Select>();
     int64_t nonzero_case_no = IsLiteralZero(sel->get_case(0)) ? 1 : 0;
     Node* selector = sel->selector();
