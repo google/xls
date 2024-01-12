@@ -472,6 +472,35 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
     self.assertIn('chan input', minimized_ir)
     self.assertNotIn('chan output', minimized_ir)
 
+  def test_new_style_proc(self):
+    input_ir = """package foo
+
+top proc foo<input: bits[32] in, output:bits[32] out>(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  receive.1: (token, bits[32]) = receive(tkn, channel=input)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  send.4: token = send(tkn, baz, channel=output)
+  after_all.5: token = after_all(tuple_index.2, send.4)
+  next (after_all.5, tuple_index.3, foo, bar)
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
+    # The minimizer should not crash.
+    subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            '--can_remove_receives',
+            '--can_remove_sends',
+            '--preserve_channels=input',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
+
   def test_verify_return_code(self):
     # If the test script never successfully runs, then ir_minimizer_main should
     # return nonzero.

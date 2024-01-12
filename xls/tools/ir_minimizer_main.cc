@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -22,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -57,7 +59,6 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -683,31 +684,52 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   return SimplificationResult::kDidNotChange;
 }
 
+bool IsInterfaceChannelRef(ChannelRef channel_ref, Package* package) {
+  if (std::holds_alternative<Channel*>(channel_ref)) {
+    return std::get<Channel*>(channel_ref)->supported_ops() !=
+           ChannelOps::kSendReceive;
+  }
+  if (!package->GetTop().has_value() || !package->GetTop().value()->IsProc()) {
+    return false;
+  }
+  absl::Span<ChannelReference* const> interface =
+      package->GetTop().value()->AsProcOrDie()->interface();
+  return std::find(interface.begin(), interface.end(),
+                   std::get<ChannelReference*>(channel_ref)) != interface.end();
+}
+
 absl::StatusOr<SimplificationResult> SimplifyNode(
     Node* n, absl::BitGenRef rng, std::string* which_transform) {
   FunctionBase* f = n->function_base();
   if (((n->Is<Receive>() && absl::GetFlag(FLAGS_can_remove_receives)) ||
        (n->Is<Send>() && absl::GetFlag(FLAGS_can_remove_sends))) &&
       absl::Bernoulli(rng, 0.3)) {
-    XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(n));
+    XLS_ASSIGN_OR_RETURN(ChannelRef c, GetChannelRefUsedByNode(n));
     absl::flat_hash_set<std::string> preserved_channels;
     for (const std::string& chan : absl::GetFlag(FLAGS_preserve_channels)) {
       preserved_channels.insert(chan);
     }
-    absl::flat_hash_map<Channel*, absl::flat_hash_set<Node*>> channel_to_nodes;
+    absl::flat_hash_map<ChannelRef, absl::flat_hash_set<Node*>>
+        channel_to_nodes;
     for (Node* node : f->nodes()) {
       if (node->Is<Receive>() || node->Is<Send>()) {
-        XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(node));
-        channel_to_nodes[c].insert(node);
+        XLS_ASSIGN_OR_RETURN(ChannelRef node_c, GetChannelRefUsedByNode(node));
+        channel_to_nodes[node_c].insert(node);
       }
     }
-    if ((c->supported_ops() != ChannelOps::kSendReceive) &&
-        !preserved_channels.contains(c->name())) {
+    if (IsInterfaceChannelRef(c, f->package()) &&
+        !preserved_channels.contains(ChannelRefName(c))) {
       if (n->Is<Send>() && channel_to_nodes.at(c).size() == 1) {
         XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
         *which_transform = "remove send: %s" + n->GetName();
         XLS_RETURN_IF_ERROR(f->RemoveNode(n));
-        XLS_RETURN_IF_ERROR(f->package()->RemoveChannel(c));
+        if (std::holds_alternative<Channel*>(c)) {
+          // Remove channel if this is a global channel.
+          // TODO(https://github.com/google/xls/issues/869): Support proc-scoped
+          // channels.
+          XLS_RETURN_IF_ERROR(
+              f->package()->RemoveChannel(std::get<Channel*>(c)));
+        }
         return SimplificationResult::kDidChange;
       }
       if (n->Is<Receive>() && channel_to_nodes.at(c).size() == 1) {
@@ -730,7 +752,13 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
         XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(tuple));
         *which_transform = "remove receive: %s" + n->GetName();
         XLS_RETURN_IF_ERROR(f->RemoveNode(n));
-        XLS_RETURN_IF_ERROR(f->package()->RemoveChannel(c));
+        if (std::holds_alternative<Channel*>(c)) {
+          // Remove channel if this is a global channel.
+          // TODO(https://github.com/google/xls/issues/869): Support proc-scoped
+          // channels.
+          XLS_RETURN_IF_ERROR(
+              f->package()->RemoveChannel(std::get<Channel*>(c)));
+        }
         return SimplificationResult::kDidChange;
       }
     }
