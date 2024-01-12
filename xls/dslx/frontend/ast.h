@@ -850,6 +850,10 @@ class NameRef : public Expr {
     return IsBuiltin() ? nullptr
                        : std::get<const NameDef*>(name_def())->definer();
   }
+  AstNode* GetDefiner() {
+    const auto* self = this;
+    return const_cast<AstNode*>(self->GetDefiner());
+  }
 
   template <typename T>
   bool DefinerIs() {

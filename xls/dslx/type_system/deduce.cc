@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system/deduce.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iterator>
@@ -2923,9 +2924,17 @@ static absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
   // top.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> callee_type,
                        ctx->Deduce(invocation->callee()));
-  return TypeAndParametricEnv{down_cast<FunctionType*>(callee_type.get())
-                                  ->return_type()
-                                  .CloneToUnique(),
+  FunctionType* callee_fn_type = dynamic_cast<FunctionType*>(callee_type.get());
+
+  // Callee must be a function.
+  if (callee_fn_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        invocation->callee()->span(), callee_type.get(),
+        absl::StrFormat("Invocation callee `%s` is not a function",
+                        invocation->callee()->ToString()));
+  }
+
+  return TypeAndParametricEnv{callee_fn_type->return_type().CloneToUnique(),
                               {}};
 }
 
@@ -3121,6 +3130,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
   auto resolve_fn = [](const Instantiation* node,
                        DeduceCtx* ctx) -> absl::StatusOr<Function*> {
     Expr* callee = node->callee();
+
     Function* fn;
     if (auto* colon_ref = dynamic_cast<ColonRef*>(callee);
         colon_ref != nullptr) {
@@ -3128,10 +3138,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
                            ResolveColonRefToFnForInvocation(colon_ref, ctx));
     } else if (auto* name_ref = dynamic_cast<NameRef*>(callee);
                name_ref != nullptr) {
-      const std::string& callee_name = name_ref->identifier();
-      XLS_ASSIGN_OR_RETURN(fn,
-                           GetMemberOrTypeInferenceError<Function>(
-                               ctx->module(), callee_name, name_ref->span()));
+      AstNode* definer = name_ref->GetDefiner();
+      fn = dynamic_cast<Function*>(definer);
+      if (fn == nullptr) {
+        return TypeInferenceErrorStatus(
+            node->callee()->span(), nullptr,
+            absl::StrFormat("Invocation callee `%s` is not a function",
+                            node->callee()->ToString()));
+      }
     } else {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,

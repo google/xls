@@ -2214,5 +2214,31 @@ fn f() { fail!%2 }
                                    "it is not being invoked")));
 }
 
+TEST(TypecheckErrorTest, InvokeATokenValueViaShadowing) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn shadowed() {}
+
+fn f(shadowed: token) {
+  shadowed()
+}
+)")
+          .status(),
+      IsPosError("TypeInferenceError",
+                 HasSubstr("Invocation callee `shadowed` is not a function")));
+}
+
+TEST(TypecheckErrorTest, InvokeATokenValueNoShadowing) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f(tok: token) {
+  tok()
+}
+)")
+          .status(),
+      IsPosError("TypeInferenceError",
+                 HasSubstr("Invocation callee `tok` is not a function")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
