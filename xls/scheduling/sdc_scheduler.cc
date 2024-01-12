@@ -306,6 +306,15 @@ absl::Status SDCSchedulingModel::AddBackedgeConstraints(
         std::make_pair(state, next),
         DiffLessThanConstraint(next, state, II, "backedge"));
   }
+  for (Next* next : proc->next_values()) {
+    Node* state = next->param();
+    XLS_VLOG(2) << "Setting backedge constraint (II): "
+                << absl::StrFormat("cycle[%s] - cycle[%s] < %d",
+                                   next->GetName(), state->GetName(), II);
+    backedge_constraint_.emplace(
+        std::make_pair(state, next),
+        DiffLessThanConstraint(next, state, II, "backedge"));
+  }
 
   return absl::OkStatus();
 }

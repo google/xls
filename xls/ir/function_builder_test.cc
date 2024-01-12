@@ -19,9 +19,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -877,6 +880,35 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
   EXPECT_EQ(proc->GetNextStateElement(0)->GetName(), "x");
   EXPECT_EQ(proc->GetNextStateElement(1)->GetName(), "x_plus_y");
   EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "z");
+}
+
+TEST(FunctionBuilderTest, ProcWithNextStateElement) {
+  Package p("p");
+  ProcBuilder pb("the_proc", "tkn", &p);
+  BValue x = pb.StateElement("x", Value(UBits(1, 1)));
+  BValue y = pb.StateElement("y", Value(UBits(2, 32)));
+  BValue z = pb.StateElement("z", Value(UBits(3, 32)));
+  BValue next = pb.Next(/*param=*/y, /*value=*/z, /*predicate=*/x);
+
+  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), /*next_state=*/{x, y, z}));
+  EXPECT_THAT(next.node(), m::Next(m::Param("y"), /*value=*/m::Param("z"),
+                                   /*predicate=*/m::Param("x")));
+}
+
+TEST(FunctionBuilderTest, ProcWithNextStateElementBadPredicate) {
+  Package p("p");
+  ProcBuilder pb("the_proc", "tkn", &p);
+  BValue x = pb.StateElement("x", Value(UBits(1, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(2, 32)));
+  BValue z = pb.StateElement("z", Value(UBits(3, 32)));
+  pb.Next(/*param=*/y, /*value=*/z, /*predicate=*/x);
+
+  EXPECT_THAT(pb.Build(pb.GetTokenParam(),
+                       /*next_state=*/{x, y, z}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("Predicate operand"),
+                             HasSubstr("must be of bits type of width 1"),
+                             HasSubstr("is: bits[32]"))));
 }
 
 TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {

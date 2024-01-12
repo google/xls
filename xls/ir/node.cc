@@ -224,6 +224,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kParam:
       XLS_RETURN_IF_ERROR(visitor->HandleParam(down_cast<Param*>(this)));
       break;
+    case Op::kNext:
+      XLS_RETURN_IF_ERROR(visitor->HandleNext(down_cast<Next*>(this)));
+      break;
     case Op::kRegisterRead:
       XLS_RETURN_IF_ERROR(
           visitor->HandleRegisterRead(down_cast<RegisterRead*>(this)));
@@ -437,6 +440,17 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kParam:
       args.push_back(GetName());
       break;
+    case Op::kNext: {
+      const Next* next = As<Next>();
+      args = {absl::StrFormat("param=%s", next->param()->GetName()),
+              absl::StrFormat("value=%s", next->value()->GetName())};
+      std::optional<Node*> predicate = next->predicate();
+      if (predicate.has_value()) {
+        args.push_back(
+            absl::StrFormat("predicate=%s", (*predicate)->GetName()));
+      }
+      break;
+    }
     case Op::kLiteral:
       args.push_back(
           absl::StrFormat("value=%s", As<Literal>()->value().ToHumanString()));

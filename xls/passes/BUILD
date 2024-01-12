@@ -845,13 +845,11 @@ cc_library(
     srcs = ["node_dependency_analysis.cc"],
     hdrs = ["node_dependency_analysis.h"],
     deps = [
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/data_structures:inline_bitmap",
         "//xls/ir",
@@ -871,7 +869,6 @@ cc_test(
         "//xls/ir:benchmark_support",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
-        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
     ],
 )
@@ -1822,7 +1819,6 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "//xls/ir:ternary",
     ],
 )
 

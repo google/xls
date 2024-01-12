@@ -113,6 +113,7 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
   absl::Status HandleOutputPort(OutputPort* output_port) override;
   absl::Status HandleParam(Param* param) override;
+  absl::Status HandleNext(Next* next) override;
   absl::Status HandleReceive(Receive* receive) override;
   absl::Status HandleRegisterRead(RegisterRead* reg_read) override;
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override;

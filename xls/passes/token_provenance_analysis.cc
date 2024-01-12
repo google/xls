@@ -44,6 +44,7 @@ inline bool OpHasTokenProvenance(Op op) {
   switch (op) {
     case Op::kLiteral:
     case Op::kParam:
+    case Op::kNext:
     case Op::kAssert:
     case Op::kCover:
     case Op::kTrace:

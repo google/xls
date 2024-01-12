@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 
@@ -176,6 +177,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kOutputPort:
       return default_handler(node);
     case Op::kParam:
+      return default_handler(node);
+    case Op::kNext:
       return default_handler(node);
     case Op::kRegisterRead:
       return default_handler(node);

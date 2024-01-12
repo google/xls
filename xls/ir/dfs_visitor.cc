@@ -14,6 +14,9 @@
 
 #include "xls/ir/dfs_visitor.h"
 
+#include "absl/status/status.h"
+#include "xls/ir/nodes.h"
+
 namespace xls {
 
 absl::Status DfsVisitorWithDefault::HandleAdd(BinOp* add) {
@@ -206,6 +209,10 @@ absl::Status DfsVisitorWithDefault::HandlePrioritySel(PrioritySelect* sel) {
 
 absl::Status DfsVisitorWithDefault::HandleParam(Param* param) {
   return DefaultHandler(param);
+}
+
+absl::Status DfsVisitorWithDefault::HandleNext(Next* next) {
+  return DefaultHandler(next);
 }
 
 absl::Status DfsVisitorWithDefault::HandleRegisterRead(RegisterRead* reg_read) {

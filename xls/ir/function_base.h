@@ -90,6 +90,8 @@ class FunctionBase {
 
   absl::StatusOr<int64_t> GetParamIndex(Param* param) const;
 
+  absl::Span<Next* const> next_values() const { return next_values_; }
+
   // Moves the given param to the given index in the parameter list.
   absl::Status MoveParamToIndex(Param* param, int64_t index);
 
@@ -211,6 +213,7 @@ class FunctionBase {
   absl::flat_hash_map<const Node*, NodeList::iterator> node_iterators_;
 
   std::vector<Param*> params_;
+  std::vector<Next*> next_values_;
 
   NameUniquer node_name_uniquer_ =
       NameUniquer(/*separator=*/"__", GetIrReservedWords());

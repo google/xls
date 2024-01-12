@@ -772,6 +772,12 @@ class ProcBuilder : public BuilderBase {
   BValue StateElement(std::string_view name, const Value& initial_value,
                       const SourceInfo& loc = SourceInfo());
 
+  // Adds a (conditional) next value for the named state element. Returns an
+  // empty tuple.
+  BValue Next(BValue param, BValue value,
+              std::optional<BValue> pred = std::nullopt,
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
+
   // Overriden Param method is explicitly disabled (returns an error). Use
   // StateElement method to add state elements.
   BValue Param(std::string_view name, Type* type,

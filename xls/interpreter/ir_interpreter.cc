@@ -731,6 +731,11 @@ absl::Status IrInterpreter::HandleParam(Param* param) {
   return absl::UnimplementedError("Param not implemented in IrInterpreter");
 }
 
+absl::Status IrInterpreter::HandleNext(Next* next) {
+  return absl::UnimplementedError(
+      "Next value not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleReverse(UnOp* reverse) {
   return SetBitsResult(reverse,
                        bits_ops::Reverse(ResolveAsBits(reverse->operand(0))));

@@ -966,6 +966,24 @@ OpClass.kinds['PARAM'] = OpClass(
     custom_clone_method=True
 )
 
+OpClass.kinds['NEXT'] = OpClass(
+    name='Next',
+    op='Op::kNext',
+    operands=[Operand('param'), Operand('value'), OptionalOperand('predicate')],
+    xls_type_expression='function->package()->GetTupleType({})',
+    extra_methods=[Method(name='param',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='value',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   Method(name='predicate',
+                          return_cpp_type='absl::optional<Node*>',
+                          expression='predicate_operand_number().ok() ? absl::optional<Node*>(operand(*predicate_operand_number())) : absl::nullopt'),
+                   ],
+    custom_clone_method=True
+)
+
 OpClass.kinds['SELECT'] = OpClass(
     name='Select',
     op='Op::kSel',
@@ -1426,6 +1444,12 @@ OPS = [
         enum_name='kParam',
         name='param',
         op_class=OpClass.kinds['PARAM'],
+        properties=[Property.SIDE_EFFECTING],
+    ),
+    Op(
+        enum_name='kNext',
+        name='next_value',
+        op_class=OpClass.kinds['NEXT'],
         properties=[Property.SIDE_EFFECTING],
     ),
     Op(

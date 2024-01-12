@@ -937,6 +937,29 @@ class NodeChecker : public DfsVisitor {
     return ExpectOperandCount(param, 0);
   }
 
+  absl::Status HandleNext(Next* next) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(next, 2, 3));
+    if (!next->param()->Is<Param>()) {
+      return absl::InternalError(absl::StrFormat(
+          "Next node %s expects a state parameter for param; is: %v",
+          next->GetName(), *next->param()));
+    }
+    if (next->predicate().has_value()) {
+      XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(next, /*operand_no=*/2,
+                                                   /*expected_bit_count=*/1));
+    }
+    if (!next->function_base()->IsProc()) {
+      return absl::InternalError(
+          StrFormat("Next node %s (for param %s) is not in a proc",
+                    next->GetName(), next->param()->GetName()));
+    }
+    Proc* proc = next->function_base()->AsProcOrDie();
+    XLS_ASSIGN_OR_RETURN(int64_t index,
+                         proc->GetStateParamIndex(next->param()->As<Param>()));
+    return ExpectOperandHasType(next, /*operand_no=*/0,
+                                proc->GetStateElementType(index));
+  }
+
   absl::Status HandleReverse(UnOp* reverse) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(reverse, 1));
     return ExpectAllSameBitsType(reverse);

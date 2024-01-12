@@ -78,7 +78,6 @@ cc_library(
         ":ir",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],
@@ -261,7 +260,6 @@ cc_library(
         ":bits_ops",
         ":interval",
         "//xls/common/logging",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -435,7 +433,6 @@ cc_library(
     deps = [
         ":type",
         ":value",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -579,10 +576,13 @@ cc_test(
     name = "function_builder_test",
     srcs = ["function_builder_test.cc"],
     deps = [
+        ":bits",
         ":function_builder",
         ":ir",
         ":ir_matcher",
         ":node_util",
+        ":source_location",
+        ":value",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -917,7 +917,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -952,7 +951,6 @@ cc_library(
     hdrs = ["format_preference.h"],
     deps = [
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -1189,7 +1187,6 @@ cc_library(
     hdrs = ["big_int.h"],
     deps = [
         ":bits",
-        ":format_preference",
         "//xls/common/logging",
         "@boringssl//:crypto",
         "@com_google_absl//absl/status:statusor",
@@ -1236,7 +1233,6 @@ cc_test(
         ":number_parser",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
@@ -1369,6 +1365,7 @@ cc_library(
     hdrs = ["abstract_node_evaluator.h"],
     deps = [
         ":ir",
+        ":op",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1404,7 +1401,6 @@ cc_library(
     deps = [
         "//xls/common/logging",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 

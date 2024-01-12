@@ -1132,7 +1132,8 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
   if (next_state.size() != state_params_.size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Number of recurrent state elements given (%d) does "
-                        "equal the number of state elements in the proc (%d)",
+                        "not equal the number of state elements in the proc "
+                        "(%d)",
                         next_state.size(), state_params_.size()));
   }
   for (int64_t i = 0; i < state_params_.size(); ++i) {
@@ -1172,6 +1173,39 @@ BValue ProcBuilder::StateElement(std::string_view name,
   }
   state_params_.push_back(CreateBValue(param_or.value(), loc));
   return state_params_.back();
+}
+
+BValue ProcBuilder::Next(BValue param, BValue value, std::optional<BValue> pred,
+                         const SourceInfo& loc, std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!param.node()->Is<xls::Param>()) {
+    return SetError(absl::StrFormat("next node only applies to state "
+                                    "parameters; param was given as: %v",
+                                    *param.node()),
+                    loc);
+  }
+  if (!value.GetType()->IsEqualTo(param.GetType())) {
+    return SetError(
+        absl::StrFormat("next value for param '%s' must be of type %s; is: %s",
+                        param.node()->As<xls::Param>()->name(),
+                        param.GetType()->ToString(),
+                        value.GetType()->ToString()),
+        loc);
+  }
+  if (pred.has_value() && (!pred->GetType()->IsBits() ||
+                           pred->GetType()->AsBitsOrDie()->bit_count() != 1)) {
+    return SetError(absl::StrFormat("Predicate operand of next must be of bits "
+                                    "type of width 1; is: %s",
+                                    pred->GetType()->ToString()),
+                    loc);
+  }
+  return AddNode<xls::Next>(loc, /*param=*/param.node(), /*value=*/value.node(),
+                            /*predicate=*/pred.has_value()
+                                ? std::make_optional(pred->node())
+                                : std::nullopt,
+                            name);
 }
 
 BValue ProcBuilder::Param(std::string_view name, Type* type,

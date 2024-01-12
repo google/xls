@@ -129,6 +129,11 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
     params_.erase(std::remove(params_.begin(), params_.end(), node),
                   params_.end());
   }
+  if (node->Is<Next>()) {
+    next_values_.erase(
+        std::remove(next_values_.begin(), next_values_.end(), node),
+        next_values_.end());
+  }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());
   nodes_.erase(node_it->second);
@@ -196,6 +201,9 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
                                  node->GetName(), name());
   if (node->Is<Param>()) {
     params_.push_back(node->As<Param>());
+  }
+  if (node->Is<Next>()) {
+    next_values_.push_back(node->As<Next>());
   }
   Node* ptr = node.get();
   node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));

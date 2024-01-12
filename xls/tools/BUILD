@@ -836,7 +836,6 @@ cc_binary(
     deps = [
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common:random_util",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_file",

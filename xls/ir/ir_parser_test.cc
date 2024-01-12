@@ -1277,6 +1277,67 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseProcWithExplicitNext) {
+  // TODO(epastor): Remove the next-value for `my_state` from the last line
+  const std::string input = R"(package test
+
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc my_proc(my_token: token, my_state: bits[32], init={42}) {
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next_value.5: () = next_value(param=my_state, value=my_state, id=5)
+  next (tuple_index.4, my_state)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseProcWithBadNextParam) {
+  // TODO(epastor): Remove the next-value for `my_state` from the last line
+  const std::string input = R"(package test
+
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc my_proc(my_token: token, my_state: bits[32], init={42}) {
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next_value.5: () = next_value(param=not_my_state, value=my_state, id=5)
+  next (tuple_index.4, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("Referred to a name"),
+                             HasSubstr("not previously defined"),
+                             HasSubstr("\"not_my_state\""))));
+}
+
+TEST(IrParserTest, ParseProcWithBadNextValueType) {
+  // TODO(epastor): Remove the next-value for `my_state` from the last line
+  const std::string input = R"(package test
+
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc my_proc(my_token: token, my_state: bits[32], init={42}) {
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next_value.5: () = next_value(param=my_state, value=literal.2, id=5)
+  next (tuple_index.4, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("next value for param 'my_state' must be of "
+                                 "type bits[32]; is: bits[1]")));
+}
+
 TEST(IrParserTest, ParseNewStyleProc) {
   const std::string input = R"(package test
 
@@ -2383,8 +2444,8 @@ proc foo(my_token: token, x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
       Parser::ParsePackage(program).status(),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Number of recurrent state elements given (2) does equal "
-                    "the number of state elements in the proc (3)")));
+          HasSubstr("Number of recurrent state elements given (2) does not "
+                    "equal the number of state elements in the proc (3)")));
 }
 
 TEST(IrParserTest, ProcWithTooManyNextStateElements) {
@@ -2399,8 +2460,8 @@ proc foo(my_token: token, x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
       Parser::ParsePackage(program).status(),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Number of recurrent state elements given (4) does equal "
-                    "the number of state elements in the proc (3)")));
+          HasSubstr("Number of recurrent state elements given (4) does not "
+                    "equal the number of state elements in the proc (3)")));
 }
 
 TEST(IrParserTest, ProcWrongTokenType) {

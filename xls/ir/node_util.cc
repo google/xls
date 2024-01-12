@@ -307,9 +307,13 @@ absl::StatusOr<std::optional<Node*>> GetPredicateUsedByNode(Node* node) {
     case Op::kReceive: {
       return node->As<Receive>()->predicate();
     }
+    case Op::kNext: {
+      return node->As<Next>()->predicate();
+    }
     default:
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Expected %s to be a send or receive.", node->GetName()));
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected %s to be a send, receive, or next value.",
+                          node->GetName()));
   }
 }
 

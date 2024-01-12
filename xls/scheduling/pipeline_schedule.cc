@@ -230,6 +230,16 @@ absl::Status PipelineSchedule::Verify() const {
           cycle(next_state),
           cycle(param) + proc->GetInitiationInterval().value_or(1));
     }
+    for (Next* next : proc->next_values()) {
+      Node* param = next->param();
+      // Verify that no write happens before the corresponding read.
+      XLS_RET_CHECK_LE(cycle(param), cycle(next));
+      // Verify that we determine the new state within II cycles of accessing
+      // the current param.
+      XLS_RET_CHECK_LT(
+          cycle(next),
+          cycle(param) + proc->GetInitiationInterval().value_or(1));
+    }
   }
   // Verify initial nodes in cycle 0. Final nodes in final cycle.
   return absl::OkStatus();
@@ -452,6 +462,21 @@ absl::Status PipelineSchedule::VerifyConstraints(
               "stalls.",
               param->name(), backedge_length, plural_s(backedge_length),
               next_state->ToString(), worst_case_throughput.value_or(1),
+              plural_s(worst_case_throughput.value_or(1))));
+        }
+      }
+      for (Next* next : proc->next_values()) {
+        Param* param = next->param()->As<Param>();
+        int64_t backedge_length = cycle_map_.at(next) - cycle_map_.at(param);
+        if (backedge_length > max_backedge) {
+          return absl::ResourceExhaustedError(absl::StrFormat(
+              "Scheduling constraint violated: param %s was scheduled for "
+              "access %d cycle%s before node %s, its next value, which "
+              "violates the constraint that we can achieve a worst-case "
+              "throughput of one iteration per %d cycle%s without external "
+              "stalls.",
+              param->name(), backedge_length, plural_s(backedge_length),
+              next->ToString(), worst_case_throughput.value_or(1),
               plural_s(worst_case_throughput.value_or(1))));
         }
       }

@@ -341,25 +341,37 @@ absl::Status VerifyStillFails(
 absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
   if (f->IsProc()) {
     Proc* p = f->AsProcOrDie();
-    absl::flat_hash_set<Node*> dead_state_params;
+    absl::flat_hash_set<Param*> dead_state_params;
+    absl::flat_hash_set<Param*> invariant_state_params;
     for (Param* state_param : p->StateParams()) {
       if (state_param->IsDead()) {
         dead_state_params.insert(state_param);
       }
       XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateParamIndex(state_param));
-      // Replace all uses of invariant state elements (i.e.: ones where
-      // next[i] = param[i]) with a literal of the initial value.
       if (state_param == p->GetNextStateElement(index)) {
-        Value init_value = p->GetInitValueElement(index);
-        XLS_RETURN_IF_ERROR(
-            state_param->ReplaceUsesWithNew<Literal>(init_value).status());
-        dead_state_params.insert(state_param);
+        invariant_state_params.insert(state_param);
       }
     }
+
+    for (Next* next : p->next_values()) {
+      if (next->value() != next->param()) {
+        // This state param is not actually invariant.
+        invariant_state_params.erase(next->param()->As<Param>());
+      }
+    }
+    for (Param* invariant : invariant_state_params) {
+      // Replace all uses of invariant state elements (i.e.: ones where
+      // next[i] == param[i]) with a literal of the initial value.
+      XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateParamIndex(invariant));
+      Value init_value = p->GetInitValueElement(index);
+      XLS_RETURN_IF_ERROR(
+          invariant->ReplaceUsesWithNew<Literal>(init_value).status());
+      dead_state_params.insert(invariant);
+    }
+
     bool changed = false;
-    for (Node* dead : dead_state_params) {
-      XLS_ASSIGN_OR_RETURN(int64_t index,
-                           p->GetStateParamIndex(dead->As<Param>()));
+    for (Param* dead : dead_state_params) {
+      XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateParamIndex(dead));
       XLS_RETURN_IF_ERROR(p->RemoveStateElement(index));
       changed = true;
     }

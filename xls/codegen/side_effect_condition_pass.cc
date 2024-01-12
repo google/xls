@@ -39,9 +39,9 @@ absl::StatusOr<bool> OpShouldBeRewritten(Op op) {
   if (!OpIsSideEffecting(op)) {
     return false;
   }
-  // Channel, port, param, register, and instantiation operations are handled
-  // elsewhere. Gate ops are special and not conditional, so we ignore them
-  // here. That leaves the following ops to rewrite.
+  // Channel, port, param, state, register, and instantiation operations are
+  // handled elsewhere. Gate ops are special and not conditional, so we ignore
+  // them here. That leaves the following ops to rewrite.
   switch (op) {
     case Op::kAssert:
     case Op::kCover:
@@ -53,6 +53,7 @@ absl::StatusOr<bool> OpShouldBeRewritten(Op op) {
     case Op::kInputPort:
     case Op::kOutputPort:
     case Op::kParam:
+    case Op::kNext:
     case Op::kRegisterRead:
     case Op::kRegisterWrite:
     case Op::kInstantiationOutput:

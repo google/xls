@@ -746,6 +746,19 @@ absl::StatusOr<BValue> Parser::ParseNode(
       bvalue = it->second;
       break;
     }
+    case Op::kNext: {
+      XLS_ASSIGN_OR_RETURN(
+          ProcBuilder * pb,
+          CastToProcBuilderOrError(
+              fb, "next operations only supported in procs", op_token.pos()));
+      BValue* param = arg_parser.AddKeywordArg<BValue>("param");
+      BValue* value = arg_parser.AddKeywordArg<BValue>("value");
+      std::optional<BValue>* predicate =
+          arg_parser.AddOptionalKeywordArg<BValue>("predicate");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
+      bvalue = pb->Next(*param, *value, *predicate, *loc, node_name);
+      break;
+    }
     case Op::kCountedFor: {
       int64_t* trip_count = arg_parser.AddKeywordArg<int64_t>("trip_count");
       int64_t* stride = arg_parser.AddOptionalKeywordArg<int64_t>("stride", 1);
