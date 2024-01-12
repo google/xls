@@ -1996,8 +1996,26 @@ static absl::Status VerifyProcInstantiations(Proc* proc) {
                 instantiation->proc()->interface()[i]->direction()),
             DirectionToString(instantiation->channel_args()[i]->direction())));
       }
-      XLS_RET_CHECK_EQ(instantiation->channel_args()[i]->type(),
-                       instantiation->proc()->interface()[i]->type());
+      if (instantiation->channel_args()[i]->type() !=
+          instantiation->proc()->interface()[i]->type()) {
+        return absl::InternalError(absl::StrFormat(
+            "In proc instantiation `%s` in proc `%s`, expected type of "
+            "channel argument %d (`%s`) to be %s, got %s",
+            instantiation->name(), proc->name(), i,
+            instantiation->channel_args()[i]->name(),
+            instantiation->proc()->interface()[i]->type()->ToString(),
+            instantiation->channel_args()[i]->type()->ToString()));
+      }
+      if (instantiation->channel_args()[i]->kind() !=
+          instantiation->proc()->interface()[i]->kind()) {
+        return absl::InternalError(absl::StrFormat(
+            "In proc instantiation `%s` in proc `%s`, expected kind of "
+            "channel argument %d (`%s`) to be %s, got %s",
+            instantiation->name(), proc->name(), i,
+            instantiation->channel_args()[i]->name(),
+            ChannelKindToString(instantiation->proc()->interface()[i]->kind()),
+            ChannelKindToString(instantiation->channel_args()[i]->kind())));
+      }
     }
   }
   return absl::OkStatus();

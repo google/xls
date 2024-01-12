@@ -24,7 +24,7 @@ namespace xls {
 //
 // TODO(tedhong): 2022-02-09 Add analysis of I/O dependencies
 // TODO(tedhong): 2022-02-09 Add additional exclusivity analysis
-absl::StatusOr<bool> AreStreamingOutputsMutuallyExclusive(FunctionBase* f);
+absl::StatusOr<bool> AreStreamingOutputsMutuallyExclusive(Proc* proc);
 
 }  // namespace xls
 

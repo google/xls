@@ -324,8 +324,8 @@ std::string DirectionToString(Direction direction);
 // references are bound to channel objects.
 class ChannelReference {
  public:
-  ChannelReference(std::string_view name, Type* type)
-      : name_(name), type_(type) {}
+  ChannelReference(std::string_view name, Type* type, ChannelKind kind)
+      : name_(name), type_(type), kind_(kind) {}
   virtual ~ChannelReference() {}
 
   // Like most IR constructs, ChannelReferences are passed around by pointer and
@@ -335,6 +335,7 @@ class ChannelReference {
 
   std::string_view name() const { return name_; }
   Type* type() const { return type_; }
+  ChannelKind kind() const { return kind_; }
   virtual Direction direction() const = 0;
 
   std::string ToString() const;
@@ -342,20 +343,21 @@ class ChannelReference {
  private:
   std::string name_;
   Type* type_;
+  ChannelKind kind_;
 };
 
 class SendChannelReference : public ChannelReference {
  public:
-  SendChannelReference(std::string_view name, Type* type)
-      : ChannelReference(name, type) {}
+  SendChannelReference(std::string_view name, Type* type, ChannelKind kind)
+      : ChannelReference(name, type, kind) {}
   ~SendChannelReference() override {}
   Direction direction() const override { return Direction::kSend; }
 };
 
 class ReceiveChannelReference : public ChannelReference {
  public:
-  ReceiveChannelReference(std::string_view name, Type* type)
-      : ChannelReference(name, type) {}
+  ReceiveChannelReference(std::string_view name, Type* type, ChannelKind kind)
+      : ChannelReference(name, type, kind) {}
   ~ReceiveChannelReference() override {}
   Direction direction() const override { return Direction::kReceive; }
 };
@@ -375,9 +377,10 @@ using ChannelRef = std::variant<Channel*, ChannelReference*>;
 using SendChannelRef = std::variant<Channel*, SendChannelReference*>;
 using ReceiveChannelRef = std::variant<Channel*, ReceiveChannelReference*>;
 
-// Return the name/type of a channel reference.
+// Return the name/type/kind of a channel reference.
 std::string_view ChannelRefName(ChannelRef ref);
 Type* ChannelRefType(ChannelRef ref);
+ChannelKind ChannelRefKind(ChannelRef ref);
 
 }  // namespace xls
 

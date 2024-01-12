@@ -351,7 +351,7 @@ TEST_F(ProcTest, CloneNewStyle) {
 
   EXPECT_EQ(
       clone->DumpIr(),
-      R"(proc cloned<a: bits[32] in, b: bits[32] out>(tkn: token, st: bits[32], init={42}) {
+      R"(proc cloned<a: bits[32] streaming in, b: bits[32] streaming out>(tkn: token, st: bits[32], init={42}) {
   chan c(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
   receive_3: (token, bits[32]) = receive(tkn, channel=a, id=14)
   tuple_index.15: token = tuple_index(receive_3, index=0, id=15)

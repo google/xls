@@ -189,8 +189,16 @@ Type* ChannelRefType(ChannelRef ref) {
   return std::get<Channel*>(ref)->type();
 }
 
+ChannelKind ChannelRefKind(ChannelRef ref) {
+  if (std::holds_alternative<ChannelReference*>(ref)) {
+    return std::get<ChannelReference*>(ref)->kind();
+  }
+  return std::get<Channel*>(ref)->kind();
+}
+
 std::string ChannelReference::ToString() const {
-  return absl::StrFormat("%s: %s %s", name(), type()->ToString(),
+  return absl::StrFormat("%s: %s %s %s", name(), type()->ToString(),
+                         ChannelKindToString(kind()),
                          direction() == Direction::kSend ? "out" : "in");
 }
 

@@ -106,11 +106,11 @@ absl::Status AddInterfaceChannel(Proc* proc, Channel* channel,
                                  Direction direction) {
   std::unique_ptr<ChannelReference> channel_ref;
   if (direction == Direction::kSend) {
-    channel_ref = std::make_unique<SendChannelReference>(channel->name(),
-                                                         channel->type());
+    channel_ref = std::make_unique<SendChannelReference>(
+        channel->name(), channel->type(), channel->kind());
   } else {
-    channel_ref = std::make_unique<ReceiveChannelReference>(channel->name(),
-                                                            channel->type());
+    channel_ref = std::make_unique<ReceiveChannelReference>(
+        channel->name(), channel->type(), channel->kind());
   }
   return proc->AddInterfaceChannelReference(std::move(channel_ref)).status();
 }

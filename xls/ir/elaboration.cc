@@ -252,17 +252,25 @@ absl::StatusOr<Elaboration> Elaboration::Elaborate(Proc* top) {
   for (ChannelReference* channel_ref : top->interface()) {
     // TODO(https://github.com/google/xls/issues/869): Add options for
     // fifo-config, strictness, etc.
-    elaboration.interface_channels_.push_back(
-        std::make_unique<StreamingChannel>(
-            channel_ref->name(), channel_id,
-            channel_ref->direction() == Direction::kSend
-                ? ChannelOps::kSendOnly
-                : ChannelOps::kReceiveOnly,
-            channel_ref->type(), /*intial_values=*/absl::Span<const Value>(),
-            /*fifo_config=*/std::nullopt,
-            /*flow_control=*/FlowControl::kReadyValid,
-            /*strictness=*/ChannelStrictness::kProvenMutuallyExclusive,
-            ChannelMetadataProto()));
+    ChannelOps ops = channel_ref->direction() == Direction::kSend
+                         ? ChannelOps::kSendOnly
+                         : ChannelOps::kReceiveOnly;
+    if (channel_ref->kind() == ChannelKind::kStreaming) {
+      elaboration.interface_channels_.push_back(
+          std::make_unique<StreamingChannel>(
+              channel_ref->name(), channel_id, ops, channel_ref->type(),
+              /*intial_values=*/absl::Span<const Value>(),
+              /*fifo_config=*/std::nullopt,
+              /*flow_control=*/FlowControl::kReadyValid,
+              /*strictness=*/ChannelStrictness::kProvenMutuallyExclusive,
+              ChannelMetadataProto()));
+    } else {
+      XLS_RET_CHECK_EQ(channel_ref->kind(), ChannelKind::kSingleValue);
+      elaboration.interface_channels_.push_back(
+          std::make_unique<SingleValueChannel>(channel_ref->name(), channel_id,
+                                               ops, channel_ref->type(),
+                                               ChannelMetadataProto()));
+    }
     ++channel_id;
     elaboration.interface_channel_instances_.push_back(
         std::make_unique<ChannelInstance>(ChannelInstance{

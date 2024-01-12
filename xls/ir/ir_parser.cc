@@ -1780,7 +1780,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   //
   // OR for "new-style" procs with proc-scoped channels:
   //
-  //   proc foo<in_ch: bits[32] in: out_ch: bits[8] out>
+  //   proc foo<in_ch: bits[32] streaming in: out_ch: bits[8] single_value out>
   //           (tok: token, state0: bits[32], state1: bits[42], init={42, 33}) {
   //     ...
   //
@@ -1800,16 +1800,28 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         XLS_RETURN_IF_ERROR(
             scanner_.DropTokenOrError(LexicalTokenType::kColon));
         XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
+        XLS_ASSIGN_OR_RETURN(
+            Token kind_token,
+            scanner_.PopTokenOrError(LexicalTokenType::kIdent, "channel kind"));
+        absl::StatusOr<ChannelKind> kind_status =
+            StringToChannelKind(kind_token.value());
+        if (!kind_status.ok()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Invalid channel kind \"%s\" @ %s", kind_token.value(),
+              kind_token.pos().ToHumanString()));
+        }
+        ChannelKind kind = kind_status.value();
+
         XLS_ASSIGN_OR_RETURN(Token direction_token,
                              scanner_.PopTokenOrError(LexicalTokenType::kIdent,
                                                       "channel direction"));
         if (direction_token.value() == "in") {
           interface_channels.push_back(
               std::make_unique<ReceiveChannelReference>(channel_name.value(),
-                                                        type));
+                                                        type, kind));
         } else if (direction_token.value() == "out") {
           interface_channels.push_back(std::make_unique<SendChannelReference>(
-              channel_name.value(), type));
+              channel_name.value(), type, kind));
         } else {
           return absl::InvalidArgumentError(absl::StrFormat(
               "Invalid direction string `%s`, expected `in` or `out`",
@@ -1894,13 +1906,17 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
     for (const std::unique_ptr<ChannelReference>& channel_ref :
          interface_channels) {
       if (channel_ref->direction() == Direction::kReceive) {
-        XLS_RETURN_IF_ERROR(
-            builder->AddInputChannel(channel_ref->name(), channel_ref->type())
-                .status());
+        XLS_RETURN_IF_ERROR(builder
+                                ->AddInputChannel(channel_ref->name(),
+                                                  channel_ref->type(),
+                                                  channel_ref->kind())
+                                .status());
       } else {
-        XLS_RETURN_IF_ERROR(
-            builder->AddOutputChannel(channel_ref->name(), channel_ref->type())
-                .status());
+        XLS_RETURN_IF_ERROR(builder
+                                ->AddOutputChannel(channel_ref->name(),
+                                                   channel_ref->type(),
+                                                   channel_ref->kind())
+                                .status());
       }
     }
   } else {

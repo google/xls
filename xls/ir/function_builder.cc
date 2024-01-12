@@ -1045,13 +1045,23 @@ ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view name,
 Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 
 absl::StatusOr<ChannelReferences> ProcBuilder::AddChannel(
-    std::string_view name, Type* type, absl::Span<const Value> initial_values) {
+    std::string_view name, Type* type, ChannelKind kind,
+    absl::Span<const Value> initial_values) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
-  XLS_RETURN_IF_ERROR(proc()
-                          ->package()
-                          ->CreateStreamingChannelInProc(
-                              name, ChannelOps::kSendReceive, type, proc())
-                          .status());
+  if (kind == ChannelKind::kStreaming) {
+    XLS_RETURN_IF_ERROR(proc()
+                            ->package()
+                            ->CreateStreamingChannelInProc(
+                                name, ChannelOps::kSendReceive, type, proc())
+                            .status());
+  } else {
+    XLS_RET_CHECK_EQ(kind, ChannelKind::kSingleValue);
+    XLS_RETURN_IF_ERROR(proc()
+                            ->package()
+                            ->CreateSingleValueChannelInProc(
+                                name, ChannelOps::kSendReceive, type, proc())
+                            .status());
+  }
   ChannelReferences channel_refs;
   XLS_ASSIGN_OR_RETURN(channel_refs.send_ref,
                        proc()->GetSendChannelReference(name));
@@ -1061,16 +1071,17 @@ absl::StatusOr<ChannelReferences> ProcBuilder::AddChannel(
 }
 
 absl::StatusOr<ReceiveChannelReference*> ProcBuilder::AddInputChannel(
-    std::string_view name, Type* type) {
+    std::string_view name, Type* type, ChannelKind kind) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
-  auto channel_ref = std::make_unique<ReceiveChannelReference>(name, type);
+  auto channel_ref =
+      std::make_unique<ReceiveChannelReference>(name, type, kind);
   return proc()->AddInputChannelReference(std::move(channel_ref));
 }
 
 absl::StatusOr<SendChannelReference*> ProcBuilder::AddOutputChannel(
-    std::string_view name, Type* type) {
+    std::string_view name, Type* type, ChannelKind kind) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
-  auto channel_ref = std::make_unique<SendChannelReference>(name, type);
+  auto channel_ref = std::make_unique<SendChannelReference>(name, type, kind);
   return proc()->AddOutputChannelReference(std::move(channel_ref));
 }
 

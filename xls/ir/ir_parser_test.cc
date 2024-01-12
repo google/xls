@@ -1280,7 +1280,7 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
 TEST(IrParserTest, ParseNewStyleProc) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+proc my_proc<in_ch: bits[32] single_value in, out_ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={42}) {
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
@@ -1304,7 +1304,7 @@ proc my_proc<>(my_token: token, my_state: bits[32], init={42}) {
 TEST(IrParserTest, ParseInstantiatedProc) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+proc my_proc<in_ch: bits[32] single_value in, out_ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={42}) {
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
@@ -1313,8 +1313,9 @@ proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state
 }
 
 proc other_proc<>(my_token: token, my_state: bits[32], init={42}) {
-  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
-  proc_instantiation foo(ch, ch, proc=my_proc)
+  chan ch_a(bits[32], id=0, kind=single_value, ops=send_receive,  metadata="""""")
+  chan ch_b(bits[32], id=1, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  proc_instantiation foo(ch_a, ch_b, proc=my_proc)
   next (my_token, my_state)
 }
 )";
@@ -1353,7 +1354,7 @@ proc my_proc<>(my_token: token, my_state: bits[32], init={42}) {
 TEST(IrParserTest, NewStyleProcSendOnInput) {
   Package p("my_package");
   const std::string input =
-      R"(proc my_proc<in_ch: bits[32] in>(my_token: token, my_state: bits[32], init={42}) {
+      R"(proc my_proc<in_ch: bits[32] streaming in>(my_token: token, my_state: bits[32], init={42}) {
   send: token = send(my_token, my_state, channel=in_ch)
   next (send, my_state)
 }
@@ -1366,7 +1367,7 @@ TEST(IrParserTest, NewStyleProcSendOnInput) {
 TEST(IrParserTest, NewStyleProcReceiveOnOutput) {
   Package p("my_package");
   const std::string input =
-      R"(proc my_proc<out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+      R"(proc my_proc<out_ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={42}) {
   rcv: (token, bits[32]) = receive(my_token, channel=out_ch)
   rcv_token: token = tuple_index(rcv, index=0)
   next (rcv_token, my_state)
@@ -1412,7 +1413,7 @@ proc the_proc<>(my_token: token, my_state: bits[32], init={42}) {
 TEST(IrParserTest, ProcInstantiationWrongNumberOfArguments) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+proc my_proc<in_ch: bits[32] streaming in, out_ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={42}) {
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
@@ -1455,7 +1456,7 @@ proc og_proc(my_token: token, my_state: bits[32], init={42}) {
 TEST(IrParserTest, DirectionMismatchInInstantiatedProc) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+proc my_proc<in_ch: bits[32] streaming in, out_ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={42}) {
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
@@ -1463,7 +1464,7 @@ proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state
   next (tuple_index.4, my_state)
 }
 
-proc other_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+proc other_proc<in_ch: bits[32] streaming in, out_ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={42}) {
   proc_instantiation foo(out_ch, in_ch, proc=my_proc)
   next (my_token, my_state)
 }
@@ -1521,7 +1522,7 @@ proc my_proc<>(my_token: token, my_state: bits[32], init={42}) {
 TEST(IrParserTest, NewStyleProcWithDuplicateChannelNames) {
   Package p("my_package");
   const std::string input =
-      R"(proc my_proc<ch: bits[32] in, ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+      R"(proc my_proc<ch: bits[32] streaming in, ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={42}) {
   send.1: token = send(my_token, my_state, channel=ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
@@ -1539,7 +1540,7 @@ TEST(IrParserTest, NewStyleProcWithDuplicateChannelNames) {
 TEST(IrParserTest, InstantiatedProcWithUnknownChannel) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={42}) {
+proc my_proc<in_ch: bits[32] streaming in, out_ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={42}) {
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
@@ -1560,7 +1561,7 @@ proc other_proc<>(my_token: token, my_state: bits[32], init={42}) {
 TEST(IrParserTest, ParseNewStyleProcWithComplexChannelTypes) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: () in, out_ch: ((), bits[32][1]) out>(my_token: token, my_state: ((), bits[32][1]), init={((), [42])}) {
+proc my_proc<in_ch: () streaming in, out_ch: ((), bits[32][1]) streaming out>(my_token: token, my_state: ((), bits[32][1]), init={((), [42])}) {
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, ()) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)

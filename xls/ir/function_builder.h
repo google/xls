@@ -720,14 +720,17 @@ class ProcBuilder : public BuilderBase {
   // style procs.
   absl::StatusOr<ChannelReferences> AddChannel(
       std::string_view name, Type* type,
+      ChannelKind kind = ChannelKind::kStreaming,
       absl::Span<const Value> initial_values = {});
 
   // Add an interface channel to the proc. Only can be called for new style
   // procs.
   absl::StatusOr<ReceiveChannelReference*> AddInputChannel(
-      std::string_view name, Type* type);
-  absl::StatusOr<SendChannelReference*> AddOutputChannel(std::string_view name,
-                                                         Type* type);
+      std::string_view name, Type* type,
+      ChannelKind kind = ChannelKind::kStreaming);
+  absl::StatusOr<SendChannelReference*> AddOutputChannel(
+      std::string_view name, Type* type,
+      ChannelKind kind = ChannelKind::kStreaming);
 
   // Returns true if there is an channel entity (a xls::Channel object for
   // old-style proc or a proc-scoped channel or interface channel for new style

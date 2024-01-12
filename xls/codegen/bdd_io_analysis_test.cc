@@ -35,19 +35,6 @@ namespace {
 
 class BddIOAnalysisPassTest : public IrTestBase {};
 
-TEST_F(BddIOAnalysisPassTest, RunOnFunction) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(4));
-  BValue y = fb.Param("y", p->GetBitsType(4));
-  fb.Concat({x, y});
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-
-  XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
-                           AreStreamingOutputsMutuallyExclusive(f));
-  EXPECT_EQ(mutually_exclusive, true);
-}
-
 TEST_F(BddIOAnalysisPassTest, SingleStreamingSend) {
   auto package_ptr = std::make_unique<Package>(TestName());
   Package& package = *package_ptr;

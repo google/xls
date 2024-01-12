@@ -38,6 +38,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -365,14 +366,16 @@ absl::StatusOr<Proc*> Proc::Clone(
             cloned_proc
                 ->AddOutputChannelReference(
                     std::make_unique<SendChannelReference>(channel_ref->name(),
-                                                           channel_ref->type()))
+                                                           channel_ref->type(),
+                                                           channel_ref->kind()))
                 .status());
       } else {
         XLS_RETURN_IF_ERROR(
             cloned_proc
                 ->AddInputChannelReference(
                     std::make_unique<ReceiveChannelReference>(
-                        channel_ref->name(), channel_ref->type()))
+                        channel_ref->name(), channel_ref->type(),
+                        channel_ref->kind()))
                 .status());
       }
     }
@@ -584,9 +587,9 @@ absl::StatusOr<ChannelReferences> Proc::AddChannel(
   channel_vec_.push_back(channel_ptr);
 
   auto send_channel_ref = std::make_unique<SendChannelReference>(
-      channel_ptr->name(), channel_ptr->type());
+      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
   auto receive_channel_ref = std::make_unique<ReceiveChannelReference>(
-      channel_ptr->name(), channel_ptr->type());
+      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
 
   ChannelReferences channel_refs{.send_ref = send_channel_ref.get(),
                                  .receive_ref = receive_channel_ref.get()};
