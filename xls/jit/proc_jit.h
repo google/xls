@@ -20,16 +20,15 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/proc_evaluator.h"
-#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
+#include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
@@ -42,13 +41,14 @@ namespace xls {
 // execution for the JIT.
 class ProcJitContinuation : public ProcContinuation {
  public:
-  // Construct a new continuation. Execution the proc begins with the state set
-  // to its initial values with no proc nodes yet executed. `temp_buffer_size`
-  // specifies the size of a flat buffer used to hold temporary xls::Node values
-  // during execution of the JITed function. The size of the buffer is
-  // determined at JIT compile time and known by the ProcJit.
+  // Construct a new continuation. Execution of the proc begins with the state
+  // set to its initial values with no proc nodes yet executed. `queues` is the
+  // set of channel queues needed by this proc instance. The order of the queues
+  // in the vector is determined at JIT compile time and stored in the
+  // JittedFunctionBase.
   explicit ProcJitContinuation(ProcInstance* proc_instance,
                                JitRuntime* jit_runtime,
+                               std::vector<JitChannelQueue*> queues,
                                const JittedFunctionBase& jit_func);
 
   ~ProcJitContinuation() override = default;
@@ -80,6 +80,8 @@ class ProcJitContinuation : public ProcContinuation {
   // state to the "next" value computed in the previous tick.
   void NextTick();
 
+  InstanceContext* instance_context() { return &instance_context_; }
+
  private:
   int64_t continuation_point_;
   JitRuntime* jit_runtime_;
@@ -91,6 +93,10 @@ class ProcJitContinuation : public ProcContinuation {
   JitArgumentSet input_;
   JitArgumentSet output_;
   JitTempBuffer temp_buffer_;
+
+  // Data structure passed to the JIT function which holds instance related
+  // information.
+  InstanceContext instance_context_;
 };
 
 // This class provides a facility to execute XLS procs (on the host) by
@@ -127,6 +133,12 @@ class ProcJit : public ProcEvaluator {
   JitChannelQueueManager* queue_mgr_;
   std::unique_ptr<OrcJit> orc_jit_;
   JittedFunctionBase jitted_function_base_;
+
+  // The set of channel queues used in each proc instance. The vector is in a
+  // predetermined order assigned at JIT compile time. The JITted code looks for
+  // the queue at a particular index.
+  absl::flat_hash_map<ProcInstance*, std::vector<JitChannelQueue*>>
+      channel_queues_;
 };
 
 }  // namespace xls

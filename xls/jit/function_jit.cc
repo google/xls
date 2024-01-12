@@ -115,7 +115,7 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
   InterpreterEvents events;
   jitted_function_base_.RunJittedFunction(
       arg_buffers_, result_buffers_, temp_buffer_, &events,
-      /*user_data=*/nullptr, /*jit_runtime=*/runtime(),
+      /*instance_context=*/nullptr, /*jit_runtime=*/runtime(),
       /*continuation_point=*/0);
   Value result = jit_runtime_->UnpackBuffer(
       result_buffers_.pointers()[0], xls_function_->return_value()->GetType());
@@ -166,7 +166,7 @@ void FunctionJit::InvokeUnalignedJitFunction(
   uint8_t* output_buffers[1] = {output_buffer};
   jitted_function_base_.RunUnalignedJittedFunction<kForceZeroCopy>(
       arg_buffers.data(), output_buffers, temp_buffer_.get(), events,
-      /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
+      /*instance_context=*/nullptr, runtime(), /*continuation_point=*/0);
 }
 
 template void FunctionJit::InvokeUnalignedJitFunction</*kForceZeroCopy=*/false>(

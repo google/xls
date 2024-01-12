@@ -89,7 +89,7 @@ llvm::Value* LoadPointerFromPointerArray(int64_t index,
 //
 //  ReturnT f(const uint8_t* const* inputs,
 //            uint8_t* const* outputs, void* temp_buffer,
-//            InterpreterEvents* events, void* user_data,
+//            InterpreterEvents* events, InstanceContext* instance_context,
 //            JitRuntime* jit_runtime)
 //
 // This type of function is used for the jitted functions implementing XLS
@@ -133,7 +133,7 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
     fn->getArg(1)->setName("output_ptrs");
     fn->getArg(2)->setName("tmp_buffer");
     fn->getArg(3)->setName("events");
-    fn->getArg(4)->setName("user_data");
+    fn->getArg(4)->setName("instance_context");
     fn->getArg(5)->setName("runtime");
     if (extra_arg.has_value()) {
       fn->getArg(6)->setName(extra_arg->name);
@@ -218,7 +218,7 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
   llvm::Value* GetOutputsArg() const { return fn_->getArg(1); }
   llvm::Value* GetTempBufferArg() const { return fn_->getArg(2); }
   llvm::Value* GetInterpreterEventsArg() const { return fn_->getArg(3); }
-  llvm::Value* GetUserDataArg() const { return fn_->getArg(4); }
+  llvm::Value* GetInstanceContextArg() const { return fn_->getArg(4); }
   llvm::Value* GetJitRuntimeArg() const { return fn_->getArg(5); }
   std::optional<llvm::Value*> GetExtraArg() const {
     if (fn_->arg_size() == 7) {
@@ -502,7 +502,7 @@ Type* OutputType(const Node* node) {
 //                   uint8_t* const* outputs,
 //                   void* temp_buffer,
 //                   InterpreterEvents* events,
-//                   void* user_data,
+//                   InstanceContext* instance_context,
 //                   JitRuntime* jit_runtime) {
 //     ...
 //     x_operand_0 = /* load pointer from `inputs` */
@@ -635,7 +635,7 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       args.push_back(wrapper.GetOutputsArg());
       args.push_back(wrapper.GetTempBufferArg());
       args.push_back(wrapper.GetInterpreterEventsArg());
-      args.push_back(wrapper.GetUserDataArg());
+      args.push_back(wrapper.GetInstanceContextArg());
       args.push_back(wrapper.GetJitRuntimeArg());
     }
     llvm::CallInst* node_blocked = b.CreateCall(node_function.function, args);
@@ -750,7 +750,7 @@ std::string MangleForLLVM(std::string_view name) {
 //        uint8_t* const* outputs,
 //        void* temp_buffer,
 //        InterpreterEvents* events,
-//        void* user_data,
+//        InstanceContext* instance_context,
 //        JitRuntime* jit_runtime,
 //        int64_t continuation_point) {
 //     entry:
@@ -762,13 +762,13 @@ std::string MangleForLLVM(std::string_view name) {
 //
 //     start:
 //      __f_partition_0(inputs, outputs, temp_buffer,
-//                      events, user_data, jit_runtime)
+//                      events, instance_context, jit_runtime)
 //      __f_partition_1(inputs, outputs, temp_buffer,
-//                      events, user_data, jit_runtime)
+//                      events, instance_context, jit_runtime)
 //      ...
 //     resume_point_1:
 //      __f_partition_n(inputs, outputs, temp_buffer,
-//                      events, user_data, jit_runtime)
+//                      events, instance_context, jit_runtime)
 //      ...
 //     resume_point_n:
 //      return 0;
@@ -809,9 +809,9 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
 
   // Args passed to each partition function.
   std::vector<llvm::Value*> args = {
-      wrapper.GetInputsArg(),     wrapper.GetOutputsArg(),
-      wrapper.GetTempBufferArg(), wrapper.GetInterpreterEventsArg(),
-      wrapper.GetUserDataArg(),   wrapper.GetJitRuntimeArg()};
+      wrapper.GetInputsArg(),          wrapper.GetOutputsArg(),
+      wrapper.GetTempBufferArg(),      wrapper.GetInterpreterEventsArg(),
+      wrapper.GetInstanceContextArg(), wrapper.GetJitRuntimeArg()};
 
   // To handle continuation points, sequential basic blocks are created in the
   // body.
@@ -1166,7 +1166,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
   args.push_back(output_arg_array);
   args.push_back(wrapper.GetTempBufferArg());
   args.push_back(wrapper.GetInterpreterEventsArg());
-  args.push_back(wrapper.GetUserDataArg());
+  args.push_back(wrapper.GetInstanceContextArg());
   args.push_back(wrapper.GetJitRuntimeArg());
   args.push_back(wrapper.GetExtraArg().value());
 
@@ -1301,6 +1301,8 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     }
   }
 
+  jitted_function.queue_indices_ = jit_context.queue_indices();
+
   return std::move(jitted_function);
 }
 
@@ -1311,9 +1313,9 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
                                            /*build_packed_wrapper=*/true);
 }
 
-absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
-    Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit) {
-  JitBuilderContext jit_context(orc_jit, queue_mgr);
+absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(Proc* proc,
+                                                             OrcJit& orc_jit) {
+  JitBuilderContext jit_context(orc_jit);
   return JittedFunctionBase::BuildInternal(proc, jit_context,
                                            /*build_packed_wrapper=*/false);
 }
@@ -1327,15 +1329,16 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(Block* block,
 
 int64_t JittedFunctionBase::RunJittedFunction(
     const JitArgumentSet& inputs, JitArgumentSet& outputs,
-    JitTempBuffer& temp_buffer, InterpreterEvents* events, void* user_data,
-    JitRuntime* jit_runtime, int64_t continuation_point) const {
+    JitTempBuffer& temp_buffer, InterpreterEvents* events,
+    InstanceContext* instance_context, JitRuntime* jit_runtime,
+    int64_t continuation_point) const {
   XLS_CHECK(inputs.is_inputs());
   XLS_CHECK_EQ(inputs.source(), this);
   XLS_CHECK(outputs.is_outputs());
   XLS_CHECK_EQ(outputs.source(), this);
   XLS_CHECK_EQ(temp_buffer.source(), this);
   return function_(inputs.get(), outputs.get(), temp_buffer.get(), events,
-                   user_data, jit_runtime, continuation_point);
+                   instance_context, jit_runtime, continuation_point);
 }
 
 namespace {
@@ -1360,8 +1363,8 @@ absl::Status VerifyOffsetAlignments(uint8_t const* const* const ptrs,
 template <bool kForceZeroCopy>
 int64_t JittedFunctionBase::RunUnalignedJittedFunction(
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
-    InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
-    int64_t continuation) const {
+    InterpreterEvents* events, InstanceContext* instance_context,
+    JitRuntime* jit_runtime, int64_t continuation) const {
   if constexpr (kForceZeroCopy) {
     XLS_DCHECK_OK(
         VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()));
@@ -1381,7 +1384,7 @@ int64_t JittedFunctionBase::RunUnalignedJittedFunction(
       }
       auto result =
           RunJittedFunction(aligned_input, aligned_output, temp, events,
-                            user_data, jit_runtime, continuation);
+                            instance_context, jit_runtime, continuation);
       memcpy(temp_buffer, temp.get(), temp_buffer_size_);
       for (int i = 0; i < output_buffer_sizes().size(); ++i) {
         memcpy(outputs[i], aligned_output.pointers()[i],
@@ -1390,30 +1393,31 @@ int64_t JittedFunctionBase::RunUnalignedJittedFunction(
       return result;
     }
   }
-  return function_(inputs, outputs, temp_buffer, events, user_data, jit_runtime,
-                   continuation);
+  return function_(inputs, outputs, temp_buffer, events, instance_context,
+                   jit_runtime, continuation);
 }
 
 template int64_t
 JittedFunctionBase::RunUnalignedJittedFunction</*kForceZeroCopy=*/true>(
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
-    InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
-    int64_t continuation) const;
+    InterpreterEvents* events, InstanceContext* instance_context,
+    JitRuntime* jit_runtime, int64_t continuation) const;
 
 template int64_t
 JittedFunctionBase::RunUnalignedJittedFunction</*kForceZeroCopy=*/false>(
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
-    InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
-    int64_t continuation) const;
+    InterpreterEvents* events, InstanceContext* instance_context,
+    JitRuntime* jit_runtime, int64_t continuation) const;
 
 std::optional<int64_t> JittedFunctionBase::RunPackedJittedFunction(
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
-    InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
-    int64_t continuation_point) const {
+    InterpreterEvents* events, InstanceContext* instance_context,
+    JitRuntime* jit_runtime, int64_t continuation_point) const {
   // Packed Jit makes no alignment assumptions, so nothing to check.
   if (packed_function_) {
-    return (*packed_function_)(inputs, outputs, temp_buffer, events, user_data,
-                               jit_runtime, continuation_point);
+    return (*packed_function_)(inputs, outputs, temp_buffer, events,
+                               instance_context, jit_runtime,
+                               continuation_point);
   }
   return std::nullopt;
 }

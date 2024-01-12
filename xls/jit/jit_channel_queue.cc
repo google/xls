@@ -126,11 +126,15 @@ std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
 JitChannelQueueManager::CreateThreadSafe(Package* package) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
-                       JitRuntime::Create());
   XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
                        Elaboration::ElaborateOldStylePackage(package));
+  return CreateThreadSafe(std::move(elaboration));
+}
 
+/* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
+JitChannelQueueManager::CreateThreadSafe(Elaboration&& elaboration) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
+                       JitRuntime::Create());
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   for (ChannelInstance* channel_instance : elaboration.channel_instances()) {
     queues.push_back(std::make_unique<ThreadSafeJitChannelQueue>(
@@ -142,11 +146,15 @@ JitChannelQueueManager::CreateThreadSafe(Package* package) {
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
 JitChannelQueueManager::CreateThreadUnsafe(Package* package) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
-                       JitRuntime::Create());
   XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
                        Elaboration::ElaborateOldStylePackage(package));
+  return CreateThreadUnsafe(std::move(elaboration));
+}
 
+/* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
+JitChannelQueueManager::CreateThreadUnsafe(Elaboration&& elaboration) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
+                       JitRuntime::Create());
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   for (ChannelInstance* channel_instance : elaboration.channel_instances()) {
     queues.push_back(std::make_unique<ThreadUnsafeJitChannelQueue>(
@@ -158,6 +166,14 @@ JitChannelQueueManager::CreateThreadUnsafe(Package* package) {
 
 JitChannelQueue& JitChannelQueueManager::GetJitQueue(Channel* channel) {
   JitChannelQueue* queue = dynamic_cast<JitChannelQueue*>(&GetQueue(channel));
+  XLS_CHECK_NE(queue, nullptr);
+  return *queue;
+}
+
+JitChannelQueue& JitChannelQueueManager::GetJitQueue(
+    ChannelInstance* channel_instance) {
+  JitChannelQueue* queue =
+      dynamic_cast<JitChannelQueue*>(&GetQueue(channel_instance));
   XLS_CHECK_NE(queue, nullptr);
   return *queue;
 }

@@ -22,14 +22,17 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
@@ -71,6 +74,22 @@ absl::StatusOr<Proc*> CreateAccumProc(std::string_view proc_name,
   BValue next_accum = pb.Add(accum, input);
   BValue send_token = pb.Send(out_channel, recv_token, next_accum);
   return pb.Build(send_token, {next_accum});
+}
+
+absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
+                                              Package* package) {
+  TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
+  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+  XLS_ASSIGN_OR_RETURN(
+      ReceiveChannelReference * in_channel,
+      pb.AddInputChannel("accum_in", package->GetBitsType(32)));
+  BValue input = pb.Receive(in_channel);
+  BValue next_accum = pb.Add(accum, input);
+  XLS_ASSIGN_OR_RETURN(
+      SendChannelReference * out_channel,
+      pb.AddOutputChannel("accum_out", package->GetBitsType(32)));
+  pb.Send(out_channel, next_accum);
+  return pb.Build({next_accum});
 }
 
 // Creates a proc which simply passes through a received value to a send.
@@ -132,7 +151,9 @@ TEST_P(ProcRuntimeTestBase, EmptyProc) {
 
   // Expecting no output should result in zero ticks because the output
   // condition is trivially satisfied.
-  EXPECT_THAT(runtime->TickUntilOutput({}), IsOkAndHolds(0));
+  EXPECT_THAT(
+      runtime->TickUntilOutput(absl::flat_hash_map<Channel*, int64_t>()),
+      IsOkAndHolds(0));
 
   // Ticking until blocked should immediately return because `TickUntilBlocked`
   // only considers procs with IO to determine if the system is blocked.
@@ -845,7 +866,7 @@ TEST_P(ProcRuntimeTestBase, NonBlockingReceivesProc) {
 
   EXPECT_THAT(output_queue.Read(), Optional(Value(SBits(43, 32))));
 
-  // Try large numnbers in the channels.
+  // Try large numbers in the channels.
   XLS_ASSERT_OK(in0_queue.Write(Value(UBits(0xffffffff, 32))));
   XLS_ASSERT_OK(in0_queue.Write(Value(UBits(0x0faabbcc, 32))));
   XLS_ASSERT_OK(in0_queue.Write(Value(UBits(0xfffffff2, 32))));
@@ -867,6 +888,88 @@ TEST_P(ProcRuntimeTestBase, NonBlockingReceivesProc) {
   EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(0xffaabbcc, 32))));
   EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(0, 32))));
   EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(1, 32))));
+}
+
+TEST_P(ProcRuntimeTestBase, NewStyleAccumulator) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           CreateNewStyleAccumProc("my_proc", package.get()));
+  std::unique_ptr<ProcRuntime> runtime = GetParam().CreateRuntime(proc);
+  ProcInstance* top_instance = runtime->elaboration().top();
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * in_channel,
+                           top_instance->GetChannelInstance("accum_in"));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * out_channel,
+                           top_instance->GetChannelInstance("accum_out"));
+  ChannelQueue& in_queue = runtime->queue_manager().GetQueue(in_channel);
+  ChannelQueue& out_queue = runtime->queue_manager().GetQueue(out_channel);
+
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(0, 32))));
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(1, 32))));
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(2, 32))));
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(3, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
+                           runtime->TickUntilOutput({{out_channel, 4}}));
+
+  EXPECT_EQ(tick_count, 4);
+  EXPECT_EQ(out_queue.GetSize(), 4);
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(0, 32))));
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(1, 32))));
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(3, 32))));
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(6, 32))));
+}
+
+TEST_P(ProcRuntimeTestBase, MultipleNewStyleProcs) {
+  // Construct a proc which instantiates two accumulator procs tied in series.
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
+                           CreateNewStyleAccumProc("leaf_proc", package.get()));
+
+  TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ReceiveChannelReference * in_channel,
+      pb.AddInputChannel("in_ch", package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences middle_channel,
+                           pb.AddChannel("mid_ch", package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SendChannelReference * out_channel,
+      pb.AddOutputChannel("out_ch", package->GetBitsType(32)));
+
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "inst0", leaf_proc,
+      std::vector<ChannelReference*>{in_channel, middle_channel.send_ref}));
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "inst1", leaf_proc,
+      std::vector<ChannelReference*>{middle_channel.receive_ref, out_channel}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, pb.Build({}));
+
+  std::unique_ptr<ProcRuntime> runtime = GetParam().CreateRuntime(top_proc);
+  ProcInstance* top_instance = runtime->elaboration().top();
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * in_channel_instance,
+                           top_instance->GetChannelInstance("in_ch"));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * out_channel_instance,
+                           top_instance->GetChannelInstance("out_ch"));
+  ChannelQueue& in_queue =
+      runtime->queue_manager().GetQueue(in_channel_instance);
+  ChannelQueue& out_queue =
+      runtime->queue_manager().GetQueue(out_channel_instance);
+
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(0, 32))));
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(1, 32))));
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(2, 32))));
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(3, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int64_t tick_count,
+      runtime->TickUntilOutput({{out_channel_instance, 4}}));
+
+  // Result is accum(accum({0, 1, 2, 3})) = accum({0, 1, 3, 6}) = {0, 1, 4, 10}
+  EXPECT_EQ(tick_count, 4);
+  EXPECT_EQ(out_queue.GetSize(), 4);
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(0, 32))));
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(1, 32))));
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(4, 32))));
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(10, 32))));
 }
 
 }  // namespace

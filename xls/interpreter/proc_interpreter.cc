@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -47,23 +48,25 @@ namespace {
 class ProcIrInterpreter : public IrInterpreter {
  public:
   // Constructor args:
+  //   proc_instance: the instance of the proc which is being interpreted.
   //   state: is the value to use for the proc state in the tick being
   //     interpreted.
   //   node_values: map from Node to Value for already computed values in this
   //     tick of the proc. Used for continuations.
   //   events: events object to record events in (e.g, traces).
   //   queue_manager: manager for channel queues.
-  ProcIrInterpreter(absl::Span<const Value> state,
+  ProcIrInterpreter(ProcInstance* proc_instance, absl::Span<const Value> state,
                     absl::flat_hash_map<Node*, Value>* node_values,
                     InterpreterEvents* events,
                     ChannelQueueManager* queue_manager)
       : IrInterpreter(node_values, events),
+        proc_instance_(proc_instance),
         state_(state.begin(), state.end()),
         queue_manager_(queue_manager) {}
 
   absl::Status HandleReceive(Receive* receive) override {
-    XLS_ASSIGN_OR_RETURN(ChannelQueue * queue, queue_manager_->GetQueueByName(
-                                                   receive->channel_name()));
+    XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
+                         GetChannelQueue(receive->channel_name()));
 
     if (receive->predicate().has_value()) {
       const Bits& pred = ResolveAsBits(receive->predicate().value());
@@ -97,7 +100,7 @@ class ProcIrInterpreter : public IrInterpreter {
 
   absl::Status HandleSend(Send* send) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
-                         queue_manager_->GetQueueByName(send->channel_name()));
+                         GetChannelQueue(send->channel_name()));
     if (send->predicate().has_value()) {
       const Bits& pred = ResolveAsBits(send->predicate().value());
       if (pred.IsZero()) {
@@ -139,6 +142,21 @@ class ProcIrInterpreter : public IrInterpreter {
   }
 
  private:
+  // Get the channel queue for the channel or channel reference of the given
+  // name.
+  absl::StatusOr<ChannelQueue*> GetChannelQueue(std::string_view name) {
+    if (proc_instance_->path().has_value()) {
+      // New-style proc-scoped channel.
+      XLS_ASSIGN_OR_RETURN(ChannelInstance * channel_instance,
+                           queue_manager_->elaboration().GetChannelInstance(
+                               name, *proc_instance_->path()));
+      return &queue_manager_->GetQueue(channel_instance);
+    }
+    // Old-style global channel.
+    return queue_manager_->GetQueueByName(name);
+  }
+
+  ProcInstance* proc_instance_;
   std::vector<Value> state_;
   ChannelQueueManager* queue_manager_;
 
@@ -167,8 +185,9 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
   XLS_RET_CHECK_NE(cont, nullptr) << "ProcInterpreter requires a continuation "
                                      "of type ProcInterpreterContinuation";
 
-  ProcIrInterpreter ir_interpreter(cont->GetState(), &cont->GetNodeValues(),
-                                   &cont->GetEvents(), queue_manager_);
+  ProcIrInterpreter ir_interpreter(cont->proc_instance(), cont->GetState(),
+                                   &cont->GetNodeValues(), &cont->GetEvents(),
+                                   queue_manager_);
 
   // Resume execution at the node indicated in the continuation
   // (NodeExecutionIndex).

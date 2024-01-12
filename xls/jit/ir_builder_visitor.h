@@ -17,22 +17,36 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Value.h"
-#include "llvm/include/llvm/TargetParser/Triple.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/node.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
+
+// Data structure passed to the JITted function which contains instance-specific
+// information. Used for JITted procs.
+struct InstanceContext {
+  // The proc instance being evaluated.
+  ProcInstance* instance;
+
+  // The channel queues used by the proc instance. The order of queues is
+  // assigned at JIT compile time. The indices of particular queues is baked
+  // into the JITted code for sends and receives.
+  std::vector<JitChannelQueue*> channel_queues;
+};
 
 // Returns whether the given node should be materialized at is uses rather than
 // being written to a buffer to pass to the JITted node function. Only possible
@@ -43,15 +57,12 @@ bool ShouldMaterializeAtUse(Node* node);
 // etc.
 class JitBuilderContext {
  public:
-  explicit JitBuilderContext(
-      OrcJit& orc_jit,
-      std::optional<JitChannelQueueManager*> queue_mgr = std::nullopt)
+  explicit JitBuilderContext(OrcJit& orc_jit)
       : module_(orc_jit.NewModule("__module")),
         orc_jit_(orc_jit),
         type_converter_(
             orc_jit.GetContext(),
-            OrcJit::CreateDataLayout(orc_jit.emit_object_code()).value()),
-        queue_manager_(queue_mgr) {
+            OrcJit::CreateDataLayout(orc_jit.emit_object_code()).value()) {
     module_->setTargetTriple(orc_jit.target_triple());
   }
 
@@ -74,18 +85,35 @@ class JitBuilderContext {
     llvm_functions_[xls_fn] = llvm_function;
   }
 
-  std::optional<JitChannelQueueManager*> queue_manager() const {
-    return queue_manager_;
+  // Get (or allocate) a slot for the channel queue associated with the given
+  // channel name. Returns the index of the slot.
+  int64_t GetOrAllocateQueueIndex(std::string_view channel_name) {
+    if (queue_indices_.contains(channel_name)) {
+      return queue_indices_.at(channel_name);
+    }
+    int64_t index = queue_indices_.size();
+    queue_indices_[channel_name] = index;
+    return index;
+  }
+
+  // Returns map of channel name to queue index. The JITted function is passed a
+  // vector of channel queues which the JITted code for sends/receives indexes
+  // into to get the appropriate channel queue. These indices are baked into the
+  // JITted code.
+  const absl::btree_map<std::string, int64_t>& queue_indices() const {
+    return queue_indices_;
   }
 
  private:
   std::unique_ptr<llvm::Module> module_;
   OrcJit& orc_jit_;
   LlvmTypeConverter type_converter_;
-  std::optional<JitChannelQueueManager*> queue_manager_;
 
   // Map from FunctionBase to the associated JITed llvm::Function.
   absl::flat_hash_map<FunctionBase*, llvm::Function*> llvm_functions_;
+
+  // A map from channel name to queue index.
+  absl::btree_map<std::string, int64_t> queue_indices_;
 };
 
 // Abstraction representing an llvm::Function implementing an xls::Node. The

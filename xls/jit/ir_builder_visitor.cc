@@ -14,6 +14,7 @@
 #include "xls/jit/ir_builder_visitor.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -24,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -36,6 +38,7 @@
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Instructions.h"
+#include "llvm/include/llvm/IR/Intrinsics.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/IR/Type.h"
@@ -48,10 +51,13 @@
 #include "xls/ir/block.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/events.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
@@ -738,7 +744,7 @@ class NodeIrContext {
   // bool f(void* operand_ptr_0, ... , void* operand_ptr_n,
   //        void* output_ptr_0,  ... , void* output_ptr_m,
   //        void* global_inputs, void* global_outputs, void* tmp_buffer,
-  //        void* events, void* user_data, void* runtime)
+  //        void* events, void* instance_context, void* runtime)
   //
   // Args:
   //   node : The XLS node the LLVM IR is being generated for.
@@ -831,7 +837,7 @@ class NodeIrContext {
     XLS_CHECK(has_metadata_args_);
     return llvm_function_->getArg(llvm_function_->arg_size() - 3);
   }
-  llvm::Value* GetUserDataArg() const {
+  llvm::Value* GetInstanceContextArg() const {
     XLS_CHECK(has_metadata_args_);
     return llvm_function_->getArg(llvm_function_->arg_size() - 2);
   }
@@ -939,7 +945,7 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     nc.llvm_function_->getArg(arg_no++)->setName("outputs");
     nc.llvm_function_->getArg(arg_no++)->setName("temp_buffer");
     nc.llvm_function_->getArg(arg_no++)->setName("events");
-    nc.llvm_function_->getArg(arg_no++)->setName("user_data");
+    nc.llvm_function_->getArg(arg_no++)->setName("instance_context");
     nc.llvm_function_->getArg(arg_no++)->setName("jit_runtime");
   }
 
@@ -1213,20 +1219,20 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::StatusOr<llvm::Value*> CallFunction(
       llvm::Function* f, absl::Span<llvm::Value* const> inputs,
       absl::Span<llvm::Value* const> outputs, llvm::Value* temp_buffer,
-      llvm::Value* events, llvm::Value* user_data, llvm::Value* runtime,
+      llvm::Value* events, llvm::Value* instance_context, llvm::Value* runtime,
       llvm::IRBuilder<>& builder);
 
   // Invokes the receive callback function. The received data is written into
   // the buffer pointer to be `output_ptr`. Returns an i1 value indicating
   // whether the receive fired.
   absl::StatusOr<llvm::Value*> ReceiveFromQueue(llvm::IRBuilder<>* builder,
-                                                JitChannelQueue* queue,
+                                                int64_t queue_index,
                                                 Receive* receive,
                                                 llvm::Value* output_ptr,
-                                                llvm::Value* user_data);
-  absl::Status SendToQueue(llvm::IRBuilder<>* builder, JitChannelQueue* queue,
+                                                llvm::Value* instance_context);
+  absl::Status SendToQueue(llvm::IRBuilder<>* builder, int64_t queue_index,
                            Send* send, llvm::Value* send_data_ptr,
-                           llvm::Value* user_data);
+                           llvm::Value* instance_context);
 
   int64_t output_arg_count_;
   const JitCompilationMetadata& metadata_;
@@ -1958,7 +1964,7 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   XLS_RETURN_IF_ERROR(CallFunction(body, input_arg_ptrs, {next_state_buffer},
                                    node_context.GetTempBufferArg(),
                                    node_context.GetInterpreterEventsArg(),
-                                   node_context.GetUserDataArg(),
+                                   node_context.GetInstanceContextArg(),
                                    node_context.GetJitRuntimeArg(),
                                    loop.body_builder())
                           .status());
@@ -2134,7 +2140,7 @@ absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
       CallFunction(loop_body_function, input_arg_ptrs, {next_state_buffer},
                    node_context.GetTempBufferArg(),
                    node_context.GetInterpreterEventsArg(),
-                   node_context.GetUserDataArg(),
+                   node_context.GetInstanceContextArg(),
                    node_context.GetJitRuntimeArg(), *loop_builder)
           .status());
   llvm::Value* loop_carry =
@@ -2277,7 +2283,7 @@ absl::Status IrBuilderVisitor::HandleInvoke(Invoke* invoke) {
   XLS_RETURN_IF_ERROR(CallFunction(function, operand_ptrs, {output_buffer},
                                    node_context.GetTempBufferArg(),
                                    node_context.GetInterpreterEventsArg(),
-                                   node_context.GetUserDataArg(),
+                                   node_context.GetInstanceContextArg(),
                                    node_context.GetJitRuntimeArg(), b)
                           .status());
   return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
@@ -2327,7 +2333,7 @@ absl::Status IrBuilderVisitor::HandleMap(Map* map) {
   XLS_RETURN_IF_ERROR(CallFunction(to_apply, {input_element}, {output_element},
                                    node_context.GetTempBufferArg(),
                                    node_context.GetInterpreterEventsArg(),
-                                   node_context.GetUserDataArg(),
+                                   node_context.GetInstanceContextArg(),
                                    node_context.GetJitRuntimeArg(),
                                    loop.body_builder())
                           .status());
@@ -3095,7 +3101,7 @@ absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithPointerToValue(
 absl::StatusOr<llvm::Value*> IrBuilderVisitor::CallFunction(
     llvm::Function* f, absl::Span<llvm::Value* const> inputs,
     absl::Span<llvm::Value* const> outputs, llvm::Value* temp_buffer,
-    llvm::Value* events, llvm::Value* user_data, llvm::Value* runtime,
+    llvm::Value* events, llvm::Value* instance_context, llvm::Value* runtime,
     llvm::IRBuilder<>& builder) {
   llvm::Type* input_pointer_array_type =
       llvm::ArrayType::get(llvm::PointerType::get(ctx(), 0), inputs.size());
@@ -3132,33 +3138,37 @@ absl::StatusOr<llvm::Value*> IrBuilderVisitor::CallFunction(
                                     output_arg_array,
                                     temp_buffer,
                                     events,
-                                    user_data,
+                                    instance_context,
                                     runtime,
                                     /*continuation_point=*/builder.getInt64(0)};
   return builder.CreateCall(f, args);
 }
 
-bool QueueReceiveWrapper(JitChannelQueue* queue, uint8_t* buffer) {
-  return queue->ReadRaw(buffer);
+bool QueueReceiveWrapper(InstanceContext* instance_context, int64_t queue_index,
+                         uint8_t* buffer) {
+  return instance_context->channel_queues[queue_index]->ReadRaw(buffer);
 }
 
 absl::StatusOr<llvm::Value*> IrBuilderVisitor::ReceiveFromQueue(
-    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Receive* receive,
-    llvm::Value* output_ptr, llvm::Value* user_data) {
+    llvm::IRBuilder<>* builder, int64_t queue_index, Receive* receive,
+    llvm::Value* output_ptr, llvm::Value* instance_context) {
+  llvm::Type* i64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* bool_type = llvm::Type::getInt1Ty(ctx());
   llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
 
   // Call the user-provided function of type ProcJit::RecvFnT to receive the
   // value.
-  std::vector<llvm::Type*> params = {ptr_type, ptr_type};
+  std::vector<llvm::Type*> params = {ptr_type, i64_type, ptr_type};
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(bool_type, params, /*isVarArg=*/false);
 
   // Call the wrapper to JitChannelQueue::Recv.
-  llvm::Value* queue_address = llvm::ConstantInt::get(
-      llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(queue));
+  llvm::Value* queue_index_value =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()), queue_index);
+
   std::vector<llvm::Value*> args = {
-      builder->CreateIntToPtr(queue_address, ptr_type), output_ptr};
+      builder->CreateIntToPtr(instance_context, ptr_type), queue_index_value,
+      output_ptr};
 
   llvm::ConstantInt* fn_addr =
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
@@ -3177,13 +3187,10 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(recv, operand_names,
                                         /*include_wrapper_args=*/true));
-  llvm::Value* user_data = node_context.GetUserDataArg();
+  llvm::Value* instance_context = node_context.GetInstanceContextArg();
 
-  XLS_RET_CHECK(jit_context_.queue_manager().has_value());
-  XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       recv->package()->GetChannel(recv->channel_name()));
-  JitChannelQueue& queue =
-      jit_context_.queue_manager().value()->GetJitQueue(channel);
+  int64_t queue_index =
+      jit_context_.GetOrAllocateQueueIndex(recv->channel_name());
 
   llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   // The data buffer is element 1 of the output tuple.
@@ -3208,9 +3215,9 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
         llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_true"),
                                  node_context.llvm_function(), join_block);
     llvm::IRBuilder<> true_builder(true_block);
-    XLS_ASSIGN_OR_RETURN(
-        llvm::Value * true_receive_fired,
-        ReceiveFromQueue(&true_builder, &queue, recv, data_buffer, user_data));
+    XLS_ASSIGN_OR_RETURN(llvm::Value * true_receive_fired,
+                         ReceiveFromQueue(&true_builder, queue_index, recv,
+                                          data_buffer, instance_context));
     true_builder.CreateBr(join_block);
 
     // And the same for a false predicate - this will store a zero
@@ -3254,9 +3261,10 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
                                      join_builder.CreateNot(receive_fired))
             : join_builder.getFalse());
   }
-  XLS_ASSIGN_OR_RETURN(llvm::Value * receive_fired,
-                       ReceiveFromQueue(&node_context.entry_builder(), &queue,
-                                        recv, data_buffer, user_data));
+  XLS_ASSIGN_OR_RETURN(
+      llvm::Value * receive_fired,
+      ReceiveFromQueue(&node_context.entry_builder(), queue_index, recv,
+                       data_buffer, instance_context));
   receive_fired->setName("receive_fired");
   if (!recv->is_blocking()) {
     // If the receive is non-blocking, the output of the receive has an
@@ -3277,27 +3285,30 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
           : node_context.entry_builder().getFalse());
 }
 
-void QueueSendWrapper(JitChannelQueue* queue, const uint8_t* data) {
-  queue->WriteRaw(data);
+void QueueSendWrapper(InstanceContext* instance_context, int64_t queue_index,
+                      const uint8_t* data) {
+  instance_context->channel_queues[queue_index]->WriteRaw(data);
 }
 
 absl::Status IrBuilderVisitor::SendToQueue(llvm::IRBuilder<>* builder,
-                                           JitChannelQueue* queue, Send* send,
+                                           int64_t queue_index, Send* send,
                                            llvm::Value* send_data_ptr,
-                                           llvm::Value* user_data) {
+                                           llvm::Value* instance_context) {
+  llvm::Type* i64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
 
   // We do the same for sending/writing as we do for receiving/reading
   // above (set up and call an external function).
-  std::vector<llvm::Type*> params = {ptr_type, ptr_type};
+  std::vector<llvm::Type*> params = {ptr_type, i64_type, ptr_type};
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
-  llvm::Value* queue_address = llvm::ConstantInt::get(
-      llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(queue));
+  llvm::Value* queue_index_value =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()), queue_index);
   std::vector<llvm::Value*> args = {
-      builder->CreateIntToPtr(queue_address, ptr_type), send_data_ptr};
+      builder->CreateIntToPtr(instance_context, ptr_type), queue_index_value,
+      send_data_ptr};
 
   llvm::ConstantInt* fn_addr =
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
@@ -3318,13 +3329,11 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
                                         /*include_wrapper_args=*/true));
   llvm::IRBuilder<>& b = node_context.entry_builder();
   llvm::Value* data_ptr = node_context.GetOperandPtr(1);
-  llvm::Value* user_data = node_context.GetUserDataArg();
+  llvm::Value* instance_context = node_context.GetInstanceContextArg();
 
-  XLS_RET_CHECK(jit_context_.queue_manager().has_value());
-  XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       send->package()->GetChannel(send->channel_name()));
-  JitChannelQueue& queue =
-      jit_context_.queue_manager().value()->GetJitQueue(channel);
+  int64_t queue_index =
+      jit_context_.GetOrAllocateQueueIndex(send->channel_name());
+
   if (send->predicate().has_value()) {
     llvm::Value* predicate = node_context.LoadOperand(2);
 
@@ -3337,8 +3346,8 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
         llvm::BasicBlock::Create(ctx(), absl::StrCat(send->GetName(), "_true"),
                                  node_context.llvm_function(), join_block);
     llvm::IRBuilder<> true_builder(true_block);
-    XLS_RETURN_IF_ERROR(
-        SendToQueue(&true_builder, &queue, send, data_ptr, user_data));
+    XLS_RETURN_IF_ERROR(SendToQueue(&true_builder, queue_index, send, data_ptr,
+                                    instance_context));
     true_builder.CreateBr(join_block);
 
     llvm::BasicBlock* false_block =
@@ -3359,7 +3368,8 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
                                           /*return_value=*/predicate);
   }
   // Unconditional send.
-  XLS_RETURN_IF_ERROR(SendToQueue(&b, &queue, send, data_ptr, user_data));
+  XLS_RETURN_IF_ERROR(
+      SendToQueue(&b, queue_index, send, data_ptr, instance_context));
 
   // The node function should return true if data was sent. This will trigger
   // an early exit from the top-level function.

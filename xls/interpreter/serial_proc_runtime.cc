@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -36,7 +35,7 @@ namespace xls {
 
 /* static */
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> SerialProcRuntime::Create(
-    Package* package, std::vector<std::unique_ptr<ProcEvaluator>>&& evaluators,
+    std::vector<std::unique_ptr<ProcEvaluator>>&& evaluators,
     std::unique_ptr<ChannelQueueManager>&& queue_manager) {
   // Verify there exists exactly one evaluator per proc in the package.
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>> evaluator_map;
@@ -46,21 +45,22 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> SerialProcRuntime::Create(
     XLS_RET_CHECK(inserted) << absl::StreamFormat(
         "More than one evaluator given for proc `%s`", proc->name());
   }
-  for (const std::unique_ptr<Proc>& proc : package->procs()) {
-    XLS_RET_CHECK(evaluator_map.contains(proc.get()))
+  for (Proc* proc : queue_manager->elaboration().procs()) {
+    XLS_RET_CHECK(evaluator_map.contains(proc))
         << absl::StreamFormat("No evaluator given for proc `%s`", proc->name());
   }
-  XLS_RET_CHECK_EQ(evaluator_map.size(), package->procs().size())
+  XLS_RET_CHECK_EQ(evaluator_map.size(),
+                   queue_manager->elaboration().procs().size())
       << "More evaluators than procs given.";
   auto network_interpreter = absl::WrapUnique(new SerialProcRuntime(
-      package, std::move(evaluator_map), std::move(queue_manager)));
+      std::move(evaluator_map), std::move(queue_manager)));
   return std::move(network_interpreter);
 }
 
 absl::StatusOr<SerialProcRuntime::NetworkTickResult>
 SerialProcRuntime::TickInternal() {
   XLS_VLOG(3) << absl::StreamFormat("TickInternal on package %s",
-                                    package_->name());
+                                    package()->name());
   // Map containing any blocked proc instances and the channels they are blocked
   // on.
   absl::flat_hash_map<ChannelInstance*, ProcInstance*> blocked_instances;

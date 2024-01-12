@@ -69,7 +69,7 @@ absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
   function_.RunJittedFunction(
       continuation.input_buffers_.current(),
       continuation.output_buffers_.current(), continuation.temp_buffer_,
-      &continuation.GetEvents(), /*user_data=*/nullptr, runtime_,
+      &continuation.GetEvents(), /*instance_context=*/nullptr, runtime_,
       /*continuation_point=*/0);
   continuation.SwapRegisters();
   return absl::OkStatus();

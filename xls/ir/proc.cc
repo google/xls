@@ -685,7 +685,6 @@ absl::StatusOr<SendChannelReference*> Proc::GetSendChannelReference(
 absl::StatusOr<ReceiveChannelReference*> Proc::GetReceiveChannelReference(
     std::string_view name) const {
   XLS_RET_CHECK(is_new_style_proc());
-  XLS_RET_CHECK(is_new_style_proc());
   XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
                        GetChannelReference(name, Direction::kReceive));
   return down_cast<ReceiveChannelReference*>(channel_ref);

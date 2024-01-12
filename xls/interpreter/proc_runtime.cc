@@ -14,7 +14,6 @@
 
 #include "xls/interpreter/proc_runtime.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -42,11 +41,9 @@
 namespace xls {
 
 ProcRuntime::ProcRuntime(
-    Package* package,
     absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>>&& evaluators,
     std::unique_ptr<ChannelQueueManager>&& queue_manager)
-    : package_(package),
-      queue_manager_(std::move(queue_manager)),
+    : queue_manager_(std::move(queue_manager)),
       evaluators_(std::move(evaluators)) {
   for (ProcInstance* instance : elaboration().proc_instances()) {
     std::unique_ptr<ProcContinuation> continuation =
@@ -72,43 +69,57 @@ absl::Status ProcRuntime::Tick() {
 }
 
 absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
-    absl::flat_hash_map<Channel*, int64_t> output_counts,
+    const absl::flat_hash_map<Channel*, int64_t>& output_counts,
+    std::optional<int64_t> max_ticks) {
+  absl::flat_hash_map<ChannelInstance*, int64_t> instance_output_counts;
+  for (const auto& [channel, count] : output_counts) {
+    XLS_ASSIGN_OR_RETURN(ChannelInstance * channel_instance,
+                         elaboration().GetUniqueInstance(channel));
+    instance_output_counts[channel_instance] = count;
+  }
+  return TickUntilOutput(instance_output_counts, max_ticks);
+}
+
+absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
+    const absl::flat_hash_map<ChannelInstance*, int64_t>& output_counts,
     std::optional<int64_t> max_ticks) {
   XLS_VLOG(3) << absl::StreamFormat("TickUntilOutput on package %s",
-                                    package_->name());
+                                    package()->name());
   // Create a deterministically sorted vector of the output channels for
   // deterministic behavior and error messages.
-  std::vector<Channel*> output_channels;
-  for (auto [channel, _] : output_counts) {
-    output_channels.push_back(channel);
-  }
-  std::sort(output_channels.begin(), output_channels.end(),
-            [](Channel* a, Channel* b) { return a->name() < b->name(); });
-
-  if (XLS_VLOG_IS_ON(3)) {
-    XLS_VLOG(3) << "Expected outputs produced for each channel:";
-    for (Channel* channel : output_channels) {
-      XLS_VLOG(3) << absl::StreamFormat("  %s : %d", channel->name(),
-                                        output_counts.at(channel));
+  std::vector<ChannelInstance*> output_channels;
+  for (ChannelInstance* channel_instance : elaboration().channel_instances()) {
+    if (output_counts.contains(channel_instance)) {
+      output_channels.push_back(channel_instance);
     }
   }
 
-  for (Channel* channel : output_channels) {
+  if (XLS_VLOG_IS_ON(3)) {
+    XLS_VLOG(3) << "Expected outputs produced for each channel instance:";
+    for (ChannelInstance* channel_instance : output_channels) {
+      XLS_VLOG(3) << absl::StreamFormat("  %s : %d",
+                                        channel_instance->ToString(),
+                                        output_counts.at(channel_instance));
+    }
+  }
+
+  for (ChannelInstance* channel_instance : output_channels) {
+    Channel* channel = channel_instance->channel;
     if (channel->supported_ops() != ChannelOps::kSendOnly) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Channel `%s` is not a send-only channel", channel->name()));
     }
     if (channel->kind() == ChannelKind::kSingleValue &&
-        output_counts.at(channel) > 1) {
+        output_counts.at(channel_instance) > 1) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Channel `%s` is single-value, expected number of "
                           "elements must be one or less, is %d",
-                          channel->name(), output_counts.at(channel)));
+                          channel->name(), output_counts.at(channel_instance)));
     }
   }
   int64_t ticks = 0;
   auto needs_more_output = [&]() {
-    for (Channel* ch : output_channels) {
+    for (ChannelInstance* ch : output_channels) {
       if (queue_manager().GetQueue(ch).GetSize() < output_counts.at(ch)) {
         return true;
       }
@@ -131,7 +142,7 @@ absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
 absl::StatusOr<int64_t> ProcRuntime::TickUntilBlocked(
     std::optional<int64_t> max_ticks) {
   XLS_VLOG(3) << absl::StreamFormat("TickUntilBlocked on package %s",
-                                    package_->name());
+                                    package()->name());
   int64_t ticks = 0;
   while (!max_ticks.has_value() || ticks < max_ticks.value()) {
     XLS_ASSIGN_OR_RETURN(NetworkTickResult result, TickInternal());

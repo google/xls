@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -43,13 +44,16 @@ namespace xls {
 
 ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
                                          JitRuntime* jit_runtime,
+                                         std::vector<JitChannelQueue*> queues,
                                          const JittedFunctionBase& jit_func)
     : ProcContinuation(proc_instance),
       continuation_point_(0),
       jit_runtime_(jit_runtime),
       input_(jit_func.CreateInputOutputBuffer().value()),
       output_(jit_func.CreateInputOutputBuffer().value()),
-      temp_buffer_(jit_func.CreateTempBuffer()) {
+      temp_buffer_(jit_func.CreateTempBuffer()),
+      instance_context_{.instance = proc_instance,
+                        .channel_queues = std::move(queues)} {
   // Write initial state value to the input_buffer.
   for (Param* state_param : proc()->StateParams()) {
     int64_t param_index = proc()->GetParamIndex(state_param).value();
@@ -80,6 +84,21 @@ void ProcJitContinuation::NextTick() {
   }
 }
 
+static absl::StatusOr<ChannelInstance*> GetChannelInstance(
+    ProcInstance* proc_instance, std::string_view channel_name,
+    JitChannelQueueManager* queue_mgr) {
+  if (proc_instance->path().has_value()) {
+    // New-style proc-scoped channels.
+    return queue_mgr->elaboration().GetChannelInstance(channel_name,
+                                                       *proc_instance->path());
+  }
+  // Old-style global channels.
+  XLS_ASSIGN_OR_RETURN(
+      Channel * channel,
+      proc_instance->proc()->package()->GetChannel(channel_name));
+  return queue_mgr->elaboration().GetUniqueInstance(channel);
+}
+
 absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
     Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
     JitObserver* observer) {
@@ -87,18 +106,33 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
   orc_jit->SetJitObserver(observer);
   auto jit = absl::WrapUnique(
       new ProcJit(proc, jit_runtime, queue_mgr, std::move(orc_jit)));
-  XLS_ASSIGN_OR_RETURN(
-      jit->jitted_function_base_,
-      JittedFunctionBase::Build(proc, queue_mgr, jit->GetOrcJit()));
+  XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
+                       JittedFunctionBase::Build(proc, jit->GetOrcJit()));
   XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
+
+  for (ProcInstance* proc_instance :
+       queue_mgr->elaboration().GetInstances(proc)) {
+    jit->channel_queues_[proc_instance].resize(
+        jit->jitted_function_base_.queue_indices().size());
+    for (auto [channel_name, index] :
+         jit->jitted_function_base_.queue_indices()) {
+      XLS_ASSIGN_OR_RETURN(
+          ChannelInstance * channel_instance,
+          GetChannelInstance(proc_instance, channel_name, queue_mgr));
+      jit->channel_queues_[proc_instance][index] =
+          &queue_mgr->GetJitQueue(channel_instance);
+    }
+  }
+
   return jit;
 }
 
 std::unique_ptr<ProcContinuation> ProcJit::NewContinuation(
     ProcInstance* proc_instance) const {
   XLS_CHECK_EQ(proc_instance->proc(), proc());
-  return std::make_unique<ProcJitContinuation>(proc_instance, jit_runtime_,
-                                               jitted_function_base_);
+  return std::make_unique<ProcJitContinuation>(
+      proc_instance, jit_runtime_, channel_queues_.at(proc_instance),
+      jitted_function_base_);
 }
 
 absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
@@ -110,9 +144,8 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   // The jitted function returns the early exit point at which execution
   // halted. A return value of zero indicates that the tick completed.
   int64_t next_continuation_point = jitted_function_base_.RunJittedFunction(
-      cont->input(), cont->output(),
-      cont->temp_buffer(), &cont->GetEvents(),
-      /*user_data=*/nullptr, runtime(), cont->GetContinuationPoint());
+      cont->input(), cont->output(), cont->temp_buffer(), &cont->GetEvents(),
+      cont->instance_context(), runtime(), cont->GetContinuationPoint());
 
   if (next_continuation_point == 0) {
     // The proc successfully completed its tick.
@@ -130,12 +163,11 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
       jitted_function_base_.continuation_points().at(next_continuation_point);
   if (early_exit_node->Is<Send>()) {
     // Execution exited after sending data on a channel.
-    XLS_ASSIGN_OR_RETURN(Channel * sent_channel,
-                         proc()->package()->GetChannel(
-                             early_exit_node->As<Send>()->channel_name()));
     XLS_ASSIGN_OR_RETURN(
         ChannelInstance * channel_instance,
-        queue_mgr_->elaboration().GetUniqueInstance(sent_channel));
+        GetChannelInstance(continuation.proc_instance(),
+                           early_exit_node->As<Send>()->channel_name(),
+                           queue_mgr_));
 
     // The send executed so some progress should have been made.
     XLS_RET_CHECK_NE(next_continuation_point, start_continuation_point);
@@ -144,12 +176,11 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
                       .progress_made = true};
   }
   XLS_RET_CHECK(early_exit_node->Is<Receive>());
-  XLS_ASSIGN_OR_RETURN(Channel * blocked_channel,
-                       proc()->package()->GetChannel(
-                           early_exit_node->As<Receive>()->channel_name()));
   XLS_ASSIGN_OR_RETURN(
       ChannelInstance * channel_instance,
-      queue_mgr_->elaboration().GetUniqueInstance(blocked_channel));
+      GetChannelInstance(continuation.proc_instance(),
+                         early_exit_node->As<Receive>()->channel_name(),
+                         queue_mgr_));
   return TickResult{
       .execution_state = TickExecutionState::kBlockedOnReceive,
       .channel_instance = channel_instance,

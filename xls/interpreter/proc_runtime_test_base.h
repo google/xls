@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -32,19 +33,33 @@ class ProcRuntimeTestParam {
  public:
   ProcRuntimeTestParam(
       std::string_view name,
-      std::function<std::unique_ptr<ProcRuntime>(Package*)> runtime_factory)
-      : name_(name), runtime_factory_(runtime_factory) {}
+      std::function<std::unique_ptr<ProcRuntime>(Package*)>
+          package_runtime_factory,
+      std::function<std::unique_ptr<ProcRuntime>(Proc*)> proc_runtime_factory)
+      : name_(name),
+        package_runtime_factory_(std::move(package_runtime_factory)),
+        proc_runtime_factory_(std::move(proc_runtime_factory)) {}
   ProcRuntimeTestParam() = default;
 
+  // Creates a runtime for the given package. This supports old-style procs
+  // without proc scoped channels.
   std::unique_ptr<ProcRuntime> CreateRuntime(Package* package) const {
-    return runtime_factory_(package);
+    return package_runtime_factory_(package);
+  }
+
+  // Creates a runtime for the given proc and the proc hierarchy beneath it.
+  // This supports new-style procs without proc scoped channels.
+  std::unique_ptr<ProcRuntime> CreateRuntime(Proc* proc) const {
+    return proc_runtime_factory_(proc);
   }
 
   std::string name() const { return name_; }
 
  private:
   std::string name_;
-  std::function<std::unique_ptr<ProcRuntime>(Package*)> runtime_factory_;
+  std::function<std::unique_ptr<ProcRuntime>(Package*)>
+      package_runtime_factory_;
+  std::function<std::unique_ptr<ProcRuntime>(Proc*)> proc_runtime_factory_;
 };
 
 template <typename TestT>

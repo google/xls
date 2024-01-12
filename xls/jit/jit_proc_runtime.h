@@ -23,9 +23,15 @@
 
 namespace xls {
 
-// Create a SerialProcRuntime composed of ProcJits.
+// Create a SerialProcRuntime composed of ProcJits. Supports old-style
+// procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
     Package* package);
+
+// Create a SerialProcRuntime composed of ProcJits. Constructed from the
+// elaboration of the given proc. Supports new-style procs.
+absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
+    Proc* top);
 
 }  // namespace xls
 

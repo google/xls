@@ -37,7 +37,6 @@ namespace xls {
 class ProcRuntime {
  public:
   ProcRuntime(
-      Package* package,
       absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>>&& evaluators,
       std::unique_ptr<ChannelQueueManager>&& queue_manager);
 
@@ -53,14 +52,17 @@ class ProcRuntime {
   // error if no progress can be made due to a deadlock.
   absl::Status Tick();
 
-  // Tick the proc network until some output channels have produced at least a
-  // specified number of outputs as indicated by `output_counts`.
-  // `output_counts` must only contain output channels and need not contain all
-  // output channels. Returns the number of ticks executed before the conditions
-  // were met. `max_ticks` is the maximum number of ticks of the proc network
-  // before returning an error.
+  // Tick the proc network until some output channels (channel instances) have
+  // produced at least a specified number of outputs as indicated by
+  // `output_counts`. `output_counts` must only contain output channels and need
+  // not contain all output channels. Returns the number of ticks executed
+  // before the conditions were met. `max_ticks` is the maximum number of ticks
+  // of the proc network before returning an error.
   absl::StatusOr<int64_t> TickUntilOutput(
-      absl::flat_hash_map<Channel*, int64_t> output_counts,
+      const absl::flat_hash_map<Channel*, int64_t>& output_counts,
+      std::optional<int64_t> max_ticks = std::nullopt);
+  absl::StatusOr<int64_t> TickUntilOutput(
+      const absl::flat_hash_map<ChannelInstance*, int64_t>& output_counts,
       std::optional<int64_t> max_ticks = std::nullopt);
 
   // Tick until all procs with IO (send or receive nodes) are blocked on receive
@@ -111,6 +113,8 @@ class ProcRuntime {
     return queue_manager_->elaboration();
   }
 
+  Package* package() const { return elaboration().package(); }
+
  protected:
   // Execute (up to) a single iteration of every proc in the package.
   struct NetworkTickResult {
@@ -124,7 +128,6 @@ class ProcRuntime {
   };
   virtual absl::StatusOr<NetworkTickResult> TickInternal() = 0;
 
-  Package* package_;
   std::unique_ptr<ChannelQueueManager> queue_manager_;
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>> evaluators_;
   absl::flat_hash_map<ProcInstance*, std::unique_ptr<ProcContinuation>>

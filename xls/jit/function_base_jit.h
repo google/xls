@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -31,7 +32,6 @@
 #include "xls/ir/proc.h"
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
-#include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
 
@@ -50,9 +50,10 @@ namespace xls {
 //       allocas.
 //   events: pointer to events objects which records information from
 //       instructions like trace.
-//   user_data: pointer to arbitrary data passed to send/receive functions
-//       in procs.
-//   jit_runtime: pointer to a JitRuntime object.
+//   instance_context: pointer to an InstanceContext. Only used in procs. Holds
+//       information about the proc instance being evaluated.
+//   jit_runtime: pointer to a JitRuntime object which is a set of functions the
+//       JITted code may need to use, for example, to copy data to Values.
 //   continuation_point: an opaque value indicating the point in the
 //      FunctionBase to start execution when the jitted function is called.
 //      Used to enable interruption and resumption of execution of the
@@ -62,7 +63,8 @@ namespace xls {
 // completed.
 using JitFunctionType = int64_t (*)(const uint8_t* const* inputs,
                                     uint8_t* const* outputs, void* temp_buffer,
-                                    InterpreterEvents* events, void* user_data,
+                                    InterpreterEvents* events,
+                                    InstanceContext* instance_context,
                                     JitRuntime* jit_runtime,
                                     int64_t continuation_point);
 
@@ -77,8 +79,7 @@ class JittedFunctionBase {
 
   // Builds and returns an LLVM IR function implementing the given XLS
   // proc.
-  static absl::StatusOr<JittedFunctionBase> Build(
-      Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit);
+  static absl::StatusOr<JittedFunctionBase> Build(Proc* proc, OrcJit& orc_jit);
 
   // Builds and returns an LLVM IR function implementing the given XLS
   // block.
@@ -110,25 +111,27 @@ class JittedFunctionBase {
   // Execute the actual function (after verifying some invariants)
   int64_t RunJittedFunction(const JitArgumentSet& inputs,
                             JitArgumentSet& outputs, JitTempBuffer& temp_buffer,
-                            InterpreterEvents* events, void* user_data,
+                            InterpreterEvents* events,
+                            InstanceContext* instance_context,
                             JitRuntime* jit_runtime,
                             int64_t continuation_point) const;
 
   // Execute the jitted function using inputs not created by this function.
   // If kForceZeroCopy is false the inputs will be memcpy'd if needed to aligned
   // temporary buffers.
-  template<bool kForceZeroCopy = false>
+  template <bool kForceZeroCopy = false>
   int64_t RunUnalignedJittedFunction(const uint8_t* const* inputs,
                                      uint8_t* const* outputs, void* temp_buffer,
-                                     InterpreterEvents* events, void* user_data,
+                                     InterpreterEvents* events,
+                                     InstanceContext* instance_context,
                                      JitRuntime* jit_runtime,
                                      int64_t continuation) const;
 
   // Execute the actual function (after verifying some invariants)
   std::optional<int64_t> RunPackedJittedFunction(
       const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
-      InterpreterEvents* events, void* user_data, JitRuntime* jit_runtime,
-      int64_t continuation_point) const;
+      InterpreterEvents* events, InstanceContext* instance_context,
+      JitRuntime* jit_runtime, int64_t continuation_point) const;
 
   // Checks if we have a packed version of the function.
   bool HasPackedFunction() const { return packed_function_.has_value(); }
@@ -175,6 +178,12 @@ class JittedFunctionBase {
     return continuation_points_;
   }
 
+  // The map from channel reference name to the index of the respective queue in
+  // the instance context.
+  const absl::btree_map<std::string, int64_t>& queue_indices() const {
+    return queue_indices_;
+  }
+
  private:
   static absl::StatusOr<JittedFunctionBase> BuildInternal(
       FunctionBase* function, JitBuilderContext& jit_context,
@@ -218,6 +227,10 @@ class JittedFunctionBase {
   // Map from the continuation point return value to the corresponding node at
   // which execution was interrupted.
   absl::flat_hash_map<int64_t, Node*> continuation_points_;
+
+  // The map from channel reference name to the index of the respective queue in
+  // the instance context.
+  absl::btree_map<std::string, int64_t> queue_indices_;
 };
 
 }  // namespace xls

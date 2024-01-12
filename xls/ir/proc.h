@@ -231,6 +231,8 @@ class Proc : public FunctionBase {
   absl::StatusOr<ReceiveChannelReference*> GetReceiveChannelReference(
       std::string_view name) const;
 
+  // Returns all the channel references in the proc. This includes references to
+  // interface channels and declared channels.
   absl::Span<const std::unique_ptr<ChannelReference>> channel_references()
       const {
     return channel_references_;

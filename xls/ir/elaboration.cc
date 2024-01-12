@@ -27,11 +27,11 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
@@ -42,26 +42,35 @@
 #include "xls/ir/value.h"
 
 namespace xls {
-
 namespace {
 
 absl::StatusOr<std::unique_ptr<ProcInstance>> CreateNewStyleProcInstance(
     Proc* proc, std::optional<ProcInstantiation*> proc_instantiation,
     const InstantiationPath& path,
-    absl::Span<ChannelInstance* const> interface) {
+    absl::Span<const ChannelBinding> interface_bindings) {
   XLS_RET_CHECK(proc->is_new_style_proc());
 
   // Map from channel reference name to ChannelInstance.
-  absl::flat_hash_map<std::string, ChannelInstance*> channel_instances;
-  XLS_RET_CHECK_EQ(interface.size(), proc->interface().size());
-  for (int64_t i = 0; i < interface.size(); ++i) {
-    channel_instances[proc->interface()[i]->name()] = interface[i];
+  absl::flat_hash_map<ChannelRef, ChannelBinding> channel_bindings;
+  XLS_RET_CHECK_EQ(interface_bindings.size(), proc->interface().size());
+  for (int64_t i = 0; i < interface_bindings.size(); ++i) {
+    channel_bindings[proc->interface()[i]] = interface_bindings[i];
   }
   std::vector<std::unique_ptr<ChannelInstance>> declared_channels;
   for (Channel* channel : proc->channels()) {
     declared_channels.push_back(std::make_unique<ChannelInstance>(
         ChannelInstance{.channel = channel, .path = path}));
-    channel_instances[channel->name()] = declared_channels.back().get();
+    ChannelInstance* channel_instance = declared_channels.back().get();
+    XLS_ASSIGN_OR_RETURN(ChannelReference * send_reference,
+                         proc->GetSendChannelReference(channel->name()));
+    XLS_ASSIGN_OR_RETURN(ChannelReference * receive_reference,
+                         proc->GetReceiveChannelReference(channel->name()));
+    // Channel bindings for channels declared in this proc do not themselves
+    // bind to another reference, so the parent reference field is empty.
+    channel_bindings[send_reference] = ChannelBinding{
+        .instance = channel_instance, .parent_reference = std::nullopt};
+    channel_bindings[receive_reference] = ChannelBinding{
+        .instance = channel_instance, .parent_reference = std::nullopt};
   }
 
   std::vector<std::unique_ptr<ProcInstance>> instantiated_procs;
@@ -82,20 +91,22 @@ absl::StatusOr<std::unique_ptr<ProcInstance>> CreateNewStyleProcInstance(
                           instantiation_path.ToString()));
     }
 
-    std::vector<ChannelInstance*> instantiation_interface;
+    std::vector<ChannelBinding> subproc_interface_bindings;
     for (ChannelReference* channel_ref : instantiation->channel_args()) {
-      instantiation_interface.push_back(
-          channel_instances.at(channel_ref->name()));
+      subproc_interface_bindings.push_back(
+          ChannelBinding{.instance = channel_bindings.at(channel_ref).instance,
+                         .parent_reference = channel_ref});
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcInstance> instantiation_instance,
                          CreateNewStyleProcInstance(
                              instantiation->proc(), instantiation.get(),
-                             instantiation_path, instantiation_interface));
+                             instantiation_path, subproc_interface_bindings));
     instantiated_procs.push_back(std::move(instantiation_instance));
   }
-  return std::make_unique<ProcInstance>(proc, proc_instantiation, path,
-                                        interface, std::move(declared_channels),
-                                        std::move(instantiated_procs));
+
+  return std::make_unique<ProcInstance>(
+      proc, proc_instantiation, path, std::move(declared_channels),
+      std::move(instantiated_procs), std::move(channel_bindings));
 }
 
 }  // namespace
@@ -107,21 +118,40 @@ std::string ChannelInstance::ToString() const {
   return std::string{channel->name()};
 }
 
+ProcInstance::ProcInstance(
+    Proc* proc, std::optional<ProcInstantiation*> proc_instantiation,
+    std::optional<InstantiationPath> path,
+    std::vector<std::unique_ptr<ChannelInstance>> channel_instances,
+    std::vector<std::unique_ptr<ProcInstance>> instantiated_procs,
+    absl::flat_hash_map<ChannelRef, ChannelBinding> channel_bindings)
+    : proc_(proc),
+      proc_instantiation_(proc_instantiation),
+      path_(std::move(path)),
+      channel_instances_(std::move(channel_instances)),
+      instantiated_procs_(std::move(instantiated_procs)),
+      channel_bindings_(std::move(channel_bindings)) {
+  if (proc->is_new_style_proc()) {
+    for (const std::unique_ptr<ChannelReference>& channel_reference :
+         proc->channel_references()) {
+      channel_name_map_[channel_reference->name()] =
+          channel_bindings_.at(channel_reference.get()).instance;
+    }
+  } else {
+    for (Channel* channel : proc->package()->channels()) {
+      channel_name_map_[channel->name()] =
+          channel_bindings_.at(channel).instance;
+    }
+  }
+}
+
 absl::StatusOr<ChannelInstance*> ProcInstance::GetChannelInstance(
-    std::string_view channel_name) const {
-  for (const std::unique_ptr<ChannelInstance>& channel : channels_) {
-    if (channel->channel->name() == channel_name) {
-      return channel.get();
-    }
+    std::string_view channel_reference_name) const {
+  if (channel_name_map_.contains(channel_reference_name)) {
+    return channel_name_map_.at(channel_reference_name);
   }
-  for (ChannelInstance* channel : interface_) {
-    if (channel->channel->name() == channel_name) {
-      return channel;
-    }
-  }
-  return absl::NotFoundError(absl::StrFormat(
-      "No channel instance with name `%s` in instance of proc `%s`",
-      channel_name, proc()->name()));
+  return absl::NotFoundError(
+      absl::StrFormat("No channel reference named `%s` in proc `%s`",
+                      channel_reference_name, proc()->name()));
 }
 
 std::string ProcInstance::GetName() const {
@@ -132,6 +162,10 @@ std::string ProcInstance::GetName() const {
 }
 
 std::string ProcInstance::ToString(int64_t indent_amount) const {
+  if (!proc()->is_new_style_proc()) {
+    return proc()->name();
+  }
+
   auto indent = [&](std::string_view s, int64_t additional_indent = 0) {
     std::string indent_str(2 * (indent_amount + additional_indent), ' ');
     return absl::StrFormat("%s%s", indent_str, s);
@@ -141,13 +175,20 @@ std::string ProcInstance::ToString(int64_t indent_amount) const {
       proc_instantiation().has_value()
           ? absl::StrFormat(" [%s]", (*proc_instantiation())->name())
           : "";
-  pieces.push_back(indent(
-      absl::StrFormat("%s<%s>%s", proc()->name(),
-                      absl::StrJoin(proc()->interface(), ", ",
-                                    [](std::string* s, ChannelReference* c) {
-                                      absl::StrAppendFormat(s, "%s", c->name());
-                                    }),
-                      suffix)));
+  pieces.push_back(indent(absl::StrFormat(
+      "%s<%s>%s", proc()->name(),
+      absl::StrJoin(
+          proc()->interface(), ", ",
+          [&](std::string* s, ChannelReference* c) {
+            absl::StrAppendFormat(
+                s, "%s%s", c->name(),
+                GetChannelBinding(c).parent_reference.has_value()
+                    ? absl::StrCat(
+                          "=",
+                          GetChannelBinding(c).parent_reference.value()->name())
+                    : "");
+          }),
+      suffix)));
   for (Channel* channel : proc()->channels()) {
     pieces.push_back(indent(absl::StrFormat("chan %s", channel->name()), 1));
   }
@@ -157,8 +198,8 @@ std::string ProcInstance::ToString(int64_t indent_amount) const {
   return absl::StrJoin(pieces, "\n");
 }
 
-void Elaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
-  XLS_CHECK(proc_instance->path().has_value());
+absl::Status Elaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
+  XLS_RET_CHECK(proc_instance->path().has_value());
 
   proc_instance_ptrs_.push_back(proc_instance);
   instances_of_proc_[proc_instance->proc()].push_back(proc_instance);
@@ -166,25 +207,29 @@ void Elaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   proc_instances_by_path_[proc_instance->path().value()] = proc_instance;
   for (const std::unique_ptr<ChannelInstance>& channel_instance :
        proc_instance->channels()) {
-    channel_instances_by_path_[{std::string{channel_instance->channel->name()},
-                                proc_instance->path().value()}] =
-        channel_instance.get();
     instances_of_channel_[channel_instance->channel].push_back(
         channel_instance.get());
     channel_instance_ptrs_.push_back(channel_instance.get());
   }
 
-  for (const std::unique_ptr<ProcInstance>& subinstance :
-       proc_instance->instantiated_procs()) {
-    BuildInstanceMaps(subinstance.get());
+  for (const std::unique_ptr<ChannelReference>& channel_reference :
+       proc_instance->proc()->channel_references()) {
+    XLS_ASSIGN_OR_RETURN(
+        ChannelInstance * channel_instance,
+        proc_instance->GetChannelInstance(channel_reference->name()));
+    channel_instances_by_path_[{std::string{channel_reference->name()},
+                                proc_instance->path().value()}] =
+        channel_instance;
+    instances_of_channel_reference_[channel_reference.get()].push_back(
+        channel_instance);
   }
 
-  XLS_CHECK_EQ(proc_instance->interface().size(),
-               proc_instance->proc()->interface().size());
-  for (int64_t i = 0; i < proc_instance->interface().size(); ++i) {
-    instances_of_channel_reference_[proc_instance->proc()->interface()[i]]
-        .push_back(proc_instance->interface()[i]);
+  for (const std::unique_ptr<ProcInstance>& subinstance :
+       proc_instance->instantiated_procs()) {
+    XLS_RETURN_IF_ERROR(BuildInstanceMaps(subinstance.get()));
   }
+
+  return absl::OkStatus();
 }
 
 /*static*/
@@ -201,7 +246,7 @@ absl::StatusOr<Elaboration> Elaboration::Elaborate(Proc* top) {
   // xls::Channels in the IR corresponding to the ChannelReferences forming the
   // interface of `top`.
   int64_t channel_id = 0;
-  std::vector<ChannelInstance*> channel_instance_ptrs;
+  std::vector<ChannelBinding> interface_bindings;
   InstantiationPath path;
   path.top = top;
   for (ChannelReference* channel_ref : top->interface()) {
@@ -223,24 +268,43 @@ absl::StatusOr<Elaboration> Elaboration::Elaborate(Proc* top) {
         std::make_unique<ChannelInstance>(ChannelInstance{
             .channel = elaboration.interface_channels_.back().get(),
             .path = std::nullopt}));
-    channel_instance_ptrs.push_back(
-        elaboration.interface_channel_instances_.back().get());
+    interface_bindings.push_back(ChannelBinding{
+        .instance = elaboration.interface_channel_instances_.back().get(),
+        .parent_reference = std::nullopt});
   }
   XLS_ASSIGN_OR_RETURN(
       elaboration.top_,
       CreateNewStyleProcInstance(top, /*proc_instantiation=*/std::nullopt, path,
-                                 channel_instance_ptrs));
+                                 interface_bindings));
 
   for (const std::unique_ptr<ChannelInstance>& channel_instance :
        elaboration.interface_channel_instances_) {
     elaboration.channel_instance_ptrs_.push_back(channel_instance.get());
   }
-  elaboration.BuildInstanceMaps(elaboration.top_.get());
+  XLS_RETURN_IF_ERROR(elaboration.BuildInstanceMaps(elaboration.top_.get()));
+
+  // Create the vector of procs which appear in this elaboration.
+  absl::flat_hash_set<Proc*> proc_set;
+  for (ProcInstance* proc_instance : elaboration.proc_instance_ptrs_) {
+    if (!proc_set.contains(proc_instance->proc())) {
+      proc_set.insert(proc_instance->proc());
+      elaboration.procs_.push_back(proc_instance->proc());
+    }
+  }
 
   return elaboration;
 }
 
-std::string Elaboration::ToString() const { return top()->ToString(); }
+std::string Elaboration::ToString() const {
+  if (top_ != nullptr) {
+    // New-style procs.
+    return top()->ToString();
+  }
+  // Old-style procs.
+  return absl::StrJoin(procs(), "\n", [](std::string* s, Proc* p) {
+    return absl::StrAppend(s, p->name());
+  });
+}
 
 absl::StatusOr<ProcInstance*> Elaboration::GetProcInstance(
     const InstantiationPath& path) const {
@@ -278,6 +342,17 @@ absl::StatusOr<ChannelInstance*> Elaboration::GetChannelInstance(
     std::string_view channel_name, std::string_view path_str) const {
   XLS_ASSIGN_OR_RETURN(InstantiationPath path, CreatePath(path_str));
   XLS_ASSIGN_OR_RETURN(ProcInstance * proc_instance, GetProcInstance(path));
+  ChannelReference* channel_reference;
+  if (proc_instance->proc()->HasChannelReference(channel_name,
+                                                 Direction::kReceive)) {
+    XLS_ASSIGN_OR_RETURN(channel_reference,
+                         proc_instance->proc()->GetChannelReference(
+                             channel_name, Direction::kReceive));
+  } else {
+    XLS_ASSIGN_OR_RETURN(channel_reference,
+                         proc_instance->proc()->GetChannelReference(
+                             channel_name, Direction::kSend));
+  }
   return proc_instance->GetChannelInstance(channel_name);
 }
 
@@ -299,29 +374,40 @@ std::string InstantiationPath::ToString() const {
   // each.
   Elaboration elaboration;
   elaboration.package_ = package;
+
+  // All channels are available in all procs. Create a global map from channel
+  // name to channel instance and pass it to the constructor of every proc
+  // instance.
+  absl::flat_hash_map<ChannelRef, ChannelBinding> channel_bindings;
+  for (Channel* channel : package->channels()) {
+    elaboration.channel_instances_.push_back(std::make_unique<ChannelInstance>(
+        ChannelInstance{.channel = channel, .path = std::nullopt}));
+    ChannelInstance* channel_instance =
+        elaboration.channel_instances_.back().get();
+
+    elaboration.channel_instance_ptrs_.push_back(channel_instance);
+    elaboration.instances_of_channel_[channel] = {channel_instance};
+    channel_bindings[channel] = ChannelBinding{
+        .instance = channel_instance, .parent_reference = std::nullopt};
+  }
+
   for (const std::unique_ptr<Proc>& proc : package->procs()) {
     XLS_RET_CHECK(!proc->is_new_style_proc());
     elaboration.proc_instances_.push_back(std::make_unique<ProcInstance>(
         proc.get(), /*proc_instantiation=*/std::nullopt,
         /*path=*/std::nullopt,
-        /*interface=*/absl::Span<ChannelInstance* const>(),
         /*channel_instances=*/std::vector<std::unique_ptr<ChannelInstance>>(),
-        /*instantiated_procs=*/std::vector<std::unique_ptr<ProcInstance>>()));
+        /*instantiated_procs=*/std::vector<std::unique_ptr<ProcInstance>>(),
+        channel_bindings));
     elaboration.proc_instance_ptrs_.push_back(
         elaboration.proc_instances_.back().get());
 
     elaboration.instances_of_proc_[proc.get()] = {
         elaboration.proc_instance_ptrs_.back()};
-  }
-  for (Channel* channel : package->channels()) {
-    elaboration.channel_instances_.push_back(std::make_unique<ChannelInstance>(
-        ChannelInstance{.channel = channel, .path = std::nullopt}));
-    elaboration.channel_instance_ptrs_.push_back(
-        elaboration.channel_instances_.back().get());
 
-    elaboration.instances_of_channel_[channel] = {
-        elaboration.channel_instance_ptrs_.back()};
+    elaboration.procs_.push_back(proc.get());
   }
+
   return std::move(elaboration);
 }
 

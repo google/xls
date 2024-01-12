@@ -23,9 +23,15 @@
 
 namespace xls {
 
-// Create a SerialProcRuntime composed of ProcInterpreters.
+// Create a SerialProcRuntime composed of ProcInterpreters. Supports old-style
+// procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
 CreateInterpreterSerialProcRuntime(Package* package);
+
+// Create a SerialProcRuntime composed of ProcInterpreters. Constructed from the
+// elaboration of the given proc. Supports new-style procs.
+absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
+CreateInterpreterSerialProcRuntime(Proc* top);
 
 }  // namespace xls
 

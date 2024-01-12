@@ -40,6 +40,7 @@ namespace {
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::UnorderedElementsAre;
 
 class ElaborationTest : public IrTestBase {};
 
@@ -48,9 +49,9 @@ absl::StatusOr<Proc*> CreateLeafProc(std::string_view name,
                                      Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), name, "tkn", package);
   for (int64_t i = 0; i < input_channel_count; ++i) {
-    XLS_RETURN_IF_ERROR(
-        pb.AddInputChannel(absl::StrFormat("ch%d", i), package->GetBitsType(32))
-            .status());
+    XLS_RETURN_IF_ERROR(pb.AddInputChannel(absl::StrFormat("leaf_ch%d", i),
+                                           package->GetBitsType(32))
+                            .status());
   }
   return pb.Build({});
 }
@@ -63,12 +64,12 @@ absl::StatusOr<Proc*> CreatePassThroughProc(std::string_view name,
   std::vector<ChannelReference*> channels;
   for (int64_t i = 0; i < input_channel_count; ++i) {
     XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
-                         pb.AddInputChannel(absl::StrFormat("ch%d", i),
+                         pb.AddInputChannel(absl::StrFormat("pass_ch%d", i),
                                             package->GetBitsType(32)));
     channels.push_back(channel_ref);
   }
   XLS_RETURN_IF_ERROR(pb.InstantiateProc(
-      absl::StrFormat("inst_%s", proc_to_instantiate->name()),
+      absl::StrFormat("%s_inst_%s", name, proc_to_instantiate->name()),
       proc_to_instantiate, channels));
   return pb.Build({});
 }
@@ -91,8 +92,9 @@ absl::StatusOr<Proc*> CreateMultipleInstantiationProc(
     channels.push_back(channel_refs.receive_ref);
   }
   for (int64_t i = 0; i < procs_to_instantiate.size(); ++i) {
-    XLS_RETURN_IF_ERROR(pb.InstantiateProc(absl::StrFormat("inst%d", i),
-                                           procs_to_instantiate[i], channels));
+    XLS_RETURN_IF_ERROR(
+        pb.InstantiateProc(absl::StrFormat("%s_inst%d", name, i),
+                           procs_to_instantiate[i], channels));
   }
   return pb.Build({});
 }
@@ -106,7 +108,6 @@ TEST_F(ElaborationTest, SingleProcNoChannels) {
   EXPECT_EQ(elab.top()->proc(), proc);
   EXPECT_TRUE(elab.top()->path().has_value());
   EXPECT_EQ(elab.top()->path()->ToString(), "foo");
-  EXPECT_TRUE(elab.top()->interface().empty());
 
   ASSERT_EQ(elab.proc_instances().size(), 1);
   EXPECT_EQ(elab.proc_instances().front()->proc(), proc);
@@ -129,30 +130,22 @@ TEST_F(ElaborationTest, SingleProcMultipleChannels) {
   EXPECT_FALSE(elab.top()->proc_instantiation().has_value());
   EXPECT_TRUE(elab.top()->path().has_value());
   EXPECT_EQ(elab.top()->path()->ToString(), "foo");
-  EXPECT_EQ(elab.top()->interface().size(), 3);
 
   ASSERT_EQ(elab.proc_instances().size(), 1);
   EXPECT_EQ(elab.proc_instances().front()->proc(), proc);
 
   EXPECT_EQ(elab.channel_instances().size(), 3);
-  EXPECT_EQ(elab.channel_instances()[0]->channel->name(), "ch0");
-  EXPECT_THAT(elab.top()->GetChannelInstance("ch0"),
+  EXPECT_EQ(elab.channel_instances()[0]->channel->name(), "leaf_ch0");
+  EXPECT_THAT(elab.top()->GetChannelInstance("leaf_ch0"),
               IsOkAndHolds(elab.channel_instances()[0]));
-  EXPECT_EQ(elab.channel_instances()[1]->channel->name(), "ch1");
-  EXPECT_THAT(elab.top()->GetChannelInstance("ch1"),
+  EXPECT_EQ(elab.channel_instances()[1]->channel->name(), "leaf_ch1");
+  EXPECT_THAT(elab.top()->GetChannelInstance("leaf_ch1"),
               IsOkAndHolds(elab.channel_instances()[1]));
-  EXPECT_EQ(elab.channel_instances()[2]->channel->name(), "ch2");
-  EXPECT_THAT(elab.top()->GetChannelInstance("ch2"),
+  EXPECT_EQ(elab.channel_instances()[2]->channel->name(), "leaf_ch2");
+  EXPECT_THAT(elab.top()->GetChannelInstance("leaf_ch2"),
               IsOkAndHolds(elab.channel_instances()[2]));
 
-  EXPECT_EQ(elab.top()->interface()[0]->channel->name(), "ch0");
-  EXPECT_FALSE(elab.top()->interface()[0]->path.has_value());
-  EXPECT_EQ(elab.top()->interface()[1]->channel->name(), "ch1");
-  EXPECT_FALSE(elab.top()->interface()[1]->path.has_value());
-  EXPECT_EQ(elab.top()->interface()[2]->channel->name(), "ch2");
-  EXPECT_FALSE(elab.top()->interface()[2]->path.has_value());
-
-  EXPECT_EQ(elab.ToString(), "foo<ch0, ch1, ch2>");
+  EXPECT_EQ(elab.ToString(), "foo<leaf_ch0, leaf_ch1, leaf_ch2>");
 }
 
 TEST_F(ElaborationTest, ProcInstantiatingProc) {
@@ -163,10 +156,10 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
   TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * in_ch,
                            pb.AddInputChannel("in_ch", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences channel_refs,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences the_channel_refs,
                            pb.AddChannel("the_ch", p->GetBitsType(32)));
   XLS_ASSERT_OK(pb.InstantiateProc("leaf_inst", leaf_proc,
-                                   {channel_refs.receive_ref, in_ch}));
+                                   {the_channel_refs.receive_ref, in_ch}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(top));
@@ -184,9 +177,20 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
   EXPECT_THAT(elab.GetProcInstance("top_proc::leaf_inst->leaf"),
               IsOkAndHolds(leaf_instance));
 
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * leaf_ch0_instance,
+                           leaf_instance->GetChannelInstance("leaf_ch0"));
+  EXPECT_EQ(leaf_ch0_instance->channel->name(), "the_ch");
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * leaf_ch1_instance,
+                           leaf_instance->GetChannelInstance("leaf_ch1"));
+  EXPECT_EQ(leaf_ch1_instance->channel->name(), "in_ch");
+
+  EXPECT_THAT(
+      elab.GetChannelInstance("leaf_ch0", leaf_instance->path().value()),
+      IsOkAndHolds(leaf_instance->GetChannelInstance("leaf_ch0").value()));
+
   EXPECT_EQ(elab.ToString(), R"(top_proc<in_ch>
   chan the_ch
-  leaf<ch0, ch1> [leaf_inst])");
+  leaf<leaf_ch0=the_ch, leaf_ch1=in_ch> [leaf_inst])");
 }
 
 TEST_F(ElaborationTest, ProcInstantiatingProcInstantiatedProcEtc) {
@@ -206,23 +210,25 @@ TEST_F(ElaborationTest, ProcInstantiatingProcInstantiatedProcEtc) {
                            pb.AddInputChannel("in_ch0", p->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * in_ch1,
                            pb.AddInputChannel("in_ch1", p->GetBitsType(32)));
-  XLS_ASSERT_OK(pb.InstantiateProc("inst1", proc1, {in_ch0, in_ch1}));
+  XLS_ASSERT_OK(pb.InstantiateProc("top_inst_1", proc1, {in_ch0, in_ch1}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(top));
 
+  EXPECT_THAT(elab.procs(), UnorderedElementsAre(top, proc0, proc1, leaf_proc));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       ProcInstance * leaf_inst,
-      elab.GetProcInstance(
-          "top_proc::inst1->proc1::inst_proc0->proc0::inst_foo->foo"));
+      elab.GetProcInstance("top_proc::top_inst_1->proc1::proc1_inst_proc0->"
+                           "proc0::proc0_inst_foo->foo"));
   EXPECT_EQ(leaf_inst->proc(), leaf_proc);
 
   EXPECT_EQ(elab.top()->proc(), top);
   EXPECT_EQ(elab.top()->path()->ToString(), "top_proc");
   EXPECT_EQ(elab.ToString(), R"(top_proc<in_ch0, in_ch1>
-  proc1<ch0, ch1> [inst1]
-    proc0<ch0, ch1> [inst_proc0]
-      foo<ch0, ch1> [inst_foo])");
+  proc1<pass_ch0=in_ch0, pass_ch1=in_ch1> [top_inst_1]
+    proc0<pass_ch0=pass_ch0, pass_ch1=pass_ch1> [proc1_inst_proc0]
+      foo<leaf_ch0=pass_ch0, leaf_ch1=pass_ch1> [proc0_inst_foo])");
 }
 
 TEST_F(ElaborationTest, MultipleInstantiations) {
@@ -245,27 +251,28 @@ TEST_F(ElaborationTest, MultipleInstantiations) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(top));
 
+  EXPECT_THAT(elab.procs(), UnorderedElementsAre(top, middle_proc, leaf_proc));
+
   EXPECT_EQ(elab.GetInstances(leaf_proc).size(), 7);
 
   EXPECT_EQ(elab.GetInstances(leaf_proc)[0]->proc(), leaf_proc);
   EXPECT_EQ(elab.GetInstances(leaf_proc)[0]->path()->ToString(),
-            "top_proc::inst0->middle::inst0->leaf");
-
+            "top_proc::top_proc_inst0->middle::middle_inst0->leaf");
   EXPECT_EQ(elab.GetInstances(leaf_proc)[1]->proc(), leaf_proc);
   EXPECT_EQ(elab.GetInstances(leaf_proc)[1]->path()->ToString(),
-            "top_proc::inst0->middle::inst1->leaf");
+            "top_proc::top_proc_inst0->middle::middle_inst1->leaf");
 
   EXPECT_EQ(elab.GetInstances(leaf_proc)[2]->proc(), leaf_proc);
   EXPECT_EQ(elab.GetInstances(leaf_proc)[2]->path()->ToString(),
-            "top_proc::inst0->middle::inst2->leaf");
+            "top_proc::top_proc_inst0->middle::middle_inst2->leaf");
 
   EXPECT_EQ(elab.GetInstances(leaf_proc)[3]->proc(), leaf_proc);
   EXPECT_EQ(elab.GetInstances(leaf_proc)[3]->path()->ToString(),
-            "top_proc::inst1->middle::inst0->leaf");
+            "top_proc::top_proc_inst1->middle::middle_inst0->leaf");
 
   EXPECT_EQ(elab.GetInstances(leaf_proc)[6]->proc(), leaf_proc);
   EXPECT_EQ(elab.GetInstances(leaf_proc)[6]->path()->ToString(),
-            "top_proc::inst2->leaf");
+            "top_proc::top_proc_inst2->leaf");
 
   EXPECT_EQ(elab.GetInstances(middle_proc->channels()[0]).size(), 2);
   EXPECT_EQ(elab.GetInstances(middle_proc->channels()[1]).size(), 2);
@@ -277,10 +284,10 @@ TEST_F(ElaborationTest, MultipleInstantiations) {
 
   EXPECT_EQ(elab.GetInstancesOfChannelReference(leaf_proc->interface()[0])[0]
                 ->path->ToString(),
-            "top_proc::inst0->middle");
+            "top_proc::top_proc_inst0->middle");
   EXPECT_EQ(elab.GetInstancesOfChannelReference(leaf_proc->interface()[0])[1]
                 ->path->ToString(),
-            "top_proc::inst0->middle");
+            "top_proc::top_proc_inst0->middle");
   EXPECT_EQ(elab.GetInstancesOfChannelReference(leaf_proc->interface()[0])[6]
                 ->path->ToString(),
             "top_proc");
@@ -290,19 +297,19 @@ TEST_F(ElaborationTest, MultipleInstantiations) {
   EXPECT_EQ(elab.ToString(), R"(top_proc<input0, input1>
   chan ch0
   chan ch1
-  middle<input0, input1> [inst0]
+  middle<input0=ch0, input1=ch1> [top_proc_inst0]
     chan ch0
     chan ch1
-    leaf<ch0, ch1> [inst0]
-    leaf<ch0, ch1> [inst1]
-    leaf<ch0, ch1> [inst2]
-  middle<input0, input1> [inst1]
+    leaf<leaf_ch0=ch0, leaf_ch1=ch1> [middle_inst0]
+    leaf<leaf_ch0=ch0, leaf_ch1=ch1> [middle_inst1]
+    leaf<leaf_ch0=ch0, leaf_ch1=ch1> [middle_inst2]
+  middle<input0=ch0, input1=ch1> [top_proc_inst1]
     chan ch0
     chan ch1
-    leaf<ch0, ch1> [inst0]
-    leaf<ch0, ch1> [inst1]
-    leaf<ch0, ch1> [inst2]
-  leaf<ch0, ch1> [inst2])");
+    leaf<leaf_ch0=ch0, leaf_ch1=ch1> [middle_inst0]
+    leaf<leaf_ch0=ch0, leaf_ch1=ch1> [middle_inst1]
+    leaf<leaf_ch0=ch0, leaf_ch1=ch1> [middle_inst2]
+  leaf<leaf_ch0=ch0, leaf_ch1=ch1> [top_proc_inst2])");
 }
 
 TEST_F(ElaborationTest, ProcInstantiatingProcWithNoChannels) {
@@ -341,6 +348,8 @@ TEST_F(ElaborationTest, ElaborateOldStyleProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab,
                            Elaboration::ElaborateOldStylePackage(p.get()));
 
+  EXPECT_THAT(elab.procs(), UnorderedElementsAre(top));
+
   ASSERT_EQ(elab.proc_instances().size(), 1);
   absl::Span<ProcInstance* const> proc_instances = elab.GetInstances(top);
   EXPECT_EQ(proc_instances, elab.proc_instances());
@@ -373,6 +382,8 @@ TEST_F(ElaborationTest, ElaborateOldStyleMultiprocNetwork) {
   XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab,
                            Elaboration::ElaborateOldStylePackage(&p));
 
+  EXPECT_THAT(elab.procs(), UnorderedElementsAre(proc1, proc2, proc3));
+
   ASSERT_EQ(elab.proc_instances().size(), 3);
   EXPECT_EQ(elab.GetInstances(proc1).size(), 1);
   EXPECT_EQ(elab.GetInstances(proc1).front()->proc(), proc1);
@@ -388,6 +399,10 @@ TEST_F(ElaborationTest, ElaborateOldStyleMultiprocNetwork) {
   EXPECT_EQ(elab.GetInstances(ch2).front()->channel, ch2);
   EXPECT_EQ(elab.GetInstances(ch3).size(), 1);
   EXPECT_EQ(elab.GetInstances(ch3).front()->channel, ch3);
+
+  EXPECT_EQ(elab.ToString(), R"(proc1
+proc2
+proc3)");
 }
 
 }  // namespace

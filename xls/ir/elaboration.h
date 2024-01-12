@@ -24,9 +24,10 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
@@ -44,7 +45,7 @@ namespace xls {
 //
 // Example proc hierarchy:
 //
-//   proc leaf_proc<ch0: ... in, ch0: .... out>(...) { }
+//   proc leaf_proc<ch0: ... in, ch1: .... out>(...) { }
 //
 //   proc other_proc<x: ... in, y: .... out>(...) {
 //     chan z(...)
@@ -63,18 +64,18 @@ namespace xls {
 // Elaborating this hierarchy from `my_top` yields the following elaboration
 // tree. Each line is a instance of either a proc or a channel.
 //
-//  my_top
+//  <a, b>my_top
 //    chan c
 //    chan d
-//    other_proc<a, b> [my_inst0]
+//    other_proc<x=a, y=b> [my_inst0]
 //      chan z
-//      leaf_proc<x, z> [other_inst0]
-//      leaf_proc<z, y> [other_inst1]
-//    other_proc<c, c> [my_inst1]
+//      leaf_proc<ch0=x, ch1=z> [other_inst0]
+//      leaf_proc<ch0=z, ch1=y> [other_inst1]
+//    other_proc<x=c, y=c> [my_inst1]
 //      chan z
-//      leaf_proc<x, z> [other_inst0]
-//      leaf_proc<z, y> [other_inst1]
-//    leaf_proc<d, d> [my_inst2]
+//      leaf_proc<ch0=x, ch1=z> [other_inst0]
+//      leaf_proc<ch0=z, ch1=y> [other_inst1]
+//    leaf_proc<ch0=d, ch1=d> [my_inst2]
 //
 // There are five instances of `leaf_proc` as there are five paths from
 // `top_proc` to `leaf_proc` in the proc hierarchy.
@@ -113,22 +114,33 @@ struct ChannelInstance {
   std::string ToString() const;
 };
 
+// Data structure describing the binding of a channel reference (or channel in
+// old-style procs) to a channel instance. Each channel reference has a unique
+// binding. Channel references on the interfaces of procs are bound to the
+// respective channel reference of the proc instantiation argument. Channel
+// references to channels defined in the proc are bound directly to the channel.
+struct ChannelBinding {
+  // The channel instance the channel reference is bound to.
+  ChannelInstance* instance;
+
+  // The channel reference in the parent proc in the elaboration to which the
+  // channel reference is bound. This value is nullopt for top-level channel
+  // interface (and old-style procs) and for channel references which refer to
+  // channel declared in the proc itself.
+  std::optional<ChannelReference*> parent_reference;
+};
+
 // Representation of an instance of a proc. This is a recursive data structure
 // which also holds all channel and proc instances instantiated by this proc
 // instance including recursively.
 class ProcInstance {
  public:
-  ProcInstance(Proc* proc, std::optional<ProcInstantiation*> proc_instantiation,
-               std::optional<InstantiationPath> path,
-               absl::Span<ChannelInstance* const> interface,
-               std::vector<std::unique_ptr<ChannelInstance>> channel_instances,
-               std::vector<std::unique_ptr<ProcInstance>> instantiated_procs)
-      : proc_(proc),
-        proc_instantiation_(proc_instantiation),
-        path_(std::move(path)),
-        interface_(interface.begin(), interface.end()),
-        channels_(std::move(channel_instances)),
-        instantiated_procs_(std::move(instantiated_procs)) {}
+  ProcInstance(
+      Proc* proc, std::optional<ProcInstantiation*> proc_instantiation,
+      std::optional<InstantiationPath> path,
+      std::vector<std::unique_ptr<ChannelInstance>> channel_instances,
+      std::vector<std::unique_ptr<ProcInstance>> instantiated_procs,
+      absl::flat_hash_map<ChannelRef, ChannelBinding> channel_bindings);
 
   Proc* proc() const { return proc_; }
 
@@ -143,13 +155,10 @@ class ProcInstance {
   // for old-style procs.
   const std::optional<InstantiationPath>& path() const { return path_; }
 
-  // The ChannelInstances comprising the interface of this proc instance.
-  absl::Span<ChannelInstance* const> interface() const { return interface_; }
-
   // The ChannelInstances corresponding to the channels declared in the proc
   // associated with this proc instance.
   absl::Span<const std::unique_ptr<ChannelInstance>> channels() const {
-    return channels_;
+    return channel_instances_;
   }
 
   // The ProcInstances instantiated by this proc instance.
@@ -159,9 +168,24 @@ class ProcInstance {
 
   // Returns the ChannelInstance with the given name in this proc instance. The
   // channel instance can refer to an interface channel or a channel defined in
-  // the proc.
+  // the proc. The name of the channel reference (ChannelReference::name) may
+  // differ than than name of the channel it is bound to
+  // (ChannelInstance::channel.name).
   absl::StatusOr<ChannelInstance*> GetChannelInstance(
-      std::string_view channel_name) const;
+      std::string_view channel_reference_name) const;
+
+  // Return the binding for the given channel reference. For new-style procs
+  // only.
+  ChannelBinding GetChannelBinding(ChannelReference* channel_reference) const {
+    XLS_CHECK(proc()->is_new_style_proc());
+    return channel_bindings_.at(channel_reference);
+  }
+
+  // Return the binding for the given channel. For old-style procs only.
+  ChannelBinding GetChannelBinding(Channel* channel) const {
+    XLS_CHECK(!proc()->is_new_style_proc());
+    return channel_bindings_.at(channel);
+  }
 
   // Returns a unique name for this proc instantiation. For new-style procs this
   // includes the proc name and the instantiation path. For old-style procs this
@@ -175,12 +199,21 @@ class ProcInstance {
   Proc* proc_;
   std::optional<ProcInstantiation*> proc_instantiation_;
   std::optional<InstantiationPath> path_;
-  std::vector<ChannelInstance*> interface_;
 
   // Channel and proc instances in this proc instance. Unique pointers are used
   // for pointer stability as pointers to these objects are handed out.
-  std::vector<std::unique_ptr<ChannelInstance>> channels_;
+  std::vector<std::unique_ptr<ChannelInstance>> channel_instances_;
   std::vector<std::unique_ptr<ProcInstance>> instantiated_procs_;
+
+  // Map from ChannelRef (variant of ChannelReference and Channel) to the
+  // channel binding. For old-style procs this contains *all* channels as all
+  // channels are referenceable in all procs. For new-style procs this contains
+  // only the channel references in this proc.
+  absl::flat_hash_map<ChannelRef, ChannelBinding> channel_bindings_;
+
+  // Map from channel reference name to channel instance for all channel
+  // references in the proc.
+  absl::flat_hash_map<std::string, ChannelInstance*> channel_name_map_;
 };
 
 // Data structure representing the elaboration tree.
@@ -221,6 +254,9 @@ class Elaboration {
     return channel_instance_ptrs_;
   }
 
+  // Returns the procs in this elaboration.
+  absl::Span<Proc* const> procs() const { return procs_; }
+
   // Return all instances of a particular channel/proc.
   absl::Span<ProcInstance* const> GetInstances(Proc* proc) const;
   absl::Span<ChannelInstance* const> GetInstances(Channel* channel) const;
@@ -251,7 +287,7 @@ class Elaboration {
  private:
   // Walks the hierarchy and builds the data member maps of instances.  Only
   // should be called for new-style procs.
-  void BuildInstanceMaps(ProcInstance* proc_instance);
+  absl::Status BuildInstanceMaps(ProcInstance* proc_instance);
 
   Package* package_;
 
@@ -268,6 +304,9 @@ class Elaboration {
   std::vector<ProcInstance*> proc_instance_ptrs_;
   std::vector<ChannelInstance*> channel_instance_ptrs_;
 
+  // Procs in this elaboration.
+  std::vector<Proc*> procs_;
+
   // Channel object for the interface of the top-level proc. This is necessary
   // as there are no associated Channel objects in the IR.
   // TODO(https://github.com/google/xls/issues/869): An IR object should
@@ -281,8 +320,8 @@ class Elaboration {
   // All proc instances in the elaboration indexed by instantiation path.
   absl::flat_hash_map<InstantiationPath, ProcInstance*> proc_instances_by_path_;
 
-  // All channel instances in the elaboration indexed by channel name and
-  // instantiation path.
+  // All channel instances in the elaboration indexed by channel reference name
+  // (new style) or channel name (old style) and instantiation path.
   absl::flat_hash_map<std::pair<std::string, InstantiationPath>,
                       ChannelInstance*>
       channel_instances_by_path_;
