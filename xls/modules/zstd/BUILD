@@ -20,9 +20,12 @@ load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
+    "xls_benchmark_verilog",
+    "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_test",
     "xls_dslx_verilog",
+    "xls_ir_opt_ir",
 )
 
 package(
@@ -660,4 +663,120 @@ place_and_route(
     skip_detailed_routing = True,
     synthesized_rtl = ":block_dec_synth_asap7",
     target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "ram_printer_dslx",
+    srcs = ["ram_printer.x"],
+    deps = [
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "ram_printer_dslx_test",
+    library = ":ram_printer_dslx",
+)
+
+xls_dslx_library(
+    name = "sequence_executor_dslx",
+    srcs = [
+        "sequence_executor.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":ram_printer_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "sequence_executor_dslx_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":sequence_executor_dslx",
+)
+
+xls_dslx_verilog(
+    name = "sequence_executor_verilog",
+    codegen_args = {
+        "module_name": "sequence_executor",
+        "generator": "pipeline",
+        "delay_model": "asap7",
+        "ram_configurations": ",".join([
+            "{ram_name}:1RW:{req}:{resp}:{wr_comp}:{latency}".format(
+                latency = 5,
+                ram_name = "ram{}".format(num),
+                req = "sequence_executor__req_m{}_s".format(num),
+                resp = "sequence_executor__resp_m{}_r".format(num),
+                wr_comp = "sequence_executor__wr_comp_m{}_r".format(num),
+            )
+            for num in range(7)
+        ]),
+        "pipeline_stages": "6",
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "true",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "worst_case_throughput": "1",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "SequenceExecutor",
+    library = ":sequence_executor_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+    },
+    verilog_file = "sequence_executor.v",
+)
+
+xls_benchmark_ir(
+    name = "sequence_executor_ir_benchmark",
+    src = ":sequence_executor_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "6",
+        "delay_model": "asap7",
+    },
+)
+
+xls_benchmark_verilog(
+    name = "sequence_executor_verilog_benchmark",
+    verilog_target = "sequence_executor_verilog",
+)
+
+verilog_library(
+    name = "sequence_executor_lib",
+    srcs = [
+        ":sequence_executor.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "sequence_executor_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "sequence_executor",
+    deps = [
+        ":sequence_executor_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "sequence_executor_benchmark_synth",
+    synth_target = ":sequence_executor_asap7",
+)
+
+place_and_route(
+    name = "sequence_executor_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    skip_detailed_routing = True,
+    synthesized_rtl = ":sequence_executor_asap7",
+    #die_height_microns = 120,
+    #die_width_microns = 120,
+    target_die_utilization_percentage = "5",
 )

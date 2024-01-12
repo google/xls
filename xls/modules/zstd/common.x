@@ -16,12 +16,17 @@ pub const DATA_WIDTH = u32:64;
 pub const MAX_ID = u32::MAX;
 pub const SYMBOL_WIDTH = u32:8;
 pub const BLOCK_SIZE_WIDTH = u32:21;
+pub const HISTORY_BUFFER_SIZE_KB = u32:64;
+pub const OFFSET_WIDTH = u32:22;
+pub const LENGTH_WIDTH = u32:22;
 
 pub type BlockData = bits[DATA_WIDTH];
 pub type BlockPacketLength = u32;
 pub type BlockSize = bits[BLOCK_SIZE_WIDTH];
 pub type CopyOrMatchContent = BlockData;
 pub type CopyOrMatchLength = u64;
+pub type Offset = bits[OFFSET_WIDTH];
+pub type Length = bits[LENGTH_WIDTH];
 
 pub enum BlockType : u2 {
     RAW = 0,
@@ -53,4 +58,11 @@ pub struct SequenceExecutorPacket {
     length: CopyOrMatchLength, // Literal length or match length
     content: CopyOrMatchContent, // Literal data or match offset
     last: bool, // Last packet in frame
+}
+
+// Defines output format of the ZSTD Decoder
+pub struct ZstdDecodedPacket {
+    data: BlockData,
+    length: BlockPacketLength, // valid bits in data
+    last: bool, // Last decoded packet in frame
 }
