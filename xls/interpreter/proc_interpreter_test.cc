@@ -16,7 +16,6 @@
 
 #include <memory>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
@@ -37,7 +36,8 @@ INSTANTIATE_TEST_SUITE_P(
         },
         [](Package* package) -> std::unique_ptr<ChannelQueueManager> {
           return ChannelQueueManager::Create(package).value();
-        })));
+        },
+        /*supports_next_value=*/true)));
 
 }  // namespace
 }  // namespace xls

@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/channel_queue.h"
@@ -36,8 +37,10 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
-using testing::ElementsAre;
-using testing::Optional;
+using status_testing::StatusIs;
+using ::testing::ElementsAre;
+using ::testing::HasSubstr;
+using ::testing::Optional;
 
 TEST_P(ProcEvaluatorTestBase, EmptyProc) {
   auto package = CreatePackage();
@@ -541,6 +544,247 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
                               .channel_instance = std::nullopt,
                               .progress_made = true}));
   EXPECT_THAT(queue.Read(), Optional(Value(UBits(4, 32))));
+}
+
+TEST_P(ProcEvaluatorTestBase, UnconditionalNextProc) {
+  if (!GetParam().SupportsNextValue()) {
+    GTEST_SKIP() << "Evaluator does not support next_value";
+  }
+
+  // Create an output-only proc which increments its counter value each
+  // iteration, using explicit next_value nodes.
+  Package package(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package.CreateStreamingChannel("counter_out", ChannelOps::kSendOnly,
+                                     package.GetBitsType(32)));
+
+  ProcBuilder pb("counter", /*token_name=*/"tok", &package);
+  BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
+  BValue send = pb.Send(channel, pb.GetTokenParam(), counter);
+  BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
+  pb.Next(/*param=*/counter, /*value=*/incremented_counter);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(&package);
+  std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
+      FindProc("counter", &package), queue_manager.get());
+
+  ChannelQueue& queue = queue_manager->GetQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * channel_instance,
+      queue_manager->elaboration().GetUniqueInstance(channel));
+
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(0, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(1, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(2, 32))));
+}
+
+TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
+  if (!GetParam().SupportsNextValue()) {
+    GTEST_SKIP() << "Evaluator does not support next_value";
+  }
+
+  // Create an output-only proc which increments its counter value only every
+  // other iteration.
+  Package package(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package.CreateStreamingChannel("slow_counter_out", ChannelOps::kSendOnly,
+                                     package.GetBitsType(32)));
+
+  ProcBuilder pb("slow_counter", /*token_name=*/"tok", &package);
+  BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
+  BValue iteration = pb.StateElement("iteration", Value(UBits(0, 32)));
+  BValue send = pb.Send(channel, pb.GetTokenParam(), counter);
+  BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
+  BValue odd_iteration = pb.Eq(pb.BitSlice(iteration, /*start=*/0, /*width=*/1),
+                               pb.Literal(UBits(1, 1)));
+  pb.Next(/*param=*/counter, /*value=*/incremented_counter,
+          /*pred=*/odd_iteration);
+  pb.Next(/*param=*/iteration,
+          /*value=*/pb.Add(iteration, pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(&package);
+  std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
+      FindProc("slow_counter", &package), queue_manager.get());
+
+  ChannelQueue& queue = queue_manager->GetQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * channel_instance,
+      queue_manager->elaboration().GetUniqueInstance(channel));
+
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(0, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(0, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(1, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(1, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(2, 32))));
+}
+
+TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
+  if (!GetParam().SupportsNextValue()) {
+    GTEST_SKIP() << "Evaluator does not support next_value";
+  }
+
+  // Create an output-only proc which increments its counter value only every
+  // other iteration - but also tries to set the counter value to a different
+  // value.
+  Package package(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package.CreateStreamingChannel("slow_counter_out", ChannelOps::kSendOnly,
+                                     package.GetBitsType(32)));
+
+  ProcBuilder pb("slow_counter", /*token_name=*/"tok", &package);
+  BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
+  BValue iteration = pb.StateElement("iteration", Value(UBits(0, 32)));
+  BValue send = pb.Send(channel, pb.GetTokenParam(), counter);
+  BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
+  BValue odd_iteration = pb.Eq(pb.BitSlice(iteration, /*start=*/0, /*width=*/1),
+                               pb.Literal(UBits(1, 1)));
+  pb.Next(/*param=*/counter, /*value=*/incremented_counter,
+          /*pred=*/odd_iteration);
+  pb.Next(/*param=*/counter, /*value=*/pb.Literal(UBits(0, 32)));
+  pb.Next(/*param=*/iteration,
+          /*value=*/pb.Add(iteration, pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(&package);
+  std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
+      FindProc("slow_counter", &package), queue_manager.get());
+
+  ChannelQueue& queue = queue_manager->GetQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * channel_instance,
+      queue_manager->elaboration().GetUniqueInstance(channel));
+
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(0, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              StatusIs(absl::StatusCode::kAlreadyExists,
+                       HasSubstr("Multiple active next values for param "
+                                 "\"counter\" in a single activation")));
 }
 
 TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {
