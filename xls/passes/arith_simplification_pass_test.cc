@@ -39,6 +39,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -48,6 +49,7 @@ namespace {
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using status_testing::IsOkAndHolds;
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 using ::xls::solvers::z3::TryProveEquivalence;
 
 using ::testing::AllOf;
@@ -329,7 +331,7 @@ TEST_F(ArithSimplificationPassTest, SubFallsToZero) {
   FunctionBuilder fb(TestName(), p.get());
   auto param = fb.Param("x", p->GetBitsType(32));
   fb.Subtract(param, param);
-  XLS_ASSERT_OK_AND_ASSIGN(Function* f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(0));
 }
@@ -2175,6 +2177,46 @@ TEST_F(ArithSimplificationPassTest, ShiftLeftOfPowerOfTwo) {
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
               IsOkAndHolds(true));
+}
+
+TEST_F(ArithSimplificationPassTest, AddInverses) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p1 = fb.Param("p1", p->GetBitsType(32));
+  fb.Tuple({
+      fb.Add(p1, fb.Not(p1)),
+      fb.Add(fb.Not(p1), p1),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(m::Literal(Bits::AllOnes(32)), m::Literal(Bits::AllOnes(32))));
+}
+
+TEST_F(ArithSimplificationPassTest, OrInverses) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p1 = fb.Param("p1", p->GetBitsType(32));
+  BValue p2 = fb.Param("p2", p->GetBitsType(32));
+  fb.Tuple({
+      fb.Or(p1, fb.Not(p1)),
+      fb.Or(fb.Not(p1), p1),
+      fb.Or({p1, p2, fb.Not(p1)}),
+      fb.Or({p1, p2, fb.Not(p2)}),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Tuple(m::Literal(Bits::AllOnes(32)), m::Literal(Bits::AllOnes(32)),
+               m::Literal(Bits::AllOnes(32)), m::Literal(Bits::AllOnes(32))));
 }
 
 }  // namespace

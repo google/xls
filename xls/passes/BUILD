@@ -153,6 +153,7 @@ cc_test(
         "//xls/ir:op",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence",
+        "//xls/solvers:z3_ir_equivalence_testutils",
     ],
 )
 

@@ -705,6 +705,32 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
+  //   Or(X, Not(X), ...)  => 1...
+  //
+  // Note that this won't be found through the ternary query engine because
+  // conservatively it determines `not(UNKNOWN) = UNKNOWN`.
+  if (n->op() == Op::kOr && has_inverted_operand()) {
+    XLS_VLOG(2) << "FOUND: replace Or(x, not(x)) with 1...";
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(Value(Bits::AllOnes(n->BitCountOrDie())))
+            .status());
+    return true;
+  }
+
+  //   Add(X, Not(X)) => 1...
+  //   Add(Not(X), X) => 1...
+  //
+  // Note that this won't be found through the ternary query engine because
+  // conservatively it determines `not(UNKNOWN) = UNKNOWN`.
+  if (n->op() == Op::kAdd && n->operand_count() == 2 &&
+      has_inverted_operand()) {
+    XLS_VLOG(2) << "FOUND: replace Add(x, not(x)) with 1...";
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(Value(Bits::AllOnes(n->BitCountOrDie())))
+            .status());
+    return true;
+  }
+
   // Xor(x, -1) => Not(x)
   if (n->op() == Op::kXor && n->operand_count() == 2 &&
       IsLiteralAllOnes(n->operand(1))) {
