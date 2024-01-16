@@ -45,8 +45,8 @@ const RAM_NUM_WIDTH = std::clog2(RAM_NUM);
 type RamNumber = bits[RAM_NUM_WIDTH];
 type RamData = bits[RAM_DATA_WIDTH];
 type RamAddr = bits[RAM_ADDR_WIDTH];
-type RWRamReq = ram::RWRamReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
-type RWRamResp = ram::RWRamResp<RAM_DATA_WIDTH>;
+pub type RWRamReq = ram::RWRamReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
+pub type RWRamResp = ram::RWRamResp<RAM_DATA_WIDTH>;
 
 const ZERO_RWRAM_REQ = zero!<RWRamReq>();
 const ZERO_RWRAM_RESP = zero!<RWRamResp>();
