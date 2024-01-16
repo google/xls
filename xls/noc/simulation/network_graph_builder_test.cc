@@ -40,7 +40,7 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
   builder.WithLink("Link1").WithSourcePort("out0").WithSinkPort("RecvPort");
 
   XLS_ASSERT_OK_AND_ASSIGN(NetworkConfigProto network, builder.Build());
-  XLS_LOG(INFO) << network.DebugString();
+  XLS_LOG(INFO) << network;
   XLS_LOG(INFO) << "Done ...";
 
   // Build and assign simulation objects

@@ -51,7 +51,7 @@ absl::Status BuildNetworkGraphLinear000(NetworkConfigProto* nc_proto,
       .WithSourceSinkPipelineStage(2);
 
   XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto->DebugString();
+  XLS_LOG(INFO) << *nc_proto;
   XLS_LOG(INFO) << "Done ...";
 
   // Build network.
@@ -125,7 +125,7 @@ absl::Status BuildNetworkGraphLinear001(NetworkConfigProto* nc_proto,
       .WithSinkSourcePipelineStage(2);
 
   XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto->DebugString();
+  XLS_LOG(INFO) << *nc_proto;
   XLS_LOG(INFO) << "Done ...";
 
   // Build and assign simulation objects
@@ -210,7 +210,7 @@ absl::Status BuildNetworkGraphTree000(NetworkConfigProto* nc_proto,
   builder.WithLink("LinkB3").WithSourcePort("Bout2").WithSinkPort("RecvPort3");
 
   XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto->DebugString();
+  XLS_LOG(INFO) << *nc_proto;
   XLS_LOG(INFO) << "Done ...";
 
   // Build and assign simulation objects
@@ -277,7 +277,7 @@ absl::Status BuildNetworkGraphTree001(NetworkConfigProto* nc_proto,
       .WithPhitBitWidth(128);
 
   XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto->DebugString();
+  XLS_LOG(INFO) << *nc_proto;
   XLS_LOG(INFO) << "Done ...";
 
   // Build and assign simulation objects
@@ -351,7 +351,7 @@ absl::Status BuildNetworkGraphLoop000(NetworkConfigProto* nc_proto,
       .WithSinkSourcePipelineStage(2);
 
   XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto->DebugString();
+  XLS_LOG(INFO) << *nc_proto;
   XLS_LOG(INFO) << "Done ...";
 
   // Build and assign simulation objects
@@ -473,7 +473,7 @@ absl::Status BuildNetworkGraphLoop001(NetworkConfigProto* nc_proto,
       .WithSinkSourcePipelineStage(2);
 
   XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto->DebugString();
+  XLS_LOG(INFO) << *nc_proto;
   XLS_LOG(INFO) << "Done ...";
 
   // Build and assign simulation objects

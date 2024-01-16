@@ -108,7 +108,7 @@ TEST(GlobalRoutingTableTest, Index) {
   builder.WithLink("LinkB3").WithSourcePort("Bout2").WithSinkPort("RecvPort3");
 
   XLS_ASSERT_OK_AND_ASSIGN(NetworkConfigProto nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto.DebugString();
+  XLS_LOG(INFO) << nc_proto;
   XLS_LOG(INFO) << "Done ...";
 
   // Build and assign simulation objects
