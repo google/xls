@@ -547,10 +547,6 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
 }
 
 TEST_P(ProcEvaluatorTestBase, UnconditionalNextProc) {
-  if (!GetParam().SupportsNextValue()) {
-    GTEST_SKIP() << "Evaluator does not support next_value";
-  }
-
   // Create an output-only proc which increments its counter value each
   // iteration, using explicit next_value nodes.
   Package package(TestName());
@@ -620,10 +616,6 @@ TEST_P(ProcEvaluatorTestBase, UnconditionalNextProc) {
 }
 
 TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
-  if (!GetParam().SupportsNextValue()) {
-    GTEST_SKIP() << "Evaluator does not support next_value";
-  }
-
   // Create an output-only proc which increments its counter value only every
   // other iteration.
   Package package(TestName());
@@ -724,10 +716,6 @@ TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
 }
 
 TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
-  if (!GetParam().SupportsNextValue()) {
-    GTEST_SKIP() << "Evaluator does not support next_value";
-  }
-
   // Create an output-only proc which increments its counter value only every
   // other iteration - but also tries to set the counter value to a different
   // value.

@@ -37,68 +37,6 @@
 
 namespace xls {
 
-// A continuation used by the ProcJit. Stores control and data state of proc
-// execution for the JIT.
-class ProcJitContinuation : public ProcContinuation {
- public:
-  // Construct a new continuation. Execution of the proc begins with the state
-  // set to its initial values with no proc nodes yet executed. `queues` is the
-  // set of channel queues needed by this proc instance. The order of the queues
-  // in the vector is determined at JIT compile time and stored in the
-  // JittedFunctionBase.
-  explicit ProcJitContinuation(ProcInstance* proc_instance,
-                               JitRuntime* jit_runtime,
-                               std::vector<JitChannelQueue*> queues,
-                               const JittedFunctionBase& jit_func);
-
-  ~ProcJitContinuation() override = default;
-
-  std::vector<Value> GetState() const override;
-  const InterpreterEvents& GetEvents() const override { return events_; }
-  InterpreterEvents& GetEvents() override { return events_; }
-  void ClearEvents() override { events_.Clear(); }
-
-  bool AtStartOfTick() const override { return continuation_point_ == 0; }
-
-  // Get/Set the point at which execution will resume in the proc in the next
-  // call to Tick.
-  int64_t GetContinuationPoint() const { return continuation_point_; }
-  void SetContinuationPoint(int64_t value) { continuation_point_ = value; }
-
-  // Return the various buffers passed to the top-level function implementing
-  // the proc.
-  JitArgumentSet& input() { return input_; }
-  JitArgumentSet& output() { return output_; }
-  JitTempBuffer& temp_buffer() { return temp_buffer_; }
-  const JitArgumentSet& input() const { return input_; }
-  const JitArgumentSet& output() const { return output_; }
-  const JitTempBuffer& temp_buffer() const {
-    return temp_buffer_;
-  }
-
-  // Sets the continuation to resume execution at the entry of the proc. Updates
-  // state to the "next" value computed in the previous tick.
-  void NextTick();
-
-  InstanceContext* instance_context() { return &instance_context_; }
-
- private:
-  int64_t continuation_point_;
-  JitRuntime* jit_runtime_;
-
-  InterpreterEvents events_;
-
-  // Buffers to hold inputs, outputs, and temporary storage. This is allocated
-  // once and then re-used with each invocation of Run. Not thread-safe.
-  JitArgumentSet input_;
-  JitArgumentSet output_;
-  JitTempBuffer temp_buffer_;
-
-  // Data structure passed to the JIT function which holds instance related
-  // information.
-  InstanceContext instance_context_;
-};
-
 // This class provides a facility to execute XLS procs (on the host) by
 // converting them to LLVM IR, compiling it, and finally executing it.
 class ProcJit : public ProcEvaluator {

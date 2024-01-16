@@ -24,12 +24,14 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Value.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
@@ -37,10 +39,13 @@
 namespace xls {
 
 // Data structure passed to the JITted function which contains instance-specific
-// information. Used for JITted procs.
+// execution-relevant information. Used for JITted procs.
 struct InstanceContext {
   // The proc instance being evaluated.
   ProcInstance* instance;
+
+  // The active next values for each parameter.
+  absl::flat_hash_map<Param*, absl::flat_hash_set<Next*>> active_next_values;
 
   // The channel queues used by the proc instance. The order of queues is
   // assigned at JIT compile time. The indices of particular queues is baked

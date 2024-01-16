@@ -36,8 +36,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         [](Package* package) -> std::unique_ptr<ChannelQueueManager> {
           return ChannelQueueManager::Create(package).value();
-        },
-        /*supports_next_value=*/true)));
+        })));
 
 }  // namespace
 }  // namespace xls

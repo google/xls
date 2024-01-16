@@ -479,6 +479,9 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
   return partitions;
 }
 
+// Get the type this node reserves as input.
+Type* InputType(const Node* node) { return node->GetType(); }
+
 // Get the type this node outputs into the functions return value.
 Type* OutputType(const Node* node) {
   if (node->Is<RegisterWrite>() || node->Is<OutputPort>()) {
@@ -565,7 +568,14 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
 
     // Gather the buffers to which the value of `node` must be written.
     std::vector<llvm::Value*> output_buffers;
-    if (wrapper.IsOutputNode(node)) {
+    if (node->Is<Next>()) {
+      // next_value nodes store their output in the param's location, and return
+      // nothing themselves.
+      Param* param = node->As<Next>()->param()->As<Param>();
+      XLS_RET_CHECK(allocator.GetAllocationKind(param) ==
+                    AllocationKind::kNone);
+      output_buffers = wrapper.GetOutputBuffers(param, b);
+    } else if (wrapper.IsOutputNode(node)) {
       XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
       output_buffers = wrapper.GetOutputBuffers(node, b);
     } else if (allocator.GetAllocationKind(node) ==
@@ -667,7 +677,8 @@ absl::Status AllocateBuffers(absl::Span<const Partition> partitions,
       if (wrapper.IsInputNode(node) || wrapper.IsOutputNode(node) ||
           ShouldMaterializeAtUse(node)) {
         allocator.SetAllocationKind(node, AllocationKind::kNone);
-      } else if (std::all_of(
+      } else if (!node->function_base()->HasImplicitUse(node) &&
+                 std::all_of(
                      node->users().begin(), node->users().end(),
                      [&](Node* u) { return partition_set.contains(u); })) {
         // All of the uses of node are in the partition.
@@ -721,8 +732,15 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
   Proc* proc = function_base->AsProcOrDie();
   std::vector<Node*> outputs;
   outputs.push_back(proc->NextToken());
-  outputs.insert(outputs.end(), proc->NextState().begin(),
-                 proc->NextState().end());
+  if (proc->next_values().empty()) {
+    // TODO(epastor): Remove this when we no longer support the old-style `next
+    // (...)` line with next-state values.
+    outputs.insert(outputs.end(), proc->NextState().begin(),
+                   proc->NextState().end());
+  } else {
+    outputs.insert(outputs.end(), proc->StateParams().begin(),
+                   proc->StateParams().end());
+  }
   return outputs;
 }
 
@@ -1268,26 +1286,26 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
   }
 
   for (const Node* input : GetJittedFunctionInputs(xls_function)) {
+    Type* input_type = InputType(input);
     jitted_function.input_buffer_sizes_.push_back(
-        jit_context.type_converter().GetTypeByteSize(input->GetType()));
+        jit_context.type_converter().GetTypeByteSize(input_type));
     jitted_function.input_buffer_prefered_alignments_.push_back(
-        jit_context.type_converter().GetTypePreferredAlignment(
-            input->GetType()));
+        jit_context.type_converter().GetTypePreferredAlignment(input_type));
     jitted_function.input_buffer_abi_alignments_.push_back(
-        jit_context.type_converter().GetTypeAbiAlignment(input->GetType()));
+        jit_context.type_converter().GetTypeAbiAlignment(input_type));
     jitted_function.packed_input_buffer_sizes_.push_back(
-        jit_context.type_converter().GetPackedTypeByteSize(input->GetType()));
+        jit_context.type_converter().GetPackedTypeByteSize(input_type));
   }
   for (const Node* output : GetJittedFunctionOutputs(xls_function)) {
+    Type* output_type = OutputType(output);
     jitted_function.output_buffer_sizes_.push_back(
-        jit_context.type_converter().GetTypeByteSize(OutputType(output)));
+        jit_context.type_converter().GetTypeByteSize(output_type));
     jitted_function.output_buffer_prefered_alignments_.push_back(
-        jit_context.type_converter().GetTypePreferredAlignment(
-            OutputType(output)));
+        jit_context.type_converter().GetTypePreferredAlignment(output_type));
     jitted_function.output_buffer_abi_alignments_.push_back(
-        jit_context.type_converter().GetTypeAbiAlignment(OutputType(output)));
+        jit_context.type_converter().GetTypeAbiAlignment(output_type));
     jitted_function.packed_output_buffer_sizes_.push_back(
-        jit_context.type_converter().GetPackedTypeByteSize(OutputType(output)));
+        jit_context.type_converter().GetPackedTypeByteSize(output_type));
   }
   jitted_function.temp_buffer_size_ = allocator.size();
   jitted_function.temp_buffer_alignment_ = allocator.alignment();

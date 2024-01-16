@@ -28,6 +28,7 @@
 #include "absl/base/casts.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -276,12 +277,14 @@ struct LlvmIfThen {
   // Finalizes construction by creating a branch from the `then` block to the
   // `join` block. `builder`, if specified, is used to construct the branch. If
   // not specified, then the builder for the `then` block is used.
-  void Finalize(std::optional<llvm::IRBuilder<>*> builder = std::nullopt) {
+  std::unique_ptr<llvm::IRBuilder<>> Finalize(
+      std::optional<llvm::IRBuilder<>*> builder = std::nullopt) {
     if (builder.has_value()) {
       (*builder)->CreateBr(join_builder->GetInsertBlock());
     } else {
       then_builder->CreateBr(join_builder->GetInsertBlock());
     }
+    return std::move(join_builder);
   }
 };
 
@@ -720,6 +723,37 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
   return absl::OkStatus();
 }
 
+// This is a shim to let JIT code record the activation of a `next_value` node.
+void RecordActiveNextValue(Next* next, InstanceContext* instance_context) {
+  instance_context->active_next_values[next->param()->As<Param>()].insert(next);
+}
+
+// Build the LLVM IR to invoke the callback that records assertions.
+absl::Status InvokeNextValueCallback(llvm::IRBuilder<>* builder, Next* next,
+                                     llvm::Value* instance_context) {
+  llvm::Type* addr_type =
+      llvm::Type::getIntNTy(builder->getContext(), sizeof(uintptr_t) << 3);
+  llvm::Constant* next_addr =
+      llvm::ConstantInt::get(addr_type, reinterpret_cast<uintptr_t>(next));
+
+  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
+  std::vector<llvm::Type*> params = {ptr_type, ptr_type};
+
+  llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+
+  std::vector<llvm::Value*> args = {
+      builder->CreateIntToPtr(next_addr, ptr_type),
+      builder->CreateIntToPtr(instance_context, ptr_type)};
+
+  llvm::Constant* fn_addr = llvm::ConstantInt::get(
+      addr_type, reinterpret_cast<uintptr_t>(&RecordActiveNextValue));
+  llvm::Value* fn_ptr = builder->CreateIntToPtr(fn_addr, ptr_type);
+  builder->CreateCall(fn_type, fn_ptr, args);
+  return absl::OkStatus();
+}
+
 absl::StatusOr<llvm::Function*> CreateLlvmFunction(
     std::string_view name, llvm::FunctionType* function_type,
     llvm::Module* module) {
@@ -1113,6 +1147,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleNaryXor(NaryOp* xor_op) override;
   absl::Status HandleNe(CompareOp* ne) override;
   absl::Status HandleNeg(UnOp* neg) override;
+  absl::Status HandleNext(Next* next) override;
   absl::Status HandleNot(UnOp* not_op) override;
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
@@ -2530,6 +2565,48 @@ absl::Status IrBuilderVisitor::HandleNeg(UnOp* neg) {
   });
 }
 
+absl::Status IrBuilderVisitor::HandleNext(Next* next) {
+  std::vector<std::string> param_names({"param", "value"});
+  if (next->predicate().has_value()) {
+    param_names.push_back("predicate");
+  }
+  XLS_ASSIGN_OR_RETURN(
+      NodeIrContext node_context,
+      NewNodeIrContext(next, param_names, /*include_wrapper_args=*/true));
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+
+  llvm::Value* value_ptr = node_context.GetOperandPtr(Next::kValueOperand);
+
+  if (!next->predicate().has_value()) {
+    LlvmMemcpy(node_context.GetOutputPtr(0), value_ptr,
+               type_converter()->GetTypeByteSize(next->value()->GetType()), b);
+
+    // Record that this Next node was activated.
+    XLS_RETURN_IF_ERROR(InvokeNextValueCallback(
+        &b, next, node_context.GetInstanceContextArg()));
+
+    return FinalizeNodeIrContextWithPointerToValue(
+        std::move(node_context), node_context.GetOutputPtr(0), &b);
+  }
+
+  // If the predicate is true, emulate the `next_value` node's effects.
+  llvm::Value* predicate = node_context.LoadOperand(2);
+  LlvmIfThen if_then = CreateIfThen(predicate, b, next->GetName());
+
+  LlvmMemcpy(node_context.GetOutputPtr(0), value_ptr,
+             type_converter()->GetTypeByteSize(next->value()->GetType()),
+             *if_then.then_builder);
+
+  // Record that this Next node was activated.
+  XLS_RETURN_IF_ERROR(InvokeNextValueCallback(
+      if_then.then_builder.get(), next, node_context.GetInstanceContextArg()));
+
+  std::unique_ptr<llvm::IRBuilder<>> exit_builder = if_then.Finalize();
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 node_context.GetOutputPtr(0),
+                                                 exit_builder.get());
+}
+
 absl::Status IrBuilderVisitor::HandleNot(UnOp* not_op) {
   return HandleUnaryOp(not_op, [](llvm::Value* operand, llvm::IRBuilder<>& b) {
     return b.CreateNot(operand);
@@ -2687,8 +2764,7 @@ absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
         OrInPlace(case_buffer, output_buffer, sel->GetType(), type_converter(),
                   /*insert_before=*/if_then.join_builder->GetInsertBlock(),
                   std::move(if_then.then_builder));
-    if_then.Finalize(b.get());
-    builder = std::move(if_then.join_builder);
+    builder = if_then.Finalize(b.get());
   }
 
   return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
@@ -3383,6 +3459,8 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
 
 llvm::Value* LlvmMemcpy(llvm::Value* tgt, llvm::Value* src, int64_t size,
                         llvm::IRBuilder<>& builder) {
+  XLS_CHECK(tgt->getType()->isPointerTy());
+  XLS_CHECK(src->getType()->isPointerTy());
   return builder.CreateMemCpy(tgt, llvm::MaybeAlign(1), src,
                               llvm::MaybeAlign(1), size);
 }
