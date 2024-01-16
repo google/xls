@@ -271,6 +271,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:cc_parser",
         "//xls/contrib/xlscc:metadata_output_cc_proto",
+        "@com_google_absl//absl/status",
         "@llvm-project//clang:basic",
     ],
 )

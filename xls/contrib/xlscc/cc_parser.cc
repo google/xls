@@ -343,11 +343,25 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
               hls_pragmas_[location] = Pragma(pragma_val);
               break;
             }
+            if (params == "no") {
+              XLS_LOG(WARNING) << "Ignoring #pragma hls_unroll no (at "
+                               << filename << ":" << lineno
+                               << "). Pragma is "
+                                  "not needed and has no effect.";
+              break;
+            }
             if (!absl::SimpleAtoi(params, &arg) || (arg <= 0)) {
+              if (arg == 0) {
+                XLS_LOG(WARNING) << "Ignoring #pragma hls_unroll 0 (at "
+                                 << filename << ":" << lineno
+                                 << "). Pragma is "
+                                    "not needed and has no effect.";
+                break;
+              }
               return absl::InvalidArgumentError(
                   absl::StrFormat("Argument '%s' to pragma '%s' is not valid. "
-                                  "Must be 'yes' or an integer "
-                                  ">= 1. At %s:%i",
+                                  "Must be 'yes', 'no', or an integer."
+                                  " At %s:%i",
                                   params, name, filename, lineno));
             }
             XLS_LOG(WARNING) << "Partial unroll not yet supported: "

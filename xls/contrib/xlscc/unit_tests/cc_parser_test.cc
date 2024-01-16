@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
@@ -360,6 +361,136 @@ TEST_F(CCParserTest, NameOverPragma) {
   XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
   ASSERT_NE(top_ptr, nullptr);
   EXPECT_EQ(top_ptr->getNameAsString(), "bar");
+}
+
+TEST_F(CCParserTest, UnrollYes) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    int bar(int (&a)[5], int b) {
+      #pragma hls_unroll yes
+      for (int i = 0; i < 5; ++i) a[i] = b;
+      return true;
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  clang::PresumedLoc func_loc = parser.GetPresumedLoc(*top_ptr);
+  clang::PresumedLoc loop_loc(func_loc.getFilename(), func_loc.getFileID(),
+                              func_loc.getLine() + 2, func_loc.getColumn(),
+                              func_loc.getIncludeLoc());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xlscc::Pragma pragma,
+      parser.FindPragmaForLoc(loop_loc, /*ignore_label=*/true));
+
+  ASSERT_EQ(pragma.type(), xlscc::Pragma_Unroll);
+  ASSERT_EQ(pragma.int_argument(), -1);
+}
+
+TEST_F(CCParserTest, Unroll2) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    int bar(int (&a)[5], int b) {
+      #pragma hls_unroll 2
+      for (int i = 0; i < 5; ++i) a[i] = b;
+      return true;
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  clang::PresumedLoc func_loc = parser.GetPresumedLoc(*top_ptr);
+  clang::PresumedLoc loop_loc(func_loc.getFilename(), func_loc.getFileID(),
+                              func_loc.getLine() + 2, func_loc.getColumn(),
+                              func_loc.getIncludeLoc());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xlscc::Pragma pragma,
+      parser.FindPragmaForLoc(loop_loc, /*ignore_label=*/true));
+
+  ASSERT_EQ(pragma.type(), xlscc::Pragma_Unroll);
+  ASSERT_EQ(pragma.int_argument(), 2);
+}
+
+TEST_F(CCParserTest, UnrollZero) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    int bar(int (&a)[5], int b) {
+      #pragma hls_unroll 0
+      for (int i = 0; i < 5; ++i) a[i] = b;
+      return true;
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  clang::PresumedLoc func_loc = parser.GetPresumedLoc(*top_ptr);
+  clang::PresumedLoc loop_loc(func_loc.getFilename(), func_loc.getFileID(),
+                              func_loc.getLine() + 2, func_loc.getColumn(),
+                              func_loc.getIncludeLoc());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xlscc::Pragma pragma,
+      parser.FindPragmaForLoc(loop_loc, /*ignore_label=*/true));
+
+  ASSERT_EQ(pragma.type(), xlscc::Pragma_Null);
+}
+TEST_F(CCParserTest, UnrollNo) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    int bar(int (&a)[5], int b) {
+      #pragma hls_unroll no 
+      for (int i = 0; i < 5; ++i) a[i] = b;
+      return true;
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  clang::PresumedLoc func_loc = parser.GetPresumedLoc(*top_ptr);
+  clang::PresumedLoc loop_loc(func_loc.getFilename(), func_loc.getFileID(),
+                              func_loc.getLine() + 2, func_loc.getColumn(),
+                              func_loc.getIncludeLoc());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xlscc::Pragma pragma,
+      parser.FindPragmaForLoc(loop_loc, /*ignore_label=*/true));
+
+  ASSERT_EQ(pragma.type(), xlscc::Pragma_Null);
+}
+TEST_F(CCParserTest, UnrollBadNumber) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    int bar(int (&a)[5], int b) {
+      #pragma hls_unroll -4
+      for (int i = 0; i < 5; ++i) a[i] = b;
+      return true;
+    }
+  )";
+
+
+  ASSERT_THAT(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
+      xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                    testing::HasSubstr("is not valid")));
 }
 
 TEST_F(CCParserTest, DoubleTopName) {
