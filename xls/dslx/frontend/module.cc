@@ -384,4 +384,21 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
                                     node->ToString());
 }
 
+bool IsPublic(const ModuleMember& member) {
+  return absl::visit(Visitor{
+                         [](const Function* m) { return m->is_public(); },
+                         [](const Proc* m) { return m->is_public(); },
+                         [](const TypeAlias* m) { return m->is_public(); },
+                         [](const StructDef* m) { return m->is_public(); },
+                         [](const ConstantDef* m) { return m->is_public(); },
+                         [](const EnumDef* m) { return m->is_public(); },
+                         [](const TestFunction* m) { return false; },
+                         [](const TestProc* m) { return false; },
+                         [](const QuickCheck* m) { return false; },
+                         [](const Import* m) { return false; },
+                         [](const ConstAssert* m) { return false; },
+                     },
+                     member);
+}
+
 }  // namespace xls::dslx

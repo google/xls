@@ -87,12 +87,17 @@ cc_library(
 
 cc_library(
     name = "deduce",
-    srcs = ["deduce.cc"],
+    srcs = [
+        "deduce.cc",
+        "deduce_expr.cc",
+        "deduce_expr.h",
+    ],
     hdrs = ["deduce.h"],
     deps = [
         ":concrete_type",
         ":concrete_type_zero_value",
         ":deduce_ctx",
+        ":deduce_utils",
         ":parametric_constraint",
         ":parametric_env",
         ":parametric_expression",
@@ -122,6 +127,7 @@ cc_library(
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interp_value",
         "//xls/dslx:warning_kind",
+        "//xls/dslx/bytecode",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
@@ -131,8 +137,6 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:token_utils",
         "//xls/ir:bits",
-        "//xls/ir:bits_ops",
-        "//xls/ir:format_preference",
         "//xls/ir:format_strings",
     ],
 )
@@ -642,5 +646,24 @@ cc_library(
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
+    ],
+)
+
+cc_library(
+    name = "deduce_utils",
+    srcs = ["deduce_utils.cc"],
+    hdrs = ["deduce_utils.h"],
+    deps = [
+        ":concrete_type",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:errors",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
     ],
 )

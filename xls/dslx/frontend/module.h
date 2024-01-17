@@ -282,6 +282,9 @@ inline Conditional* MakeTernary(Module* module, const Span& span, Expr* test,
           std::vector<Statement*>{module->Make<Statement>(alternate)}, false));
 }
 
+// Returns whether the given module member is annotated as public.
+bool IsPublic(const ModuleMember& member);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_MODULE_H_

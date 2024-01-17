@@ -34,6 +34,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_mismatch_error_data.h"
@@ -170,6 +171,11 @@ class DeduceCtx {
 
   bool WithinProc() const {
     return fn_stack().back().within_proc() == WithinProc::kYes;
+  }
+
+  ParametricEnv GetCurrentParametricEnv() const {
+    return fn_stack().empty() ? ParametricEnv()
+                              : fn_stack().back().parametric_env();
   }
 
   std::vector<FnStackEntry>& fn_stack() { return fn_stack_; }

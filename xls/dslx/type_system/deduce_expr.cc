@@ -1,0 +1,478 @@
+// Copyright 2024 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "xls/dslx/type_system/deduce_expr.h"
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/constexpr_evaluator.h"
+#include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/deduce_utils.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/ir/bits.h"
+
+namespace xls::dslx {
+
+// Forward declaration from sister implementation file as we are recursively
+// bound to the central deduce-and-resolve routine in our node deduction
+// routines.
+//
+// TODO(cdleary): 2024-01-16 We can break this circular resolution with a
+// virtual function on DeduceCtx when we get things refactored nicely.
+extern absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+    const AstNode* node, DeduceCtx* ctx);
+extern absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(
+    const ConcreteType& type, DeduceCtx* ctx);
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
+                                                          DeduceCtx* ctx) {
+  XLS_VLOG(5) << "DeduceArray; node: " << node->ToString();
+
+  std::vector<std::unique_ptr<ConcreteType>> member_types;
+  for (Expr* member : node->members()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> member_type,
+                         DeduceAndResolve(member, ctx));
+    member_types.push_back(std::move(member_type));
+  }
+
+  for (int64_t i = 1; i < member_types.size(); ++i) {
+    if (*member_types[0] != *member_types[i]) {
+      return ctx->TypeMismatchError(
+          node->span(), nullptr, *member_types[0], nullptr, *member_types[i],
+          "Array member did not have same type as other members.");
+    }
+  }
+
+  if (node->has_ellipsis() && node->members().empty()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Array cannot have an ellipsis without an element to repeat; please "
+        "add at least one element");
+  }
+
+  auto member_types_dim =
+      ConcreteTypeDim::CreateU32(static_cast<uint32_t>(member_types.size()));
+
+  // Try to infer the array type from the first member.
+  std::unique_ptr<ArrayType> inferred;
+  if (!member_types.empty()) {
+    inferred = std::make_unique<ArrayType>(member_types[0]->CloneToUnique(),
+                                           member_types_dim);
+  }
+
+  if (node->type_annotation() == nullptr) {
+    if (inferred != nullptr) {
+      return inferred;
+    }
+
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr, "Cannot deduce the type of an empty array.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
+                       ctx->Deduce(node->type_annotation()));
+  XLS_ASSIGN_OR_RETURN(annotated,
+                       UnwrapMetaType(std::move(annotated), node->span(),
+                                      "array type-prefix position"));
+  auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
+  if (array_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), annotated.get(),
+        "Array was not annotated with an array type.");
+  }
+
+  if (array_type->HasParametricDims()) {
+    return TypeInferenceErrorStatus(
+        node->type_annotation()->span(), array_type,
+        absl::StrFormat("Annotated type for array "
+                        "literal must be constexpr; type has dimensions that "
+                        "cannot be resolved."));
+  }
+
+  // If we were presented with the wrong number of elements (vs what the
+  // annotated type expected), flag an error.
+  if (array_type->size() != member_types_dim && !node->has_ellipsis()) {
+    std::string message = absl::StrFormat(
+        "Annotated array size %s does not match inferred array size %d.",
+        array_type->size().ToString(), member_types.size());
+    if (inferred == nullptr) {
+      // No type to compare our expectation to, as there was no member to infer
+      // the type from.
+      return TypeInferenceErrorStatus(node->span(), array_type, message);
+    }
+    return ctx->TypeMismatchError(node->span(), nullptr, *array_type, nullptr,
+                                  *inferred, message);
+  }
+
+  // Implementation note: we can only do this after we've checked that the size
+  // is correct (zero elements provided and zero elements expected).
+  if (member_types.empty()) {
+    return annotated;
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_element_type,
+                       Resolve(array_type->element_type(), ctx));
+  if (*resolved_element_type != *member_types[0]) {
+    return ctx->TypeMismatchError(
+        node->members().at(0)->span(), nullptr, *resolved_element_type, nullptr,
+        *member_types[0],
+        "Annotated element type did not match inferred "
+        "element type.");
+  }
+
+  if (node->has_ellipsis()) {
+    // Need to constexpr evaluate here - while we have the concrete type - or
+    // else we'd infer the wrong array size.
+    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+        ctx->import_data(), ctx->type_info(), ctx->warnings(),
+        ctx->GetCurrentParametricEnv(), node, array_type));
+    return annotated;
+  }
+
+  return inferred;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
+    const ConstantArray* node, DeduceCtx* ctx) {
+  if (node->type_annotation() == nullptr) {
+    return DeduceArray(node, ctx);
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       ctx->Deduce(node->type_annotation()));
+  XLS_ASSIGN_OR_RETURN(
+      type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
+                           "array type-prefix position"));
+
+  auto* array_type = dynamic_cast<ArrayType*>(type.get());
+  if (array_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->type_annotation()->span(), type.get(),
+        absl::StrFormat("Annotated type for array "
+                        "literal must be an array type; got %s %s",
+                        type->GetDebugTypeName(),
+                        node->type_annotation()->ToString()));
+  }
+
+  const ConcreteType& element_type = array_type->element_type();
+  for (Expr* member : node->members()) {
+    XLS_RET_CHECK(IsConstant(member));
+    if (Number* number = dynamic_cast<Number*>(member);
+        number != nullptr && number->type_annotation() == nullptr) {
+      ctx->type_info()->SetItem(member, element_type);
+      const BitsType* bits_type = dynamic_cast<const BitsType*>(&element_type);
+      if (bits_type == nullptr) {
+        return TypeInferenceErrorStatus(
+            number->span(), &element_type,
+            absl::StrFormat("Annotated element type for array cannot be "
+                            "applied to a literal number"));
+      }
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *bits_type));
+    }
+  }
+
+  XLS_RETURN_IF_ERROR(DeduceArray(node, ctx).status());
+  return type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
+                                                           DeduceCtx* ctx) {
+  std::unique_ptr<ConcreteType> concrete_type;
+  ParametricEnv bindings = ctx->GetCurrentParametricEnv();
+  if (node->type_annotation() == nullptr) {
+    switch (node->number_kind()) {
+      case NumberKind::kBool: {
+        auto type = BitsType::MakeU1();
+        ctx->type_info()->SetItem(node, *type);
+        return type;
+      }
+      case NumberKind::kCharacter: {
+        auto type = BitsType::MakeU8();
+        ctx->type_info()->SetItem(node, *type);
+        return type;
+      }
+      default:
+        break;
+    }
+
+    if (ctx->in_typeless_number_ctx()) {
+      concrete_type = BitsType::MakeU32();
+    } else {
+      return TypeInferenceErrorStatus(node->span(), nullptr,
+                                      "Could not infer a type for "
+                                      "this number, please annotate a type.");
+    }
+  } else {
+    XLS_ASSIGN_OR_RETURN(concrete_type, ctx->Deduce(node->type_annotation()));
+    XLS_ASSIGN_OR_RETURN(concrete_type,
+                         UnwrapMetaType(std::move(concrete_type),
+                                        node->type_annotation()->span(),
+                                        "numeric literal type-prefix"));
+  }
+
+  XLS_ASSIGN_OR_RETURN(concrete_type, Resolve(*concrete_type, ctx));
+  XLS_RET_CHECK(!concrete_type->IsMeta());
+  BitsType* bits_type = dynamic_cast<BitsType*>(concrete_type.get());
+  if (bits_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), concrete_type.get(),
+        "Non-bits type used to define a numeric literal.");
+  }
+
+  XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *bits_type));
+  ctx->type_info()->SetItem(node, *concrete_type);
+  return concrete_type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceString(const String* string,
+                                                           DeduceCtx* ctx) {
+  auto dim =
+      ConcreteTypeDim::CreateU32(static_cast<uint32_t>(string->text().size()));
+  return std::make_unique<ArrayType>(BitsType::MakeU8(), std::move(dim));
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConditional(
+    const Conditional* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> test_type,
+                       ctx->Deduce(node->test()));
+  XLS_ASSIGN_OR_RETURN(test_type, Resolve(*test_type, ctx));
+  auto test_want = BitsType::MakeU1();
+  if (*test_type != *test_want) {
+    return ctx->TypeMismatchError(node->span(), node->test(), *test_type,
+                                  nullptr, *test_want,
+                                  "Test type for conditional expression is not "
+                                  "\"bool\"");
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> consequent_type,
+                       ctx->Deduce(node->consequent()));
+  XLS_ASSIGN_OR_RETURN(consequent_type, Resolve(*consequent_type, ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> alternate_type,
+                       ctx->Deduce(ToAstNode(node->alternate())));
+  XLS_ASSIGN_OR_RETURN(alternate_type, Resolve(*alternate_type, ctx));
+
+  if (*consequent_type != *alternate_type) {
+    return ctx->TypeMismatchError(
+        node->span(), node->consequent(), *consequent_type,
+        ToAstNode(node->alternate()), *alternate_type,
+        "Conditional consequent type (in the 'then' clause) "
+        "did not match alternative type (in the 'else' clause)");
+  }
+  return consequent_type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
+                                                         DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> operand_type,
+                       ctx->Deduce(node->operand()));
+
+  if (dynamic_cast<BitsType*>(operand_type.get()) == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), operand_type.get(),
+        absl::StrFormat(
+            "Unary operation `%s` can only be applied to bits-typed operands.",
+            UnopKindToString(node->unop_kind())));
+  }
+
+  return operand_type;
+}
+
+// Returns a set of the kinds of binary operations that it's ok to use on an
+// enum value.
+static const absl::flat_hash_set<BinopKind>& GetEnumOkKinds() {
+  static const auto* set = []() {
+    return new absl::flat_hash_set<BinopKind>{
+        BinopKind::kEq,
+        BinopKind::kNe,
+    };
+  }();
+  return *set;
+}
+
+// Shift operations are binary operations that require bits types as their
+// operands.
+static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
+    const Binop* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+                       DeduceAndResolve(node->lhs(), ctx));
+
+  std::optional<uint64_t> number_value;
+  if (auto* number = dynamic_cast<Number*>(node->rhs());
+      number != nullptr && number->type_annotation() == nullptr) {
+    // Infer RHS node as bit type and retrieve bit width.
+    const std::string& number_str = number->text();
+    XLS_RET_CHECK(!number_str.empty()) << "Number literal empty.";
+    if (number_str[0] == '-') {
+      return TypeInferenceErrorStatus(
+          number->span(), nullptr,
+          absl::StrFormat("Negative literal values cannot be used as shift "
+                          "amounts; got: %s",
+                          number_str));
+    }
+    XLS_ASSIGN_OR_RETURN(number_value, number->GetAsUint64());
+    ctx->type_info()->SetItem(
+        number, BitsType(/*is_signed=*/false,
+                         Bits::MinBitCountUnsigned(number_value.value())));
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+                       DeduceAndResolve(node->rhs(), ctx));
+
+  // Validate bits type for lhs and rhs.
+  BitsType* lhs_bit_type = dynamic_cast<BitsType*>(lhs.get());
+  if (lhs_bit_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->lhs()->span(), lhs.get(),
+        "Shift operations can only be applied to bits-typed operands.");
+  }
+  BitsType* rhs_bit_type = dynamic_cast<BitsType*>(rhs.get());
+  if (rhs_bit_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->rhs()->span(), rhs.get(),
+        "Shift operations can only be applied to bits-typed operands.");
+  }
+
+  if (rhs_bit_type->is_signed()) {
+    return TypeInferenceErrorStatus(node->rhs()->span(), rhs.get(),
+                                    "Shift amount must be unsigned.");
+  }
+
+  if (number_value.has_value()) {
+    const ConcreteTypeDim& lhs_size = lhs_bit_type->size();
+    XLS_CHECK(!lhs_size.IsParametric()) << "Shift amount type not inferred.";
+    XLS_ASSIGN_OR_RETURN(int64_t lhs_bit_count, lhs_size.GetAsInt64());
+    if (lhs_bit_count < number_value.value()) {
+      return TypeInferenceErrorStatus(
+          node->rhs()->span(), rhs.get(),
+          absl::StrFormat(
+              "Shift amount is larger than shift value bit width of %d.",
+              lhs_bit_count));
+    }
+  }
+
+  return lhs;
+}
+
+static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
+    const Binop* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+                       DeduceAndResolve(node->lhs(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+                       DeduceAndResolve(node->rhs(), ctx));
+
+  auto* lhs_array = dynamic_cast<ArrayType*>(lhs.get());
+  auto* rhs_array = dynamic_cast<ArrayType*>(rhs.get());
+  bool lhs_is_array = lhs_array != nullptr;
+  bool rhs_is_array = rhs_array != nullptr;
+
+  if (lhs_is_array != rhs_is_array) {
+    return ctx->TypeMismatchError(node->span(), node->lhs(), *lhs, node->rhs(),
+                                  *rhs,
+                                  "Attempting to concatenate array/non-array "
+                                  "values together.");
+  }
+
+  if (lhs_is_array && lhs_array->element_type() != rhs_array->element_type()) {
+    return ctx->TypeMismatchError(
+        node->span(), nullptr, *lhs, nullptr, *rhs,
+        "Array concatenation requires element types to be the same.");
+  }
+
+  if (lhs_is_array) {
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
+                         lhs_array->size().Add(rhs_array->size()));
+    return std::make_unique<ArrayType>(
+        lhs_array->element_type().CloneToUnique(), new_size);
+  }
+
+  auto* lhs_bits = dynamic_cast<BitsType*>(lhs.get());
+  auto* rhs_bits = dynamic_cast<BitsType*>(rhs.get());
+  bool lhs_is_bits = lhs_bits != nullptr;
+  bool rhs_is_bits = rhs_bits != nullptr;
+  if (!lhs_is_bits || !rhs_is_bits) {
+    return ctx->TypeMismatchError(node->span(), node->lhs(), *lhs, node->rhs(),
+                                  *rhs,
+                                  "Concatenation requires operand types to be "
+                                  "either both-arrays or both-bits");
+  }
+
+  XLS_RET_CHECK(lhs_bits != nullptr);
+  XLS_RET_CHECK(rhs_bits != nullptr);
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
+                       lhs_bits->size().Add(rhs_bits->size()));
+  return std::make_unique<BitsType>(/*signed=*/false, /*size=*/new_size);
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
+                                                          DeduceCtx* ctx) {
+  if (node->binop_kind() == BinopKind::kConcat) {
+    return DeduceConcat(node, ctx);
+  }
+
+  if (GetBinopShifts().contains(node->binop_kind())) {
+    return DeduceShift(node, ctx);
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+                       DeduceAndResolve(node->lhs(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+                       DeduceAndResolve(node->rhs(), ctx));
+
+  if (*lhs != *rhs) {
+    return ctx->TypeMismatchError(
+        node->span(), node->lhs(), *lhs, node->rhs(), *rhs,
+        absl::StrFormat("Could not deduce type for "
+                        "binary operation '%s'",
+                        BinopKindFormat(node->binop_kind())));
+  }
+
+  if (auto* enum_type = dynamic_cast<EnumType*>(lhs.get());
+      enum_type != nullptr && !GetEnumOkKinds().contains(node->binop_kind())) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Cannot use '%s' on values with enum type %s.",
+                        BinopKindFormat(node->binop_kind()),
+                        enum_type->nominal_type().identifier()));
+  }
+
+  if (GetBinopComparisonKinds().contains(node->binop_kind())) {
+    return BitsType::MakeU1();
+  }
+
+  if (dynamic_cast<BitsType*>(lhs.get()) == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), lhs.get(),
+        "Binary operations can only be applied to bits-typed operands.");
+  }
+
+  return lhs;
+}
+
+}  // namespace xls::dslx
