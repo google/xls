@@ -706,6 +706,7 @@ cc_library(
         ":sample_cc_proto",
         ":value_generator",
         "//xls/common/logging",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",

@@ -32,6 +32,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -386,23 +387,28 @@ absl::StatusOr<Sample> GenerateSample(
       dslx::CreateImportData(/*stdlib_path=*/"",
                              /*additional_search_paths=*/{},
                              /*enabled_warnings=*/dslx::kAllWarningsSet));
-  XLS_ASSIGN_OR_RETURN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data));
+  absl::StatusOr<TypecheckedModule> tm =
+      ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data);
+  if (!tm.ok()) {
+    XLS_LOG(ERROR) << "Generated sample failed to parse.";
+    XLS_LOG_LINES(ERROR, dslx_text);
+    return tm.status();
+  }
+
   std::optional<ModuleMember*> module_member =
-      tm.module->FindMemberWithName(top_name);
+      tm->module->FindMemberWithName(top_name);
   XLS_CHECK(module_member.has_value());
   ModuleMember* member = module_member.value();
 
   if (generator_options.generate_proc) {
     XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
     sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
-    return GenerateProcSample(std::get<dslx::Proc*>(*member), tm,
+    return GenerateProcSample(std::get<dslx::Proc*>(*member), *tm,
                               sample_options_copy, bit_gen, dslx_text);
   }
   XLS_CHECK(std::holds_alternative<dslx::Function*>(*member));
   sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_FUNCTION);
-  return GenerateFunctionSample(std::get<dslx::Function*>(*member), tm,
+  return GenerateFunctionSample(std::get<dslx::Function*>(*member), *tm,
                                 sample_options_copy, bit_gen, dslx_text);
 }
 
