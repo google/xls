@@ -49,6 +49,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
                                                           DeduceCtx* ctx);
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
+    const TupleIndex* node, DeduceCtx* ctx);
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
+    const XlsTuple* node, DeduceCtx* ctx);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_EXPR_H_

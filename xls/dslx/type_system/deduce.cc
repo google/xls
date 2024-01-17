@@ -57,12 +57,13 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
-#include "xls/dslx/type_system/concrete_type_zero_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_expr.h"
+#include "xls/dslx/type_system/deduce_invocation.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -73,37 +74,9 @@
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 namespace {
-
-bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
-  if (auto* name_ref = dynamic_cast<const NameRef*>(e)) {
-    const AnyNameDef any_name_def = name_ref->name_def();
-    return std::holds_alternative<const NameDef*>(any_name_def) &&
-           std::get<const NameDef*>(any_name_def) == name_def;
-  }
-  return false;
-}
-
-// Deduces the concrete types of the arguments to a parametric function or
-// proc and returns them to the caller.
-absl::Status InstantiateParametricArgs(
-    const Instantiation* inst, const Expr* callee, absl::Span<Expr* const> args,
-    DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args) {
-  for (Expr* arg : args) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                         DeduceAndResolve(arg, ctx));
-    XLS_VLOG(5) << "InstantiateParametricArgs; arg: `" << arg->ToString()
-                << "` deduced: `" << type->ToString() << "` @ " << arg->span();
-    XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
-                                   << " type: " << type->ToString();
-    instantiate_args->push_back(InstantiateArg{std::move(type), arg->span()});
-  }
-
-  return absl::OkStatus();
-}
 
 // Attempts to convert an expression from the full DSL AST into the
 // ParametricExpression sub-AST (a limited form that we can embed into a
@@ -145,20 +118,6 @@ absl::StatusOr<std::unique_ptr<ParametricExpression>> ExprToParametric(
       "Cannot convert expression to parametric: " + e->ToString());
 }
 
-// Record that the current function being checked has a side effect and will
-// require an implicit token when converted to IR.
-void UseImplicitToken(DeduceCtx* ctx) {
-  Function* caller = ctx->fn_stack().back().f();
-  // Note: caller could be nullptr; e.g. when we're calling a function that
-  // can fail!() from the top level of a module; e.g. in a module-level const
-  // expression.
-  if (caller != nullptr) {
-    ctx->type_info()->NoteRequiresImplicitToken(caller, true);
-  }
-
-  // TODO(rspringer): 2021-09-01: How to fail! from inside a proc?
-}
-
 absl::StatusOr<InterpValue> InterpretExpr(
     DeduceCtx* ctx, const Expr* expr,
     const absl::flat_hash_map<std::string, InterpValue>& env) {
@@ -169,92 +128,6 @@ absl::StatusOr<InterpValue> InterpretExpr(
 
   return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(),
                                         /*args=*/{});
-}
-
-// Creates a function invocation on the first element of the given array.
-//
-// We need to create a fake invocation to deduce the type of a function
-// in the case where map is called with a builtin as the map function. Normally,
-// map functions (including parametric ones) have their types deduced when their
-// ast.Function nodes are encountered (where a similar fake ast.Invocation node
-// is created).
-//
-// Builtins don't have ast.Function nodes, so that inference can't occur, so we
-// essentually perform that synthesis and deduction here.
-//
-// Args:
-//   module: AST node owner.
-//   span_: The location in the code where analysis is occurring.
-//   callee: The function to be invoked.
-//   arg_array: The array of arguments (at least one) to the function.
-//
-// Returns:
-//   An invocation node for the given function when called with an element in
-//   the argument array.
-Invocation* CreateElementInvocation(Module* module, const Span& span,
-                                    Expr* callee, Expr* arg_array) {
-  auto* name = module->GetOrCreateBuiltinNameDef("u32");
-  auto* annotation =
-      module->Make<BuiltinTypeAnnotation>(span, BuiltinType::kU32, name);
-  auto* index_number =
-      module->Make<Number>(span, "0", NumberKind::kOther, annotation);
-  auto* index = module->Make<Index>(span, arg_array, index_number);
-  return module->Make<Invocation>(span, callee, std::vector<Expr*>{index});
-}
-
-// Returns an AST node typed T from module "m", resolved via name "name".
-//
-// Errors are attributed to span "span".
-//
-// Prefer this function to Module::GetMemberOrError(), as this gives a
-// positional type-inference-error as its status result when the requested
-// resolution cannot be performed.
-template <typename T>
-absl::StatusOr<T*> GetMemberOrTypeInferenceError(Module* m,
-                                                 std::string_view name,
-                                                 const Span& span) {
-  std::optional<ModuleMember*> member = m->FindMemberWithName(name);
-  if (!member.has_value()) {
-    return TypeInferenceErrorStatus(
-        span, nullptr,
-        absl::StrFormat("Name '%s' does not exist in module `%s`", name,
-                        m->name()));
-  }
-
-  if (!std::holds_alternative<T*>(*member.value())) {
-    return TypeInferenceErrorStatus(
-        span, nullptr,
-        absl::StrFormat(
-            "Name '%s' in module `%s` refers to a %s but a %s is required",
-            name, m->name(), GetModuleMemberTypeName(*member.value()),
-            T::GetDebugTypeName()));
-  }
-
-  T* result = std::get<T*>(*member.value());
-  XLS_RET_CHECK(result != nullptr);
-  return result;
-}
-
-// Resolves "ref" to an AST function.
-absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(ColonRef* ref,
-                                                           DeduceCtx* ctx) {
-  std::optional<Import*> import = ref->ResolveImportSubject();
-  if (!import.has_value()) {
-    return TypeInferenceErrorStatus(
-        ref->span(), nullptr,
-        absl::StrFormat("Colon-reference subject `%s` did not refer to a "
-                        "module, so `%s` cannot be invoked.",
-                        ToAstNode(ref->subject())->ToString(),
-                        ref->ToString()));
-  }
-  XLS_RET_CHECK(import.has_value())
-      << "ColonRef did not refer to an import: " << ref->ToString();
-  std::optional<const ImportedInfo*> imported_info =
-      ctx->type_info()->GetImported(*import);
-  XLS_RET_CHECK(imported_info.has_value());
-  Module* module = imported_info.value()->module;
-  return GetMemberOrTypeInferenceError<Function>(module, ref->attr(),
-                                                 ref->span());
 }
 
 // Resolves "ref" to an AST proc.
@@ -369,41 +242,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   return result;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
-    const TupleIndex* node, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs_type,
-                       ctx->Deduce(node->lhs()));
-  TupleType* tuple_type = dynamic_cast<TupleType*>(lhs_type.get());
-  if (tuple_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->span(), lhs_type.get(),
-        absl::StrCat("Attempted to use tuple indexing on a non-tuple: ",
-                     node->ToString()));
-  }
-
-  ctx->set_in_typeless_number_ctx(true);
-  absl::Cleanup cleanup = [ctx]() { ctx->set_in_typeless_number_ctx(false); };
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> index_type,
-                       ctx->Deduce(node->index()));
-  std::move(cleanup).Cancel();
-
-  // TupleIndex RHSs are always constexpr numbers.
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue index_value,
-      ConstexprEvaluator::EvaluateToValue(
-          ctx->import_data(), ctx->type_info(), ctx->warnings(),
-          ctx->GetCurrentParametricEnv(), node->index(), index_type.get()));
-  XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueViaSign());
-  if (index >= tuple_type->size()) {
-    return TypeInferenceErrorStatus(
-        node->span(), tuple_type,
-        absl::StrCat("Out-of-bounds tuple index specified: ",
-                     node->index()->ToString()));
-  }
-
-  return tuple_type->GetMemberType(index).CloneToUnique();
-}
-
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRef(const TypeRef* node,
                                                             DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
@@ -419,30 +257,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeAlias(
   XLS_RET_CHECK(type->IsMeta());
   ctx->type_info()->SetItem(node->name_def(), *type);
   return type;
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
-    const XlsTuple* node, DeduceCtx* ctx) {
-  // Give a warning if the tuple is on a single line, is more than one element,
-  // but has a trailing comma.
-  //
-  // Note: warning diagnostics and type checking are currently fused together,
-  // but this is a pure post-parsing warning -- currently type checking the pass
-  // that has a warning collector available.
-  if (node->span().start().lineno() == node->span().limit().lineno() &&
-      node->members().size() > 1 && node->has_trailing_comma()) {
-    ctx->warnings()->Add(
-        node->span(), WarningKind::kSingleLineTupleTrailingComma,
-        absl::StrFormat("Tuple expression (with >1 element) is on a single "
-                        "line, but has a trailing comma."));
-  }
-
-  std::vector<std::unique_ptr<ConcreteType>> members;
-  for (Expr* e : node->members()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> m, ctx->Deduce(e));
-    members.push_back(std::move(m));
-  }
-  return std::make_unique<TupleType>(std::move(members));
 }
 
 // Returns whether "node" is a "bare" number (without an explicit type
@@ -1310,7 +1124,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
 
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim width_ctd,
                        width_type->GetTotalBitCount());
-  ConcreteTypeDim subject_ctd = subject_type.size();
+  const ConcreteTypeDim& subject_ctd = subject_type.size();
   if (std::holds_alternative<InterpValue>(width_ctd.value()) &&
       std::holds_alternative<InterpValue>(subject_ctd.value())) {
     XLS_ASSIGN_OR_RETURN(int64_t width_bits, width_ctd.GetAsInt64());
@@ -2368,47 +2182,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
                                      ConcreteTypeDim(array_size));
 }
 
-// Generic function to do the heavy lifting of deducing the type of an
-// Invocation or Spawn's constituent functions.
-static absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
-    DeduceCtx* ctx, const Invocation* invocation,
-    const std::vector<InstantiateArg>& args,
-    const std::function<absl::StatusOr<Function*>(const Instantiation*,
-                                                  DeduceCtx*)>& resolve_fn,
-    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
-                              InterpValue>& constexpr_env = {}) {
-  bool is_parametric_fn = false;
-  // We can't resolve builtins as AST Functions, hence this check.
-  if (!IsBuiltinFn(invocation->callee())) {
-    XLS_ASSIGN_OR_RETURN(Function * f, resolve_fn(invocation, ctx));
-    is_parametric_fn = f->IsParametric() || f->proc().has_value();
-  }
-
-  // If this is a parametric function invocation, then we need to typecheck
-  // the resulting [function] instantiation before we can deduce its return
-  // type (or else we won't find it in our TypeInfo).
-  if (IsBuiltinFn(invocation->callee()) || is_parametric_fn) {
-    return ctx->typecheck_invocation()(ctx, invocation, constexpr_env);
-  }
-
-  // If it's non-parametric, then we assume it's been already checked at module
-  // top.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> callee_type,
-                       ctx->Deduce(invocation->callee()));
-  FunctionType* callee_fn_type = dynamic_cast<FunctionType*>(callee_type.get());
-
-  // Callee must be a function.
-  if (callee_fn_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        invocation->callee()->span(), callee_type.get(),
-        absl::StrFormat("Invocation callee `%s` is not a function",
-                        invocation->callee()->ToString()));
-  }
-
-  return TypeAndParametricEnv{callee_fn_type->return_type().CloneToUnique(),
-                              {}};
-}
-
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                                                           DeduceCtx* ctx) {
   const ParametricEnv& caller_parametric_env =
@@ -2532,185 +2305,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   return ConcreteType::MakeUnit();
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
-    const Invocation* node, DeduceCtx* ctx) {
-  const absl::Span<Expr* const>& args = node->args();
-  if (args.size() != 2) {
-    return ArgCountMismatchErrorStatus(
-        node->span(),
-        absl::StrFormat(
-            "Expected 2 arguments to `map` builtin but got %d argument(s).",
-            args.size()));
-  }
-
-  // First, get the input element type.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> arg0_type,
-                       DeduceAndResolve(args[0], ctx));
-
-  // Then get the type and bindings for the mapping fn.
-  Invocation* element_invocation =
-      CreateElementInvocation(ctx->module(), node->span(), args[1], args[0]);
-  XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
-                       ctx->typecheck_invocation()(ctx, element_invocation,
-                                                   /*constexpr_env=*/{}));
-  const ParametricEnv& caller_bindings =
-      ctx->fn_stack().back().parametric_env();
-  ctx->type_info()->AddInvocationCallBindings(node, caller_bindings,
-                                              tab.parametric_env);
-
-  std::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
-      element_invocation, tab.parametric_env);
-  if (dti.has_value()) {
-    ctx->type_info()->SetInvocationTypeInfo(node, tab.parametric_env,
-                                            dti.value());
-  }
-
-  ArrayType* arg0_array_type = dynamic_cast<ArrayType*>(arg0_type.get());
-  return std::make_unique<ArrayType>(tab.type->CloneToUnique(),
-                                     arg0_array_type->size());
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
-    const Invocation* node, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString();
-
-  // Detect direct recursion. Indirect recursion is currently not syntactically
-  // possible (as of 2023-08-22) since you cannot refer to a name that has not
-  // yet been defined in the grammar.
-  const FnStackEntry& entry = ctx->fn_stack().back();
-  if (entry.f() != nullptr &&
-      IsNameRefTo(node->callee(), entry.f()->name_def())) {
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrFormat("Recursion of function `%s` detected -- recursion is "
-                        "currently unsupported.",
-                        node->callee()->ToString()));
-  }
-
-  // Map is special.
-  if (IsBuiltinFn(node->callee(), "map")) {
-    return DeduceMapInvocation(node, ctx);
-  }
-
-  // Gather up the type of all the (actual) arguments.
-  std::vector<InstantiateArg> args;
-  XLS_RETURN_IF_ERROR(InstantiateParametricArgs(node, node->callee(),
-                                                node->args(), ctx, &args));
-
-  // Find the callee as a DSLX Function from the expression.
-  auto resolve_fn = [](const Instantiation* node,
-                       DeduceCtx* ctx) -> absl::StatusOr<Function*> {
-    Expr* callee = node->callee();
-
-    Function* fn;
-    if (auto* colon_ref = dynamic_cast<ColonRef*>(callee);
-        colon_ref != nullptr) {
-      XLS_ASSIGN_OR_RETURN(fn,
-                           ResolveColonRefToFnForInvocation(colon_ref, ctx));
-    } else if (auto* name_ref = dynamic_cast<NameRef*>(callee);
-               name_ref != nullptr) {
-      AstNode* definer = name_ref->GetDefiner();
-      fn = dynamic_cast<Function*>(definer);
-      if (fn == nullptr) {
-        return TypeInferenceErrorStatus(
-            node->callee()->span(), nullptr,
-            absl::StrFormat("Invocation callee `%s` is not a function",
-                            node->callee()->ToString()));
-      }
-    } else {
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr,
-          absl::StrCat("An invocation callee must be either a name reference "
-                       "or a colon reference; instead got: ",
-                       AstNodeKindToString(callee->kind())));
-    }
-    return fn;
-  };
-
-  XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
-                       DeduceInstantiation(ctx, node, args, resolve_fn));
-
-  ConcreteType* ct = ctx->type_info()->GetItem(node->callee()).value();
-  FunctionType* ft = dynamic_cast<FunctionType*>(ct);
-  if (args.size() != ft->params().size()) {
-    return ArgCountMismatchErrorStatus(
-        node->span(),
-        absl::StrFormat("Expected %d parameter(s) but got %d arguments.",
-                        ft->params().size(), node->args().size()));
-  }
-
-  for (int i = 0; i < args.size(); i++) {
-    if (*args[i].type() != *ft->params()[i]) {
-      return ctx->TypeMismatchError(
-          args[i].span(), nullptr, *ft->params()[i], nullptr, *args[i].type(),
-          "Mismatch between parameter and argument types.");
-    }
-  }
-
-  // We can't blindly resolve the function or else we might fail due to look up
-  // a parametric builtin.
-  if (!IsBuiltinFn(node->callee())) {
-    XLS_ASSIGN_OR_RETURN(Function * fn, resolve_fn(node, ctx));
-
-    // If the callee function needs an implicit token type (e.g. because it has
-    // a fail!() or cover!() operation transitively) then so do we.
-    if (std::optional<bool> callee_opt = ctx->import_data()
-                                              ->GetRootTypeInfoForNode(fn)
-                                              .value()
-                                              ->GetRequiresImplicitToken(fn);
-        callee_opt.value()) {
-      UseImplicitToken(ctx);
-    }
-  }
-
-  return std::move(tab.type);
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
-    const FormatMacro* node, DeduceCtx* ctx) {
-  int64_t arg_count = OperandsExpectedByFormat(node->format());
-
-  if (arg_count != node->args().size()) {
-    return ArgCountMismatchErrorStatus(
-        node->span(),
-        absl::StrFormat("%s macro expects %d argument(s) from format but has "
-                        "%d argument(s)",
-                        node->macro(), arg_count, node->args().size()));
-  }
-
-  for (Expr* arg : node->args()) {
-    XLS_RETURN_IF_ERROR(DeduceAndResolve(arg, ctx).status());
-  }
-
-  // trace_fmt! (and any future friends) require threading implicit tokens for
-  // control just like cover! and fail! do.
-  UseImplicitToken(ctx);
-
-  return std::make_unique<TokenType>();
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
-    const ZeroMacro* node, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "DeduceZeroMacro; node: `" << node->ToString() << "`";
-  // Note: since it's a macro the parser checks arg count and parametric count.
-  //
-  // This says the type of the parametric type arg is the type of the result.
-  // However, we have to check that all of the transitive type within the
-  // parametric argument type are "zero capable".
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
-                       DeduceAndResolve(ToAstNode(node->type()), ctx));
-  XLS_ASSIGN_OR_RETURN(parametric_type,
-                       UnwrapMetaType(std::move(parametric_type), node->span(),
-                                      "zero! macro type"));
-  XLS_RET_CHECK(!parametric_type->IsMeta());
-
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue value,
-      MakeZeroValue(*parametric_type, *ctx->import_data(), node->span()));
-  ctx->type_info()->NoteConstExpr(node, value);
-  return parametric_type;
-}
-
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
                                                             DeduceCtx* ctx) {
   AstNode* name_def = ToAstNode(node->name_def());
@@ -2756,55 +2350,55 @@ class DeduceVisitor : public AstNodeVisitor {
  public:
   explicit DeduceVisitor(DeduceCtx* ctx) : ctx_(ctx) {}
 
-#define DEDUCE_DISPATCH(__type)                           \
+#define DEDUCE_DISPATCH(__type, __rule)                   \
   absl::Status Handle##__type(const __type* n) override { \
-    result_ = Deduce##__type(n, ctx_);                    \
+    result_ = __rule(n, ctx_);                            \
     return result_.status();                              \
   }
 
-  DEDUCE_DISPATCH(Unop)
-  DEDUCE_DISPATCH(Param)
-  DEDUCE_DISPATCH(ProcMember)
-  DEDUCE_DISPATCH(ConstantDef)
-  DEDUCE_DISPATCH(Number)
-  DEDUCE_DISPATCH(String)
-  DEDUCE_DISPATCH(TypeRef)
-  DEDUCE_DISPATCH(TypeAlias)
-  DEDUCE_DISPATCH(XlsTuple)
-  DEDUCE_DISPATCH(Conditional)
-  DEDUCE_DISPATCH(Binop)
-  DEDUCE_DISPATCH(EnumDef)
-  DEDUCE_DISPATCH(Let)
-  DEDUCE_DISPATCH(For)
-  DEDUCE_DISPATCH(Cast)
-  DEDUCE_DISPATCH(ConstAssert)
-  DEDUCE_DISPATCH(StructDef)
-  DEDUCE_DISPATCH(Array)
-  DEDUCE_DISPATCH(Attr)
-  DEDUCE_DISPATCH(Block)
-  DEDUCE_DISPATCH(ChannelDecl)
-  DEDUCE_DISPATCH(ConstantArray)
-  DEDUCE_DISPATCH(ColonRef)
-  DEDUCE_DISPATCH(Index)
-  DEDUCE_DISPATCH(Match)
-  DEDUCE_DISPATCH(Range)
-  DEDUCE_DISPATCH(Spawn)
-  DEDUCE_DISPATCH(SplatStructInstance)
-  DEDUCE_DISPATCH(Statement)
-  DEDUCE_DISPATCH(StructInstance)
-  DEDUCE_DISPATCH(TupleIndex)
-  DEDUCE_DISPATCH(UnrollFor)
-  DEDUCE_DISPATCH(BuiltinTypeAnnotation)
-  DEDUCE_DISPATCH(ChannelTypeAnnotation)
-  DEDUCE_DISPATCH(ArrayTypeAnnotation)
-  DEDUCE_DISPATCH(TupleTypeAnnotation)
-  DEDUCE_DISPATCH(TypeRefTypeAnnotation)
-  DEDUCE_DISPATCH(MatchArm)
-  DEDUCE_DISPATCH(Invocation)
-  DEDUCE_DISPATCH(FormatMacro)
-  DEDUCE_DISPATCH(ZeroMacro)
-  DEDUCE_DISPATCH(ConstRef)
-  DEDUCE_DISPATCH(NameRef)
+  DEDUCE_DISPATCH(Unop, DeduceUnop)
+  DEDUCE_DISPATCH(Param, DeduceParam)
+  DEDUCE_DISPATCH(ProcMember, DeduceProcMember)
+  DEDUCE_DISPATCH(ConstantDef, DeduceConstantDef)
+  DEDUCE_DISPATCH(Number, DeduceNumber)
+  DEDUCE_DISPATCH(String, DeduceString)
+  DEDUCE_DISPATCH(TypeRef, DeduceTypeRef)
+  DEDUCE_DISPATCH(TypeAlias, DeduceTypeAlias)
+  DEDUCE_DISPATCH(XlsTuple, DeduceXlsTuple)
+  DEDUCE_DISPATCH(Conditional, DeduceConditional)
+  DEDUCE_DISPATCH(Binop, DeduceBinop)
+  DEDUCE_DISPATCH(EnumDef, DeduceEnumDef)
+  DEDUCE_DISPATCH(Let, DeduceLet)
+  DEDUCE_DISPATCH(For, DeduceFor)
+  DEDUCE_DISPATCH(Cast, DeduceCast)
+  DEDUCE_DISPATCH(ConstAssert, DeduceConstAssert)
+  DEDUCE_DISPATCH(StructDef, DeduceStructDef)
+  DEDUCE_DISPATCH(Array, DeduceArray)
+  DEDUCE_DISPATCH(Attr, DeduceAttr)
+  DEDUCE_DISPATCH(Block, DeduceBlock)
+  DEDUCE_DISPATCH(ChannelDecl, DeduceChannelDecl)
+  DEDUCE_DISPATCH(ConstantArray, DeduceConstantArray)
+  DEDUCE_DISPATCH(ColonRef, DeduceColonRef)
+  DEDUCE_DISPATCH(Index, DeduceIndex)
+  DEDUCE_DISPATCH(Match, DeduceMatch)
+  DEDUCE_DISPATCH(Range, DeduceRange)
+  DEDUCE_DISPATCH(Spawn, DeduceSpawn)
+  DEDUCE_DISPATCH(SplatStructInstance, DeduceSplatStructInstance)
+  DEDUCE_DISPATCH(Statement, DeduceStatement)
+  DEDUCE_DISPATCH(StructInstance, DeduceStructInstance)
+  DEDUCE_DISPATCH(TupleIndex, DeduceTupleIndex)
+  DEDUCE_DISPATCH(UnrollFor, DeduceUnrollFor)
+  DEDUCE_DISPATCH(BuiltinTypeAnnotation, DeduceBuiltinTypeAnnotation)
+  DEDUCE_DISPATCH(ChannelTypeAnnotation, DeduceChannelTypeAnnotation)
+  DEDUCE_DISPATCH(ArrayTypeAnnotation, DeduceArrayTypeAnnotation)
+  DEDUCE_DISPATCH(TupleTypeAnnotation, DeduceTupleTypeAnnotation)
+  DEDUCE_DISPATCH(TypeRefTypeAnnotation, DeduceTypeRefTypeAnnotation)
+  DEDUCE_DISPATCH(MatchArm, DeduceMatchArm)
+  DEDUCE_DISPATCH(Invocation, DeduceInvocation)
+  DEDUCE_DISPATCH(FormatMacro, DeduceFormatMacro)
+  DEDUCE_DISPATCH(ZeroMacro, DeduceZeroMacro)
+  DEDUCE_DISPATCH(ConstRef, DeduceConstRef)
+  DEDUCE_DISPATCH(NameRef, DeduceNameRef)
 
   // Unhandled nodes for deduction, either they are custom visited or not
   // visited "automatically" in the traversal process (e.g. top level module

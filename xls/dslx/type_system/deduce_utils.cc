@@ -26,6 +26,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -84,6 +85,28 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
     return does_not_fit();
   }
   return absl::OkStatus();
+}
+
+void UseImplicitToken(DeduceCtx* ctx) {
+  XLS_CHECK(!ctx->fn_stack().empty());
+  Function* caller = ctx->fn_stack().back().f();
+  // Note: caller could be nullptr; e.g. when we're calling a function that
+  // can fail!() from the top level of a module; e.g. in a module-level const
+  // expression.
+  if (caller != nullptr) {
+    ctx->type_info()->NoteRequiresImplicitToken(caller, true);
+  }
+
+  // TODO(rspringer): 2021-09-01: How to fail! from inside a proc?
+}
+
+bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
+  if (auto* name_ref = dynamic_cast<const NameRef*>(e)) {
+    const AnyNameDef any_name_def = name_ref->name_def();
+    return std::holds_alternative<const NameDef*>(any_name_def) &&
+           std::get<const NameDef*>(any_name_def) == name_def;
+  }
+  return false;
 }
 
 }  // namespace xls::dslx

@@ -21,8 +21,10 @@
 #include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -31,11 +33,13 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
 
 namespace xls::dslx {
@@ -473,6 +477,66 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
   }
 
   return lhs;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
+    const TupleIndex* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs_type,
+                       ctx->Deduce(node->lhs()));
+  TupleType* tuple_type = dynamic_cast<TupleType*>(lhs_type.get());
+  if (tuple_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), lhs_type.get(),
+        absl::StrCat("Attempted to use tuple indexing on a non-tuple: ",
+                     node->ToString()));
+  }
+
+  ctx->set_in_typeless_number_ctx(true);
+  absl::Cleanup cleanup = [ctx]() { ctx->set_in_typeless_number_ctx(false); };
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> index_type,
+                       ctx->Deduce(node->index()));
+  std::move(cleanup).Cancel();
+
+  // TupleIndex RHSs are always constexpr numbers.
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue index_value,
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          ctx->GetCurrentParametricEnv(), node->index(), index_type.get()));
+  XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueViaSign());
+  if (index >= tuple_type->size()) {
+    return TypeInferenceErrorStatus(
+        node->span(), tuple_type,
+        absl::StrCat("Out-of-bounds tuple index specified: ",
+                     node->index()->ToString()));
+  }
+
+  return tuple_type->GetMemberType(index).CloneToUnique();
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
+    const XlsTuple* node, DeduceCtx* ctx) {
+  // Give a warning if the tuple is on a single line, is more than one element,
+  // but has a trailing comma.
+  //
+  // Note: warning diagnostics and type checking are currently fused together,
+  // but this is a pure post-parsing warning -- currently type checking the pass
+  // that has a warning collector available.
+  if (node->span().start().lineno() == node->span().limit().lineno() &&
+      node->members().size() > 1 && node->has_trailing_comma()) {
+    auto placeholder = absl::StrFormat(
+        "Tuple expression (with >1 element) is on a single "
+        "line, but has a trailing comma.");
+    ctx->warnings()->Add(
+        node->span(), WarningKind::kSingleLineTupleTrailingComma, placeholder);
+  }
+
+  std::vector<std::unique_ptr<ConcreteType>> members;
+  for (Expr* e : node->members()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> m, ctx->Deduce(e));
+    members.push_back(std::move(m));
+  }
+  return std::make_unique<TupleType>(std::move(members));
 }
 
 }  // namespace xls::dslx
