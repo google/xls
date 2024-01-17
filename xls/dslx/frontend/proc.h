@@ -138,6 +138,8 @@ class Proc : public AstNode {
 // ```
 class TestProc : public AstNode {
  public:
+  static std::string_view GetDebugTypeName() { return "test proc"; }
+
   TestProc(Module* owner, Proc* proc) : AstNode(owner), proc_(proc) {}
   ~TestProc() override;
 

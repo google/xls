@@ -131,8 +131,8 @@ class Module : public AstNode {
     }
 
     return absl::NotFoundError(
-        absl::StrFormat("No %s in module %s with name \"%s\"", typeid(T).name(),
-                        name_, target_name));
+        absl::StrFormat("No %s in module %s with name \"%s\"",
+                        T::GetDebugTypeName(), name_, target_name));
   }
 
   std::optional<Function*> GetFunction(std::string_view target_name);

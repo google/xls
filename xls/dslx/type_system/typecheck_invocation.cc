@@ -318,8 +318,15 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     return TypecheckParametricBuiltinInvocation(ctx, invocation, caller);
   }
 
-  XLS_ASSIGN_OR_RETURN(Function * callee_fn,
-                       ResolveFunction(callee, ctx->type_info()));
+  absl::StatusOr<Function*> callee_fn_or =
+      ResolveFunction(callee, ctx->type_info());
+  if (!callee_fn_or.ok()) {
+    return TypeInferenceErrorStatus(
+        callee->span(), nullptr,
+        absl::StrFormat("Cannot resolve callee `%s` to a function; %s",
+                        callee->ToString(), callee_fn_or.status().message()));
+  }
+  Function* callee_fn = callee_fn_or.value();
 
   const absl::Span<Expr* const> args = invocation->args();
   std::vector<InstantiateArg> instantiate_args;

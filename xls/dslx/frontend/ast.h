@@ -1003,6 +1003,8 @@ class String : public Expr {
 //    type Bar = (u32, Foo);
 class TypeAlias : public AstNode {
  public:
+  static std::string_view GetDebugTypeName() { return "type alias"; }
+
   TypeAlias(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
             bool is_public);
 
@@ -2015,6 +2017,8 @@ struct EnumMember {
 //  }
 class EnumDef : public AstNode {
  public:
+  static std::string_view GetDebugTypeName() { return "enum definition"; }
+
   EnumDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
           std::vector<EnumMember> values, bool is_public);
 
@@ -2372,6 +2376,8 @@ class Range : public Expr {
 // ```
 class TestFunction : public AstNode {
  public:
+  static std::string_view GetDebugTypeName() { return "test function"; }
+
   TestFunction(Module* owner, Span span, Function* fn)
       : AstNode(owner), span_(std::move(span)), fn_(fn) {}
 
@@ -2408,6 +2414,8 @@ class TestFunction : public AstNode {
 // Represents a function to be quick-check'd.
 class QuickCheck : public AstNode {
  public:
+  static std::string_view GetDebugTypeName() { return "quickcheck"; }
+
   static constexpr int64_t kDefaultTestCount = 1000;
 
   QuickCheck(Module* owner, Span span, Function* f,
@@ -2659,6 +2667,8 @@ class Cast : public Expr {
 //    (applicable to module level constant definitions only)
 class ConstantDef : public AstNode {
  public:
+  static std::string_view GetDebugTypeName() { return "constant definition"; }
+
   ConstantDef(Module* owner, Span span, NameDef* name_def,
               TypeAnnotation* type_annotation, Expr* value, bool is_public);
 

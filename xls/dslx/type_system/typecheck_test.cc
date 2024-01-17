@@ -2240,5 +2240,31 @@ fn f(tok: token) {
                  HasSubstr("Invocation callee `tok` is not a function")));
 }
 
+TEST(TypecheckErrorTest, MapOfNonFunctionInTestProc) {
+  EXPECT_THAT(
+      Typecheck(R"(
+#[test_proc]
+proc t {
+    result_in: chan<u32> in;
+
+    config(terminator: chan<bool> out) {
+        let (result_out, result_in) = chan<u32>;
+        (result_in,)
+    }
+
+    init {  }
+
+    next(tok: token, state: ()) {
+        let (ok, result) = map(tok, result_in);
+    }
+}
+)")
+          .status(),
+      IsPosError(
+          "TypeInferenceError",
+          HasSubstr("Cannot resolve callee `result_in` to a function; No "
+                    "function in module fake with name \"result_in\"")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
