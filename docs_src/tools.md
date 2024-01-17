@@ -125,6 +125,61 @@ same source) are logically equivalent.
 
 Runs XLS IR through the optimization pipeline.
 
+Standard flags include:
+
+*   `--top=NAME`: Override/set the top function/proc. This is required if a
+    function/proc is not already marked as `top` in the IR.
+*   `--opt_level=NUMBER`: Change the optimization level. This should be used
+    with care as the differences between optimization levels are less defined
+    for xls than they are in tools such as `clang`. Defaults to `3`.
+
+Several flags which control the behavior of individual optimizations are also
+available. Care should be used when modifying the values of these flags.
+
+*   `--rm_rewrites_pb=FILE`: Used to pass a proto describing the ram rewrites to
+    be performed.
+*   `--inline_procs=true|false`: Whether to enable or disable inlining all procs
+    into a single mega-proc. Defaults to `false`.
+*   `--convert_array_index_to_select=NUMBER`: Controls the maximum number of
+    dimensions an array can have to allow xls to convert accesses to the array
+    into select chains. This can have complicated impacts on the area and delay
+    of the generated code.
+*   `--use_context_narrowing_analysis=true|false`: Controls whether to use
+    contextual information to optimize range calculations. This can in some
+    circumstances reveal additional optimization opportunities but it can be
+    quite slow. Defaults to `false`.
+
+### Debugging/Experimenting with Optimizations
+
+There are also several flags which are used for debugging and understanding the
+behavior of the standard optimization pipeline itself and the passes which make
+up the pipeline. These flags should mostly be used for testing and debugging
+purposes only.
+
+*   `--passes=PIPELINE_SPEC`: Allows one to specify an explicit optimization
+    pipeline to use instead of the standard one. The pipeline is specified by
+    listing passes using their short-names. Different passes are space
+    separated. Fixed-point combinations of passes are specified by surrounding
+    them with square-brackets '`[]`'. For example, to run the pipeline
+    'inlining' then 'arith_simp' and 'dce' to fixed-point then 'narrowing' and a
+    final 'dce' the flag would be set to `inlining [ arith_simp dce ] narrowing
+    dce`. This can be used to test odd interactions between specific or single
+    passes.
+*   `--passes_bisect_limit=NUMBER`: Tells `opt_main` to cease pipeline execution
+    after running `NUMBER` passes. This can be used to narrow down misbehaving
+    passes. This flag works with both custom `--passes` pipelines and the
+    standard pipeline.
+*   `--ir_dump_path=FOLDER`: Tells `opt_main` to dump files containing all the
+    intermediate states of the optimizations IRs into files in that particular
+    directory. Each file is named so they sort lexicographically in the order
+    they were created. The names include the pass-number, the pass run and
+    whether the pass made any changes to the output.
+*   `--skip_passes=NAME1,NAME2,...`: Tells `opt_main` to skip execution of
+    specific named passes (specified using the short-name of the pass). This
+    does not otherwise modify the pipeline being used and the pass is considered
+    to have finished successfully without making any changes. Multiple passes
+    may be passed at once separated by commas.
+
 ## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc)
 
 Tool to calculate and print a summary of the BOM (bill of materials) elements
