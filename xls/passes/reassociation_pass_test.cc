@@ -85,6 +85,28 @@ TEST_F(ReassociationPassTest, ChainOfThreeAddsRight) {
                                         m::Add(m::Param("c"), m::Param("d"))));
 }
 
+TEST_F(ReassociationPassTest, NearToFinalBitWidth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue v6 = fb.Literal(UBits(0, 6));
+  BValue v16 = fb.Literal(UBits(0, 16));
+  BValue ext_9 = fb.SignExtend(v6, 9);
+  BValue add_9 = fb.Add(ext_9, ext_9);
+  BValue ext_17_add_9 = fb.SignExtend(add_9, 17);
+  BValue ext_17 = fb.SignExtend(v16, 17);
+  // NB Use the 'add' second so the bit width is already 17 by the time the
+  // second addition is processed.
+  fb.Add(ext_17, ext_17_add_9);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  RecordProperty("ir", p->DumpIr());
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::SignExt(m::Literal(UBits(0, 6))),
+                     m::SignExt(m::Add(m::SignExt(m::Literal(UBits(0, 16))),
+                                       m::SignExt(m::Literal(UBits(0, 6)))))));
+}
+
 TEST_F(ReassociationPassTest, ChainOfThreeFullWidthUnsignedAddsRight) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

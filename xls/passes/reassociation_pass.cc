@@ -104,8 +104,8 @@ absl::Status GatherAddsAndSubtracts(Node* node, bool negated,
     // Subtraction negates it's second operand (operand number 1).
     bool negated_next =
         (operand_no == 1 && node->op() == Op::kSub) ? !negated : negated;
-    XLS_RETURN_IF_ERROR(GatherAddsAndSubtracts(operand, negated_next, leaves,
-                                                 interior_nodes));
+    XLS_RETURN_IF_ERROR(
+        GatherAddsAndSubtracts(operand, negated_next, leaves, interior_nodes));
   }
   return absl::OkStatus();
 }
@@ -473,7 +473,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
     }
 
     XLS_VLOG(4) << "Reassociated expression rooted at: "
-                << inputs[0]->GetName();
+                << (inputs.empty() ? "<Literal Root>" : inputs[0]->GetName());
     XLS_VLOG(4) << "  operations to reassociate:  "
                 << absl::StrJoin(interior_nodes, ", ");
     XLS_VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ");
@@ -481,9 +481,14 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
     auto new_node = [&](Node* lhs, Node* rhs) -> absl::StatusOr<Node*> {
       if (is_full_width_addition) {
         // Widths may vary between the tree & the original, so we need to
-        // construct new nodes rather than clones.
+        // construct new nodes rather than clones. We know that the final result
+        // is big enough for all values (since is_full_width_addition ensures no
+        // overflow) so we stop bit-extension there. This also prevents issues
+        // where the number of bits depends on the number of inputs and could
+        // end up as more than the expected number of bits.
         int64_t addition_width =
-            std::max(lhs->BitCountOrDie(), rhs->BitCountOrDie()) + 1;
+            std::min(std::max(lhs->BitCountOrDie(), rhs->BitCountOrDie()) + 1,
+                     node->BitCountOrDie());
         XLS_ASSIGN_OR_RETURN(
             Node * extended_lhs,
             node->function_base()->MakeNode<ExtendOp>(
@@ -558,7 +563,9 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
               node->loc(), new_root, /*new_bit_count=*/node->BitCountOrDie(),
               node->operand(0)->op()));
     }
-    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(new_root));
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(new_root))
+        << "Root: " << node->ToStringWithOperandTypes() << " replaced with "
+        << new_root->ToStringWithOperandTypes();
     changed = true;
   }
 
