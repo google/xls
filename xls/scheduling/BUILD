@@ -312,6 +312,7 @@ cc_library(
         "//xls/passes:dce_pass",
         "//xls/passes:literal_uncommoning_pass",
         "//xls/passes:optimization_pass_pipeline",
+        "//xls/passes:proc_state_legalization_pass",
     ],
 )
 

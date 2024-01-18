@@ -177,6 +177,12 @@ class BuilderBase {
   BValue Or(absl::Span<const BValue> operands,
             const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
+  // Bitwise nor.
+  BValue Nor(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
+             std::string_view name = "");
+  BValue Nor(absl::Span<const BValue> operands,
+             const SourceInfo& loc = SourceInfo(), std::string_view name = "");
+
   // Bitwise xor.
   BValue Xor(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
              std::string_view name = "");

@@ -128,8 +128,12 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
   if (node->Is<Param>()) {
     params_.erase(std::remove(params_.begin(), params_.end(), node),
                   params_.end());
+    next_values_by_param_.erase(node->As<Param>());
   }
   if (node->Is<Next>()) {
+    Next* next = node->As<Next>();
+    Param* param = next->param()->As<Param>();
+    next_values_by_param_.at(param).erase(next);
     next_values_.erase(
         std::remove(next_values_.begin(), next_values_.end(), node),
         next_values_.end());
@@ -201,9 +205,13 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
                                  node->GetName(), name());
   if (node->Is<Param>()) {
     params_.push_back(node->As<Param>());
+    next_values_by_param_[node->As<Param>()];
   }
   if (node->Is<Next>()) {
+    Next* next = node->As<Next>();
+    Param* param = next->param()->As<Param>();
     next_values_.push_back(node->As<Next>());
+    next_values_by_param_.at(param).insert(next);
   }
   Node* ptr = node.get();
   node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));

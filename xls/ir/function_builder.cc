@@ -750,6 +750,17 @@ BValue BuilderBase::Or(BValue lhs, BValue rhs, const SourceInfo& loc,
                        std::string_view name) {
   return Or({lhs, rhs}, loc, name);
 }
+BValue BuilderBase::Nor(absl::Span<const BValue> operands,
+                        const SourceInfo& loc, std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddNaryOp(Op::kNor, operands, loc, name);
+}
+BValue BuilderBase::Nor(BValue lhs, BValue rhs, const SourceInfo& loc,
+                        std::string_view name) {
+  return Nor({lhs, rhs}, loc, name);
+}
 BValue BuilderBase::Xor(absl::Span<const BValue> operands,
                         const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
