@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -472,11 +473,18 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       continue;
     }
 
-    XLS_VLOG(4) << "Reassociated expression rooted at: "
-                << (inputs.empty() ? "<Literal Root>" : inputs[0]->GetName());
+    XLS_VLOG(4) << "Reassociated expression rooted at: " << node->GetName();
+    XLS_VLOG(4) << "  is_full_width_addition: " << is_full_width_addition;
+
+    auto node_joiner = [](std::string* s, Node* node) {
+      absl::StrAppendFormat(s, "%s (%s)", node->GetName(),
+                            node->GetType()->ToString());
+    };
     XLS_VLOG(4) << "  operations to reassociate:  "
-                << absl::StrJoin(interior_nodes, ", ");
-    XLS_VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ");
+                << absl::StrJoin(interior_nodes, ", ", node_joiner);
+    XLS_VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ", node_joiner);
+    XLS_VLOG(4) << "  literals leaves:  "
+                << absl::StrJoin(literals, ", ", node_joiner);
 
     auto new_node = [&](Node* lhs, Node* rhs) -> absl::StatusOr<Node*> {
       if (is_full_width_addition) {
@@ -499,6 +507,11 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
             node->function_base()->MakeNode<ExtendOp>(
                 node->loc(), rhs, /*new_bit_count=*/addition_width,
                 node->operand(0)->op()));
+        XLS_VLOG(4) << absl::StreamFormat(
+            "Creating new add of type %s: %s (%s) + %s (%s) ",
+            extended_lhs->GetType()->ToString(), lhs->GetName(),
+            lhs->GetType()->ToString(), rhs->GetName(),
+            rhs->GetType()->ToString());
         return node->function_base()->MakeNode<BinOp>(node->loc(), extended_lhs,
                                                       extended_rhs, Op::kAdd);
       }
@@ -523,6 +536,9 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       inputs.push_back(literal_expr);
     }
 
+    XLS_VLOG(4) << "  inputs before balancing:  "
+                << absl::StrJoin(inputs, ", ", node_joiner);
+
     // Reassociate the expressions into a balanced tree. First, reduce the
     // number of inputs to a power of two. Then build a balanced tree.
     if (!IsPowerOfTwo(inputs.size())) {
@@ -541,6 +557,9 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       }
       inputs = std::move(next_inputs);
     }
+
+    XLS_VLOG(4) << "  inputs after balancing:  "
+                << absl::StrJoin(inputs, ", ", node_joiner);
 
     XLS_RET_CHECK(IsPowerOfTwo(inputs.size()));
     while (inputs.size() != 1) {
