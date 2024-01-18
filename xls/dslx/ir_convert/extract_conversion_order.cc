@@ -658,18 +658,15 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
           function_cr.f()->tag() == Function::Tag::kProcNext ||
           subject_cr.f()->tag() == Function::Tag::kProcConfig ||
           subject_cr.f()->tag() == Function::Tag::kProcNext;
-      bool either_is_parametric =
-          function_cr.f()->IsParametric() || subject_cr.f()->IsParametric();
 
-      bool both_are_parametric =
-          function_cr.f()->IsParametric() && subject_cr.f()->IsParametric();
+      bool have_same_parametrics_kind =
+          function_cr.f()->IsParametric() == subject_cr.f()->IsParametric();
 
-      bool both_are_parametric_and_equivalent =
-          both_are_parametric &&
+      bool both_parametric_envs_are_equivalent =
           (function_cr.parametric_env() == subject_cr.parametric_env());
 
       if (same_fns && !either_is_proc_instance_fn &&
-          (!either_is_parametric || both_are_parametric_and_equivalent)) {
+          have_same_parametrics_kind && both_parametric_envs_are_equivalent) {
         iter_subject = ready->erase(iter_subject);
         continue;
       }
