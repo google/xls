@@ -190,6 +190,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_add_jit_wrapper",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -560,6 +561,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float64_add_jit_wrapper",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",

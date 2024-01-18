@@ -14,10 +14,12 @@
 
 // Random-sampling test for the DSLX 2x32 floating-point adder.
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <tuple>
 
+#include "absl/base/casts.h"
 #include "absl/flags/flag.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -60,9 +62,13 @@ static float ComputeActual(fp::Float32Add* jit_wrapper, Float2x32 input) {
 // Compares expected vs. actual results, taking into account two special cases.
 static bool CompareResults(float a, float b) {
   // DSLX flushes subnormal outputs, while regular FP addition does not, so
-  // just check for that here.
-  return a == b || (std::isnan(a) && std::isnan(b)) ||
-         (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
+  // just flush subnormals here as well.
+  // Also, compare the exact bits, otherwise (0.0f == -0.0f) == true.
+  // NaN is implementation defined what the mantissa bits mean, so we can
+  // not assume that host-bits would be the same as dslx bits.
+  uint32_t a_bits = absl::bit_cast<uint32_t>(FlushSubnormal(a));
+  uint32_t b_bits = absl::bit_cast<uint32_t>(FlushSubnormal(b));
+  return a_bits == b_bits || (std::isnan(a) && std::isnan(b));
 }
 
 static std::unique_ptr<fp::Float32Add> CreateJit() {

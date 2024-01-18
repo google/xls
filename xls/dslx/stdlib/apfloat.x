@@ -1655,7 +1655,7 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(a: APFloat<EXP_SZ, FRACTION_SZ>,
   let fraction = (addend_x as sN[CARRY_FRACTION]) + (addend_y as sN[CARRY_FRACTION]);
   let fraction_is_zero = fraction == sN[CARRY_FRACTION]:0;
   let result_sign = match (fraction_is_zero, fraction < sN[CARRY_FRACTION]:0) {
-    (true, _) => u1:0,
+    (true, _) => x.sign && y.sign,   // So that -0.0 + -0.0 results in -0.0
     (false, true) => !y.sign,
     _ => y.sign
   };
