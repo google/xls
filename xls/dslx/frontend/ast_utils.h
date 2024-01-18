@@ -237,6 +237,10 @@ absl::StatusOr<std::vector<const NameDef*>> CollectReferencedUnder(
 // name def and whether that builtin name is a parametric function.
 bool IsBuiltinParametricNameRef(const NameRef* name_ref);
 
+// Returns whether "node" is a "bare" number (without an explicit type
+// annotation on it).
+const Number* IsBareNumber(const AstNode* node, bool* is_boolean = nullptr);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

@@ -40,6 +40,9 @@ void UseImplicitToken(DeduceCtx* ctx);
 // Returns whether "e" is a NameRef referring to the given "name_def".
 bool IsNameRefTo(const Expr* e, const NameDef* name_def);
 
+// Checks that "number" can legitmately conform to type "type".
+absl::Status ValidateNumber(const Number& number, const ConcreteType& type);
+
 // Returns an AST node typed T from module "m", resolved via name "name".
 //
 // Errors are attributed to span "span".

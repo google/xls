@@ -38,7 +38,6 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
-#include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
@@ -49,6 +48,15 @@
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
+
+// Forward declaration from sister implementation file as we are recursively
+// bound to the central deduce-and-resolve routine in our node deduction
+// routines.
+//
+// TODO(cdleary): 2024-01-16 We can break this circular resolution with a
+// virtual function on DeduceCtx when we get things refactored nicely.
+extern absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+    const AstNode* node, DeduceCtx* ctx);
 
 // Creates a function invocation on the first element of the given array.
 //

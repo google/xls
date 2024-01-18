@@ -36,6 +36,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -659,6 +660,20 @@ bool IsBuiltinParametricNameRef(const NameRef* name_ref) {
   // function.
   return std::holds_alternative<BuiltinNameDef*>(name_ref->name_def()) &&
          IsNameParametricBuiltin(name_ref->identifier());
+}
+
+const Number* IsBareNumber(const AstNode* node, bool* is_boolean) {
+  if (const Number* number = dynamic_cast<const Number*>(node)) {
+    if (is_boolean != nullptr) {
+      *is_boolean = number->number_kind() == NumberKind::kBool;
+    }
+    if (number->type_annotation() == nullptr) {
+      return number;
+    }
+    return nullptr;
+  }
+
+  return nullptr;
 }
 
 }  // namespace xls::dslx

@@ -89,6 +89,8 @@ cc_library(
     name = "deduce",
     srcs = [
         "deduce.cc",
+        "deduce_enum_def.cc",
+        "deduce_enum_def.h",
         "deduce_expr.cc",
         "deduce_expr.h",
         "deduce_invocation.cc",
@@ -673,5 +675,23 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
+    ],
+)
+
+cc_test(
+    name = "deduce_utils_test",
+    srcs = ["deduce_utils_test.cc"],
+    deps = [
+        ":concrete_type",
+        ":deduce_utils",
+        "@com_google_absl//absl/status",
+        "//xls/common:casts",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:bindings",
+        "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:scanner",
     ],
 )

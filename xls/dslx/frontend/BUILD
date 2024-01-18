@@ -149,6 +149,8 @@ cc_library(
     hdrs = ["ast_utils.h"],
     deps = [
         ":ast",
+        ":builtins_metadata",
+        ":module",
         ":token_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -164,7 +166,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
-        "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/type_system:type_info",
     ],
 )

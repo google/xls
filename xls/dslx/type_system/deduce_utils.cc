@@ -109,4 +109,16 @@ bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
   return false;
 }
 
+absl::Status ValidateNumber(const Number& number, const ConcreteType& type) {
+  XLS_VLOG(5) << "Validating " << number.ToString() << " vs " << type;
+  const BitsType* bits_type = dynamic_cast<const BitsType*>(&type);
+  if (bits_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        number.span(), &type,
+        absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
+                        type.GetDebugTypeName()));
+  }
+  return TryEnsureFitsInType(number, *bits_type);
+}
+
 }  // namespace xls::dslx
