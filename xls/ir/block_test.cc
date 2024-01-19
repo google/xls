@@ -21,13 +21,23 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/visitor.h"
-#include "xls/ir/ir_matcher.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
+#include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -331,6 +341,91 @@ TEST_F(BlockTest, BlockWithRegisters) {
   sum_d: bits[32] = register_read(register=sum_d, id=14)
   state_write: () = register_write(sum_d, register=state, id=18)
   out: () = output_port(sum_d, name=out, id=17)
+}
+)");
+}
+
+TEST_F(BlockTest, BlockClone) {
+  auto p = CreatePackage();
+  std::unique_ptr<Package> p2 =
+      std::make_unique<VerifiedPackage>("second_package");
+  BlockBuilder bb("my_block", p.get());
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(Register * state_reg,
+                           bb.block()->AddRegister("state", u32));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+
+  BValue state = bb.RegisterRead(state_reg, SourceInfo(), "state");
+  BValue x = bb.InputPort("x", u32);
+
+  BValue x_d = bb.InsertRegister("x_d", x);
+  BValue sum = bb.Add(x_d, state, SourceInfo(), "sum");
+
+  BValue sum_d = bb.InsertRegister("sum_d", sum);
+  BValue out = bb.OutputPort("out", sum_d);
+
+  bb.RegisterWrite(state_reg, sum_d,
+                   /*load_enable=*/std::nullopt, /*reset=*/std::nullopt,
+                   SourceInfo(), "state_write");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_FALSE(block->IsFunction());
+  EXPECT_FALSE(block->IsProc());
+  EXPECT_TRUE(block->IsBlock());
+  EXPECT_THAT(GetPortNames(block), ElementsAre("clk", "x", "out"));
+
+  EXPECT_THAT(block->GetInputPorts(), ElementsAre(x.node()));
+  EXPECT_THAT(GetInputPortNames(block), ElementsAre("x"));
+
+  EXPECT_THAT(block->GetOutputPorts(), ElementsAre(out.node()));
+  EXPECT_THAT(GetOutputPortNames(block), ElementsAre("out"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * x_port, block->GetInputPort("x"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * out_port, block->GetOutputPort("out"));
+  EXPECT_EQ(x_port, x.node());
+  EXPECT_EQ(out_port, out.node());
+
+  ASSERT_TRUE(block->GetClockPort().has_value());
+  EXPECT_THAT(block->GetClockPort()->name, "clk");
+
+  XLS_VLOG_LINES(1, block->DumpIr());
+  EXPECT_EQ(block->DumpIr(),
+            R"(block my_block(clk: clock, x: bits[32], out: bits[32]) {
+  reg state(bits[32])
+  reg x_d(bits[32])
+  reg sum_d(bits[32])
+  x: bits[32] = input_port(name=x, id=2)
+  x_d_write: () = register_write(x, register=x_d, id=3)
+  state: bits[32] = register_read(register=state, id=1)
+  x_d: bits[32] = register_read(register=x_d, id=4)
+  sum: bits[32] = add(x_d, state, id=5)
+  sum_d_write: () = register_write(sum, register=sum_d, id=6)
+  sum_d: bits[32] = register_read(register=sum_d, id=7)
+  state_write: () = register_write(sum_d, register=state, id=9)
+  out: () = output_port(sum_d, name=out, id=8)
+}
+)");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * clone,
+      block->Clone("cloned", p2.get(),
+                   {{"sum_d", "not_a_sum_d"}, {"state", "not_a_state"}}));
+
+  EXPECT_EQ(clone->DumpIr(),
+            R"(block cloned(clk: clock, x: bits[32], out: bits[32]) {
+  reg not_a_state(bits[32])
+  reg x_d(bits[32])
+  reg not_a_sum_d(bits[32])
+  x: bits[32] = input_port(name=x, id=3)
+  x_d_write: () = register_write(x, register=x_d, id=6)
+  x_d: bits[32] = register_read(register=x_d, id=1)
+  state: bits[32] = register_read(register=not_a_state, id=2)
+  sum: bits[32] = add(x_d, state, id=4)
+  sum_d_write: () = register_write(sum, register=not_a_sum_d, id=7)
+  sum_d: bits[32] = register_read(register=not_a_sum_d, id=5)
+  state_write: () = register_write(sum_d, register=not_a_state, id=9)
+  out: () = output_port(sum_d, name=out, id=8)
 }
 )");
 }

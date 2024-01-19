@@ -673,8 +673,9 @@ absl::Span<InstantiationOutput* const> Block::GetInstantiationOutputs(
   return instantiation_outputs_.at(instantiation);
 }
 
-absl::StatusOr<Block*> Block::Clone(std::string_view new_name,
-                                    Package* target_package) const {
+absl::StatusOr<Block*> Block::Clone(
+    std::string_view new_name, Package* target_package,
+    const absl::flat_hash_map<std::string, std::string>& reg_name_map) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   absl::flat_hash_map<Register*, Register*> register_map;
   absl::flat_hash_map<Instantiation*, Instantiation*> instantiation_map;
@@ -693,12 +694,19 @@ absl::StatusOr<Block*> Block::Clone(std::string_view new_name,
     }
   }
 
+  auto to_new_name = [&](Register* r) {
+    auto it = reg_name_map.find(r->name());
+    if (it == reg_name_map.end()) {
+      return r->name();
+    }
+    return it->second;
+  };
   for (Register* reg : GetRegisters()) {
     XLS_ASSIGN_OR_RETURN(Type * mapped_type,
                          target_package->MapTypeFromOtherPackage(reg->type()));
     XLS_ASSIGN_OR_RETURN(
         register_map[reg],
-        cloned_block->AddRegister(reg->name(), mapped_type, reg->reset()));
+        cloned_block->AddRegister(to_new_name(reg), mapped_type, reg->reset()));
   }
 
   for (Instantiation* inst : GetInstantiations()) {
