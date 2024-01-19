@@ -14,6 +14,8 @@
 
 #include "xls/ir/proc.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
@@ -306,17 +308,20 @@ TEST_F(ProcTest, Clone) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * clone, proc->Clone("cloned", p.get(),
+                                /*channel_remapping=*/
                                 {{std::string{channel->name()},
-                                  std::string{cloned_channel->name()}}}));
+                                  std::string{cloned_channel->name()}}},
+                                /*call_remapping=*/{},
+                                /*state_name_remapping=*/{{"st", "state"}}));
 
   EXPECT_FALSE(clone->IsFunction());
   EXPECT_TRUE(clone->IsProc());
 
   EXPECT_EQ(clone->DumpIr(),
-            R"(proc cloned(tkn: token, st: bits[32], init={42}) {
+            R"(proc cloned(tkn: token, state: bits[32], init={42}) {
   literal.12: bits[32] = literal(value=1, id=12)
   receive_3: (token, bits[32]) = receive(tkn, channel=cloned_chan, id=13)
-  add.14: bits[32] = add(literal.12, st, id=14)
+  add.14: bits[32] = add(literal.12, state, id=14)
   tuple_index.15: bits[32] = tuple_index(receive_3, index=1, id=15)
   tuple_index.16: token = tuple_index(receive_3, index=0, id=16)
   add.17: bits[32] = add(add.14, tuple_index.15, id=17)
@@ -344,23 +349,29 @@ TEST_F(ProcTest, CloneNewStyle) {
   BValue add = pb.Add(recv_a, recv_c);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({add}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * clone, proc->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * clone,
+      proc->Clone(
+          "cloned", p.get(),
+          /*channel_remapping=*/{{"a", "foo"}, {"b", "bar"}, {"c", "baz"}},
+          /*call_remapping=*/{},
+          /*state_name_remapping=*/{{"st", "state"}}));
 
   EXPECT_FALSE(clone->IsFunction());
   EXPECT_TRUE(clone->IsProc());
 
   EXPECT_EQ(
       clone->DumpIr(),
-      R"(proc cloned<a: bits[32] streaming in, b: bits[32] streaming out>(tkn: token, st: bits[32], init={42}) {
-  chan c(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-  receive_3: (token, bits[32]) = receive(tkn, channel=a, id=14)
+      R"(proc cloned<foo: bits[32] streaming in, bar: bits[32] streaming out>(tkn: token, state: bits[32], init={42}) {
+  chan baz(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+  receive_3: (token, bits[32]) = receive(tkn, channel=foo, id=14)
   tuple_index.15: token = tuple_index(receive_3, index=0, id=15)
-  receive_6: (token, bits[32]) = receive(tuple_index.15, channel=c, id=16)
+  receive_6: (token, bits[32]) = receive(tuple_index.15, channel=baz, id=16)
   tuple_index.17: token = tuple_index(receive_6, index=0, id=17)
-  send_9: token = send(tuple_index.17, st, channel=b, id=18)
+  send_9: token = send(tuple_index.17, state, channel=bar, id=18)
   tuple_index.19: bits[32] = tuple_index(receive_3, index=1, id=19)
   tuple_index.20: bits[32] = tuple_index(receive_6, index=1, id=20)
-  send_10: token = send(send_9, st, channel=c, id=21)
+  send_10: token = send(send_9, state, channel=baz, id=21)
   add.22: bits[32] = add(tuple_index.19, tuple_index.20, id=22)
   next (send_10, add.22)
 }

@@ -150,8 +150,8 @@ class Proc : public FunctionBase {
   // next state node for this state element is set to the newly created state
   // parameter node. Returns the newly created parameter node.
   absl::StatusOr<Param*> ReplaceStateElement(
-      int64_t index, std::string_view state_param_name,
-      const Value& init_value, std::optional<Node*> next_state = std::nullopt);
+      int64_t index, std::string_view state_param_name, const Value& init_value,
+      std::optional<Node*> next_state = std::nullopt);
 
   // Remove the state element at the given index. All state elements higher than
   // `index` are shifted down one to fill the hole. The state parameter at the
@@ -170,8 +170,8 @@ class Proc : public FunctionBase {
   // given index or higher will be shifted up. Returns the newly created
   // parameter node.
   absl::StatusOr<Param*> InsertStateElement(
-      int64_t index, std::string_view state_param_name,
-      const Value& init_value, std::optional<Node*> next_state = std::nullopt);
+      int64_t index, std::string_view state_param_name, const Value& init_value,
+      std::optional<Node*> next_state = std::nullopt);
 
   bool HasImplicitUse(Node* node) const override;
 
@@ -182,9 +182,12 @@ class Proc : public FunctionBase {
   // key.
   absl::StatusOr<Proc*> Clone(
       std::string_view new_name, Package* target_package = nullptr,
-      absl::flat_hash_map<std::string, std::string> channel_remapping = {},
-      absl::flat_hash_map<const FunctionBase*, FunctionBase*> call_remapping =
-          {}) const;
+      const absl::flat_hash_map<std::string, std::string>& channel_remapping =
+          {},
+      const absl::flat_hash_map<const FunctionBase*, FunctionBase*>&
+          call_remapping = {},
+      const absl::flat_hash_map<std::string, std::string>&
+          state_name_remapping = {}) const;
 
   std::string DumpIr() const override;
 
