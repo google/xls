@@ -687,10 +687,14 @@ absl::StatusOr<Block*> Block::Clone(
   Block* cloned_block = target_package->AddBlock(
       std::make_unique<Block>(new_name, target_package));
 
+  std::optional<std::string> clk_port_name;
   for (const Port& port : GetPorts()) {
     if (std::holds_alternative<ClockPort*>(port)) {
-      XLS_RETURN_IF_ERROR(
-          cloned_block->AddClockPort(std::get<ClockPort*>(port)->name));
+      auto old_name = std::get<ClockPort*>(port)->name;
+      clk_port_name = reg_name_map.contains(old_name)
+                          ? reg_name_map.at(old_name)
+                          : old_name;
+      XLS_RETURN_IF_ERROR(cloned_block->AddClockPort(*clk_port_name));
     }
   }
 
@@ -792,7 +796,7 @@ absl::StatusOr<Block*> Block::Clone(
         std::string_view view = std::get<OutputPort*>(port)->name();
         correct_ordering.push_back(std::string(view.begin(), view.end()));
       } else if (std::holds_alternative<ClockPort*>(port)) {
-        correct_ordering.push_back(std::get<ClockPort*>(port)->name);
+        correct_ordering.push_back(*clk_port_name);
       }
     }
     XLS_RETURN_IF_ERROR(cloned_block->ReorderPorts(correct_ordering));

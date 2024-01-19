@@ -139,6 +139,64 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "remove_identifiers",
+    srcs = ["remove_identifiers.cc"],
+    hdrs = ["remove_identifiers.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:op",
+        "//xls/ir:register",
+        "//xls/ir:source_location",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "remove_identifiers_test",
+    srcs = ["remove_identifiers_test.cc"],
+    deps = [
+        ":remove_identifiers",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:register",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+    ],
+)
+
+cc_binary(
+    name = "remove_identifiers_main",
+    srcs = ["remove_identifiers_main.cc"],
+    deps = [
+        ":remove_identifiers",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
 cc_binary(
     name = "ir_stats_main",
     srcs = ["ir_stats_main.cc"],

@@ -179,6 +179,10 @@ class Package {
   // Get the filename corresponding to the given `Fileno`.
   std::optional<std::string> GetFilename(Fileno file_number) const;
 
+  const absl::flat_hash_map<Fileno, std::string>& fileno_to_name() const {
+    return fileno_to_filename_;
+  }
+
   // Returns the total number of nodes in the graph. Traverses the functions,
   // procs and blocks and sums the node counts.
   int64_t GetNodeCount() const;
