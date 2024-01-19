@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 namespace {
@@ -428,17 +429,21 @@ class InvocationVisitor : public ExprVisitor {
     XLS_VLOG(5) << "Getting callee bindings for invocation: "
                 << node->ToString() << " @ " << node->span()
                 << " caller bindings: " << bindings_.ToString();
+
     std::optional<const ParametricEnv*> callee_bindings =
         type_info_->GetInvocationCalleeBindings(node, bindings_);
+
     if (callee_bindings.has_value()) {
       XLS_RET_CHECK(*callee_bindings != nullptr);
       XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings
                   << " for node: " << node->ToString();
       std::optional<TypeInfo*> instantiation_type_info =
-          type_info_->GetInvocationTypeInfo(node, **callee_bindings);
+          type_info_->GetInvocationTypeInfo(node, bindings_);
+
       XLS_RET_CHECK(instantiation_type_info.has_value())
           << "Could not find instantiation for `" << node->ToString() << "`"
-          << " via bindings: " << **callee_bindings;
+          << " via bindings: " << *callee_bindings.value();
+
       // Note: when mapping a function that is non-parametric, the instantiated
       // type info can be nullptr (no associated type info, as the callee didn't
       // have to be instantiated).

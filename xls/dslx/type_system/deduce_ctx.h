@@ -42,7 +42,7 @@
 
 namespace xls::dslx {
 
-enum class WithinProc {
+enum class WithinProc : uint8_t {
   kNo,
   kYes,
 };

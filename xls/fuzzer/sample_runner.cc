@@ -584,8 +584,10 @@ RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
   }
 
   XLS_RETURN_IF_ERROR(dslx::ProcConfigBytecodeInterpreter::EvalSpawn(
-      &import_data, proc_type_info, std::nullopt, std::nullopt, proc,
-      config_args, &proc_instances));
+      &import_data, proc_type_info, /*caller_bindings=*/std::nullopt,
+      /*callee_bindings=*/std::nullopt, std::nullopt, proc, config_args,
+      &proc_instances));
+
   // Currently a single proc is supported.
   XLS_CHECK_EQ(proc_instances.size(), 1);
   for (int i = 0; i < proc_ticks; i++) {

@@ -29,19 +29,25 @@
 #include "xls/common/file/temp_file.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/builtins.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 namespace {
@@ -96,6 +102,7 @@ static absl::StatusOr<InterpValue> Interpret(
           &import_data, tm.type_info, f, ParametricEnv(),
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
+  XLS_RET_CHECK_EQ(bf->owner(), f->owner());
 
   return BytecodeInterpreter::Interpret(&import_data, bf.get(), args, options);
 }

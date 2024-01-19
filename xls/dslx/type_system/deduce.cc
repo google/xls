@@ -2047,10 +2047,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                                                           DeduceCtx* ctx) {
-  const ParametricEnv& caller_parametric_env =
+  const ParametricEnv caller_parametric_env =
       ctx->fn_stack().back().parametric_env();
-  XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString()
-              << " caller symbolic bindings: " << caller_parametric_env;
+  XLS_VLOG(5) << "Deducing type for invocation: `" << node->ToString()
+              << "` caller symbolic bindings: " << caller_parametric_env;
 
   auto resolve_proc = [](const Instantiation* node,
                          DeduceCtx* ctx) -> absl::StatusOr<Proc*> {
@@ -2137,7 +2137,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * config_ti,
                        ctx->type_info()->GetInvocationTypeInfoOrError(
-                           node->config(), tab.parametric_env));
+                           node->config(), caller_parametric_env));
 
   // Now we need to get the [constexpr] Proc member values so we can set them
   // when typechecking the `next` function. Those values are the elements in the

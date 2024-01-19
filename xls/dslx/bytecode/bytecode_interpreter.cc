@@ -99,9 +99,9 @@ BytecodeInterpreter::BytecodeInterpreter(
     ImportData* import_data, const BytecodeInterpreterOptions& options)
     : import_data_(import_data), options_(options) {}
 
-absl::Status BytecodeInterpreter::InitFrame(
-    BytecodeFunction* bf, const std::vector<InterpValue>& args,
-    const TypeInfo* type_info) {
+absl::Status BytecodeInterpreter::InitFrame(BytecodeFunction* bf,
+                                            absl::Span<const InterpValue> args,
+                                            const TypeInfo* type_info) {
   XLS_RET_CHECK(frames_.empty());
 
   // In "mission mode" we expect type_info to be non-null in the frame, but for
@@ -109,8 +109,9 @@ absl::Status BytecodeInterpreter::InitFrame(
   if (type_info == nullptr && bf->owner() != nullptr) {
     type_info = import_data_->GetRootTypeInfo(bf->owner()).value();
   }
-  frames_.push_back(
-      Frame(bf, args, type_info, std::nullopt, /*initial_args=*/{}));
+  frames_.push_back(Frame(bf,
+                          std::vector<InterpValue>(args.begin(), args.end()),
+                          type_info, std::nullopt, /*initial_args=*/{}));
   return absl::OkStatus();
 }
 
@@ -453,33 +454,49 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
 
 absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     Function* f, const Invocation* invocation,
-    const std::optional<ParametricEnv>& caller_bindings) {
+    const ParametricEnv& caller_bindings) {
   const Frame& frame = frames_.back();
-  const TypeInfo* type_info = frame.type_info();
+  const TypeInfo* caller_type_info = frame.type_info();
 
   BytecodeCacheInterface* cache = import_data_->bytecode_cache();
   if (cache == nullptr) {
     return absl::InvalidArgumentError("Bytecode cache is NULL.");
   }
 
+  std::optional<ParametricEnv> callee_bindings;
+
+  TypeInfo* callee_type_info = nullptr;
   if (f->IsParametric() || f->tag() == Function::Tag::kProcInit) {
-    XLS_RET_CHECK(caller_bindings.has_value());
     std::optional<TypeInfo*> maybe_type_info =
-        type_info->GetInvocationTypeInfo(invocation,
-                                            caller_bindings.value());
+        caller_type_info->GetInvocationTypeInfo(invocation, caller_bindings);
     if (!maybe_type_info.has_value()) {
-      return absl::InternalError(absl::StrCat(
-          "Could not find type info for invocation ", invocation->ToString(),
-          " : ", invocation->span().ToString()));
+      return absl::InternalError(absl::StrFormat(
+          "BytecodeInterpreter::GetBytecodeFn; could not find type info for "
+          "invocation `%s` "
+          "callee: %s (%v), caller_bindings: %s span: %s",
+          invocation->ToString(), f->identifier(), f->tag(),
+          caller_bindings.ToString(), invocation->span().ToString()));
     }
-    type_info = maybe_type_info.value();
-  } else if (f->owner() != type_info->module()) {
-    // If the new function is in a different module and it's NOT parametric,
-    // then we need the root TypeInfo for the new module.
-    XLS_ASSIGN_OR_RETURN(type_info, import_data_->GetRootTypeInfo(f->owner()));
+
+    callee_type_info = maybe_type_info.value();
+    XLS_CHECK(callee_type_info != nullptr)
+        << "GetBytecodeFn; invocation: `" << invocation->ToString()
+        << "` caller_bindings: " << caller_bindings.ToString();
+
+    std::optional<const ParametricEnv*> callee_env =
+        caller_type_info->GetInvocationCalleeBindings(invocation,
+                                                      caller_bindings);
+    XLS_RET_CHECK(callee_env.has_value());
+    callee_bindings = *callee_env.value();
+  } else {
+    // If it's NOT parametric, then we need the root TypeInfo for the new
+    // module.
+    XLS_ASSIGN_OR_RETURN(callee_type_info,
+                         import_data_->GetRootTypeInfo(f->owner()));
   }
 
-  return cache->GetOrCreateBytecodeFunction(f, type_info, caller_bindings);
+  return cache->GetOrCreateBytecodeFunction(f, callee_type_info,
+                                            callee_bindings);
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
@@ -497,9 +514,12 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData data,
                        bytecode.invocation_data());
 
+  const ParametricEnv& caller_bindings = data.caller_bindings().has_value()
+                                             ? data.caller_bindings().value()
+                                             : ParametricEnv();
   XLS_ASSIGN_OR_RETURN(
       BytecodeFunction * bf,
-      GetBytecodeFn(user_fn_data.function, data.invocation, data.bindings));
+      GetBytecodeFn(user_fn_data.function, data.invocation(), caller_bindings));
 
   // Store the _return_ PC.
   frames_.back().IncrementPc();
@@ -512,8 +532,8 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   }
 
   std::vector<InterpValue> args_copy = args;
-  frames_.push_back(Frame(bf, std::move(args), bf->type_info(), data.bindings,
-                          std::move(args_copy)));
+  frames_.push_back(Frame(bf, std::move(args), bf->type_info(),
+                          data.callee_bindings(), std::move(args_copy)));
 
   return absl::OkStatus();
 }
@@ -1431,7 +1451,7 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
 
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                        inputs.GetValues());
-  Span span = invocation_data.invocation->span();
+  Span span = invocation_data.invocation()->span();
 
   // Rather than "unrolling" the map, we can implement a for-like loop here to
   // prevent the generated BytecodeFunction from being overlarge as the input
@@ -1491,7 +1511,7 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
                            frames_.back().type_info(), std::move(bytecodes)));
   BytecodeFunction* bf_ptr = bf.get();
   frames_.push_back(Frame(bf_ptr, {inputs}, bf_ptr->type_info(),
-                          invocation_data.bindings,
+                          invocation_data.caller_bindings(),
                           /*initial_args=*/{}, std::move(bf)));
   return absl::OkStatus();
 }
@@ -1506,8 +1526,9 @@ absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
     ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
     const InterpValue& terminator, std::vector<ProcInstance>* proc_instances,
     const BytecodeInterpreterOptions& options) {
-  return EvalSpawn(import_data, type_info, std::nullopt, std::nullopt,
-                   root_proc,
+  return EvalSpawn(import_data, type_info, /*caller_bindings=*/std::nullopt,
+                   /*callee_bindings=*/std::nullopt,
+                   /*maybe_spawn=*/std::nullopt, root_proc,
                    /*config_args=*/{terminator}, proc_instances, options);
 }
 
@@ -1517,30 +1538,35 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   XLS_ASSIGN_OR_RETURN(const Bytecode::SpawnData* spawn_data,
                        bytecode.spawn_data());
   return EvalSpawn(import_data(), frame.type_info(),
-                   spawn_data->caller_bindings, spawn_data->spawn,
-                   spawn_data->proc, spawn_data->config_args, proc_instances_,
-                   options());
+                   spawn_data->caller_bindings(), spawn_data->callee_bindings(),
+                   spawn_data->spawn(), spawn_data->proc(),
+                   spawn_data->config_args(), proc_instances_, options());
 }
 
 /* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     ImportData* import_data, const TypeInfo* type_info,
     const std::optional<ParametricEnv>& caller_bindings,
+    const std::optional<ParametricEnv>& callee_bindings,
     std::optional<const Spawn*> maybe_spawn, Proc* proc,
-    const std::vector<InterpValue>& config_args,
+    absl::Span<const InterpValue> config_args,
     std::vector<ProcInstance>* proc_instances,
     const BytecodeInterpreterOptions& options) {
   const TypeInfo* parent_ti = type_info;
+
   auto get_parametric_type_info =
       [type_info](const Spawn* spawn, const Invocation* invoc,
-                  const std::optional<ParametricEnv>& caller_bindings)
+                  const std::optional<ParametricEnv>& maybe_caller_bindings)
       -> absl::StatusOr<TypeInfo*> {
-    std::optional<TypeInfo*> maybe_type_info = type_info->GetInvocationTypeInfo(
-        invoc, caller_bindings.has_value() ? caller_bindings.value()
-                                           : ParametricEnv());
+    const ParametricEnv& caller_bindings = maybe_caller_bindings.has_value()
+                                               ? maybe_caller_bindings.value()
+                                               : ParametricEnv();
+    std::optional<TypeInfo*> maybe_type_info =
+        type_info->GetInvocationTypeInfo(invoc, caller_bindings);
     if (!maybe_type_info.has_value()) {
-      return absl::InternalError(
-          absl::StrCat("Could not find type info for invocation ",
-                       spawn->ToString(), " : ", spawn->span().ToString()));
+      return absl::InternalError(absl::StrFormat(
+          "ProcConfigBytecodeInterpreter::EvalSpawn; could not find type info "
+          "for invocation `%s` caller_bindings: %s",
+          invoc->ToString(), caller_bindings.ToString()));
     }
     return maybe_type_info.value();
   };
@@ -1560,7 +1586,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> config_bf,
       BytecodeEmitter::Emit(
-          import_data, type_info, proc->config(), caller_bindings,
+          import_data, type_info, proc->config(), callee_bindings,
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
 
@@ -1609,7 +1635,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> next_bf,
       BytecodeEmitter::EmitProcNext(
-          import_data, type_info, proc->next(), caller_bindings, member_defs,
+          import_data, type_info, proc->next(), callee_bindings, member_defs,
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
   XLS_ASSIGN_OR_RETURN(

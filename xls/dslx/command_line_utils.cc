@@ -16,7 +16,6 @@
 
 #include <unistd.h>
 
-#include <cstdio>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -34,9 +33,10 @@
 
 namespace xls::dslx {
 
-bool TryPrintError(const absl::Status& status,
-                   std::function<absl::StatusOr<std::string>(std::string_view)>
-                       get_file_contents) {
+bool TryPrintError(
+    const absl::Status& status,
+    const std::function<absl::StatusOr<std::string>(std::string_view)>&
+        get_file_contents) {
   if (status.ok()) {
     return false;
   }

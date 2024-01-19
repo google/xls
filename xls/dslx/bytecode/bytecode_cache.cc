@@ -20,7 +20,14 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 
@@ -30,6 +37,7 @@ BytecodeCache::BytecodeCache(ImportData* import_data)
 absl::StatusOr<BytecodeFunction*> BytecodeCache::GetOrCreateBytecodeFunction(
     const Function* f, const TypeInfo* type_info,
     const std::optional<ParametricEnv>& caller_bindings) {
+  XLS_RET_CHECK(type_info != nullptr);
   Key key = std::make_tuple(f, type_info, caller_bindings);
   if (!cache_.contains(key)) {
     XLS_ASSIGN_OR_RETURN(

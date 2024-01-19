@@ -31,15 +31,16 @@ namespace xls::dslx {
 // storage, and instructions to execute.
 class Frame {
  public:
-  // `bindings` will hold the bindings used to instantiate the
-  // BytecodeFunction's source Function, if it is parametric.
-  // `bf_holder` is only for storing the pointer to ephemeral functions, e.g.,
-  // those generated on-the-fly from interpreting the `map` operation.
-  // `initial_args` holds the set of args used to initially construct the frame
-  // (i.e., the arguments to this function). This is necessary for comparing
-  // results to a reference, e.g., the JIT via BytecodeInterpreter's
-  // post_fn_eval_hook.
-  // For other cases, the BytecodeCache will own BytecodeFunction storage.
+  // Args:
+  //  bindings: holds the bindings used to instantiate the BytecodeFunction's
+  //    source Function, if it is parametric.
+  //  bf_holder: stores the pointer to ephemeral functions, e.g., those
+  //    generated on-the-fly from interpreting the `map` operation. For other
+  //    cases, the BytecodeCache will own BytecodeFunction storage.
+  //  initial_args: holds the set of args used to initially construct the frame
+  //    (i.e., the arguments to this function). This is necessary for comparing
+  //    results to a reference, e.g., the JIT via BytecodeInterpreter's
+  //    post_fn_eval_hook.
   Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
         const TypeInfo* type_info, const std::optional<ParametricEnv>& bindings,
         std::vector<InterpValue> initial_args,

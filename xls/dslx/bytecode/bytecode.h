@@ -33,6 +33,7 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
@@ -196,11 +197,27 @@ class Bytecode {
 
   // Data needed to resolve a potentially parametric Function invocation to
   // its concrete implementation.
-  struct InvocationData {
-    const Invocation* invocation;
-    // Can't store a pointer, since the underlying storage isn't guaranteed to
-    // be stable.
-    std::optional<ParametricEnv> bindings;
+  class InvocationData {
+   public:
+    InvocationData(const Invocation* invocation,
+                   std::optional<ParametricEnv> caller_bindings,
+                   std::optional<ParametricEnv> callee_bindings)
+        : invocation_(invocation),
+          caller_bindings_(std::move(caller_bindings)),
+          callee_bindings_(std::move(callee_bindings)) {}
+
+    const Invocation* invocation() const { return invocation_; }
+    const std::optional<ParametricEnv>& caller_bindings() const {
+      return caller_bindings_;
+    }
+    const std::optional<ParametricEnv>& callee_bindings() const {
+      return callee_bindings_;
+    }
+
+   private:
+    const Invocation* invocation_;
+    std::optional<ParametricEnv> caller_bindings_;
+    std::optional<ParametricEnv> callee_bindings_;
   };
 
   // Encapsulates an element in a MatchArm's NameDefTree. For literals, a
@@ -217,7 +234,7 @@ class Bytecode {
     static MatchArmItem MakeTuple(std::vector<MatchArmItem> elements);
     static MatchArmItem MakeWildcard();
 
-    enum class Kind {
+    enum class Kind : uint8_t {
       kInterpValue,
       kLoad,
       kRange,
@@ -257,21 +274,46 @@ class Bytecode {
   // setting up the proc's `next` function.
   // TODO(https://github.com/google/xls/issues/608): Reduce the AST surface
   // exposed here to just Functions.
-  struct SpawnData {
-    const Spawn* spawn;
+  class SpawnData {
+   public:
+    SpawnData(const Spawn* spawn, Proc* proc,
+              std::vector<InterpValue> config_args, InterpValue initial_state,
+              std::optional<ParametricEnv> caller_bindings,
+              std::optional<ParametricEnv> callee_bindings)
+        : spawn_(spawn),
+          proc_(proc),
+          config_args_(std::move(config_args)),
+          initial_state_(std::move(initial_state)),
+          caller_bindings_(std::move(caller_bindings)),
+          callee_bindings_(std::move(callee_bindings)) {}
+
+    const Spawn* spawn() const { return spawn_; }
+    Proc* proc() const { return proc_; }
+    absl::Span<const InterpValue> config_args() const { return config_args_; }
+    const InterpValue& initial_state() const { return initial_state_; }
+    const std::optional<ParametricEnv>& caller_bindings() const {
+      return caller_bindings_;
+    }
+    const std::optional<ParametricEnv>& callee_bindings() const {
+      return callee_bindings_;
+    }
+
+   private:
+    const Spawn* spawn_;
 
     // The proc itself.
-    Proc* proc;
+    Proc* proc_;
 
     // The arguments to the proc's `config` function.
-    std::vector<InterpValue> config_args;
+    std::vector<InterpValue> config_args_;
 
     // The initial state of the new proc.
-    InterpValue initial_state;
+    InterpValue initial_state_;
 
-    // Can't store a pointer, since the underlying storage isn't guaranteed to
-    // be stable.
-    std::optional<ParametricEnv> caller_bindings;
+    // Note: can't store a pointer, since the underlying storage isn't
+    // guaranteed to be stable.
+    std::optional<ParametricEnv> caller_bindings_;
+    std::optional<ParametricEnv> callee_bindings_;
   };
 
   // Information necessary to run a trace operation.

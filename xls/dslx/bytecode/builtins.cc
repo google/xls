@@ -440,10 +440,10 @@ absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                          bytecode.invocation_data());
     XLS_ASSIGN_OR_RETURN(
         ConcreteType * lhs_type,
-        type_info->GetItemOrError(invocation_data.invocation->args()[0]));
+        type_info->GetItemOrError(invocation_data.invocation()->args()[0]));
     XLS_ASSIGN_OR_RETURN(
         ConcreteType * rhs_type,
-        type_info->GetItemOrError(invocation_data.invocation->args()[1]));
+        type_info->GetItemOrError(invocation_data.invocation()->args()[1]));
     XLS_ASSIGN_OR_RETURN(
         std::string pretty_lhs,
         PrettyPrintValue(lhs, lhs_type, options.format_preference()));
@@ -491,10 +491,10 @@ absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
                          bytecode.invocation_data());
     XLS_ASSIGN_OR_RETURN(
         ConcreteType * lhs_type,
-        type_info->GetItemOrError(invocation_data.invocation->args()[0]));
+        type_info->GetItemOrError(invocation_data.invocation()->args()[0]));
     XLS_ASSIGN_OR_RETURN(
         ConcreteType * rhs_type,
-        type_info->GetItemOrError(invocation_data.invocation->args()[1]));
+        type_info->GetItemOrError(invocation_data.invocation()->args()[1]));
     XLS_ASSIGN_OR_RETURN(
         std::string pretty_lhs,
         PrettyPrintValue(lhs, lhs_type, options.format_preference()));

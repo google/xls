@@ -64,7 +64,7 @@ class BytecodeInterpreter {
   virtual ~BytecodeInterpreter() = default;
 
   absl::Status InitFrame(BytecodeFunction* bf,
-                         const std::vector<InterpValue>& args,
+                         absl::Span<const InterpValue> args,
                          const TypeInfo* type_info);
 
   // Helper for converting a trace format string to its result given a stack
@@ -162,9 +162,11 @@ class BytecodeInterpreter {
   absl::Status EvalBinop(
       const std::function<absl::StatusOr<InterpValue>(
           const InterpValue& lhs, const InterpValue& rhs)>& op);
+
   absl::StatusOr<BytecodeFunction*> GetBytecodeFn(
       Function* function, const Invocation* invocation,
-      const std::optional<ParametricEnv>& caller_bindings);
+      const ParametricEnv& caller_bindings);
+
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
 
@@ -227,9 +229,10 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   // obligatory Token; they're added to the arg list internally.
   static absl::Status EvalSpawn(
       ImportData* import_data, const TypeInfo* type_info,
-      const std::optional<ParametricEnv>& bindings,
+      const std::optional<ParametricEnv>& caller_bindings,
+      const std::optional<ParametricEnv>& callee_bindings,
       std::optional<const Spawn*> maybe_spawn, Proc* proc,
-      const std::vector<InterpValue>& config_args,
+      absl::Span<const InterpValue> config_args,
       std::vector<ProcInstance>* proc_instances,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 

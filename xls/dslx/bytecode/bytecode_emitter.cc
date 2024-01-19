@@ -49,6 +49,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/value_format_descriptor.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
 
@@ -148,6 +149,8 @@ BytecodeEmitter::EmitProcNext(
     const std::optional<ParametricEnv>& caller_bindings,
     const std::vector<NameDef*>& proc_members,
     const BytecodeEmitterOptions& options) {
+  XLS_RET_CHECK(type_info != nullptr);
+
   BytecodeEmitter emitter(import_data, type_info, caller_bindings, options);
   for (const NameDef* name_def : proc_members) {
     emitter.namedef_to_slot_[name_def] = emitter.next_slotno_++;
@@ -1112,16 +1115,18 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
 
   XLS_RETURN_IF_ERROR(node->callee()->AcceptExpr(this));
 
-  std::optional<const ParametricEnv*> maybe_callee_bindings =
-      type_info_->GetInvocationCalleeBindings(
-          node, caller_bindings_.has_value() ? caller_bindings_.value()
-                                             : ParametricEnv());
-  std::optional<ParametricEnv> final_bindings = std::nullopt;
-  if (maybe_callee_bindings.has_value()) {
-    final_bindings = *maybe_callee_bindings.value();
+  std::optional<ParametricEnv> callee_bindings;
+  if (caller_bindings_.has_value()) {
+    std::optional<const ParametricEnv*> callee_bindings_ptr =
+        type_info_->GetInvocationCalleeBindings(node, caller_bindings_.value());
+    if (callee_bindings_ptr.has_value()) {
+      callee_bindings = *callee_bindings_ptr.value();
+    }
   }
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCall,
-                               Bytecode::InvocationData{node, final_bindings}));
+
+  bytecode_.push_back(Bytecode(
+      node->span(), Bytecode::Op::kCall,
+      Bytecode::InvocationData{node, caller_bindings_, callee_bindings}));
   return absl::OkStatus();
 }
 
@@ -1327,18 +1332,17 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
 
   // The whole Proc is parameterized, not the individual invocations
   // (config/next), so we can use either invocation to get the bindings.
+  const ParametricEnv caller_bindings =
+      caller_bindings_.has_value() ? caller_bindings_.value() : ParametricEnv();
   std::optional<const ParametricEnv*> maybe_callee_bindings =
-      type_info_->GetInvocationCalleeBindings(node->config(),
-                                              caller_bindings_.has_value()
-                                                  ? caller_bindings_.value()
-                                                  : ParametricEnv());
+      type_info_->GetInvocationCalleeBindings(node->config(), caller_bindings);
   std::optional<ParametricEnv> final_bindings = std::nullopt;
   if (maybe_callee_bindings.has_value()) {
     final_bindings = *maybe_callee_bindings.value();
   }
 
-  Bytecode::SpawnData spawn_data{node, proc, config_args, initial_state,
-                                 final_bindings};
+  Bytecode::SpawnData spawn_data{
+      node, proc, config_args, initial_state, caller_bindings, final_bindings};
   Add(Bytecode::MakeSpawn(node->span(), spawn_data));
   return absl::OkStatus();
 }

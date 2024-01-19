@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// (Dummy) wrapper around reverse.
+// (Trivial) wrapper around reverse.
 fn wrapper<N: u32>(x: bits[N]) -> bits[N] { rev(x) }
 
 // Target for IR conversion that works on u3s.

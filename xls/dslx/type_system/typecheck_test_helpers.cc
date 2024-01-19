@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/status/statusor.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -28,7 +29,8 @@ namespace xls::dslx {
 
 absl::StatusOr<TypecheckedModule> Typecheck(std::string_view text) {
   auto import_data = CreateImportDataForTest();
-  auto tm_or = ParseAndTypecheck(text, "fake.x", "fake", &import_data);
+  absl::StatusOr<TypecheckedModule> tm_or =
+      ParseAndTypecheck(text, "fake.x", "fake", &import_data);
   if (!tm_or.ok()) {
     TryPrintError(tm_or.status(),
                   [&](std::string_view path) -> absl::StatusOr<std::string> {

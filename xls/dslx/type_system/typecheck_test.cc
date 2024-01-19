@@ -748,13 +748,15 @@ fn caller() {
 )"));
 }
 
+// This test adds a literal u5 to a parametric-typed number -- which only works
+// when that parametric-type number is also coincidentally a u5.
 TEST(TypecheckErrorTest, ParametricMapNonPolymorphic) {
   EXPECT_THAT(Typecheck(R"(
-fn add_one<N: u32>(x: bits[N]) -> bits[N] { x + bits[5]:1 }
+fn add_one<N: u32>(x: bits[N]) -> bits[N] { x + u5:1 }
 
 fn main() {
-  let arr = [u5:1, u5:2, u5:3];
-  let mapped_arr = map(arr, add_one);
+  let arr = u5[3]:[1, 2, 3];
+  let mapped_arr: u5[3] = map(arr, add_one);
   let type_error = add_one(u6:1);
 }
 )"),
@@ -2183,6 +2185,14 @@ TEST(TypecheckTest, ConcatU1ArrayOfOneU8) {
 
 TEST(TypecheckTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
   XLS_ASSERT_OK(Typecheck("fn f(x: u8[3], y: u8[1]) -> u8[4] { x ++ y }"));
+}
+
+TEST(TypecheckTest, ParametricWrapperAroundBuiltin) {
+  XLS_ASSERT_OK(Typecheck(R"(fn f<N: u32>(x: uN[N]) -> uN[N] { rev(x) }
+
+fn main(arg: u32) -> u32 {
+  f(arg)
+})"));
 }
 
 TEST(TypecheckTest, ConcatNilArrayOfOneU8) {

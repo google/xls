@@ -124,7 +124,7 @@ fn expect_fail() -> u32{
 002 load 0
 003 literal u32:2
 004 literal builtin:assert_eq
-005 call assert_eq(foo, u32:2) : {}
+005 call assert_eq(foo, u32:2)
 006 pop
 007 load 0)");
 }
@@ -165,17 +165,17 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 015 load 0
 016 literal u4:0
 017 literal builtin:assert_eq
-018 call assert_eq(a, u4:0) : {}
+018 call assert_eq(a, u4:0)
 019 pop
 020 load 1
 021 literal u8:1
 022 literal builtin:assert_eq
-023 call assert_eq(b, u8:1) : {}
+023 call assert_eq(b, u8:1)
 024 pop
 025 load 2
 026 literal u16:2
 027 literal builtin:assert_eq
-028 call assert_eq(c, u16:2) : {}
+028 call assert_eq(c, u16:2)
 029 pop
 030 load 3
 031 literal u32:3
@@ -183,7 +183,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 033 literal u128:0x5
 034 create_tuple 3
 035 literal builtin:assert_eq
-036 call assert_eq(d, (u32:3, u64:4, uN[128]:5)) : {}
+036 call assert_eq(d, (u32:3, u64:4, uN[128]:5))
 037 pop
 038 load 3)");
 }
@@ -1054,14 +1054,14 @@ fn main() -> u32 {
   const Bytecode* bc = &bytecodes[2];
   EXPECT_EQ(bc->op(), Bytecode::Op::kCall);
   XLS_ASSERT_OK_AND_ASSIGN(Bytecode::InvocationData id, bc->invocation_data());
-  NameRef* name_ref = dynamic_cast<NameRef*>(id.invocation->callee());
+  NameRef* name_ref = dynamic_cast<NameRef*>(id.invocation()->callee());
   ASSERT_NE(name_ref, nullptr);
   EXPECT_EQ(name_ref->identifier(), "foo");
 
   bc = &bytecodes[6];
   EXPECT_EQ(bc->op(), Bytecode::Op::kCall);
   XLS_ASSERT_OK_AND_ASSIGN(id, bc->invocation_data());
-  name_ref = dynamic_cast<NameRef*>(id.invocation->callee());
+  name_ref = dynamic_cast<NameRef*>(id.invocation()->callee());
   ASSERT_NE(name_ref, nullptr);
   EXPECT_EQ(name_ref->identifier(), "foo");
 }
@@ -1084,7 +1084,7 @@ fn main() -> u32 {
       "literal u32:0 @ test.x:3:44-3:45",
       "literal u32:8 @ test.x:3:51-3:52",
       "literal builtin:range @ test.x:3:34-3:39",
-      "call range(u32:0, u32:8) : {} @ test.x:3:39-3:53",
+      "call range(u32:0, u32:8) @ test.x:3:39-3:53",
       "store 0 @ test.x:3:6-5:11",
       "literal u32:0 @ test.x:3:6-5:11",
       "store 1 @ test.x:3:6-5:11",
@@ -1163,7 +1163,7 @@ load 0 @ test.x:9:28-9:29
 literal u64:0 @ test.x:9:29-9:39
 tuple_index @ test.x:9:29-9:39
 literal builtin:cover! @ test.x:9:13-9:19
-call cover!("whee", s.some_bool) : {} @ test.x:9:19-9:40
+call cover!("whee", s.some_bool) @ test.x:9:19-9:40
 pop @ test.x:9:9-9:10
 create_tuple 0 @ test.x:10:5-10:7
 load 2 @ test.x:8:6-11:8

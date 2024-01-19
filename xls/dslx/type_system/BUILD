@@ -348,8 +348,9 @@ cc_library(
     hdrs = ["typecheck_test_helpers.h"],
     deps = [
         ":type_info_to_proto",
-        ":typecheck",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:status_macros",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",

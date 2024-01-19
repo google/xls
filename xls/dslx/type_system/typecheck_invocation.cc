@@ -265,13 +265,19 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
 
   const ParametricEnv& fn_parametric_env =
       ctx->fn_stack().back().parametric_env();
+
   XLS_VLOG(5) << "TypeInfo::AddInvocationCallBindings; type_info: "
               << ctx->type_info() << "; node: `" << invocation->ToString()
               << "`; caller: " << fn_parametric_env
               << "; callee: " << tab.parametric_env;
-  ctx->type_info()->AddInvocationCallBindings(invocation,
-                                              /*caller=*/fn_parametric_env,
-                                              /*callee=*/tab.parametric_env);
+
+  // Note that, since this is not a user-defined function, there is no derived
+  // type information for it.
+  ctx->type_info()->AddInvocationTypeInfo(invocation,
+                                          /*caller=*/fn_parametric_env,
+                                          /*callee=*/tab.parametric_env,
+                                          /*derived_type_info=*/nullptr);
+
   ctx->type_info()->SetItem(invocation->callee(), *fn_type);
   // We don't want to store a type on a BuiltinNameDef.
   if (std::holds_alternative<const NameDef*>(callee_nameref->name_def())) {
@@ -401,15 +407,6 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     fn_stack.pop_back();
   }
 
-  // We execute this function if we're parametric or a proc. In either case, we
-  // want to create a new TypeInfo. The reason for the former is obvious. The
-  // reason for the latter is that we need separate constexpr data for every
-  // instantiation of a proc. If we didn't create new bindings/a new TypeInfo
-  // here, then if we instantiated the same proc 2x from some parent proc, we'd
-  // end up with only a single set of constexpr values for proc members.
-  parent_ctx->type_info()->AddInvocationCallBindings(
-      invocation, caller_parametric_env, callee_tab.parametric_env);
-
   FunctionType instantiated_ft{std::move(arg_types),
                                callee_tab.type->CloneToUnique()};
   parent_ctx->type_info()->SetItem(invocation->callee(), instantiated_ft);
@@ -417,11 +414,21 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 
   // We need to deduce fn body, so we're going to call Deduce, which means we'll
   // need a new stack entry w/the new symbolic bindings.
-  TypeInfo* original_ti = parent_ctx->type_info();
+  TypeInfo* const original_ti = parent_ctx->type_info();
   ctx->AddFnStackEntry(FnStackEntry::Make(
       callee_fn, callee_tab.parametric_env, invocation,
       callee_fn->proc().has_value() ? WithinProc::kYes : WithinProc::kNo));
-  TypeInfo* derived_type_info = ctx->AddDerivedTypeInfo();
+  TypeInfo* const derived_type_info = ctx->AddDerivedTypeInfo();
+
+  // We execute this function if we're parametric or a proc. In either case, we
+  // want to create a new TypeInfo. The reason for the former is obvious. The
+  // reason for the latter is that we need separate constexpr data for every
+  // instantiation of a proc. If we didn't create new bindings/a new TypeInfo
+  // here, then if we instantiated the same proc 2x from some parent proc, we'd
+  // end up with only a single set of constexpr values for proc members.
+  original_ti->AddInvocationTypeInfo(invocation, caller_parametric_env,
+                                     callee_tab.parametric_env,
+                                     derived_type_info);
 
   if (callee_fn->proc().has_value()) {
     Proc* p = callee_fn->proc().value();
@@ -506,9 +513,6 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
                         "the annotated return type.",
                         callee_fn->identifier()));
   }
-
-  original_ti->SetInvocationTypeInfo(invocation, callee_tab.parametric_env,
-                                     ctx->type_info());
 
   XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo(derived_type_info));
   ctx->PopFnStackEntry();

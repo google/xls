@@ -29,6 +29,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -57,16 +58,23 @@ struct SliceData {
   absl::flat_hash_map<ParametricEnv, StartAndWidth> bindings_to_start_width;
 };
 
+// For a given invocation, this is the data we record on the parameteric callee
+// -- "callee_bindings" notes what the parametric environment is for the callee
+// and "derived_type_info" holds the type information that is specific to that
+// parametric instantiation.
+struct InvocationCalleeData {
+  ParametricEnv callee_bindings;
+  TypeInfo* derived_type_info;
+};
+
 // Parametric instantiation information related to an invocation AST node.
 struct InvocationData {
   // Invocation/Spawn AST node.
   const Invocation* node;
+
   // Map from symbolic bindings in the caller to the corresponding symbolic
   // bindings in the callee for this invocation.
-  absl::flat_hash_map<ParametricEnv, ParametricEnv> parametric_env_map;
-  // Type information that is specialized for a particular parametric
-  // instantiation of an invocation.
-  absl::flat_hash_map<ParametricEnv, TypeInfo*> instantiations;
+  absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
 
   std::string ToString() const;
 };
@@ -121,7 +129,7 @@ class TypeInfo {
   std::optional<StartAndWidth> GetSliceStartAndWidth(
       Slice* node, const ParametricEnv& parametric_env) const;
 
-  // Notes caller/callee relation of symbolic bindings at an invocation.
+  // Notes caller/callee relation of parametric env at an invocation.
   //
   // This is kept from type inferencing time for convenience purposes (so it
   // doesn't need to be recalculated anywhere; e.g. in the interpreter).
@@ -131,32 +139,19 @@ class TypeInfo {
   //     instantiation.
   //   caller: The caller's symbolic bindings at the point of invocation.
   //   callee: The callee's computed symbolic bindings for the invocation.
-  void AddInvocationCallBindings(const Invocation* call, ParametricEnv caller,
-                                 ParametricEnv callee);
-
-  // Adds derived type info for a parametric invocation.
-  //
-  // Parametric invocations have /derived/ type information, where the
-  // parametric expressions are concretized, and have concrete types
-  // corresponding to AST nodes in the instantiated parametric function.
-  //
-  // Args:
-  //   invocation: The invocation the type information has been generated for.
-  //   caller: The caller's symbolic bindings that caused this instantiation to
-  //     occur.
-  //   type_info: The type information that has been determined for this
-  //     instantiation.
-  //
-  // Note that the type_info may be nullptr in special cases, like when mapping
-  // a callee which is not parametric.
-  void SetInvocationTypeInfo(const Invocation* invocation, ParametricEnv caller,
-                             TypeInfo* type_info);
+  void AddInvocationTypeInfo(const Invocation* call,
+                             const ParametricEnv& caller,
+                             const ParametricEnv& callee,
+                             TypeInfo* derived_type_info);
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
   // particular type-information for the callee.
   std::optional<TypeInfo*> GetInvocationTypeInfo(
       const Invocation* invocation, const ParametricEnv& caller) const;
+
+  // As above, but returns a NotFound error if the invocation does not have
+  // associated type information.
   absl::StatusOr<TypeInfo*> GetInvocationTypeInfoOrError(
       const Invocation* invocation, const ParametricEnv& caller) const;
 
@@ -247,6 +242,11 @@ class TypeInfo {
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
   std::string GetImportsDebugString() const;
+
+  // Returns a string with the tree of type information (e.g. with
+  // what instantiations are present and what the derivated type info pointers
+  // are) suitable for debugging.
+  std::string GetTypeInfoTreeString() const;
 
   const absl::flat_hash_map<const Invocation*, InvocationData>&
       invocations() const {

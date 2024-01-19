@@ -35,10 +35,18 @@
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/number_parser.h"
 #include "re2/re2.h"
 
@@ -594,12 +602,16 @@ std::string Bytecode::ToString(bool source_locs) const {
       }
 
       std::string operator()(const InvocationData& iv) {
-        if (iv.bindings.has_value()) {
-          return absl::StrCat(iv.invocation->ToString(), " : ",
-                              iv.bindings.value().ToString());
+        std::string result = iv.invocation()->ToString();
+        if (iv.caller_bindings().has_value()) {
+          absl::StrAppend(
+              &result, " caller_bindings: ", iv.caller_bindings()->ToString());
         }
-
-        return iv.invocation->ToString();
+        if (iv.callee_bindings().has_value()) {
+          absl::StrAppend(
+              &result, " callee_bindings: ", iv.callee_bindings()->ToString());
+        }
+        return result;
       }
 
       std::string operator()(const InterpValue& v) { return v.ToString(); }
@@ -641,7 +653,7 @@ std::string Bytecode::ToString(bool source_locs) const {
       std::string operator()(const MatchArmItem& v) { return v.ToString(); }
 
       std::string operator()(const SpawnData& spawn_data) {
-        return spawn_data.spawn->ToString();
+        return spawn_data.spawn()->ToString();
       }
     };
 
