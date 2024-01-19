@@ -39,7 +39,9 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
     for (int64_t c = 0; c < unit->schedule.value().length(); ++c) {
       for (Node* node : unit->schedule.value().nodes_in_cycle(c)) {
         schedule_cycle_map_before[node] = c;
-        scheduling_options.add_constraint(NodeInCycleConstraint(node, c));
+        if (!scheduling_options.use_fdo()) {
+          scheduling_options.add_constraint(NodeInCycleConstraint(node, c));
+        }
       }
     }
   }
