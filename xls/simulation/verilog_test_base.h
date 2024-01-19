@@ -15,15 +15,19 @@
 #ifndef XLS_CODEGEN_VERILOG_TEST_BASE_H_
 #define XLS_CODEGEN_VERILOG_TEST_BASE_H_
 
-#include <filesystem>
+#include <cctype>
+#include <filesystem>  // NOLINT
+#include <memory>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -31,8 +35,12 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/golden_files.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/source_location.h"
+#include "xls/common/status/matchers.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulator.h"
@@ -75,7 +83,7 @@ struct SimulationTarget {
 };
 
 // Improve test error messages by adding a stream overload for SimulationTarget.
-inline std::ostream& operator<<(std::ostream& os, SimulationTarget t) {
+inline std::ostream& operator<<(std::ostream& os, const SimulationTarget& t) {
   os << absl::StreamFormat("%s/%s", t.simulator,
                            t.use_system_verilog ? "SystemVerilog" : "Verilog");
   return os;
@@ -103,9 +111,13 @@ std::string ParameterizedTestName(
                                                     : "Verilog");
 }
 
-class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
+// Base class for parameterized tests that produce Verilog files.
+//
+// See VerilogTestBase for the common case where ParamType is SimulationTarget.
+template <typename ParamType>
+class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
  protected:
-  VerilogTestBase() = default;
+  VerilogTestBaseWithParam() = default;
 
   // Returns the name of the test. Include the parameterization. Example:
   // TestTheThing/FancySimulatorVerilog.
@@ -159,14 +171,18 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
     return CodegenOptions().use_system_verilog(UseSystemVerilog());
   }
 
+  virtual SimulationTarget GetSimulationTarget() const = 0;
+
   // Returns the Verilog simulator as determined by the test parameter.
   VerilogSimulator* GetSimulator() {
-    return GetVerilogSimulator(GetParam().simulator).value();
+    return GetVerilogSimulator(GetSimulationTarget().simulator).value();
   }
 
   // Returns whether or not the SystemVerilog or Verilog should be used as the
   // codegen target language as determined by the test parameters.
-  bool UseSystemVerilog() const { return GetParam().use_system_verilog; }
+  bool UseSystemVerilog() const {
+    return GetSimulationTarget().use_system_verilog;
+  }
 
   // Returns the type of file (SystemVerilog or Verilog) being tested by this
   // test instance.
@@ -180,14 +196,24 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
       std::string_view text,
       absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions =
           {},
-      absl::Span<const VerilogInclude> includes = {});
+      absl::Span<const VerilogInclude> includes = {}) {
+    return GetDefaultVerilogSimulator().RunSyntaxChecking(
+        text, GetFileType(), macro_definitions, includes);
+  }
 
   // EXPECTs that the given strings are equal and are valid Verilog. The
   // includes and macro definitions are used for validating the verilog.
   void ExpectVerilogEqual(std::string_view expected, std::string_view actual,
                           absl::Span<const VerilogSimulator::MacroDefinition>
                               macro_definitions = {},
-                          absl::Span<const VerilogInclude> includes = {});
+                          absl::Span<const VerilogInclude> includes = {}) {
+    if (XLS_VLOG_IS_ON(1)) {
+      XLS_LOG_LINES(INFO, absl::StrCat("Actual Verilog:\n", actual));
+      XLS_LOG_LINES(INFO, absl::StrCat("Expected Verilog:\n", expected));
+    }
+    EXPECT_EQ(expected, actual);
+    XLS_EXPECT_OK(ValidateVerilog(actual, macro_definitions, includes));
+  }
 
   // EXPECTs that the given text is equal to the golden reference file
   // specified by golden_file_path. Also EXPECTs that the text is valid
@@ -205,7 +231,10 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
       absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions =
           {},
       absl::Span<const VerilogInclude> includes = {},
-      xabsl::SourceLocation loc = xabsl::SourceLocation::current());
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
+    ExpectEqualToGoldenFile(golden_file_path, text, loc);
+    XLS_EXPECT_OK(ValidateVerilog(text, macro_definitions, includes));
+  }
 
   // Returns the path to the testdata file associated with a unit test. The
   // return path has the form:
@@ -216,9 +245,21 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
   // otherwise. test_file_name should be the name of the test file without the
   // .cc extension. testdata_dir should the path the the testdata directory
   // relative to the XLS source top.
-  std::filesystem::path GoldenFilePath(
+  virtual std::filesystem::path GoldenFilePath(
       std::string_view test_file_name,
-      const std::filesystem::path& testdata_dir);
+      const std::filesystem::path& testdata_dir) {
+    // We suffix the golden reference files with "txt" on top of the extension
+    // just to indicate they're compiler byproduct comparison points and not
+    // Verilog files that have been written by hand.
+    std::string filename =
+        absl::StrFormat("%s_%s.%s", test_file_name, TestBaseName(),
+                        UseSystemVerilog() ? "svtxt" : "vtxt");
+    return testdata_dir / filename;
+  }
+};
+
+class VerilogTestBase : public VerilogTestBaseWithParam<SimulationTarget> {
+  SimulationTarget GetSimulationTarget() const final { return GetParam(); }
 };
 
 }  // namespace verilog

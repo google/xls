@@ -183,7 +183,6 @@ cc_test(
 cc_library(
     name = "verilog_test_base",
     testonly = True,
-    srcs = ["verilog_test_base.cc"],
     hdrs = [
         "simulation_targets.inc",
         "verilog_test_base.h",
@@ -200,9 +199,11 @@ cc_library(
         "//xls/common:source_location",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
+        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:matchers",
         "//xls/tools:verilog_include",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
