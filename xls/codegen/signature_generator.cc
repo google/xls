@@ -27,6 +27,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -44,7 +45,7 @@ namespace xls::verilog {
 
 absl::StatusOr<ModuleSignature> GenerateSignature(
     const CodegenOptions& options, FunctionBase* func_base,
-    std::optional<PipelineSchedule> schedule) {
+    const std::optional<PipelineSchedule>& schedule) {
   std::string module_name = options.module_name().has_value()
                                 ? std::string{options.module_name().value()}
                                 : func_base->name();
@@ -111,7 +112,12 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
 
     // Adds information on channels.
     Package* p = block->package();
+    XLS_VLOG(5) << "GenerateSignature called on package:";
+    XLS_VLOG_LINES(5, p->DumpIr());
     for (const Channel* const ch : p->channels()) {
+      XLS_VLOG(5) << absl::StreamFormat(
+          "Channel block name: %s\nblock name: %s",
+          ch->GetBlockName().value_or("<none>"), block->name());
       if (ch->GetBlockName() != block->name()) {
         continue;
       }
@@ -163,7 +169,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     register_levels += options.GetOutputLatency();
   }
   if (schedule.has_value()) {
-    register_levels += schedule.value().length() - 1;
+    register_levels += schedule->length() - 1;
   }
   if (register_levels == 0 && !options.emit_as_pipeline()) {
     // Block has no registers. The block is combinational.

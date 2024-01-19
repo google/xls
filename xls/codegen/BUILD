@@ -482,6 +482,7 @@ cc_library(
         ":module_signature",
         "//xls/common:casts",
         "//xls/common/logging",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
