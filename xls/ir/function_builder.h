@@ -158,18 +158,15 @@ class BuilderBase {
 
   // Shift right arithmetic.
   BValue Shra(BValue operand, BValue amount,
-              const SourceInfo& loc = SourceInfo(),
-              std::string_view name = "");
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Shift right logical.
   BValue Shrl(BValue operand, BValue amount,
-              const SourceInfo& loc = SourceInfo(),
-              std::string_view name = "");
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Shift left (logical).
   BValue Shll(BValue operand, BValue amount,
-              const SourceInfo& loc = SourceInfo(),
-              std::string_view name = "");
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Bitwise or.
   BValue Or(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
@@ -217,11 +214,9 @@ class BuilderBase {
   // Unsigned/signed multiply with explicitly specified result width. Operand
   // widths can be arbitrary.
   BValue UMul(BValue lhs, BValue rhs, int64_t result_width,
-              const SourceInfo& loc = SourceInfo(),
-              std::string_view name = "");
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
   BValue SMul(BValue lhs, BValue rhs, int64_t result_width,
-              const SourceInfo& loc = SourceInfo(),
-              std::string_view name = "");
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   // Unsigned/signed partial product multiply. Result width is the same as the
   // operand width. Operand widths must be the same.
@@ -613,8 +608,7 @@ class BuilderBase {
   // Adds a gate operation. The output of the operation is `data` if `cond` is
   // true and zero-valued otherwise. Gates are side-effecting.
   BValue Gate(BValue condition, BValue data,
-              const SourceInfo& loc = SourceInfo(),
-              std::string_view name = "");
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
   Package* package() const;
 
@@ -959,6 +953,10 @@ class BlockBuilder : public BuilderBase {
   // Build the block.
   absl::StatusOr<Block*> Build();
 
+  absl::Status AddClockPort(std::string_view name) {
+    return block()->AddClockPort(name);
+  }
+
   BValue Param(std::string_view name, Type* type,
                const SourceInfo& loc = SourceInfo()) override;
 
@@ -992,8 +990,8 @@ class BlockBuilder : public BuilderBase {
                         const SourceInfo& loc = SourceInfo());
 
   // As InsertRegister above but with a reset value.
-  BValue InsertRegister(std::string_view name, BValue data,
-                        BValue reset_signal, Reset reset,
+  BValue InsertRegister(std::string_view name, BValue data, BValue reset_signal,
+                        Reset reset,
                         std::optional<BValue> load_enable = std::nullopt,
                         const SourceInfo& loc = SourceInfo());
 
