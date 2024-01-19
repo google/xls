@@ -32,7 +32,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
@@ -616,6 +615,14 @@ absl::Status SDCSchedulingModel::AddSlackVariables(
         0.0, kInfinity, /*is_integer=*/false, "backedge_slack");
     model_.AddToObjective(
         (backedge_slack_objective_scale * shared_backedge_slack_.value()));
+    double node_to_node_slack_objective_scale = 0.0;
+    if (infeasible_per_state_backedge_slack_pool.has_value()) {
+      node_to_node_slack_objective_scale =
+          (backedge_slack_objective_scale /
+           infeasible_per_state_backedge_slack_pool.value()) *
+          // Make slightly larger to break ties with shared backedge slack.
+          (1 + 1e-6);
+    }
     for (auto& [nodes, constraint] : backedge_constraint_) {
       AddUpperBoundSlack(constraint, shared_backedge_slack_);
       if (infeasible_per_state_backedge_slack_pool.has_value()) {
@@ -627,10 +634,8 @@ absl::Status SDCSchedulingModel::AddSlackVariables(
         XLS_RET_CHECK(inserted);
         operations_research::math_opt::Variable& node_to_node_slack =
             itr->second;
-        model_.AddToObjective(
-            backedge_slack_objective_scale /
-            infeasible_per_state_backedge_slack_pool.value() *
-            node_to_node_slack);
+        model_.AddToObjective(node_to_node_slack_objective_scale *
+                              node_to_node_slack);
         AddUpperBoundSlack(constraint, node_to_node_slack);
       }
     }
