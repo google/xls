@@ -419,7 +419,7 @@ class InvocationVisitor : public ExprVisitor {
       // Only increment on next so that Config & Next have the same ID.
       // This assumes that we call a Proc's config & next calls in that order,
       // which is indeed the case.
-      if (callee_info->callee->tag() == Function::Tag::kProcNext) {
+      if (callee_info->callee->tag() == FunctionTag::kProcNext) {
         proc_instances_[proc_stack]++;
       }
     }
@@ -662,10 +662,10 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
 
       bool same_fns = function_cr.f() == subject_cr.f();
       bool either_is_proc_instance_fn =
-          function_cr.f()->tag() == Function::Tag::kProcConfig ||
-          function_cr.f()->tag() == Function::Tag::kProcNext ||
-          subject_cr.f()->tag() == Function::Tag::kProcConfig ||
-          subject_cr.f()->tag() == Function::Tag::kProcNext;
+          function_cr.f()->tag() == FunctionTag::kProcConfig ||
+          function_cr.f()->tag() == FunctionTag::kProcNext ||
+          subject_cr.f()->tag() == FunctionTag::kProcConfig ||
+          subject_cr.f()->tag() == FunctionTag::kProcNext;
       bool either_is_parametric =
           function_cr.f()->IsParametric() || subject_cr.f()->IsParametric();
 
@@ -820,9 +820,9 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   std::vector<ConversionRecord> config_fns;
   std::vector<ConversionRecord> next_fns;
   for (const auto& record : ready) {
-    if (record.f()->tag() == Function::Tag::kProcConfig) {
+    if (record.f()->tag() == FunctionTag::kProcConfig) {
       config_fns.push_back(record);
-    } else if (record.f()->tag() == Function::Tag::kProcNext) {
+    } else if (record.f()->tag() == FunctionTag::kProcNext) {
       next_fns.push_back(record);
     } else {
       // Regular functions can go wherever.

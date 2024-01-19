@@ -29,6 +29,7 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 namespace {
@@ -56,17 +57,17 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       Span::Fake(), config_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      Function::Tag::kProcConfig, /*is_public=*/true);
+      FunctionTag::kProcConfig, /*is_public=*/true);
   Function* next = module.Make<Function>(
       Span::Fake(), next_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      Function::Tag::kProcNext, /*is_public=*/true);
+      FunctionTag::kProcNext, /*is_public=*/true);
   Function* init = module.Make<Function>(
       Span::Fake(), init_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      Function::Tag::kProcNext, /*is_public=*/true);
+      FunctionTag::kProcNext, /*is_public=*/true);
   std::vector<ProcMember*> members;
   std::vector<ParametricBinding*> bindings;
   Proc* original_proc =
@@ -116,17 +117,17 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       Span::Fake(), config_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      Function::Tag::kProcConfig, /*is_public=*/true);
+      FunctionTag::kProcConfig, /*is_public=*/true);
   Function* next = import_module->Make<Function>(
       Span::Fake(), next_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      Function::Tag::kProcNext, /*is_public=*/true);
+      FunctionTag::kProcNext, /*is_public=*/true);
   Function* init = import_module->Make<Function>(
       Span::Fake(), init_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      Function::Tag::kProcInit, /*is_public=*/true);
+      FunctionTag::kProcInit, /*is_public=*/true);
   std::vector<ProcMember*> members;
   std::vector<ParametricBinding*> bindings;
   Proc* original_proc = import_module->Make<Proc>(

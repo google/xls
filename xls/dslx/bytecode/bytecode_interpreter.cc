@@ -466,14 +466,14 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
   std::optional<ParametricEnv> callee_bindings;
 
   TypeInfo* callee_type_info = nullptr;
-  if (f->IsParametric() || f->tag() == Function::Tag::kProcInit) {
+  if (f->IsParametric() || f->tag() == FunctionTag::kProcInit) {
     std::optional<TypeInfo*> maybe_type_info =
         caller_type_info->GetInvocationTypeInfo(invocation, caller_bindings);
     if (!maybe_type_info.has_value()) {
       return absl::InternalError(absl::StrFormat(
           "BytecodeInterpreter::GetBytecodeFn; could not find type info for "
           "invocation `%s` "
-          "callee: %s (%v), caller_bindings: %s span: %s",
+          "callee: %s (tag: %v), caller_bindings: %s span: %s",
           invocation->ToString(), f->identifier(), f->tag(),
           caller_bindings.ToString(), invocation->span().ToString()));
     }

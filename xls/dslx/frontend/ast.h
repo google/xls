@@ -1545,6 +1545,21 @@ class ParametricBinding : public AstNode {
 
 class Proc;
 
+// Indicates if a function is normal or is part of a proc instantiation.
+enum class FunctionTag : uint8_t {
+  kNormal,
+  kProcConfig,
+  kProcNext,
+  kProcInit,
+};
+
+std::string_view FunctionTagToString(FunctionTag tag);
+
+template <typename Sink>
+inline void AbslStringify(Sink& sink, FunctionTag tag) {
+  absl::Format(&sink, "%s", FunctionTagToString(tag));
+}
+
 // Attrs:
 //  extern_verilog_module_name: Attribute that can be tagged on DSLX functions
 //    to indicate that in the rest of the XLS toolchain the function can/should
@@ -1554,18 +1569,10 @@ class Function : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "function"; }
 
-  // Indicates if a function is normal or is part of a proc instantiation.
-  enum class Tag : uint8_t {
-    kNormal,
-    kProcConfig,
-    kProcNext,
-    kProcInit,
-  };
-
   Function(Module* owner, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type, Block* body,
-           Tag tag, bool is_public);
+           FunctionTag tag, bool is_public);
 
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
@@ -1613,7 +1620,7 @@ class Function : public AstNode {
     return extern_verilog_module_;
   }
 
-  Tag tag() const { return tag_; }
+  FunctionTag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
   void set_proc(Proc* proc) { proc_ = proc; }
 
@@ -1624,7 +1631,7 @@ class Function : public AstNode {
   std::vector<Param*> params_;
   TypeAnnotation* return_type_;  // May be null.
   Block* body_;
-  Tag tag_;
+  const FunctionTag tag_;
   std::optional<Proc*> proc_;
 
   const bool is_public_;

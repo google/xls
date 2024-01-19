@@ -338,7 +338,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   std::vector<InstantiateArg> instantiate_args;
   std::vector<std::unique_ptr<ConcreteType>> arg_types;
   instantiate_args.reserve(args.size() + 1);
-  if (callee_fn->tag() == Function::Tag::kProcNext) {
+  if (callee_fn->tag() == FunctionTag::kProcNext) {
     arg_types.push_back(std::make_unique<TokenType>());
     instantiate_args.push_back(
         {std::make_unique<TokenType>(), invocation->span()});
@@ -492,14 +492,14 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     XLS_VLOG(5) << "annotated_return_type: " << annotated_return_type
                 << " resolved_body_type: " << resolved_body_type->ToString();
 
-    if (callee_fn->tag() == Function::Tag::kProcInit) {
+    if (callee_fn->tag() == FunctionTag::kProcInit) {
       return ctx->TypeMismatchError(
           callee_fn->body()->span(), callee_fn->body(), *resolved_body_type,
           nullptr, annotated_return_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
-    if (callee_fn->tag() == Function::Tag::kProcNext) {
+    if (callee_fn->tag() == FunctionTag::kProcNext) {
       return ctx->TypeMismatchError(
           callee_fn->body()->span(), callee_fn->body(), *resolved_body_type,
           nullptr, annotated_return_type,

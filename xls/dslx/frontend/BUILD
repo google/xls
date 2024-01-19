@@ -185,6 +185,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/type_system:type_info",
     ],
 )
 

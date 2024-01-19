@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <memory>
 #include <optional>
@@ -43,6 +44,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
@@ -54,17 +56,20 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/function_converter.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_scanner.h"
+#include "xls/ir/verifier.h"
 
 namespace xls::dslx {
 namespace {
@@ -157,7 +162,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   }
 
   Function* f = record.f();
-  if (f->tag() == Function::Tag::kProcConfig) {
+  if (f->tag() == FunctionTag::kProcConfig) {
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
     ProcConfigIrConverter config_converter(
         package_data.package, f, record.type_info(), import_data, proc_data,
@@ -167,7 +172,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
     return absl::OkStatus();
   }
 
-  if (f->tag() == Function::Tag::kProcNext) {
+  if (f->tag() == FunctionTag::kProcNext) {
     if (!proc_data->id_to_initial_value.contains(record.proc_id().value())) {
       Proc* p = f->proc().value();
       XLS_ASSIGN_OR_RETURN(
@@ -262,7 +267,7 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   // Only "next" functions are marked as "top", but we need to treat "config"
   // functions specially too, so we need to find the associated proc.
   for (const auto& record : order) {
-    if (record.IsTop() && record.f()->tag() == Function::Tag::kProcNext) {
+    if (record.IsTop() && record.f()->tag() == FunctionTag::kProcNext) {
       top_proc = record.f()->proc().value();
     }
   }
@@ -270,7 +275,7 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   // If there's no top proc, then we'll just do our best & pick the first one.
   if (top_proc == nullptr) {
     for (const auto& record : order) {
-      if (record.f()->tag() == Function::Tag::kProcConfig) {
+      if (record.f()->tag() == FunctionTag::kProcConfig) {
         top_proc = record.f()->proc().value();
         break;
       }
@@ -278,11 +283,10 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   }
 
   for (const auto& record : order) {
-    if (record.f()->tag() == Function::Tag::kProcConfig &&
+    if (record.f()->tag() == FunctionTag::kProcConfig &&
         record.f()->proc().value() == top_proc) {
       first_proc_config = &record;
-    } else if (record.IsTop() &&
-               record.f()->tag() == Function::Tag::kProcNext) {
+    } else if (record.IsTop() && record.f()->tag() == FunctionTag::kProcNext) {
       first_proc_next = &record;
     }
 

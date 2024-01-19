@@ -1434,7 +1434,7 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(bindings));
   Function* f = module_->Make<Function>(
       Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
-      params, return_type, body, Function::Tag::kNormal, is_public);
+      params, return_type, body, FunctionTag::kNormal, is_public);
   name_def->set_definer(f);
   return f;
 }
@@ -2126,7 +2126,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
       module_->Make<TupleTypeAnnotation>(config_tok.span(), return_elements);
   Function* config = module_->Make<Function>(
       block->span(), name_def, std::move(parametric_bindings),
-      std::move(config_params), return_type, block, Function::Tag::kProcConfig,
+      std::move(config_params), return_type, block, FunctionTag::kProcConfig,
       is_public);
   name_def->set_definer(config);
 
@@ -2197,7 +2197,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
       module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
   Function* next = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings), next_params, return_type,
-      body, Function::Tag::kProcNext, is_public);
+      body, FunctionTag::kProcNext, is_public);
   name_def->set_definer(next);
 
   return next;
@@ -2222,7 +2222,7 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   Span span(init_identifier.span().start(), GetPos());
   Function* init = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings), std::vector<Param*>(),
-      /*return_type=*/nullptr, body, Function::Tag::kProcInit,
+      /*return_type=*/nullptr, body, FunctionTag::kProcInit,
       /*is_public=*/false);
   name_def->set_definer(init);
   return init;

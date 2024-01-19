@@ -514,11 +514,11 @@ int64_t DetermineIndentLevel(const AstNode& n) {
     case AstNodeKind::kFunction: {
       const Function* function = down_cast<const Function*>(&n);
       switch (function->tag()) {
-        case Function::Tag::kProcInit:
-        case Function::Tag::kProcNext:
-        case Function::Tag::kProcConfig:
+        case FunctionTag::kProcInit:
+        case FunctionTag::kProcNext:
+        case FunctionTag::kProcConfig:
           return 1;
-        case Function::Tag::kNormal:
+        case FunctionTag::kNormal:
           return 0;
       }
     }

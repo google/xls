@@ -89,6 +89,20 @@ void Parenthesize(std::string* s) { *s = absl::StrCat("(", *s, ")"); }
 
 }  // namespace
 
+std::string_view FunctionTagToString(FunctionTag tag) {
+  switch (tag) {
+    case FunctionTag::kNormal:
+      return "normal";
+    case FunctionTag::kProcConfig:
+      return "proc config";
+    case FunctionTag::kProcNext:
+      return "proc next";
+    case FunctionTag::kProcInit:
+      return "proc init";
+  }
+  XLS_LOG(FATAL) << "Out-of-range function tag: " << static_cast<int>(tag);
+}
+
 std::string_view PrecedenceToString(Precedence p) {
   switch (p) {
     case Precedence::kStrongest:
@@ -1536,7 +1550,7 @@ std::vector<AstNode*> For::GetChildren(bool want_types) const {
 Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    std::vector<Param*> params, TypeAnnotation* return_type,
-                   Block* body, Tag tag, bool is_public)
+                   Block* body, FunctionTag tag, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
@@ -1552,7 +1566,7 @@ Function::~Function() = default;
 std::vector<AstNode*> Function::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   results.push_back(name_def());
-  if (tag_ == Tag::kNormal) {
+  if (tag_ == FunctionTag::kNormal) {
     // The parametric bindings of a proc are shared between the proc itself and
     // the two functions it contains. Thus, they should have a single owner, the
     // proc, and the other two functions "borrow" them.

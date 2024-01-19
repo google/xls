@@ -371,14 +371,14 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   if (*return_type != *body_type) {
     XLS_VLOG(5) << "return type: " << return_type->ToString()
                 << " body type: " << body_type->ToString();
-    if (f->tag() == Function::Tag::kProcInit) {
+    if (f->tag() == FunctionTag::kProcInit) {
       return ctx->TypeMismatchError(
           f->body()->span(), f->body(), *body_type, f->return_type(),
           *return_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
-    if (f->tag() == Function::Tag::kProcNext) {
+    if (f->tag() == FunctionTag::kProcNext) {
       return ctx->TypeMismatchError(
           f->body()->span(), f->body(), *body_type, f->return_type(),
           *return_type,
@@ -405,7 +405,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   // we pop derived type info below.
   XLS_RETURN_IF_ERROR(WarnOnDefinedButUnused(f, ctx));
 
-  if (f->tag() != Function::Tag::kNormal) {
+  if (f->tag() != FunctionTag::kNormal) {
     XLS_RET_CHECK(derived_type_info != nullptr);
 
     // i.e., if this is a proc function.

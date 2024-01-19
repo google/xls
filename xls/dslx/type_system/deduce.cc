@@ -174,7 +174,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
   // assigned a constexpr value based on the sum of dummy values.
   // Stack depth 2: Module "<top>" + the config function being looked at.
   bool is_root_proc =
-      f->tag() == Function::Tag::kProcConfig && ctx->fn_stack().size() == 2;
+      f->tag() == FunctionTag::kProcConfig && ctx->fn_stack().size() == 2;
   bool is_channel_param =
       dynamic_cast<ChannelType*>(param_type.get()) != nullptr;
   bool is_param_constexpr = ctx->type_info()->IsKnownConstExpr(node);
@@ -657,7 +657,7 @@ static void DetectUselessTrailingTuplePattern(const Block* block,
   // that since the user didn't even create it.
   if (block->parent()->kind() == AstNodeKind::kFunction &&
       dynamic_cast<const Function*>(block->parent())->tag() ==
-          Function::Tag::kProcConfig) {
+          FunctionTag::kProcConfig) {
     return;
   }
 

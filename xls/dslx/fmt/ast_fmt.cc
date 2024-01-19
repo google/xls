@@ -2033,7 +2033,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
     // If this is a desugared proc function, we skip it, and handle formatting
     // it when we get to the proc node.
     if (const Function* f = dynamic_cast<const Function*>(node);
-        f != nullptr && f->tag() != Function::Tag::kNormal) {
+        f != nullptr && f->tag() != FunctionTag::kNormal) {
       continue;
     }
 
