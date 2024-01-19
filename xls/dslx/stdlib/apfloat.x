@@ -1590,6 +1590,64 @@ fn to_int_test() {
   assert_eq(expected, actual);
 }
 
+fn compound_adder<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (uN[WIDTH], uN[WIDTH]) {
+  (a + b, a + b + uN[WIDTH]:1)
+}
+
+// Calculate difference of two positive values and return values in sign-magnitude
+// form. Returns sign-magnitude tuple (|a| - |b| <= 0, abs(|a| - |b|)).
+// Note, this returns -0 if (a == b), which is used in our application, which is good
+// for testing if strictly |a| > |b|.
+fn sign_magnitude_difference<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (bool, uN[WIDTH]) {
+  // 1's complement internally, then use the following observation.
+  //    abs(|A| - |B|) =   |A| + |~B| + 1 iff |A| - |B| >  0 (end around carry needed)
+  //                     ~(|A| + |~B|)    iff |A| - |B| <= 0
+  // We use the compound_adder() to efficiently prepare sum + 1 to select result
+
+  type WidthWithCarry = uN[WIDTH + u32:1];
+  let (sum, incremented_sum) = compound_adder(a as WidthWithCarry, !b as WidthWithCarry);
+  let a_is_less_equal: bool = !sum[-1:];  // Sign bit overflow in the carry
+
+  let abs_difference = if a_is_less_equal { !sum } else { incremented_sum };
+  (a_is_less_equal, abs_difference as uN[WIDTH])
+}
+
+#[test]
+fn sign_magnitude_difference_test() {
+  // The way we like our ones differencer is to yield a -0 for (a == b), i.e. result.0==(a >= b)
+  assert_eq(sign_magnitude_difference(u8:0, u8:0), (true, u8:0));
+  assert_eq(sign_magnitude_difference(u8:42, u8:42), (true, u8:0));
+  assert_eq(sign_magnitude_difference(u8:255, u8:255), (true, u8:0));
+
+  // Make sure this works for very small width; exhaustive for u1
+  assert_eq(sign_magnitude_difference(u1:0, u1:0), (true, u1:0));
+  assert_eq(sign_magnitude_difference(u1:1, u1:1), (true, u1:0));
+  assert_eq(sign_magnitude_difference(u1:0, u1:1), (true, u1:1));
+  assert_eq(sign_magnitude_difference(u1:1, u1:0), (false, u1:1));
+
+  // Exhaustive for u2
+  for (left, _): (u2, ()) in u2:0..u2:3 {
+    for (right, _): (u2, ()) in u2:0..u2:3 {
+      assert_eq(sign_magnitude_difference(left, right),
+                ((right >= left), if right >= left { right - left } else { left - right }));
+    }(());
+  }(());
+
+  // Exhaustive for u8
+  for (left, _): (u8, ()) in u8:0..u8:255 {
+    for (right, _): (u8, ()) in u8:0..u8:255 {
+      assert_eq(sign_magnitude_difference(left, right),
+                ((right >= left), if right >= left { right - left } else { left - right }));
+    }(());
+  }(());
+
+  // Close to overflow is handled correctly
+  assert_eq(sign_magnitude_difference(u8:255, u8:0), (false, u8:255));
+  assert_eq(sign_magnitude_difference(u8:255, u8:5), (false, u8:250));
+  assert_eq(sign_magnitude_difference(u8:0, u8:255), (true, u8:255));
+  assert_eq(sign_magnitude_difference(u8:5, u8:255), (true, u8:250));
+}
+
 // Floating point addition based on a generalization of IEEE 754 single-precision floating-point
 // addition, with the following exceptions:
 //  - Both input and output denormals are treated as/flushed to 0.
@@ -1623,11 +1681,8 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(a: APFloat<EXP_SZ, FRACTION_SZ>,
   const NORMALIZED_FRACTION: u32 = WIDE_FRACTION - u32:1;
 
   // Step 0: Swap operands for x to contain value with greater exponent
-  let (x, y, shift) = if a.bexp > b.bexp {
-    (a, b, a.bexp - b.bexp)
-  } else {
-    (b, a, b.bexp - a.bexp)
-  };
+  let (a_is_smaller, shift) = sign_magnitude_difference(a.bexp, b.bexp);
+  let (x, y) = if a_is_smaller { (b, a) } else { (a, b) };
 
   // Step 1: add hidden bit and provide space for guard, round and sticky
   let wide_x = (u1:1 ++ x.fraction) as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
