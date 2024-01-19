@@ -157,10 +157,13 @@ cc_library(
         ":metadata_output_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:span",
         "//xls/common:thread",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -171,6 +174,7 @@ cc_library(
         "@llvm-project//clang:basic",
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
+        "@llvm-project//llvm:Support",
     ],
 )
 
