@@ -132,7 +132,10 @@ class PassBase {
     XLS_VLOG_LINES(3, ir->DumpIr());
     int64_t ir_count_before = ir->GetNodeCount();
 
-    XLS_ASSIGN_OR_RETURN(bool changed, RunInternal(ir, options, results));
+    XLS_ASSIGN_OR_RETURN(bool changed, RunInternal(ir, options, results),
+                         _ << "Running pass #" << results->invocations.size()
+                           << ": " << long_name() << " [short: " << short_name()
+                           << "]");
 
     XLS_VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
     XLS_VLOG_LINES(3, ir->DumpIr());
@@ -284,7 +287,9 @@ class FixedPointCompoundPassBase
       XLS_ASSIGN_OR_RETURN(
           local_changed,
           (CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
-              ir, options, results, top_level_name, invariant_checkers)));
+              ir, options, results, top_level_name, invariant_checkers)),
+          _ << "Running pass #" << results->invocations.size() << ": "
+            << this->long_name() << " [short: " << this->short_name() << "]");
       global_changed = global_changed || local_changed;
     }
     return global_changed;
@@ -353,7 +358,9 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
       XLS_ASSIGN_OR_RETURN(
           pass_changed,
           (down_cast<CompoundPassBase<IrT, OptionsT, ResultsT>*>(pass.get())
-               ->RunNested(ir, options, results, top_level_name, checkers)));
+               ->RunNested(ir, options, results, top_level_name, checkers)),
+          _ << "Running pass #" << results->invocations.size() << ": "
+            << pass->long_name() << " [short: " << pass->short_name() << "]");
     } else {
       XLS_ASSIGN_OR_RETURN(pass_changed, pass->Run(ir, options, results));
     }
