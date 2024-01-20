@@ -110,7 +110,11 @@ absl::StatusOr<std::unique_ptr<Package>> StripPackage(
   for (FunctionBase* fb : result->GetFunctionBases()) {
     for (Node* n : fb->nodes()) {
       if (options.strip_node_names) {
-        n->SetName("");
+        if (n->Is<Param>()) {
+          n->SetName("param");
+        } else {
+          n->ClearName();
+        }
       }
       if (options.strip_location_info) {
         n->SetLoc(SourceInfo());

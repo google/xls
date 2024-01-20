@@ -40,9 +40,10 @@ namespace {
 static constexpr std::string_view kUninteresting = "uninteresting";
 class RemoveIdentifersTest : public IrTestBase {};
 TEST_F(RemoveIdentifersTest, BasicProc) {
-  static constexpr std::array<std::string_view, 7> kSecrets{
-      "the_answer_proc", "secret_handshake", "secret_tunnel", "astounding",
-      "Unbelievable",    "surprising",       "revealing"};
+  static constexpr std::array<std::string_view, 9> kSecrets{
+      "the_answer_proc", "secret_handshake", "secret_tunnel",
+      "astounding",      "Unbelievable",     "surprising",
+      "revealing",       "nxt_val",          "nxt_tok"};
   auto p = CreatePackage();
   ProcBuilder pb(NewStyleProc{}, "the_answer_proc", "secret_handshake",
                  p.get());
@@ -51,9 +52,11 @@ TEST_F(RemoveIdentifersTest, BasicProc) {
   auto start_param = pb.StateElement("astounding", Value(UBits(42, 32)));
   auto recv = pb.Receive(orig_chan.receive_ref, pb.GetTokenParam(),
                          SourceInfo(), "Unbelievable");
-  auto next_param = pb.Add(start_param, pb.TupleIndex(recv, 1));
-  auto out_tok = pb.Send(orig_chan.send_ref, pb.TupleIndex(recv, 0), next_param,
-                         SourceInfo(), "surprising");
+  auto next_param =
+      pb.Add(start_param, pb.TupleIndex(recv, 1, SourceInfo(), "nxt_val"));
+  auto out_tok = pb.Send(orig_chan.send_ref,
+                         pb.TupleIndex(recv, 0, SourceInfo(), "nxt_tok"),
+                         next_param, SourceInfo(), "surprising");
   pb.Next(start_param, next_param, /*pred=*/std::nullopt, SourceInfo(),
           "Revealing");
   XLS_ASSERT_OK_AND_ASSIGN(auto* orig_proc, pb.Build(out_tok));
@@ -141,11 +144,11 @@ TEST_F(RemoveIdentifersTest, BasicBlock) {
   auto rest = bb.InsertRegister("start_rest", mix);
   auto to_cut = bb.InsertRegister("start_cutting", rest);
   bb.OutputPort("pasta", bb.Tuple({
-                             bb.BitSlice(to_cut, 0, 2),
-                             bb.BitSlice(to_cut, 2, 2),
-                             bb.BitSlice(to_cut, 4, 2),
-                             bb.BitSlice(to_cut, 6, 2),
-                             bb.BitSlice(to_cut, 8, 2),
+                             bb.BitSlice(to_cut, 0, 2, SourceInfo(), "S1"),
+                             bb.BitSlice(to_cut, 2, 2, SourceInfo(), "S2"),
+                             bb.BitSlice(to_cut, 4, 2, SourceInfo(), "S3"),
+                             bb.BitSlice(to_cut, 6, 2, SourceInfo(), "S4"),
+                             bb.BitSlice(to_cut, 8, 2, SourceInfo(), "S5"),
                          }));
   XLS_ASSERT_OK_AND_ASSIGN(auto* orig_block, bb.Build());
 
