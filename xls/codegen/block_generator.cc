@@ -683,9 +683,12 @@ class BlockGenerator {
     for (const Block::Port& port : block_->GetPorts()) {
       if (std::holds_alternative<OutputPort*>(port)) {
         OutputPort* output_port = std::get<OutputPort*>(port);
+        const NodeRepresentation& output_expr =
+            node_exprs_.at(output_port->operand(0));
+        XLS_RET_CHECK(std::holds_alternative<Expression*>(output_expr));
         XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
             output_port->GetName(), output_port->operand(0)->GetType(),
-            std::get<Expression*>(node_exprs_.at(output_port->operand(0)))));
+            std::get<Expression*>(output_expr)));
         node_exprs_[output_port] = UnrepresentedSentinel();
       }
     }
@@ -720,19 +723,17 @@ class BlockGenerator {
       std::vector<Connection> connections;
       for (InstantiationInput* input :
            block_->GetInstantiationInputs(instantiation)) {
-        XLS_RET_CHECK(std::holds_alternative<Expression*>(
-            node_exprs_.at(input->operand(0))));
-        connections.push_back(Connection{
-            input->port_name(),
-            std::get<Expression*>(node_exprs_.at(input->operand(0)))});
+        const NodeRepresentation& expr = node_exprs_.at(input->operand(0));
+        XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
+        connections.push_back(
+            Connection{input->port_name(), std::get<Expression*>(expr)});
       }
       for (InstantiationOutput* output :
            block_->GetInstantiationOutputs(instantiation)) {
-        XLS_RET_CHECK(
-            std::holds_alternative<Expression*>(node_exprs_.at(output)));
+        const NodeRepresentation& expr = node_exprs_.at(output);
+        XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
         connections.push_back(
-            Connection{output->port_name(),
-                       std::get<Expression*>(node_exprs_.at(output))});
+            Connection{output->port_name(), std::get<Expression*>(expr)});
       }
 
       if (xls::BlockInstantiation* block_instantiation =

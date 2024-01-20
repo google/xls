@@ -15,10 +15,13 @@
 #include "xls/codegen/block_generator.h"
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -26,11 +29,15 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/signature_generator.h"
@@ -53,6 +60,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -61,6 +69,8 @@
 #include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/testbench_signal_capture.h"
 #include "xls/simulation/verilog_test_base.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/verilog_include.h"
 
 namespace xls {
@@ -72,6 +82,59 @@ using ::testing::HasSubstr;
 
 constexpr char kTestName[] = "block_generator_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
+
+inline constexpr std::string_view kFifoRTLText =
+    R"(// simple fifo implementation
+module xls_fifo_wrapper (
+clk, rst,
+push_ready, push_data, push_valid,
+pop_ready,  pop_data,  pop_valid);
+  parameter Width = 32,
+            Depth = 32,
+            EnableBypass = 0;
+  localparam AddrWidth = $clog2(Depth) + 1;
+  input  wire             clk;
+  input  wire             rst;
+  output wire             push_ready;
+  input  wire [Width-1:0] push_data;
+  input  wire             push_valid;
+  input  wire             pop_ready;
+  output wire [Width-1:0] pop_data;
+  output wire             pop_valid;
+
+  // Require depth be 1 and bypass disabled.
+  initial begin
+    if (EnableBypass || Depth != 1) begin
+      $fatal("FIFO configuration not supported.");
+    end
+  end
+
+
+  reg [Width-1:0] mem;
+  reg full;
+
+  assign push_ready = !full;
+  assign pop_valid = full;
+  assign pop_data = mem;
+
+  always @(posedge clk) begin
+    if (rst == 1'b1) begin
+      full <= 1'b0;
+    end else begin
+      if (push_valid && push_ready) begin
+        mem <= push_data;
+        full <= 1'b1;
+      end else if (pop_valid && pop_ready) begin
+        mem <= mem;
+        full <= 1'b0;
+      end else begin
+        mem <= mem;
+        full <= full;
+      end
+    end
+  end
+endmodule
+)";
 
 class BlockGeneratorTest : public VerilogTestBase {
  protected:
@@ -1116,58 +1179,7 @@ proc running_sum(tkn: token, first_cycle: bits[1], init={1}) {
   verilog = absl::StrCat("`include \"fifo.v\"\n\n", verilog);
 
   VerilogInclude fifo_definition{.relative_path = "fifo.v",
-                                 .verilog_text =
-                                     R"(// simple fifo implementation
-module xls_fifo_wrapper (
-clk, rst,
-push_ready, push_data, push_valid,
-pop_ready,  pop_data,  pop_valid);
-  parameter Width = 32,
-            Depth = 32,
-            EnableBypass = 0;
-  localparam AddrWidth = $clog2(Depth) + 1;
-  input  wire             clk;
-  input  wire             rst;
-  output wire             push_ready;
-  input  wire [Width-1:0] push_data;
-  input  wire             push_valid;
-  input  wire             pop_ready;
-  output wire [Width-1:0] pop_data;
-  output wire             pop_valid;
-
-  // Require depth be 1 and bypass disabled.
-  initial begin
-    if (EnableBypass || Depth != 1) begin
-      $fatal("FIFO configuration not supported.");
-    end
-  end
-
-
-  reg [Width-1:0] mem;
-  reg full;
-
-  assign push_ready = !full;
-  assign pop_valid = full;
-  assign pop_data = mem;
-
-  always @(posedge clk) begin
-    if (rst == 1'b1) begin
-      full <= 1'b0;
-    end else begin
-      if (push_valid && push_ready) begin
-        mem <= push_data;
-        full <= 1'b1;
-      end else if (pop_valid && pop_ready) begin
-        mem <= mem;
-        full <= 1'b0;
-      end else begin
-        mem <= mem;
-        full <= full;
-      end
-    end
-  end
-endmodule
-)"};
+                                 .verilog_text = std::string{kFifoRTLText}};
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog, /*macro_definitions=*/{},
@@ -1210,10 +1222,6 @@ endmodule
 
   XLS_ASSERT_OK(tb->Run());
 }
-
-INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
-                         testing::ValuesIn(kDefaultSimulationTargets),
-                         ParameterizedTestName<BlockGeneratorTest>);
 
 TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
   Package package(TestName());
@@ -1302,6 +1310,188 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
                                            ready_valid_holdoffs),
               status_testing::IsOkAndHolds(expected_output_values));
 }
+
+INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
+                         testing::ValuesIn(kDefaultSimulationTargets),
+                         ParameterizedTestName<BlockGeneratorTest>);
+
+std::string_view ParameterizedFloppingName(
+    std::tuple<bool, CodegenOptions::IOKind> param) {
+  if (std::get<0>(param)) {
+    return CodegenOptions::IOKindToString(std::get<1>(param));
+  }
+  return "NoFlop";
+}
+
+template <typename TestT>
+std::string ParameterizedTestNameWithFlopping(
+    const testing::TestParamInfo<typename TestT::ParamType>& info) {
+  // Underscores and dashes not allowed in test names. Strip them out and
+  // replace string with camel case. For example, "fancy-sim" becomes
+  // "FancySim".
+  std::vector<std::string> parts =
+      absl::StrSplit(std::get<0>(info.param).simulator, absl::ByAnyChar("-_"));
+  for (std::string& part : parts) {
+    part[0] = absl::ascii_toupper(part[0]);
+  }
+  parts.push_back(std::get<0>(info.param).use_system_verilog ? "SystemVerilog"
+                                                             : "Verilog");
+  parts.push_back(absl::StrCat("Input", ParameterizedFloppingName(std::get<0>(
+                                            std::get<1>(info.param)))));
+  parts.push_back(absl::StrCat("Output", ParameterizedFloppingName(std::get<1>(
+                                             std::get<1>(info.param)))));
+
+  return absl::StrJoin(parts, "");
+}
+
+class ZeroWidthBlockGeneratorTest
+    : public VerilogTestBaseWithParam<std::tuple<
+          SimulationTarget, std::tuple<
+                                // (flop_inputs, flop_inputs_kind)
+                                std::tuple<bool, CodegenOptions::IOKind>,
+                                // (flop_outputs, flop_outputs_kind)
+                                std::tuple<bool, CodegenOptions::IOKind>>>> {
+ public:
+  SimulationTarget GetSimulationTarget() const final {
+    return std::get<0>(GetParam());
+  }
+  CodegenOptions codegen_options() const {
+    CodegenOptions options;
+    options.clock_name("clk");
+    options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                  /*reset_data_path=*/true);
+    options.streaming_channel_data_suffix("_data");
+    options.streaming_channel_valid_suffix("_valid");
+    options.streaming_channel_ready_suffix("_ready");
+    options.module_name("pipelined_proc");
+    options.use_system_verilog(UseSystemVerilog());
+    options.flop_inputs(std::get<0>(std::get<0>(std::get<1>(GetParam()))));
+    options.flop_inputs_kind(std::get<1>(std::get<0>(std::get<1>(GetParam()))));
+    options.flop_outputs(std::get<0>(std::get<1>(std::get<1>(GetParam()))));
+    options.flop_outputs_kind(
+        std::get<1>(std::get<1>(std::get<1>(GetParam()))));
+    return options;
+  }
+  std::filesystem::path GoldenFilePath(
+      std::string_view test_file_name,
+      const std::filesystem::path& testdata_dir) override {
+    // We suffix the golden reference files with "txt" on top of the extension
+    // just to indicate they're compiler byproduct comparison points and not
+    // Verilog files that have been written by hand.
+    std::string filename = absl::StrCat(
+        test_file_name, "_", TestBaseName(), "Input",
+        ParameterizedFloppingName(std::get<0>(std::get<1>(GetParam()))),
+        "Output",
+        ParameterizedFloppingName(std::get<1>(std::get<1>(GetParam()))), ".",
+        UseSystemVerilog() ? "svtxt" : "vtxt");
+    return testdata_dir / filename;
+  }
+};
+
+TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
+  Package package(TestName());
+  Type* u0 = package.GetBitsType(0);
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u0, {},
+                                     std::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32, {},
+                                     std::nullopt, FlowControl::kReadyValid));
+  TokenlessProcBuilder pb(TestName(), "tkn", &package);
+  pb.Receive(in);
+
+  BValue two_five = pb.Literal(UBits(25, 32));
+
+  pb.Send(out, two_five);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *estimator,
+                          SchedulingOptions().pipeline_stages(1)));
+  CodegenOptions options = codegen_options();
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline();
+  PassResults results;
+  CodegenPassOptions codegen_pass_options{.codegen_options = options,
+                                          .schedule = schedule,
+                                          .delay_estimator = estimator};
+  XLS_ASSERT_OK(passes->Run(&unit, codegen_pass_options, &results));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.block, options));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
+TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
+  Package package(TestName());
+  Type* u0 = package.GetBitsType(0);
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32, {},
+                                     std::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u0, {},
+                                     std::nullopt, FlowControl::kReadyValid));
+  TokenlessProcBuilder pb(TestName(), "tkn", &package);
+  pb.Receive(in);
+  pb.Send(out, pb.Literal(UBits(0, 0)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *estimator,
+                          SchedulingOptions().pipeline_stages(1)));
+  CodegenOptions options = codegen_options();
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline();
+  PassResults results;
+  CodegenPassOptions codegen_pass_options{.codegen_options = options,
+                                          .schedule = schedule,
+                                          .delay_estimator = estimator};
+  XLS_ASSERT_OK(passes->Run(&unit, codegen_pass_options, &results));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.block, options));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
+constexpr std::initializer_list<std::tuple<bool, CodegenOptions::IOKind>>
+    kFloppingParams = {{false, CodegenOptions::IOKind::kFlop},
+                       {true, CodegenOptions::IOKind::kFlop},
+                       {true, CodegenOptions::IOKind::kSkidBuffer},
+                       {true, CodegenOptions::IOKind::kZeroLatencyBuffer}};
+
+INSTANTIATE_TEST_SUITE_P(
+    ZeroWidthBlockGeneratorTestInstantiation, ZeroWidthBlockGeneratorTest,
+    testing::Combine(testing::ValuesIn(kDefaultSimulationTargets),
+                     testing::Combine(
+                         // input flopping
+                         testing::ValuesIn(kFloppingParams),
+                         // output flopping
+                         testing::ValuesIn(kFloppingParams))),
+    ParameterizedTestNameWithFlopping<ZeroWidthBlockGeneratorTest>);
 
 }  // namespace
 }  // namespace verilog

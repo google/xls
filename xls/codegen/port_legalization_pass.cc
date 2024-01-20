@@ -14,42 +14,81 @@
 
 #include "xls/codegen/port_legalization_pass.h"
 
+#include <memory>
 #include <variant>
 #include <vector>
 
+#include "absl/status/statusor.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
+namespace {
+bool IsZeroWidthInstantiationPort(Node* node) {
+  if (node->Is<InstantiationInput>()) {
+    return node->As<InstantiationInput>()
+               ->data()
+               ->GetType()
+               ->GetFlatBitCount() == 0;
+  }
+  if (node->Is<InstantiationOutput>()) {
+    return node->GetType()->GetFlatBitCount() == 0;
+  }
+  return false;
+}
+}  // namespace
 
 absl::StatusOr<bool> PortLegalizationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
   bool changed = false;
-  Block* block = unit->block;
-  std::vector<Block::Port> ports(block->GetPorts().begin(),
-                                 block->GetPorts().end());
-  for (const Block::Port& port : ports) {
-    // Remove zero-width input ports and output ports.
-    if (std::holds_alternative<InputPort*>(port)) {
-      InputPort* input_port = std::get<InputPort*>(port);
-      if (input_port->GetType()->GetFlatBitCount() == 0) {
-        XLS_VLOG(4) << "Removing zero-width input port " << input_port->name();
-        XLS_RETURN_IF_ERROR(input_port
-                                ->ReplaceUsesWithNew<xls::Literal>(
-                                    ZeroOfType(input_port->GetType()))
-                                .status());
-        XLS_RETURN_IF_ERROR(block->RemoveNode(input_port));
+  std::vector<Node*> to_remove;
+  for (std::unique_ptr<Block>& block : unit->package->blocks()) {
+    // Remove instantiation inputs/outputs with zero width.
+    for (Node* node : block->nodes()) {
+      if (IsZeroWidthInstantiationPort(node)) {
+        XLS_RETURN_IF_ERROR(
+            node->ReplaceUsesWithNew<xls::Literal>(ZeroOfType(node->GetType()))
+                .status());
+        to_remove.push_back(node);
         changed = true;
       }
-    } else if (std::holds_alternative<OutputPort*>(port)) {
-      OutputPort* output_port = std::get<OutputPort*>(port);
-      if (output_port->operand(0)->GetType()->GetFlatBitCount() == 0) {
-        XLS_VLOG(4) << "Removing zero-width output port "
-                    << output_port->name();
-        XLS_RETURN_IF_ERROR(block->RemoveNode(output_port));
-        changed = true;
+    }
+    for (Node* node : to_remove) {
+      XLS_RETURN_IF_ERROR(block->RemoveNode(node));
+    }
+    to_remove.clear();
+
+    std::vector<Block::Port> ports(block->GetPorts().begin(),
+                                   block->GetPorts().end());
+    // Remove zero-width input ports and output ports.
+    for (const Block::Port& port : ports) {
+      if (std::holds_alternative<InputPort*>(port)) {
+        InputPort* input_port = std::get<InputPort*>(port);
+        if (input_port->GetType()->GetFlatBitCount() == 0) {
+          XLS_VLOG(4) << "Removing zero-width input port "
+                      << input_port->name();
+          XLS_RETURN_IF_ERROR(input_port
+                                  ->ReplaceUsesWithNew<xls::Literal>(
+                                      ZeroOfType(input_port->GetType()))
+                                  .status());
+          XLS_RETURN_IF_ERROR(block->RemoveNode(input_port));
+          changed = true;
+        }
+      } else if (std::holds_alternative<OutputPort*>(port)) {
+        OutputPort* output_port = std::get<OutputPort*>(port);
+        if (output_port->operand(0)->GetType()->GetFlatBitCount() == 0) {
+          XLS_VLOG(4) << "Removing zero-width output port "
+                      << output_port->name();
+          XLS_RETURN_IF_ERROR(block->RemoveNode(output_port));
+          changed = true;
+        }
       }
     }
   }
