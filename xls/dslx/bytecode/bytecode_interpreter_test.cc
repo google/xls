@@ -1366,6 +1366,22 @@ fn main() -> u32[5] {
   }
 }
 
+TEST(BytecodeInterpreterTest,
+     BuiltinArraySizeWithUserDefinedParametricOperand) {
+  constexpr std::string_view kProgram = R"(
+fn make_u32_array<N: u32>() -> u32[N] { zero!<u32[N]>() }
+
+fn u32_array_size<N: u32>() -> u32 { array_size(make_u32_array<N>()) }
+
+fn main() -> u32 {
+    u32_array_size<u32:1>() + u32_array_size<u32:2>()
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
+  EXPECT_EQ(int_value, 3);
+}
+
 TEST(BytecodeInterpreterTest, BuiltinGate) {
   constexpr std::string_view kProgram = R"(
 fn main(p: bool, x: u32) -> u32 {

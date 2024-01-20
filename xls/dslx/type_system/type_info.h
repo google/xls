@@ -248,9 +248,14 @@ class TypeInfo {
   // are) suitable for debugging.
   std::string GetTypeInfoTreeString() const;
 
+  // Returns the invocation-to-instantiation-data mapping that present on the
+  // root type information for this type information tree.
+  //
+  // Implementation note: all instantiation information is only held on the root
+  // type information, which is why `invocations()` is not exposed publicly.
   const absl::flat_hash_map<const Invocation*, InvocationData>&
-      invocations() const {
-    return invocations_;
+  GetRootInvocations() const {
+    return GetRoot()->invocations();
   }
 
   // Returns a reference to the underlying mapping that associates an AST node
@@ -262,6 +267,12 @@ class TypeInfo {
 
  private:
   friend class TypeInfoOwner;
+
+  const absl::flat_hash_map<const Invocation*, InvocationData>& invocations()
+      const {
+    XLS_CHECK(IsRoot());
+    return invocations_;
+  }
 
   // Args:
   //  module: The module that owns the AST nodes referenced in the (member)

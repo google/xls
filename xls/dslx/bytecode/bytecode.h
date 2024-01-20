@@ -44,7 +44,7 @@ class Bytecode {
  public:
   // In these descriptions, "TOS1" refers to the second-to-top-stack element and
   // "TOS0" refers to the top stack element.
-  enum class Op {
+  enum class Op : uint8_t {
     // Adds the top two values on the stack.
     kUAdd,
     kSAdd,

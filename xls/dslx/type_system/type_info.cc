@@ -179,13 +179,13 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
     XLS_CHECK_EQ(invocation, invocation_data.node);
 
     pieces.push_back(
-        absl::StrFormat("  %s @ %v", invocation_data.node->ToString(),
+        absl::StrFormat("  `%s` @ %v", invocation_data.node->ToString(),
                         SpanToString(invocation_data.node->span())));
     for (const auto& [env, callee_data] : invocation_data.env_to_callee_data) {
-      pieces.push_back(absl::StrFormat("    %s: callee: %s type_info: %p",
-                                       env.ToString(),
-                                       callee_data.callee_bindings.ToString(),
-                                       callee_data.derived_type_info));
+      pieces.push_back(absl::StrFormat(
+          "    caller: %s => callee: %s type_info: %p", env.ToString(),
+          callee_data.callee_bindings.ToString(),
+          callee_data.derived_type_info));
     }
   }
   return absl::StrJoin(pieces, "\n");

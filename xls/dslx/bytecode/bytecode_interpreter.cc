@@ -459,35 +459,29 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
   const TypeInfo* caller_type_info = frame.type_info();
 
   BytecodeCacheInterface* cache = import_data_->bytecode_cache();
-  if (cache == nullptr) {
-    return absl::InvalidArgumentError("Bytecode cache is NULL.");
-  }
+  XLS_RET_CHECK(cache != nullptr);
 
   std::optional<ParametricEnv> callee_bindings;
 
   TypeInfo* callee_type_info = nullptr;
   if (f->IsParametric() || f->tag() == FunctionTag::kProcInit) {
-    std::optional<TypeInfo*> maybe_type_info =
-        caller_type_info->GetInvocationTypeInfo(invocation, caller_bindings);
-    if (!maybe_type_info.has_value()) {
+    if (!caller_type_info->GetRootInvocations().contains(invocation)) {
       return absl::InternalError(absl::StrFormat(
-          "BytecodeInterpreter::GetBytecodeFn; could not find type info for "
+          "BytecodeInterpreter::GetBytecodeFn; could not find information for "
           "invocation `%s` "
           "callee: %s (tag: %v), caller_bindings: %s span: %s",
           invocation->ToString(), f->identifier(), f->tag(),
           caller_bindings.ToString(), invocation->span().ToString()));
     }
 
-    callee_type_info = maybe_type_info.value();
-    XLS_CHECK(callee_type_info != nullptr)
-        << "GetBytecodeFn; invocation: `" << invocation->ToString()
-        << "` caller_bindings: " << caller_bindings.ToString();
+    const InvocationData& invocation_data =
+        caller_type_info->GetRootInvocations().at(invocation);
+    XLS_RET_CHECK(invocation_data.env_to_callee_data.contains(caller_bindings));
 
-    std::optional<const ParametricEnv*> callee_env =
-        caller_type_info->GetInvocationCalleeBindings(invocation,
-                                                      caller_bindings);
-    XLS_RET_CHECK(callee_env.has_value());
-    callee_bindings = *callee_env.value();
+    const InvocationCalleeData& callee_data =
+        invocation_data.env_to_callee_data.at(caller_bindings);
+    callee_type_info = callee_data.derived_type_info;
+    callee_bindings = callee_data.callee_bindings;
   } else {
     // If it's NOT parametric, then we need the root TypeInfo for the new
     // module.
