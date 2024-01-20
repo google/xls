@@ -2097,7 +2097,6 @@ fn f(x: u32) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
-  std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Definition of `y` (type `uN[32]`) is not used in function `f`");
 }
@@ -2111,7 +2110,6 @@ fn f(t: (u32, u32, u32, u32, u32)) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
   ASSERT_THAT(tm.warnings.warnings().size(), 5);
-  std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Definition of `a` (type `uN[32]`) is not used in function `f`");
   EXPECT_EQ(tm.warnings.warnings().at(1).message,
@@ -2134,7 +2132,6 @@ fn f(x: u32) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
-  std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Definition of `y` (type `uN[32]`) is not used in function `f`");
 }
@@ -2143,12 +2140,25 @@ TEST(TypecheckTest, ConcatU1U1) {
   XLS_ASSERT_OK(Typecheck("fn f(x: u1, y: u1) -> u2 { x ++ y }"));
 }
 
-TEST(TypecheckTest, ConcatU1S1) {
-  XLS_ASSERT_OK(Typecheck("fn f(x: u1, y: s1) -> u2 { x ++ y }"));
+TEST(TypecheckErrorTest, ConcatU1S1) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: u1, y: s1) -> u2 { x ++ y }").status(),
+      IsPosError("XlsTypeError", HasSubstr("Concatenation requires operand "
+                                           "types to both be unsigned bits")));
+}
+
+TEST(TypecheckErrorTest, ConcatS1S1) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: s1, y: s1) -> u2 { x ++ y }").status(),
+      IsPosError("XlsTypeError", HasSubstr("Concatenation requires operand "
+                                           "types to both be unsigned bits")));
 }
 
 TEST(TypecheckTest, ConcatU2S1) {
-  XLS_ASSERT_OK(Typecheck("fn f(x: u2, y: s1) -> u3 { x ++ y }"));
+  EXPECT_THAT(
+      Typecheck("fn f(x: u2, y: s1) -> u3 { x ++ y }").status(),
+      IsPosError("XlsTypeError", HasSubstr("Concatenation requires operand "
+                                           "types to both be unsigned bits")));
 }
 
 TEST(TypecheckTest, ConcatU1Nil) {

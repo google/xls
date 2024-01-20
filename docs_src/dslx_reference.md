@@ -1260,8 +1260,11 @@ operations return a result of type `bits[1]`, aka `bool`.
 
 Bitwise concatenation is performed with the `++` operator. The value on the left
 hand side becomes the most significant bits, the value on the right hand side
-becomes the least significant bits. These may be chained together as shown
-below:
+becomes the least significant bits. Both of the operands must be unsigned (see
+[numerical conversions](#numerical-conversions) for details on converting signed
+numbers to unsigned).
+
+Concatenation operations may be chained together as shown:
 
 ```dslx
 #[test]
@@ -1603,14 +1606,17 @@ for semantics of numeric casts:
 fn test_numerical_conversions() {
   let s8_m2 = s8:-2;
   let u8_m2 = u8:0xfe;
-  // Sign extension (source type is signed).
+
+  // Sign extension (source type is signed, and we widen it).
   assert_eq(s32:-2, s8_m2 as s32);
   assert_eq(u32:0xfffffffe, s8_m2 as u32);
   assert_eq(s16:-2, s8_m2 as s16);
   assert_eq(u16:0xfffe, s8_m2 as u16);
-  // Zero extension (source type is unsigned).
+
+  // Zero extension (source type is unsigned, and we widen it).
   assert_eq(u32:0xfe, u8_m2 as u32);
   assert_eq(s32:0xfe, u8_m2 as s32);
+
   // Nop (bitwidth is unchanged).
   assert_eq(s8:-2, s8_m2 as s8);
   assert_eq(s8:-2, u8_m2 as s8);

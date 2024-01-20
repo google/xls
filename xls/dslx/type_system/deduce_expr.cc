@@ -427,6 +427,13 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
                                   "either both-arrays or both-bits");
   }
 
+  if (lhs_bits->is_signed() || rhs_bits->is_signed()) {
+    return ctx->TypeMismatchError(
+        node->span(), node->lhs(), *lhs, node->rhs(), *rhs,
+        "Concatenation requires operand types to both be "
+        "unsigned bits");
+  }
+
   XLS_RET_CHECK(lhs_bits != nullptr);
   XLS_RET_CHECK(rhs_bits != nullptr);
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
