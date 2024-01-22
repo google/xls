@@ -116,6 +116,7 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
 absl::Status FunctionBase::RemoveNode(Node* node) {
   XLS_RET_CHECK(node->users().empty()) << node->GetName();
   XLS_RET_CHECK(!HasImplicitUse(node)) << node->GetName();
+  ++package()->transform_metrics().nodes_removed;
   std::vector<Node*> unique_operands;
   for (Node* operand : node->operands()) {
     if (!absl::c_linear_search(unique_operands, operand)) {
@@ -203,6 +204,7 @@ Block* FunctionBase::AsBlockOrDie() {
 Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
   XLS_VLOG(4) << absl::StrFormat("Adding node %s to FunctionBase %s",
                                  node->GetName(), name());
+  ++package()->transform_metrics().nodes_added;
   if (node->Is<Param>()) {
     params_.push_back(node->As<Param>());
     next_values_by_param_[node->As<Param>()];

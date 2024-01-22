@@ -32,6 +32,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_type.pb.h"
@@ -1150,5 +1151,36 @@ top fn main(a: bits[32]) -> bits[32][0] {
               StatusIs(absl::StatusCode::kUnimplemented,
                        HasSubstr("Empty array Values are not supported.")));
 }
+
+TEST_F(PackageTest, TransformMetrics) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto literal0 = fb.Literal(UBits(123, 32));
+  auto literal1 = fb.Literal(UBits(444, 32));
+  auto add = fb.Add(literal0, literal1);
+  auto sub = fb.Subtract(literal0, literal1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(add));
+
+  EXPECT_EQ(p->transform_metrics().nodes_added, 4);
+  EXPECT_EQ(p->transform_metrics().nodes_removed, 0);
+  EXPECT_EQ(p->transform_metrics().nodes_replaced, 0);
+  EXPECT_EQ(p->transform_metrics().operands_replaced, 0);
+
+  XLS_ASSERT_OK(
+      literal0.node()->ReplaceUsesWithNew<Literal>(Value(UBits(42, 32))));
+
+  EXPECT_EQ(p->transform_metrics().nodes_added, 5);
+  EXPECT_EQ(p->transform_metrics().nodes_removed, 0);
+  EXPECT_EQ(p->transform_metrics().nodes_replaced, 1);
+  EXPECT_EQ(p->transform_metrics().operands_replaced, 2);
+
+  XLS_ASSERT_OK(f->RemoveNode(sub.node()));
+
+  EXPECT_EQ(p->transform_metrics().nodes_added, 5);
+  EXPECT_EQ(p->transform_metrics().nodes_removed, 1);
+  EXPECT_EQ(p->transform_metrics().nodes_replaced, 1);
+  EXPECT_EQ(p->transform_metrics().operands_replaced, 2);
+}
+
 }  // namespace
 }  // namespace xls

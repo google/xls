@@ -58,6 +58,9 @@ struct SchedulingUnit {
   int64_t GetNodeCount() const {
     return ir->GetNodeCount();
   }
+  const TransformMetrics& transform_metrics() const {
+    return ir->transform_metrics();
+  }
 };
 
 // Options passed to each scheduling pass.

@@ -899,13 +899,19 @@ cc_test(
     name = "function_test",
     srcs = ["function_test.cc"],
     deps = [
+        ":bits",
         ":function_builder",
         ":ir",
         ":ir_test_base",
         ":node_util",
+        ":op",
+        ":source_location",
+        ":type",
+        ":value",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
 

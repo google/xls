@@ -715,6 +715,7 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
   if (this == new_operand) {
     return true;
   }
+  ++package()->transform_metrics().operands_replaced;
   bool did_replace = false;
   for (int64_t i = 0; i < operand_count(); ++i) {
     if (operands_[i] == old_operand) {
@@ -738,6 +739,7 @@ absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
         << "old operand type: " << old_operand->GetType()->ToString()
         << " new operand type: " << new_operand->GetType()->ToString();
   }
+  ++package()->transform_metrics().operands_replaced;
 
   // AddUser is idempotent so even if the new operand is already used by this
   // node in another operand slot, it is safe to call.
@@ -759,6 +761,7 @@ absl::Status Node::ReplaceUsesWith(Node* replacement) {
   XLS_RET_CHECK(GetType() == replacement->GetType())
       << "type was: " << GetType()->ToString()
       << " replacement: " << replacement->GetType()->ToString();
+  ++package()->transform_metrics().nodes_replaced;
   std::vector<Node*> orig_users(users().begin(), users().end());
   for (Node* user : orig_users) {
     XLS_RET_CHECK(user->ReplaceOperand(this, replacement));

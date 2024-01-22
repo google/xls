@@ -250,6 +250,9 @@ struct CodegenPassUnit {
   std::string DumpIr() const;
   const std::string& name() const { return block->name(); }
   int64_t GetNodeCount() const;
+  const TransformMetrics& transform_metrics() const {
+    return package->transform_metrics();
+  }
 };
 
 using CodegenPass = PassBase<CodegenPassUnit, CodegenPassOptions, PassResults>;

@@ -1025,4 +1025,31 @@ absl::StatusOr<FunctionBase*> FindTop(Package* p,
   return top.value();
 }
 
+TransformMetrics TransformMetrics::operator+(
+    const TransformMetrics& other) const {
+  return TransformMetrics{
+      .nodes_added = nodes_added + other.nodes_added,
+      .nodes_removed = nodes_removed + other.nodes_removed,
+      .nodes_replaced = nodes_replaced + other.nodes_replaced,
+      .operands_replaced = operands_replaced + other.operands_replaced,
+  };
+}
+
+TransformMetrics TransformMetrics::operator-(
+    const TransformMetrics& other) const {
+  return TransformMetrics{
+      .nodes_added = nodes_added - other.nodes_added,
+      .nodes_removed = nodes_removed - other.nodes_removed,
+      .nodes_replaced = nodes_replaced - other.nodes_replaced,
+      .operands_replaced = operands_replaced - other.operands_replaced,
+  };
+}
+
+std::string TransformMetrics::ToString() {
+  return absl::StrFormat(
+      "{ nodes added: %d, nodes removed: %d, nodes replaced: %d, operands "
+      "replaced: %d }",
+      nodes_added, nodes_removed, nodes_replaced, operands_replaced);
+}
+
 }  // namespace xls

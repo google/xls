@@ -50,6 +50,29 @@ class Proc;
 class SingleValueChannel;
 class StreamingChannel;
 
+// Data structure collecting aggregate transformation metrics for the IR.  These
+// values are zero-ed at construction time and only increment.
+struct TransformMetrics {
+  // Number of nodes added (number of invocations of
+  // FunctionBase::AddNodeInternal).
+  int64_t nodes_added;
+
+  // Number of nodes removed (number of invocations of
+  // FunctionBase::RemoveNode).
+  int64_t nodes_removed;
+
+  // Number of nodes replaced (number of calls to Node::ReplaceUsesWith).
+  int64_t nodes_replaced;
+
+  // Number of operands replaced (number of calls to
+  // Node::ReplaceOperand[Number]).
+  int64_t operands_replaced;
+
+  TransformMetrics operator+(const TransformMetrics& other) const;
+  TransformMetrics operator-(const TransformMetrics& other) const;
+  std::string ToString();
+};
+
 class Package {
  public:
   explicit Package(std::string_view name);
@@ -373,6 +396,12 @@ class Package {
       Channel* channel, std::string_view name,
       const CloneChannelOverrides& overrides = CloneChannelOverrides());
 
+  // Returns the transform metrics aggregated across all FunctionBases.
+  const TransformMetrics& transform_metrics() const {
+    return transform_metrics_;
+  }
+  TransformMetrics& transform_metrics() { return transform_metrics_; }
+
  private:
   std::vector<std::string> GetChannelNames() const;
 
@@ -444,6 +473,9 @@ class Package {
 
   // The next channel ID to assign.
   int64_t next_channel_id_ = 0;
+
+  // Metrics which record the total number of transformations to the package.
+  TransformMetrics transform_metrics_ = {0};
 };
 
 std::ostream& operator<<(std::ostream& os, const Package& package);

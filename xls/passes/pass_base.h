@@ -22,7 +22,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -30,8 +29,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_replace.h"
-#include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -39,8 +36,10 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/package.h"
 
 namespace xls {
 
@@ -110,6 +109,11 @@ struct PassResults {
 //     PassBase::Run. This type should be derived from PassResults because
 //     PassResults contains fields required by CompoundPassBase when executing
 //     pass pipelines.
+//
+// TODO(meheff): 2024/01/18 IrT is a Package or a thin wrapper around a package
+// with additional metadata. To avoid the necessity of adding methods to the
+// wrapper to match the Package API, PassBase should explicitly take a Package
+// and have a MetadataT template argument for any metadata.
 template <typename IrT, typename OptionsT, typename ResultsT = PassResults>
 class PassBase {
  public:
@@ -332,6 +336,11 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
                                       pass->long_name(), pass->short_name(),
                                       ir->name());
 
+    TransformMetrics before_metrics;
+    if (XLS_VLOG_IS_ON(1)) {
+      before_metrics = ir->transform_metrics();
+    }
+
     if (!pass->IsCompound() && options.bisect_limit &&
         results->invocations.size() >= options.bisect_limit) {
       XLS_VLOG(1) << "Skipping pass " << pass->short_name()
@@ -387,6 +396,10 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
         "[elapsed %s] Pass %s %s.", FormatDuration(duration),
         pass->short_name(),
         (pass_changed ? "changed IR" : "did not change IR"));
+    if (pass_changed && XLS_VLOG_IS_ON(1)) {
+      XLS_VLOG(1) << absl::StrFormat(
+          "Metrics: %s", (ir->transform_metrics() - before_metrics).ToString());
+    }
     if (!pass->IsCompound()) {
       results->invocations.push_back(
           {pass->short_name(), pass_changed, duration});
