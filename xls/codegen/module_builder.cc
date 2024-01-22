@@ -110,6 +110,13 @@ absl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
       elements.push_back(element_expr);
     }
   }
+  if (elements.empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Empty expression for value %s.", value.ToString()));
+  }
+  if (elements.size() == 1) {
+    return elements[0];
+  }
   return file->Concat(elements, SourceInfo());
 }
 
@@ -328,20 +335,29 @@ absl::Status ModuleBuilder::AddOutputPort(std::string_view name,
 absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
     std::string_view name, const Value& value) {
   Type* type = package_.GetTypeForValue(value);
-  LogicRef* ref;
+  DataType* data_type;
   if (type->IsArray()) {
     ArrayType* array_type = type->AsArrayOrDie();
-    ref = module_->AddWire(
-        SanitizeIdentifier(name),
+    data_type =
         file_->UnpackedArrayType(NestedElementWidth(array_type),
-                                 NestedArrayBounds(array_type), SourceInfo()),
-        SourceInfo(), constants_section());
+                                 NestedArrayBounds(array_type), SourceInfo());
   } else {
-    ref = module_->AddWire(
-        SanitizeIdentifier(name),
-        file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
-        SourceInfo(), constants_section());
+    data_type = file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
   }
+  if (!value.IsArray() || options_.use_system_verilog()) {
+    Expression* rhs;
+    if (value.IsArray()) {
+      XLS_ASSIGN_OR_RETURN(rhs, ValueToArrayAssignmentPattern(value, file_));
+    } else {
+      XLS_ASSIGN_OR_RETURN(rhs, FlattenValueToExpression(value, file_));
+    }
+    XLS_RET_CHECK_NE(rhs, nullptr);
+    // Add wire with init.
+    return module_->AddWire(SanitizeIdentifier(name), data_type, rhs,
+                            SourceInfo(), constants_section());
+  }
+  LogicRef* ref = module_->AddWire(SanitizeIdentifier(name), data_type,
+                                   SourceInfo(), constants_section());
   XLS_RETURN_IF_ERROR(
       AddAssignmentFromValue(ref, value, [&](Expression* lhs, Expression* rhs) {
         constants_section()->Add<ContinuousAssignment>(SourceInfo(), lhs, rhs);

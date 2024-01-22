@@ -1473,6 +1473,70 @@ endmodule)");
             std::vector<LineSpan>{LineSpan(9, 9)});
 }
 
+TEST_P(VastTest, RegAndWireDefWithInit) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  DataType* return_type =
+      f.PackedArrayType(6, {3, 33}, SourceInfo(), /*is_signed=*/true);
+  DataType* foo_type = f.BitVectorType(1, SourceInfo());
+  DataType* bar_type = f.Make<PackedArrayType>(
+      SourceInfo(),
+      /*width=*/
+      f.Add(f.PlainLiteral(6, SourceInfo()), f.PlainLiteral(6, SourceInfo()),
+            SourceInfo()),
+      /*packed_dims=*/
+      std::vector<Expression*>({f.PlainLiteral(111, SourceInfo())}),
+      /*is_signed=*/true);
+  DataType* baz_type = f.BitVectorType(33, SourceInfo(), /*is_signed=*/true);
+
+  VerilogFunction* func =
+      m->Add<VerilogFunction>(SourceInfo(), "func", return_type);
+  func->AddArgument("foo", foo_type, SourceInfo());
+  func->AddArgument("bar", bar_type, SourceInfo());
+  func->AddArgument("baz", baz_type, SourceInfo());
+  VastNode* body = func->AddStatement<BlockingAssignment>(
+      SourceInfo(), func->return_value_ref(), f.PlainLiteral(0, SourceInfo()));
+
+  LogicRef* a =
+      m->AddReg("a", foo_type, SourceInfo(), f.Literal1(0, SourceInfo()));
+  LogicRef* b =
+      m->AddWire("b", bar_type, f.PlainLiteral(0, SourceInfo()), SourceInfo());
+  LogicRef* c =
+      m->AddWire("c", baz_type, f.Literal(0, 33, SourceInfo()), SourceInfo());
+
+  VerilogFunctionCall* func_call = f.Make<VerilogFunctionCall>(
+      SourceInfo(), func, std::vector<Expression*>{a, b, c});
+  LogicRef* qux = m->AddWire("qux", return_type, func_call, SourceInfo());
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top;
+  function automatic signed [5:0][2:0][32:0] func (input reg foo, input reg signed [6 + 6 - 1:0][110:0] bar, input reg signed [32:0] baz);
+    begin
+      func = 0;
+    end
+  endfunction
+  reg a = 1'h0;
+  wire signed [6 + 6 - 1:0][110:0] b = 0;
+  wire signed [32:0] c = 33'h0_0000_0000;
+  wire signed [5:0][2:0][32:0] qux = func(a, b, c);
+endmodule)");
+
+  EXPECT_EQ(line_info.LookupNode(m).value(),
+            std::vector<LineSpan>{LineSpan(0, 10)});
+  EXPECT_EQ(line_info.LookupNode(func).value(),
+            std::vector<LineSpan>{LineSpan(1, 5)});
+  EXPECT_EQ(line_info.LookupNode(body).value(),
+            std::vector<LineSpan>{LineSpan(3, 3)});
+  EXPECT_EQ(line_info.LookupNode(a->def()).value(),
+            std::vector<LineSpan>{LineSpan(6, 6)});
+  EXPECT_EQ(line_info.LookupNode(b->def()).value(),
+            std::vector<LineSpan>{LineSpan(7, 7)});
+  EXPECT_EQ(line_info.LookupNode(c->def()).value(),
+            std::vector<LineSpan>{LineSpan(8, 8)});
+  EXPECT_EQ(line_info.LookupNode(qux->def()).value(),
+            std::vector<LineSpan>{LineSpan(9, 9)});
+}
+
 INSTANTIATE_TEST_SUITE_P(VastTestInstantiation, VastTest,
                          testing::Values(false, true),
                          [](const testing::TestParamInfo<bool>& info) {

@@ -400,7 +400,14 @@ class WireDef : public Def {
  public:
   WireDef(std::string_view name, DataType* data_type, VerilogFile* file,
           const SourceInfo& loc)
-      : Def(name, DataKind::kWire, data_type, file, loc) {}
+      : Def(name, DataKind::kWire, data_type, file, loc), init_(nullptr) {}
+  WireDef(std::string_view name, DataType* data_type, Expression* init,
+          VerilogFile* file, const SourceInfo& loc)
+      : Def(name, DataKind::kWire, data_type, file, loc), init_(init) {}
+  std::string Emit(LineInfo* line_info) const override;
+
+ protected:
+  Expression* init_;
 };
 
 // Register variable definition.Example:
@@ -1647,6 +1654,8 @@ class Module : public VastNode {
                    const SourceInfo& loc, Expression* init = nullptr,
                    ModuleSection* section = nullptr);
   LogicRef* AddWire(std::string_view name, DataType* type,
+                    const SourceInfo& loc, ModuleSection* section = nullptr);
+  LogicRef* AddWire(std::string_view name, DataType* type, Expression* init,
                     const SourceInfo& loc, ModuleSection* section = nullptr);
   LogicRef* AddInteger(std::string_view name, const SourceInfo& loc,
                        ModuleSection* section = nullptr);

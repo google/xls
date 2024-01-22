@@ -352,14 +352,14 @@ LogicRef* Module::AddPortDef(Direction direction, Def* def,
 
 LogicRef* Module::AddInput(std::string_view name, DataType* type,
                            const SourceInfo& loc) {
-  return AddPortDef(Direction::kInput,
-                    file()->Make<WireDef>(loc, name, std::move(type)), loc);
+  return AddPortDef(Direction::kInput, file()->Make<WireDef>(loc, name, type),
+                    loc);
 }
 
 LogicRef* Module::AddOutput(std::string_view name, DataType* type,
                             const SourceInfo& loc) {
-  return AddPortDef(Direction::kOutput,
-                    file()->Make<WireDef>(loc, name, std::move(type)), loc);
+  return AddPortDef(Direction::kOutput, file()->Make<WireDef>(loc, name, type),
+                    loc);
 }
 
 LogicRef* Module::AddReg(std::string_view name, DataType* type,
@@ -368,8 +368,8 @@ LogicRef* Module::AddReg(std::string_view name, DataType* type,
   if (section == nullptr) {
     section = &top_;
   }
-  return file()->Make<LogicRef>(
-      loc, section->Add<RegDef>(loc, name, std::move(type), init));
+  return file()->Make<LogicRef>(loc,
+                                section->Add<RegDef>(loc, name, type, init));
 }
 
 LogicRef* Module::AddWire(std::string_view name, DataType* type,
@@ -377,8 +377,17 @@ LogicRef* Module::AddWire(std::string_view name, DataType* type,
   if (section == nullptr) {
     section = &top_;
   }
-  return file()->Make<LogicRef>(
-      loc, section->Add<WireDef>(loc, name, std::move(type)));
+  return file()->Make<LogicRef>(loc, section->Add<WireDef>(loc, name, type));
+}
+
+LogicRef* Module::AddWire(std::string_view name, DataType* type,
+                          Expression* init, const SourceInfo& loc,
+                          ModuleSection* section) {
+  if (section == nullptr) {
+    section = &top_;
+  }
+  return file()->Make<LogicRef>(loc,
+                                section->Add<WireDef>(loc, name, type, init));
 }
 
 LogicRef* Module::AddInteger(std::string_view name, const SourceInfo& loc,
@@ -621,6 +630,15 @@ std::string Def::EmitNoSemi(LineInfo* line_info) const {
   std::string result = absl::StrCat(
       kind_str, data_type()->EmitWithIdentifier(line_info, GetName()));
   LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string WireDef::Emit(LineInfo* line_info) const {
+  std::string result = Def::EmitNoSemi(line_info);
+  if (init_ != nullptr) {
+    absl::StrAppend(&result, " = ", init_->Emit(line_info));
+  }
+  absl::StrAppend(&result, ";");
   return result;
 }
 
@@ -935,7 +953,7 @@ std::string Index::Emit(LineInfo* line_info) const {
   return absl::StrFormat("%s[%s]", subject, index);
 }
 
-// Returns the given string wrappend in parentheses.
+// Returns the given string wrapped in parentheses.
 static std::string ParenWrap(std::string_view s) {
   return absl::StrFormat("(%s)", s);
 }
