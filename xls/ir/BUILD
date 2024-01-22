@@ -809,6 +809,7 @@ cc_test(
         ":function_builder",
         ":ir",
         ":ir_test_base",
+        ":value",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

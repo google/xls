@@ -1006,6 +1006,14 @@ class NodeChecker : public DfsVisitor {
             i + 1, operand_type->ToString(), sel->ToString()));
       }
     }
+    if (sel->default_value()) {
+      Type* operand_type = sel->default_value().value()->GetType();
+      if (operand_type != sel->GetType()) {
+        return absl::InternalError(
+            StrFormat("Case default type %s does not match node type: %s",
+                      operand_type->ToString(), sel->ToString()));
+      }
+    }
     return absl::OkStatus();
   }
 

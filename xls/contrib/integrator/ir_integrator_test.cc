@@ -14,18 +14,25 @@
 
 #include "xls/contrib/integrator/ir_integrator.h"
 
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/contrib/integrator/integration_options.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/verifier.h"
 
 namespace m = ::xls::op_matchers;
@@ -1509,11 +1516,15 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyMuxDoesNotHaveTwoCases) {
       Node * internal_sel,
       internal_func.MakeNodeWithName<Param>(SourceInfo(), "internal_sel",
                                             p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * internal_default,
+      internal_func.MakeNodeWithName<Param>(SourceInfo(), "internal_default",
+                                            p->GetBitsType(2)));
   std::vector<Node*> elements = {internal_1};
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_mux,
                            integration->function()->MakeNode<Select>(
                                SourceInfo(), internal_sel, elements,
-                               /*default_value=*/internal_sel));
+                               /*default_value=*/internal_default));
 
   auto result = integration->DeUnifyIntegrationNodes(internal_mux);
   EXPECT_FALSE(result.ok());

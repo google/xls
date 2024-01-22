@@ -27,6 +27,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -38,6 +39,23 @@ class VerifierTest : public IrTestBase {
  protected:
   VerifierTest() = default;
 };
+
+TEST_F(VerifierTest, BadSelect) {
+  static constexpr std::string_view input = R"(
+package subrosa
+
+top fn function_0() -> bits[8][8] {
+  name: bits[1] = literal(value=0, id=1)
+  name__1: bits[8][8] = literal(value=[0, 0, 0, 0, 0, 0, 0, 0], id=2)
+  name__2: bits[64] = literal(value=0x0, id=3)
+  ret name__3: bits[8][8] = sel(name, cases=[name__1], default=name__2, id=4)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  ASSERT_THAT(VerifyPackage(p.get()),
+              status_testing::StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("does not match node type")));
+}
 
 TEST_F(VerifierTest, WellFormedPackage) {
   std::string input = R"(

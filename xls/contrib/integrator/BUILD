@@ -42,14 +42,18 @@ cc_test(
     name = "ir_integrator_test",
     srcs = ["ir_integrator_test.cc"],
     deps = [
+        ":integration_options",
         ":ir_integrator",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_matcher",
-        "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
     ],
 )
 
