@@ -739,6 +739,7 @@ cc_library(
         "//xls/ir:interval_set",
         "//xls/ir:op",
         "//xls/ir:type",
+        "//xls/ir:value_helpers",
     ],
 )
 
@@ -2306,6 +2307,7 @@ cc_test(
     deps = [
         ":dce_pass",
         ":optimization_pass",
+        ":pass_base",
         ":sparsify_select_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
@@ -2313,9 +2315,11 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
     ],
 )
 

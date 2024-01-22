@@ -14,18 +14,22 @@
 
 #include "xls/passes/sparsify_select_pass.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -50,6 +54,32 @@ class SparsifySelectPassTest : public IrTestBase {
     return changed;
   }
 };
+
+TEST_F(SparsifySelectPassTest, CompoundType) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(1));
+  auto x_big = fb.ZeroExtend(x, 3);
+  auto complex_vs = [&](uint64_t v) {
+    return fb.Literal(Value::Tuple({Value(UBits(v, 4)), Value(UBits(v, 5)),
+                                    Value(UBits(v, 6)), Value(UBits(v, 5)),
+                                    Value(UBits(v, 4))}));
+  };
+  auto complex_vs_match = [&](uint64_t v) {
+    return m::Literal(Value::Tuple({Value(UBits(v, 4)), Value(UBits(v, 5)),
+                                    Value(UBits(v, 6)), Value(UBits(v, 5)),
+                                    Value(UBits(v, 4))}));
+  };
+  fb.Select(x_big,
+            {complex_vs(1), complex_vs(2), complex_vs(3), complex_vs(4),
+             complex_vs(5), complex_vs(6), complex_vs(7), complex_vs(8)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Sub(x_big.node(), m::Literal(UBits(0, 3))),
+                        {complex_vs_match(1), complex_vs_match(2)},
+                        complex_vs_match(0)));
+}
 
 TEST_F(SparsifySelectPassTest, Simple) {
   auto p = CreatePackage();
