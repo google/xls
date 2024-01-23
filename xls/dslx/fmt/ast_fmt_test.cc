@@ -1093,6 +1093,106 @@ TEST(ModuleFmtTest, StructDefTwoFields) {
   EXPECT_EQ(got_multiline, kWantMultiline);
 }
 
+TEST(ModuleFmtTest, StructDefEmptyWithComment) {
+  const std::string_view kProgram =
+      R"(pub struct Point {
+    // Very empty.
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, StructDefWithInlineCommentsOnFields) {
+  const std::string_view kProgram =
+      R"(pub struct Point {
+    x: u32,  // Comment on the first field
+    y: u64,  // Comment on the second field
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, StructDefWithAbuttedCommentsOnFields) {
+  const std::string_view kProgram =
+      R"(pub struct Point {
+    // Above the first member
+    x: u32,
+    // Above the second member
+    y: u64,
+    // After the second member
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, StructDefWithMixedCommentAnnotations) {
+  const std::string_view kProgram =
+      R"(pub struct Point {
+    x: u32,  // short inline comment
+    // This has a long, long discussion for some reason.
+    // It spreads over multiple lines and refers to what is below.
+    y: u64,
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+// TODO(https://github.com/google/xls/issues/1273): 2024-01-23 We need to
+// coalesce these two fragments of comment into one comment entity to handle it
+// the way one would expect.
+TEST(ModuleFmtTest, DISABLED_StructDefWithMultilineInlineComment) {
+  const std::string_view kProgram =
+      R"(pub struct Point {
+    x: u32,  // this is a longer comment
+             // it wants to be multi-line for some reason
+    y: u64,
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
+TEST(ModuleFmtTest, StructDefGithub1260) {
+  const std::string_view kProgram =
+      R"(// Foos do what they do.
+struct Foo {
+    // the foo top of body comment
+    bar: u1,  // the bar
+    hop: u2,  // the hop
+}
+)";
+  std::vector<CommentData> comments;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                           ParseModule(kProgram, "fake.x", "fake", &comments));
+
+  std::string got = AutoFmt(*m, Comments::Create(comments));
+  EXPECT_EQ(got, kProgram);
+}
+
 TEST(ModuleFmtTest, StructDefTwoParametrics) {
   const std::string_view kProgram =
       "pub struct Point<M: u32, N: u32> { x: bits[M], y: bits[N] }\n";

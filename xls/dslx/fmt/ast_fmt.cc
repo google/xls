@@ -1772,6 +1772,91 @@ static DocRef Fmt(const QuickCheck& n, const Comments& comments,
   return ConcatN(arena, pieces);
 }
 
+static void FmtStructMembers(const StructDef& n, const Comments& comments,
+                             DocArena& arena, std::vector<DocRef>& pieces) {
+  if (!n.members().empty()) {
+    pieces.push_back(arena.break1());
+  }
+
+  std::vector<DocRef> body_pieces;
+  Pos last_member_pos = n.span().start();
+  for (size_t i = 0; i < n.members().size(); ++i) {
+    const auto& [name_def, type] = n.members()[i];
+
+    const Span member_span(name_def->span().start(), type->span().limit());
+    const Pos& member_start = member_span.start();
+
+    // See if there are comments between the last member and the start of this
+    // member.
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc =
+            EmitCommentsBetween(last_member_pos, member_start, comments, arena,
+                                &last_comment_span)) {
+      body_pieces.push_back(comments_doc.value());
+      body_pieces.push_back(arena.hard_line());
+
+      // If the comment abuts the member we don't put a newline in
+      // between, we assume the comment is associated with the member.
+      if (last_comment_span->limit().lineno() != member_start.lineno()) {
+        body_pieces.push_back(arena.hard_line());
+      }
+    }
+
+    last_member_pos = member_span.limit();
+
+    body_pieces.push_back(arena.MakeText(name_def->identifier()));
+    body_pieces.push_back(arena.colon());
+    body_pieces.push_back(arena.space());
+    body_pieces.push_back(Fmt(*type, comments, arena));
+    bool last_member = i + 1 == n.members().size();
+    if (last_member) {
+      body_pieces.push_back(arena.MakeFlatChoice(/*on_flat=*/arena.empty(),
+                                                 /*on_break=*/arena.comma()));
+    } else {
+      body_pieces.push_back(arena.comma());
+    }
+
+    // See if there are inline comments after the member.
+    const Pos next_line(member_span.filename(),
+                        member_span.limit().lineno() + 1, 0);
+    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
+            last_member_pos, next_line, comments, arena, &last_comment_span)) {
+      XLS_VLOG(3) << "Saw after-member comment: "
+                  << arena.ToDebugString(comments_doc.value())
+                  << " last_comment_span: " << last_comment_span.value();
+      body_pieces.push_back(arena.space());
+      body_pieces.push_back(arena.space());
+      body_pieces.push_back(arena.MakeAlign(comments_doc.value()));
+      if (!last_member) {
+        body_pieces.push_back(arena.hard_line());
+      }
+
+      last_member_pos = AdjustCommentLimit(last_comment_span.value(), arena,
+                                           comments_doc.value());
+    } else if (!last_member) {
+      body_pieces.push_back(arena.break1());
+    }
+  }
+
+  // See if there are any comments to emit after the last statement to the end
+  // of the block.
+  std::optional<Span> last_comment_span;
+  bool emitted_trailing_comment = false;
+  if (std::optional<DocRef> comments_doc =
+          EmitCommentsBetween(last_member_pos, n.span().limit(), comments,
+                              arena, &last_comment_span)) {
+    body_pieces.push_back(arena.hard_line());
+    body_pieces.push_back(comments_doc.value());
+    emitted_trailing_comment = true;
+  }
+
+  pieces.push_back(arena.MakeNest(ConcatN(arena, body_pieces)));
+
+  if (!n.members().empty() || emitted_trailing_comment) {
+    pieces.push_back(arena.break1());
+  }
+}
+
 static DocRef Fmt(const StructDef& n, const Comments& comments,
                   DocArena& arena) {
   std::vector<DocRef> pieces;
@@ -1794,28 +1879,7 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
   pieces.push_back(arena.space());
   pieces.push_back(arena.ocurl());
 
-  if (!n.members().empty()) {
-    pieces.push_back(arena.break1());
-
-    std::vector<DocRef> body_pieces;
-    for (size_t i = 0; i < n.members().size(); ++i) {
-      const auto& [name_def, type] = n.members()[i];
-      body_pieces.push_back(arena.MakeText(name_def->identifier()));
-      body_pieces.push_back(arena.colon());
-      body_pieces.push_back(arena.space());
-      body_pieces.push_back(Fmt(*type, comments, arena));
-      if (i + 1 == n.members().size()) {
-        body_pieces.push_back(arena.MakeFlatChoice(/*on_flat=*/arena.empty(),
-                                                   /*on_break=*/arena.comma()));
-      } else {
-        body_pieces.push_back(arena.comma());
-        body_pieces.push_back(arena.break1());
-      }
-    }
-
-    pieces.push_back(arena.MakeNest(ConcatN(arena, body_pieces)));
-    pieces.push_back(arena.break1());
-  }
+  FmtStructMembers(n, comments, arena, pieces);
 
   pieces.push_back(arena.ccurl());
   return ConcatNGroup(arena, pieces);
@@ -1875,6 +1939,7 @@ static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
   Pos last_member_pos = n.span().start();
   for (size_t i = 0; i < n.values().size(); ++i) {
     const EnumMember& node = n.values()[i];
+
     // If there are comment blocks between the last member position and the
     // member we're about the process, we need to emit them.
     std::optional<Span> member_span = node.GetSpan();
