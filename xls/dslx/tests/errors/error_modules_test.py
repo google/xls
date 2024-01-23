@@ -159,7 +159,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/invalid_colon_ref_as_literal_type.x'
     )
     stderr = self._run(test_path)
-    self.assertIn('{}:23:25-23:26'.format(test_path), stderr)
+    self.assertIn('{}:23:24-23:26'.format(test_path), stderr)
     self.assertIn('Non-bits type used to define a numeric literal.', stderr)
 
   def test_invalid_parameter_cast(self):
@@ -386,20 +386,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_arg0_type_mismatch(self):
     stderr = self._run('xls/dslx/tests/errors/arg0_type_mismatch.x')
-    # TODO(https://github.com/google/xls/issues/438): 2021-05-24 Numbers are
-    # currently reported with inaccurate spans, this will need to change once
-    # that's addressed.
-    self.assertIn('arg0_type_mismatch.x:18:9-18:14', stderr)
+    self.assertIn('arg0_type_mismatch.x:18:5-18:14', stderr)
     self.assertIn(
         'uN[2] vs uN[32]: Mismatch between parameter and argument types',
         stderr)
 
   def test_arg1_type_mismatch(self):
     stderr = self._run('xls/dslx/tests/errors/arg1_type_mismatch.x')
-    # TODO(https://github.com/google/xls/issues/438): 2021-05-24 Numbers are
-    # currently reported with inaccurate spans, this will need to change once
-    # that's addressed.
-    self.assertIn('arg1_type_mismatch.x:19:9-19:14', stderr)
+    self.assertIn('arg1_type_mismatch.x:19:5-19:14', stderr)
     self.assertIn(
         'uN[3] vs uN[32]: Mismatch between parameter and argument types',
         stderr)
@@ -433,7 +427,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/array_type_dimension_with_width_annotated.x'
     )
     self.assertIn(
-        'array_type_dimension_with_width_annotated.x:15:27-15:28', stderr
+        'array_type_dimension_with_width_annotated.x:15:24-15:28', stderr
     )
     self.assertIn('Dimension u8:7 must be a `u32`', stderr)
 
@@ -498,7 +492,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_oob_signed_value(self):
     stderr = self._run('xls/dslx/tests/errors/oob_signed_value.x')
-    self.assertIn('oob_signed_value.x:16:6-16:9', stderr)
+    self.assertIn('oob_signed_value.x:16:3-16:9', stderr)
     self.assertIn('TypeInferenceError', stderr)
     self.assertIn('Value \'256\' does not fit in the bitwidth of a sN[8]',
                   stderr)
@@ -506,7 +500,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_oob_unigned_value(self):
     stderr = self._run('xls/dslx/tests/errors/oob_unsigned_value.x')
-    self.assertIn('oob_unsigned_value.x:16:6-16:9', stderr)
+    self.assertIn('oob_unsigned_value.x:16:3-16:9', stderr)
     self.assertIn('TypeInferenceError', stderr)
     self.assertIn('Value \'256\' does not fit in the bitwidth of a uN[8]',
                   stderr)

@@ -1971,14 +1971,27 @@ std::string String::ToStringInternal() const {
 
 // -- class Number
 
+static Span MakeNumberSpan(Span expr_span,
+                           const TypeAnnotation* type_annotation) {
+  if (type_annotation == nullptr) {
+    return expr_span;
+  }
+  return Span(type_annotation->span().start(), expr_span.limit());
+}
+
 Number::Number(Module* owner, Span span, std::string text,
                NumberKind number_kind, TypeAnnotation* type_annotation)
-    : Expr(owner, std::move(span)),
+    : Expr(owner, MakeNumberSpan(std::move(span), type_annotation)),
       text_(std::move(text)),
       number_kind_(number_kind),
       type_annotation_(type_annotation) {}
 
 Number::~Number() = default;
+
+void Number::SetTypeAnnotation(TypeAnnotation* type_annotation) {
+  type_annotation_ = type_annotation;
+  UpdateSpan(MakeNumberSpan(span(), type_annotation));
+}
 
 std::vector<AstNode*> Number::GetChildren(bool want_types) const {
   if (type_annotation_ == nullptr) {

@@ -1078,7 +1078,7 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings& bindings,
   XLS_ASSIGN_OR_RETURN(Expr * term, ParseTerm(bindings, kNoRestrictions));
   if (IsOneOf<Number, Array>(term)) {
     if (auto* n = dynamic_cast<Number*>(term)) {
-      n->set_type_annotation(type);
+      n->SetTypeAnnotation(type);
       // We just added a type annotation - a new child node - to `n`.
       n->SetParentage();
     } else {

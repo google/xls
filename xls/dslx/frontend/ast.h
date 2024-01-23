@@ -653,6 +653,8 @@ class Expr : public AstNode {
  protected:
   virtual std::string ToStringInternal() const = 0;
 
+  void UpdateSpan(Span new_span) { span_ = std::move(new_span); }
+
  private:
   Span span_;
   bool in_parens_ = false;
@@ -920,16 +922,15 @@ class Number : public Expr {
   // present).
   std::string ToStringNoType() const;
 
+  TypeAnnotation* type_annotation() const { return type_annotation_; }
+
   // TODO(leary): 2021-05-18 We should remove this setter -- it is currently
   // used because of the `$type_annotation:$number` syntax, where the type is
   // parsed, the number is parsed independent of type context, but then the
   // type_annotation is imbued *into* the number. Cleaner would be to make a
   // TypedNumber construct that decorated a bare number with its literal
   // type_annotation context.
-  TypeAnnotation* type_annotation() const { return type_annotation_; }
-  void set_type_annotation(TypeAnnotation* type_annotation) {
-    type_annotation_ = type_annotation;
-  }
+  void SetTypeAnnotation(TypeAnnotation* type_annotation);
 
   // Warning: be careful not to iterate over signed chars of the result, as they
   // may sign extend on platforms that compile with signed chars. Preferred

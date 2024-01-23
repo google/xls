@@ -465,10 +465,10 @@ store 0 @ test.x:3:7-3:8
 literal [u32:3, u32:4, u32:5] @ test.x:4:23-4:32
 store 1 @ test.x:4:7-4:8
 load 0 @ test.x:6:3-6:4
-literal u32:0 @ test.x:6:9-6:10
+literal u32:0 @ test.x:6:5-6:10
 index @ test.x:6:4-6:11
 load 1 @ test.x:6:14-6:15
-literal u32:1 @ test.x:6:20-6:21
+literal u32:1 @ test.x:6:16-6:21
 index @ test.x:6:15-6:22
 uadd @ test.x:6:12-6:13)";
   std::string got = absl::StrJoin(bf->bytecodes(), "\n",
@@ -1081,42 +1081,42 @@ fn main() -> u32 {
   // Since `for` generates a complex set of bytecodes, we test. every. one.
   // To make that a bit easier, we do string comparison.
   const std::vector<std::string> kExpected = {
-      "literal u32:0 @ test.x:3:44-3:45",
-      "literal u32:8 @ test.x:3:51-3:52",
-      "literal builtin:range @ test.x:3:34-3:39",
-      "call range(u32:0, u32:8) @ test.x:3:39-3:53",
-      "store 0 @ test.x:3:6-5:11",
-      "literal u32:0 @ test.x:3:6-5:11",
-      "store 1 @ test.x:3:6-5:11",
-      "literal u32:1 @ test.x:5:9-5:10",
-      "jump_dest @ test.x:3:6-5:11",
-      "load 1 @ test.x:3:6-5:11",
-      "literal u32:8 @ test.x:3:6-5:11",
-      "eq @ test.x:3:6-5:11",
-      "jump_rel_if +17 @ test.x:3:6-5:11",
-      "load 0 @ test.x:3:6-5:11",
-      "load 1 @ test.x:3:6-5:11",
-      "index @ test.x:3:6-5:11",
-      "swap @ test.x:3:6-5:11",
-      "create_tuple 2 @ test.x:3:6-5:11",
-      "expand_tuple @ test.x:3:7-3:17",
-      "store 2 @ test.x:3:8-3:9",
-      "store 3 @ test.x:3:11-3:16",
-      "load 3 @ test.x:4:5-4:10",
-      "load 2 @ test.x:4:13-4:14",
-      "uadd @ test.x:4:11-4:12",
-      "load 1 @ test.x:3:6-5:11",
-      "literal u32:1 @ test.x:3:6-5:11",
-      "uadd @ test.x:3:6-5:11",
-      "store 1 @ test.x:3:6-5:11",
-      "jump_rel -20 @ test.x:3:6-5:11",
-      "jump_dest @ test.x:3:6-5:11",
+      "literal u32:0",
+      "literal u32:8",
+      "literal builtin:range",
+      "call range(u32:0, u32:8)",
+      "store 0",
+      "literal u32:0",
+      "store 1",
+      "literal u32:1",
+      "jump_dest",
+      "load 1",
+      "literal u32:8",
+      "eq",
+      "jump_rel_if +17",
+      "load 0",
+      "load 1",
+      "index",
+      "swap",
+      "create_tuple 2",
+      "expand_tuple",
+      "store 2",
+      "store 3",
+      "load 3",
+      "load 2",
+      "uadd",
+      "load 1",
+      "literal u32:1",
+      "uadd",
+      "store 1",
+      "jump_rel -20",
+      "jump_dest",
   };
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 30);
   for (int i = 0; i < bytecodes.size(); i++) {
-    ASSERT_EQ(bytecodes[i].ToString(), kExpected[i]);
+    ASSERT_EQ(bytecodes[i].ToString(/*source_locs=*/false), kExpected[i]);
   }
 }
 
@@ -1138,44 +1138,44 @@ fn test_main(s: SomeStruct) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            EmitBytecodes(&import_data, kProgram, "test_main"));
 
-  const std::string_view kWant = R"(literal u32:0 @ test.x:8:23-8:24
-literal u32:4 @ test.x:8:30-8:31
-range @ test.x:8:23-8:31
-store 1 @ test.x:8:6-11:8
-literal u32:0 @ test.x:8:6-11:8
-store 2 @ test.x:8:6-11:8
-create_tuple 0 @ test.x:11:5-11:7
-jump_dest @ test.x:8:6-11:8
-load 2 @ test.x:8:6-11:8
-literal u32:4 @ test.x:8:6-11:8
-eq @ test.x:8:6-11:8
-jump_rel_if +22 @ test.x:8:6-11:8
-load 1 @ test.x:8:6-11:8
-load 2 @ test.x:8:6-11:8
-index @ test.x:8:6-11:8
-swap @ test.x:8:6-11:8
-create_tuple 2 @ test.x:8:6-11:8
-expand_tuple @ test.x:8:8-8:15
-pop @ test.x:8:9-8:10
-expand_tuple @ test.x:8:12-8:14
-literal [u8:119, u8:104, u8:101, u8:101] @ test.x:9:20-9:26
-load 0 @ test.x:9:28-9:29
-literal u64:0 @ test.x:9:29-9:39
-tuple_index @ test.x:9:29-9:39
-literal builtin:cover! @ test.x:9:13-9:19
-call cover!("whee", s.some_bool) @ test.x:9:19-9:40
-pop @ test.x:9:9-9:10
-create_tuple 0 @ test.x:10:5-10:7
-load 2 @ test.x:8:6-11:8
-literal u32:1 @ test.x:8:6-11:8
-uadd @ test.x:8:6-11:8
-store 2 @ test.x:8:6-11:8
-jump_rel -25 @ test.x:8:6-11:8
-jump_dest @ test.x:8:6-11:8)";
-  std::string got = absl::StrJoin(bf->bytecodes(), "\n",
-                                  [](std::string* out, const Bytecode& b) {
-                                    absl::StrAppend(out, b.ToString());
-                                  });
+  const std::string_view kWant = R"(literal u32:0
+literal u32:4
+range
+store 1
+literal u32:0
+store 2
+create_tuple 0
+jump_dest
+load 2
+literal u32:4
+eq
+jump_rel_if +22
+load 1
+load 2
+index
+swap
+create_tuple 2
+expand_tuple
+pop
+expand_tuple
+literal [u8:119, u8:104, u8:101, u8:101]
+load 0
+literal u64:0
+tuple_index
+literal builtin:cover!
+call cover!("whee", s.some_bool)
+pop
+create_tuple 0
+load 2
+literal u32:1
+uadd
+store 2
+jump_rel -25
+jump_dest)";
+  std::string got = absl::StrJoin(
+      bf->bytecodes(), "\n", [](std::string* out, const Bytecode& b) {
+        absl::StrAppend(out, b.ToString(/*source_locs=*/false));
+      });
 
   EXPECT_EQ(kWant, got);
 }
@@ -1303,7 +1303,7 @@ proc Foo {
       "store 0 @ test.x:7:10-7:11",
       "store 1 @ test.x:7:13-7:14",
       "load 1 @ test.x:8:6-8:7",
-      "literal u32:100 @ test.x:8:13-8:16",
+      "literal u32:100 @ test.x:8:9-8:16",
       "create_tuple 2 @ test.x:8:5-8:17"};
 
   for (int i = 0; i < config_bytecodes.size(); i++) {
@@ -1458,8 +1458,10 @@ fn main() -> u32 {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 3);
   const std::vector<std::string> kNextExpected = {
-      "literal u32:4 @ test.x:6:6-6:16", "literal u32:1 @ test.x:6:23-6:24",
-      "uadd @ test.x:6:17-6:18"};
+      "literal u32:4 @ test.x:6:6-6:16",   //
+      "literal u32:1 @ test.x:6:19-6:24",  //
+      "uadd @ test.x:6:17-6:18"            //
+  };
   for (int i = 0; i < bytecodes.size(); i++) {
     ASSERT_EQ(bytecodes[i].ToString(), kNextExpected[i]);
   }

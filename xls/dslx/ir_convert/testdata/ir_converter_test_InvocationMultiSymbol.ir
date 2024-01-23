@@ -10,7 +10,7 @@ fn __test_module__parametric__3_5_8(x: bits[3], y: bits[5]) -> bits[8] {
 }
 
 fn __test_module__main() -> bits[8] {
-  literal.7: bits[3] = literal(value=0, id=7, pos=[(0,4,21)])
-  literal.8: bits[5] = literal(value=1, id=8, pos=[(0,4,32)])
+  literal.7: bits[3] = literal(value=0, id=7, pos=[(0,4,13)])
+  literal.8: bits[5] = literal(value=1, id=8, pos=[(0,4,24)])
   ret invoke.9: bits[8] = invoke(literal.7, literal.8, to_apply=__test_module__parametric__3_5_8, id=9, pos=[(0,4,12)])
 }

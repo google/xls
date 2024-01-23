@@ -1743,9 +1743,7 @@ TEST_F(ParserTest, NumberSpan) {
   XLS_ASSERT_OK_AND_ASSIGN(Expr * e, ParseExpr("u32:42"));
   auto* number = dynamic_cast<Number*>(e);
   ASSERT_NE(number, nullptr);
-  // TODO(https://github.com/google/xls/issues/438): 2021-05-24 Fix the
-  // parsing/reporting of number spans so that the span starts at 0,0.
-  EXPECT_EQ(number->span(), Span(Pos(kFilename, 0, 4), Pos(kFilename, 0, 6)));
+  EXPECT_EQ(number->span(), Span(Pos(kFilename, 0, 0), Pos(kFilename, 0, 6)));
 }
 
 TEST_F(ParserTest, DetectsDuplicateFailLabels) {
