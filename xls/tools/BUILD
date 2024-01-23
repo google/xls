@@ -908,6 +908,7 @@ cc_binary(
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:events",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:node_util",
         "//xls/ir:op",

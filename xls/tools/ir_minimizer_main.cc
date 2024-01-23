@@ -57,11 +57,14 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -123,6 +126,24 @@ ABSL_FLAG(int64_t, failed_attempt_limit, 256,
           "done reducing.");
 ABSL_FLAG(int64_t, total_attempt_limit, 16384,
           "Limit on total number of attempts to try before bailing.");
+ABSL_FLAG(bool, can_extract_segments, false,
+          "Whether to allow the minimizer to extract segments of the IR. This "
+          "transform entirely removes some segment of logic and makes a new "
+          "function which contains only that piece of logic. It does this by "
+          "selecting a random node in a function/proc, creating a new package "
+          "with with a new function. This new function then has the "
+          "expression used to compute the node copied in and this new package "
+          "is used as the sample to check. This new function is marked as (and "
+          "named identically to) TOP and all other code is removed. This "
+          "option may not be used if any (relevant) flag which prevents "
+          "changes to external API are passed (--can_remove_{sends,receives,"
+          "params}=false, --preserve_channels=<anything>, or "
+          "--test_llvm_jit). NB The extracted segment will always be a "
+          "function.");
+ABSL_FLAG(int64_t, extract_segments_limit, 256,
+          "Maximum number of nodes remaining to support extracting segments "
+          "in. This just makes convergence happen more quickly since the "
+          "segments are selected completely randomly.");
 ABSL_FLAG(
     std::string, test_executable, "",
     "Path to test executable to run during minimization. The test accepts "
@@ -429,6 +450,27 @@ enum class SimplificationResult {
   kCannotChange,  // Cannot simplify.
   kDidNotChange,  // Did not simplify, e.g. because RNG didn't come up that way.
   kDidChange,     // Did simplify in some way.
+};
+
+struct SimplifiedIr {
+  SimplificationResult result;
+  // The actual sample we want to use. If we were able to modify the package
+  // in-place this holds the modified Package*. If we did not modify the package
+  // in place we store the serialized version of the sample as a string.
+  std::variant<std::string, Package*> ir_data;
+  int64_t node_count = 0;
+
+  // Did we modify the package in place to generate this sample or create a
+  // whole new package.
+  bool in_place() const { return std::holds_alternative<Package*>(ir_data); }
+
+  // Get a string-ir suitable for reconstituting the sample.
+  std::string ir() const {
+    if (std::holds_alternative<Package*>(ir_data)) {
+      return std::get<Package*>(ir_data)->DumpIr();
+    }
+    return std::get<std::string>(ir_data);
+  }
 };
 
 // Return a random subset of the given input.
@@ -878,15 +920,164 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   return SimplificationResult::kDidChange;
 }
 
-absl::StatusOr<SimplificationResult> Simplify(
-    FunctionBase* f, std::optional<std::vector<Value>> inputs,
-    absl::BitGenRef rng, std::string* which_transform) {
+// Picks a random node in the function 'f' and (if possible) generates a new
+// package&function that only contains that node and its antecedents.
+absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
+    FunctionBase* f, absl::BitGenRef rng, std::string* which_transform) {
+  SimplifiedIr failure{.result = SimplificationResult::kDidNotChange,
+                       .ir_data = f->package(),
+                       .node_count = f->node_count()};
+  Package new_pkg = Package(f->package()->name());
+  auto it = f->nodes().begin();
+  auto off = absl::Uniform(rng, 0, f->node_count());
+  XLS_VLOG(3) << "Attempting to extract node " << off << " from "
+              << f->DumpIr();
+  std::advance(it, off);
+  Node* to_extract = *it;
+  if (f->IsFunction() && to_extract == f->AsFunctionOrDie()->return_value()) {
+    // Don't just copy the function.
+    return failure;
+  }
+  *which_transform =
+      absl::StrFormat("Extracting node %s into an independent function.",
+                      to_extract->ToString());
+  XLS_VLOG(3) << "Attempting to extract " << to_extract->ToString() << " from "
+              << f->DumpIr();
+  if (to_extract->Is<RegisterWrite>() || to_extract->Is<Send>() ||
+      to_extract->Is<Receive>() || to_extract->Is<AfterAll>()) {
+    // Don't want to deal with these nodes.
+    return failure;
+  }
+  // Find all nodes which feed into this one.
+  absl::flat_hash_set<Node*> marked;
+  std::vector<Node*> to_check{to_extract};
+  while (!to_check.empty()) {
+    Node* cur = to_check.back();
+    if (cur->Is<Invoke>() || cur->Is<Map>() || cur->Is<CountedFor>() ||
+        cur->Is<DynamicCountedFor>()) {
+      // TODO: Support copying the invokes too. This makes it way more annoying
+      // so not worth it right now.
+      return failure;
+    }
+    to_check.pop_back();
+    if (marked.contains(cur)) {
+      continue;
+    }
+    marked.insert(cur);
+    for (Node* op : cur->operands()) {
+      if (op->GetType()->IsToken()) {
+        // No tokens.
+        continue;
+      }
+      // Sends/after-all shouldn't be reached since only accessible through
+      // token path, reg-write should not have any dependents.
+      XLS_CHECK(!op->Is<Send>() && !op->Is<AfterAll>() &&
+                !op->Is<RegisterWrite>())
+          << op->ToString();
+      if (marked.contains(op)) {
+        continue;
+      }
+      to_check.push_back(op);
+    }
+  }
+  absl::flat_hash_map<Node*, Node*> old_to_new_map;
+  Function* new_func = new_pkg.AddFunction(std::make_unique<Function>(
+      f->package()->GetTop() ? f->package()->GetTop().value()->name()
+                             : "extracted_func",
+      &new_pkg));
+  for (Node* n : TopoSort(f)) {
+    if (!marked.contains(n)) {
+      continue;
+    }
+    if (n->Is<Receive>()) {
+      // Replace token with bits[1].
+      std::vector<Type*> types;
+      types.push_back(new_pkg.GetBitsType(1));
+      for (Type* other_type :
+           n->GetType()->AsTupleOrDie()->element_types().subspan(1)) {
+        auto maybe_type = new_pkg.MapTypeFromOtherPackage(other_type);
+        if (!maybe_type.ok()) {
+          XLS_VLOG(1) << "     unable to map type" << other_type->ToString()
+                      << " due to " << maybe_type.status();
+          return failure;
+        }
+        types.push_back(*maybe_type);
+      }
+      XLS_ASSIGN_OR_RETURN(
+          old_to_new_map[n],
+          new_func->MakeNodeWithName<Param>(
+              SourceInfo(),
+              absl::StrCat("param_wrapper_for_recieve_", n->GetName()),
+              new_pkg.GetTupleType(types)));
+    } else if (n->Is<RegisterRead>()) {
+      auto maybe_type = new_pkg.MapTypeFromOtherPackage(n->GetType());
+      if (!maybe_type.ok()) {
+        XLS_VLOG(1) << "     unable to map type" << n->GetType()->ToString()
+                    << " due to " << maybe_type.status();
+        return failure;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          old_to_new_map[n],
+          new_func->MakeNodeWithName<Param>(
+              SourceInfo(),
+              absl::StrCat("param_wrapper_for_reg_read_", n->GetName()),
+              *maybe_type));
+    } else {
+      std::vector<Node*> new_ops;
+      for (Node* op : n->operands()) {
+        XLS_RET_CHECK(old_to_new_map.contains(op))
+            << op->ToString() << " in " << n->ToString() << " while removing "
+            << to_extract->ToString();
+        new_ops.push_back(old_to_new_map.at(op));
+      }
+      auto maybe_node = n->CloneInNewFunction(new_ops, new_func);
+      if (!maybe_node.ok()) {
+        XLS_VLOG(1) << "     unable to clone type" << n->ToString()
+                    << " due to " << maybe_node.status();
+        return failure;
+      }
+      old_to_new_map[n] = *maybe_node;
+    }
+  }
+  XLS_RETURN_IF_ERROR(new_func->set_return_value(old_to_new_map[to_extract]));
+  XLS_RETURN_IF_ERROR(new_pkg.SetTop(new_func));
+  return SimplifiedIr{.result = SimplificationResult::kDidChange,
+                      .ir_data = new_pkg.DumpIr(),
+                      .node_count = new_func->node_count()};
+}
+
+absl::StatusOr<SimplifiedIr> Simplify(FunctionBase* f,
+                                      std::optional<std::vector<Value>> inputs,
+                                      absl::BitGenRef rng,
+                                      std::string* which_transform) {
+  auto* orig_package = f->package();
+  auto in_place = [&](const absl::StatusOr<SimplificationResult>& r)
+      -> absl::StatusOr<SimplifiedIr> {
+    XLS_ASSIGN_OR_RETURN(auto res, r);
+    auto func_bases = orig_package->GetFunctionBases();
+    auto new_func = absl::c_find(func_bases, f);
+    return SimplifiedIr{
+        .result = res,
+        .ir_data = orig_package,
+        .node_count = (new_func != func_bases.end() ? (*new_func)->node_count()
+                                                    : int64_t{-1})};
+  };
+  if (absl::GetFlag(FLAGS_can_extract_segments) && absl::Bernoulli(rng, 0.1) &&
+      absl::GetFlag(FLAGS_extract_segments_limit) >= f->node_count() &&
+      absl::GetFlag(FLAGS_extract_segments_limit) >=
+          f->package()->GetNodeCount()) {
+    XLS_ASSIGN_OR_RETURN(auto result,
+                         ExtractRandomNodeSubset(f, rng, which_transform));
+    if (result.result != SimplificationResult::kDidNotChange) {
+      return result;
+    }
+  }
   if (absl::GetFlag(FLAGS_use_optimization_passes) &&
       absl::Bernoulli(rng, 0.2)) {
     XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
                          RunRandomPass(f, rng, which_transform));
     if (pass_result != SimplificationResult::kDidNotChange) {
-      return pass_result;
+      return in_place(pass_result);
     }
   }
 
@@ -897,7 +1088,7 @@ absl::StatusOr<SimplificationResult> Simplify(
                          RunOptimizationPassPipeline(f->package()));
     if (changed) {
       *which_transform = "Optimization pipeline";
-      return SimplificationResult::kDidChange;
+      return in_place(SimplificationResult::kDidChange);
     }
   }
 
@@ -905,7 +1096,7 @@ absl::StatusOr<SimplificationResult> Simplify(
     XLS_ASSIGN_OR_RETURN(SimplificationResult result,
                          SimplifyReturnValue(f, rng, which_transform));
     if (result == SimplificationResult::kDidChange) {
-      return result;
+      return in_place(result);
     }
   }
 
@@ -920,14 +1111,14 @@ absl::StatusOr<SimplificationResult> Simplify(
       *which_transform = absl::StrFormat(
           "random replace parameter %d (%s) with literal of input value: %s",
           param_no, param->GetName(), inputs->at(param_no).ToString());
-      return SimplificationResult::kDidChange;
+      return in_place(SimplificationResult::kDidChange);
     }
   }
 
   // Pick a random node and try to do something with it.
   int64_t i = absl::Uniform<int64_t>(rng, 0, f->node_count());
   Node* n = *std::next(f->nodes().begin(), i);
-  return SimplifyNode(n, rng, which_transform);
+  return in_place(SimplifyNode(n, rng, which_transform));
 }
 
 // Runs removal of dead nodes (transitively), and then any dead parameters.
@@ -1051,35 +1242,32 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
 
     // Simplify the function.
     std::string which_transform;
-    XLS_ASSIGN_OR_RETURN(SimplificationResult simplification,
+    XLS_ASSIGN_OR_RETURN(SimplifiedIr simplification,
                          Simplify(candidate, inputs, rng, &which_transform));
 
     // If we cannot change it, we're done.
-    if (simplification == SimplificationResult::kCannotChange) {
+    if (simplification.result == SimplificationResult::kCannotChange) {
       XLS_LOG(INFO) << "Cannot simplify any further, done!";
       break;
     }
 
     // candidate might have been removed by DFE at this point. Be careful.
     auto candidate_ir = [&]() -> std::string {
-      auto functions = package->GetFunctionBases();
-      if (absl::c_find(functions, candidate) != functions.end()) {
-        return candidate->DumpIr();
+      if (simplification.in_place()) {
+        XLS_CHECK_EQ(package.get(), std::get<Package*>(simplification.ir_data));
+        auto functions = package->GetFunctionBases();
+        if (absl::c_find(functions, candidate) != functions.end()) {
+          return candidate->DumpIr();
+        }
+        return "<Function removed>";
       }
-      return "<Function removed>";
-    };
-    auto candidate_nodes = [&]() -> int64_t {
-      auto functions = package->GetFunctionBases();
-      if (absl::c_find(functions, candidate) != functions.end()) {
-        return candidate->node_count();
-      }
-      return -1;
+      return simplification.ir();
     };
 
     // If we happened to not change it (e.g. because the RNG said not to), keep
     // going until we do. We still bump the counter to make sure we don't end up
     // wedged in a state where we can't simplify anything.
-    if (simplification == SimplificationResult::kDidNotChange) {
+    if (simplification.result == SimplificationResult::kDidNotChange) {
       XLS_VLOG(1) << "Did not change the sample.";
       failed_simplification_attempts++;
       if (simplification_iterations > 0) {
@@ -1094,18 +1282,20 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
                     << failed_attempts_between_tests_limit;
       failed_attempts_between_tests = 0;
     } else {
-      XLS_CHECK(simplification == SimplificationResult::kDidChange);
+      XLS_CHECK(simplification.result == SimplificationResult::kDidChange);
       XLS_LOG(INFO) << "Trying " << which_transform << " on " << candidate_name;
-      XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
+      if (simplification.in_place()) {
+        XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
+      }
       XLS_VLOG_LINES(2, "=== After simplification [" + which_transform + "]\n" +
                             candidate_ir());
     }
 
     candidate_changes.push_back({
         .which_transform = which_transform,
-        .package_ir_text = package->DumpIr(),
+        .package_ir_text = simplification.ir(),
         .candidate_ir_text = candidate_ir(),
-        .node_count = candidate_nodes(),
+        .node_count = simplification.node_count,
     });
 
     simplification_iterations++;
@@ -1201,6 +1391,30 @@ int main(int argc, char** argv) {
   XLS_QCHECK(!absl::GetFlag(FLAGS_test_executable).empty() ^
              absl::GetFlag(FLAGS_test_llvm_jit))
       << "Must specify either --test_executable or --test_llvm_jit";
+
+  if (absl::GetFlag(FLAGS_can_extract_segments)) {
+    std::vector<std::string> failures;
+    bool failed = false;
+    auto check_flag = [&](absl::Flag<bool>& flag, bool want) {
+      if (absl::GetFlag(flag) != want) {  // NOLINT
+        failures.push_back(
+            absl::StrFormat("--%s%s", want ? "" : "no", flag.Name()));
+        failed = true;
+      }
+    };
+    check_flag(FLAGS_can_remove_params, true);
+    check_flag(FLAGS_can_remove_sends, true);
+    check_flag(FLAGS_can_remove_receives, true);
+    check_flag(FLAGS_test_llvm_jit, false);
+    if (!absl::GetFlag(FLAGS_preserve_channels).empty()) {
+      failures.push_back("no '--preserve_channels'");
+      failed = true;
+    }
+    XLS_QCHECK(!failed)
+        << "--can_extract_segments is incompatible with current flags. It "
+           "requires the following flags to be set/changed: "
+        << absl::StrJoin(failures, " ");
+  }
 
   return xls::ExitStatus(xls::RealMain(
       positional_arguments[0], absl::GetFlag(FLAGS_failed_attempt_limit),

@@ -108,6 +108,24 @@ top fn foo(x: bits[32][8]) -> bits[1][8] {
 }
 """
 
+PROC = '''package testit
+
+file_number 0 "/tmp/testit.x"
+
+chan testit__output(bits[32], id=0, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+
+top proc __testit__main_0_next(__token: token, __state: bits[32], init={3}) {
+  literal.4: bits[32] = literal(value=3, id=4, pos=[(0,9,46)])
+  umul.5: bits[32] = umul(__state, literal.4, id=5, pos=[(0,9,40)])
+  literal.7: bits[32] = literal(value=1, id=7, pos=[(0,10,18)])
+  tok: token = send(__token, umul.5, channel=testit__output, id=6)
+  literal.3: bits[1] = literal(value=1, id=3)
+  add.8: bits[32] = add(__state, literal.7, id=8, pos=[(0,10,12)])
+  after_all.9: token = after_all(__token, tok, id=9)
+  next (after_all.9, add.8)
+}
+'''
+
 
 class IrMinimizerMainTest(absltest.TestCase):
 
@@ -122,6 +140,33 @@ class IrMinimizerMainTest(absltest.TestCase):
       f.write('\n'.join(all_cmds))
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IXUSR)
+
+  def test_minimize_extract_things(self):
+    ir_file = self.create_tempfile(content=PROC)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(
+        test_sh_file.full_path, ["/usr/bin/env grep 'add' $1"]
+    )
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        '--can_remove_params=true',
+        '--can_remove_sends=true',
+        '--can_remove_receives=true',
+        '--can_extract_segments=true',
+        ir_file.full_path,
+    ])
+    self._maybe_record_property('output', minimized_ir.decode('utf-8'))
+    self.assertEqual(
+        minimized_ir.decode('utf-8'),
+        """package testit
+
+top fn __testit__main_0_next() -> bits[32] {
+  literal.1: bits[32] = literal(value=0, id=1)
+  ret add.3: bits[32] = add(literal.1, literal.1, id=3, pos=[(0,10,12)])
+}
+""",
+    )
 
   def test_minimize_inline_one_can_inline_other_invokes(self):
     ir_file = self.create_tempfile(content=INVOKE_TWO_DEEP)
