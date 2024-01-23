@@ -25,16 +25,12 @@ pub proc fmac<EXP_SZ: u32, SFD_SZ: u32> {
     reset: chan<bool> in;
     output: chan<APFloat<EXP_SZ, SFD_SZ>> out;
 
-    init {
-        apfloat::zero<EXP_SZ, SFD_SZ>(false)
-    }
-
-    config(input_a: chan<APFloat<EXP_SZ, SFD_SZ>> in,
-        input_b: chan<APFloat<EXP_SZ, SFD_SZ>> in,
-        reset: chan<bool> in,
-        output: chan<APFloat<EXP_SZ, SFD_SZ>> out) {
+    config(input_a: chan<APFloat<EXP_SZ, SFD_SZ>> in, input_b: chan<APFloat<EXP_SZ, SFD_SZ>> in,
+           reset: chan<bool> in, output: chan<APFloat<EXP_SZ, SFD_SZ>> out) {
         (input_a, input_b, reset, output)
     }
+
+    init { apfloat::zero<EXP_SZ, SFD_SZ>(false) }
 
     next(tok: token, acc: APFloat<EXP_SZ, SFD_SZ>) {
         let (tok0, a) = recv(tok, input_a);

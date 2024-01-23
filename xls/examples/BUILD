@@ -741,6 +741,11 @@ xls_dslx_library(
     srcs = ["apfloat_fmac.x"],
 )
 
+xls_dslx_fmt_test(
+    name = "apfloat_fmac_dslx_fmt_test",
+    src = "apfloat_fmac.x",
+)
+
 xls_dslx_library(
     name = "fp32_fmac_dslx",
     srcs = ["fp32_fmac.x"],
