@@ -84,8 +84,6 @@ TEST(AssignOrReturn, Works) {
   EXPECT_THAT(func().message(), Eq("EXPECTED"));
 }
 
-// Note: GCC (as of 9.2.1) doesn't seem to support this trick.
-#ifdef __clang__
 TEST(AssignOrReturn, WorksWithCommasInType) {
   auto func = []() -> absl::Status {
     XLS_ASSIGN_OR_RETURN((std::tuple<int, int> t1),
@@ -121,7 +119,6 @@ TEST(AssignOrReturn, WorksWithStructureBindings) {
 
   EXPECT_THAT(func().message(), Eq("EXPECTED"));
 }
-#endif
 
 TEST(AssignOrReturn, WorksWithParenthesesAndDereference) {
   auto func = []() -> absl::Status {
@@ -185,8 +182,6 @@ TEST(AssignOrReturn, WorksWithAdaptorFunc) {
               AllOf(HasSubstr("EXPECTED A"), HasSubstr("EXPECTED B")));
 }
 
-// Note: GCC (as of 9.2.1) doesn't seem to support this trick.
-#ifdef __clang__
 TEST(AssignOrReturn, WorksWithThirdArgumentAndCommas) {
   auto fail_test_if_called = [](xabsl::StatusBuilder builder) {
     ADD_FAILURE();
@@ -215,7 +210,6 @@ TEST(AssignOrReturn, WorksWithThirdArgumentAndCommas) {
   EXPECT_THAT(func().message(),
               AllOf(HasSubstr("EXPECTED A"), HasSubstr("EXPECTED B")));
 }
-#endif
 
 TEST(AssignOrReturn, WorksWithAppendIncludingLocals) {
   auto func = [&](const std::string& str) -> absl::Status {
