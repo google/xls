@@ -104,6 +104,12 @@ in the XLS project, with the relevant Google style guides
     prefer `absl::string_view` for now, the rationale for why does not really
     apply to us and their target end state is clear.
 
+*   XLS code is often written in a functional (i.e. separating functions from
+    the [ideally immutable] structs they operate on) and layered style, which
+    leads to `_utils.h` style translation units that layer on and compose
+    functionality. Prefer the suffix `_utils.h` for these, vs `_helpers.h` or
+    other alternatives.
+
 ### Functions
 
 *   Short or easily-explained argument lists (as defined by the developer) can
