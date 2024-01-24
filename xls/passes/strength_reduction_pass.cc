@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <iterator>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -74,12 +75,72 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
   return std::move(reducible_adds);
 }
 
+absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
+    Node* node, const TernaryQueryEngine& query_engine, Select* select_val) {
+  if (OpIsSideEffecting(node->op())) {
+    // Side-effecting operations are not always safe to duplicate so don't
+    // bother.
+    return false;
+  }
+  XLS_DCHECK(!query_engine.IsFullyKnown(select_val));
+  XLS_DCHECK(select_val->AllCases(
+      [&](Node* c) { return query_engine.IsFullyKnown(c); }));
+
+  auto operands = node->operands();
+  int64_t argument_idx =
+      std::distance(operands.begin(), absl::c_find(operands, select_val));
+  XLS_RET_CHECK_NE(argument_idx, operands.size())
+      << select << " is not an argument of " << node;
+  // We need both an unknown select and all other operands to be fully known.
+  bool non_select_operands_are_constant = absl::c_all_of(
+      operands,
+      [&](Node* n) { return n == select_val || query_engine.IsFullyKnown(n); });
+  // We don't want to make the select mux wider unless we are pretty sure that
+  // benefit is worth it.
+  static constexpr std::array<Op, 14> kExpensiveOps{
+      Op::kAdd, Op::kSub, Op::kSDiv, Op::kUDiv, Op::kUMod, Op::kSMod, Op::kUMul,
+      Op::kSMul, Op::kUMulp, Op::kSMulp, Op::kShll, Op::kShra, Op::kShrl,
+      // Encode of a non-constant is quite slow.
+      Op::kEncode};
+  bool sink_would_improve_ir = node->GetType()->GetFlatBitCount() <=
+                                   select_val->GetType()->GetFlatBitCount() ||
+                               node->OpIn(kExpensiveOps);
+  if (non_select_operands_are_constant && sink_would_improve_ir) {
+    std::vector<Node*> new_cases;
+    new_cases.reserve(select_val->cases().size());
+    std::optional<Node*> new_default;
+    std::vector<Node*> ops_vec(operands.cbegin(), operands.cend());
+    auto sink_operation = [&](Node* argument) {
+      ops_vec[argument_idx] = argument;
+      return node->Clone(ops_vec);
+    };
+    XLS_VLOG(2) << "Sinking " << node << " into its select argument "
+                << select_val;
+    if (select_val->default_value()) {
+      XLS_ASSIGN_OR_RETURN(new_default,
+                           sink_operation(*select_val->default_value()));
+      XLS_VLOG(2) << "    default for new select is " << *new_default;
+    }
+    for (Node* c : select_val->cases()) {
+      XLS_ASSIGN_OR_RETURN(Node * new_case, sink_operation(c));
+      new_cases.push_back(new_case);
+      XLS_VLOG(2) << "    case for new select is " << new_case;
+    }
+    XLS_ASSIGN_OR_RETURN(Node * new_sel,
+                         node->ReplaceUsesWithNew<Select>(
+                             select_val->selector(), new_cases, new_default));
+    XLS_VLOG(2) << "    new select is " << new_sel;
+    return true;
+  }
+  return false;
+}
+
 // Attempts to strength-reduce the given node. Returns true if successful.
 // 'reducible_adds' is the set of add operations which may be safely replaced
 // with an OR.
 absl::StatusOr<bool> StrengthReduceNode(
     Node* node, const absl::flat_hash_set<Node*>& reducible_adds,
-    const QueryEngine& query_engine, int64_t opt_level) {
+    const TernaryQueryEngine& query_engine, int64_t opt_level) {
   if (!std::all_of(node->operands().begin(), node->operands().end(),
                    [](Node* n) { return n->GetType()->IsBits(); }) ||
       !node->GetType()->IsBits()) {
@@ -453,6 +514,42 @@ absl::StatusOr<bool> StrengthReduceNode(
       XLS_RETURN_IF_ERROR(replace_with_select(
           unknown_operand, zero_value.bits(), zero_result, one_result));
       return true;
+    }
+  }
+
+  // Sink operations into selects in some circumstances.
+  //
+  // If we have an operation where all operands except for one select are
+  // known-constant and the select has a constant value in each of its cases we
+  // can move the operation into the select in order to allow other
+  // narrowing/constant propogation passes to calculate the resulting value.
+  //
+  // v1 := Select(<variable>, [<const1>, <const2>])
+  // v2 := Op(v1, <const3>)
+  //
+  // Transforms to
+  //
+  // v1_c1 := Op(<const1>, <const3>)
+  // v1_c2 := Op(<const2>, <const3>)
+  // v2 := Select(<variable>, [v1_c1, v1_c2])
+  if (query_engine.IsTracked(node) && !query_engine.IsFullyKnown(node)) {
+    auto operands = node->operands();
+    // Find a non-fully-known select
+    auto is_select_with_known_branches_unknown_selector = [&](Node* n) {
+      return n->Is<Select>() && !query_engine.IsFullyKnown(n) &&
+             n->As<Select>()->AllCases(
+                 [&](Node* c) -> bool { return query_engine.IsFullyKnown(c); });
+    };
+    auto select_it = absl::c_find_if(
+        operands, is_select_with_known_branches_unknown_selector);
+    // We need both an unknown select and all other operands to be fully known.
+    if (select_it != operands.end()) {
+      XLS_ASSIGN_OR_RETURN(bool changed,
+                           MaybeSinkOperationIntoSelect(
+                               node, query_engine, (*select_it)->As<Select>()));
+      if (changed) {
+        return true;
+      }
     }
   }
 

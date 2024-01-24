@@ -82,6 +82,10 @@ class TernaryQueryEngine : public QueryEngine {
     return std::nullopt;
   }
 
+  bool IsFullyKnown(Node* n) const {
+    return IsTracked(n) && known_bits_.at(n).IsAllOnes();
+  }
+
  private:
   // Holds which bits values are known for nodes in the function. A one in a bit
   // position indications the respective bit value in the respective node is

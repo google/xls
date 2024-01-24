@@ -426,7 +426,51 @@ TEST_F(StrengthReductionPassTest, ArithToSelectOnlyWithOneBit) {
   fb.UMul(big_unknown, fb.Literal(UBits(10, 64)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(false))
-      << "Optimization triggered unexpectedly. Got:\n" << f->DumpIr();
+      << "Optimization triggered unexpectedly. Got:\n"
+      << f->DumpIr();
+}
+
+TEST_F(StrengthReductionPassTest, PushDownSelectValues) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Add(fb.Literal(UBits(3, 32)),
+         fb.Select(fb.Param("selector", p->GetBitsType(1)),
+                   {fb.Literal(UBits(1, 32)), fb.Literal(UBits(2, 32))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param(),
+                {
+                    m::Add(m::Literal(UBits(3, 32)), m::Literal(UBits(1, 32))),
+                    m::Add(m::Literal(UBits(3, 32)), m::Literal(UBits(2, 32))),
+                }))
+      << f->DumpIr();
+}
+
+TEST_F(StrengthReductionPassTest, DoNotPushDownCheapExtendingOps) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.SignExtend(
+      fb.Select(fb.Param("selector", p->GetBitsType(1)),
+                {fb.Literal(UBits(0xFFFFFFFF, 32)), fb.Literal(UBits(2, 32))}),
+      64);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false)) << f->DumpIr();
+}
+
+// This is something we might want to support at some point.
+TEST_F(StrengthReductionPassTest, DoNotPushDownMultipleSelects) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Add(
+      fb.Select(fb.Param("selector", p->GetBitsType(1)),
+                {fb.Literal(UBits(0xFFFFFFFF, 32)), fb.Literal(UBits(2, 32))}),
+      fb.Select(fb.Param("selector2", p->GetBitsType(1)),
+                {fb.Literal(UBits(33, 32)), fb.Literal(UBits(45, 32))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false)) << f->DumpIr();
 }
 
 }  // namespace
