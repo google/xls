@@ -18,13 +18,16 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/ir/op.h"
 
 namespace xls {
 absl::StatusOr<int64_t> FfiDelayEstimator::GetOperationDelayInPs(
     Node* node) const {
   if (node->op() != Op::kInvoke) {
-    return absl::UnimplementedError("FFI delay estimate only for kInvoke");
+    return absl::UnimplementedError(
+        absl::StrFormat("FFI delay estimate only for kInvoke, found %s",
+                        OpToString(node->op())));
   }
   if (!fallback_delay_estimate_.has_value()) {
     return absl::NotFoundError("No --ffi_fallback_delay_ps provided.");
