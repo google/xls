@@ -263,7 +263,7 @@ class DocArena {
 
   // Note: the returned reference should not be held across an allocation.
   const pprint_internal::Doc& Deref(DocRef ref) const {
-    return items_[uint16_t{ref}];
+    return items_[ref.value()];
   }
 
  private:

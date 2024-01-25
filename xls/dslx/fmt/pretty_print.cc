@@ -70,7 +70,7 @@ enum class Mode : uint8_t {
   kBreak,
 };
 
-std::ostream& operator<<(std::ostream& os, Mode mode) {
+inline std::ostream& operator<<(std::ostream& os, Mode mode) {
   switch (mode) {
     case Mode::kFlat:
       os << "flat";
@@ -157,6 +157,7 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
   while (!stack.empty()) {
     StackEntry entry = stack.back();
     stack.pop_back();
+
     absl::visit(
         Visitor{
             [&](const std::string& s) {

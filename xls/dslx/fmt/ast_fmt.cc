@@ -43,6 +43,7 @@
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/token.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/ir/format_strings.h"
