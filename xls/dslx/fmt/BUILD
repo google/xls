@@ -96,3 +96,23 @@ cc_test(
         "//xls/dslx/frontend:scanner",
     ],
 )
+
+cc_test(
+    name = "fmt_generated_ast_test",
+    srcs = ["fmt_generated_ast_test.cc"],
+    shard_count = 50,
+    deps = [
+        ":ast_fmt",
+        "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:scanner",
+        "//xls/fuzzer:ast_generator",
+    ],
+)

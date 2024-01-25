@@ -106,8 +106,9 @@ struct BitsAndSignedness {
 };
 
 // Options that are used to configure the AST generator.
+//
+// See ast_generator_options.proto for field descriptions.
 struct AstGeneratorOptions {
-  // See ast_generator_options.proto for fields descriptions.
   bool emit_signed_types = true;
   int64_t max_width_bits_types = 64;
   int64_t max_width_aggregate_types = 1024;
@@ -583,8 +584,10 @@ class AstGenerator {
   // the format specified.
   Number* MakeBool(
       bool value, FormatPreference format_preference = FormatPreference::kHex) {
-    return MakeNumberFromBits(UBits(value ? 1 : 0, 1),
-                              MakeTypeAnnotation(false, 1), format_preference);
+    return MakeNumberFromBits(
+        UBits(value ? 1 : 0, 1),
+        MakeTypeAnnotation(/*is_signed=*/false, /*width=*/1),
+        format_preference);
   }
 
   // Creates a number AST node with value 'value' of type 'type' represented in

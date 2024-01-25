@@ -37,6 +37,8 @@ class Comments {
  public:
   static Comments Create(absl::Span<const CommentData> comments);
 
+  Comments() = default;
+
   // Returns all the comments contained within the given `node_span`.
   //
   // This is a convenient way for nodes to query for all their related comments.

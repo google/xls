@@ -25,7 +25,7 @@ message AstGeneratorOptionsProto {
   // The maximum (inclusive) width for bits types.
   optional int64 max_width_bits_types = 2;
 
-  // The maximum (inclusive) width for aggregate types; e.g. tuples.
+  // The maximum (inclusive) width for aggregate types; e.g. tuples and arrays.
   optional int64 max_width_aggregate_types = 3;
 
   // Emit loops (currently not connected, loops are always generated).

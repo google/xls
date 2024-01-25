@@ -329,7 +329,14 @@ DocRef Fmt(const NameRef& n, const Comments& comments, DocArena& arena) {
 DocRef Fmt(const Number& n, const Comments& comments, DocArena& arena) {
   DocRef num_text;
   if (n.number_kind() == NumberKind::kCharacter) {
-    std::string guts = Escape(n.text());
+    // Note: we don't need to escape double quote because this is going to end
+    // up in single quotes.
+    std::string guts;
+    if (n.text() == "\"") {
+      guts = "\"";  // Double quotes don't need to be escaped.
+    } else {
+      guts = Escape(n.text());  // Everything else we do normal C-string escape.
+    }
     num_text = arena.MakeText(absl::StrFormat("'%s'", guts));
   } else {
     num_text = arena.MakeText(n.text());

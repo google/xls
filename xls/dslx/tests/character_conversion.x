@@ -20,7 +20,7 @@ fn main() -> u8[13] {
     let backslash: u8 = '\\';
     let null: u8 = '\0';
     let single_quote: u8 = '\'';
-    let double_quote: u8 = '\"';
+    let double_quote: u8 = '"';
     let random_char: u8 = 'c';
     let random_char_deduced_type = 'c';
     let dash: u8 = '-';  // negation symbol
