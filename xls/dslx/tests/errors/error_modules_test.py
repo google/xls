@@ -970,6 +970,17 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_impl_not_yet_implemented(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/impl_not_yet_implemented.x',
+    )
+    self.assertIn('ParseError:', stderr)
+    self.assertIn(
+        '`impl` is not yet implemented in DSLX, please use stand-alone'
+        ' functions that take the struct as a value instead',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

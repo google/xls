@@ -436,6 +436,12 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
             module_->AddTop(const_def, MakeModuleTopCollisionError));
         break;
       }
+      case Keyword::kImpl: {
+        return ParseErrorStatus(
+            peek->span(),
+            "`impl` is not yet implemented in DSLX, please use stand-alone "
+            "functions that take the struct as a value instead");
+      }
       default:
         return top_level_error();
     }
