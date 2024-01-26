@@ -231,7 +231,7 @@ absl::StatusOr<Node*> NarrowOrExtend(Node* n, bool n_is_signed,
 // In accordance with XLS semantics
 // (https://google.github.io/xls/ir_semantics/), quotient is rounded towards 0.
 //
-// Note: the source for the algorithms used to optimize divison by constant is
+// Note: the source for the algorithms used to optimize division by constant is
 // "Division by Invariant Integers using Multiplication"
 // https://gmplib.org/~tege/divcnst-pldi94.pdf
 absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op) {
@@ -837,6 +837,71 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     }
   }
 
+  // Pattern: UMod/SMod by a literal.
+  if (n->OpIn({Op::kUMod, Op::kSMod}) && n->operand(1)->Is<Literal>()) {
+    const Bits& rhs = n->operand(1)->As<Literal>()->value().bits();
+    const bool is_signed = n->op() == Op::kSMod;
+
+    if (rhs.IsOne() || rhs.IsZero()) {
+      XLS_VLOG(2) << "FOUND: UMod/SMod by one or zero";
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
+      return true;
+    }
+
+    if (rhs.IsPowerOfTwo() &&
+        (!is_signed || (is_signed && bits_ops::SGreaterThan(rhs, 0)))) {
+      XLS_VLOG(2) << "FOUND: UMod/SMod by a positive power of two";
+      // Truncate operand 0 to the relevant low bits, then zero-extend it to the
+      // width of the mod.
+      XLS_ASSIGN_OR_RETURN(Node * truncated_lhs,
+                           NarrowOrExtend(n->operand(0), /*n_is_signed=*/false,
+                                          rhs.CountTrailingZeros()));
+      XLS_ASSIGN_OR_RETURN(Node * nonnegative_result,
+                           NarrowOrExtend(truncated_lhs, /*n_is_signed=*/false,
+                                          n->BitCountOrDie()));
+      if (!is_signed) {
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(nonnegative_result));
+        return true;
+      }
+
+      // By XLS convention, the sign of the modulus matches the sign of the LHS,
+      // so we should subtract the RHS from our result to get the negative
+      // remainder iff the LHS is negative and the result would otherwise be
+      // positive.
+      XLS_ASSIGN_OR_RETURN(
+          Node * truncated_zero,
+          n->function_base()->MakeNode<Literal>(
+              n->loc(), Value(UBits(0, truncated_lhs->BitCountOrDie()))));
+      XLS_ASSIGN_OR_RETURN(
+          Node * result_is_positive,
+          n->function_base()->MakeNode<CompareOp>(n->loc(), truncated_lhs,
+                                                  truncated_zero, Op::kNe));
+      XLS_ASSIGN_OR_RETURN(
+          Node * lhs_is_negative,
+          n->function_base()->MakeNode<BitSlice>(
+              n->loc(), n->operand(0),
+              /*start=*/n->operand(0)->BitCountOrDie() - 1, /*width=*/1));
+      XLS_ASSIGN_OR_RETURN(
+          Node * negative_result,
+          n->function_base()->MakeNode<BinOp>(n->loc(), nonnegative_result,
+                                              n->operand(1), Op::kSub));
+      XLS_ASSIGN_OR_RETURN(
+          Node * use_negative_result,
+          n->function_base()->MakeNode<NaryOp>(
+              n->loc(),
+              std::vector<Node*>({result_is_positive, lhs_is_negative}),
+              Op::kAnd));
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Select>(
+               use_negative_result,
+               std::vector<Node*>({nonnegative_result, negative_result}),
+               /*default_value=*/std::nullopt)
+              .status());
+      return true;
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(bool udiv_matched, MatchUnsignedDivide(n));
   if (udiv_matched) {
     return true;
@@ -855,30 +920,6 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
         n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
             .status());
     return true;
-  }
-
-  // Pattern: UMod by a power of two.
-  if ((n->op() == Op::kUMod) && n->operand(1)->Is<Literal>()) {
-    const Bits& rhs = n->operand(1)->As<Literal>()->value().bits();
-    if (rhs.IsPowerOfTwo()) {
-      XLS_VLOG(2) << "FOUND: UMod by a power of two";
-      // Extend/trunc operand 0 (the non-literal operand) to the width of the
-      // mod then mask off the high bits.
-      XLS_ASSIGN_OR_RETURN(Node * adjusted_lhs,
-                           NarrowOrExtend(n->operand(0), /*n_is_signed=*/false,
-                                          n->BitCountOrDie()));
-      Bits one = UBits(1, adjusted_lhs->BitCountOrDie());
-      Bits bits_mask = bits_ops::Decrement(
-          bits_ops::ShiftLeftLogical(one, rhs.CountTrailingZeros()));
-      XLS_ASSIGN_OR_RETURN(Node * mask, n->function_base()->MakeNode<Literal>(
-                                            n->loc(), Value(bits_mask)));
-      XLS_VLOG(2) << "FOUND: umod of power of two";
-      XLS_RETURN_IF_ERROR(
-          n->ReplaceUsesWithNew<NaryOp>(
-               std::vector<Node*>({adjusted_lhs, mask}), Op::kAnd)
-              .status());
-      return true;
-    }
   }
 
   // Pattern: Not(Not(x)) => x

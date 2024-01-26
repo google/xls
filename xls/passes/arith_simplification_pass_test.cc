@@ -696,8 +696,11 @@ TEST_F(ArithSimplificationPassTest, UModBy4) {
      }
   )",
                                                        p.get()));
+
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Literal(3)));
+
+  EXPECT_THAT(f->return_value(), m::ZeroExt(m::BitSlice(0, 2)));
 }
 
 TEST_F(ArithSimplificationPassTest, UModBy1) {
@@ -709,7 +712,10 @@ TEST_F(ArithSimplificationPassTest, UModBy1) {
      }
   )",
                                                        p.get()));
+
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
   EXPECT_THAT(f->return_value(), m::Literal(0));
 }
 
@@ -722,14 +728,17 @@ TEST_F(ArithSimplificationPassTest, UModBy512) {
      }
   )",
                                                        p.get()));
+
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Literal(0x1ff)));
+
+  EXPECT_THAT(f->return_value(), m::ZeroExt(m::BitSlice(m::Param("x"), 0, 9)));
 }
 
 TEST_F(ArithSimplificationPassTest, UModBy42) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn umod_power_of_two(x:bits[16]) -> bits[16] {
+     fn umod_non_power_of_two(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=42)
         ret result: bits[16] = umod(x, literal.1)
      }
@@ -742,14 +751,122 @@ TEST_F(ArithSimplificationPassTest, UModBy42) {
 TEST_F(ArithSimplificationPassTest, UModBy0) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn umod_power_of_two(x:bits[16]) -> bits[16] {
+     fn umod_zero(x:bits[16]) -> bits[16] {
         literal.1: bits[16] = literal(value=0)
         ret result: bits[16] = umod(x, literal.1)
      }
   )",
                                                        p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
+TEST_F(ArithSimplificationPassTest, UModByVariable) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn umod(x:bits[16], y:bits[16]) -> bits[16] {
+        ret result: bits[16] = umod(x, y)
+     }
+  )",
+                                                       p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::UMod());
+}
+
+TEST_F(ArithSimplificationPassTest, SModBy4) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn smod_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=4)
+        ret result: bits[16] = smod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  auto nonnegative_result = m::ZeroExt(m::BitSlice(0, 2));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::And(m::Ne(m::BitSlice(0, 2), m::Literal(0)),
+                               m::BitSlice(m::Param(), 15, 1)),
+                        {nonnegative_result,
+                         m::Sub(nonnegative_result, m::Literal(4))}));
+}
+
+TEST_F(ArithSimplificationPassTest, SModBy1) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn smod_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=1)
+        ret result: bits[16] = smod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
+TEST_F(ArithSimplificationPassTest, SModBy512) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn smod_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=512)
+        ret result: bits[16] = smod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  auto nonnegative_result = m::ZeroExt(m::BitSlice(0, 9));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::And(m::Ne(m::BitSlice(0, 9), m::Literal(0)),
+                               m::BitSlice(m::Param(), 15, 1)),
+                        {nonnegative_result,
+                         m::Sub(nonnegative_result, m::Literal(512))}));
+}
+
+TEST_F(ArithSimplificationPassTest, SModBy42) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn smod_non_power_of_two(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=42)
+        ret result: bits[16] = smod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::SMod());
+}
+
+TEST_F(ArithSimplificationPassTest, SModBy0) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn smod_zero(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=0)
+        ret result: bits[16] = smod(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
+TEST_F(ArithSimplificationPassTest, SModByVariable) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn smod(x:bits[16], y:bits[16]) -> bits[16] {
+        ret result: bits[16] = smod(x, y)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::SMod());
 }
 
 TEST_F(ArithSimplificationPassTest, UDivBy4) {
