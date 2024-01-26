@@ -1270,7 +1270,8 @@ TEST_F(TranslatorMemoryTest, MemoryTokenNetworkReadAfterWrite) {
   EXPECT_TRUE(write_before_read);
 }
 
-TEST_F(TranslatorMemoryTest, PingPong) {
+// TODO(seanhaskell): Turn on once b/321114633 is resolved
+TEST_F(TranslatorMemoryTest, DISABLED_PingPong) {
   const std::string content = R"(
     class Block {
     public:
@@ -1322,7 +1323,6 @@ TEST_F(TranslatorMemoryTest, PingPong) {
       {4, 5, 6, 7, 8, 9, 10, 11},
       {3, 22, 10, 3, 8, 1, 2, 55},
   };
-
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
 

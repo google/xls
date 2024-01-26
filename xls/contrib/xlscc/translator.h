@@ -808,6 +808,7 @@ struct PipelinedLoopSubProc {
   // (Decl, access count)
   std::vector<std::pair<const clang::NamedDecl*, int64_t>>
       vars_accessed_in_body;
+  std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
 };
 
 // Encapsulates values produced when generating IR for a function
@@ -836,6 +837,10 @@ struct GeneratedFunction {
   // Sub procs that must be generated to use the function
   std::list<PipelinedLoopSubProc> sub_procs;
 
+  // Sub procs may be in subroutines (owned by Translator)
+  absl::flat_hash_map<const IOChannel*, const PipelinedLoopSubProc*>
+      pipeline_loops_by_internal_channel;
+
   // ParamDecls and FieldDecls (for block as class)
   // Used for top channel injections
   absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>
@@ -863,7 +868,8 @@ struct GeneratedFunction {
 
   // This must be remembered from call to call so generated channels are not
   // duplicated
-  absl::flat_hash_map<IOChannel*, IOChannel*> callee_generated_channels_added;
+  absl::flat_hash_map<IOChannel*, IOChannel*>
+      generated_caller_channels_by_callee;
 
   template <typename ValueType>
   std::vector<const clang::NamedDecl*> DeterministicKeyNames(
@@ -1476,9 +1482,6 @@ class Translator {
   absl::btree_multimap<const IOChannel*, ChannelBundle>
       external_channels_by_internal_channel_;
 
-  absl::flat_hash_map<const xls::Channel*, const clang::Stmt*>
-      pipeline_loops_by_internal_channel;
-
   static bool ContainsKeyValuePair(
       const absl::btree_multimap<const IOChannel*, ChannelBundle>& map,
       const std::pair<const IOChannel*, ChannelBundle>& pair);
@@ -1591,11 +1594,10 @@ class Translator {
     absl::flat_hash_map<const IOOp*, int64_t> return_index_for_op;
     absl::flat_hash_map<const clang::NamedDecl*, int64_t>
         return_index_for_static;
-    absl::flat_hash_map<const clang::NamedDecl*, int64_t>
-        state_index_for_static;
-    int64_t state_init_count = 0;
+    absl::flat_hash_map<const clang::NamedDecl*, xls::BValue>
+        state_element_for_static;
     xls::BValue token;
-    xls::BValue fsm_state_next_value;
+    bool contains_fsm = false;
   };
 
   struct ExternalChannelInfo {
@@ -1637,9 +1639,10 @@ class Translator {
   // Prepares IO channels for generating XLS Proc
   // definition can be null, and then channels_by_name can also be null. They
   // are only used for direct-ins
-  absl::Status GenerateIRBlockPrepare(
+  // Returns ownership of dummy function for top proc
+  absl::StatusOr<std::unique_ptr<GeneratedFunction>> GenerateIRBlockPrepare(
       PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
-      int64_t next_state_index, std::shared_ptr<CType> this_type,
+      const std::shared_ptr<CType>& this_type,
       // Can be nullptr
       const clang::CXXRecordDecl* this_decl,
       const std::list<ExternalChannelInfo>& top_decls,
@@ -1660,23 +1663,63 @@ class Translator {
     xls::BValue extra_condition;
   };
 
-  static xls::BValue ConditionWithExtra(xls::BuilderBase& builder,
-                                        xls::BValue condition,
-                                        const InvokeToGenerate& invoke,
-                                        const xls::SourceInfo& op_loc);
+  xls::BValue ConditionWithExtra(xls::BuilderBase& builder,
+                                 xls::BValue condition,
+                                 const InvokeToGenerate& invoke,
+                                 const xls::SourceInfo& op_loc);
 
-  // Returns last invoke's return value
-  absl::StatusOr<xls::BValue> GenerateIOInvokesWithFSM(
+  struct State {
+    int64_t index = -1;
+    std::list<InvokeToGenerate> invokes_to_generate;
+    const PipelinedLoopSubProc* sub_proc = nullptr;
+    xls::BValue in_this_state;
+  };
+
+  struct GenerateFSMInvocationReturn {
+    xls::BValue return_value;
+    xls::BValue returns_this_activation;
+    std::vector<xls::BValue> extra_next_state_values;
+  };
+
+  absl::StatusOr<GenerateFSMInvocationReturn> GenerateFSMInvocation(
       PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
+  struct SubFSMReturn {
+    xls::BValue exit_state_condition;
+    xls::BValue return_value;
+    std::vector<xls::BValue> extra_next_state_values;
+  };
+  // Generates a sub-FSM for a state containing a sub-proc
+  // Ignores the associated IO ops (context send/receive)
+  // (Currently used for pipelined loops)
+  absl::StatusOr<SubFSMReturn> GenerateSubFSM(
+      PreparedBlock& outer_prepared, xls::ProcBuilder& pb,
+      const State& outer_state, const std::string& fsm_prefix,
+      absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
+      xls::BValue first_ret_val, const xls::SourceInfo& body_loc);
+
   // Generates only the listed ops. A token network will be created between
   // only these ops.
-  absl::StatusOr<xls::BValue> GenerateIOInvokes(
+  absl::StatusOr<xls::BValue> GenerateInvokeWithIO(
       PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc,
       const std::list<InvokeToGenerate>& invokes_to_generate,
-      absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens);
+      absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
+      xls::BValue first_ret_val);
+
+  absl::StatusOr<xls::BValue> GenerateIOInvokesWithAfterOps(
+      IOSchedulingOption option, xls::BValue origin_token,
+      const std::list<InvokeToGenerate>& invokes_to_generate,
+      absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
+      xls::BValue& last_ret_val, PreparedBlock& prepared, xls::ProcBuilder& pb,
+      const xls::SourceInfo& body_loc);
+
+  absl::StatusOr<xls::BValue> GenerateIOInvoke(const InvokeToGenerate& invoke,
+                                               xls::BValue before_token,
+                                               PreparedBlock& prepared,
+                                               xls::BValue& last_ret_val,
+                                               xls::ProcBuilder& pb);
 
   // Returns new token
   absl::StatusOr<xls::BValue> GenerateTrace(xls::BValue trace_out_value,
@@ -1806,8 +1849,22 @@ class Translator {
           context_field_indices,
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
       bool* uses_on_reset, const xls::SourceInfo& loc);
+
   absl::Status GenerateIR_PipelinedLoopProc(
       const PipelinedLoopSubProc& pipelined_loop_proc);
+
+  struct PipelinedLoopContentsReturn {
+    xls::BValue token_out;
+    xls::BValue do_break;
+    xls::BValue first_iter;
+    xls::BValue out_tuple;
+    std::vector<xls::BValue> extra_next_state_values;
+  };
+
+  absl::StatusOr<PipelinedLoopContentsReturn> GenerateIR_PipelinedLoopContents(
+      const PipelinedLoopSubProc& pipelined_loop_proc, xls::ProcBuilder& pb,
+      xls::BValue token_in, xls::BValue received_context_tuple,
+      xls::BValue in_state_condition, bool in_fsm);
 
   absl::Status SendLValueConditions(const std::shared_ptr<LValue>& lvalue,
                                     std::vector<xls::BValue>* lvalue_conditions,

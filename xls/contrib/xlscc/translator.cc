@@ -312,6 +312,10 @@ TranslationContext& Translator::context() {
 
 absl::Status Translator::and_condition(xls::BValue and_condition,
                                        const xls::SourceInfo& loc) {
+  if (!and_condition.valid()) {
+    return absl::OkStatus();
+  }
+
   // Whenever the condition changes,
   // selects need to be generated in the enclosing context (if any)
   if (context().propagate_up && (context_stack_.size() > 2)) {
@@ -3424,10 +3428,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
 
     // Don't add multiple times
-    if (context().sf->callee_generated_channels_added.contains(
+    if (context().sf->generated_caller_channels_by_callee.contains(
             callee_channel_ptr)) {
-      IOChannel* to_add =
-          context().sf->callee_generated_channels_added.at(callee_channel_ptr);
+      IOChannel* to_add = context().sf->generated_caller_channels_by_callee.at(
+          callee_channel_ptr);
       XLSCC_CHECK(
           !caller_channels_by_callee_channel.contains(callee_channel_ptr) ||
               to_add ==
@@ -3446,10 +3450,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                 loc);
     caller_channels_by_callee_channel[callee_channel_ptr] =
         caller_generated_channel;
-    XLSCC_CHECK(!context().sf->callee_generated_channels_added.contains(
+    XLSCC_CHECK(!context().sf->generated_caller_channels_by_callee.contains(
                     callee_channel_ptr),
                 loc);
-    context().sf->callee_generated_channels_added[callee_channel_ptr] =
+    context().sf->generated_caller_channels_by_callee[callee_channel_ptr] =
         caller_generated_channel;
 
     if (callee_channel_ptr->internal_to_function) {
@@ -3464,6 +3468,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
               ->second;
       external_channels_by_internal_channel_.insert(
           std::make_pair(caller_generated_channel, callee_bundle));
+    }
+
+    // Aggregate pipeline_loops_by_internal_channel
+    if (func->pipeline_loops_by_internal_channel.contains(
+            callee_generated_channel)) {
+      const PipelinedLoopSubProc* sub_proc =
+          func->pipeline_loops_by_internal_channel.at(callee_generated_channel);
+      context()
+          .sf->pipeline_loops_by_internal_channel[caller_generated_channel] =
+          sub_proc;
     }
   }
 

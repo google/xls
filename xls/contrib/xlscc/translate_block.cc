@@ -17,8 +17,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -44,6 +46,10 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+
+// TODO(seanhaskell): Turn this back on when dynamic state feedback lands
+// b/321982824
+#define USE_PROC_BUILDER_NEXT 0
 
 using std::shared_ptr;
 using std::string;
@@ -324,50 +330,81 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   prepared.token = pb.GetTokenParam();
 
-  XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(prepared, pb,
-                                             /*next_return_index=*/0,
-                                             /*next_state_index=*/0, this_type,
-                                             this_decl, top_decls, body_loc));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<GeneratedFunction> proc_func_generated_ownership,
+      GenerateIRBlockPrepare(prepared, pb,
+                             /*next_return_index=*/0, this_type, this_decl,
+                             top_decls, body_loc));
 
-  XLS_ASSIGN_OR_RETURN(xls::BValue last_ret_val,
-                       GenerateIOInvokesWithFSM(prepared, pb, body_loc));
+  XLS_ASSIGN_OR_RETURN(GenerateFSMInvocationReturn fsm_ret,
+                       GenerateFSMInvocation(prepared, pb, body_loc));
+
+  XLSCC_CHECK(
+      fsm_ret.return_value.valid() && fsm_ret.returns_this_activation.valid(),
+      body_loc);
 
   // Generate default ops for unused external channels
   XLS_RETURN_IF_ERROR(GenerateDefaultIOOps(prepared, pb, body_loc));
 
-  // Create next state value
-  std::vector<xls::BValue> next_state_values;
-
+  // Create next state values
   XLS_CHECK_GE(prepared.xls_func->return_value_count,
                prepared.xls_func->static_values.size());
 
   XLS_CHECK(context().fb == &pb);
 
+  std::vector<xls::BValue> next_state_values;
+
   if (this_decl != nullptr) {
-    xls::BValue next_val = GetFlexTupleField(
-        last_ret_val, prepared.return_index_for_static.at(this_decl),
-        prepared.xls_func->return_value_count, body_loc);
-    next_state_values.push_back(next_val);
+    const int64_t ret_idx = prepared.return_index_for_static.at(this_decl);
+    xls::BValue next_val =
+        GetFlexTupleField(fsm_ret.return_value, ret_idx,
+                          prepared.xls_func->return_value_count, body_loc);
+    xls::BValue prev_val = prepared.state_element_for_static.at(this_decl);
+
+#if USE_PROC_BUILDER_NEXT
+    pb.Next(/*param=*/prev_val,
+            /*value=*/next_val,
+            /*pred=*/fsm_ret.returns_this_activation, body_loc);
+#else
+    next_state_values.push_back(pb.Select(fsm_ret.returns_this_activation,
+                                          /*on_true=*/next_val,
+                                          /*on_false=*/prev_val, body_loc));
+#endif
   }
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-    xls::BValue next_val = GetFlexTupleField(
-        last_ret_val, prepared.return_index_for_static[namedecl],
-        prepared.xls_func->return_value_count, body_loc);
+    const int64_t ret_idx = prepared.return_index_for_static.at(namedecl);
+    xls::BValue next_val =
+        GetFlexTupleField(fsm_ret.return_value, ret_idx,
+                          prepared.xls_func->return_value_count, body_loc);
+    xls::BValue prev_val = prepared.state_element_for_static.at(namedecl);
 
     XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
-    if (is_on_reset) {
-      next_val = pb.Literal(xls::Value(xls::UBits(0, 1)), body_loc);
+#if USE_PROC_BUILDER_NEXT
+    if (!is_on_reset) {
+      pb.Next(/*param=*/prev_val,
+              /*value=*/next_val, /*pred=*/fsm_ret.returns_this_activation,
+              body_loc);
+    } else {
+      pb.Next(/*param=*/prev_val,
+              /*value=*/pb.Literal(xls::Value(xls::UBits(0, 1)), body_loc),
+              /*pred=*/std::nullopt, body_loc);
     }
-    next_state_values.push_back(next_val);
+#else
+    if (!is_on_reset) {
+      next_state_values.push_back(pb.Select(fsm_ret.returns_this_activation,
+                                            /*on_true=*/next_val,
+                                            /*on_false=*/prev_val, body_loc));
+    } else {
+      next_state_values.push_back(pb.Literal(xls::Value(xls::UBits(0, 1))));
+    }
+#endif
   }
 
-  if (prepared.fsm_state_next_value.valid()) {
-    next_state_values.push_back(prepared.fsm_state_next_value);
+  for (const xls::BValue& value : fsm_ret.extra_next_state_values) {
+    next_state_values.push_back(value);
   }
-
-  XLS_CHECK_EQ(next_state_values.size(), prepared.state_init_count);
 
   return pb.Build(prepared.token, next_state_values);
 }
@@ -570,65 +607,77 @@ absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
         GenerateDefaultIOOp(channel, final_tokens, pb, body_loc));
   }
 
-  prepared.token = pb.AfterAll(final_tokens, body_loc);
+  prepared.token =
+      pb.AfterAll(final_tokens, body_loc, /*name=*/"after_default_io_ops");
 
   return absl::OkStatus();
 }
 
-absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithFSM(
-    PreparedBlock& prepared, xls::ProcBuilder& pb,
-    const xls::SourceInfo& body_loc) {
-  struct State {
-    int64_t index = -1;
-    std::list<InvokeToGenerate> invokes_to_generate;
-    const clang::Stmt* stmt = nullptr;
-  };
+absl::StatusOr<Translator::GenerateFSMInvocationReturn>
+Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
+                                  const xls::SourceInfo& body_loc) {
+  absl::flat_hash_map<const IOOp*, const State*> state_by_io_op;
 
   std::vector<std::unique_ptr<State>> states;
 
-  const bool generate_fsm = generate_fsms_for_pipelined_loops_;
-
   for (const IOOp& op : prepared.xls_func->io_ops) {
-    const clang::Stmt* stmt = nullptr;
+    const PipelinedLoopSubProc* sub_proc = nullptr;
 
-    if (op.op != OpType::kTrace) {
-      const ChannelBundle& bundle =
-          prepared.xls_channel_by_function_channel.at(op.channel);
+    if (prepared.xls_func->pipeline_loops_by_internal_channel.contains(
+            op.channel)) {
+      sub_proc =
+          prepared.xls_func->pipeline_loops_by_internal_channel.at(op.channel);
+      XLSCC_CHECK(sub_proc != nullptr, body_loc);
+    }
 
-      if (bundle.regular != nullptr &&
-          pipeline_loops_by_internal_channel.contains(bundle.regular)) {
-        stmt = pipeline_loops_by_internal_channel.at(bundle.regular);
-        XLSCC_CHECK(stmt != nullptr, body_loc);
+    bool add_state = states.empty();
+
+    // Decide whether or not to add a state for a pipelined loop.
+    if (!states.empty() && generate_fsms_for_pipelined_loops_) {
+      if (sub_proc != nullptr &&
+          op.scheduling_option != IOSchedulingOption::kNone) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Generating FSMs for pipelined loops with "
+                            "scheduling options (ASAP etc)"));
+      }
+
+      // Put regular IOs after a pipelined loop into their own state.
+      // (such as another IO op not associated with a pipelined loop, null)
+      if (sub_proc == nullptr && states.back()->sub_proc != nullptr) {
+        add_state = true;
+      }
+
+      // Put each pipelined loop into its own state.
+      // Subroutines can mean that there are multiple with the same statement.
+      // (sub_proc != null only for pipelined loops)
+      if (sub_proc != nullptr && op.op == OpType::kSend) {
+        add_state = true;
       }
     }
 
-    // ASAP scheduling options get stuck into the first state
-    if (states.empty() || (generate_fsm && states.back()->stmt != stmt &&
-                           op.scheduling_option == IOSchedulingOption::kNone)) {
+    if (add_state) {
       states.push_back(std::make_unique<State>());
       states.back()->index = states.size() - 1;
-      states.back()->stmt = stmt;
+      states.back()->sub_proc = sub_proc;
     }
 
     XLSCC_CHECK(!states.empty(), body_loc);
 
+    // Check that after_ops are not violated by the ordering of the states
+    // state_by_io_op contains ops from previous states at this point
+    for (const IOOp* after_op : op.after_ops) {
+      XLSCC_CHECK(state_by_io_op.contains(after_op), body_loc);
+    }
+
     states.back()->invokes_to_generate.push_back(
         {.op = op, .extra_condition = xls::BValue()});
+    state_by_io_op[&op] = states.back().get();
   }
 
   // No IO case
   if (states.empty()) {
     states.push_back(std::make_unique<State>());
     states.back()->index = 0;
-  }
-
-  if (context().in_pipelined_for_body && states.size() > 1) {
-    // The context send and receive are special cased, not generated by
-    // GenerateIOInvokes(), so they don't get added to states.
-    return absl::UnimplementedError(
-        ErrorMessage(body_loc,
-                     "Pipelined loops with FSMs in the body, ie nested "
-                     "pipelined loops, are not yet supported"));
   }
 
   // Set up state with wrap-around, if needed
@@ -639,7 +688,13 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithFSM(
   xls::BValue args_from_last_state;
   xls::Value initial_args_val;
 
+  const std::string fsm_prefix =
+      absl::StrFormat("__fsm_%s", prepared.xls_func->xls_func->name());
+
+  xls::BValue state_param;
+
   if (states.size() > 1) {
+    prepared.contains_fsm = true;
     state_bits = xls::CeilOfLog2(states.size());
     xls::Type* state_type = package_->GetBitsType(state_bits);
     initial_state_index = xls::ZeroOfType(state_type);
@@ -654,11 +709,11 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithFSM(
                                                       initial_args_val};
 
     xls::Value initial_state = xls::Value::Tuple(initial_state_elements);
-    xls::BValue state_param =
-        pb.StateElement("__fsm_state", initial_state, body_loc);
-    state_index = pb.TupleIndex(state_param, /*idx=*/0, body_loc,
-                                /*name=*/"__fsm_state_index");
-    ++prepared.state_init_count;
+    state_param = pb.StateElement(absl::StrFormat("%s_state", fsm_prefix),
+                                  initial_state, body_loc);
+    state_index =
+        pb.TupleIndex(state_param, /*idx=*/0, body_loc,
+                      /*name=*/absl::StrFormat("%s_state_index", fsm_prefix));
 
     args_from_last_state = pb.TupleIndex(state_param, /*idx=*/1, body_loc);
   }
@@ -666,11 +721,20 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithFSM(
   xls::BValue origin_token = prepared.token;
   std::vector<xls::BValue> sink_tokens;
 
-  absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
   std::vector<xls::BValue> next_args_by_state;
   next_args_by_state.resize(states.size());
 
+  std::vector<xls::BValue> go_to_next_state_by_state;
+  go_to_next_state_by_state.resize(states.size(),
+                                   pb.Literal(xls::UBits(1, 1), body_loc));
+
+  std::vector<xls::BValue> sub_fsm_next_values;
+
   xls::BValue last_ret_val;
+
+  std::vector<xls::BValue> sub_fsm_next_state_values;
+
+  absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
 
   for (std::unique_ptr<State>& state : states) {
     XLSCC_CHECK_GE(state->index, 0, body_loc);
@@ -683,18 +747,17 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithFSM(
 
     // If generating state machine, add extra predicates to IO ops
     // and save values from previous states
-    xls::BValue in_this_state;
-
     if (state_index.valid()) {
       XLSCC_CHECK_GT(state_bits, 0, body_loc);
-      xls::BValue this_state_index =
-          pb.Literal(xls::UBits(state->index, state_bits), body_loc);
-      in_this_state =
-          pb.Eq(state_index, this_state_index, body_loc,
-                /*name=*/absl::StrFormat("__fsm_in_state_%i", state->index));
+      xls::BValue this_state_index = pb.Literal(
+          xls::UBits(state->index, state_bits), body_loc,
+          absl::StrFormat("%s_state_%i_index", fsm_prefix, state->index));
+      state->in_this_state = pb.Eq(
+          state_index, this_state_index, body_loc,
+          /*name=*/absl::StrFormat("%s_in_state_%i", fsm_prefix, state->index));
 
       for (InvokeToGenerate& invoke : state->invokes_to_generate) {
-        invoke.extra_condition = in_this_state;
+        invoke.extra_condition = state->in_this_state;
       }
 
       if (state->index > 0) {
@@ -704,313 +767,431 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithFSM(
               pb.TupleIndex(args_from_last_state, /*idx=*/arg, body_loc);
         }
       }
+    } else {
+      state->in_this_state = pb.Literal(xls::UBits(1, 1), body_loc);
     }
 
+    state->in_this_state =
+        pb.And(state->in_this_state, context().full_condition_bval(body_loc),
+               body_loc);
+
+    // The function is first invoked with defaults for any
+    //  read() IO Ops.
+    // If there are any read() IO Ops, then it will be invoked again
+    //  for each read Op below.
+    // Statics don't need to generate additional invokes, since they need not
+    //  exchange any data with the outside world between iterations.
+    last_ret_val =
+        pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc,
+                  /*name=*/
+                  absl::StrFormat("%s_state_%i_default_invoke", fsm_prefix,
+                                  state->index));
+    XLSCC_CHECK(last_ret_val.valid(), body_loc);
+
+    // States should be in parallel in the token graph
     prepared.token = origin_token;
 
-    XLS_ASSIGN_OR_RETURN(
-        last_ret_val, GenerateIOInvokes(prepared, pb, body_loc,
-                                        state->invokes_to_generate, op_tokens));
+    if (!generate_fsms_for_pipelined_loops_ || state->sub_proc == nullptr) {
+      XLS_ASSIGN_OR_RETURN(last_ret_val,
+                           GenerateInvokeWithIO(prepared, pb, body_loc,
+                                                state->invokes_to_generate,
+                                                op_tokens, last_ret_val));
+      XLSCC_CHECK(last_ret_val.valid(), body_loc);
 
-    sink_tokens.push_back(prepared.token);
+      sink_tokens.push_back(prepared.token);
+    } else {
+      XLS_ASSIGN_OR_RETURN(SubFSMReturn sub_fsm_ret,
+                           GenerateSubFSM(prepared, pb, *state, fsm_prefix,
+                                          op_tokens, last_ret_val, body_loc));
+
+      for (const xls::BValue& value : sub_fsm_ret.extra_next_state_values) {
+        sub_fsm_next_state_values.push_back(value);
+      }
+
+      sink_tokens.push_back(prepared.token);
+
+      last_ret_val = sub_fsm_ret.return_value;
+
+      XLSCC_CHECK(last_ret_val.valid(), body_loc);
+
+      go_to_next_state_by_state[state->index] =
+          sub_fsm_ret.exit_state_condition;
+    }
 
     // Save return values for this state
     if (state_index.valid()) {
-      XLSCC_CHECK(in_this_state.valid(), body_loc);
+      XLSCC_CHECK(state->in_this_state.valid(), body_loc);
       next_args_by_state.at(state->index) = pb.Tuple(prepared.args, body_loc);
     }
   }
 
+  XLSCC_CHECK(!sink_tokens.empty(), body_loc);
+
+  prepared.token =
+      pb.AfterAll(sink_tokens, body_loc, /*name=*/"after_sink_tokens");
+
+  xls::BValue returns_this_activation_vars = go_to_next_state_by_state.at(0);
+
+  std::vector<xls::BValue> fsm_next_state_values;
+
   // Construct the next FSM state
   if (state_index.valid()) {
     xls::BValue final_state_index =
-        pb.Literal(xls::UBits(states.size() - 1, state_bits), body_loc);
-    xls::BValue in_last_state = pb.Eq(state_index, final_state_index, body_loc);
-    xls::BValue state_one = pb.Literal(xls::UBits(1, state_bits), body_loc);
+        pb.Literal(xls::UBits(states.size() - 1, state_bits), body_loc,
+                   absl::StrFormat("%s_final_state_index", fsm_prefix));
+    xls::BValue in_last_state =
+        pb.Eq(state_index, final_state_index, body_loc,
+              absl::StrFormat("%s_in_final_state", fsm_prefix));
+    xls::BValue state_one =
+        pb.Literal(xls::UBits(1, state_bits), body_loc,
+                   absl::StrFormat("%s_state_one", fsm_prefix));
+
+    xls::BValue following_state_index = pb.Select(
+        in_last_state,
+        /*on_true=*/
+        pb.Literal(initial_state_index, body_loc,
+                   absl::StrFormat("%s_initial_state_index", fsm_prefix)),
+        /*on_false=*/
+        pb.Add(state_index, state_one, body_loc,
+               absl::StrFormat("%s_state_plus_one", fsm_prefix)));
+
+    std::optional<xls::BValue> default_go_to_next_state = std::nullopt;
+    if (next_args_by_state.size() < (1 << state_bits)) {
+      default_go_to_next_state =
+          pb.Literal(xls::UBits(0, 1), body_loc,
+                     absl::StrFormat("%s_default_next_state", fsm_prefix));
+    }
+
+    xls::BValue go_to_next_state = pb.Select(
+        state_index,
+        /*cases=*/go_to_next_state_by_state, default_go_to_next_state, body_loc,
+        /*name=*/absl::StrFormat("%s_go_to_next_state", fsm_prefix));
 
     xls::BValue next_state_index =
-        pb.Select(in_last_state,
-                  /*on_true=*/pb.Literal(initial_state_index, body_loc),
-                  /*on_false=*/pb.Add(state_index, state_one, body_loc));
+        pb.Select(go_to_next_state,
+                  /*on_true=*/
+                  following_state_index,
+                  /*on_false=*/
+                  state_index, body_loc,
+                  /*name=*/absl::StrFormat("%s_next_state_index", fsm_prefix));
+
+    returns_this_activation_vars =
+        pb.And(in_last_state, go_to_next_state, body_loc,
+               /*name=*/
+               absl::StrFormat("%s_returns_this_activation_vars", fsm_prefix));
 
     std::optional<xls::BValue> initial_args_bval = std::nullopt;
     if (next_args_by_state.size() < (1 << state_bits)) {
       initial_args_bval =
-          pb.Literal(initial_args_val, body_loc, "__fsm_inital_args");
+          pb.Literal(initial_args_val, body_loc,
+                     absl::StrFormat("%s_inital_args", fsm_prefix));
     }
-    xls::BValue args_from_this_state = pb.Select(
-        state_index,
-        /*cases=*/next_args_by_state,
-        /*default_value=*/initial_args_bval, body_loc, "__fsm_next_args");
+    xls::BValue args_from_this_state =
+        pb.Select(state_index,
+                  /*cases=*/next_args_by_state,
+                  /*default_value=*/initial_args_bval, body_loc,
+                  absl::StrFormat("%s_next_args", fsm_prefix));
 
     std::vector<xls::BValue> next_state_elements = {next_state_index,
                                                     args_from_this_state};
 
-    prepared.fsm_state_next_value = pb.Tuple(next_state_elements, body_loc);
+#if USE_PROC_BUILDER_NEXT
+    pb.Next(/*param=*/state_param,
+            /*value=*/pb.Tuple(next_state_elements, body_loc),
+            /*pred=*/std::nullopt, body_loc);
+#else
+    fsm_next_state_values.push_back(pb.Tuple(next_state_elements, body_loc));
+#endif
   }
 
-  prepared.token = pb.AfterAll(sink_tokens, body_loc);
+  for (const xls::BValue& value : sub_fsm_next_state_values) {
+    fsm_next_state_values.push_back(value);
+  }
 
-  return last_ret_val;
+  XLSCC_CHECK(last_ret_val.valid(), body_loc);
+
+  return GenerateFSMInvocationReturn{
+      .return_value = last_ret_val,
+      .returns_this_activation = returns_this_activation_vars,
+      .extra_next_state_values = fsm_next_state_values};
+}
+
+absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
+    PreparedBlock& outer_prepared, xls::ProcBuilder& pb,
+    const State& outer_state, const std::string& fsm_prefix,
+    absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
+    xls::BValue first_ret_val, const xls::SourceInfo& body_loc) {
+  XLSCC_CHECK(outer_state.in_this_state.valid(), body_loc);
+
+  // Find the sub proc for which to generate the sub FSM
+  const PipelinedLoopSubProc* sub_proc_invoked = outer_state.sub_proc;
+
+  XLSCC_CHECK(sub_proc_invoked != nullptr, body_loc);
+
+  // Check that the invokes in this state are appropriate
+  XLSCC_CHECK_EQ(outer_state.invokes_to_generate.size(), 2, body_loc);
+  auto it = outer_state.invokes_to_generate.begin();
+  const InvokeToGenerate& invoke_context_out = *(it++);
+  XLSCC_CHECK_NE(invoke_context_out.op.channel->generated, nullptr, body_loc);
+  XLSCC_CHECK_EQ(invoke_context_out.op.channel->generated,
+                 sub_proc_invoked->context_out_channel->generated, body_loc);
+  const InvokeToGenerate& invoke_context_in = *(it++);
+  XLSCC_CHECK_NE(invoke_context_in.op.channel->generated, nullptr, body_loc);
+  XLSCC_CHECK_EQ(invoke_context_in.op.channel->generated,
+                 sub_proc_invoked->context_in_channel->generated, body_loc);
+
+  // Fill in op_tokens with keys for skipped operations in this state
+  // For after_ops in other states
+  for (const InvokeToGenerate& invoke : outer_state.invokes_to_generate) {
+    op_tokens[&invoke.op] = pb.GetTokenParam();
+  }
+
+  const int64_t context_out_ret_idx =
+      outer_prepared.return_index_for_op.at(&invoke_context_out.op);
+
+  // Extract continuation from first_ret_val
+  xls::BValue ret_value_with_continuation =
+      GetFlexTupleField(first_ret_val, context_out_ret_idx,
+                        outer_prepared.xls_func->return_value_count, body_loc);
+
+  XLS_ASSIGN_OR_RETURN(xls::BValue ret_io_value,
+                       UnpackAndApplyContinuationIn(
+                           invoke_context_out.op, ret_value_with_continuation,
+                           /*includes_io_value=*/true, body_loc));
+
+  xls::BValue context_out = pb.TupleIndex(ret_io_value, /*idx=*/0, body_loc);
+
+  // Generate inner FSM
+  XLS_ASSIGN_OR_RETURN(
+      PipelinedLoopContentsReturn contents_ret,
+      GenerateIR_PipelinedLoopContents(
+          *sub_proc_invoked, pb, outer_prepared.token, context_out,
+          /*in_state_condition=*/outer_state.in_this_state,
+          /*in_fsm=*/true));
+
+  outer_prepared.token = contents_ret.token_out;
+
+  XLS_ASSIGN_OR_RETURN(
+      xls::BValue context_in,
+      AddContinuationToIOReturn(invoke_context_in.op, contents_ret.out_tuple,
+                                body_loc));
+
+  // Get context in from inner FSM
+  const int64_t context_in_arg_idx =
+      outer_prepared.arg_index_for_op.at(&invoke_context_in.op);
+  XLSCC_CHECK(outer_prepared.args.at(context_in_arg_idx).valid(), body_loc);
+
+  outer_prepared.args[context_in_arg_idx] = context_in;
+
+  // Need an invoke for the context receive operation
+  // (args have been updated)
+  xls::BValue context_receive_ret_val = pb.Invoke(
+      outer_prepared.args, outer_prepared.xls_func->xls_func, body_loc,
+      /*name=*/
+      absl::StrFormat("%s_state_%i_context_receive_invoke", fsm_prefix,
+                      outer_state.index));
+
+  return SubFSMReturn{
+      .exit_state_condition = contents_ret.do_break,
+      .return_value = context_receive_ret_val,
+      .extra_next_state_values = contents_ret.extra_next_state_values};
 }
 
 xls::BValue Translator::ConditionWithExtra(xls::BuilderBase& builder,
                                            xls::BValue condition,
                                            const InvokeToGenerate& invoke,
                                            const xls::SourceInfo& op_loc) {
-  if (!invoke.extra_condition.valid()) {
-    return condition;
+  xls::BValue ret = condition;
+  XLSCC_CHECK(ret.valid(), op_loc);
+  if (invoke.extra_condition.valid()) {
+    ret = builder.And(ret, invoke.extra_condition, op_loc);
   }
-  return builder.And(invoke.extra_condition, condition, op_loc);
+  if (context().full_condition.valid()) {
+    ret = builder.And(ret, context().full_condition, op_loc);
+  }
+  return ret;
 }
 
-absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
-    PreparedBlock& prepared, xls::ProcBuilder& pb,
-    const xls::SourceInfo& body_loc,
-    const std::list<InvokeToGenerate>& invokes_to_generate,
-    absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens) {
-  XLS_CHECK(&pb == context().fb);
+absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
+    const InvokeToGenerate& invoke, xls::BValue before_token,
+    PreparedBlock& prepared, xls::BValue& last_ret_val, xls::ProcBuilder& pb) {
+  const IOOp& op = invoke.op;
 
-  XLS_CHECK_GE(prepared.xls_func->return_value_count,
-               invokes_to_generate.size());
+  xls::SourceInfo op_loc = op.op_location;
+  const int64_t return_index = prepared.return_index_for_op.at(&op);
 
-  // The function is first invoked with defaults for any
-  //  read() IO Ops.
-  // If there are any read() IO Ops, then it will be invoked again
-  //  for each read Op below.
-  // Statics don't need to generate additional invokes, since they need not
-  //  exchange any data with the outside world between iterations.
-  xls::BValue last_ret_val =
-      pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
-  XLSCC_CHECK(last_ret_val.valid(), body_loc);
+  // Extract continuation from last_ret_val
+  xls::BValue ret_value_with_continuation = GetFlexTupleField(
+      last_ret_val, return_index, prepared.xls_func->return_value_count, op_loc,
+      /*name=*/
+      absl::StrFormat("%s_ret_value_with_continuation", op.final_param_name));
 
-  // Returns token
-  auto generate_op_invoke =
-      [this, &prepared, &last_ret_val, &pb](
-          const InvokeToGenerate& invoke,
-          xls::BValue before_token) -> absl::StatusOr<xls::BValue> {
-    const IOOp& op = invoke.op;
+  XLS_ASSIGN_OR_RETURN(
+      xls::BValue ret_io_value,
+      UnpackAndApplyContinuationIn(op, ret_value_with_continuation,
+                                   /*includes_io_value=*/true, op_loc));
 
-    xls::SourceInfo op_loc = op.op_location;
-    const int64_t return_index = prepared.return_index_for_op.at(&op);
+  xls::BValue arg_io_val;
 
-    // Extract continuation from last_ret_val
-    xls::BValue ret_value_with_continuation = GetFlexTupleField(
-        last_ret_val, return_index, prepared.xls_func->return_value_count,
-        op_loc,
-        /*name=*/
-        absl::StrFormat("%s_ret_value_with_continuation", op.final_param_name));
+  xls::BValue new_token;
+  const ChannelBundle* bundle_ptr = nullptr;
 
-    XLS_ASSIGN_OR_RETURN(
-        xls::BValue ret_io_value,
-        UnpackAndApplyContinuationIn(op, ret_value_with_continuation,
-                                     /*includes_io_value=*/true, op_loc));
+  if (op.op != OpType::kTrace) {
+    bundle_ptr = &prepared.xls_channel_by_function_channel.at(op.channel);
+  }
 
-    xls::BValue arg_io_val;
+  if (op.op == OpType::kRecv) {
+    xls::Channel* xls_channel = bundle_ptr->regular;
 
-    xls::BValue new_token;
-    const ChannelBundle* bundle_ptr = nullptr;
+    unused_external_channels_.remove(xls_channel);
 
-    if (op.op != OpType::kTrace) {
-      bundle_ptr = &prepared.xls_channel_by_function_channel.at(op.channel);
-    }
+    XLS_CHECK_NE(xls_channel, nullptr);
 
-    if (op.op == OpType::kRecv) {
-      xls::Channel* xls_channel = bundle_ptr->regular;
-
-      unused_external_channels_.remove(xls_channel);
-
-      XLS_CHECK_NE(xls_channel, nullptr);
-
-      xls::BValue condition = ret_io_value;
-      XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-      condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-      xls::BValue receive;
-      if (op.is_blocking) {
-        receive = pb.ReceiveIf(xls_channel, before_token, condition, op_loc);
-      } else {
-        receive = pb.ReceiveIfNonBlocking(xls_channel, before_token, condition,
-                                          op_loc);
-      }
-      new_token = pb.TupleIndex(receive, 0);
-
-      xls::BValue in_val;
-      if (op.is_blocking) {
-        in_val = pb.TupleIndex(receive, 1);
-      } else {
-        in_val =
-            pb.Tuple({pb.TupleIndex(receive, 1), pb.TupleIndex(receive, 2)});
-      }
-      arg_io_val = in_val;
-    } else if (op.op == OpType::kSend) {
-      xls::Channel* xls_channel = bundle_ptr->regular;
-
-      unused_external_channels_.remove(xls_channel);
-
-      XLS_CHECK_NE(xls_channel, nullptr);
-      xls::BValue val = pb.TupleIndex(ret_io_value, 0, op_loc);
-      xls::BValue condition =
-          pb.TupleIndex(ret_io_value, 1, op_loc,
-                        absl::StrFormat("%s_pred", xls_channel->name()));
-      XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-      condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-
-      new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc);
-    } else if (op.op == OpType::kRead) {
-      XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
-      XLS_CHECK_NE(bundle_ptr->read_request, nullptr);
-      XLS_CHECK_NE(bundle_ptr->read_response, nullptr);
-
-      unused_external_channels_.remove(bundle_ptr->read_request);
-      unused_external_channels_.remove(bundle_ptr->read_response);
-
-      xls::BValue addr = pb.TupleIndex(ret_io_value, 0, op_loc);
-      xls::BValue condition = pb.TupleIndex(ret_io_value, 1, op_loc);
-      XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-      condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-
-      // TODO(google/xls#861): supported masked memory operations.
-      xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
-      xls::BValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
-      new_token = pb.SendIf(bundle_ptr->read_request, before_token, condition,
-                            send_tuple_with_mask, op_loc);
-
-      xls::BValue receive =
-          pb.ReceiveIf(bundle_ptr->read_response, new_token, condition, op_loc);
-
-      new_token = pb.TupleIndex(receive, 0);
-      xls::BValue response_tup = pb.TupleIndex(receive, 1, op_loc);
-      xls::BValue response = pb.TupleIndex(response_tup, 0, op_loc);
-
-      arg_io_val = response;
-    } else if (op.op == OpType::kWrite) {
-      XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
-      XLS_CHECK_NE(bundle_ptr->write_request, nullptr);
-      XLS_CHECK_NE(bundle_ptr->write_response, nullptr);
-
-      unused_external_channels_.remove(bundle_ptr->write_request);
-      unused_external_channels_.remove(bundle_ptr->write_response);
-
-      // This has (addr, value)
-      xls::BValue send_tuple = pb.TupleIndex(ret_io_value, 0, op_loc);
-      xls::BValue condition = pb.TupleIndex(
-          ret_io_value, 1, op_loc,
-          absl::StrFormat("%s_pred", bundle_ptr->write_request->name()));
-      XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-      condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-
-      // This has (addr, value, mask)
-      xls::BValue addr = pb.TupleIndex(send_tuple, 0, op_loc);
-      xls::BValue value = pb.TupleIndex(send_tuple, 1, op_loc);
-      // TODO(google/xls#861): supported masked memory operations.
-      xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
-      xls::BValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
-      new_token = pb.SendIf(bundle_ptr->write_request, before_token, condition,
-                            send_tuple_with_mask, op_loc);
-
-      xls::BValue receive = pb.ReceiveIf(bundle_ptr->write_response, new_token,
-                                         condition, op_loc);
-      new_token = pb.TupleIndex(receive, 0);
-      // Ignore received value, should be an empty tuple
-    } else if (op.op == OpType::kTrace) {
-      XLS_ASSIGN_OR_RETURN(
-          new_token, GenerateTrace(ret_io_value, before_token, op, pb, invoke));
+    xls::BValue condition = ret_io_value;
+    XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+    condition = ConditionWithExtra(pb, condition, invoke, op_loc);
+    xls::BValue receive;
+    if (op.is_blocking) {
+      receive = pb.ReceiveIf(xls_channel, before_token, condition, op_loc);
     } else {
-      XLS_CHECK("Unknown IOOp type" == nullptr);
+      receive =
+          pb.ReceiveIfNonBlocking(xls_channel, before_token, condition, op_loc);
     }
+    new_token = pb.TupleIndex(receive, 0);
 
-    // Add the continuation to the IO argument and store
-    const int64_t arg_index = prepared.arg_index_for_op.at(&op);
-    XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
-    XLS_ASSIGN_OR_RETURN(prepared.args[arg_index],
-                         AddContinuationToIOReturn(op, arg_io_val, op_loc));
-
-    // The function is invoked again with the value received from the channel
-    //  for each read() Op. The final invocation will produce all complete
-    //  outputs.
-    last_ret_val =
-        pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
-    XLSCC_CHECK(last_ret_val.valid(), op_loc);
-    return new_token;
-  };
-
-  // ASAP ops before
-  std::vector<xls::BValue> asap_befores_ordered;
-  for (const InvokeToGenerate& invoke : invokes_to_generate) {
-    const IOOp& op = invoke.op;
-    if (op.scheduling_option != IOSchedulingOption::kASAPBefore) {
-      continue;
+    xls::BValue in_val;
+    if (op.is_blocking) {
+      in_val = pb.TupleIndex(receive, 1);
+    } else {
+      in_val = pb.Tuple({pb.TupleIndex(receive, 1), pb.TupleIndex(receive, 2)});
     }
+    arg_io_val = in_val;
+  } else if (op.op == OpType::kSend) {
+    xls::Channel* xls_channel = bundle_ptr->regular;
 
-    xls::BValue new_token;
-    xls::BValue before_token = prepared.token;
-    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(invoke, before_token));
+    unused_external_channels_.remove(xls_channel);
 
-    asap_befores_ordered.push_back(new_token);
+    XLS_CHECK_NE(xls_channel, nullptr);
+    xls::BValue val = pb.TupleIndex(ret_io_value, 0, op_loc);
+    xls::BValue condition =
+        pb.TupleIndex(ret_io_value, 1, op_loc,
+                      absl::StrFormat("%s_pred", xls_channel->name()));
+    XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+    condition = ConditionWithExtra(pb, condition, invoke, op_loc);
+
+    new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc);
+  } else if (op.op == OpType::kRead) {
+    XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
+    XLS_CHECK_NE(bundle_ptr->read_request, nullptr);
+    XLS_CHECK_NE(bundle_ptr->read_response, nullptr);
+
+    unused_external_channels_.remove(bundle_ptr->read_request);
+    unused_external_channels_.remove(bundle_ptr->read_response);
+
+    xls::BValue addr = pb.TupleIndex(ret_io_value, 0, op_loc);
+    xls::BValue condition = pb.TupleIndex(ret_io_value, 1, op_loc);
+    XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+    condition = ConditionWithExtra(pb, condition, invoke, op_loc);
+
+    // TODO(google/xls#861): supported masked memory operations.
+    xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
+    xls::BValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
+    new_token = pb.SendIf(bundle_ptr->read_request, before_token, condition,
+                          send_tuple_with_mask, op_loc);
+
+    xls::BValue receive =
+        pb.ReceiveIf(bundle_ptr->read_response, new_token, condition, op_loc);
+
+    new_token = pb.TupleIndex(receive, 0);
+    xls::BValue response_tup = pb.TupleIndex(receive, 1, op_loc);
+    xls::BValue response = pb.TupleIndex(response_tup, 0, op_loc);
+
+    arg_io_val = response;
+  } else if (op.op == OpType::kWrite) {
+    XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
+    XLS_CHECK_NE(bundle_ptr->write_request, nullptr);
+    XLS_CHECK_NE(bundle_ptr->write_response, nullptr);
+
+    unused_external_channels_.remove(bundle_ptr->write_request);
+    unused_external_channels_.remove(bundle_ptr->write_response);
+
+    // This has (addr, value)
+    xls::BValue send_tuple = pb.TupleIndex(ret_io_value, 0, op_loc);
+    xls::BValue condition = pb.TupleIndex(
+        ret_io_value, 1, op_loc,
+        absl::StrFormat("%s_pred", bundle_ptr->write_request->name()));
+    XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+    condition = ConditionWithExtra(pb, condition, invoke, op_loc);
+
+    // This has (addr, value, mask)
+    xls::BValue addr = pb.TupleIndex(send_tuple, 0, op_loc);
+    xls::BValue value = pb.TupleIndex(send_tuple, 1, op_loc);
+    // TODO(google/xls#861): supported masked memory operations.
+    xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
+    xls::BValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
+    new_token = pb.SendIf(bundle_ptr->write_request, before_token, condition,
+                          send_tuple_with_mask, op_loc);
+
+    xls::BValue receive =
+        pb.ReceiveIf(bundle_ptr->write_response, new_token, condition, op_loc);
+    new_token = pb.TupleIndex(receive, 0);
+    // Ignore received value, should be an empty tuple
+  } else if (op.op == OpType::kTrace) {
+    XLS_ASSIGN_OR_RETURN(
+        new_token, GenerateTrace(ret_io_value, before_token, op, pb, invoke));
+  } else {
+    XLS_CHECK("Unknown IOOp type" == nullptr);
   }
-  std::optional<xls::BValue> asap_befores_token;
-  if (!asap_befores_ordered.empty()) {
-    asap_befores_token = pb.AfterAll(asap_befores_ordered, body_loc);
-  }
 
-  // ASAP ops after
-  std::vector<xls::BValue> asap_afters_ordered;
-  for (const InvokeToGenerate& invoke : invokes_to_generate) {
-    const IOOp& op = invoke.op;
-    if (op.scheduling_option != IOSchedulingOption::kASAPAfter) {
-      continue;
-    }
+  // Add the continuation to the IO argument and store
+  const int64_t arg_index = prepared.arg_index_for_op.at(&op);
+  XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
+  XLS_ASSIGN_OR_RETURN(prepared.args[arg_index],
+                       AddContinuationToIOReturn(op, arg_io_val, op_loc));
 
-    xls::BValue new_token;
-    xls::BValue before_token = asap_befores_token.has_value()
-                                   ? asap_befores_token.value()
-                                   : prepared.token;
-    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(invoke, before_token));
+  // The function is invoked again with the value received from the channel
+  //  for each read() Op. The final invocation will produce all complete
+  //  outputs.
+  last_ret_val = pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
+  XLSCC_CHECK(last_ret_val.valid(), op_loc);
+  return new_token;
+}
 
-    asap_afters_ordered.push_back(new_token);
-  }
-
-  std::optional<xls::BValue> asap_afters_token;
-  if (!asap_afters_ordered.empty()) {
-    asap_afters_token = pb.AfterAll(asap_afters_ordered, body_loc);
-  }
-
+absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithAfterOps(
+    IOSchedulingOption option, xls::BValue origin_token,
+    const std::list<Translator::InvokeToGenerate>& invokes_to_generate,
+    absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
+    xls::BValue& last_ret_val, Translator::PreparedBlock& prepared,
+    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
   std::vector<xls::BValue> fan_ins_tokens;
-
-  // Add the ASAP after token if present, otherwise the before token if present
-  if (asap_befores_token.has_value() && !asap_afters_token.has_value()) {
-    fan_ins_tokens.push_back(asap_befores_token.value());
-  }
-  if (asap_afters_token.has_value()) {
-    fan_ins_tokens.push_back(asap_afters_token.value());
-  }
-
-  // Then default (possibly serialized) ops
   for (const InvokeToGenerate& invoke : invokes_to_generate) {
     const IOOp& op = invoke.op;
-    if (op.scheduling_option != IOSchedulingOption::kNone) {
+    if (op.scheduling_option != option) {
       continue;
     }
 
     xls::SourceInfo op_loc = op.op_location;
 
-    xls::BValue before_token = prepared.token;
-    xls::BValue new_token;
+    xls::BValue before_token = origin_token;
     if (!op.after_ops.empty()) {
-      XLSCC_CHECK(op.scheduling_option == IOSchedulingOption::kNone, op_loc);
+      XLSCC_CHECK(op.scheduling_option == option, op_loc);
 
       std::vector<xls::BValue> after_tokens;
       after_tokens.reserve(op.after_ops.size());
       for (const IOOp* after_op : op.after_ops) {
-        XLSCC_CHECK(after_op->scheduling_option == IOSchedulingOption::kNone,
-                    op_loc);
+        XLSCC_CHECK(after_op->scheduling_option == option, op_loc);
         XLSCC_CHECK_NE(&op, after_op, op_loc);
-        after_tokens.push_back(op_tokens.at(after_op));
+        xls::BValue after_token = op_tokens.at(after_op);
+        after_tokens.push_back(after_token);
       }
-      before_token = pb.AfterAll(after_tokens, body_loc);
+      before_token = pb.AfterAll(
+          after_tokens, body_loc,
+          /*name=*/absl::StrFormat("after_tokens_%s", op.final_param_name));
     }
 
-    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(invoke, before_token));
+    XLS_ASSIGN_OR_RETURN(
+        xls::BValue new_token,
+        GenerateIOInvoke(invoke, before_token, prepared, last_ret_val, pb));
 
     XLS_CHECK(!op_tokens.contains(&op));
     op_tokens[&op] = new_token;
@@ -1019,7 +1200,59 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   }
 
   if (!fan_ins_tokens.empty()) {
-    prepared.token = pb.AfterAll(fan_ins_tokens, body_loc);
+    return pb.AfterAll(fan_ins_tokens, body_loc, /*name=*/"fan_ins_tokens");
+  }
+
+  return xls::BValue();
+}
+
+absl::StatusOr<xls::BValue> Translator::GenerateInvokeWithIO(
+    PreparedBlock& prepared, xls::ProcBuilder& pb,
+    const xls::SourceInfo& body_loc,
+    const std::list<InvokeToGenerate>& invokes_to_generate,
+    absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
+    xls::BValue first_ret_val) {
+  XLS_CHECK(&pb == context().fb);
+
+  XLS_CHECK_GE(prepared.xls_func->return_value_count,
+               invokes_to_generate.size());
+
+  xls::BValue last_ret_val = first_ret_val;
+
+  std::vector<xls::BValue> fan_ins_tokens;
+
+  // ASAP ops after
+  for (const InvokeToGenerate& invoke : invokes_to_generate) {
+    const IOOp& op = invoke.op;
+    if (op.scheduling_option == IOSchedulingOption::kASAPAfter) {
+      return absl::UnimplementedError(
+          ErrorMessage(body_loc, "ASAPAfter not implemented"));
+    }
+  }
+
+  // ASAP ops before
+  XLS_ASSIGN_OR_RETURN(
+      xls::BValue before_invokes_ret,
+      GenerateIOInvokesWithAfterOps(
+          IOSchedulingOption::kASAPBefore, prepared.token, invokes_to_generate,
+          op_tokens, last_ret_val, prepared, pb, body_loc));
+  if (before_invokes_ret.valid()) {
+    fan_ins_tokens.push_back(before_invokes_ret);
+  }
+
+  // Then default (possibly serialized) ops
+  XLS_ASSIGN_OR_RETURN(
+      xls::BValue none_invokes_ret,
+      GenerateIOInvokesWithAfterOps(IOSchedulingOption::kNone, prepared.token,
+                                    invokes_to_generate, op_tokens,
+                                    last_ret_val, prepared, pb, body_loc));
+  if (none_invokes_ret.valid()) {
+    fan_ins_tokens.push_back(none_invokes_ret);
+  }
+
+  if (!fan_ins_tokens.empty()) {
+    prepared.token = pb.AfterAll(fan_ins_tokens, body_loc,
+                                 /*name=*/"fan_ins_tokens_all_schedules");
   }
 
   return last_ret_val;
@@ -1187,19 +1420,23 @@ absl::StatusOr<CValue> Translator::GenerateTopClassInitValue(
   return this_val;
 }
 
-absl::Status Translator::GenerateIRBlockPrepare(
+absl::StatusOr<std::unique_ptr<GeneratedFunction>>
+Translator::GenerateIRBlockPrepare(
     PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
-    int64_t next_state_index, std::shared_ptr<CType> this_type,
+    const std::shared_ptr<CType>& this_type,
     const clang::CXXRecordDecl* this_decl,
     const std::list<ExternalChannelInfo>& top_decls,
     const xls::SourceInfo& body_loc) {
   // For defaults, updates, invokes
-  GeneratedFunction temp_sf;
+  auto temp_sf = std::make_unique<GeneratedFunction>();
 
   XLSCC_CHECK(!context_stack_.empty(), body_loc);
   context() = TranslationContext();
   context().propagate_up = false;
-  context().sf = &temp_sf;
+  context().sf = temp_sf.get();
+  //  context().sf = &temp_sf;
+  // Temp test
+  //  context().sf = const_cast<GeneratedFunction*>(prepared.xls_func);
   context().fb = dynamic_cast<xls::BuilderBase*>(&pb);
 
   // This state and argument
@@ -1211,30 +1448,21 @@ absl::Status Translator::GenerateIRBlockPrepare(
     XLS_ASSIGN_OR_RETURN(xls::Value this_init_val,
                          EvaluateBVal(this_cval.rvalue(), body_loc));
 
-    prepared.state_index_for_static[this_decl] = next_state_index++;
-    pb.StateElement("this", this_init_val, body_loc);
-    ++prepared.state_init_count;
+    prepared.state_element_for_static[this_decl] =
+        pb.StateElement("this", this_init_val, body_loc);
 
-    prepared.args.push_back(
-        pb.GetStateParam(prepared.state_index_for_static.at(this_decl)));
+    prepared.args.push_back(prepared.state_element_for_static.at(this_decl));
   }
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
     const ConstValue& initval = prepared.xls_func->static_values.at(namedecl);
 
-    pb.StateElement(XLSNameMangle(clang::GlobalDecl(namedecl)),
-                    initval.rvalue(), body_loc);
-    ++prepared.state_init_count;
-  }
+    xls::BValue state_elem = pb.StateElement(
+        XLSNameMangle(clang::GlobalDecl(namedecl)), initval.rvalue(), body_loc);
 
-  // Add returns for static locals
-  {
-    for (const clang::NamedDecl* namedecl :
-         prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-      prepared.return_index_for_static[namedecl] = next_return_index++;
-      prepared.state_index_for_static[namedecl] = next_state_index++;
-    }
+    prepared.return_index_for_static[namedecl] = next_return_index++;
+    prepared.state_element_for_static[namedecl] = state_elem;
   }
 
   // This return
@@ -1304,9 +1532,8 @@ absl::Status Translator::GenerateIRBlockPrepare(
         break;
       }
       case xlscc::SideEffectingParameterType::kStatic: {
-        const uint64_t static_idx =
-            prepared.state_index_for_static.at(param.static_value);
-        prepared.args.push_back(pb.GetStateParam(static_idx));
+        prepared.args.push_back(
+            prepared.state_element_for_static.at(param.static_value));
         break;
       }
       default: {
@@ -1317,7 +1544,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
     }
   }
 
-  return absl::OkStatus();
+  return std::move(temp_sf);
 }
 
 }  // namespace xlscc

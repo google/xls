@@ -28,10 +28,12 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -41,12 +43,14 @@
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/events.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
@@ -339,6 +343,21 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
   return ret_text;
 }
 
+static absl::Status LogInterpreterEvents(std::string_view entity_name,
+                                         const xls::InterpreterEvents& events) {
+  for (const auto& msg : events.trace_msgs) {
+    std::string unescaped_msg;
+    XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
+    XLS_LOG(INFO) << "Proc " << entity_name << " trace: " << unescaped_msg;
+  }
+  for (const auto& msg : events.assert_msgs) {
+    std::string unescaped_msg;
+    XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
+    XLS_LOG(INFO) << "Proc " << entity_name << " assert: " << unescaped_msg;
+  }
+  return absl::OkStatus();
+}
+
 void XlsccTestBase::ProcTest(
     std::string_view content, std::optional<xlscc::HLSBlock> block_spec,
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
@@ -394,6 +413,13 @@ void XlsccTestBase::ProcTest(
   XLS_LOG(INFO) << "Package IR: ";
   XLS_LOG(INFO) << package_text;
 
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
+    if (ch.type() == xlscc::DIRECT_IN) {
+      direct_in_channels_by_name.insert(ch.name());
+    }
+  }
+
   std::vector<std::unique_ptr<xls::ChannelQueue>> queues;
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -434,10 +460,22 @@ void XlsccTestBase::ProcTest(
   absl::flat_hash_map<std::string, std::list<xls::Value>>
       mutable_outputs_by_channel = outputs_by_channel;
 
+  XLS_LOG(INFO) << "State at start ";
+  for (const auto& proc : package_->procs()) {
+    XLS_LOG(INFO) << absl::StrFormat(
+        "[%s]: %s", proc->name(),
+        absl::StrFormat(
+            "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
+                                  xls::ValueFormatter)));
+  }
+
+  absl::flat_hash_map<std::string, xls::InterpreterEvents> got_events_for_proc;
+
   int tick = 1;
   for (; tick < max_ticks; ++tick) {
     XLS_LOG(INFO) << "Before tick " << tick;
 
+    interpreter->ClearInterpreterEvents();
     ASSERT_EQ(interpreter->Tick(), expected_tick_status);
 
     XLS_LOG(INFO) << "State after tick " << tick;
@@ -447,6 +485,17 @@ void XlsccTestBase::ProcTest(
           absl::StrFormat(
               "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
                                     xls::ValueFormatter)));
+    }
+    for (const auto& proc : package_->procs()) {
+      const xls::InterpreterEvents& events =
+          interpreter->GetInterpreterEvents(proc.get());
+      XLS_EXPECT_OK(LogInterpreterEvents(proc->name(), events));
+      for (const auto& msg : events.trace_msgs) {
+        got_events_for_proc[proc->name()].trace_msgs.push_back(msg);
+      }
+      for (const auto& msg : events.assert_msgs) {
+        got_events_for_proc[proc->name()].assert_msgs.push_back(msg);
+      }
     }
 
     // Check as we go
@@ -458,8 +507,6 @@ void XlsccTestBase::ProcTest(
 
       while (!ch_out_queue.IsEmpty()) {
         const xls::Value& next_output = values.front();
-        XLS_LOG(INFO) << "Checking output on channel: "
-                      << ch_out_queue.channel()->name();
         EXPECT_THAT(ch_out_queue.Read(), Optional(next_output));
         values.pop_front();
       }
@@ -471,20 +518,35 @@ void XlsccTestBase::ProcTest(
     }
   }
 
-  for (auto [ch_name, values] : outputs_by_channel) {
+  for (auto [ch_name, values] : inputs_by_channel) {
+    if (direct_in_channels_by_name.contains(ch_name)) {
+      continue;
+    }
+    XLS_ASSERT_OK_AND_ASSIGN(xls::ChannelQueue * queue,
+                             queue_manager.GetQueueByName(ch_name));
+    EXPECT_EQ(queue->GetSize(), 0);
+  }
+
+  for (auto [ch_name, values] : mutable_outputs_by_channel) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * ch_out,
                              package_->GetChannel(ch_name));
     xls::ChannelQueue& ch_out_queue = queue_manager.GetQueue(ch_out);
 
     EXPECT_EQ(ch_out_queue.GetSize(), 0);
+    EXPECT_EQ(values.size(), 0);
   }
 
   EXPECT_GE(tick, min_ticks);
   EXPECT_LE(tick, max_ticks);
 
-  for (const auto& [proc_name, events] : expected_events_by_proc_name) {
-    XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, package_->GetProc(proc_name));
-    EXPECT_EQ(events, interpreter->GetInterpreterEvents(proc));
+  for (const auto& [proc_name, ref_events] : expected_events_by_proc_name) {
+    xls::InterpreterEvents got_events;
+    if (got_events_for_proc.contains(proc_name)) {
+      got_events = got_events_for_proc.at(proc_name);
+    }
+    EXPECT_EQ(ref_events.trace_msgs.size(), got_events.trace_msgs.size());
+    EXPECT_EQ(ref_events.assert_msgs.size(), got_events.assert_msgs.size());
+    EXPECT_EQ(ref_events, got_events);
   }
 }
 

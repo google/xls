@@ -41,6 +41,9 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value_helpers.h"
 
+// TODO(seanhaskell): Remove when continuations are finished
+constexpr bool kDebugUseContinuations = false;
+
 namespace xlscc {
 
 absl::Status Translator::AddToContinuationNonDestructively(
@@ -99,6 +102,10 @@ absl::Status Translator::AddToContinuationNonDestructively(
     tuple_ctypes.push_back(item.ctype);
   }
 
+  if (!kDebugUseContinuations) {
+    tuple_ctypes.clear();
+  }
+
   continuation.param_part_ctype = std::make_shared<CInternalTuple>(
       std::vector<std::shared_ptr<CType>>(tuple_ctypes));
   return absl::OkStatus();
@@ -113,7 +120,7 @@ absl::StatusOr<xls::BValue> Translator::UnpackAndApplyContinuationIn(
   xls::BValue continuation_in_bval = param_in_bval;
   xls::BValue input_io_value;
 
-  // Extract the IO input from the tuple, if presen
+  // Extract the IO input from the tuple, if present
   if (includes_io_value) {
     // Extract the IO input part from the continuation part
     input_io_value = context().fb->TupleIndex(
