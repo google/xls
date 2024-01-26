@@ -26,6 +26,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/dslx/stdlib/float32_fma_jit_wrapper.h"
+#include "xls/dslx/stdlib/float32_test_helpers.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -72,11 +73,6 @@ static float ComputeActual(fp::Float32Fma* jit_wrapper, Float3x32 input) {
           ->Run(std::get<0>(input), std::get<1>(input), std::get<2>(input))
           .value();
   return result;
-}
-
-static bool CompareResults(float a, float b) {
-  return a == b || (std::isnan(a) && std::isnan(b)) ||
-         (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
 static std::string PrintFloat(float a) {

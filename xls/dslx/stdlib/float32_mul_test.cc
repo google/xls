@@ -25,6 +25,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/stdlib/float32_mul_jit_wrapper.h"
+#include "xls/dslx/stdlib/float32_test_helpers.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/value_view_helpers.h"
 #include "xls/tools/testbench.h"
@@ -39,40 +40,20 @@ namespace xls {
 
 using Float2x32 = std::tuple<float, float>;
 
-static float FlushSubnormals(float value) {
-  if (std::fpclassify(value) == FP_SUBNORMAL) {
-    return 0;
-  }
-
-  return value;
-}
-
-static bool ZeroOrSubnormal(float value) {
-  return value == 0 || std::fpclassify(value) == FP_SUBNORMAL;
-}
-
 // The DSLX implementation uses the "round to nearest (half to even)"
 // rounding mode, which is the default on most systems, hence we don't need
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
 static float ComputeExpected(fp::Float32Mul* jit_wrapper, Float2x32 input) {
-  float x = FlushSubnormals(std::get<0>(input));
-  float y = FlushSubnormals(std::get<1>(input));
+  float x = FlushSubnormal(std::get<0>(input));
+  float y = FlushSubnormal(std::get<1>(input));
   return x * y;
 }
 
-// Computes FP addition via DSLX & the JIT.
+// Computes FP multiplication via DSLX & the JIT.
 static float ComputeActual(fp::Float32Mul* jit_wrapper, Float2x32 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
-}
-
-// Compares expected vs. actual results, taking into account two special cases.
-static bool CompareResults(float a, float b) {
-  // DSLX flushes subnormal outputs, while regular FP addition does not, so
-  // just check for that here.
-  return a == b || (std::isnan(a) && std::isnan(b)) ||
-         (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
 static absl::Status RealMain(uint64_t num_samples, int num_threads) {

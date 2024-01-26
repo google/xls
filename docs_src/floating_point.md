@@ -251,6 +251,16 @@ pub fn cast_from_fixed_using_rz<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
 Casts the fixed point number to a floating point number using RZ (Round to Zero)
 as the [rounding mode](https://en.wikipedia.org/wiki/Rounding).
 
+### `apfloat::upcast`
+
+```dslx-snippet
+fn upcast<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTION_SZ: u32>
+    (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
+```
+
+Upcast the given apfloat to another (larger) apfloat representation. Note:
+denormal inputs get flushed to zero.
+
 ### `apfloat::normalize`
 
 ```dslx-snippet
@@ -538,10 +548,12 @@ Besides `float64` specializations of the functions in `apfloat.x`, the following
 functions are defined just for `float64`.
 
 ### `float64::to_int64`
+
 ```dslx-snippet
 pub fn to_int64(x: F64) -> s64;
 ```
-Convert the the `F64` struct into a 64 bit integer.
+
+Convert the `F64` struct into a 64 bit integer.
 
 ## float32
 

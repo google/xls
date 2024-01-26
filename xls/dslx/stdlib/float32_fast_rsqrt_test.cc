@@ -14,6 +14,7 @@
 
 // Random-sampling test for DSLX 32-bit floating-point fast, approximate
 // inverse sqrt.
+#include "xls/dslx/stdlib/float32_test_helpers.h"
 #include <cmath>
 #include <limits>
 
@@ -52,31 +53,12 @@ static float ComputeActual(fp::Float32FastRsqrt* jit_wrapper, float input) {
   return jit_wrapper->Run(input).value();
 }
 
-// Compares expected vs. actual results, taking into account two special cases.
-static bool CompareResults(float a, float b) {
-  // DSLX flushes subnormal outputs, while regular FP addition does not, so
-  // just check for that here.
-  // We only check that results are approximately equal. Percent error
-  // is used rather than simple difference because the input may vary
-  // by many orders of magnitude.
-  if ((std::isnan(a) && std::isnan(b)) ||
-      (ZeroOrSubnormal(a) && ZeroOrSubnormal(b))) {
-    return true;
-  }
-  // Avoid divide by zero. Necessarily from the condition above b is not
-  // zero/subnormal in this case.
-  if (ZeroOrSubnormal(a)) {
-    return false;
-  }
-  float percent_error = (a - b) / a;
-  return a == b || percent_error < 0.01;
-}
-
 static absl::Status RealMain(uint64_t num_samples, int num_threads) {
   TestbenchBuilder<float, float, fp::Float32FastRsqrt> builder(
       ComputeExpected, ComputeActual,
       []() { return fp::Float32FastRsqrt::Create().value(); });
-  builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
+  builder.SetCompareResultsFn(CompareResultsWith1PercentMargin)
+      .SetNumSamples(num_samples);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);
   }

@@ -26,6 +26,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/stdlib/float32_ldexp_jit_wrapper.h"
+#include "xls/dslx/stdlib/float32_test_helpers.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -60,14 +61,6 @@ static float ComputeExpected(fp::Float32Ldexp* jit_wrapper, Float32xint input) {
 // Computes FP ldexp via DSLX & the JIT.
 static float ComputeActual(fp::Float32Ldexp* jit_wrapper, Float32xint input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
-}
-
-// Compares expected vs. actual results, taking into account two special cases.
-static bool CompareResults(float a, float b) {
-  // DSLX flushes subnormal outputs, while regular FP addition does not, so
-  // just check for that here.
-  return a == b || (std::isnan(a) && std::isnan(b)) ||
-         (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
 static void LogMismatch(uint64_t index, Float32xint input, float expected,

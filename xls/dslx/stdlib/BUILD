@@ -190,6 +190,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_add_jit_wrapper",
+        ":float32_test_helpers",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
@@ -264,6 +265,55 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_mul_jit_wrapper",
+        ":float32_test_helpers",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view_helpers",
+        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
+    ],
+)
+
+xls_dslx_test(
+    name = "float32_upcast_test",
+    srcs = ["float32_upcast_test.x"],
+)
+
+xls_dslx_opt_ir(
+    name = "float32_upcast",
+    srcs = ["float32_upcast_test.x"],
+    dslx_top = "f32_to_f64",
+    ir_file = "float32_upcast.ir",
+    opt_ir_file = "float32_upcast.opt.ir",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "float32_upcast_jit_wrapper",
+    src = ":float32_upcast.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "f32_to_f64",
+        "namespace": "xls::fp",
+    },
+)
+
+cc_test(
+    name = "float32_upcast_test_cc",
+    srcs = ["float32_upcast_test.cc"],
+    data = [
+        ":float32_upcast.ir",
+        ":float32_upcast.opt.ir",
+    ],
+    tags = ["optonly"],
+    deps = [
+        ":float32_test_helpers",
+        ":float32_upcast_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -406,6 +456,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_fma_jit_wrapper",
+        ":float32_test_helpers",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -445,6 +496,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_ldexp_jit_wrapper",
+        ":float32_test_helpers",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -496,6 +548,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_fast_rsqrt_jit_wrapper",
+        ":float32_test_helpers",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",
@@ -508,6 +561,15 @@ cc_test(
         "//xls/ir:value_view_helpers",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+    ],
+)
+
+cc_library(
+    name = "float32_test_helpers",
+    testonly = True,
+    hdrs = ["float32_test_helpers.h"],
+    deps = [
+        "@com_google_absl//absl/base",
     ],
 )
 
@@ -689,6 +751,7 @@ cc_test(
     ],
     tags = ["optonly"],
     deps = [
+        ":float32_test_helpers",
         ":float64_fma_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",

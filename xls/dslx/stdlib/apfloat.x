@@ -697,10 +697,82 @@ fn cast_from_fixed_using_rz_test() {
             inf<EXP_SZ, FRAC_SZ>(true));
 }
 
+// Returns true if x == 0 or x is a subnormal number.
+pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(
+  x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
+  x.bexp == uN[EXP_SZ]:0
+}
+
 pub fn subnormals_to_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
   x: APFloat<EXP_SZ, FRACTION_SZ>)
 -> APFloat<EXP_SZ, FRACTION_SZ> {
-if x.bexp == bits[EXP_SZ]:0 { zero<EXP_SZ, FRACTION_SZ>(x.sign) } else { x }
+  if is_zero_or_subnormal(x) {
+    zero<EXP_SZ, FRACTION_SZ>(x.sign)
+  } else {
+    x
+  }
+}
+
+// Upcast the given apfloat to another (larger) apfloat representation.
+// Note: denormal inputs get flushed to zero.
+pub fn upcast<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTION_SZ: u32>
+    (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
+  const FROM_SZ: u32 = u32:1 + FROM_EXP_SZ + FROM_FRACTION_SZ;
+  const TO_SZ: u32 = u32:1 + TO_EXP_SZ + TO_FRACTION_SZ;
+  const_assert!(FROM_SZ < TO_SZ);  // assert that this is actually an upcast.
+
+  match tag(f) {
+    APFloatTag::NAN => qnan<TO_EXP_SZ, TO_FRACTION_SZ>(),
+    APFloatTag::INFINITY => inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
+    APFloatTag::ZERO => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
+    APFloatTag::SUBNORMAL => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
+    APFloatTag::NORMAL => {
+      // use `sN+1` to preserve source bexp sign.
+      const FROM_EXP_SZ_PLUS_1 = FROM_EXP_SZ + u32:1;
+      type FromExpOffsetT = sN[FROM_EXP_SZ_PLUS_1];
+      type ToExpOffsetT = sN[TO_EXP_SZ];
+      // substract `2^(FROM_EXP_SZ-1) - 1` to retrieve the true exponent.
+      const FROM_EXP_SZ_MINUS_1 = FROM_EXP_SZ - u32:1;
+      const FROM_EXP_OFFSET = (FromExpOffsetT:1 << FROM_EXP_SZ_MINUS_1) - FromExpOffsetT:1;
+      let from_exp = f.bexp as FromExpOffsetT - FROM_EXP_OFFSET;
+      // add 2^(TO_EXP_SZ-1) - 1 to contrust back offset encoded exponent.
+      const TO_EXP_SZ_MINUS_1 = TO_EXP_SZ - u32:1;
+      const TO_EXP_OFFSET = (ToExpOffsetT:1 << TO_EXP_SZ_MINUS_1) - ToExpOffsetT:1;
+      let to_bexp = (from_exp as ToExpOffsetT + TO_EXP_OFFSET) as uN[TO_EXP_SZ];
+      // shift fraction to destination size.
+      let FROM_TO_FRACTION_SHIFT = TO_FRACTION_SZ - FROM_FRACTION_SZ;
+      let to_fraction = (f.fraction as uN[TO_FRACTION_SZ]) << FROM_TO_FRACTION_SHIFT;
+      APFloat { sign: f.sign, bexp: to_bexp, fraction: to_fraction }
+    },
+    _ => fail!("unsupported_kind", qnan<TO_EXP_SZ, TO_FRACTION_SZ>()),
+  }
+}
+
+#[test]
+fn upcast_test() {
+    const BF16_EXP_SZ = u32:8;
+    const BF16_FRACTION_SZ = u32:7;
+    const F64_EXP_SZ = u32:11;
+    const F64_FRACTION_SZ = u32:52;
+
+    let one_bf16 = one<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
+    let one_f64 = one<F64_EXP_SZ, F64_FRACTION_SZ>(u1:0);
+    let one_dot_5_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { fraction: u7:1 << (BF16_FRACTION_SZ - u32:1), ..one_bf16 };
+    let one_dot_5_f64 = APFloat<F64_EXP_SZ, F64_FRACTION_SZ>{ fraction: u52:1 << (F64_FRACTION_SZ - u32:1), ..one_f64 };
+    let denormal_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { bexp: u8:0, ..one_dot_5_bf16 };
+    let zero_f64 = zero<F64_EXP_SZ, F64_FRACTION_SZ>(u1:0);
+    let neg_denormal_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:1, ..denormal_bf16 };
+    let neg_zero_f64 = zero<F64_EXP_SZ, F64_FRACTION_SZ>(u1:1);
+
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(one_bf16), one_f64);
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(one_dot_5_bf16), one_dot_5_f64);
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(qnan<BF16_EXP_SZ, BF16_FRACTION_SZ>()), qnan<F64_EXP_SZ, F64_FRACTION_SZ>());
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0)), inf<F64_EXP_SZ, F64_FRACTION_SZ>(u1:0));
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1)), inf<F64_EXP_SZ, F64_FRACTION_SZ>(u1:1));
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0)), zero<F64_EXP_SZ, F64_FRACTION_SZ>(u1:0));
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1)), zero<F64_EXP_SZ, F64_FRACTION_SZ>(u1:1));
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(denormal_bf16), zero_f64);
+    assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(neg_denormal_bf16), neg_zero_f64);
 }
 
 // Returns a normalized APFloat with the given components.
@@ -729,12 +801,6 @@ pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32,
                    bexp: exp - (leading_zeros as bits[EXP_SZ]),
                    fraction: normalized_fraction },
   }
-}
-
-// Returns true if x == 0 or x is a subnormal number.
-pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(
-                            x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
-  x.bexp == uN[EXP_SZ]:0
 }
 
 // ldexp (load exponent) computes fraction * 2^exp.
