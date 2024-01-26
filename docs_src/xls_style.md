@@ -220,8 +220,16 @@ further support the decision.
     straightforward (avoid taking an address of a reference) and helps avoid
     accidental copies (assigning a reference to local, etc.). Non-const pointer
     usage propagates outwards such that the few cases where a const reference
-    could _actually_ be appropriate become odd outliers, so our guidance is that
+    could *actually* be appropriate become odd outliers, so our guidance is that
     IR elements should uniformly be passed as non-const pointers.
+
+*   A corollary to the above is that `nullptr` is generally not a valid input to
+    functions taking IR elements. When an IR element is optional, we recommend
+    explicitly using `std::optional<T*>`. We deviate from the style guide here
+    because for IR elements `T*` sometimes means `const T&`, `T&`, or just `T`
+    in addition to `T*`, but which is not apparent from the signature. However,
+    using `nullptr` for IR element types is OK when the usage is fully
+    encapsulated.
 
 ## Protocol buffers
 
