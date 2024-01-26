@@ -214,9 +214,6 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
                  popped.variables_accessed.at(decl));
   }
 
-  context().variables_accessed_at_last_continuation =
-      popped.variables_accessed_at_last_continuation;
-
   context().any_side_effects_requested =
       context().any_side_effects_requested || popped.any_side_effects_requested;
   context().any_writes_generated =
@@ -1724,7 +1721,6 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
   XLS_ASSIGN_OR_RETURN(CValue found,
                        GetIdentifier(lvalue, loc, /*record_access=*/false));
 
-  // Exclude from vars_accessed until the next continuation
   context().variables_masked_by_assignment.insert(lvalue);
 
   if (found.type()->Is<CReferenceType>()) {
@@ -3521,14 +3517,11 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     caller_op.label_string = callee_op.label_string;
     caller_op.scheduling_option = callee_op.scheduling_option;
     caller_op.sub_op = &callee_op;
-    caller_op.continuation = callee_op.continuation;
 
-    // This will add the continuation values from this scope
     XLS_ASSIGN_OR_RETURN(
         IOOp * caller_op_ptr,
         AddOpToChannel(caller_op, caller_channel, callee_op.op_location,
-                       /*mask=*/false,
-                       /*add_continuation_to_return=*/false));
+                       /*mask=*/false));
 
     if (caller_op_ptr != nullptr) {
       XLSCC_CHECK(caller_op_ptr->op == OpType::kTrace ||
@@ -3563,11 +3556,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
             // May be empty for sends
             xls::BValue io_value = caller_op->input_value.rvalue();
 
-            XLS_ASSIGN_OR_RETURN(
-                xls::BValue param_with_callee_continuation,
-                AddContinuationToIOReturn(*callee_op, io_value, loc));
-
-            args_val = param_with_callee_continuation;
+            args_val = io_value;
           }
           XLSCC_CHECK(args_val.valid(), loc);
           args.push_back(args_val);
@@ -3722,26 +3711,13 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
       XLSCC_CHECK(!unpacked_returns.empty(), loc);
 
-      // Unpack callee continuations from callee returns
-      xls::BValue callee_return_with_continuation = unpacked_returns.front();
-
-      // Continuation already applied in this scope by AddOpToChannel()
-      XLS_ASSIGN_OR_RETURN(xls::BValue unpacked_io_value,
-                           UnpackAndApplyContinuationIn(
-                               callee_op, callee_return_with_continuation,
-                               /*includes_io_value=*/true, loc));
-
-      XLSCC_CHECK(unpacked_io_value.valid(), loc);
+      xls::BValue io_value = unpacked_returns.front();
 
       // Might be masked
       if (caller_op != nullptr) {
         XLS_ASSIGN_OR_RETURN(
             caller_op->ret_value,
-            AddConditionToIOReturn(/*op=*/*caller_op, unpacked_io_value, loc));
-
-        XLS_ASSIGN_OR_RETURN(caller_op->ret_value,
-                             AddContinuationToIOReturn(
-                                 /*op=*/*caller_op, caller_op->ret_value, loc));
+            AddConditionToIOReturn(/*op=*/*caller_op, io_value, loc));
       }
 
       unpacked_returns.pop_front();

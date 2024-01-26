@@ -41,145 +41,11 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value_helpers.h"
 
-// TODO(seanhaskell): Remove when continuations are finished
-constexpr bool kDebugUseContinuations = false;
-
 namespace xlscc {
 
-absl::Status Translator::AddToContinuationNonDestructively(
-    Continuation& continuation, const xls::SourceInfo& loc) {
-  absl::flat_hash_set<const clang::NamedDecl*> decls_to_pass;
-
-  // Get variables to pass
-  std::vector<const clang::NamedDecl*> decls_sorted;
-  decls_sorted.reserve(context().variables.size());
-  for (const auto& [decl, _] : context().variables) {
-    decls_sorted.push_back(decl);
-  }
-  // Sort for determinism
-  context().sf->SortNamesDeterministically(decls_sorted);
-
-  for (const clang::NamedDecl* decl : decls_sorted) {
-    const CValue& cvar = context().variables.at(decl);
-    // Pure syntactic sugar values (eg channels) don't need to be passed
-    if (!cvar.rvalue().valid()) {
-      continue;
-    }
-    continuation.vars_to_pass.push_back(
-        ContinuationItem{.decl = decl, .ctype = cvar.type()});
-    decls_to_pass.insert(decl);
-  }
-
-  // Calculate variables accessed using reference counts
-  const absl::flat_hash_map<const clang::NamedDecl*, int64_t>&
-      vars_accessed_last = context().variables_accessed_at_last_continuation;
-
-  for (const auto& [decl, count] : context().variables_accessed) {
-    if (!decls_to_pass.contains(decl)) {
-      continue;
-    }
-    auto found_last = vars_accessed_last.find(decl);
-    if (found_last != vars_accessed_last.end() && found_last->second == count) {
-      continue;
-    }
-    XLSCC_CHECK(
-        found_last == vars_accessed_last.end() || found_last->second < count,
-        loc);
-    continuation.vars_accessed_since_last_continuation.push_back(decl);
-  }
-
-  context().variables_accessed_at_last_continuation =
-      context().variables_accessed;
-  context().variables_masked_by_assignment.clear();
-
-  // Build data types
-  auto active_type = std::make_shared<CBoolType>();
-  std::vector<std::shared_ptr<CType>> tuple_ctypes;
-  tuple_ctypes.reserve(continuation.vars_to_pass.size() + 1);
-  tuple_ctypes.push_back(active_type);
-
-  for (const ContinuationItem& item : continuation.vars_to_pass) {
-    tuple_ctypes.push_back(item.ctype);
-  }
-
-  if (!kDebugUseContinuations) {
-    tuple_ctypes.clear();
-  }
-
-  continuation.param_part_ctype = std::make_shared<CInternalTuple>(
-      std::vector<std::shared_ptr<CType>>(tuple_ctypes));
-  return absl::OkStatus();
-}
-
-absl::StatusOr<xls::BValue> Translator::UnpackAndApplyContinuationIn(
-    const IOOp& op, xls::BValue param_in_bval, bool includes_io_value,
-    const xls::SourceInfo& loc) {
-  std::string node_name_prefix = absl::StrFormat(
-      "__%s_%i_continuation_in", op.final_param_name, op.channel_op_index);
-
-  xls::BValue continuation_in_bval = param_in_bval;
-  xls::BValue input_io_value;
-
-  // Extract the IO input from the tuple, if present
-  if (includes_io_value) {
-    // Extract the IO input part from the continuation part
-    input_io_value = context().fb->TupleIndex(
-        param_in_bval, /*idx=*/0, loc,
-        /*name=*/
-        absl::StrFormat("__%s_%i_io_in", op.final_param_name,
-                        op.channel_op_index));
-
-    continuation_in_bval = context().fb->TupleIndex(
-        param_in_bval, /*idx=*/1, loc,
-        /*name=*/
-        absl::StrFormat("__%s_%i_continuation_in", op.final_param_name,
-                        op.channel_op_index));
-  }
-
-  // TODO(seanhaskell): Apply continuation_in_bval.
-  // TODO(seanhaskell): Side-channel values that aren't in this scope / context
-
-  return input_io_value;
-}
-
-absl::StatusOr<xls::BValue> Translator::GetContinuationOut(
-    const Continuation& continuation, const xls::SourceInfo& loc,
-    std::string_view node_name_prefix) {
-  XLS_ASSIGN_OR_RETURN(xls::Type * param_part_xls_type,
-                       TranslateTypeToXLS(continuation.param_part_ctype, loc));
-
-  // TODO(seanhaskell): Get continuation values from context
-  xls::BValue ret = context().fb->Literal(
-      xls::ZeroOfType(param_part_xls_type), loc,
-      /*name=*/absl::StrFormat("%s_default", node_name_prefix));
-  return ret;
-}
-
-absl::StatusOr<xls::BValue> Translator::AddContinuationToIOReturn(
-    const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc) {
-  XLS_ASSIGN_OR_RETURN(
-      xls::BValue continuation_out_bval,
-      GetContinuationOut(
-          op.continuation, loc, /*node_name_prefix=*/
-          absl::StrFormat("__%s_%i_continuation_out", op.final_param_name,
-                          op.channel_op_index)));
-
-  // This function is also used for formatting parameters, so it must handle
-  // the empty case
-  if (!retval.valid()) {
-    return continuation_out_bval;
-  }
-
-  return context().fb->Tuple(
-      {retval, continuation_out_bval}, loc,
-      /*name=*/
-      absl::StrFormat("__%s_%i_io_plus_continuation", op.final_param_name,
-                      op.channel_op_index));
-}
-
-absl::StatusOr<IOOp*> Translator::AddOpToChannel(
-    IOOp& op, IOChannel* channel, const xls::SourceInfo& loc, bool mask,
-    bool add_continuation_to_return) {
+absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
+                                                 const xls::SourceInfo& loc,
+                                                 bool mask) {
   context().any_side_effects_requested = true;
   context().any_io_ops_requested = true;
 
@@ -215,9 +81,6 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     op.channel_op_index = context().sf->trace_count++;
   }
 
-  // Add continuation non-destructively (may be aggregating from callee op)
-  XLS_RETURN_IF_ERROR(AddToContinuationNonDestructively(op.continuation, loc));
-
   std::shared_ptr<CType> channel_item_type;
 
   // Channel must be inserted first by AddOpToChannel
@@ -231,58 +94,42 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     }
   }
 
-  XLSCC_CHECK_NE(op.continuation.param_part_ctype, nullptr, loc);
-  std::shared_ptr<CType> param_type = op.continuation.param_part_ctype;
-
-  // Add the continuation via a tuple if there is an IO input, (io_item,
-  // continuation)
-  if (channel_item_type) {
-    param_type =
-        std::make_shared<CInternalTuple>(std::vector<std::shared_ptr<CType>>(
-            {channel_item_type, op.continuation.param_part_ctype}));
-  }
+  std::shared_ptr<CType> param_type = channel_item_type;
 
   xls::Type* xls_param_type = nullptr;
-  XLS_ASSIGN_OR_RETURN(xls_param_type, TranslateTypeToXLS(param_type, loc));
-  std::string safe_param_name;
-  if (op.channel != nullptr) {
-    const std::string channel_name = op.channel->unique_name;
-    safe_param_name =
-        absl::StrFormat("%s_op%i", channel_name, op.channel_op_index);
-  } else {
-    safe_param_name = absl::StrFormat("default_op%i", op.channel_op_index);
-  }
+  if (param_type != nullptr) {
+    XLS_ASSIGN_OR_RETURN(xls_param_type, TranslateTypeToXLS(param_type, loc));
+    std::string safe_param_name;
+    if (op.channel != nullptr) {
+      const std::string channel_name = op.channel->unique_name;
+      safe_param_name =
+          absl::StrFormat("%s_op%i", channel_name, op.channel_op_index);
+    } else {
+      safe_param_name = absl::StrFormat("default_op%i", op.channel_op_index);
+    }
 
-  xls::BValue pbval = context().fb->Param(safe_param_name, xls_param_type, loc);
+    xls::BValue pbval =
+        context().fb->Param(safe_param_name, xls_param_type, loc);
 
-  // Check for duplicate params
-  if (!pbval.valid()) {
-    return absl::InternalError(ErrorMessage(
-        loc,
-        "Failed to create implicit parameter %s, duplicate? See b/239861050",
-        safe_param_name.c_str()));
-  }
+    // Check for duplicate params
+    if (!pbval.valid()) {
+      return absl::InternalError(ErrorMessage(
+          loc,
+          "Failed to create implicit parameter %s, duplicate? See b/239861050",
+          safe_param_name.c_str()));
+    }
 
-  const std::string final_param_name =
-      pbval.node()->As<xls::Param>()->GetName();
+    const std::string final_param_name =
+        pbval.node()->As<xls::Param>()->GetName();
 
-  op.final_param_name = final_param_name;
+    op.final_param_name = final_param_name;
 
-  XLS_ASSIGN_OR_RETURN(
-      xls::BValue input_io_value,
-      UnpackAndApplyContinuationIn(
-          op, pbval,
-          /*includes_io_value=*/channel_item_type != nullptr, loc));
+    xls::BValue input_io_value = pbval;
 
-  if (channel_item_type) {
-    XLSCC_CHECK(input_io_value.valid(), loc);
-    op.input_value = CValue(input_io_value, channel_item_type);
-  }
-
-  // Add continuation to return value.
-  if (add_continuation_to_return) {
-    XLS_ASSIGN_OR_RETURN(op.ret_value,
-                         AddContinuationToIOReturn(op, op.ret_value, loc));
+    if (channel_item_type) {
+      XLSCC_CHECK(input_io_value.valid(), loc);
+      op.input_value = CValue(input_io_value, channel_item_type);
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(std::optional<const IOOp*> last_op,
@@ -297,14 +144,16 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
   // once "token phi" type features are available.
   context().sf->io_ops.push_back(op);
 
-  // Due to the continuations, there is always a parameter
-  SideEffectingParameter side_effecting_param;
-  side_effecting_param.type = SideEffectingParameterType::kIOOp;
-  XLSCC_CHECK(!final_param_name.empty(), loc);
-  side_effecting_param.param_name = final_param_name;
-  side_effecting_param.xls_io_param_type = xls_param_type;
-  side_effecting_param.io_op = &context().sf->io_ops.back();
-  context().sf->side_effecting_parameters.push_back(side_effecting_param);
+  if (param_type != nullptr) {
+    XLSCC_CHECK_NE(xls_param_type, nullptr, loc);
+    SideEffectingParameter side_effecting_param;
+    side_effecting_param.type = SideEffectingParameterType::kIOOp;
+    XLSCC_CHECK(!op.final_param_name.empty(), loc);
+    side_effecting_param.param_name = op.final_param_name;
+    side_effecting_param.xls_io_param_type = xls_param_type;
+    side_effecting_param.io_op = &context().sf->io_ops.back();
+    context().sf->side_effecting_parameters.push_back(side_effecting_param);
+  }
 
   return &context().sf->io_ops.back();
 }

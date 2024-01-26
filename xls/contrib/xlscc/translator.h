@@ -695,20 +695,6 @@ struct IOChannel {
   bool internal_to_function = false;
 };
 
-struct ContinuationItem {
-  const clang::NamedDecl* decl = nullptr;
-  std::shared_ptr<CType> ctype;
-};
-
-// Must be aggregated across calls
-struct Continuation {
-  // These are the values to pass out and back in across the IO op
-  std::vector<ContinuationItem> vars_to_pass;
-  std::vector<const clang::NamedDecl*> vars_accessed_since_last_continuation;
-  // InternalTuple (bits[1]: active, vars_to_pass types...)
-  std::shared_ptr<CType> param_part_ctype = nullptr;
-};
-
 // Tracks information about an IO op on an __xls_channel parameter to a function
 struct IOOp {
   // --- Preserved across calls ---
@@ -741,9 +727,6 @@ struct IOOp {
   // This is translated across calls
   // Ops must be in GeneratedFunction::io_ops respecting this order
   std::vector<const IOOp*> after_ops;
-
-  // Must be aggregated across calls
-  Continuation continuation;
 
   IOChannel* channel = nullptr;
 
@@ -1093,8 +1076,6 @@ struct TranslationContext {
   // Number of times a variable is accessed
   // Always propagates up
   absl::flat_hash_map<const clang::NamedDecl*, int64_t> variables_accessed;
-  absl::flat_hash_map<const clang::NamedDecl*, int64_t>
-      variables_accessed_at_last_continuation;
   absl::flat_hash_set<const clang::NamedDecl*> variables_masked_by_assignment;
 };
 
@@ -1739,33 +1720,16 @@ class Translator {
       const CValue assignment_value = CValue());
 
   // IOOp must have io_call, and op members filled in
-  // This will add parameters for IO, including continuation inputs,
-  // so any aggregate continuation information must be present when it is called
-  // ret_value must be valid if add_continuation_to_return = true,
-  // otherwise AddContinuationToIOReturn() must be called later.
+  // This will add a parameter for IO input if needed,
   // Returns permanent IOOp pointer
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceInfo& loc,
-                                       bool mask = false,
-                                       bool add_continuation_to_return = true);
-  absl::Status AddToContinuationNonDestructively(Continuation& continuation,
-                                                 const xls::SourceInfo& loc);
-
-  // Returns IO value
-  absl::StatusOr<xls::BValue> UnpackAndApplyContinuationIn(
-      const IOOp& op, xls::BValue param_in_bval, bool includes_io_value,
-      const xls::SourceInfo& loc);
-  absl::StatusOr<xls::BValue> GetContinuationOut(
-      const Continuation& continuation, const xls::SourceInfo& loc,
-      std::string_view node_name_prefix);
+                                       bool mask = false);
 
   absl::StatusOr<std::optional<const IOOp*>> GetPreviousOp(
       const IOOp& op, const xls::SourceInfo& loc);
 
   absl::StatusOr<xls::BValue> AddConditionToIOReturn(
-      const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc);
-
-  absl::StatusOr<xls::BValue> AddContinuationToIOReturn(
       const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc);
 
   absl::StatusOr<std::shared_ptr<LValue>> CreateChannelParam(

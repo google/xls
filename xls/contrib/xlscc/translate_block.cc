@@ -949,15 +949,9 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
   const int64_t context_out_ret_idx =
       outer_prepared.return_index_for_op.at(&invoke_context_out.op);
 
-  // Extract continuation from first_ret_val
-  xls::BValue ret_value_with_continuation =
+  xls::BValue ret_io_value =
       GetFlexTupleField(first_ret_val, context_out_ret_idx,
                         outer_prepared.xls_func->return_value_count, body_loc);
-
-  XLS_ASSIGN_OR_RETURN(xls::BValue ret_io_value,
-                       UnpackAndApplyContinuationIn(
-                           invoke_context_out.op, ret_value_with_continuation,
-                           /*includes_io_value=*/true, body_loc));
 
   xls::BValue context_out = pb.TupleIndex(ret_io_value, /*idx=*/0, body_loc);
 
@@ -971,10 +965,7 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
 
   outer_prepared.token = contents_ret.token_out;
 
-  XLS_ASSIGN_OR_RETURN(
-      xls::BValue context_in,
-      AddContinuationToIOReturn(invoke_context_in.op, contents_ret.out_tuple,
-                                body_loc));
+  xls::BValue context_in = contents_ret.out_tuple;
 
   // Get context in from inner FSM
   const int64_t context_in_arg_idx =
@@ -1020,16 +1011,10 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
   xls::SourceInfo op_loc = op.op_location;
   const int64_t return_index = prepared.return_index_for_op.at(&op);
 
-  // Extract continuation from last_ret_val
-  xls::BValue ret_value_with_continuation = GetFlexTupleField(
+  xls::BValue ret_io_value = GetFlexTupleField(
       last_ret_val, return_index, prepared.xls_func->return_value_count, op_loc,
       /*name=*/
-      absl::StrFormat("%s_ret_value_with_continuation", op.final_param_name));
-
-  XLS_ASSIGN_OR_RETURN(
-      xls::BValue ret_io_value,
-      UnpackAndApplyContinuationIn(op, ret_value_with_continuation,
-                                   /*includes_io_value=*/true, op_loc));
+      absl::StrFormat("%s_ret_io_value", op.final_param_name));
 
   xls::BValue arg_io_val;
 
@@ -1143,11 +1128,11 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     XLS_CHECK("Unknown IOOp type" == nullptr);
   }
 
-  // Add the continuation to the IO argument and store
-  const int64_t arg_index = prepared.arg_index_for_op.at(&op);
-  XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
-  XLS_ASSIGN_OR_RETURN(prepared.args[arg_index],
-                       AddContinuationToIOReturn(op, arg_io_val, op_loc));
+  if (prepared.arg_index_for_op.contains(&op)) {
+    const int64_t arg_index = prepared.arg_index_for_op.at(&op);
+    XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
+    prepared.args[arg_index] = arg_io_val;
+  }
 
   // The function is invoked again with the value received from the channel
   //  for each read() Op. The final invocation will produce all complete
@@ -1525,10 +1510,12 @@ Translator::GenerateIRBlockPrepare(
     switch (param.type) {
       case xlscc::SideEffectingParameterType::kIOOp: {
         const IOOp& op = *param.io_op;
-        xls::BValue val =
-            pb.Literal(xls::ZeroOfType(param.xls_io_param_type), body_loc);
-        prepared.arg_index_for_op[&op] = prepared.args.size();
-        prepared.args.push_back(val);
+        if (op.op == OpType::kRead || op.op == OpType::kRecv) {
+          xls::BValue val =
+              pb.Literal(xls::ZeroOfType(param.xls_io_param_type), body_loc);
+          prepared.arg_index_for_op[&op] = prepared.args.size();
+          prepared.args.push_back(val);
+        }
         break;
       }
       case xlscc::SideEffectingParameterType::kStatic: {

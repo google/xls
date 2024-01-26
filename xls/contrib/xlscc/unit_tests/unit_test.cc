@@ -752,23 +752,6 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
     }
   }
 
-  // TODO(seanhaskell): Test applying continuations step by step
-
-  for (const xlscc::IOOp& op : func->io_ops) {
-    const std::string arg_name = op.final_param_name;
-    XLS_ASSERT_OK_AND_ASSIGN(xls::Param * param,
-                             entry->GetParamByName(arg_name));
-    xls::Type* param_type = param->GetType();
-    if (!args.contains(arg_name)) {
-      xls::Value continuation_val = xls::ZeroOfType(param_type);
-      args[arg_name] = continuation_val;
-    } else {
-      xls::Value continuation_val =
-          xls::ZeroOfType(param_type->AsTupleOrDie()->element_type(1));
-      args[arg_name] = xls::Value::Tuple({args.at(arg_name), continuation_val});
-    }
-  }
-
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::Value actual,
       DropInterpreterEvents(xls::InterpretFunctionKwargs(entry, args)));
@@ -789,10 +772,7 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
 
   int64_t op_idx = 0;
   for (const xlscc::IOOp& op : func->io_ops) {
-    xls::Value raw_return = returns[op_idx];
-    const xls::Value& io_return = raw_return.element(0);
-    const xls::Value& continuation_return = raw_return.element(1);
-    (void)continuation_return;
+    const xls::Value& io_return = returns.at(op_idx);
 
     std::string ch_name;
 
@@ -882,23 +862,4 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
 
   ASSERT_EQ(inputs.size(), 0);
   ASSERT_EQ(outputs.size(), 0);
-}
-
-absl::flat_hash_set<std::string> XlsccTestBase::NameSetForVarsAccessedSinceLast(
-    const xlscc::Continuation& continuation) {
-  absl::flat_hash_set<std::string> ret;
-  for (const clang::NamedDecl* decl :
-       continuation.vars_accessed_since_last_continuation) {
-    ret.insert(decl->getNameAsString());
-  }
-  return ret;
-}
-
-absl::flat_hash_set<std::string> XlsccTestBase::NameSetForVarsToPass(
-    const xlscc::Continuation& continuation) {
-  absl::flat_hash_set<std::string> ret;
-  for (const xlscc::ContinuationItem& item : continuation.vars_to_pass) {
-    ret.insert(item.decl->getNameAsString());
-  }
-  return ret;
 }

@@ -10,18 +10,18 @@ module foo_proc(
   output wire in1_rdy,
   output wire in2_rdy
 );
-  wire __in1_op0_0_io_in;
-  wire __in2_op0_0_io_in;
+  wire in1_op0_ret_io_value;
+  wire in2_op0_ret_io_value;
   wire [31:0] in2_select;
   wire [31:0] in1_select;
   wire p0_all_active_inputs_valid;
-  assign __in1_op0_0_io_in = dir == 32'h0000_0000;
-  assign __in2_op0_0_io_in = dir != 32'h0000_0000;
-  assign in2_select = __in2_op0_0_io_in ? in2 : 32'h0000_0000;
-  assign in1_select = __in1_op0_0_io_in ? in1 : 32'h0000_0000;
-  assign p0_all_active_inputs_valid = (~__in1_op0_0_io_in | in1_vld) & (~__in2_op0_0_io_in | in2_vld);
-  assign out = __in1_op0_0_io_in ? in1_select : in2_select;
+  assign in1_op0_ret_io_value = dir == 32'h0000_0000;
+  assign in2_op0_ret_io_value = dir != 32'h0000_0000;
+  assign in2_select = in2_op0_ret_io_value ? in2 : 32'h0000_0000;
+  assign in1_select = in1_op0_ret_io_value ? in1 : 32'h0000_0000;
+  assign p0_all_active_inputs_valid = (~in1_op0_ret_io_value | in1_vld) & (~in2_op0_ret_io_value | in2_vld);
+  assign out = in1_op0_ret_io_value ? in1_select : in2_select;
   assign out_vld = p0_all_active_inputs_valid & 1'h1 & 1'h1;
-  assign in1_rdy = __in1_op0_0_io_in & out_rdy;
-  assign in2_rdy = __in2_op0_0_io_in & out_rdy;
+  assign in1_rdy = in1_op0_ret_io_value & out_rdy;
+  assign in2_rdy = in2_op0_ret_io_value & out_rdy;
 endmodule
