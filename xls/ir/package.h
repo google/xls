@@ -152,6 +152,12 @@ class Package {
   absl::StatusOr<Proc*> GetProc(std::string_view proc_name) const;
   absl::StatusOr<Block*> GetBlock(std::string_view block_name) const;
 
+  // Gets a function, proc, or block by name. Returns nullopt if no such
+  // construct of the indicated kind exists with that name.
+  std::optional<Function*> TryGetFunction(std::string_view func_name) const;
+  std::optional<Proc*> TryGetProc(std::string_view proc_name) const;
+  std::optional<Block*> TryGetBlock(std::string_view block_name) const;
+
   // Remove a function, proc, or block. The caller is responsible for ensuring
   // no references to the construct remain (e.g., via invoke operations). The
   // function, proc, or block must not be the top entity of the package. Use the
@@ -254,10 +260,6 @@ class Package {
 
   std::vector<std::string> GetFunctionNames() const;
 
-  // Returns whether this package contains a function/proc with the "target"
-  // name.
-  bool HasFunctionWithName(std::string_view target) const;
-  bool HasProcWithName(std::string_view target) const;
 
   int64_t next_node_id() const { return next_node_id_; }
 

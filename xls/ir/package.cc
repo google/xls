@@ -364,6 +364,34 @@ absl::StatusOr<Block*> Package::GetBlock(std::string_view block_name) const {
                     })));
 }
 
+std::optional<Function*> Package::TryGetFunction(
+    std::string_view func_name) const {
+  for (auto& f : functions_) {
+    if (f->name() == func_name) {
+      return f.get();
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<Proc*> Package::TryGetProc(std::string_view proc_name) const {
+  for (auto& p : procs_) {
+    if (p->name() == proc_name) {
+      return p.get();
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<Block*> Package::TryGetBlock(std::string_view block_name) const {
+  for (auto& block : blocks_) {
+    if (block->name() == block_name) {
+      return block.get();
+    }
+  }
+  return std::nullopt;
+}
+
 std::vector<FunctionBase*> Package::GetFunctionBases() const {
   std::vector<FunctionBase*> result;
   for (auto& function : functions()) {
@@ -779,15 +807,6 @@ std::vector<std::string> Package::GetFunctionNames() const {
   }
   std::sort(names.begin(), names.end());
   return names;
-}
-
-bool Package::HasFunctionWithName(std::string_view target) const {
-  for (const std::unique_ptr<Function>& function : functions_) {
-    if (function->name() == target) {
-      return true;
-    }
-  }
-  return false;
 }
 
 namespace {

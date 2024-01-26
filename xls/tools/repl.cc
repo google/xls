@@ -357,21 +357,23 @@ absl::StatusOr<Function*> FindFunction(std::string_view function_name,
                                        dslx::Module* module, Package* package) {
   // The user may have given us a mangled or demangled name, first we see if
   // it's a mangled one, and if it's not, we mangle it and try that.
-  if (package->HasFunctionWithName(function_name)) {
-    return package->GetFunction(function_name);
+  if (std::optional<Function*> f = package->TryGetFunction(function_name);
+      f.has_value()) {
+    return *f;
   }
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       dslx::MangleDslxName(module->name(), function_name, /*free_keys=*/{}));
-  if (!package->HasFunctionWithName(mangled_name)) {
-    std::cerr << absl::StreamFormat(
-        "Symbol \"%s\" was not found in IR as either \"%s\" or (mangled) "
-        "\"%s\" -- run :ir "
-        "to see IR for this package.\n",
-        function_name, function_name, mangled_name);
-    return nullptr;
+  if (std::optional<Function*> f = package->TryGetFunction(mangled_name)) {
+    return *f;
   }
-  return package->GetFunction(mangled_name);
+
+  std::cerr << absl::StreamFormat(
+      "Symbol \"%s\" was not found in IR as either \"%s\" or (mangled) "
+      "\"%s\" -- run :ir "
+      "to see IR for this package.\n",
+      function_name, function_name, mangled_name);
+  return nullptr;
 }
 
 // Function implementing the `:verilog` command, which generates and dumps the

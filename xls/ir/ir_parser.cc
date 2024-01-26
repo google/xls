@@ -1398,20 +1398,20 @@ absl::StatusOr<ProcInstantiation*> Parser::ParseProcInstantiation(Proc* proc) {
   handlers["proc"] = [&]() -> absl::Status {
     XLS_ASSIGN_OR_RETURN(Token instantiated_proc_name,
                          scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-    absl::StatusOr<Proc*> instantiated_proc_status =
-        proc->package()->GetProc(instantiated_proc_name.value());
-    if (!instantiated_proc_status.ok()) {
+    instantiated_proc =
+        proc->package()->TryGetProc(instantiated_proc_name.value());
+    if (!instantiated_proc.has_value()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "No such proc '%s' @ %s", instantiated_proc_name.value(),
           instantiated_proc_name.pos().ToHumanString()));
     }
-    if (!instantiated_proc_status.value()->is_new_style_proc()) {
+    if (!(*instantiated_proc)->is_new_style_proc()) {
+      instantiated_proc = std::nullopt;
       return absl::InvalidArgumentError(absl::StrFormat(
           "Proc `%s` is not a new style proc and cannot be instantiated @ %s",
           instantiated_proc_name.value(),
           instantiated_proc_name.pos().ToHumanString()));
     }
-    instantiated_proc = instantiated_proc_status.value();
     return absl::OkStatus();
   };
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers,
@@ -1483,14 +1483,13 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
   handlers["block"] = [&]() -> absl::Status {
     XLS_ASSIGN_OR_RETURN(Token instantiated_block_name,
                          scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-    absl::StatusOr<Block*> instantiated_block_status =
-        block->package()->GetBlock(instantiated_block_name.value());
-    if (!instantiated_block_status.ok()) {
+    instantiated_block =
+        block->package()->TryGetBlock(instantiated_block_name.value());
+    if (!instantiated_block.has_value()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "No such block '%s' @ %s", instantiated_block_name.value(),
           instantiated_block_name.pos().ToHumanString()));
     }
-    instantiated_block = instantiated_block_status.value();
     return absl::OkStatus();
   };
 

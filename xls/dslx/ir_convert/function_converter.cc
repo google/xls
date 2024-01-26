@@ -1420,7 +1420,8 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
   XLS_VLOG(5) << "Mapping with builtin; arg: "
               << arg_value.GetType()->ToString();
   auto* array_type = arg_value.GetType()->AsArrayOrDie();
-  if (!package()->HasFunctionWithName(mangled_name)) {
+  std::optional<xls::Function*> f = package()->TryGetFunction(mangled_name);
+  if (!f.has_value()) {
     FunctionBuilder fb(mangled_name, package());
     BValue param = fb.Param("arg", array_type->element_type());
     const std::string& builtin_name = node->identifier();
@@ -1433,12 +1434,11 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
       return absl::InternalError("Invalid builtin name for map: " +
                                  builtin_name);
     }
-    XLS_RETURN_IF_ERROR(fb.Build().status());
+    XLS_ASSIGN_OR_RETURN(f, fb.Build());
   }
 
-  XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
   return Def(parent_node, [&](const SourceInfo& loc) {
-    return function_builder_->Map(arg_value, f);
+    return function_builder_->Map(arg_value, *f);
   });
 }
 
@@ -1738,11 +1738,10 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
     return values;
   };
 
-  if (package()->HasFunctionWithName(called_name)) {
-    XLS_ASSIGN_OR_RETURN(xls::Function * f,
-                         package()->GetFunction(called_name));
+  if (std::optional<xls::Function*> f = package()->TryGetFunction(called_name);
+      f.has_value()) {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    return HandleUdfInvocation(node, f, std::move(args));
+    return HandleUdfInvocation(node, *f, std::move(args));
   }
 
   // A few builtins are handled specially.

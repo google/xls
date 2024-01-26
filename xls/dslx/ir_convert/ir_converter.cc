@@ -24,10 +24,7 @@
 
 #include "xls/dslx/ir_convert/ir_converter.h"
 
-#include <algorithm>
-#include <cstdint>
 #include <filesystem>  // NOLINT
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -47,6 +44,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/create_import_data.h"
@@ -61,14 +59,18 @@
 #include "xls/dslx/ir_convert/function_converter.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_scanner.h"
+#include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 
 namespace xls::dslx {
@@ -89,9 +91,9 @@ absl::StatusOr<xls::Function*> GetEntryFunction(xls::Package* package) {
   };
 
   for (const std::string& attempt : to_try) {
-    auto func_or = package->GetFunction(attempt);
-    if (func_or.ok()) {
-      return func_or.value();
+    if (std::optional<xls::Function*> func = package->TryGetFunction(attempt);
+        func.has_value()) {
+      return *func;
     }
   }
 

@@ -18,9 +18,11 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -31,7 +33,9 @@
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
 
@@ -65,20 +69,20 @@ absl::Status RunComparator::RunComparison(Package* ir_package,
                                              : CallingConvention::kTypical,
                      f->GetFreeParametricKeySet(), parametric_env));
 
-  auto get_result = ir_package->GetFunction(ir_name);
+  auto get_result = ir_package->TryGetFunction(ir_name);
 
   // The (converted) IR package does not include specializations of parametric
   // functions that are only called from test code, so not finding the function
   // may be benign.
   //
   // TODO(amfv): 2021-03-18 Extend IR conversion to include those functions.
-  if (!get_result.ok()) {
+  if (!get_result.has_value()) {
     XLS_LOG(WARNING) << "Could not find " << ir_name
                      << " function for JIT comparison";
     return absl::OkStatus();
   }
 
-  xls::Function* ir_function = get_result.value();
+  xls::Function* ir_function = *get_result;
 
   XLS_ASSIGN_OR_RETURN(std::vector<Value> ir_args,
                        InterpValue::ConvertValuesToIr(args));

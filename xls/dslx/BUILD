@@ -429,10 +429,12 @@ cc_library(
         "//xls/dslx/type_system:parametric_env",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
+        "//xls/ir:events",
         "//xls/ir:value",
         "//xls/jit:function_jit",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )
