@@ -900,6 +900,23 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
               .status());
       return true;
     }
+
+    // Convert UMod/SMod by any other literal into a divide, multiply, and
+    // subtract; we'll later simplify the divide into a multiply & shift(s).
+    // (See MatchUnsignedDivide for how.)
+    XLS_ASSIGN_OR_RETURN(Node * quotient,
+                         n->function_base()->MakeNode<BinOp>(
+                             n->loc(), n->operand(0), n->operand(1),
+                             is_signed ? Op::kSDiv : Op::kUDiv));
+    XLS_ASSIGN_OR_RETURN(Node * approximant,
+                         n->function_base()->MakeNode<ArithOp>(
+                             n->loc(), quotient, n->operand(1),
+                             /*width=*/n->operand(0)->BitCountOrDie(),
+                             is_signed ? Op::kSMul : Op::kUMul));
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<BinOp>(n->operand(0), approximant, Op::kSub)
+            .status());
+    return true;
   }
 
   XLS_ASSIGN_OR_RETURN(bool udiv_matched, MatchUnsignedDivide(n));

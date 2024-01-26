@@ -52,6 +52,7 @@ using status_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
 using ::xls::solvers::z3::TryProveEquivalence;
 
+using ::testing::_;
 using ::testing::AllOf;
 
 class ArithSimplificationPassTest : public IrTestBase {
@@ -738,14 +739,18 @@ TEST_F(ArithSimplificationPassTest, UModBy512) {
 TEST_F(ArithSimplificationPassTest, UModBy42) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn umod_non_power_of_two(x:bits[16]) -> bits[16] {
-        literal.1: bits[16] = literal(value=42)
-        ret result: bits[16] = umod(x, literal.1)
+     fn umod_non_power_of_two(x:bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=42)
+        ret result: bits[8] = umod(x, literal.1)
      }
   )",
                                                        p.get()));
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_THAT(f->return_value(), m::UMod());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Sub(m::Param("x"), m::UMul(_, m::Literal(42))));
 }
 
 TEST_F(ArithSimplificationPassTest, UModBy0) {
@@ -834,14 +839,18 @@ TEST_F(ArithSimplificationPassTest, SModBy512) {
 TEST_F(ArithSimplificationPassTest, SModBy42) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn smod_non_power_of_two(x:bits[16]) -> bits[16] {
-        literal.1: bits[16] = literal(value=42)
-        ret result: bits[16] = smod(x, literal.1)
+     fn smod_non_power_of_two(x:bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=42)
+        ret result: bits[8] = smod(x, literal.1)
      }
   )",
                                                        p.get()));
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_THAT(f->return_value(), m::SMod());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Sub(m::Param("x"), m::SMul(_, m::Literal(42))));
 }
 
 TEST_F(ArithSimplificationPassTest, SModBy0) {
