@@ -315,7 +315,7 @@ through the `opt_main` binary).
 ```
 $ bazel run -c opt //xls/tools:benchmark_main -- $PWD/bazel-bin/xls/examples/crc32.opt.ir --clock_period_ps=500 --delay_model=sky130
 <snip>
-Return value delay: 8351ps
+Critical path delay: 8351ps
 Critical path entry count: 43
 Critical path:
    8351ps (+ 21ps): not.37: bits[32] = not(xor.213: bits[32], id=37, pos=[(0,30,51)])

@@ -258,7 +258,7 @@ absl::Status PrintCriticalPath(
   XLS_ASSIGN_OR_RETURN(
       std::vector<CriticalPathEntry> critical_path,
       AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
-  std::cout << absl::StrFormat("Return value delay: %dps\n",
+  std::cout << absl::StrFormat("Critical path delay: %dps\n",
                                critical_path.front().path_delay_ps);
   std::cout << absl::StrFormat("Critical path entry count: %d\n",
                                critical_path.size());

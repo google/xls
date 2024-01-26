@@ -1177,10 +1177,14 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     if (absl::GetFlag(FLAGS_verify_ir)) {
       XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
     }
-    knownf_ir_text = package->DumpIr();
-    XLS_RETURN_IF_ERROR(VerifyStillFails(
-        knownf_ir_text, inputs,
-        "Original main function does not fail after cleanup", &test_cache));
+    std::string cleaned_up_ir_text = package->DumpIr();
+    XLS_ASSIGN_OR_RETURN(bool still_fails,
+                         StillFails(cleaned_up_ir_text, inputs, &test_cache));
+    if (still_fails) {
+      knownf_ir_text = cleaned_up_ir_text;
+    } else {
+      XLS_LOG(INFO) << "=== Original main function does not fail after cleanup";
+    }
     XLS_LOG(INFO) << "=== Done cleaning up initial garbage";
   }
 
