@@ -2460,7 +2460,7 @@ absl::Status FunctionConverter::HandleStructInstance(
                        ToTypeDefinition(node->struct_ref()));
   XLS_ASSIGN_OR_RETURN(StructDef * struct_def, DerefStruct(type_definition));
   std::vector<Value> const_operands;
-  for (auto [_, member_expr] : node->GetOrderedMembers(struct_def)) {
+  for (const auto& [_, member_expr] : node->GetOrderedMembers(struct_def)) {
     XLS_RETURN_IF_ERROR(Visit(member_expr));
     XLS_ASSIGN_OR_RETURN(BValue operand, Use(member_expr));
     operands.push_back(operand);
