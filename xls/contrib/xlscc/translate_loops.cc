@@ -629,7 +629,9 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
   // TODO(seanhaskell): Move this to GenerateIR_Block() for pipelined loops
   // with multiple different sets of IO ops
-  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopProc(sub_proc));
+  if (!generate_fsms_for_pipelined_loops_) {
+    XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopProc(sub_proc));
+  }
 
   XLS_CHECK_EQ(sub_proc.vars_changed_in_body.size(), lvalues_out.size());
 
