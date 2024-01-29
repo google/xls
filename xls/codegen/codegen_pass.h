@@ -169,28 +169,49 @@ struct StateRegister {
 using PipelineStageRegisters = std::vector<PipelineRegister>;
 
 struct StreamingIOPipeline {
+  // Map of stage# -> input descriptor
   std::vector<std::vector<StreamingInput>> inputs;
+  // Map of stage# -> output descriptor
   std::vector<std::vector<StreamingOutput>> outputs;
+  // Map of stage# -> state register vector. (Values are pointers into
+  // state_registers array). Order of inner list is not meaningful.
   std::vector<std::vector<int64_t>> input_states;
+  // Map of stage# -> state register vector. (Values are pointers into
+  // state_registers array). Order of inner list is not meaningful.
   std::vector<std::vector<int64_t>> output_states;
+  // List linking the single-value input port to the channel it implements.
   std::vector<SingleValueInput> single_value_inputs;
+  // List linking the single-value output port to the channel it implements.
   std::vector<SingleValueOutput> single_value_outputs;
+  // Map of stage# -> pipeline registers which hold each value that lives beyond
+  // that stage.
   std::vector<PipelineStageRegisters> pipeline_registers;
   // `state_registers` includes an element for each state element in the
   // proc. The vector element is nullopt if the state element is an empty tuple.
+  // This is pointed to by the input_states and output_states fields.
   std::vector<std::optional<StateRegister>> state_registers;
   std::optional<OutputPort*> idle_port;
 
-  // Node in block that represents when all output channels (that
-  // are predicated true) are ready.
-  // See MakeInputReadyPortsForOutputChannels().
+  // Node in each stage that represents when all output channels (that are
+  // predicated true) are ready.  See MakeInputReadyPortsForOutputChannels().
   std::vector<Node*> all_active_outputs_ready;
+  // Node in each stage that represents when all inputs channels (that are
+  // predicated true) are valid.  See MakeInputValidPortsForInputChannels().
   std::vector<Node*> all_active_inputs_valid;
+  // Node in each stage that represents when all state values (that are
+  // predicated true) are ready.  See MakeReadyNodesForOutputStates().
   std::vector<Node*> all_active_states_ready;
+  // Node in each stage that represents when all state values (that are
+  // predicated true) are valid.  See MakeValidNodesForInputStates().
   std::vector<Node*> all_active_states_valid;
 
+  // Map of stage# -> node which denotes if the stages input data from the
+  // previous stage is valid at this stage (i.e. the stage does not contain a
+  // bubble). See MakePipelineStagesForValid().
   std::vector<Node*> pipeline_valid;
+  // Node denoting if all of the specific stage's input data is valid.
   std::vector<Node*> stage_valid;
+  // Node denoting if a specific stage is finished.
   std::vector<Node*> stage_done;
 
   absl::flat_hash_map<Node*, Stage> node_to_stage_map;
@@ -218,11 +239,53 @@ struct ProcConversionMetadata {
   std::vector<Node*> valid_flops;
 };
 
+class ConcurrentStageGroups {
+ public:
+  ConcurrentStageGroups(ConcurrentStageGroups&&) = default;
+  ConcurrentStageGroups& operator=(ConcurrentStageGroups&&) = default;
+  ConcurrentStageGroups(const ConcurrentStageGroups&) = default;
+  ConcurrentStageGroups& operator=(const ConcurrentStageGroups&) = default;
+  explicit ConcurrentStageGroups(int64_t num_stages) {
+    concurrent_stages_.reserve(num_stages);
+    for (int64_t i = 0; i < num_stages; ++i) {
+      concurrent_stages_.push_back(InlineBitmap(num_stages, true));
+    }
+  }
+
+  int64_t stage_count() const { return concurrent_stages_.size(); }
+
+  void MarkMutuallyExclusive(Stage a, Stage b) {
+    XLS_CHECK_NE(a, b);
+    concurrent_stages_[a].Set(b, false);
+    concurrent_stages_[b].Set(a, false);
+  }
+
+  bool IsConcurrent(Stage a, Stage b) const {
+    XLS_CHECK_EQ(concurrent_stages_[a].Get(b), concurrent_stages_[b].Get(a));
+    return concurrent_stages_[a].Get(b);
+  }
+
+  const InlineBitmap& ConcurrentStagesWith(int64_t stage) const {
+    return concurrent_stages_[stage];
+  }
+
+ private:
+  // Map of stage# -> set of stages that can be executing at the same time as
+  // the stage.  If concurrent_stages_[N].Get(M) is true then stage N and M may
+  // be active at the same time.
+  std::vector<InlineBitmap> concurrent_stages_;
+};
 
 // Data structure operated on by codegen passes. Contains the IR and associated
 // metadata which may be used and mutated by passes.
 struct CodegenPassUnit {
-  CodegenPassUnit(Package* p, Block* b) : package(p), block(b) {}
+  CodegenPassUnit(Package* p, Block* b,
+                  std::optional<int64_t> stages = std::nullopt)
+      : package(p),
+        block(b),
+        concurrent_stages_(
+            stages ? std::make_optional<ConcurrentStageGroups>(*stages)
+                   : std::nullopt) {}
 
   // The package containing IR to lower.
   Package* package;
@@ -237,6 +300,9 @@ struct CodegenPassUnit {
   // Only set when converting functions.
   std::variant<FunctionConversionMetadata, ProcConversionMetadata>
       conversion_metadata;
+
+  // Proven knowledge about which stages are active concurrently.
+  std::optional<ConcurrentStageGroups> concurrent_stages_;
 
   // The signature is generated (and potentially mutated) during the codegen
   // process.
