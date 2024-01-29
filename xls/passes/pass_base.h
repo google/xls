@@ -287,7 +287,9 @@ class FixedPointCompoundPassBase
           invariant_checkers) const override {
     bool local_changed = true;
     bool global_changed = false;
+    int64_t iteration_count = 0;
     while (local_changed) {
+      ++iteration_count;
       XLS_ASSIGN_OR_RETURN(
           local_changed,
           (CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
@@ -296,6 +298,9 @@ class FixedPointCompoundPassBase
             << this->long_name() << " [short: " << this->short_name() << "]");
       global_changed = global_changed || local_changed;
     }
+    XLS_VLOG(1) << absl::StreamFormat(
+        "Fixed point compound pass %s iterated %d times.", this->long_name(),
+        iteration_count);
     return global_changed;
   }
 };

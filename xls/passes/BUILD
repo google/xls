@@ -1305,11 +1305,18 @@ cc_library(
         ":bdd_query_engine",
         ":optimization_pass",
         ":pass_base",
+        ":query_engine",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:op",
     ],
 )
 

@@ -15,6 +15,7 @@
 #include "xls/passes/conditional_specialization_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -23,15 +24,26 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 namespace {
@@ -110,7 +122,7 @@ class ConditionSet {
   // arbitrarily picking one of the conflicting conditions and transforming
   // based on it is fine.
   void AddCondition(const Condition& condition) {
-    XLS_VLOG(3) << absl::StreamFormat("ConditionSet for (%s, %d) : %s",
+    XLS_VLOG(4) << absl::StreamFormat("ConditionSet for (%s, %d) : %s",
                                       condition.node->GetName(),
                                       condition.value, this->ToString());
     XLS_CHECK(!condition.node->Is<Literal>());
@@ -171,7 +183,7 @@ class ConditionMap {
   // and operand index `operand_no`.
   void SetEdgeConditionSet(Node* node, int64_t operand_no,
                            ConditionSet condition_set) {
-    XLS_VLOG(3) << absl::StrFormat(
+    XLS_VLOG(4) << absl::StrFormat(
         "Setting conditions on %s->%s (operand %d): %s",
         node->operand(operand_no)->GetName(), node->GetName(), operand_no,
         condition_set.ToString());
@@ -254,7 +266,7 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
                                      const QueryEngine* query_engine) {
   for (const Condition& condition : condition_set.conditions()) {
     if (condition.node == node) {
-      XLS_VLOG(3) << absl::StreamFormat("%s trivially implies %s==%d",
+      XLS_VLOG(4) << absl::StreamFormat("%s trivially implies %s==%d",
                                         condition_set.ToString(),
                                         node->GetName(), condition.value);
       return UBits(condition.value, node->BitCountOrDie());
@@ -275,7 +287,7 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
       query_engine->ImpliedNodeValue(predicates, node);
 
   if (implied_value.has_value()) {
-    XLS_VLOG(3) << absl::StreamFormat("%s implies %s==%v",
+    XLS_VLOG(4) << absl::StreamFormat("%s implies %s==%v",
                                       condition_set.ToString(), node->GetName(),
                                       implied_value.value());
   }
@@ -283,7 +295,7 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
 }
 
 // Returns the case arm node of the given select which is selected when the
-// selctor has the given value.
+// selector has the given value.
 Node* GetSelectedCase(Select* select, const Bits& selector_value) {
   if (bits_ops::UGreaterThanOrEqual(selector_value, select->cases().size())) {
     return select->default_value().value();
@@ -384,7 +396,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                                         std::move(edge_set));
     }
 
-    XLS_VLOG(3) << absl::StreamFormat("Conditions for %s : %s", node->GetName(),
+    XLS_VLOG(4) << absl::StreamFormat("Conditions for %s : %s", node->GetName(),
                                       set.ToString());
 
     // Now specialize any operands (if possible) based on the conditions.
