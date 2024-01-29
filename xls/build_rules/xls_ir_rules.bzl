@@ -196,7 +196,6 @@ def _optimize_ir(ctx, src):
         1. The runfiles to optimize the IR file.
         1. The optimized IR file.
     """
-    opt_ir_tool = ctx.executable._xls_opt_ir_tool
     opt_ir_args = dict(ctx.attr.opt_ir_args)
     IR_OPT_FLAGS = (
         "ir_dump_path",
@@ -214,10 +213,17 @@ def _optimize_ir(ctx, src):
     if ctx.attr.top:
         opt_ir_args.setdefault("top", ctx.attr.top)
 
-    my_args = args_to_string(opt_ir_args)
+    args = ctx.actions.args()
+    args.add(src)
+
+    for flag, value in opt_ir_args.items():
+        args.add("--" + flag, value)
+
     if ctx.attr.ram_rewrites:
-        ram_rewrites = "--ram_rewrites_pb=" + ",".join([",".join([file.path for file in ram_rewrite.files.to_list()]) for ram_rewrite in ctx.attr.ram_rewrites])
-        my_args += " " + ram_rewrites
+        ram_rewrites = []
+        for ram_rewrite in ctx.attr.ram_rewrites:
+            ram_rewrites.extend([file.path for file in ram_rewrite.files.to_list()])
+        args.add_joined("--ram_rewrites_pb", ram_rewrites, join_with = ",")
 
     opt_ir_filename = get_output_filename_value(
         ctx,
@@ -225,6 +231,7 @@ def _optimize_ir(ctx, src):
         ctx.attr.name + _OPT_IR_FILE_EXTENSION,
     )
     opt_ir_file = ctx.actions.declare_file(opt_ir_filename)
+    args.add("--output_path", opt_ir_file)
 
     # Get runfiles
     ram_rewrite_files = []
@@ -241,21 +248,15 @@ def _optimize_ir(ctx, src):
         ctx.attr.name + _OPT_LOG_FILE_EXTENSION,
     )
     log_file = ctx.actions.declare_file(opt_log_filename)
+    args.add("--alsologto", log_file)
 
     runfiles = get_runfiles_for_xls(ctx, [], [src] + ram_rewrite_files + debug_src_files)
-    ctx.actions.run_shell(
+    ctx.actions.run(
         outputs = [opt_ir_file, log_file],
-        # The IR optimization executable is a tool needed by the action.
-        tools = [opt_ir_tool],
+        executable = ctx.executable._xls_opt_ir_tool,
         # The files required for optimizing the IR file.
         inputs = runfiles.files,
-        command = "{} {} {} 2>&1 >{} | tee {}".format(
-            opt_ir_tool.path,
-            src.path,
-            my_args,
-            opt_ir_file.path,
-            log_file.path,
-        ),
+        arguments = [args],
         mnemonic = "OptimizeIR",
         progress_message = "Optimizing IR file: %s" % (src.path),
         toolchain = None,

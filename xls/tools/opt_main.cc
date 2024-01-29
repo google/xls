@@ -16,13 +16,21 @@
 // standard optimization pipeline.
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
+#include "absl/log/globals.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/exit_status.h"
@@ -51,6 +59,10 @@ Example invocation:
   opt_main path/to/file.ir
 )";
 
+ABSL_FLAG(std::string, output_path, "-",
+          "Output path for the optimized IR file; '-' denotes stdout.");
+ABSL_FLAG(std::optional<std::string>, alsologto, std::nullopt,
+          "Path to write logs to, in addition to stderr.");
 // LINT.IfChange
 ABSL_FLAG(std::string, top, "", "Top entity to optimize.");
 ABSL_FLAG(std::string, ir_dump_path, "",
@@ -98,10 +110,51 @@ ABSL_FLAG(std::optional<int64_t>, passes_bisect_limit, std::nullopt,
 namespace xls::tools {
 namespace {
 
+class FileStderrLogSink final : public absl::LogSink {
+ public:
+  explicit FileStderrLogSink(std::filesystem::path path)
+      : path_(std::move(path)) {
+    XLS_CHECK_OK(SetFileContents(path_, ""));
+  }
+
+  ~FileStderrLogSink() override = default;
+
+  void Send(const absl::LogEntry& entry) override {
+    if (entry.log_severity() < absl::StderrThreshold()) {
+      return;
+    }
+
+    if (!entry.stacktrace().empty()) {
+      XLS_CHECK_OK(AppendStringToFile(path_, entry.stacktrace()));
+    } else {
+      XLS_CHECK_OK(AppendStringToFile(
+          path_, entry.text_message_with_prefix_and_newline()));
+    }
+  }
+
+ private:
+  const std::filesystem::path path_;
+};
+
 absl::Status RealMain(std::string_view input_path) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
   }
+
+  std::string output_path = absl::GetFlag(FLAGS_output_path);
+
+  std::optional<std::string> alsologto = absl::GetFlag(FLAGS_alsologto);
+  std::unique_ptr<absl::LogSink> log_file_sink;
+  if (alsologto.has_value()) {
+    log_file_sink = std::make_unique<FileStderrLogSink>(*alsologto);
+    absl::AddLogSink(log_file_sink.get());
+  }
+  absl::Cleanup log_file_sink_cleanup = [&log_file_sink] {
+    if (log_file_sink) {
+      absl::RemoveLogSink(log_file_sink.get());
+    }
+  };
+
   int64_t opt_level = absl::GetFlag(FLAGS_opt_level);
   std::string top = absl::GetFlag(FLAGS_top);
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
@@ -115,6 +168,7 @@ absl::Status RealMain(std::string_view input_path) {
   std::optional<std::string> pass_list = absl::GetFlag(FLAGS_passes);
   std::optional<int64_t> bisect_limit =
       absl::GetFlag(FLAGS_passes_bisect_limit);
+
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
@@ -128,8 +182,12 @@ absl::Status RealMain(std::string_view input_path) {
           /*use_context_narrowing_analysis=*/use_context_narrowing_analysis,
           /*pass_list=*/pass_list,
           /*bisect_limit=*/bisect_limit));
-  std::cout << opt_ir;
-  return absl::OkStatus();
+
+  if (output_path == "-") {
+    std::cout << opt_ir;
+    return absl::OkStatus();
+  }
+  return SetFileContents(output_path, opt_ir);
 }
 
 }  // namespace
