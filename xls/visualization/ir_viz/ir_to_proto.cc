@@ -247,7 +247,7 @@ absl::Status WrapTextInSpan(
     absl::StrAppendFormat(&open_span, " class=\"%s\"",
                           absl::StrJoin(classes, " "));
   }
-  for (auto [key, value] : data) {
+  for (const auto& [key, value] : data) {
     absl::StrAppendFormat(&open_span, " data-%s=\"%s\"", key, value);
   }
   open_span.append(">");
