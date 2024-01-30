@@ -32,7 +32,6 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -220,6 +219,95 @@ absl::StatusOr<Node*> NarrowOrExtend(Node* n, bool n_is_signed,
   }
 
   return n;
+}
+
+struct BinaryOpWithLiteral {
+  Node* operand;
+  Literal* literal;
+  bool literal_on_lhs;
+  Op op;
+};
+
+// Matches the given node as binary operation performed with a literal on the
+// lhs or rhs. If match succeeds, returns BinaryOpWithLiteral metadata.
+std::optional<BinaryOpWithLiteral> MatchBinaryOpWithLiteral(Node* node) {
+  if (node->operand_count() != 2) {
+    return std::nullopt;
+  }
+  if (node->operand(0)->Is<Literal>()) {
+    return BinaryOpWithLiteral{.operand = node->operand(1),
+                               .literal = node->operand(0)->As<Literal>(),
+                               .literal_on_lhs = true,
+                               .op = node->op()};
+  }
+  if (node->operand(1)->Is<Literal>()) {
+    return BinaryOpWithLiteral{.operand = node->operand(0),
+                               .literal = node->operand(1)->As<Literal>(),
+                               .literal_on_lhs = false,
+                               .op = node->op()};
+  }
+  return std::nullopt;
+}
+
+// Match a pattern where the result of an injective operation is compared for
+// equality/inequality against a constant. An example might be:
+//
+//   X + C_0 == C_1
+//
+// Where C_0 and C_1 are constants. In this case the operation `X + C_0` is
+// injective, that is, the result of `X + C_0` strictly determines the value of
+// `X`. In this case you can simplify the above to:
+//
+//   X == C_1 - C_0
+//
+// Operations handled are `kAdd` and `kSub`.
+absl::StatusOr<bool> MatchComparisonOfInjectiveOp(Node* node) {
+  XLS_LOG(INFO) << "trying node: " << node->ToString();
+  if (!node->GetType()->IsBits()) {
+    return false;
+  }
+  std::optional<BinaryOpWithLiteral> compare = MatchBinaryOpWithLiteral(node);
+  if (!compare.has_value()) {
+    return false;
+  }
+  if (compare->op != Op::kEq && compare->op != Op::kNe) {
+    return false;
+  }
+  std::optional<BinaryOpWithLiteral> binary_op =
+      MatchBinaryOpWithLiteral(compare->operand);
+  if (!binary_op.has_value()) {
+    return false;
+  }
+  // TODO(meheff): 2024/01/29 Add support for full-width (non-truncating) kUMul.
+  if (binary_op->op != Op::kAdd && binary_op->op != Op::kSub) {
+    return false;
+  }
+  Bits solution;
+  if (binary_op->op == Op::kAdd) {
+    // (X + C_0) cmp C_1  => x cmp C_1 - C_0
+    solution = bits_ops::Sub(compare->literal->value().bits(),
+                             binary_op->literal->value().bits());
+  } else {
+    XLS_RET_CHECK_EQ(binary_op->op, Op::kSub);
+    if (binary_op->literal_on_lhs) {
+      // (C_0 - X) cmp C_1  => x cmp C_0 - C_1
+      solution = bits_ops::Sub(binary_op->literal->value().bits(),
+                               compare->literal->value().bits());
+    } else {
+      // (X - C_0) cmp C_1  => x cmp C_0 + C_1
+      solution = bits_ops::Add(compare->literal->value().bits(),
+                               binary_op->literal->value().bits());
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(
+      Literal * new_literal,
+      node->function_base()->MakeNode<Literal>(node->loc(), Value(solution)));
+
+  XLS_VLOG(2) << "FOUND: compairson of injective operation.";
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
+                              binary_op->operand, new_literal, compare->op)
+                          .status());
+  return true;
 }
 
 // Matches unsigned integer division by a constant; replaces with a multiply and
@@ -1525,6 +1613,11 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(decoded));
       return true;
     }
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool injective_matched, MatchComparisonOfInjectiveOp(n));
+  if (injective_matched) {
+    return true;
   }
 
   return false;

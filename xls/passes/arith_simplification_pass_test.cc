@@ -2345,5 +2345,63 @@ TEST_F(ArithSimplificationPassTest, OrInverses) {
                m::Literal(Bits::AllOnes(32)), m::Literal(Bits::AllOnes(32))));
 }
 
+TEST_F(ArithSimplificationPassTest, ComparisonOfInjectiveOpAddEq) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum = fb.Add(x, fb.Literal(UBits(42, 8)));
+  fb.Eq(sum, fb.Literal(UBits(123, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::Eq(x.node(), m::Literal(81)));
+}
+
+TEST_F(ArithSimplificationPassTest, ComparisonOfInjectiveOpAddNe) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum = fb.Add(fb.Literal(UBits(100, 8)), x);
+  fb.Ne(sum, fb.Literal(UBits(10, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Expected value is 10 - 100 = -90 = 166 as uint8_t.
+  EXPECT_THAT(f->return_value(), m::Ne(x.node(), m::Literal(166)));
+}
+
+TEST_F(ArithSimplificationPassTest,
+       ComparisonOfInjectiveOpAddLtNotOptimizable) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue sum = fb.Add(fb.Literal(UBits(1, 8)), x);
+  // Transformation cannot be performed because only eq or ne is supported.
+  fb.ULt(sum, fb.Literal(UBits(123, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ArithSimplificationPassTest, ComparisonOfInjectiveOpNotLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue sum = fb.Add(fb.Literal(UBits(1, 8)), x);
+  // Transformation cannot be performed because only comparison against an
+  // literal is supported.
+  fb.Eq(sum, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls
