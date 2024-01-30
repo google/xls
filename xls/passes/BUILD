@@ -1397,14 +1397,18 @@ cc_library(
     deps = [
         ":optimization_pass",
         ":pass_base",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common/logging",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:type",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value",
     ],
 )
 
@@ -1508,17 +1512,22 @@ cc_test(
     deps = [
         ":dce_pass",
         ":optimization_pass",
+        ":pass_base",
         ":proc_state_flattening_pass",
         ":tuple_simplification_pass",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
     ],
 )
 

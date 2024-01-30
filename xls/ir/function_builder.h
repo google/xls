@@ -862,7 +862,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // recurrent token value is a constructed as an AfterAll operation whose
   // operands are all of the tokens from the send(if)/receive(if) operations in
   // the proc.
-  absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state);
+  absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state = {});
 
   // Add a MinDelay constraint operation.
   using ProcBuilder::MinDelay;

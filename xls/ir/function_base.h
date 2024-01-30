@@ -92,7 +92,9 @@ class FunctionBase {
   absl::StatusOr<int64_t> GetParamIndex(Param* param) const;
 
   absl::Span<Next* const> next_values() const { return next_values_; }
-  const absl::btree_set<Next*>& next_values(Param* param) const {
+
+  const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values(
+      Param* param) const {
     return next_values_by_param_.at(param);
   }
 
@@ -218,7 +220,8 @@ class FunctionBase {
 
   std::vector<Param*> params_;
   std::vector<Next*> next_values_;
-  absl::flat_hash_map<Param*, absl::btree_set<Next*>> next_values_by_param_;
+  absl::flat_hash_map<Param*, absl::btree_set<Next*, Node::NodeIdLessThan>>
+      next_values_by_param_;
 
   NameUniquer node_name_uniquer_ =
       NameUniquer(/*separator=*/"__", GetIrReservedWords());
