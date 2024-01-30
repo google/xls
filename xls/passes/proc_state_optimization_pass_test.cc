@@ -14,14 +14,18 @@
 
 #include "xls/passes/proc_state_optimization_pass.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/optimization.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -39,9 +43,56 @@ using status_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 using ::testing::UnorderedElementsAre;
 
-class ProcStateOptimizationPassTest : public IrTestBase {
+enum class NextValueType : std::uint8_t {
+  kNextStateElements,
+  kNextValueNodes,
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, NextValueType e) {
+  absl::Format(&sink, "%s",
+               e == NextValueType::kNextStateElements ? "NextStateElements"
+                                                      : "NextValueNodes");
+}
+
+class ProcStateOptimizationPassTest
+    : public IrTestBase,
+      public testing::WithParamInterface<NextValueType> {
  protected:
   ProcStateOptimizationPassTest() = default;
+
+  absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb, BValue token,
+                                  absl::Span<const BValue> next_state) {
+    switch (GetParam()) {
+      case NextValueType::kNextStateElements:
+        return pb.Build(token, next_state);
+      case NextValueType::kNextValueNodes: {
+        for (int64_t index = 0; index < next_state.size(); ++index) {
+          BValue param = pb.GetStateParam(index);
+          BValue next_value = next_state[index];
+          pb.Next(param, next_value);
+        }
+        return pb.Build(token);
+      }
+    }
+    ABSL_UNREACHABLE();
+  }
+  absl::StatusOr<Proc*> BuildProc(TokenlessProcBuilder& pb,
+                                  absl::Span<const BValue> next_state) {
+    switch (GetParam()) {
+      case NextValueType::kNextStateElements:
+        return pb.Build(next_state);
+      case NextValueType::kNextValueNodes: {
+        for (int64_t index = 0; index < next_state.size(); ++index) {
+          BValue param = pb.GetStateParam(index);
+          BValue next_value = next_state[index];
+          pb.Next(param, next_value);
+        }
+        return pb.Build();
+      }
+    }
+    ABSL_UNREACHABLE();
+  }
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
@@ -50,15 +101,16 @@ class ProcStateOptimizationPassTest : public IrTestBase {
   }
 };
 
-TEST_F(ProcStateOptimizationPassTest, StatelessProc) {
+TEST_P(ProcStateOptimizationPassTest, StatelessProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", "tkn", p.get());
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), std::vector<BValue>()).status());
+  XLS_ASSERT_OK(
+      BuildProc(pb, pb.GetTokenParam(), std::vector<BValue>()).status());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-TEST_F(ProcStateOptimizationPassTest, SimpleNonoptimizableStateProc) {
+TEST_P(ProcStateOptimizationPassTest, SimpleNonoptimizableStateProc) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -69,14 +121,14 @@ TEST_F(ProcStateOptimizationPassTest, SimpleNonoptimizableStateProc) {
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   pb.Send(out, pb.Add(x, y));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(x), pb.Not(y)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {pb.Not(x), pb.Not(y)}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 2);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_EQ(proc->GetStateElementCount(), 2);
 }
 
-TEST_F(ProcStateOptimizationPassTest, ProcWithDeadElements) {
+TEST_P(ProcStateOptimizationPassTest, ProcWithDeadElements) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -88,7 +140,8 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithDeadElements) {
   BValue z = pb.StateElement("z", Value(UBits(0, 32)));
   pb.Send(out, x);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(x), y, pb.Not(z)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           BuildProc(pb, {pb.Not(x), y, pb.Not(z)}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -97,20 +150,20 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithDeadElements) {
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
 }
 
-TEST_F(ProcStateOptimizationPassTest, CrissCrossDeadElements) {
+TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadElements) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({y, x}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {y, x}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 2);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateElementCount(), 0);
 }
 
-TEST_F(ProcStateOptimizationPassTest, CrissCrossDeadAndLiveElements) {
+TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadAndLiveElements) {
   auto p = CreatePackage();
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -126,15 +179,15 @@ TEST_F(ProcStateOptimizationPassTest, CrissCrossDeadAndLiveElements) {
 
   pb.Send(out, c);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({b, c, a, y, x}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {b, c, a, y, x}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 5);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->GetStateElementCount(), 3);
-  EXPECT_THAT(proc->StateParams(), ElementsAre(a.node(), b.node(), c.node()));
+  EXPECT_THAT(proc->StateParams(),
+              ElementsAre(m::Param("a"), m::Param("b"), m::Param("c")));
 }
 
-TEST_F(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
+TEST_P(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 0)));
@@ -143,7 +196,7 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   BValue send = pb.Send(out, pb.Concat({x, y}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(x), pb.Not(y)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {pb.Not(x), pb.Not(y)}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 2);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -155,7 +208,7 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
                       m::Concat(m::Literal(UBits(0, 0)), m::Param("y"))));
 }
 
-TEST_F(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
+TEST_P(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -176,7 +229,8 @@ TEST_F(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
   BValue next_y = pb.TupleIndex(pb.TupleIndex(xy_z, 0), 0);
   BValue next_z = pb.TupleIndex(xy_z, 1);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({next_x, next_y, next_z}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           BuildProc(pb, {next_x, next_y, next_z}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -184,7 +238,7 @@ TEST_F(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
   EXPECT_THAT(proc->StateParams(), ElementsAre(x.node(), y.node()));
 }
 
-TEST_F(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
+TEST_P(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -204,7 +258,7 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
                 pb.TupleIndex(not_dead_state, 1)});
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build({dead_state, next_not_dead_state}));
+                           BuildProc(pb, {dead_state, next_not_dead_state}));
 
   EXPECT_THAT(proc->StateParams(),
               UnorderedElementsAre(m::Param("dead"), m::Param("not_dead")));
@@ -212,7 +266,7 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
   EXPECT_THAT(proc->StateParams(), UnorderedElementsAre(m::Param("not_dead")));
 }
 
-TEST_F(ProcStateOptimizationPassTest, ProcWithConstantStateElement) {
+TEST_P(ProcStateOptimizationPassTest, ProcWithConstantStateElement) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -236,8 +290,8 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithConstantStateElement) {
       pb.Tuple({pb.Not(pb.TupleIndex(not_constant_state, 0)),
                 pb.TupleIndex(not_constant_state, 1)});
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build({constant_state, next_not_constant_state}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, BuildProc(pb, {constant_state, next_not_constant_state}));
 
   EXPECT_THAT(
       proc->StateParams(),
@@ -254,7 +308,7 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithConstantStateElement) {
                      m::TupleIndex(m::Param("not_constant"))));
 }
 
-TEST_F(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
+TEST_P(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -286,10 +340,10 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
   BValue next_implicit_constant_state_2 =
       pb.Xor(constant_state, implicit_constant_state_1);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build({constant_state, next_not_constant_state,
-                                     next_implicit_constant_state_1,
-                                     next_implicit_constant_state_2}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, BuildProc(pb, {constant_state, next_not_constant_state,
+                                  next_implicit_constant_state_1,
+                                  next_implicit_constant_state_2}));
 
   EXPECT_THAT(
       proc->StateParams(),
@@ -301,7 +355,7 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
               UnorderedElementsAre(m::Param("not_constant")));
 }
 
-TEST_F(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
+TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -312,7 +366,7 @@ TEST_F(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
   BValue lit = pb.Literal(Value(UBits(200, 32)));
   BValue send = pb.Send(out, x);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({lit}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {lit}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -325,6 +379,11 @@ TEST_F(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
                                          /*cases=*/{m::Literal(100)},
                                          /*default_value=*/m::Literal(200))));
 }
+
+INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateOptimizationPassTest,
+                         testing::Values(NextValueType::kNextStateElements,
+                                         NextValueType::kNextValueNodes),
+                         testing::PrintToStringParamName());
 
 }  // namespace
 }  // namespace xls
