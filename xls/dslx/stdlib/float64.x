@@ -72,7 +72,9 @@ pub fn cast_to_fixed<NUM_DST_BITS: u32>(to_cast: F64) -> sN[NUM_DST_BITS] {
     apfloat::cast_to_fixed<NUM_DST_BITS, F64_EXP_SZ, F64_FRACTION_SZ>(to_cast)
 }
 
-pub fn subnormals_to_zero(f: F64) -> F64 { apfloat::subnormals_to_zero<F64_EXP_SZ, F64_FRACTION_SZ>(f) }
+pub fn subnormals_to_zero(f: F64) -> F64 {
+    apfloat::subnormals_to_zero<F64_EXP_SZ, F64_FRACTION_SZ>(f)
+}
 
 pub fn is_zero_or_subnormal(f: F64) -> bool {
     apfloat::is_zero_or_subnormal<F64_EXP_SZ, F64_FRACTION_SZ>(f)
@@ -88,7 +90,8 @@ pub fn lt_2(x: F64, y: F64) -> bool { apfloat::lt_2<F64_EXP_SZ, F64_FRACTION_SZ>
 
 pub fn lte_2(x: F64, y: F64) -> bool { apfloat::lte_2<F64_EXP_SZ, F64_FRACTION_SZ>(x, y) }
 
-pub fn normalize(sign: u1, exp: uN[F64_EXP_SZ], fraction_with_hidden: uN[u32:1 + F64_FRACTION_SZ]) -> F64 {
+pub fn normalize
+    (sign: u1, exp: uN[F64_EXP_SZ], fraction_with_hidden: uN[u32:1 + F64_FRACTION_SZ]) -> F64 {
     apfloat::normalize<F64_EXP_SZ, F64_FRACTION_SZ>(sign, exp, fraction_with_hidden)
 }
 

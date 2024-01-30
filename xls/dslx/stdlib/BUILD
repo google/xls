@@ -82,6 +82,12 @@ xls_dslx_library(
     deps = [":std_dslx"],
 )
 
+xls_dslx_fmt_test(
+    name = "bfloat16_dslx_fmt_test",
+    src = "bfloat16.x",
+    opportunistic_postcondition = True,
+)
+
 xls_dslx_test(
     name = "bfloat16_dslx_test",
     srcs = ["bfloat16.x"],
@@ -135,6 +141,12 @@ xls_dslx_library(
     name = "float32_dslx",
     srcs = ["float32.x"],
     deps = [":std_dslx"],
+)
+
+xls_dslx_fmt_test(
+    name = "float32_dslx_fmt_test",
+    src = "float32.x",
+    opportunistic_postcondition = True,
 )
 
 xls_dslx_test(
@@ -585,6 +597,12 @@ xls_dslx_library(
     name = "float64_dslx",
     srcs = ["float64.x"],
     deps = [":std_dslx"],
+)
+
+xls_dslx_fmt_test(
+    name = "float64_dslx_fmt_test",
+    src = "float64.x",
+    opportunistic_postcondition = True,
 )
 
 xls_dslx_test(
