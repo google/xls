@@ -262,7 +262,6 @@ std::optional<BinaryOpWithLiteral> MatchBinaryOpWithLiteral(Node* node) {
 //
 // Operations handled are `kAdd` and `kSub`.
 absl::StatusOr<bool> MatchComparisonOfInjectiveOp(Node* node) {
-  XLS_LOG(INFO) << "trying node: " << node->ToString();
   if (!node->GetType()->IsBits()) {
     return false;
   }
