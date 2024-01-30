@@ -37,8 +37,9 @@ xls_dslx_library(
 )
 
 xls_dslx_fmt_test(
-    name = "std_dslx_autofmt_test",
+    name = "std_dslx_fmt_test",
     src = "std.x",
+    opportunistic_postcondition = True,
 )
 
 xls_dslx_test(
@@ -52,8 +53,9 @@ xls_dslx_test(
 )
 
 xls_dslx_fmt_test(
-    name = "acm_random_dslx_fmt",
+    name = "acm_random_dslx_fmt_test",
     src = "acm_random.x",
+    opportunistic_postcondition = True,
 )
 
 xls_dslx_library(
@@ -66,6 +68,12 @@ xls_dslx_test(
     name = "apfloat_dslx_test",
     srcs = ["apfloat.x"],
     deps = [":apfloat_dslx"],
+)
+
+xls_dslx_fmt_test(
+    name = "apfloat_dslx_fmt_test",
+    src = "apfloat.x",
+    opportunistic_postcondition = True,
 )
 
 xls_dslx_library(
