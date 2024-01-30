@@ -690,8 +690,7 @@ CInternalTuple::operator std::string() const {
     if (i > 0) {
       ostr << ", ";
     }
-    ostr << "[" << i << "] "
-         << ": " << string(*field);
+    ostr << "[" << i << "] " << ": " << string(*field);
   }
   ostr << "}";
   return ostr.str();
