@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -74,11 +75,34 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);
 
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena);
 
+inline constexpr int64_t kDslxDefaultTextWidth = 100;
+
 // Auto-formatting entry point.
 //
 // Performs a reflow-capable formatting of module "m" with standard line width.
 std::string AutoFmt(const Module& m, const Comments& comments,
-                    int64_t text_width = 100);
+                    int64_t text_width = kDslxDefaultTextWidth);
+
+// If we fail the postcondition we return back the data we used to detect that
+// the postcondition was violated.
+struct AutoFmtPostconditionViolation {
+  std::string original_transformed;
+  std::string autofmt_transformed;
+};
+
+// Checks whether the auto-formatting process looks "opportunistically sound" --
+// that is, this will not hold true for all examples, but it'll hold true for a
+// bunch of them, and so can be a useful debugging tool.
+//
+// It's difficult to come up with a /simple/ postcondition for the
+// auto-formatter because it does some cleanup transformations based on the
+// grammar, and we want this to be a simple linear / regexp style check on the
+// flattened text, so we can't account for all the transforms that the
+// autoformatter may perform. Still, it's useful in testing or debugging
+// scenarios where we know none of those constructs / situations are present.
+std::optional<AutoFmtPostconditionViolation>
+ObeysAutoFmtOpportunisticPostcondition(std::string_view original,
+                                       std::string_view autofmt);
 
 }  // namespace xls::dslx
 

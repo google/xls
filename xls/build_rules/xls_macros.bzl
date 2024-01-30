@@ -525,20 +525,26 @@ def xls_delay_model_generation(
         **kwargs
     )
 
-def xls_dslx_fmt_test_macro(name, src):
+def xls_dslx_fmt_test_macro(name, src, opportunistic_postcondition = False):
     """Creates a test target that confirms `src` is auto-formatted.
 
     Args:
         name: Name of the (diff) test target this will emit.
         src: Source file to auto-format.
+        opportunistic_postcondition: Flag that checks whether the output text
+            is highly similar to the input text. Note that sometimes this /can/
+            flag an error for some set of valid auto-formattings, so is
+            intended primarily for use as a development/debugging tool.
     """
     out = name + ".fmt.x"
+    flag = "--opportunistic_postcondition" if opportunistic_postcondition else ""
+    cmd = "$(location %s) %s $< > $@" % (Label(DEFAULT_DSLX_FMT_TARGET), flag)
     native.genrule(
         name = name + "_dslx_fmt",
         srcs = [src],
         outs = [out],
         tools = [Label(DEFAULT_DSLX_FMT_TARGET)],
-        cmd = "$(location %s) $< > $@" % Label(DEFAULT_DSLX_FMT_TARGET),
+        cmd = cmd,
     )
 
     # TODO(tedhong): 2023-11-02, adjust package_name depending on the WORKSPACE

@@ -23,7 +23,9 @@
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -165,7 +167,8 @@ class FunctionFmtTest : public testing::Test {
   absl::StatusOr<std::string> DoFmt(
       std::string_view original,
       const absl::flat_hash_set<std::string>& builtin_name_defs = {},
-      int64_t text_width = 100) {
+      int64_t text_width = kDslxDefaultTextWidth,
+      bool opportunistic_postcondition = true) {
     XLS_CHECK(!scanner_.has_value());
     scanner_.emplace("fake.x", std::string{original});
     parser_.emplace("fake", &scanner_.value());
@@ -179,7 +182,25 @@ class FunctionFmtTest : public testing::Test {
     Comments comments = Comments::Create(scanner_->comments());
 
     DocRef doc = Fmt(*f_, comments, arena_);
-    return PrettyPrint(arena_, doc, text_width);
+    std::string formatted = PrettyPrint(arena_, doc, text_width);
+
+    std::optional<AutoFmtPostconditionViolation> maybe_violation =
+        ObeysAutoFmtOpportunisticPostcondition(original, formatted);
+    if (maybe_violation.has_value() && opportunistic_postcondition) {
+      XLS_LOG(ERROR) << "= original (transformed)";
+      XLS_LOG_LINES(ERROR, maybe_violation->original_transformed);
+      XLS_LOG(ERROR) << "= autofmt (transformed)";
+      XLS_LOG_LINES(ERROR, maybe_violation->autofmt_transformed);
+      return absl::InternalError(
+          "Sample did not obey auto-formatting postcondition");
+    }
+
+    return formatted;
+  }
+
+  absl::StatusOr<std::string> DoFmtNoPostcondition(std::string_view original) {
+    return DoFmt(original, {}, kDslxDefaultTextWidth,
+                 /*opportunistic_postcondition=*/false);
   }
 
   Bindings& bindings() { return bindings_; }
@@ -279,14 +300,14 @@ TEST_F(FunctionFmtTest, SimpleCast) {
 
 TEST_F(FunctionFmtTest, DoubleParensLhsOfCast) {
   const std::string_view original = "fn f(x:u32)->u64{((x++x)) as u64}";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmtNoPostcondition(original));
   const std::string_view want = R"(fn f(x: u32) -> u64 { (x ++ x) as u64 })";
   EXPECT_EQ(got, want);
 }
 
 TEST_F(FunctionFmtTest, DoubleParensLhsOfIndex) {
   const std::string_view original = "fn f(x:u32[2],i:u32)->u32{((x++x))[i]}";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmtNoPostcondition(original));
   const std::string_view want =
       R"(fn f(x: u32[2], i: u32) -> u32 { (x ++ x)[i] })";
   EXPECT_EQ(got, want);
@@ -384,7 +405,7 @@ TEST_F(FunctionFmtTest, ConditionalWithElseIf) {
 TEST_F(FunctionFmtTest, ConditionalWithUnnecessaryParens) {
   const std::string_view original =
       "fn f(a:u32,b:u32)->u32{if(a<b){a}else if(b<a){b}else{a}}";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmtNoPostcondition(original));
   const std::string_view want =
       R"(fn f(a: u32, b: u32) -> u32 {
     if a < b {
@@ -865,158 +886,127 @@ TEST_F(FunctionFmtTest, InlineBlockExpression) {
 
 // -- ModuleFmtTest cases, formatting entire modules
 
-TEST(ModuleFmtTest, TwoSimpleFunctions) {
-  const std::string_view kProgram =
-      "fn double(x:u32)->u32{u32:2*x}fn triple(x: u32)->u32{u32:3*x}";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, R"(fn double(x: u32) -> u32 { u32:2 * x }
+class ModuleFmtTest : public testing::Test {
+ public:
+  void Run(std::string_view input,
+           std::optional<std::string_view> want = std::nullopt,
+           int64_t text_width = kDslxDefaultTextWidth,
+           bool opportunistic_postcondition = true) {
+    std::vector<CommentData> comments;
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
+                             ParseModule(input, "fake.x", "fake", &comments));
+    std::string got = AutoFmt(*m, Comments::Create(comments), text_width);
+
+    if (opportunistic_postcondition) {
+      std::optional<AutoFmtPostconditionViolation> maybe_violation =
+          ObeysAutoFmtOpportunisticPostcondition(input, got);
+      if (maybe_violation.has_value()) {
+        XLS_LOG(ERROR) << "= original (transformed)";
+        XLS_LOG_LINES(ERROR, maybe_violation->original_transformed);
+        XLS_LOG(ERROR) << "= autofmt (transformed)";
+        XLS_LOG_LINES(ERROR, maybe_violation->autofmt_transformed);
+        FAIL() << "auto-formatter postcondition was violated";
+      }
+    }
+
+    EXPECT_EQ(got, want.value_or(input));
+  }
+
+  void RunNoPostcondition(std::string_view input,
+                          std::optional<std::string_view> want = std::nullopt) {
+    Run(input, want, kDslxDefaultTextWidth,
+        /*opportunistic_postcondition=*/false);
+  }
+};
+
+TEST_F(ModuleFmtTest, TwoSimpleFunctions) {
+  Run("fn double(x:u32)->u32{u32:2*x}fn triple(x: u32)->u32{u32:3*x}",
+      R"(fn double(x: u32) -> u32 { u32:2 * x }
 
 fn triple(x: u32) -> u32 { u32:3 * x }
 )");
 }
 
-TEST(ModuleFmtTest, OverLongImport) {
-  const std::string_view kProgram =
-      "import very_long.name_here.made_of.dotted_components;";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments), 14);
-  EXPECT_EQ(got,
-            "import very_long.\n"
-            "       name_here.\n"
-            "       made_of.\n"
-            "       dotted_components;\n");
+TEST_F(ModuleFmtTest, OverLongImport) {
+  Run("import very_long.name_here.made_of.dotted_components;",
+      "import very_long.\n"
+      "       name_here.\n"
+      "       made_of.\n"
+      "       dotted_components;\n",
+      14);
 }
 
-TEST(ModuleFmtTest, ImportAs) {
-  const std::string_view kProgram = "import foo as bar;\n";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
-}
+TEST_F(ModuleFmtTest, ImportAs) { Run("import foo as bar;\n"); }
 
-TEST(ModuleFmtTest, ImportGroups) {
-  const std::string_view kProgram = R"(import thing1;
+TEST_F(ModuleFmtTest, ImportGroups) {
+  Run(R"(import thing1;
 import thing2;
 
 import other;
 import stuff;
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ImportSuperLongName) {
-  const std::string_view kProgram = R"(// Module-level comment
+TEST_F(ModuleFmtTest, ImportSuperLongName) {
+  Run(R"(// Module-level comment
 import blahhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
     as blah;
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, TypeAliasGroups) {
-  const std::string_view kProgram = R"(import thing1;
+TEST_F(ModuleFmtTest, TypeAliasGroups) {
+  Run(R"(import thing1;
 import float32;
 
 type F32 = float32::F32;
 type FloatTag = float32::FloatTag;
 
 type TaggedF32 = float32::TaggedF32;
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ConstantDefGroups) {
-  const std::string_view kProgram = R"(const A = u32:42;
+TEST_F(ModuleFmtTest, ConstantDefGroups) {
+  Run(R"(const A = u32:42;
 const B = u32:64;
 
 const C = u32:128;
 const D = u32:256;
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ConstantDef) {
-  const std::string_view kProgram = "pub const MOL = u32:42;\n";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+TEST_F(ModuleFmtTest, ConstantDef) { Run("pub const MOL = u32:42;\n"); }
+
+TEST_F(ModuleFmtTest, ConstantDefArray) {
+  Run("pub const VALS = u32[2]:[32, 64];\n");
 }
 
-TEST(ModuleFmtTest, ConstantDefArray) {
-  const std::string_view kProgram = "pub const VALS = u32[2]:[32, 64];\n";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
-}
-
-TEST(ModuleFmtTest, ConstantDefArrayMultiline) {
-  const std::string_view kProgram = R"(pub const VALS = u64[5]:[
+TEST_F(ModuleFmtTest, ConstantDefArrayMultiline) {
+  Run(R"(pub const VALS = u64[5]:[
     0x002698ad4b48ead0, 0x1bfb1e0316f2d5de, 0x173a623c9725b477, 0x0a447a02823ad868,
     0x1df74948b3fbea7e, 0x1bc8b594bcf01a39, 0x07b767ca9520e99a, 0x05e28b4320bfd20e,
     0x0105906a24823f57, 0x1a1e7d14a6d24384, 0x2a7326df322e084d, 0x120bc9cc3fac4ec7,
     0x2c8f193a1b46a9c5, 0x2b9c95743bbe3f90, 0x0dcfc5b1d0398b46, 0x006ba47b3448bea3,
     0x3fe4fbf9a522891b, 0x23e1a50ad6aebca3, 0x1b263d39ea62be44, 0x13581d282e643b0e,
 ];
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ConstantDefArrayMultilineWithEllipsis) {
-  const std::string_view kProgram = R"(pub const VALS = u64[8]:[
+TEST_F(ModuleFmtTest, ConstantDefArrayMultilineWithEllipsis) {
+  Run(R"(pub const VALS = u64[8]:[
     0x002698ad4b48ead0, 0x1bfb1e0316f2d5de, 0x173a623c9725b477, 0x0a447a02823ad868,
     0x1df74948b3fbea7e, 0x1bc8b594bcf01a39, 0x07b767ca9520e99a, ...
 ];
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ConstantDefArrayEllipsis) {
-  const std::string_view kProgram = "pub const VALS = u32[2]:[32, ...];\n";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+TEST_F(ModuleFmtTest, ConstantDefArrayEllipsis) {
+  Run("pub const VALS = u32[2]:[32, ...];\n");
 }
 
 // We want these arrays to not have e.g. extra newlines introduced between them,
 // since they are abutted.
-TEST(ModuleFmtTest, ConstantDefMultipleArray) {
-  const std::string_view kProgram = R"(// Module level comment.
+TEST_F(ModuleFmtTest, ConstantDefMultipleArray) {
+  Run(R"(// Module level comment.
 const W_A0 = u32:32;
 const W_A1 = u32:32;
 const W_A2 = u32:32;
@@ -1033,43 +1023,19 @@ pub const A0 = sN[W_A0][NUM_PIECES]:[
     111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111,
     111111, 111111, 111111, 111111,
 ];
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, EnumDefTwoValues) {
-  const std::string_view kInputProgram = "pub enum MyEnum:u32{A=1,B=2}\n";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Module> m,
-      ParseModule(kInputProgram, "fake.x", "fake", &comments));
-
-  const std::string_view kWant = R"(pub enum MyEnum : u32 {
+TEST_F(ModuleFmtTest, EnumDefTwoValues) {
+  Run("pub enum MyEnum:u32{A=1,B=2}\n",
+      R"(pub enum MyEnum : u32 {
     A = 1,
     B = 2,
 }
-)";
-  std::string got_multiline = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got_multiline, kWant);
+)");
 }
 
-TEST(ModuleFmtTest, EnumDefCommentOnEachMember) {
-  const std::string_view kInputProgram = R"(pub enum MyEnum:u32{
-// This is the first member comment.
-FIRST = 0,
-// This is the second member comment.
-SECOND = 1,
-// This is a trailing comment.
-})";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Module> m,
-      ParseModule(kInputProgram, "fake.x", "fake", &comments));
-
+TEST_F(ModuleFmtTest, EnumDefCommentOnEachMember) {
   const std::string_view kWant = R"(pub enum MyEnum : u32 {
     // This is the first member comment.
     FIRST = 0,
@@ -1078,158 +1044,109 @@ SECOND = 1,
     // This is a trailing comment.
 }
 )";
-  std::string got_multiline = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got_multiline, kWant);
+  Run(R"(pub enum MyEnum:u32{
+// This is the first member comment.
+FIRST = 0,
+// This is the second member comment.
+SECOND = 1,
+// This is a trailing comment.
+})",
+      kWant);
 }
 
-TEST(ModuleFmtTest, StructDefTwoFields) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, StructDefTwoFields) {
+  const std::string kInput =
       "pub struct Point<N: u32> { x: bits[N], y: u64 }\n";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
 
   // At normal 100 char width it can be in single line form.
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+  Run(kInput);
 
-  const std::string_view kWantMultiline = R"(pub struct Point<N: u32> {
+  Run(kInput, R"(pub struct Point<N: u32> {
     x: bits[N],
     y: u64,
 }
-)";
-  std::string got_multiline =
-      AutoFmt(*m, Comments::Create(comments), /*text_width=*/32);
-  EXPECT_EQ(got_multiline, kWantMultiline);
+)",
+      32);
 }
 
-TEST(ModuleFmtTest, StructDefEmptyWithComment) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, StructDefEmptyWithComment) {
+  Run(
       R"(pub struct Point {
     // Very empty.
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, StructDefWithInlineCommentsOnFields) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, StructDefWithInlineCommentsOnFields) {
+  Run(
       R"(pub struct Point {
     x: u32,  // Comment on the first field
     y: u64,  // Comment on the second field
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, StructDefWithAbuttedCommentsOnFields) {
-  const std::string_view kProgram =
-      R"(pub struct Point {
+TEST_F(ModuleFmtTest, StructDefWithAbuttedCommentsOnFields) {
+  Run(R"(pub struct Point {
     // Above the first member
     x: u32,
     // Above the second member
     y: u64,
     // After the second member
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, StructDefWithMixedCommentAnnotations) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, StructDefWithMixedCommentAnnotations) {
+  Run(
       R"(pub struct Point {
     x: u32,  // short inline comment
     // This has a long, long discussion for some reason.
     // It spreads over multiple lines and refers to what is below.
     y: u64,
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
 // TODO(https://github.com/google/xls/issues/1273): 2024-01-23 We need to
 // coalesce these two fragments of comment into one comment entity to handle it
 // the way one would expect.
-TEST(ModuleFmtTest, DISABLED_StructDefWithMultilineInlineComment) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, DISABLED_StructDefWithMultilineInlineComment) {
+  Run(
       R"(pub struct Point {
     x: u32,  // this is a longer comment
              // it wants to be multi-line for some reason
     y: u64,
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, StructDefGithub1260) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, StructDefGithub1260) {
+  Run(
       R"(// Foos do what they do.
 struct Foo {
     // the foo top of body comment
     bar: u1,  // the bar
     hop: u2,  // the hop
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, StructDefTwoParametrics) {
+TEST_F(ModuleFmtTest, StructDefTwoParametrics) {
   const std::string_view kProgram =
       "pub struct Point<M: u32, N: u32> { x: bits[M], y: bits[N] }\n";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  // At normal 100 char width it can be in single line form.
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+  Run(kProgram);
 
   const std::string_view kWantMultiline = R"(pub struct Point<M: u32, N: u32> {
     x: bits[M],
     y: bits[N],
 }
 )";
-  std::string got_multiline =
-      AutoFmt(*m, Comments::Create(comments), /*text_width=*/35);
-  EXPECT_EQ(got_multiline, kWantMultiline);
+  Run(kProgram, kWantMultiline, 35);
 }
 
-TEST(ModuleFmtTest, SimpleTestFunction) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleTestFunction) {
+  Run(
       R"(fn id(x: u32) -> u32 { x }
 
 #[test]
@@ -1237,19 +1154,11 @@ fn my_test() {
     assert_eq(id(u32:64), u32:64);
     assert_eq(id(u32:128), u32:128);
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, SimpleTestFunctionWithLeadingComment) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleTestFunctionWithLeadingComment) {
+  Run(
       R"(fn id(x: u32) -> u32 { x }
 
 // This is a test function. Now you know.
@@ -1258,246 +1167,146 @@ fn my_test() {
     assert_eq(id(u32:64), u32:64);
     assert_eq(id(u32:128), u32:128);
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, SimpleParametricInvocation) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleParametricInvocation) {
+  Run(
       R"(fn p<N: u32>(x: bits[N]) -> bits[N] { x }
 
 fn f() -> u8 { p<8>(u8:42) }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, SimpleParametricStructInstantiation) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, StructInstantiationWithRedundantAttributeSpecifier) {
+  RunNoPostcondition(
+      R"(struct MyStruct { x: u32 }
+
+fn f() -> MyStruct {
+    let x = u32:42;
+    MyStruct { x: x }
+}
+)",
+      R"(struct MyStruct { x: u32 }
+
+fn f() -> MyStruct {
+    let x = u32:42;
+    MyStruct { x }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SimpleParametricStructInstantiation) {
+  Run(
       R"(import mol;
 
 struct Point<N: u32> { x: bits[N], y: bits[N] }
 
 fn f() -> Point<mol::MOL> { Point<mol::MOL> { x: u8:42, y: u8:64 } }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, TypeRefTypeAnnotationModuleLevel) {
-  constexpr std::string_view kProgram =
+TEST_F(ModuleFmtTest, TypeRefTypeAnnotationModuleLevel) {
+  Run(
       R"(type MyU32 = u32;
 
 fn f() -> MyU32 { MyU32:42 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, TypeRefTypeAnnotationInBody) {
-  constexpr std::string_view kProgram =
+TEST_F(ModuleFmtTest, TypeRefTypeAnnotationInBody) {
+  Run(
       R"(fn f() -> u32 {
     type MyU32 = u32;
     MyU32:42
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, TypeRefChannelTypeAnnotation) {
-  constexpr std::string_view kProgram =
-      R"(type MyChan = chan<u32> out;
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+TEST_F(ModuleFmtTest, TypeRefChannelTypeAnnotation) {
+  Run("type MyChan = chan<u32> out;\n");
 }
 
-TEST(ModuleFmtTest, ColonRefWithImportSubject) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ColonRefWithImportSubject) {
+  Run(
       R"(import foo;
 
 fn f() -> u32 { foo::bar }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, NestedColonRefWithImportSubject) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, NestedColonRefWithImportSubject) {
+  Run(
       R"(import foo;
 
 fn f() -> u32 { foo::bar::baz::bat }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, ModuleLevelConstAssert) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ModuleLevelConstAssert) {
+  Run(
       R"(import foo;
 
 const_assert!(foo::bar == u32:42);
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, ConstStructInstance) {
-  const std::string_view kProgram =
-      R"(struct Point { x: u32, y: u32 }
+TEST_F(ModuleFmtTest, ConstStructInstance) {
+  Run(R"(struct Point { x: u32, y: u32 }
 
 const P = Point { x: u32:42, y: u32:64 };
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, ConstStructInstanceEmpty) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ConstStructInstanceEmpty) {
+  Run(
       R"(struct Nothing {}
 
 const NOTHING = Nothing {};
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, StructAttr) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, StructAttr) {
+  Run(
       R"(struct Point { x: u32, y: u32 }
 
 fn get_x(p: Point) -> u32 { p.x }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, ConstStructInstanceWithSplatVariantOneUpdate) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ConstStructInstanceWithSplatVariantOneUpdate) {
+  Run(
       R"(struct Point { x: u32, y: u32 }
 
 const P = Point { x: u32:42, y: u32:64 };
 
 const Q = Point { x: u32:32, ..P };
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, ConstStructInstanceWithSplatVariantNoUpdate) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ConstStructInstanceWithSplatVariantNoUpdate) {
+  Run(
       R"(struct Point { x: u32, y: u32 }
 
 const P = Point { x: u32:42, y: u32:64 };
 
 const Q = Point { ..P };
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, StructInstanceWithNamesViaBindings) {
-  const std::string_view kProgram =
-      R"(struct Point { x: u32, y: u16 }
+TEST_F(ModuleFmtTest, StructInstanceWithNamesViaBindings) {
+  Run(R"(struct Point { x: u32, y: u16 }
 
 fn f() {
     let x = u32:42;
     let y = u16:64;
     Point { x, y }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, StructInstanceWithNamesViaBindingsBackwards) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, StructInstanceWithNamesViaBindingsBackwards) {
+  Run(
       R"(struct Point { x: u32, y: u16 }
 
 fn f() {
@@ -1505,103 +1314,60 @@ fn f() {
     let y = u16:64;
     Point { y, x }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-
-  {
-    std::string got = AutoFmt(*m, Comments::Create(comments));
-    EXPECT_EQ(got, kProgram);
-  }
+)");
 }
 
-TEST(ModuleFmtTest, SimpleQuickCheck) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleQuickCheck) {
+  Run(
       R"(#[quickcheck]
 fn f() -> bool { true }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimplePublicFunction) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimplePublicFunction) {
+  Run(
       R"(pub fn id(x: u32) -> u32 { x }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, OneModuleLevelCommentNoReflow) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, OneModuleLevelCommentNoReflow) {
+  Run(
       R"(// This is a module level comment at the top of the file.
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, TwoModuleLevelCommentsNoReflow) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, TwoModuleLevelCommentsNoReflow) {
+  Run(
       R"(// This is a module level comment at the top of the file.
 
 // This is another one slightly farther down in the file.
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, OneMultiLineCommentNoReflow) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, OneMultiLineCommentNoReflow) {
+  Run(
       R"(// This is a module level comment at the top of the file.
 // It spans multiple lines in a single block of comment text.
 // Three, to be precise. And then the file ends.
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, OneMultiLineCommentWithAnEmptyLineNoReflow) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, OneMultiLineCommentWithAnEmptyLineNoReflow) {
+  Run(
       R"(// This is a module level comment at the top of the file.
 //
 // There's a blank on the second line. And then the file ends after the third.
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, OneOverlongCommentLineWithOneToken) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, OneOverlongCommentLineWithOneToken) {
+  Run(
       R"(// abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ModuleAndFunctionLevelComments) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ModuleAndFunctionLevelComments) {
+  Run(
       R"(// This is a module level comment at the top of the file.
 
 // This is a function level comment.
@@ -1612,31 +1378,21 @@ fn g(x: u32) -> u32 {
     let y = x + u32:1;
     y
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, TwoModuleLevelCommentBlocksBeforeFunction) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, TwoModuleLevelCommentBlocksBeforeFunction) {
+  Run(
       R"(// Module comment one.
 
 // Module comment two.
 
 fn uncommented_fn(x: u32) -> u32 { x }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimpleProc) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleProc) {
+  Run(
       R"(pub proc p {
     config() { () }
 
@@ -1644,16 +1400,11 @@ TEST(ModuleFmtTest, SimpleProc) {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimpleProcWithMembers) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleProcWithMembers) {
+  Run(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -1664,16 +1415,11 @@ TEST(ModuleFmtTest, SimpleProcWithMembers) {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimpleParametricProc) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleParametricProc) {
+  Run(
       R"(pub proc p<N: u32> {
     config() { () }
 
@@ -1681,16 +1427,11 @@ TEST(ModuleFmtTest, SimpleParametricProc) {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimpleProcWithChannelDecl) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleProcWithChannelDecl) {
+  Run(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -1704,16 +1445,11 @@ TEST(ModuleFmtTest, SimpleProcWithChannelDecl) {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
+  Run(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -1727,16 +1463,11 @@ TEST(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimpleProcWithSpawn) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleProcWithSpawn) {
+  Run(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -1759,16 +1490,11 @@ pub proc q {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
+  Run(
       R"(pub proc p {
     cin: chan<u32> in;
     ca: chan<u32> out;
@@ -1788,17 +1514,12 @@ TEST(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
 // Based on report in https://github.com/google/xls/issues/1216
-TEST(ModuleFmtTest, ProcSpawnImported) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ProcSpawnImported) {
+  Run(
       R"(import some_import;
 
 proc p {
@@ -1811,16 +1532,11 @@ proc p {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, SimpleTestProc) {
-  constexpr std::string_view kProgram =
+TEST_F(ModuleFmtTest, SimpleTestProc) {
+  Run(
       R"(#[test_proc]
 proc p_test {
     terminator: chan<bool> out;
@@ -1831,16 +1547,11 @@ proc p_test {
 
     next(tok: token, state: ()) { send(tok, terminator, true); }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, MatchLongWildcardArmExpression) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, MatchLongWildcardArmExpression) {
+  Run(
       R"(import float32;
 
 fn f(input_float: float32::F32) -> float32::F32 {
@@ -1850,16 +1561,11 @@ fn f(input_float: float32::F32) -> float32::F32 {
         },
     }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ProcCallFarRhs) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ProcCallFarRhs) {
+  Run(
       R"(struct DelayState {}
 
 const DELAY = u32:42;
@@ -1878,78 +1584,53 @@ proc p {
             recv_if_non_blocking(tok, data_in, !eq(state.occupancy, DELAY), uN[DATA_WIDTH]:0);
     }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ParametricFnWithManyArgs) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ParametricFnWithManyArgs) {
+  Run(
       R"(fn umax() {}
 
 pub fn uadd_with_overflow
     <V: u32, N: u32, M: u32, MAX_N_M: u32 = {umax(N, M)}, MAX_N_M_V: u32 = {umax(MAX_N_M, V)}>
     (x: uN[N], y: uN[M]) -> (bool, uN[V]) {
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, TypeAliasToColonRefInstantiated) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, TypeAliasToColonRefInstantiated) {
+  Run(
       R"(import float32;
 
 type F32 = float32::F32;
 
 pub fn f() -> F32 { F32 { blah: u32:42 } }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, AttrEquality) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, AttrEquality) {
+  Run(
       R"(import m;
 
 const SOME_BOOL = true;
 
 fn f(x: m::MyStruct, y: m::MyStruct) -> bool { (x.foo == y.foo) || SOME_BOOL }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ArrowReturnTypePackedOnOneLine) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ArrowReturnTypePackedOnOneLine) {
+  Run(
       R"(import apfloat;
 
 fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>
     (a: apfloat::APFloat<EXP_SZ, FRACTION_SZ>, b: apfloat::APFloat<EXP_SZ, FRACTION_SZ>)
     -> (apfloat::APFloat<EXP_SZ, FRACTION_SZ>, bool) {
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, LongParametricList) {
-  const std::string_view kProgram = R"(// Signed max routine.
+TEST_F(ModuleFmtTest, LongParametricList) {
+  Run(R"(// Signed max routine.
 pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x > y { x } else { y } }
 
 pub fn extract_bits
@@ -1957,16 +1638,11 @@ pub fn extract_bits
      extract_width: u32 = {smax(s32:0, to_exclusive as s32 - from_inclusive as s32) as u32}>
     (x: uN[N]) -> uN[extract_width] {
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, NestedBinopLogicalOr) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, NestedBinopLogicalOr) {
+  Run(
       R"(// Define some arbitrary constants at various identifier widths.
 const AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA = true;
 const BBBBBBBBBBBBBBBBBBBBBBB = true;
@@ -1976,46 +1652,31 @@ fn f() -> bool {
     AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ||
     BBBBBBBBBBBBBBBBBBBBBBB || CCCCCCCCCCCCCCCCCCCCCCC
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ModuleConstantsWithInlineComments) {
-  const std::string_view kProgram =
+TEST_F(ModuleFmtTest, ModuleConstantsWithInlineComments) {
+  Run(
       R"(pub const MOL = u32:42;  // may be important
 
 const TWO_TO_FIFTH = u32:32;  // 2^5
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
 // If the array constant is placed on a single line it is overly long -- we
 // check that we smear it across multiple lines to stay within 100 chars.
-TEST(ModuleFmtTest, OverLongArrayConstant) {
-  const std::string_view kProgram = R"(// Top of module comment.
+TEST_F(ModuleFmtTest, OverLongArrayConstant) {
+  Run(R"(// Top of module comment.
 const W_A0 = u32:32;
 const NUM_PIECES = u32:8;
 pub const A0 = sN[W_A0][NUM_PIECES]:[
     111111, 111111, 111111, 111111, 111111, 111111, 111111, 111111,
 ];
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, InvocationWithOneStructArg) {
-  const std::string_view kProgram = R"(struct APFloat {}
+TEST_F(ModuleFmtTest, InvocationWithOneStructArg) {
+  Run(R"(struct APFloat {}
 
 fn unbiased_exponent() {}
 
@@ -2023,33 +1684,23 @@ fn f() {
     let actual = unbiased_exponent<u32:8, u32:23>(
         APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, fraction: u23:0 });
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
 // See github issue https://github.com/google/xls/issues/1193
-TEST(ModuleFmtTest, LongLetLeader) {
-  const std::string_view kProgram = R"(import std;
+TEST_F(ModuleFmtTest, LongLetLeader) {
+  Run(R"(import std;
 
 fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_too_short: u32) {
     type SomeTypeNameThatIsNotTooShort = s64;
     let very_somewhat_long_variable_name: SomeTypeNameThatIsNotTooShort = std::to_signed(
         some_value_that_is_pretty_long ++ some_other_value_that_is_also_not_too_short);
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, LongLetRhs) {
-  const std::string_view kProgram = R"(import std;
+TEST_F(ModuleFmtTest, LongLetRhs) {
+  Run(R"(import std;
 
 fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_too_short: u32) {
     type SomeTypeNameThatIsNotTooShort = sN[u32:96];
@@ -2057,41 +1708,26 @@ fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_to
         some_value_that_is_pretty_long ++ some_other_value_that_is_also_not_too_short ++
         some_value_that_is_pretty_long);
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, QuickcheckWithCount) {
-  const std::string_view kProgram = R"(// Comment on quickcheck.
+TEST_F(ModuleFmtTest, QuickcheckWithCount) {
+  Run(R"(// Comment on quickcheck.
 #[quickcheck(test_count=100000)]
 fn prop_eq(x: u32, y: u32) -> bool { x == y }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, ModuleLevelAnnotation) {
-  const std::string_view kProgram = R"(#![allow(nonstandard_constant_naming)]
+TEST_F(ModuleFmtTest, ModuleLevelAnnotation) {
+  Run(R"(#![allow(nonstandard_constant_naming)]
 
 fn id(x: u32) { x }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
-TEST(ModuleFmtTest, GithubIssue1229) {
+TEST_F(ModuleFmtTest, GithubIssue1229) {
   // Note: we just need it to parse, no need for it to typecheck.
-  const std::string_view kProgram = R"(struct ReadReq<X: u32> {}
+  Run(R"(struct ReadReq<X: u32> {}
 struct ReadResp<X: u32> {}
 struct WriteReq<X: u32, Y: u32> {}
 struct WriteResp {}
@@ -2117,12 +1753,7 @@ proc csr_8_32_14 {
 
     next(tok: token, state: ()) { () }
 }
-)";
-  std::vector<CommentData> comments;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                           ParseModule(kProgram, "fake.x", "fake", &comments));
-  std::string got = AutoFmt(*m, Comments::Create(comments));
-  EXPECT_EQ(got, kProgram);
+)");
 }
 
 }  // namespace

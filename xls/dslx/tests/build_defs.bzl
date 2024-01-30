@@ -117,6 +117,12 @@ def dslx_lang_test(
         xls_dslx_fmt_test(
             name = name + "_dslx_fmt",
             src = name + ".x",
+            # We enable the opportunistic postcondition for all of our
+            # auto-formatted language tests, because we don't generally expect
+            # we've put non-canonical constructs in our language tests; e.g.
+            # unnecessarily nested parens, unnecessary struct field
+            # identifiers, etc.
+            opportunistic_postcondition = True,
         )
 
     if convert_to_ir:

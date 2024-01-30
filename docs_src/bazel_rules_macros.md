@@ -705,7 +705,7 @@ a cc_library with its target name identical to this macro.
 ## xls_dslx_fmt_test
 
 <pre>
-xls_dslx_fmt_test(<a href="#xls_dslx_fmt_test-name">name</a>, <a href="#xls_dslx_fmt_test-src">src</a>)
+xls_dslx_fmt_test(<a href="#xls_dslx_fmt_test-name">name</a>, <a href="#xls_dslx_fmt_test-src">src</a>, <a href="#xls_dslx_fmt_test-opportunistic_postcondition">opportunistic_postcondition</a>)
 </pre>
 
 Creates a test target that confirms `src` is auto-formatted.
@@ -717,6 +717,7 @@ Creates a test target that confirms `src` is auto-formatted.
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_fmt_test-name"></a>name |  Name of the (diff) test target this will emit.   |  none |
 | <a id="xls_dslx_fmt_test-src"></a>src |  Source file to auto-format.   |  none |
+| <a id="xls_dslx_fmt_test-opportunistic_postcondition"></a>opportunistic_postcondition |  Flag that checks whether the output text is highly similar to the input text. Note that sometimes this /can/ flag an error for some set of valid auto-formattings, so is intended primarily for use as a development/debugging tool.   |  `False` |
 
 
 <a id="xls_dslx_ir"></a>

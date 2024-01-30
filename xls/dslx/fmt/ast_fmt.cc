@@ -33,6 +33,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -2204,6 +2205,37 @@ std::string AutoFmt(const Module& m, const Comments& comments,
   DocArena arena;
   DocRef ref = Fmt(m, comments, arena);
   return PrettyPrint(arena, ref, text_width);
+}
+
+// AutoFmt output should be the same as input after whitespace is eliminated
+// excepting that:
+//
+// * we may introduce/remove commas
+// * we may reflow comments
+// * we may turn struct instance attributes implicit if the names line up
+// * (unhandled, non-regexp) we may dedup unnecessarily doubled parentheses
+// * (unhandled, non-regexp) we may remove unnecessary parens e.g. on
+//   conditionals and match tested exprs
+//
+// Note that some of these transforms are overly conservative/aggressive to
+// avoid false positives.
+static std::string FilterForOpportunisticComparison(std::string_view input) {
+  return absl::StrReplaceAll(input, {
+                                        {"\n", ""},
+                                        {" ", ""},
+                                        {",", ""},
+                                        {"//", ""},
+                                    });
+}
+
+std::optional<AutoFmtPostconditionViolation>
+ObeysAutoFmtOpportunisticPostcondition(std::string_view original,
+                                       std::string_view autofmt) {
+  std::string want = FilterForOpportunisticComparison(original);
+  std::string got = FilterForOpportunisticComparison(autofmt);
+  return want == got
+             ? std::nullopt
+             : std::make_optional(AutoFmtPostconditionViolation{want, got});
 }
 
 }  // namespace xls::dslx

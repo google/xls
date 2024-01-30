@@ -15,6 +15,7 @@
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,6 +48,13 @@ ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(std::string, mode, "autofmt",
           "whether to use reflowing auto-formatter");
+ABSL_FLAG(
+    bool, opportunistic_postcondition, false,
+    "whether to check the autoformatter postcondition for debug purposes (not "
+    "a sound postcondition for all possible inputs, will make autofmt "
+    "somewhat slower) -- note that this can flag false positive, e.g. in cases "
+    "such as doubled parentheses that cannot be checked via regexp "
+    "equivalence");
 
 namespace xls::dslx {
 namespace {
@@ -57,7 +65,8 @@ Formats the DSLX source code present inside of a `.x` file.
 
 absl::Status RealMain(std::string_view input_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
-                      bool in_place, const std::string& mode) {
+                      bool in_place, bool opportunistic_postcondition,
+                      const std::string& mode) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
   }
@@ -91,6 +100,16 @@ absl::Status RealMain(std::string_view input_path,
     return absl::InvalidArgumentError(absl::StrCat("Invalid mode: ", mode));
   }
 
+  if (opportunistic_postcondition) {
+    if (std::optional<AutoFmtPostconditionViolation> violation =
+            ObeysAutoFmtOpportunisticPostcondition(contents, formatted);
+        violation.has_value()) {
+      return absl::InternalError(
+          "Autoformatting failed its opportunistic postcondition test; "
+          "autoformatted text may be buggy.");
+    }
+  }
+
   if (in_place) {
     XLS_RETURN_IF_ERROR(SetFileContents(path, formatted));
   } else {
@@ -119,8 +138,11 @@ int main(int argc, char* argv[]) {
     dslx_paths.push_back(std::filesystem::path(path));
   }
 
-  absl::Status status = xls::dslx::RealMain(args[0], dslx_paths,
-                                            /*in_place=*/absl::GetFlag(FLAGS_i),
-                                            /*mode=*/absl::GetFlag(FLAGS_mode));
+  absl::Status status =
+      xls::dslx::RealMain(args[0], dslx_paths,
+                          /*in_place=*/absl::GetFlag(FLAGS_i),
+                          /*opportunistic_postcondition=*/
+                          absl::GetFlag(FLAGS_opportunistic_postcondition),
+                          /*mode=*/absl::GetFlag(FLAGS_mode));
   return xls::ExitStatus(status);
 }

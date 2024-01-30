@@ -14,12 +14,11 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
-#include <string_view>
 
 #include "gtest/gtest.h"
 #include "absl/random/random.h"
-#include "absl/strings/str_replace.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -31,16 +30,6 @@
 
 namespace xls::dslx {
 namespace {
-
-// Autofmt output should be the same as input after whitespace is eliminated
-// excepting that we may introduce/remove commas.
-std::string RemoveWhitespaceAndCommas(std::string_view input) {
-  return absl::StrReplaceAll(input, {
-                                        {"\n", ""},
-                                        {" ", ""},
-                                        {",", ""},
-                                    });
-}
 
 class FmtGeneratedAstTest : public testing::TestWithParam<int> {};
 
@@ -68,10 +57,13 @@ TEST_P(FmtGeneratedAstTest, RunShard) {
     Comments comments;
     std::string autoformatted = AutoFmt(*parsed, comments);
 
-    std::string want = RemoveWhitespaceAndCommas(stringified);
-    std::string got = RemoveWhitespaceAndCommas(autoformatted);
-    EXPECT_EQ(want, got);
-    if (want != got) {
+    // Note that the AST generator currently does not generate any constructs
+    // that the "opportunistic postcondition" has difficulty with (such as
+    // unnecessary parens and similar), so we expect this to always pass.
+    std::optional<AutoFmtPostconditionViolation> maybe_violation =
+        ObeysAutoFmtOpportunisticPostcondition(stringified, autoformatted);
+    if (maybe_violation.has_value()) {
+      FAIL() << "autofmt postcondition violation";
       XLS_LOG(ERROR) << "= shard " << GetParam() << " sample " << i << ":";
       XLS_LOG_LINES(ERROR, stringified);
     }
