@@ -625,6 +625,10 @@ Examples:
     ir_tags = ir_tags if ir_tags != None else []
     synth_tags = synth_tags if synth_tags != None else []
 
+    # Some synthesis benchmarks require special permissions and amy not build so
+    # mark these as manual.
+    synth_tags.append("manual")
+
     xls_benchmark_ir(
         name = name,
         src = src,
