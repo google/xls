@@ -19,7 +19,6 @@
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <random>
 #include <string>
@@ -135,6 +134,8 @@ ABSL_FLAG(std::optional<int64_t>, worst_case_throughput, std::nullopt,
           "than once per N cycles. If unspecified, enforce throughput 1. Note: "
           "a higher value for --worst_case_throughput *decreases* the "
           "worst-case throughput, since this controls inverse throughput.");
+ABSL_FLAG(bool, run_evaluators, true,
+          "Whether to run the JIT and interpreter.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
@@ -771,9 +772,10 @@ absl::Status RealMain(std::string_view path,
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
   }
-  XLS_RETURN_IF_ERROR(
-      RunInterpreterAndJit(package->GetTop().value(), "unoptimized"));
-
+  if (absl::GetFlag(FLAGS_run_evaluators)) {
+    XLS_RETURN_IF_ERROR(
+        RunInterpreterAndJit(package->GetTop().value(), "unoptimized"));
+  }
   XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
 
   FunctionBase* f = package->GetTop().value();
@@ -802,7 +804,9 @@ absl::Status RealMain(std::string_view path,
                                         effective_clock_period_ps));
   XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
 
-  XLS_RETURN_IF_ERROR(RunInterpreterAndJit(f, "optimized"));
+  if (absl::GetFlag(FLAGS_run_evaluators)) {
+    XLS_RETURN_IF_ERROR(RunInterpreterAndJit(f, "optimized"));
+  }
 
   const bool benchmark_codegen =
       clock_period_ps.has_value() || pipeline_stages.has_value();
@@ -830,7 +834,7 @@ absl::Status RealMain(std::string_view path,
     }
     // TODO(allight): 2023-10-30 - Until we're able to codegen procs we cannot
     // get execution stats for them.
-    if (f->IsFunction()) {
+    if (absl::GetFlag(FLAGS_run_evaluators) && f->IsFunction()) {
       XLS_RETURN_IF_ERROR(
           RunInterpreterAndJit(package->blocks()[0].get(), "block"));
     }
