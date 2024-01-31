@@ -400,49 +400,61 @@ Floating-point addition, like any FP operation, is much more complicated than
 integer addition, and has many more steps. Being the first operation described,
 we'll take extra care to explain floating-point addition:
 
-1.  **Expand fractions:** Floating-point operations are computed with bits
-    beyond that in their normal representations for increased precision. For
-    IEEE 754 numbers, there are three extra, called the guard, rounding and
-    sticky bits. The first two behave normally, but the last, the "sticky" bit,
-    is special. During shift operations (below), if a "1" value is ever shifted
-    into the sticky bit, it "sticks" - the bit will remain "1" through any
-    further shift operations. In this step, the fractions are expanded by these
-    three bits.
-1.  **Align fractions:** To ensure that fractions are added with appropriate
-    magnitudes, they must be aligned according to their exponents. To do so, the
-    smaller significant needs to be shifted to the right (each right shift is
-    equivalent to increasing the exponent by one).
-    -   The extra precision bits are populated in this shift.
-    -   As part of this step, the leading 1 bit... and a sign bit Note: The
-        sticky bit is calculated and applied in this step.
-1.  **Sign-adjustment:** if the fractions differ in sign, then the fraction with
-    the smaller initial exponent needs to be (two's complement) negated.
-1.  **Add the fractions and capture the carry bit.** Note that, if the signs of
-    the fractions differs, then this could result in higher bits being cleared.
-1.  **Normalize the fractions:** Shift the result so that the leading '1' is
-    present in the proper space. This means shifting right one place if the
-    result set the carry bit, and to the left some number of places if high bits
-    were cleared.
-    -   The sticky bit must be preserved in any of these shifts!
-1.  **Rounding:** Here, the extra precision bits are examined to determine if
-    the result fraction's last bit should be rounded up. IEEE 754 supports five
-    rounding modes:
-    -   Round towards 0: just chop off the extra precision bits.
-    -   Round towards +infinity: round up if any extra precision bits are set.
-    -   Round towards -infinity: round down if any extra precision bits are set.
-    -   Round to nearest, ties away from zero: Rounds to the nearest value. In
-        cases where the extra precision bits are halfway between values, i.e.,
-        0b100, then the result is rounded up for positive numbers and down for
-        negative ones.
-    -   Round to nearest, ties to even: Rounds to the nearest value. In cases
-        where the extra precision bits are halfway between values, then the
-        result is rounded in whichever direction causes the LSB of the result
-        significant to be 0.
-        -   This is the most commonly-used rounding mode.
-        -   This is [currently] the only supported mode by the DSLX
-            implementation.
-1.  **Special case handling:** The results are examined for special cases such
-    as NaNs, infinities, or (optionally) subnormals.
+<!-- mdformat off(nested lists are rendered differently in mkdocs) -->
+
+1. **Expand fractions:** Floating-point operations are computed with bits
+   beyond that in their normal representations for increased precision. For
+   IEEE 754 numbers, there are three extra, called the guard, rounding and
+   sticky bits. The first two behave normally, but the last, the "sticky" bit,
+   is special. During shift operations (below), if a "1" value is ever shifted
+   into the sticky bit, it "sticks" - the bit will remain "1" through any
+   further shift operations. In this step, the fractions are expanded by these
+   three bits.
+1. **Align fractions:** To ensure that fractions are added with appropriate
+   magnitudes, they must be aligned according to their exponents. To do so, the
+   smaller significant needs to be shifted to the right (each right shift is
+   equivalent to increasing the exponent by one).
+
+   * The extra precision bits are populated in this shift.
+   * As part of this step, the leading 1 bit... and a sign bit Note: The
+     sticky bit is calculated and applied in this step.
+
+1. **Sign-adjustment:** if the fractions differ in sign, then the fraction with
+   the smaller initial exponent needs to be (two's complement) negated.
+
+1. **Add the fractions and capture the carry bit.** Note that, if the signs of
+   the fractions differs, then this could result in higher bits being cleared.
+
+1. **Normalize the fractions:** Shift the result so that the leading '1' is
+   present in the proper space. This means shifting right one place if the
+   result set the carry bit, and to the left some number of places if high bits
+   were cleared.
+
+   * The sticky bit must be preserved in any of these shifts!
+
+1. **Rounding:** Here, the extra precision bits are examined to determine if
+   the result fraction's last bit should be rounded up. IEEE 754 supports five
+   rounding modes:
+
+   * Round towards 0: just chop off the extra precision bits.
+   * Round towards +infinity: round up if any extra precision bits are set.
+   * Round towards -infinity: round down if any extra precision bits are set.
+   * Round to nearest, ties away from zero: Rounds to the nearest value. In
+     cases where the extra precision bits are halfway between values, i.e.,
+     0b100, then the result is rounded up for positive numbers and down for
+     negative ones.
+   * Round to nearest, ties to even: Rounds to the nearest value. In cases
+     where the extra precision bits are halfway between values, then the
+     result is rounded in whichever direction causes the LSB of the result
+     significant to be 0.
+
+     * This is the most commonly-used rounding mode.
+     * This is [currently] the only supported mode by the DSLX implementation.
+
+1. **Special case handling:** The results are examined for special cases such
+   as NaNs, infinities, or (optionally) subnormals.
+
+<!-- mdformat on -->
 
 ##### Result sign determination
 
@@ -471,12 +483,12 @@ straightforward (types are as for a C `float` implementation):
   let normal_chunk = shifted_fraction[0:3];
   let half_way_chunk = shifted_fraction[2:4];
   let do_round_up =
-      u1:1 if (normal_chunk > u3:0x4) | (half_way_chunk == u2:0x3)
-      else u1:0;
+      if (normal_chunk > u3:0x4) | (half_way_chunk == u2:0x3) { u1:1 }
+      else { u1:0 };
 
   // We again need an extra bit for carry.
-  let rounded_fraction = (shifted_fraction as u28) + u28:0x8 if do_round_up
-      else (shifted_fraction as u28);
+  let rounded_fraction = if do_round_up { (shifted_fraction as u28) + u28:0x8 }
+                         else { shifted_fraction as u28 };
   let rounding_carry = rounded_fraction[-1:];
 ```
 
@@ -653,11 +665,12 @@ When comparing to a reference, a natural question is the stability of the
 reference, i.e., is the reference answer the same across all versions or
 environments? Will the answer given by glibc/libm on AArch64 be the same as one
 given by a hardware FMA unit on a GPU? Fortunately, all "correct"
-implementations will give the same results for the same inputs.\* In addition,
-POSIX has the same result-precision language. It's worth noting that -ffast-math
-doesn't currently affect FMA emission/fusion/fission/etc.
+implementations will give the same results for the same inputs. [^1] In
+addition, POSIX has the same result-precision language. It's worth noting that
+-ffast-math doesn't currently affect FMA emission/fusion/fission/etc.
 
-\* - There are operations for which this is not true. Transcendental ops may
+[^1]: There are operations for which this is not true. Transcendental ops may
+
 differ between implementations due to the
 [*table maker's dilemma*](https://en.wikipedia.org/wiki/Rounding).
 
