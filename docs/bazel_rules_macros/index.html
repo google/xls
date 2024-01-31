@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.3">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.6">
     
     
       
@@ -3343,7 +3343,8 @@ converted, we use their mangled names to refer to them in the IR namespace.</p>
 <p><a id="xls_benchmark_ir"></a></p>
 <h2 id="xls_benchmark_ir">xls_benchmark_ir</h2>
 <pre>
-xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-synthesize">synthesize</a>, <a href="#xls_benchmark_ir-codegen_args">codegen_args</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-standard_cells">standard_cells</a>, <a href="#xls_benchmark_ir-kwargs">kwargs</a>)
+xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-synthesize">synthesize</a>, <a href="#xls_benchmark_ir-codegen_args">codegen_args</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-standard_cells">standard_cells</a>, <a href="#xls_benchmark_ir-tags">tags</a>,
+                 <a href="#xls_benchmark_ir-ir_tags">ir_tags</a>, <a href="#xls_benchmark_ir-synth_tags">synth_tags</a>, <a href="#xls_benchmark_ir-kwargs">kwargs</a>)
 </pre>
 
 <p>Executes the benchmark tool on an IR file.</p>
@@ -3374,13 +3375,19 @@ xls_benchmark_ir(
       name: A unique name for this target.
       src: The IR source file for the rule. A single source file must be provided. The file must
         have a '.ir' extension.
+      synthesize: Add a synthesis benchmark in addition to the IR benchmark.
+      codegen_args: Arguments of the codegen tool. For details on the arguments,
+        refer to the codegen_main application at
+        //xls/tools/codegen_main.cc.
       benchmark_ir_args: Arguments of the benchmark IR tool. For details on the arguments, refer
         to the benchmark_main application at //xls/tools/benchmark_main.cc.
-      scheduling_options_proto: Protobuf filename of scheduling arguments to the benchmark IR
-        tool. For details on the arguments, refer to the benchmark_main application at
-        //xls/tools/benchmark_main.cc.
-      top: The (<em>mangled</em>) name of the entry point. See get_mangled_ir_symbol. Defines the 'top'
-        argument of the IR tool/application.</p>
+      standard_cells: Label for the PDK (possibly specifying a
+        non-default corner), with the assumption that $location will
+        return the timing (Liberty) library for the PDK corner. Unused if synthesize == False.
+      tags: Tags for IR and synthesis benchmark targets.
+      ir_tags: Tags for the IR benchmark target only.
+      synth_tags: Tags for the synthesis and synthesis benchmark targets. Unused if synthesize == False.
+      **kwargs: Keyword arguments for the IR benchmark target only.</p>
 </li>
 </ol>
 <p><strong>PARAMETERS</strong></p>
@@ -3420,6 +3427,21 @@ xls_benchmark_ir(
 </tr>
 <tr>
 <td style="text-align: left;"><a id="xls_benchmark_ir-standard_cells"></a>standard_cells</td>
+<td style="text-align: left;"><p align="center"> - </p></td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_benchmark_ir-tags"></a>tags</td>
+<td style="text-align: left;"><p align="center"> - </p></td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_benchmark_ir-ir_tags"></a>ir_tags</td>
+<td style="text-align: left;"><p align="center"> - </p></td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_benchmark_ir-synth_tags"></a>synth_tags</td>
 <td style="text-align: left;"><p align="center"> - </p></td>
 <td style="text-align: left;"><code>None</code></td>
 </tr>
@@ -3523,7 +3545,7 @@ a cc_library with its target name identical to this macro.</p>
 <p><a id="xls_dslx_fmt_test"></a></p>
 <h2 id="xls_dslx_fmt_test">xls_dslx_fmt_test</h2>
 <pre>
-xls_dslx_fmt_test(<a href="#xls_dslx_fmt_test-name">name</a>, <a href="#xls_dslx_fmt_test-src">src</a>)
+xls_dslx_fmt_test(<a href="#xls_dslx_fmt_test-name">name</a>, <a href="#xls_dslx_fmt_test-src">src</a>, <a href="#xls_dslx_fmt_test-opportunistic_postcondition">opportunistic_postcondition</a>)
 </pre>
 
 <p>Creates a test target that confirms <code>src</code> is auto-formatted.</p>
@@ -3546,6 +3568,11 @@ xls_dslx_fmt_test(<a href="#xls_dslx_fmt_test-name">name</a>, <a href="#xls_dslx
 <td style="text-align: left;"><a id="xls_dslx_fmt_test-src"></a>src</td>
 <td style="text-align: left;">Source file to auto-format.</td>
 <td style="text-align: left;">none</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_dslx_fmt_test-opportunistic_postcondition"></a>opportunistic_postcondition</td>
+<td style="text-align: left;">Flag that checks whether the output text is highly similar to the input text. Note that sometimes this /can/ flag an error for some set of valid auto-formattings, so is intended primarily for use as a development/debugging tool.</td>
+<td style="text-align: left;"><code>False</code></td>
 </tr>
 </tbody>
 </table>
@@ -4131,10 +4158,10 @@ Recognized metrics from OpenSTA log:
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7c377c4.min.js"></script>
+      <script src="../assets/javascripts/bundle.e1c3ead8.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

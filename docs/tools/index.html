@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.3">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.6">
     
     
       
@@ -1494,6 +1494,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="opt_main">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#debuggingexperimenting-with-optimizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Debugging/Experimenting with Optimizations
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2278,6 +2293,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="opt_main">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#debuggingexperimenting-with-optimizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Debugging/Experimenting with Optimizations
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2519,6 +2549,60 @@ Package &quot;fp32_add_2&quot;
 same source) are logically equivalent.</p>
 <h2 id="opt_main"><a href="https://github.com/google/xls/tree/main/xls/tools/opt_main.cc"><code>opt_main</code></a></h2>
 <p>Runs XLS IR through the optimization pipeline.</p>
+<p>Standard flags include:</p>
+<ul>
+<li><code>--top=NAME</code>: Override/set the top function/proc. This is required if a
+    function/proc is not already marked as <code>top</code> in the IR.</li>
+<li><code>--opt_level=NUMBER</code>: Change the optimization level. This should be used
+    with care as the differences between optimization levels are less defined
+    for xls than they are in tools such as <code>clang</code>. Defaults to <code>3</code>.</li>
+</ul>
+<p>Several flags which control the behavior of individual optimizations are also
+available. Care should be used when modifying the values of these flags.</p>
+<ul>
+<li><code>--rm_rewrites_pb=FILE</code>: Used to pass a proto describing the ram rewrites to
+    be performed.</li>
+<li><code>--inline_procs=true|false</code>: Whether to enable or disable inlining all procs
+    into a single mega-proc. Defaults to <code>false</code>.</li>
+<li><code>--convert_array_index_to_select=NUMBER</code>: Controls the maximum number of
+    dimensions an array can have to allow xls to convert accesses to the array
+    into select chains. This can have complicated impacts on the area and delay
+    of the generated code.</li>
+<li><code>--use_context_narrowing_analysis=true|false</code>: Controls whether to use
+    contextual information to optimize range calculations. This can in some
+    circumstances reveal additional optimization opportunities but it can be
+    quite slow. Defaults to <code>false</code>.</li>
+</ul>
+<h3 id="debuggingexperimenting-with-optimizations">Debugging/Experimenting with Optimizations</h3>
+<p>There are also several flags which are used for debugging and understanding the
+behavior of the standard optimization pipeline itself and the passes which make
+up the pipeline. These flags should mostly be used for testing and debugging
+purposes only.</p>
+<ul>
+<li><code>--passes=PIPELINE_SPEC</code>: Allows one to specify an explicit optimization
+    pipeline to use instead of the standard one. The pipeline is specified by
+    listing passes using their short-names. Different passes are space
+    separated. Fixed-point combinations of passes are specified by surrounding
+    them with square-brackets '<code>[]</code>'. For example, to run the pipeline
+    'inlining' then 'arith_simp' and 'dce' to fixed-point then 'narrowing' and a
+    final 'dce' the flag would be set to <code>inlining [ arith_simp dce ] narrowing
+    dce</code>. This can be used to test odd interactions between specific or single
+    passes.</li>
+<li><code>--passes_bisect_limit=NUMBER</code>: Tells <code>opt_main</code> to cease pipeline execution
+    after running <code>NUMBER</code> passes. This can be used to narrow down misbehaving
+    passes. This flag works with both custom <code>--passes</code> pipelines and the
+    standard pipeline.</li>
+<li><code>--ir_dump_path=FOLDER</code>: Tells <code>opt_main</code> to dump files containing all the
+    intermediate states of the optimizations IRs into files in that particular
+    directory. Each file is named so they sort lexicographically in the order
+    they were created. The names include the pass-number, the pass run and
+    whether the pass made any changes to the output.</li>
+<li><code>--skip_passes=NAME1,NAME2,...</code>: Tells <code>opt_main</code> to skip execution of
+    specific named passes (specified using the short-name of the pass). This
+    does not otherwise modify the pipeline being used and the pass is considered
+    to have finished successfully without making any changes. Multiple passes
+    may be passed at once separated by commas.</li>
+</ul>
 <h2 id="print_bom"><a href="https://github.com/google/xls/tree/main/xls/tools/print_bom.cc"><code>print_bom</code></a></h2>
 <p>Tool to calculate and print a summary of the BOM (bill of materials) elements
 from <code>ModuleSignatureProto</code> protobuf files produced using the
@@ -2773,10 +2857,10 @@ reference file comparisons), run:</p>
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7c377c4.min.js"></script>
+      <script src="../assets/javascripts/bundle.e1c3ead8.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

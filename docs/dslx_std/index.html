@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.3">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.6">
     
     
       
@@ -1432,6 +1432,15 @@
   <a href="#stdextract_bits" class="md-nav__link">
     <span class="md-ellipsis">
       std::extract_bits
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stdvslice" class="md-nav__link">
+    <span class="md-ellipsis">
+      std::vslice
     </span>
   </a>
   
@@ -2939,6 +2948,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#stdvslice" class="md-nav__link">
+    <span class="md-ellipsis">
+      std::vslice
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3272,6 +3290,7 @@ in a user-defined function, and thus do not live in the standard library.</p>
 <li><a href="#stdrrot">std::rrot</a></li>
 <li><a href="#stdpopcount">std::popcount</a></li>
 <li><a href="#stdextract_bits">std::extract_bits</a></li>
+<li><a href="#stdvslice">std::vslice</a></li>
 </ul>
 </li>
 <li><a href="#mathematical-functions">Mathematical Functions</a><ul>
@@ -3362,7 +3381,7 @@ fn umulp&lt;N&gt;(lhs: uN[N], rhs: uN[N]) -&gt; (uN[N], uN[N])
 the elements of an original array to produce the resulting "mapped' array.
 <a href="https://github.com/google/xls/tree/main/xls/dslx/tests/map_of_stdlib_parametric.x">For example</a>:
 taking the absolute value of each element in an input array:</p>
-<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">std</span>
+<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">std</span><span class="p">;</span>
 
 <span class="k">fn</span> <span class="nf">main</span><span class="p">(</span><span class="n">x</span>: <span class="nc">s3</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">s3</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">y</span>: <span class="nc">s3</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">map</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">std</span>::<span class="n">abs</span><span class="p">);</span>
@@ -3750,7 +3769,7 @@ convenient than) a pattern like:</p>
 <p><strong>Note well:</strong> the boolean value at <strong>index 0</strong> of the array becomes the <strong>most
 significant bit</strong> in the resulting bit value. Similarly, the last index of the
 array becomes the <strong>least significant bit</strong> in the resulting bit value.</p>
-<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">std</span>
+<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">std</span><span class="p">;</span>
 
 <span class="cp">#[test]</span>
 <span class="k">fn</span> <span class="nf">convert_to_bits_test</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
@@ -3802,6 +3821,20 @@ array.</p>
 resonably infinite precision so that the shift does not drop any bits and that the bit slice
 will be in-range.</p>
 <p>If <code>to_exclusive &lt;= from_excsuive</code>, the result will be a zero-bit <code>bits[0]</code>.</p>
+<h4 id="stdvslice"><code>std::vslice</code></h4>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">vslice</span><span class="o">&lt;</span><span class="n">MSB</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">LSB</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">IN</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">OUT</span><span class="p">]</span>
+</code></pre></div>
+<p>Similar to <code>extract_bits</code> above, but corresponds directly to the "part-select"
+Verilog syntax. That is:</p>
+<div class="highlight"><pre><span></span><code><span class="n">y</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">x</span><span class="p">[</span><span class="mh">3</span><span class="o">:</span><span class="mh">0</span><span class="p">];</span>
+</code></pre></div>
+<p>Corresponds to:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">y</span>: <span class="nc">u4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">vslice</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">0</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">);</span>
+</code></pre></div>
+<p>This is useful when porting code literally as a way to avoid transcription
+errors. For new code the
+<a href="https://google.github.io/xls/dslx_reference/#bit-slice-expressions">DSLX first-class slicing syntax</a>
+(either range-slicing or width-slicing) is preferred.</p>
 <h3 id="mathematical-functions">Mathematical Functions</h3>
 <h4 id="stdbounded_minus_1"><code>std::bounded_minus_1</code></h4>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">bounded_minus_1</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span>
@@ -3987,10 +4020,10 @@ non-negative 32-bit integers, which range from <code>0</code> to <code>2^31-1</c
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7c377c4.min.js"></script>
+      <script src="../assets/javascripts/bundle.e1c3ead8.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.3">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.6">
     
     
       
@@ -3907,7 +3907,7 @@ type. The new name is on the left, the existing name on the right:</p>
 </code></pre></div>
 <p>We can create an alias for an imported type:</p>
 <div class="highlight"><pre><span></span><code><span class="c1">// Note: this imports an external file in the codebase.</span>
-<span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span>
+<span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span><span class="p">;</span>
 
 <span class="k">type</span> <span class="nc">MyEnum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mod_imported</span>::<span class="n">MyEnum</span><span class="p">;</span>
 
@@ -4079,7 +4079,7 @@ that environment, so the result of the <code>let</code> expression's <code>$sube
 are not permitted (the dependencies among DSLX modules must form a DAG, as in
 languages like Go).</p>
 <p>The import statement takes the following form (note the lack of semicolon):</p>
-<div class="highlight"><pre><span></span><code>import path.to.my.imported_module
+<div class="highlight"><pre><span></span><code>import path.to.my.imported_module;
 </code></pre></div>
 <p>With that statement, the module will be accessible as (the trailing identifier
 after the last dot) <code>imported_module</code>; e.g. the program can refer to
@@ -4096,14 +4096,14 @@ Python) on account of leading to "namespace pollution" and needing to specify
 what happens when names conflict.</p>
 <p>If you want to change the name of the imported module (for reference inside of
 the importing file) you can use the <code>as</code> keyword:</p>
-<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">to</span><span class="p">.</span><span class="n">my</span><span class="p">.</span><span class="n">imported_module</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">im</span>
+<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">to</span><span class="p">.</span><span class="n">my</span><span class="p">.</span><span class="n">imported_module</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">im</span><span class="p">;</span>
 </code></pre></div>
 <p>Just using the above construct,
 <code>imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT</code> is <em>not</em> valid, only
 <code>im::IMPORTED_MODULE_PUBLIC_CONSTANT</code>. However, both statements can be used on
 different lines:</p>
-<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">to</span><span class="p">.</span><span class="n">my</span><span class="p">.</span><span class="n">imported_module</span>
-<span class="n">import</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">to</span><span class="p">.</span><span class="n">my</span><span class="p">.</span><span class="n">imported_module</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">im</span>
+<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">to</span><span class="p">.</span><span class="n">my</span><span class="p">.</span><span class="n">imported_module</span><span class="p">;</span>
+<span class="n">import</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="n">to</span><span class="p">.</span><span class="n">my</span><span class="p">.</span><span class="n">imported_module</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">im</span><span class="p">;</span>
 </code></pre></div>
 <p>In this case, either <code>im::IMPORTED_MODULE_PUBLIC_CONSTANT</code> or
 <code>imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT</code> can be used to refer to the
@@ -4112,8 +4112,8 @@ same thing.</p>
 same module:</p>
 <div class="highlight"><pre><span></span><code><span class="c1">// Note: this imports an external file in the codebase under two different</span>
 <span class="c1">// names.</span>
-<span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span>
-<span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">mi</span>
+<span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span><span class="p">;</span>
+<span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">mi</span><span class="p">;</span>
 
 <span class="k">fn</span> <span class="nf">main</span><span class="p">(</span><span class="n">x</span>: <span class="nc">u3</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">u1</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">mod_imported</span>::<span class="n">my_lsb</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">mi</span>::<span class="n">my_lsb</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
@@ -4133,8 +4133,8 @@ must be added as a prefix; e.g.</p>
 </code></pre></div>
 <p>This applies to other things defined at module scope as well: functions, enums,
 type aliases, etc.</p>
-<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span>
-<span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">mi</span>
+<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span><span class="p">;</span>
+<span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">dslx</span><span class="p">.</span><span class="n">tests</span><span class="p">.</span><span class="n">mod_imported</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">mi</span><span class="p">;</span>
 
 <span class="k">fn</span> <span class="nf">main</span><span class="p">(</span><span class="n">x</span>: <span class="nc">u3</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">u1</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">mod_imported</span>::<span class="n">my_lsb</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">mi</span>::<span class="n">my_lsb</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
@@ -4291,8 +4291,10 @@ operations return a result of type <code>bits[1]</code>, aka <code>bool</code>.<
 <h3 id="concat-expression">Concat Expression</h3>
 <p>Bitwise concatenation is performed with the <code>++</code> operator. The value on the left
 hand side becomes the most significant bits, the value on the right hand side
-becomes the least significant bits. These may be chained together as shown
-below:</p>
+becomes the least significant bits. Both of the operands must be unsigned (see
+<a href="#numerical-conversions">numerical conversions</a> for details on converting signed
+numbers to unsigned).</p>
+<p>Concatenation operations may be chained together as shown:</p>
 <div class="highlight"><pre><span></span><code><span class="cp">#[test]</span>
 <span class="k">fn</span> <span class="nf">test_bits_concat</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span>:<span class="mb">0b11000000</span><span class="p">,</span><span class="w"> </span><span class="n">u2</span>:<span class="mb">0b11</span><span class="w"> </span><span class="o">++</span><span class="w"> </span><span class="n">u6</span>:<span class="mb">0b000000</span><span class="p">);</span>
@@ -4535,14 +4537,17 @@ for semantics of numeric casts:</p>
 <span class="k">fn</span> <span class="nf">test_numerical_conversions</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s8</span>:<span class="o">-</span><span class="mi">2</span><span class="p">;</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u8</span>:<span class="mh">0xfe</span><span class="p">;</span>
-<span class="w">  </span><span class="c1">// Sign extension (source type is signed).</span>
+
+<span class="w">  </span><span class="c1">// Sign extension (source type is signed, and we widen it).</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s32</span>:<span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s32</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span>:<span class="mh">0xfffffffe</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u32</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s16</span>:<span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s16</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u16</span>:<span class="mh">0xfffe</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u16</span><span class="p">);</span>
-<span class="w">  </span><span class="c1">// Zero extension (source type is unsigned).</span>
+
+<span class="w">  </span><span class="c1">// Zero extension (source type is unsigned, and we widen it).</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span>:<span class="mh">0xfe</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u32</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s32</span>:<span class="mh">0xfe</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s32</span><span class="p">);</span>
+
 <span class="w">  </span><span class="c1">// Nop (bitwidth is unchanged).</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span>:<span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s8</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span>:<span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s8</span><span class="p">);</span>
@@ -4905,10 +4910,10 @@ production can be found in the execution log.</p>
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7c377c4.min.js"></script>
+      <script src="../assets/javascripts/bundle.e1c3ead8.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
