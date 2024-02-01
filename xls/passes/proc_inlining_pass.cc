@@ -1750,6 +1750,12 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
       XLS_RET_CHECK_EQ(inner_ii, top_ii)
           << "Proc " << proc->name() << " had a different initiation interval "
           << "when compared to the top proc (" << top_func_base->name() << ")";
+      if (!proc->next_values().empty()) {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Proc %s uses next_value nodes, which are not currently "
+            "supported by proc inlining.",
+            proc->name()));
+      }
     }
   }
 
