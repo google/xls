@@ -638,7 +638,7 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
 
   auto lvalue = std::make_shared<LValue>(AddChannel(new_channel, loc));
 
-  if (!new_channel.generated) {
+  if (!new_channel.generated.has_value()) {
     XLS_CHECK_NE(channel_name, nullptr);
     XLS_CHECK(!context().sf->lvalues_by_param.contains(channel_name));
 

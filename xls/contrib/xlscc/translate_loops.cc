@@ -589,12 +589,16 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   IOChannel* context_out_channel = nullptr;
   {
     std::string ch_name = absl::StrFormat("%s_ctx_out", name_prefix);
-    XLS_ASSIGN_OR_RETURN(
-        xls::Channel * xls_channel,
-        package_->CreateStreamingChannel(
-            ch_name, xls::ChannelOps::kSendReceive, context_out_xls_type,
-            /*initial_values=*/{}, /*fifo_config=*/xls::FifoConfig{.depth = 0},
-            xls::FlowControl::kReadyValid));
+    xls::Channel* xls_channel = nullptr;
+    if (!generate_fsms_for_pipelined_loops_) {
+      XLS_ASSIGN_OR_RETURN(
+          xls_channel,
+          package_->CreateStreamingChannel(
+              ch_name, xls::ChannelOps::kSendReceive, context_out_xls_type,
+              /*initial_values=*/{},
+              /*fifo_config=*/xls::FifoConfig{.depth = 0},
+              xls::FlowControl::kReadyValid));
+    }
     IOChannel new_channel;
     new_channel.item_type = context_tuple_out.type();
     new_channel.unique_name = ch_name;
@@ -604,12 +608,16 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   IOChannel* context_in_channel = nullptr;
   {
     std::string ch_name = absl::StrFormat("%s_ctx_in", name_prefix);
-    XLS_ASSIGN_OR_RETURN(
-        xls::Channel * xls_channel,
-        package_->CreateStreamingChannel(
-            ch_name, xls::ChannelOps::kSendReceive, context_in_struct_xls_type,
-            /*initial_values=*/{}, /*fifo_config=*/xls::FifoConfig{.depth = 0},
-            xls::FlowControl::kReadyValid));
+    xls::Channel* xls_channel = nullptr;
+    if (!generate_fsms_for_pipelined_loops_) {
+      XLS_ASSIGN_OR_RETURN(xls_channel,
+                           package_->CreateStreamingChannel(
+                               ch_name, xls::ChannelOps::kSendReceive,
+                               context_in_struct_xls_type,
+                               /*initial_values=*/{},
+                               /*fifo_config=*/xls::FifoConfig{.depth = 0},
+                               xls::FlowControl::kReadyValid));
+    }
     IOChannel new_channel;
     new_channel.item_type = context_in_cvars_struct_ctype;
     new_channel.unique_name = ch_name;
@@ -783,7 +791,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
     // Inherit external channels
     for (IOChannel& enclosing_channel : enclosing_func.io_channels) {
-      if (enclosing_channel.generated != nullptr) {
+      if (enclosing_channel.generated.has_value()) {
         continue;
       }
       generated_func->io_channels.push_back(enclosing_channel);
@@ -1033,8 +1041,12 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
 
   xls::BValue placeholder_cond = pb.Literal(xls::UBits(1, 1));
 
-  xls::BValue receive = pb.ReceiveIf(context_out_channel->generated, token,
-                                     /*condition=*/placeholder_cond, loc);
+  XLSCC_CHECK(context_out_channel->generated.has_value(), loc);
+  XLSCC_CHECK_NE(context_out_channel->generated.value(), nullptr, loc);
+
+  xls::BValue receive =
+      pb.ReceiveIf(context_out_channel->generated.value(), token,
+                   /*condition=*/placeholder_cond, loc);
   token = pb.TupleIndex(receive, 0);
   xls::BValue received_context_tuple = pb.TupleIndex(receive, 1);
 
@@ -1054,8 +1066,11 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   token = contents_ret.token_out;
 
   // Send back context on break
-  token = pb.SendIf(context_in_channel->generated, token, contents_ret.do_break,
-                    contents_ret.out_tuple, loc);
+  XLSCC_CHECK(context_in_channel->generated.has_value(), loc);
+  XLSCC_CHECK_NE(context_in_channel->generated.value(), nullptr, loc);
+
+  token = pb.SendIf(context_in_channel->generated.value(), token,
+                    contents_ret.do_break, contents_ret.out_tuple, loc);
 
   XLS_RETURN_IF_ERROR(
       pb.Build(token, contents_ret.extra_next_state_values).status());
@@ -1205,7 +1220,7 @@ Translator::GenerateIR_PipelinedLoopContents(
     if (op.op == OpType::kTrace) {
       continue;
     }
-    if (op.channel->generated != nullptr) {
+    if (op.channel->generated.has_value()) {
       continue;
     }
     XLS_CHECK(io_test_mode_ ||

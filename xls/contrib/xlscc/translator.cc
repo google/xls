@@ -2680,7 +2680,7 @@ absl::Status Translator::TranslateAddCallerChannelsByCalleeChannel(
     XLSCC_CHECK(caller_lval->channel_leaf() != nullptr, loc);
 
     XLSCC_CHECK(
-        caller_lval->channel_leaf()->generated ||
+        caller_lval->channel_leaf()->generated.has_value() ||
             IOChannelInCurrentFunction(caller_lval->channel_leaf(), loc),
         loc);
 
@@ -2701,11 +2701,14 @@ absl::Status Translator::ValidateLValue(std::shared_ptr<LValue> lval,
   }
 
   if (lval->channel_leaf() != nullptr) {
-    if (lval->channel_leaf()->generated != nullptr &&
+    if (lval->channel_leaf()->generated.has_value() &&
         IOChannelInCurrentFunction(lval->channel_leaf(), loc)) {
       return absl::InternalError(ErrorMessage(
-          loc, "lval %s contains channel not present in io_channels",
-          lval->debug_string().c_str()));
+          loc, "lval %s contains channel %s not present in io_channels",
+          lval->debug_string().c_str(),
+          lval->channel_leaf()->generated.value()
+              ? lval->channel_leaf()->generated.value()->name().data()
+              : "(null)"));
     }
   }
 
@@ -3348,10 +3351,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   bool multiple_translations_for_a_channel = false;
   for (const auto& [callee_channel, caller_channel] :
        caller_channels_by_callee_channel) {
-    if (caller_channel->generated != nullptr ||
-        callee_channel->generated != nullptr) {
-      XLSCC_CHECK(caller_channel->generated != nullptr, loc);
-      XLSCC_CHECK(callee_channel->generated != nullptr, loc);
+    if (caller_channel->generated.has_value() ||
+        callee_channel->generated.has_value()) {
+      XLSCC_CHECK(caller_channel->generated.has_value(), loc);
+      XLSCC_CHECK(callee_channel->generated.has_value(), loc);
       continue;
     }
     if (!external_channels_by_internal_channel_.contains(caller_channel) &&
@@ -3418,7 +3421,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   for (IOChannel& callee_channel : func->io_channels) {
     IOChannel* callee_channel_ptr = &callee_channel;
 
-    if (callee_channel_ptr->generated == nullptr &&
+    if (!callee_channel_ptr->generated.has_value() &&
         !callee_channel_ptr->internal_to_function) {
       continue;
     }
@@ -3525,7 +3528,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     if (caller_op_ptr != nullptr) {
       XLSCC_CHECK(caller_op_ptr->op == OpType::kTrace ||
-                      caller_op_ptr->channel->generated ||
+                      caller_op_ptr->channel->generated.has_value() ||
                       IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
                   loc);
     }

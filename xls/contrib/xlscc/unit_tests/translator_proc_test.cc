@@ -773,11 +773,12 @@ TEST_P(TranslatorProcTest, ForPipelined) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
                            GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out, 1 + 32 + 64);
+  EXPECT_EQ(channel_bits_out,
+            generate_fsms_for_pipelined_loops_ ? 0L : 1 + 32 + 64);
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
                            GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, 32);
+  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedFSMInside) {
@@ -883,11 +884,11 @@ TEST_P(TranslatorProcTest, ForPipelinedJustAssign) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
                            GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out, 1 + 64);
+  EXPECT_EQ(channel_bits_out, generate_fsms_for_pipelined_loops_ ? 0L : 1 + 64);
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
                            GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, 32);
+  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedUseReceivedFromOldState) {
@@ -947,11 +948,12 @@ TEST_P(TranslatorProcTest, ForPipelinedUseReceivedFromOldState) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
                            GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out, 1 + 32 + 64);
+  EXPECT_EQ(channel_bits_out,
+            generate_fsms_for_pipelined_loops_ ? 0L : 1 + 32 + 64);
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
                            GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, 32);
+  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
@@ -1563,11 +1565,12 @@ TEST_P(TranslatorProcTest, ForPipelinedMoreVars) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
                            GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out, 1 + 32 + 64 + 64);
+  EXPECT_EQ(channel_bits_out,
+            generate_fsms_for_pipelined_loops_ ? 0L : 1 + 32 + 64 + 64);
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
                            GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, 32);
+  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedMoreVars2) {
@@ -2293,11 +2296,12 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticInBody) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
                            GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out, 1 + 32 + 16);
+  EXPECT_EQ(channel_bits_out,
+            generate_fsms_for_pipelined_loops_ ? 0L : 1 + 32 + 16);
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
                            GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, 32);
+  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticOuter) {

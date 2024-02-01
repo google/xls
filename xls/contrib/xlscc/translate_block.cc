@@ -932,13 +932,19 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
   XLSCC_CHECK_EQ(outer_state.invokes_to_generate.size(), 2, body_loc);
   auto it = outer_state.invokes_to_generate.begin();
   const InvokeToGenerate& invoke_context_out = *(it++);
-  XLSCC_CHECK_NE(invoke_context_out.op.channel->generated, nullptr, body_loc);
-  XLSCC_CHECK_EQ(invoke_context_out.op.channel->generated,
-                 sub_proc_invoked->context_out_channel->generated, body_loc);
+  XLSCC_CHECK(invoke_context_out.op.channel->generated.has_value(), body_loc);
+  XLSCC_CHECK(sub_proc_invoked->context_out_channel->generated.has_value(),
+              body_loc);
+  XLSCC_CHECK_EQ(invoke_context_out.op.channel->generated.value(),
+                 sub_proc_invoked->context_out_channel->generated.value(),
+                 body_loc);
   const InvokeToGenerate& invoke_context_in = *(it++);
-  XLSCC_CHECK_NE(invoke_context_in.op.channel->generated, nullptr, body_loc);
-  XLSCC_CHECK_EQ(invoke_context_in.op.channel->generated,
-                 sub_proc_invoked->context_in_channel->generated, body_loc);
+  XLSCC_CHECK(invoke_context_in.op.channel->generated.has_value(), body_loc);
+  XLSCC_CHECK(sub_proc_invoked->context_in_channel->generated.has_value(),
+              body_loc);
+  XLSCC_CHECK_EQ(invoke_context_in.op.channel->generated.value(),
+                 sub_proc_invoked->context_in_channel->generated.value(),
+                 body_loc);
 
   // Fill in op_tokens with keys for skipped operations in this state
   // For after_ops in other states
@@ -1487,8 +1493,9 @@ Translator::GenerateIRBlockPrepare(
       continue;
     }
 
-    if (op.channel->generated != nullptr) {
-      ChannelBundle generated_bundle = {.regular = op.channel->generated};
+    if (op.channel->generated.has_value()) {
+      ChannelBundle generated_bundle = {.regular =
+                                            op.channel->generated.value()};
       prepared.xls_channel_by_function_channel[op.channel] = generated_bundle;
       continue;
     }

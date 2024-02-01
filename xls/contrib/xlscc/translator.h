@@ -689,8 +689,9 @@ struct IOChannel {
   int total_ops = 0;
   // If not nullptr, the channel isn't explicitly present in the source
   // For example, the channels used for pipelined for loops
+  // (can be nullptr if loop body isn't generated)
   // (the record must be passed up)
-  xls::Channel* generated = nullptr;
+  std::optional<xls::Channel*> generated = std::nullopt;
   // Declared inside of a function, so that the record must be passed up
   bool internal_to_function = false;
 };
