@@ -139,6 +139,7 @@ cc_library(
     name = "init_xls",
     srcs = ["init_xls.cc"],
     hdrs = ["init_xls.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:initialize",
@@ -153,6 +154,7 @@ cc_library(
     name = "exit_status",
     srcs = ["exit_status.cc"],
     hdrs = ["exit_status.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = ["@com_google_absl//absl/status"],
 )
 

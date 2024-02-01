@@ -41,6 +41,7 @@ proto_library(
 
 cc_proto_library(
     name = "hls_block_cc_proto",
+    visibility = ["//xls:xls_users"],
     deps = [":hls_block_proto"],
 )
 

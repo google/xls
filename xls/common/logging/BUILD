@@ -131,9 +131,8 @@ config_setting(
 
 cc_library(
     name = "logging",
-    hdrs = [
-        "logging.h",
-    ],
+    hdrs = ["logging.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         ":log_flags",
         ":vlog_is_on",
