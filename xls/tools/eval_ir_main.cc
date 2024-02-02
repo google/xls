@@ -90,7 +90,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/llvm_type_converter.h"

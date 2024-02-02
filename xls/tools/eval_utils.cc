@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/tools/eval_helpers.h"
+#include "xls/tools/eval_utils.h"
 
 #include <cstdint>
 #include <iterator>

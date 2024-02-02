@@ -367,15 +367,15 @@ cc_test(
 )
 
 cc_library(
-    name = "type_traits_helpers",
-    hdrs = ["type_traits_helpers.h"],
+    name = "type_traits_utils",
+    hdrs = ["type_traits_utils.h"],
 )
 
 cc_test(
-    name = "type_traits_helpers_test",
-    srcs = ["type_traits_helpers_test.cc"],
+    name = "type_traits_utils_test",
+    srcs = ["type_traits_utils_test.cc"],
     deps = [
-        ":type_traits_helpers",
+        ":type_traits_utils",
         ":xls_gunit_main",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
@@ -383,21 +383,21 @@ cc_test(
 )
 
 cc_library(
-    name = "to_string_helpers",
-    srcs = ["to_string_helpers.cc"],
-    hdrs = ["to_string_helpers.h"],
+    name = "to_string_utils",
+    srcs = ["to_string_utils.cc"],
+    hdrs = ["to_string_utils.h"],
     deps = [
-        ":type_traits_helpers",
+        ":type_traits_utils",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
 )
 
 cc_test(
-    name = "to_string_helpers_test",
-    srcs = ["to_string_helpers_test.cc"],
+    name = "to_string_utils_test",
+    srcs = ["to_string_utils_test.cc"],
     deps = [
-        ":to_string_helpers",
+        ":to_string_utils",
         ":xls_gunit_main",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -409,8 +409,8 @@ cc_library(
     name = "comparison_utils",
     hdrs = ["comparison_utils.h"],
     deps = [
-        ":to_string_helpers",
-        ":type_traits_helpers",
+        ":to_string_utils",
+        ":type_traits_utils",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],

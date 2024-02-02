@@ -28,7 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 namespace {

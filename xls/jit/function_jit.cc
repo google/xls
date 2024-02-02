@@ -34,7 +34,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"

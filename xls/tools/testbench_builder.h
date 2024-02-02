@@ -27,7 +27,7 @@
 // cases where, e.g., custom sample generation is desired, the user may specify
 // additional functionality.
 //
-// Default functionality is mainly specified inside testbench_builder_helpers.h,
+// Default functionality is mainly specified inside testbench_builder_utils.h,
 // for example internal::DefaultIndexToInput(). When possible, support for
 // common (but missing) types should be added there, instead of in a private
 // implementation.
@@ -45,7 +45,7 @@
 
 #include "absl/strings/str_format.h"
 #include "xls/tools/testbench.h"
-#include "xls/tools/testbench_builder_helpers.h"
+#include "xls/tools/testbench_builder_utils.h"
 
 namespace xls {
 

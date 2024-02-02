@@ -50,7 +50,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/scheduling/scheduling_options.h"

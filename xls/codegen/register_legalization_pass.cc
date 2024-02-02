@@ -22,7 +22,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {

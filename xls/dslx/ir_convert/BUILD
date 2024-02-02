@@ -178,7 +178,7 @@ cc_library(
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
-        "//xls/dslx:interp_value_helpers",
+        "//xls/dslx:interp_value_utils",
         "//xls/dslx:mangle",
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",

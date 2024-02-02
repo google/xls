@@ -62,10 +62,10 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
-#include "xls/tools/eval_helpers.h"
+#include "xls/tools/eval_utils.h"
 
 constexpr const char* kUsage = R"(
 Evaluates an IR file containing Procs, or a Block generated from them.

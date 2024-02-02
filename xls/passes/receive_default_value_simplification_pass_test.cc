@@ -24,7 +24,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;

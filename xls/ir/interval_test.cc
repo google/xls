@@ -29,7 +29,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
-#include "xls/ir/interval_test_helpers.h"
+#include "xls/ir/interval_test_utils.h"
 
 using ::testing::ElementsAre;
 using ::testing::Optional;

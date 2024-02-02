@@ -27,7 +27,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 

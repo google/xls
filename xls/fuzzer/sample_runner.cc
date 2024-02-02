@@ -58,7 +58,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/interp_value_helpers.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -71,7 +71,7 @@
 #include "xls/ir/value.h"
 #include "xls/public/runtime_build_actions.h"
 #include "xls/simulation/check_simulator.h"
-#include "xls/tools/eval_helpers.h"
+#include "xls/tools/eval_utils.h"
 #include "re2/re2.h"
 
 namespace xls {

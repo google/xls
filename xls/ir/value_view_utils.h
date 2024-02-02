@@ -14,8 +14,10 @@
 
 // This file holds a collection of helpful utilities when dealing with value
 // views.
-#ifndef XLS_IR_VALUE_VIEW_HELPERS_H_
-#define XLS_IR_VALUE_VIEW_HELPERS_H_
+#ifndef XLS_IR_VALUE_VIEW_UTILS_H_
+#define XLS_IR_VALUE_VIEW_UTILS_H_
+
+#include <cstdint>
 
 #include "absl/base/casts.h"
 #include "xls/ir/value_view.h"
@@ -29,11 +31,12 @@ using PackedF32TupleView =
 
 // Returns the flat float contained in the specified view tuple.
 inline float F32TupleViewToFloat(F32TupleView tuple) {
-  return absl::bit_cast<float>((tuple.Get<0>().GetValue() << 31) |
-                               (tuple.Get<1>().GetValue() << 23) |
-                               (tuple.Get<2>().GetValue() & 0x7FFFFF));
+  return absl::bit_cast<float>(
+      (static_cast<uint32_t>(tuple.Get<0>().GetValue()) << 31) |
+      (tuple.Get<1>().GetValue() << 23) |
+      (tuple.Get<2>().GetValue() & 0x7FFFFF));
 }
 
 }  // namespace xls
 
-#endif  // XLS_IR_VALUE_VIEW_HELPERS_H_
+#endif  // XLS_IR_VALUE_VIEW_UTILS_H_

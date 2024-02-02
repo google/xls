@@ -23,7 +23,7 @@
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
-#include "xls/ir/bits_test_helpers.h"
+#include "xls/ir/bits_test_utils.h"
 
 namespace xls {
 namespace {

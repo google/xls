@@ -35,7 +35,7 @@ load(
     "xls_ir_opt_ir",
 )
 load(
-    "//xls/build_rules:xls_type_check_helpers.bzl",
+    "//xls/build_rules:xls_type_check_utils.bzl",
     "bool_type_check",
     "dictionary_type_check",
     "list_type_check",

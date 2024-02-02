@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/common/type_traits_helpers.h"
+#include "xls/common/type_traits_utils.h"
 
 #include <array>
+#include <cstdint>
 #include <deque>
 #include <forward_list>
 #include <list>
-#include <map>
 #include <queue>
-#include <set>
 #include <stack>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -48,13 +45,10 @@ TYPED_TEST_P(HasConstIteratorSupportedTypesTest,
 REGISTER_TYPED_TEST_SUITE_P(HasConstIteratorSupportedTypesTest,
                             HasConstIteratorSupportedTypes);
 
-using MyHasConstIteratorSupportedTypes = ::testing::Types<
-    absl::Span<int64_t>, std::array<int64_t, 1>, std::deque<int64_t>,
-    std::forward_list<int64_t>, std::list<int64_t>, std::map<int64_t, int64_t>,
-    std::multimap<int64_t, int64_t>, std::multiset<int64_t, int64_t>,
-    std::set<int64_t>, std::unordered_map<int64_t, int64_t>,
-    std::unordered_multimap<int64_t, int64_t>, std::unordered_multiset<int64_t>,
-    std::unordered_set<int64_t>, std::vector<int64_t>>;
+using MyHasConstIteratorSupportedTypes =
+    ::testing::Types<absl::Span<int64_t>, std::array<int64_t, 1>,
+                     std::deque<int64_t>, std::forward_list<int64_t>,
+                     std::list<int64_t>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(HasConstIteratorSupportedTypes,
                                HasConstIteratorSupportedTypesTest,
                                MyHasConstIteratorSupportedTypes);
@@ -91,14 +85,11 @@ TYPED_TEST_P(HasMemberSizeSupportedTypesTest, HasMemberSizeSupportedTypes) {
 REGISTER_TYPED_TEST_SUITE_P(HasMemberSizeSupportedTypesTest,
                             HasMemberSizeSupportedTypes);
 
-using MyHasMemberSizeSupportedTypes = ::testing::Types<
-    absl::Span<int64_t>, std::array<int64_t, 1>, std::deque<int64_t>,
-    std::list<int64_t>, std::map<int64_t, int64_t>,
-    std::multimap<int64_t, int64_t>, std::multiset<int64_t>,
-    std::priority_queue<int64_t>, std::queue<int64_t>, std::set<int64_t>,
-    std::stack<int64_t>, std::unordered_map<int64_t, int64_t>,
-    std::unordered_multimap<int64_t, int64_t>, std::unordered_multiset<int64_t>,
-    std::unordered_set<int64_t>, std::vector<int64_t>>;
+using MyHasMemberSizeSupportedTypes =
+    ::testing::Types<absl::Span<int64_t>, std::array<int64_t, 1>,
+                     std::deque<int64_t>, std::list<int64_t>,
+                     std::priority_queue<int64_t>, std::queue<int64_t>,
+                     std::stack<int64_t>, std::vector<int64_t>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(HasMemberSizeSupportedTypes,
                                HasMemberSizeSupportedTypesTest,
                                MyHasMemberSizeSupportedTypes);

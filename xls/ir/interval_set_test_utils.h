@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_INTERVAL_SET_TEST_HELPERS_H_
-#define XLS_IR_INTERVAL_SET_TEST_HELPERS_H_
+#ifndef XLS_IR_INTERVAL_SET_TEST_UTILS_H_
+#define XLS_IR_INTERVAL_SET_TEST_UTILS_H_
 
 #include <cstdint>
 #include <optional>
@@ -24,7 +24,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
-#include "xls/ir/interval_test_helpers.h"
+#include "xls/ir/interval_test_utils.h"
 
 namespace xls {
 
@@ -157,4 +157,4 @@ inline auto NonemptyNormalizedIntervalSet() {
 
 }  // namespace xls
 
-#endif  // XLS_IR_INTERVAL_SET_TEST_HELPERS_H_
+#endif  // XLS_IR_INTERVAL_SET_TEST_UTILS_H_

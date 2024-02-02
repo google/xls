@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/common/to_string_helpers.h"
+#include "xls/common/to_string_utils.h"
 
 #include <string>
 

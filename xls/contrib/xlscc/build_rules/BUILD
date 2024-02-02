@@ -45,7 +45,7 @@ bzl_library(
         "//xls/build_rules:xls_ir_rules_bzl",
         "//xls/build_rules:xls_providers_bzl",
         "//xls/build_rules:xls_toolchains_bzl",
-        "//xls/build_rules:xls_type_check_helpers_bzl",
+        "//xls/build_rules:xls_type_check_utils_bzl",
         "//xls/contrib/xlscc/build_rules:xlscc_providers_bzl",
     ],
 )

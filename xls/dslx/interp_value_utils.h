@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_INTERP_VALUE_HELPERS_H_
-#define XLS_DSLX_INTERP_VALUE_HELPERS_H_
+#ifndef XLS_DSLX_INTERP_VALUE_UTILS_H_
+#define XLS_DSLX_INTERP_VALUE_UTILS_H_
 
 #include <cstdint>
 #include <optional>
@@ -113,4 +113,4 @@ absl::StatusOr<std::string> InterpValueAsString(const InterpValue& v);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_INTERP_VALUE_HELPERS_H_
+#endif  // XLS_DSLX_INTERP_VALUE_UTILS_H_

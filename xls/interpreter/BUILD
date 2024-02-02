@@ -50,7 +50,7 @@ cc_library(
         "//xls/ir:keyword_args",
         "//xls/ir:register",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -76,7 +76,7 @@ cc_library(
         "//xls/ir:events",
         "//xls/ir:register",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -120,7 +120,7 @@ cc_library(
         "//xls/ir:elaboration",
         "//xls/ir:events",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -224,7 +224,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
@@ -250,7 +250,7 @@ cc_library(
         "//xls/ir:channel",
         "//xls/ir:elaboration",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 

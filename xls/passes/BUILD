@@ -402,7 +402,7 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -610,7 +610,7 @@ cc_library(
         "//xls/ir:interval_set",
         "//xls/ir:ternary",
         "//xls/ir:type",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -739,7 +739,7 @@ cc_library(
         "//xls/ir:interval_set",
         "//xls/ir:op",
         "//xls/ir:type",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -1085,7 +1085,7 @@ cc_library(
         "//xls/ir:ternary",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -1242,7 +1242,7 @@ cc_library(
         "//xls/ir:channel",
         "//xls/ir:node_util",
         "//xls/ir:op",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -1354,7 +1354,7 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -1389,7 +1389,7 @@ cc_library(
         "//xls/ir:ternary",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -1436,7 +1436,7 @@ cc_library(
         "//xls/ir:channel_ops",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -1505,7 +1505,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -1591,7 +1591,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -2145,7 +2145,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:interval",
         "//xls/ir:interval_set",
-        "//xls/ir:interval_set_test_helpers",
+        "//xls/ir:interval_set_test_utils",
         "//xls/ir:ir_test_base",
         "//xls/ir:ternary",
         "//xls/ir:type",

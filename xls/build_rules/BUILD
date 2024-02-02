@@ -57,8 +57,8 @@ exports_files(
 )
 
 bzl_library(
-    name = "xls_type_check_helpers_bzl",
-    srcs = ["xls_type_check_helpers.bzl"],
+    name = "xls_type_check_utils_bzl",
+    srcs = ["xls_type_check_utils.bzl"],
 )
 
 bzl_library(
@@ -112,7 +112,7 @@ bzl_library(
         ":xls_dslx_rules_bzl",
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
-        ":xls_type_check_helpers_bzl",
+        ":xls_type_check_utils_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -129,7 +129,7 @@ bzl_library(
         ":xls_config_rules_bzl",
         ":xls_internal_build_defs_bzl",
         ":xls_ir_rules_bzl",
-        ":xls_type_check_helpers_bzl",
+        ":xls_type_check_utils_bzl",
     ],
 )
 
@@ -160,7 +160,7 @@ bzl_library(
         ":xls_ir_rules_bzl",
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
-        ":xls_type_check_helpers_bzl",
+        ":xls_type_check_utils_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -172,7 +172,7 @@ bzl_library(
     deps = [
         ":xls_codegen_rules_bzl",
         ":xls_config_rules_bzl",
-        ":xls_type_check_helpers_bzl",
+        ":xls_type_check_utils_bzl",
         "@bazel_skylib//rules:build_test",
     ],
 )
@@ -203,7 +203,7 @@ bzl_library(
         ":xls_ir_macros_bzl",
         ":xls_ir_rules_bzl",
         ":xls_rules_bzl",
-        ":xls_type_check_helpers_bzl",
+        ":xls_type_check_utils_bzl",
         "@bazel_skylib//rules:build_test",
         "@bazel_skylib//rules:diff_test",
     ],

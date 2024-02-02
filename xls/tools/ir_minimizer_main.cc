@@ -68,7 +68,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/ir/verifier.h"
 #include "xls/jit/function_jit.h"
 #include "xls/passes/arith_simplification_pass.h"

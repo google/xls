@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_VALUE_HELPERS_H_
-#define XLS_IR_VALUE_HELPERS_H_
+#ifndef XLS_IR_VALUE_UTILS_H_
+#define XLS_IR_VALUE_UTILS_H_
 
 #include <string>
 
@@ -106,4 +106,4 @@ absl::StatusOr<LeafTypeTree<Value>> ValueToLeafTypeTree(const Value& value,
 
 }  // namespace xls
 
-#endif  // XLS_IR_VALUE_HELPERS_H_
+#endif  // XLS_IR_VALUE_UTILS_H_

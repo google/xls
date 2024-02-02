@@ -34,8 +34,8 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/value_helpers.h"
-#include "xls/ir/value_view_helpers.h"
+#include "xls/ir/value_utils.h"
+#include "xls/ir/value_view_utils.h"
 #include "xls/tools/testbench_builder.h"
 #include "third_party/xls_berkeley_softfloat/fpdiv_2x32_jit_wrapper.h"
 

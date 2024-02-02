@@ -135,15 +135,17 @@ cc_test(
 )
 
 cc_library(
-    name = "interp_value_helpers",
-    srcs = ["interp_value_helpers.cc"],
-    hdrs = ["interp_value_helpers.h"],
+    name = "interp_value_utils",
+    srcs = ["interp_value_utils.cc"],
+    hdrs = ["interp_value_utils.h"],
     deps = [
         ":interp_value",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:concrete_type",
+        "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
@@ -156,11 +158,11 @@ cc_library(
 )
 
 cc_test(
-    name = "interp_value_helpers_test",
-    srcs = ["interp_value_helpers_test.cc"],
+    name = "interp_value_utils_test",
+    srcs = ["interp_value_utils_test.cc"],
     deps = [
         ":interp_value",
-        ":interp_value_helpers",
+        ":interp_value_utils",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -450,7 +452,7 @@ cc_library(
         ":error_printer",
         ":errors",
         ":interp_value",
-        ":interp_value_helpers",
+        ":interp_value_utils",
         ":mangle",
         ":parse_and_typecheck",
         ":warning_kind",

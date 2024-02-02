@@ -28,7 +28,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/subprocess.h"
-#include "xls/dslx/interp_value_helpers.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/fuzzer/cpp_run_fuzz.h"
 #include "xls/fuzzer/cpp_sample_runner.h"
 #include "xls/fuzzer/run_fuzz.h"

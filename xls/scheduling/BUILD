@@ -49,7 +49,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:type",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -387,7 +387,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "//xls/passes:optimization_pass",
         "//xls/passes:post_dominator_analysis",
         "//xls/passes:token_provenance_analysis",

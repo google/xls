@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_TESTBENCH_BUILDER_HELPERS_H_
-#define XLS_TOOLS_TESTBENCH_BUILDER_HELPERS_H_
+#ifndef XLS_TOOLS_TESTBENCH_BUILDER_UTILS_H_
+#define XLS_TOOLS_TESTBENCH_BUILDER_UTILS_H_
 
 // This file contains "helper" default implementations of the IndexToInput,
 // CompareResults, and Print* routines.
@@ -217,4 +217,4 @@ void DefaultLogError(int64_t index, InputT input, ResultT expected,
 }  // namespace internal
 }  // namespace xls
 
-#endif  // XLS_TOOLS_TESTBENCH_BUILDER_HELPERS_H_
+#endif  // XLS_TOOLS_TESTBENCH_BUILDER_UTILS_H_

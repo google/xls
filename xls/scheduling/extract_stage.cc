@@ -28,7 +28,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 

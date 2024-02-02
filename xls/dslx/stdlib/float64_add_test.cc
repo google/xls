@@ -14,8 +14,8 @@
 
 // Random-sampling test for the DSLX 2x64 floating-point adder.
 #include <cmath>
-#include <limits>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <tuple>
 
@@ -29,8 +29,8 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/stdlib/float64_add_jit_wrapper.h"
-#include "xls/ir/value_helpers.h"
-#include "xls/ir/value_view_helpers.h"
+#include "xls/ir/value_utils.h"
+#include "xls/ir/value_view_utils.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 

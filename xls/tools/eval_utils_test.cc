@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/tools/eval_helpers.h"
+#include "xls/tools/eval_utils.h"
 
-#include <string_view>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -37,7 +37,6 @@ using testing::UnorderedElementsAre;
 MATCHER_P(EqualsProto, expected, "") {
   return google::protobuf::util::MessageDifferencer::Equals(arg, expected);
 }
-
 
 TEST(EvalHelpersTest, ParseChannelValuesFromProto) {
   std::string_view proto = R"pb(

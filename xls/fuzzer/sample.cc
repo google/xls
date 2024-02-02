@@ -32,7 +32,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/interp_value_helpers.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/fuzzer/sample.pb.h"
 #include "xls/fuzzer/scrub_crasher.h"
 #include "xls/ir/ir_parser.h"

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/interp_value_helpers.h"
+#include "xls/dslx/interp_value_utils.h"
 
 #include <cstdint>
 #include <memory>
@@ -31,8 +31,10 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
@@ -345,8 +347,7 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
   }
 }
 
-absl::StatusOr<std::vector<InterpValue>> ParseArgs(
-    std::string_view args_text) {
+absl::StatusOr<std::vector<InterpValue>> ParseArgs(std::string_view args_text) {
   args_text = absl::StripAsciiWhitespace(args_text);
   std::vector<InterpValue> args;
   if (args_text.empty()) {

@@ -39,7 +39,7 @@
 #include "xls/ir/value.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
-#include "xls/tools/eval_helpers.h"
+#include "xls/tools/eval_utils.h"
 
 const char kUsage[] = R"(
 Runs an Verilog block emitted by XLS through a Verilog simulator. Requires both

@@ -15,7 +15,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/tests/jit_wrapper/fail_on_42.h"
 #include "xls/tests/jit_wrapper/identity.h"
 #include "xls/tests/jit_wrapper/is_inf.h"

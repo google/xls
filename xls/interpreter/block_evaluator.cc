@@ -40,7 +40,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 namespace {

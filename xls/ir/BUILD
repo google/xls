@@ -207,7 +207,7 @@ cc_test(
         ":bits",
         ":bits_ops",
         ":interval",
-        ":interval_test_helpers",
+        ":interval_test_utils",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -267,13 +267,13 @@ cc_library(
 )
 
 cc_library(
-    name = "interval_test_helpers",
+    name = "interval_test_utils",
     testonly = True,
-    hdrs = ["interval_test_helpers.h"],
+    hdrs = ["interval_test_utils.h"],
     deps = [
         ":bits",
         ":bits_ops",
-        ":bits_test_helpers",
+        ":bits_test_utils",
         ":interval",
         "//xls/common/logging",
         "@com_google_fuzztest//fuzztest",
@@ -281,13 +281,13 @@ cc_library(
 )
 
 cc_library(
-    name = "interval_set_test_helpers",
+    name = "interval_set_test_utils",
     testonly = True,
-    hdrs = ["interval_set_test_helpers.h"],
+    hdrs = ["interval_set_test_utils.h"],
     deps = [
         ":interval",
         ":interval_set",
-        ":interval_test_helpers",
+        ":interval_test_utils",
         "//xls/common/logging",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//fuzztest",
@@ -304,7 +304,7 @@ cc_test(
         ":bits",
         ":interval",
         ":interval_set",
-        ":interval_set_test_helpers",
+        ":interval_set_test_utils",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -342,9 +342,9 @@ cc_test(
 )
 
 cc_library(
-    name = "bits_test_helpers",
+    name = "bits_test_utils",
     testonly = True,
-    hdrs = ["bits_test_helpers.h"],
+    hdrs = ["bits_test_utils.h"],
     deps = [
         ":bits",
         "//xls/common/logging",
@@ -362,7 +362,7 @@ cc_test(
     deps = [
         ":bits",
         ":bits_ops",
-        ":bits_test_helpers",
+        ":bits_test_utils",
         ":number_parser",
         ":value",
         "//xls/common:bits_util",
@@ -498,7 +498,7 @@ cc_library(
         ":type",
         ":unwrapping_iterator",
         ":value",
-        ":value_helpers",
+        ":value_utils",
         ":xls_type_cc_proto",
         "//xls/common:casts",
         "//xls/common:iterator_range",
@@ -844,9 +844,9 @@ cc_library(
 )
 
 cc_library(
-    name = "value_helpers",
-    srcs = ["value_helpers.cc"],
-    hdrs = ["value_helpers.h"],
+    name = "value_utils",
+    srcs = ["value_utils.cc"],
+    hdrs = ["value_utils.h"],
     deps = [
         ":type",
         ":value",
@@ -1173,7 +1173,7 @@ cc_library(
         ":source_location",
         ":type",
         ":value",
-        ":value_helpers",
+        ":value_utils",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -1235,7 +1235,7 @@ cc_test(
     deps = [
         ":bits",
         ":bits_ops",
-        ":bits_test_helpers",
+        ":bits_test_utils",
         ":format_preference",
         ":number_parser",
         "//xls/common:xls_gunit",
@@ -1393,8 +1393,8 @@ cc_library(
 )
 
 cc_library(
-    name = "value_view_helpers",
-    hdrs = ["value_view_helpers.h"],
+    name = "value_view_utils",
+    hdrs = ["value_view_utils.h"],
     deps = [
         ":value_view",
         "@com_google_absl//absl/base",
@@ -1420,7 +1420,7 @@ cc_library(
         ":channel_ops",
         ":type",
         ":value",
-        ":value_helpers",
+        ":value_utils",
         "//xls/common:casts",
         "//xls/common/logging",
         "@com_google_absl//absl/status",
@@ -1451,7 +1451,7 @@ cc_test(
     deps = [
         ":bits",
         ":bits_ops",
-        ":value_helpers",
+        ":value_utils",
         ":value_view",
         "//xls/common:bits_util",
         "//xls/common:math_util",
@@ -1473,7 +1473,7 @@ cc_test(
         ":big_int",
         ":bits",
         ":bits_ops",
-        ":bits_test_helpers",
+        ":bits_test_utils",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/types:span",
@@ -1502,14 +1502,14 @@ cc_test(
 )
 
 cc_test(
-    name = "value_helpers_test",
-    srcs = ["value_helpers_test.cc"],
+    name = "value_utils_test",
+    srcs = ["value_utils_test.cc"],
     deps = [
         ":bits_ops",
         ":ir",
         ":ir_parser",
         ":value",
-        ":value_helpers",
+        ":value_utils",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -1596,7 +1596,7 @@ cc_library(
         ":bits",
         ":type",
         ":value",
-        ":value_helpers",
+        ":value_utils",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",

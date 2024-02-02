@@ -1,6 +1,5 @@
 # XLS libraries ported from Berkeley SoftFloat.
 
-load("@rules_license//rules:license.bzl", "license")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
@@ -8,6 +7,7 @@ load(
     "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
+load("@rules_license//rules:license.bzl", "license")
 
 package(
     default_applicable_licenses = [":license"],
@@ -67,8 +67,8 @@ cc_test(
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/ir:value_helpers",
-        "//xls/ir:value_view_helpers",
+        "//xls/ir:value_utils",
+        "//xls/ir:value_view_utils",
         "//xls/tools:testbench_builder",
     ],
 )

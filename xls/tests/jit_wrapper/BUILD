@@ -123,6 +123,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )

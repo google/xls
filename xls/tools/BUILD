@@ -439,14 +439,14 @@ cc_library(
     hdrs = ["testbench_builder.h"],
     deps = [
         ":testbench",
-        ":testbench_builder_helpers",
+        ":testbench_builder_utils",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
 
 cc_library(
-    name = "testbench_builder_helpers",
-    hdrs = ["testbench_builder_helpers.h"],
+    name = "testbench_builder_utils",
+    hdrs = ["testbench_builder_utils.h"],
     deps = [
         "//xls/common/logging",
         "@com_google_absl//absl/random",
@@ -612,7 +612,7 @@ cc_binary(
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
-        "//xls/dslx:interp_value_helpers",
+        "//xls/dslx:interp_value_utils",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode:bytecode_emitter",
@@ -651,7 +651,7 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "//xls/jit:function_jit",
         "//xls/jit:jit_buffer",
         "//xls/jit:llvm_type_converter",
@@ -681,9 +681,9 @@ cc_binary(
 )
 
 cc_library(
-    name = "eval_helpers",
-    srcs = ["eval_helpers.cc"],
-    hdrs = ["eval_helpers.h"],
+    name = "eval_utils",
+    srcs = ["eval_utils.cc"],
+    hdrs = ["eval_utils.h"],
     visibility = ["//xls:xls_users"],
     deps = [
         ":proc_channel_values_cc_proto",
@@ -707,10 +707,10 @@ cc_library(
 )
 
 cc_test(
-    name = "eval_helpers_test",
-    srcs = ["eval_helpers_test.cc"],
+    name = "eval_utils_test",
+    srcs = ["eval_utils_test.cc"],
     deps = [
-        ":eval_helpers",
+        ":eval_utils",
         ":proc_channel_values_cc_proto",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -727,7 +727,7 @@ cc_binary(
     srcs = ["eval_proc_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
-        ":eval_helpers",
+        ":eval_utils",
         "//xls/codegen:module_signature_cc_proto",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -747,7 +747,7 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:register",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "//xls/jit:block_jit",
         "//xls/jit:jit_proc_runtime",
         "@com_google_absl//absl/algorithm:container",
@@ -920,7 +920,7 @@ cc_binary(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "//xls/jit:function_jit",
         "//xls/passes:arith_simplification_pass",
         "//xls/passes:array_simplification_pass",
@@ -1161,7 +1161,7 @@ cc_binary(
     name = "simulate_module_main",
     srcs = ["simulate_module_main.cc"],
     deps = [
-        ":eval_helpers",
+        ":eval_utils",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
         "//xls/common:exit_status",
@@ -1263,7 +1263,7 @@ cc_binary(
         "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "//xls/jit:block_jit",
         "//xls/jit:function_jit",
         "//xls/jit:jit_channel_queue",

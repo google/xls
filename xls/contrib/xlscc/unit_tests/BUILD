@@ -42,7 +42,7 @@ cc_library(
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:log_entry",

@@ -126,7 +126,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "@llvm-project//llvm:Core",
     ],
 )
@@ -293,7 +293,7 @@ cc_library(
         "//xls/ir:keyword_args",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
         "@llvm-project//llvm:ir_headers",
     ],
 )
@@ -493,7 +493,7 @@ cc_library(
         "//xls/ir:register",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -663,7 +663,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 

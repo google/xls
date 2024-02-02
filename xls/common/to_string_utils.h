@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_COMMON_TO_STRING_HELPERS_H_
-#define XLS_COMMON_TO_STRING_HELPERS_H_
+#ifndef XLS_COMMON_TO_STRING_UTILS_H_
+#define XLS_COMMON_TO_STRING_UTILS_H_
 
 #include <string>
 #include <type_traits>
@@ -22,7 +22,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
-#include "xls/common/type_traits_helpers.h"
+#include "xls/common/type_traits_utils.h"
 
 // Helpers for generating the string representation of: C++ primitive integral
 // types, std::pair and containers with a const_iterator and size() members that
@@ -169,4 +169,4 @@ std::string ToString(const Container<T>& values) {
 
 }  // namespace xls
 
-#endif  // XLS_COMMON_TO_STRING_HELPERS_H_
+#endif  // XLS_COMMON_TO_STRING_UTILS_H_

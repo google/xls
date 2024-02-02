@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "xls/ir/ir_parser.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 

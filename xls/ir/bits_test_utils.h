@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_BITS_TEST_HELPERS_H_
-#define XLS_IR_BITS_TEST_HELPERS_H_
+#ifndef XLS_IR_BITS_TEST_UTILS_H_
+#define XLS_IR_BITS_TEST_UTILS_H_
 
 #include <cstdint>
 #include <optional>
@@ -106,4 +106,4 @@ inline auto NonemptyBits() {
 
 }  // namespace xls
 
-#endif  // XLS_IR_BITS_TEST_HELPERS_H_
+#endif  // XLS_IR_BITS_TEST_UTILS_H_

@@ -17,7 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/type_system/typecheck_test_helpers.h"
+#include "xls/dslx/type_system/typecheck_test_utils.h"
 
 namespace xls::dslx {
 namespace {

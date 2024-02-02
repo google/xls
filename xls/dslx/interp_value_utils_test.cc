@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/interp_value_helpers.h"
+#include "xls/dslx/interp_value_utils.h"
 
 #include <cstdint>
 #include <memory>
@@ -238,7 +238,7 @@ TEST(InterpValueHelpersTest, ValueToInterpValue) {
                        /*name_def=*/&struct_name_def,
                        /*parametric_bindings=*/{},
                        // these members are unused, but need to have the same
-                       // number of elements as members in 'stuct_type'.
+                       // number of elements as members in 'struct_type'.
                        /*members=*/{{nullptr, nullptr}, {nullptr, nullptr}},
                        /*is_public=*/false);
   std::vector<std::unique_ptr<ConcreteType>> members;

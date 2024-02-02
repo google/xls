@@ -45,7 +45,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 // TODO(seanhaskell): Turn this back on when dynamic state feedback lands
 // b/321982824

@@ -342,10 +342,10 @@ cc_library(
 )
 
 cc_library(
-    name = "typecheck_test_helpers",
+    name = "typecheck_test_utils",
     testonly = True,
-    srcs = ["typecheck_test_helpers.cc"],
-    hdrs = ["typecheck_test_helpers.h"],
+    srcs = ["typecheck_test_utils.cc"],
+    hdrs = ["typecheck_test_utils.h"],
     deps = [
         ":type_info_to_proto",
         "@com_google_absl//absl/status:statusor",
@@ -363,7 +363,7 @@ cc_test(
     deps = [
         ":type_info",
         ":typecheck",
-        ":typecheck_test_helpers",
+        ":typecheck_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
@@ -385,7 +385,7 @@ cc_test(
     srcs = ["proc_typecheck_test.cc"],
     deps = [
         ":typecheck",
-        ":typecheck_test_helpers",
+        ":typecheck_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",

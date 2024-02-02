@@ -36,7 +36,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/interp_value_helpers.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/fuzzer/cpp_sample_runner.h"
 #include "xls/fuzzer/sample.h"
 #include "xls/fuzzer/sample.pb.h"
@@ -44,7 +44,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/simulation/check_simulator.h"
-#include "xls/tools/eval_helpers.h"
+#include "xls/tools/eval_utils.h"
 
 namespace xls {
 namespace {

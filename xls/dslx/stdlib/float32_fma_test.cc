@@ -26,7 +26,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/dslx/stdlib/float32_fma_jit_wrapper.h"
-#include "xls/dslx/stdlib/float32_test_helpers.h"
+#include "xls/dslx/stdlib/float32_test_utils.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 

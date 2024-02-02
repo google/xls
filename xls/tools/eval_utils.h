@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_EVAL_HELPERS_H_
-#define XLS_TOOLS_EVAL_HELPERS_H_
+#ifndef XLS_TOOLS_EVAL_UTILS_H_
+#define XLS_TOOLS_EVAL_UTILS_H_
 
 #include <optional>
 #include <string>
@@ -27,11 +27,10 @@
 
 namespace xls {
 
-
 // Returns all XLS Values in file.
 // If max_lines is <0 then it is ignored.
-absl::StatusOr<std::vector<Value>> ParseValuesFile(
-    std::string_view filename, int64_t max_lines = -1);
+absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
+                                                   int64_t max_lines = -1);
 
 // Returns a string representation of the channels-to-values map. The values are
 // represented in Hex format. For example, given the following
@@ -115,10 +114,9 @@ ParseChannelValuesFromProtoFile(
 
 // Convert a map of channel-name -> channel values into a ProcChannelValuesProto
 // proto. This is the inverse of ParseChannelValuesFromProto.
-absl::StatusOr<ProcChannelValuesProto>
-ChannelValuesToProto(
+absl::StatusOr<ProcChannelValuesProto> ChannelValuesToProto(
     const absl::flat_hash_map<std::string, std::vector<Value>>& channel_map);
 
 }  // namespace xls
 
-#endif  // XLS_TOOLS_EVAL_HELPERS_H_
+#endif  // XLS_TOOLS_EVAL_UTILS_H_

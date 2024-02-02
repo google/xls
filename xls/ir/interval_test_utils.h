@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_INTERVAL_TEST_HELPERS_H_
-#define XLS_IR_INTERVAL_TEST_HELPERS_H_
+#ifndef XLS_IR_INTERVAL_TEST_UTILS_H_
+#define XLS_IR_INTERVAL_TEST_UTILS_H_
 
 #include <cstdint>
 #include <optional>
@@ -22,7 +22,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
-#include "xls/ir/bits_test_helpers.h"
+#include "xls/ir/bits_test_utils.h"
 #include "xls/ir/interval.h"
 
 namespace xls {
@@ -81,4 +81,4 @@ inline auto ProperInterval() {
 
 }  // namespace xls
 
-#endif  // XLS_IR_INTERVAL_TEST_HELPERS_H_
+#endif  // XLS_IR_INTERVAL_TEST_UTILS_H_

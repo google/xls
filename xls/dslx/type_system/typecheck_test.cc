@@ -35,7 +35,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck_test_helpers.h"
+#include "xls/dslx/type_system/typecheck_test_utils.h"
 
 namespace xls::dslx {
 namespace {

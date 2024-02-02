@@ -65,7 +65,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_channel_queue.h"

@@ -38,7 +38,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
-#include "xls/ir/interval_set_test_helpers.h"
+#include "xls/ir/interval_set_test_utils.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"

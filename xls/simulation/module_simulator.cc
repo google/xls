@@ -40,7 +40,7 @@
 #include "xls/ir/value.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/module_testbench_thread.h"
-#include "xls/tools/eval_helpers.h"
+#include "xls/tools/eval_utils.h"
 
 namespace xls {
 namespace verilog {

@@ -26,7 +26,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
-#include "xls/ir/interval_set_test_helpers.h"
+#include "xls/ir/interval_set_test_utils.h"
 
 using ::testing::Optional;
 using ::testing::SizeIs;

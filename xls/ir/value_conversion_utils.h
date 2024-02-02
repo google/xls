@@ -29,7 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 // Utilities for conversions from a value represented in the C++ domain to
 // the IR domain (xls::Value), and vice-versa, from the IR domain (xls::Value)

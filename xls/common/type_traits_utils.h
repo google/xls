@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_COMMON_TYPE_TRAITS_HELPERS_H_
-#define XLS_COMMON_TYPE_TRAITS_HELPERS_H_
+#ifndef XLS_COMMON_TYPE_TRAITS_UTILS_H_
+#define XLS_COMMON_TYPE_TRAITS_UTILS_H_
 
 #include <cstdint>
 #include <type_traits>
@@ -84,4 +84,4 @@ struct is_one_of<Subject, std::variant<Type, Types...>>
 
 }  // namespace xls
 
-#endif  // XLS_COMMON_TYPE_TRAITS_HELPERS_H_
+#endif  // XLS_COMMON_TYPE_TRAITS_UTILS_H_

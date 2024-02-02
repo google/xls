@@ -32,7 +32,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 

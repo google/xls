@@ -14,7 +14,6 @@
 
 // Random-sampling test for DSLX 32-bit floating-point fast, approximate
 // inverse sqrt.
-#include "xls/dslx/stdlib/float32_test_helpers.h"
 #include <cmath>
 #include <limits>
 
@@ -27,8 +26,9 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/stdlib/float32_fast_rsqrt_jit_wrapper.h"
-#include "xls/ir/value_helpers.h"
-#include "xls/ir/value_view_helpers.h"
+#include "xls/dslx/stdlib/float32_test_utils.h"
+#include "xls/ir/value_utils.h"
+#include "xls/ir/value_view_utils.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 

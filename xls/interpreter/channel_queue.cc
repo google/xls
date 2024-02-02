@@ -34,7 +34,7 @@
 #include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 

@@ -22,8 +22,8 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/to_string_helpers.h"
-#include "xls/common/type_traits_helpers.h"
+#include "xls/common/to_string_utils.h"
+#include "xls/common/type_traits_utils.h"
 
 // Utilities for comparing C++ primitive types, std::pair and containers with a
 // const_iterator and size() members. The comparisons return a human readable

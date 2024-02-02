@@ -339,7 +339,7 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:source_location",
-        "//xls/ir:value_helpers",
+        "//xls/ir:value_utils",
     ],
 )
 
