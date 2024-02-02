@@ -14,13 +14,28 @@
 
 #include "xls/codegen/codegen_checker.h"
 
+#include "absl/algorithm/container.h"
+#include "absl/status/status.h"
+#include "xls/codegen/codegen_pass.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/ir/node.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::Status CodegenChecker::Run(CodegenPassUnit* unit,
                                  const CodegenPassOptions& options,
                                  PassResults* results) const {
+  XLS_RET_CHECK_EQ(unit->streaming_io_and_pipeline.node_to_stage_map.size(),
+                   absl::c_count_if(unit->block->nodes(),
+                                    [&](Node* n) {
+                                      return unit->streaming_io_and_pipeline
+                                          .node_to_stage_map.contains(n);
+                                    }))
+      << "Dangling pointers present in node-id-to-stage map:\n"
+      << unit->block->DumpIr();
+
   return VerifyPackage(unit->package);
 }
 

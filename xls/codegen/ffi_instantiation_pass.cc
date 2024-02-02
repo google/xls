@@ -159,6 +159,9 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
   for (Node* n : to_remove) {
     XLS_RETURN_IF_ERROR(block->RemoveNode(n));
   }
+  if (!to_remove.empty()) {
+    unit->GcNodeMap();
+  }
 
   return !to_remove.empty();
 }

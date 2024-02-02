@@ -16,9 +16,14 @@
 
 #include <vector>
 
-#include "xls/common/logging/logging.h"
+#include "absl/status/statusor.h"
+#include "xls/codegen/codegen_pass.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/register.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -47,6 +52,10 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
       XLS_RETURN_IF_ERROR(block->RemoveRegister(reg));
       changed = true;
     }
+  }
+
+  if (changed) {
+    unit->GcNodeMap();
   }
 
   return changed;

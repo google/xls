@@ -93,6 +93,10 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
     }
   }
 
+  if (changed) {
+    unit->GcNodeMap();
+  }
+
   return changed;
 }
 

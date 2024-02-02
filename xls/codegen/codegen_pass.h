@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -214,6 +215,7 @@ struct StreamingIOPipeline {
   // Node denoting if a specific stage is finished.
   std::vector<Node*> stage_done;
 
+  // Map from node to stage.
   absl::flat_hash_map<Node*, Stage> node_to_stage_map;
 };
 
@@ -319,6 +321,9 @@ struct CodegenPassUnit {
   const TransformMetrics& transform_metrics() const {
     return package->transform_metrics();
   }
+
+  // Clean up any dangling pointers in various node-maps.
+  void GcNodeMap();
 };
 
 using CodegenPass = PassBase<CodegenPassUnit, CodegenPassOptions, PassResults>;

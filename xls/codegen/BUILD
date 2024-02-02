@@ -402,7 +402,9 @@ cc_library(
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -503,7 +505,10 @@ cc_library(
     hdrs = ["codegen_checker.h"],
     deps = [
         ":codegen_pass",
+        "//xls/common/status:ret_check",
         "//xls/ir",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status",
     ],
 )
@@ -550,9 +555,11 @@ cc_library(
     hdrs = ["register_legalization_pass.h"],
     deps = [
         ":codegen_pass",
-        "//xls/common/logging",
+        "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:register",
         "//xls/ir:value_helpers",
+        "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -563,6 +570,7 @@ cc_library(
     hdrs = ["codegen_wrapper_pass.h"],
     deps = [
         ":codegen_pass",
+        "//xls/common/status:status_macros",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
@@ -1021,9 +1029,11 @@ cc_library(
     hdrs = ["mulp_combining_pass.h"],
     deps = [
         ":codegen_pass",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
     ],
 )

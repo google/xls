@@ -788,6 +788,10 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
     changed = changed || this_one_changed;
   }
 
+  if (changed) {
+    unit->GcNodeMap();
+  }
+
   return changed;
 }
 

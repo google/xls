@@ -16,10 +16,13 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "xls/ir/node.h"
 
 namespace xls::verilog {
 
@@ -37,8 +40,17 @@ std::string CodegenPassUnit::DumpIr() const {
   }
   return out;
 }
-int64_t CodegenPassUnit::GetNodeCount() const {
-  return block->node_count();
+int64_t CodegenPassUnit::GetNodeCount() const { return block->node_count(); }
+
+void CodegenPassUnit::GcNodeMap() {
+  absl::flat_hash_map<Node*, Stage> res;
+  res.reserve(streaming_io_and_pipeline.node_to_stage_map.size());
+  for (Node* n : block->nodes()) {
+    if (streaming_io_and_pipeline.node_to_stage_map.contains(n)) {
+      res[n] = streaming_io_and_pipeline.node_to_stage_map.at(n);
+    }
+  }
+  streaming_io_and_pipeline.node_to_stage_map = std::move(res);
 }
 
 }  // namespace xls::verilog

@@ -3149,6 +3149,9 @@ absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
   XLS_VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, unit.block->DumpIr());
 
+  // Avoid leaving any dangling pointers.
+  unit.GcNodeMap();
+
   return unit;
 }
 
@@ -3205,6 +3208,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
 
   CodegenPassUnit unit(block->package(), block);
   unit.conversion_metadata.emplace<FunctionConversionMetadata>();
+  unit.GcNodeMap();
   return unit;
 }
 
@@ -3281,6 +3285,7 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
   CodegenPassUnit unit(block->package(), block);
   unit.streaming_io_and_pipeline = std::move(streaming_io);
   unit.conversion_metadata.emplace<ProcConversionMetadata>();
+  unit.GcNodeMap();
   return unit;
 }
 
