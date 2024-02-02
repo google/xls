@@ -773,6 +773,13 @@ class ProcBuilder : public BuilderBase {
   BValue StateElement(std::string_view name, const Value& initial_value,
                       const SourceInfo& loc = SourceInfo());
 
+  // Adds a state element to the proc with the given initial value. Returns the
+  // newly added state parameter.
+  BValue StateElement(std::string_view name, const Bits& initial_value,
+                      const SourceInfo& loc = SourceInfo()) {
+    return StateElement(name, Value(initial_value), loc);
+  }
+
   // Adds a (conditional) next value for the named state element. Returns an
   // empty tuple.
   BValue Next(BValue param, BValue value,
