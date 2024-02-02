@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -241,53 +240,10 @@ struct ProcConversionMetadata {
   std::vector<Node*> valid_flops;
 };
 
-class ConcurrentStageGroups {
- public:
-  ConcurrentStageGroups(ConcurrentStageGroups&&) = default;
-  ConcurrentStageGroups& operator=(ConcurrentStageGroups&&) = default;
-  ConcurrentStageGroups(const ConcurrentStageGroups&) = default;
-  ConcurrentStageGroups& operator=(const ConcurrentStageGroups&) = default;
-  explicit ConcurrentStageGroups(int64_t num_stages) {
-    concurrent_stages_.reserve(num_stages);
-    for (int64_t i = 0; i < num_stages; ++i) {
-      concurrent_stages_.push_back(InlineBitmap(num_stages, true));
-    }
-  }
-
-  int64_t stage_count() const { return concurrent_stages_.size(); }
-
-  void MarkMutuallyExclusive(Stage a, Stage b) {
-    XLS_CHECK_NE(a, b);
-    concurrent_stages_[a].Set(b, false);
-    concurrent_stages_[b].Set(a, false);
-  }
-
-  bool IsConcurrent(Stage a, Stage b) const {
-    XLS_CHECK_EQ(concurrent_stages_[a].Get(b), concurrent_stages_[b].Get(a));
-    return concurrent_stages_[a].Get(b);
-  }
-
-  const InlineBitmap& ConcurrentStagesWith(int64_t stage) const {
-    return concurrent_stages_[stage];
-  }
-
- private:
-  // Map of stage# -> set of stages that can be executing at the same time as
-  // the stage.  If concurrent_stages_[N].Get(M) is true then stage N and M may
-  // be active at the same time.
-  std::vector<InlineBitmap> concurrent_stages_;
-};
-
 // Data structure operated on by codegen passes. Contains the IR and associated
 // metadata which may be used and mutated by passes.
 struct CodegenPassUnit {
-  CodegenPassUnit(Package* p, Block* b,
-                  std::optional<int64_t> stages = std::nullopt)
-      : package(p),
-        block(b),
-        concurrent_stages_(
-            stages ? std::make_optional<ConcurrentStageGroups>(*stages)
-                   : std::nullopt) {}
+  CodegenPassUnit(Package* p, Block* b) : package(p), block(b) {}
 
   // The package containing IR to lower.
   Package* package;
@@ -302,9 +258,6 @@ struct CodegenPassUnit {
   // Only set when converting functions.
   std::variant<FunctionConversionMetadata, ProcConversionMetadata>
       conversion_metadata;
-
-  // Proven knowledge about which stages are active concurrently.
-  std::optional<ConcurrentStageGroups> concurrent_stages_;
 
   // The signature is generated (and potentially mutated) during the codegen
   // process.
