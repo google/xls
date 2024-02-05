@@ -30,6 +30,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -39,6 +40,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/value.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
@@ -146,6 +148,19 @@ class ConditionSet {
       pieces.push_back(condition.ToString());
     }
     return absl::StrCat("(", absl::StrJoin(pieces, " & "), ")");
+  }
+
+  // Returns the conditions as predicates
+  std::vector<std::pair<TreeBitLocation, bool>> GetPredicates() const {
+    std::vector<std::pair<TreeBitLocation, bool>> predicates;
+    for (const Condition& condition : conditions()) {
+      for (int64_t i = 0; i < condition.node->BitCountOrDie(); ++i) {
+        bool bit_value =
+            (i >= 64) ? false : static_cast<bool>(((condition.value >> i) & 1));
+        predicates.push_back({TreeBitLocation{condition.node, i}, bit_value});
+      }
+    }
+    return predicates;
   }
 
  private:
@@ -276,13 +291,8 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
     return std::nullopt;
   }
 
-  std::vector<std::pair<TreeBitLocation, bool>> predicates;
-  for (const Condition& condition : condition_set.conditions()) {
-    for (int64_t i = 0; i < condition.node->BitCountOrDie(); ++i) {
-      bool bit_value = i >= 64 ? false : ((condition.value >> i) & 1);
-      predicates.push_back({TreeBitLocation{condition.node, i}, bit_value});
-    }
-  }
+  std::vector<std::pair<TreeBitLocation, bool>> predicates =
+      condition_set.GetPredicates();
   std::optional<Bits> implied_value =
       query_engine->ImpliedNodeValue(predicates, node);
 
@@ -373,6 +383,43 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         }
       }
     }
+    // The operands of single-bit logical operations may not be observable
+    // depending on the value of the *other* operands. For example, given:
+    //
+    //    OR(X, Y, Z)
+    //
+    // The value X is not observable if Y or Z is one, so we can assume in the
+    // computation of X that Y and Z are zero. Similar assumptions can be made
+    // for other logical operations (NOR, NAD, NAND).
+    //
+    // This can only be used when a query engine is *not* used because as soon
+    // as the graph is transformed the (BDD) query engine becomes stale. This is
+    // not the case with the select-based transformations because of the mutual
+    // exclusion of the assumed conditions.
+    //
+    // TODO(b/323003986): Incrementally update the BDD.
+    if ((node->op() == Op::kOr || node->op() == Op::kNor ||
+         node->op() == Op::kAnd || node->op() == Op::kNand) &&
+        node->BitCountOrDie() == 1 && query_engine == nullptr) {
+      // The value you can assume other operands have in the computation of this
+      // operand.
+      int64_t assumed_operand_value =
+          (node->op() == Op::kOr || node->op() == Op::kNor) ? 0 : 1;
+      for (int64_t i = 0; i < node->operand_count(); ++i) {
+        if (node->operand(i)->Is<Literal>()) {
+          continue;
+        }
+        ConditionSet edge_set = set;
+        for (int64_t j = 0; j < node->operand_count(); ++j) {
+          if (i != j && !node->operand(j)->Is<Literal>()) {
+            edge_set.AddCondition(
+                Condition{node->operand(j), assumed_operand_value});
+          }
+        }
+        condition_map.SetEdgeConditionSet(node, i, std::move(edge_set));
+      }
+    }
+
     if (node->Is<Send>()) {
       Send* send = node->As<Send>();
 
@@ -411,6 +458,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
       const ConditionSet& edge_set =
           condition_map.GetEdgeConditionSet(operand, node);
+      XLS_VLOG(4) << absl::StrFormat("Conditions on edge %s -> %s: %s",
+                                     operand->GetName(), node->GetName(),
+                                     edge_set.ToString());
 
       // First check to see if the condition set directly implies a value for
       // the operand. If so replace with the implied value.
@@ -462,7 +512,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           }
           Node* implied_case =
               GetSelectedCase(select, implied_selector.value());
-          XLS_VLOG(4) << absl::StreamFormat(
+          XLS_VLOG(3) << absl::StreamFormat(
               "Conditions for edge (%s, %s) imply selector %s of select %s has "
               "value %v",
               operand->GetName(), node->GetName(),

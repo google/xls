@@ -14,6 +14,8 @@
 
 #include "xls/passes/conditional_specialization_pass.h"
 
+#include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -22,10 +24,13 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -610,6 +615,55 @@ TEST_F(ConditionalSpecializationPassTest, SendChange) {
   Send* send = next_token->As<Send>();
 
   EXPECT_THAT(send->data(), m::Param("value"));
+}
+
+TEST_F(ConditionalSpecializationPassTest, LogicalAndImpliedValue) {
+  // AND(a, OR(a, b)) => AND(a, OR(1, b))
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue result = fb.And(a, fb.Or(a, b));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("a"), m::Or(m::Literal(1), m::Param("b"))));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       LogicalAndImpliedValueWithQueryEngine) {
+  // Can't perform logical op based specialization if BDDs are used.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue result = fb.And(a, fb.Or(a, b));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  EXPECT_THAT(Run(f, /*use_bdd=*/true), IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest, LogicalNorImpliedValue) {
+  // NOR(a, Add(a, b)) => NOR(a, Add(0, b))
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue result = fb.Nor(a, fb.Add(a, b));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Nor(m::Param("a"), m::Add(m::Literal(0), m::Param("b"))));
 }
 
 }  // namespace
