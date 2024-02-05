@@ -1865,7 +1865,7 @@ Unary `-` `!`               | n/a
 `as`                        | Left to right
 `*` `/` `%`                 | Left to right
 `+` `-`                     | Left to right
-`<<` `>>` `>>>`             | Left to right
+`<<` `>>`                   | Left to right
 `&`                         | Left to right
 `^`                         | Left to right
 `\|`                        | Left to right
