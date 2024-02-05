@@ -1871,7 +1871,7 @@ Unary `-` `!`               | n/a
 `\|`                        | Left to right
 `==` `!=` `<` `>` `<=` `>=` | Left to right
 `&&`                        | Left to right
-`\|\|`                      | Left to right
+`||`                        | Left to right
 
 ## Testing and Debugging
 
