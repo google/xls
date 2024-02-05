@@ -16,6 +16,7 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype test and library
 load("@rules_python//python:proto.bzl", "py_proto_library")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
@@ -600,6 +601,7 @@ py_test(
 
 py_test(
     name = "fuzz_coverage_test",
+    timeout = "eternal",
     srcs = ["fuzz_coverage_test.py"],
     data = [":run_fuzz_multiprocess"],
     python_version = "PY3",
@@ -618,6 +620,11 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
+)
+
+build_test(
+    name = "fuzz_coverage_build_test",
+    targets = [":fuzz_coverage_test"],
 )
 
 cc_proto_library(
