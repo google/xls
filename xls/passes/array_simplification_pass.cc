@@ -304,24 +304,32 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
                                select->get_case(0), array_index->indices()));
       return SimplifyResult::Changed({new_array_index});
     }
-    XLS_VLOG(2) << absl::StrFormat(
-        "Replacing array-index of select with select of array-indexes: %s",
-        array_index->ToString());
-    XLS_ASSIGN_OR_RETURN(
-        ArrayIndex * on_false_index,
-        array_index->function_base()->MakeNode<ArrayIndex>(
-            array_index->loc(), select->get_case(0), array_index->indices()));
-    XLS_ASSIGN_OR_RETURN(
-        ArrayIndex * on_true_index,
-        array_index->function_base()->MakeNode<ArrayIndex>(
-            array_index->loc(), select->get_case(1), array_index->indices()));
-    XLS_ASSIGN_OR_RETURN(
-        Select * new_select,
-        array_index->ReplaceUsesWithNew<Select>(
-            select->selector(),
-            /*cases=*/std::vector<Node*>({on_false_index, on_true_index}),
-            /*default=*/std::nullopt));
-    return SimplifyResult::Changed({new_select, on_false_index, on_true_index});
+    // Only perform this optimization if the array_index is the only
+    // user. Otherwise the array index(es) are duplicated which can outweigh the
+    // benefit of selecting the smaller element.
+    // TODO(meheff): Consider cases where selects with multiple users are still
+    // advantageous to transform.
+    if (select->users().size() == 1) {
+      XLS_VLOG(2) << absl::StrFormat(
+          "Replacing array-index of select with select of array-indexes: %s",
+          array_index->ToString());
+      XLS_ASSIGN_OR_RETURN(
+          ArrayIndex * on_false_index,
+          array_index->function_base()->MakeNode<ArrayIndex>(
+              array_index->loc(), select->get_case(0), array_index->indices()));
+      XLS_ASSIGN_OR_RETURN(
+          ArrayIndex * on_true_index,
+          array_index->function_base()->MakeNode<ArrayIndex>(
+              array_index->loc(), select->get_case(1), array_index->indices()));
+      XLS_ASSIGN_OR_RETURN(
+          Select * new_select,
+          array_index->ReplaceUsesWithNew<Select>(
+              select->selector(),
+              /*cases=*/std::vector<Node*>({on_false_index, on_true_index}),
+              /*default=*/std::nullopt));
+      return SimplifyResult::Changed(
+          {new_select, on_false_index, on_true_index});
+    }
   }
 
   // If this array index operation indexes into the output of an array update
