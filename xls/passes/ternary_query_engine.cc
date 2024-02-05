@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
@@ -45,7 +44,7 @@ static bool IsExpensiveToEvaluate(Node* node) {
   // Shifts are quadratic in the width of the operand so wide shifts are very
   // slow to evaluate in the abstract evaluator.
   return (node->op() == Op::kShrl || node->op() == Op::kShra ||
-          node->op() == Op::kShll) &&
+          node->op() == Op::kShll || node->op() == Op::kBitSliceUpdate) &&
          node->GetType()->GetFlatBitCount() > 256;
 }
 

@@ -15,6 +15,7 @@
 #include "xls/passes/bdd_function.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -22,22 +23,29 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
-#include "xls/ir/dfs_visitor.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -412,9 +420,40 @@ bool IsCheapForBdds(const Node* node) {
       IsSingleBitType(node)) {
     return true;
   }
-  return (node->Is<NaryOp>() || node->Is<UnOp>() || node->Is<BitSlice>() ||
-          node->Is<ExtendOp>() || node->Is<Concat>() ||
-          node->Is<BitwiseReductionOp>() || node->Is<Literal>());
+
+  // The expense of evaluating a node using a BDD can depend strongly on the
+  // width of the inputs or outputs. The nodes are roughly classified into
+  // different groups based on their expense with width thresholds set for each
+  // group. These values are picked empirically based on benchmark results.
+  constexpr int64_t kWideThreshold = 256;
+  constexpr int64_t kNarrowThreshold = 16;
+  constexpr int64_t kVeryNarrowThreshold = 4;
+
+  auto is_always_cheap = [](const Node* node) {
+    return node->Is<ExtendOp>() || node->Is<NaryOp>() || node->Is<BitSlice>() ||
+           node->Is<Concat>() || node->Is<Literal>();
+  };
+
+  auto is_cheap_when_not_wide = [](const Node* node) {
+    return IsBinarySelect(const_cast<Node*>(node)) || node->Is<UnOp>() ||
+           node->Is<BitwiseReductionOp>() || node->Is<OneHot>() ||
+           node->op() == Op::kEq || node->op() == Op::kNe;
+  };
+
+  auto is_cheap_when_narrow = [](const Node* node) {
+    return node->Is<CompareOp>() || node->Is<OneHot>() ||
+           node->Is<OneHotSelect>();
+  };
+
+  int64_t width = node->GetType()->GetFlatBitCount();
+  for (Node* operand : node->operands()) {
+    width = std::max(operand->GetType()->GetFlatBitCount(), width);
+  }
+
+  return is_always_cheap(node) ||
+         (is_cheap_when_not_wide(node) && width <= kWideThreshold) ||
+         (is_cheap_when_narrow(node) && width <= kNarrowThreshold) ||
+         width <= kVeryNarrowThreshold;
 }
 
 }  // namespace xls

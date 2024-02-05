@@ -698,6 +698,7 @@ cc_library(
     hdrs = ["select_simplification_pass.h"],
     deps = [
         ":optimization_pass",
+        ":pass_base",
         ":query_engine",
         ":ternary_query_engine",
         "@com_google_absl//absl/algorithm:container",
@@ -828,10 +829,13 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -842,8 +846,10 @@ cc_library(
         "//xls/ir",
         "//xls/ir:abstract_evaluator",
         "//xls/ir:abstract_node_evaluator",
+        "//xls/ir:bits",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/ir:value",
     ],
 )
 
@@ -927,11 +933,15 @@ cc_library(
     srcs = ["bdd_simplification_pass.cc"],
     hdrs = ["bdd_simplification_pass.h"],
     deps = [
+        ":bdd_function",
         ":bdd_query_engine",
         ":optimization_pass",
+        ":pass_base",
         ":query_engine",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/logging:vlog_is_on",
@@ -940,6 +950,8 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "//xls/ir:value",
     ],
 )
 
@@ -1329,7 +1341,6 @@ cc_library(
     srcs = ["proc_inlining_pass.cc"],
     hdrs = ["proc_inlining_pass.h"],
     deps = [
-        ":bdd_function",
         ":bdd_query_engine",
         ":dataflow_visitor",
         ":optimization_pass",
@@ -1577,6 +1588,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/common:source_location",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",

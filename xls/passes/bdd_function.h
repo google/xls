@@ -15,18 +15,23 @@
 #ifndef XLS_PASSES_BDD_FUNCTION_H_
 #define XLS_PASSES_BDD_FUNCTION_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/op.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
@@ -51,7 +56,7 @@ class BddFunction {
   // a particular bit in the function ({Node*, bit index} pair) exceeds this
   // value the bit's representation in the BDD is replaced with a new BDD
   // variable. This provides a mechanism for limiting the growth of the BDD.
-  static constexpr int64_t kDefaultPathLimit = 16 * 1024;
+  static constexpr int64_t kDefaultPathLimit = 1024;
 
   // Construct a BDD representing the given function/proc.
   // `node_filter` is an optional function which filters the nodes to be

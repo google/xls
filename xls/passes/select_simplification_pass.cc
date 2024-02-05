@@ -47,6 +47,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
 
@@ -254,7 +255,9 @@ int64_t RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
 // succeeded.
 absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
     OneHotSelect* ohs, const QueryEngine& query_engine) {
-  if (!ohs->GetType()->IsBits()) {
+  // For *very* wide one-hot-selects this optimization can be very slow and make
+  // a mess of the graph so limit it to 64 bits.
+  if (!ohs->GetType()->IsBits() || ohs->GetType()->GetFlatBitCount() > 64) {
     return std::vector<OneHotSelect*>();
   }
 

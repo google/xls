@@ -36,6 +36,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -129,17 +130,20 @@ class ProcInliningPassTest : public IrTestBase {
       const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs,
       const absl::flat_hash_map<std::string, std::vector<int64_t>>&
           expected_outputs,
-      std::optional<int64_t> expected_ticks = std::nullopt) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> interpreter,
-                       CreateInterpreter(p, inputs));
+      std::optional<int64_t> expected_ticks = std::nullopt,
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
+    testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                               "EvalAndExpect failed");
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> interpreter,
+                         CreateInterpreter(p, inputs));
 
-  std::vector<Channel*> output_channels;
-  absl::flat_hash_map<Channel*, int64_t> expected_output_count;
-  for (auto [ch_name, expected_values] : expected_outputs) {
-    XLS_ASSIGN_OR_RETURN(Channel * ch, p->GetChannel(ch_name));
-    XLS_RET_CHECK(ch->type()->IsBits());
-    output_channels.push_back(ch);
-    expected_output_count[ch] = expected_values.size();
+    std::vector<Channel*> output_channels;
+    absl::flat_hash_map<Channel*, int64_t> expected_output_count;
+    for (const auto& [ch_name, expected_values] : expected_outputs) {
+      XLS_ASSIGN_OR_RETURN(Channel * ch, p->GetChannel(ch_name));
+      XLS_RET_CHECK(ch->type()->IsBits());
+      output_channels.push_back(ch);
+      expected_output_count[ch] = expected_values.size();
     }
     // Sort output channels the output expectations are done in a deterministic
     // order.
@@ -2657,9 +2661,11 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
     //
     // while true:
     //   x = rcv(in)
-    //   y = send(a_to_b, x)
-    //   z = send(a_to_c, 2*x)
-    //   send(out, x + y)
+    //   send(a_to_b, x)
+    //   send(a_to_c, 2*x)
+    //   y = rcv(b_to_a)
+    //   z = rcv(c_to_a)
+    //   send(out, y + z)
     ProcBuilder ab("A", "tkn", p.get());
     BValue rcv_in = ab.Receive(ch_in, ab.GetTokenParam());
     BValue rcv_tkn = ab.TupleIndex(rcv_in, 0);

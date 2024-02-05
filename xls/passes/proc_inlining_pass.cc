@@ -14,6 +14,7 @@
 
 #include "xls/passes/proc_inlining_pass.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <list>
 #include <memory>
@@ -49,7 +50,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/optimization_pass.h"
@@ -1795,7 +1795,21 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
 
   XLS_VLOG(3) << "After inlining procs:\n" << p->DumpIr();
 
-  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit, IsCheapForBdds);
+  // Changes were made to IsCheapForBdds which breaks proc inlining. Replicate
+  // the old IsCheapForBdds function here. This doesn't matter because proc
+  // inling is to be deleted soon.
+  auto should_compute_with_bdds = [](const Node* node) {
+    if (std::all_of(node->operands().begin(), node->operands().end(),
+                    IsSingleBitType) &&
+        IsSingleBitType(node)) {
+      return true;
+    }
+    return (node->Is<NaryOp>() || node->Is<UnOp>() || node->Is<BitSlice>() ||
+            node->Is<ExtendOp>() || node->Is<Concat>() ||
+            node->Is<BitwiseReductionOp>() || node->Is<Literal>());
+  };
+  BddQueryEngine query_engine(static_cast<int64_t>(16 * 1024),
+                              should_compute_with_bdds);
   XLS_RETURN_IF_ERROR(query_engine.Populate(container_proc).status());
 
   for (ProcThread& proc_thread : proc_threads) {

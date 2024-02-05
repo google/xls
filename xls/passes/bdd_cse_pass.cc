@@ -97,8 +97,9 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
 absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddFunction> bdd_function,
-                       BddFunction::Run(f, BddFunction::kDefaultPathLimit));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BddFunction> bdd_function,
+      BddFunction::Run(f, BddFunction::kDefaultPathLimit, IsCheapForBdds));
 
   // To improve efficiency, bucket potentially common nodes together. The
   // bucketing is done via a int64_t hash value of the BDD node indices of each

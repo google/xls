@@ -560,13 +560,13 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeLiteralPred) {
       package my_package
       chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-      top proc Delay_proc(tkn: token, value: bits[32], init={1}) {
+      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
         literal.2: bits[1] = literal(value=1, id=2)
         literal.5: bits[32] = literal(value=400, id=5)
-        eq.3: bits[1] = eq(value, literal.5, id=3)
-        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
+        eq.3: bits[1] = eq(value1, literal.5, id=3)
+        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=literal.2, channel=out, id=1)
-        next (send.1, value)
+        next (send.1, value1, value2)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -578,15 +578,15 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeUnprovable) {
       package my_package
       chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-      top proc Delay_proc(tkn: token, value: bits[32], init={1}) {
+      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
         literal.2: bits[1] = literal(value=1, id=2)
         literal.5: bits[32] = literal(value=400, id=5)
         literal.6: bits[32] = literal(value=55, id=6)
-        eq.3: bits[1] = eq(value, literal.5, id=3)
-        ugt.4: bits[1] = ugt(value, literal.6, id=4)
-        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
+        eq.3: bits[1] = eq(value1, literal.5, id=3)
+        ugt.4: bits[1] = ugt(value1, literal.6, id=4)
+        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=ugt.4, channel=out, id=1)
-        next (send.1, value)
+        next (send.1, value1, value2)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -598,13 +598,13 @@ TEST_F(ConditionalSpecializationPassTest, SendChange) {
       package my_package
       chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-      top proc Delay_proc(tkn: token, value: bits[32], init={1}) {
+      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
         literal.2: bits[1] = literal(value=1, id=2)
         literal.5: bits[32] = literal(value=400, id=5)
-        eq.3: bits[1] = eq(value, literal.5, id=3)
-        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
+        eq.3: bits[1] = eq(value1, literal.5, id=3)
+        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=eq.3, channel=out, id=1)
-        next (send.1, value)
+        next (send.1, value1, value2)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -614,7 +614,7 @@ TEST_F(ConditionalSpecializationPassTest, SendChange) {
   ASSERT_TRUE(next_token->Is<Send>());
   Send* send = next_token->As<Send>();
 
-  EXPECT_THAT(send->data(), m::Param("value"));
+  EXPECT_THAT(send->data(), m::Param("value2"));
 }
 
 TEST_F(ConditionalSpecializationPassTest, LogicalAndImpliedValue) {

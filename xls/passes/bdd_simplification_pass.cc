@@ -15,27 +15,29 @@
 #include "xls/passes/bdd_simplification_pass.h"
 
 #include <algorithm>
-#include <memory>
+#include <cstdint>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
-#include "xls/common/logging/log_lines.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/value.h"
+#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -332,7 +334,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
+  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit, IsCheapForBdds);
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;
