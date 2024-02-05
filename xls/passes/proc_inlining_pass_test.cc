@@ -2691,8 +2691,15 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
       EvalAndExpect(p.get(), {{"in", {2, 5, 7}}}, {{"out", {10, 19, 25}}})
           .status());
 
+  XLS_LOG(INFO) << "================= BEFORE";
+  XLS_LOG(INFO) << p->DumpIr();
+
   ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
   EXPECT_EQ(p->procs().size(), 1);
+
+  XLS_LOG(INFO) << "================= AFTER";
+  XLS_LOG(INFO) << p->DumpIr();
 
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(), {{"in", {2, 5, 7}}}, {{"out", {10, 19, 25}}})

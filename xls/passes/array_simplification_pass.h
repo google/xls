@@ -16,7 +16,7 @@
 #define XLS_PASSES_ARRAY_SIMPLIFICATION_H_
 
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls {
