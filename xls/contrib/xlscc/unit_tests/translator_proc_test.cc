@@ -56,6 +56,8 @@
 namespace xlscc {
 namespace {
 
+using ::testing::AllOf;
+using ::testing::Not;
 using ::testing::UnorderedElementsAre;
 using ::testing::Values;
 
@@ -4520,6 +4522,80 @@ TEST_P(TranslatorProcTest, IOWithStrictnessSpecified) {
               expected_strictness)
         << "Incorrect strictness for channel: " << channel->name();
   }
+}
+
+TEST_P(TranslatorProcTest, IOWithStrictnessSpecifiedOnCommandLine) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          out.write(3*in.read());
+         }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  XLS_ASSERT_OK(translator_->GenerateIR_BlockFromClass(
+      package_.get(), &block_spec, /*top_level_init_interval=*/0,
+      /*channel_strictness_map=*/
+      {{"in", xls::ChannelStrictness::kProvenMutuallyExclusive},
+       {"out", xls::ChannelStrictness::kArbitraryStaticOrder}}));
+
+  for (xls::Channel* channel : package_->channels()) {
+    EXPECT_EQ(channel->kind(), xls::ChannelKind::kStreaming)
+        << "Non-streaming channel: " << channel->name();
+    if (channel->kind() != xls::ChannelKind::kStreaming) {
+      continue;
+    }
+    EXPECT_THAT(channel->name(), testing::AnyOf("in", "out"));
+    xls::ChannelStrictness expected_strictness =
+        channel->name() == "in"
+            ? xls::ChannelStrictness::kProvenMutuallyExclusive
+            : xls::ChannelStrictness::kArbitraryStaticOrder;
+    EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->GetStrictness(),
+              expected_strictness)
+        << "Incorrect strictness for channel: " << channel->name();
+  }
+}
+
+TEST_P(TranslatorProcTest, IOWithUnusedStrictnessesSpecifiedOnCommandLine) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+       #pragma hls_channel_strictness arbitrary_static_order
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          out.write(3*in.read());
+         }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  ASSERT_THAT(
+      translator_->GenerateIR_BlockFromClass(
+          package_.get(), &block_spec, /*top_level_init_interval=*/0,
+          /*channel_strictness_map=*/
+          {{"in", xls::ChannelStrictness::kProvenMutuallyExclusive},
+           {"in_unused", xls::ChannelStrictness::kProvenMutuallyExclusive},
+           {"out", xls::ChannelStrictness::kArbitraryStaticOrder}}),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(testing::HasSubstr("Unused channel strictness"),
+                testing::HasSubstr("in_unused:proven_mutually_exclusive"),
+                Not(testing::HasSubstr("out")))));
 }
 
 TEST_P(TranslatorProcTest, IOProcClassPropagateVars) {

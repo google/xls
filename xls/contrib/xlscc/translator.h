@@ -2125,7 +2125,9 @@ class Translator {
   absl::StatusOr<std::optional<xls::ChannelStrictness>> GetChannelStrictness(
       const clang::NamedDecl& decl,
       const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
-          channel_strictness_map = {});
+          channel_strictness_map,
+      absl::flat_hash_map<std::string, xls::ChannelStrictness>&
+          unused_strictness_options);
   inline std::string LocString(const clang::Decl& decl) {
     return LocString(GetLoc(decl));
   }
