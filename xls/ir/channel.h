@@ -21,6 +21,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -245,6 +246,23 @@ absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(
     std::string_view text);
 std::string ChannelStrictnessToString(ChannelStrictness in);
 
+inline bool AbslParseFlag(std::string_view text, ChannelStrictness* result,
+                          std::string* error) {
+  absl::StatusOr<ChannelStrictness> channel_strictness =
+      ChannelStrictnessFromString(text);
+  if (channel_strictness.ok()) {
+    *result = *std::move(channel_strictness);
+    return true;
+  }
+  *error = channel_strictness.status().ToString();
+  return false;
+}
+
+inline std::string AbslUnparseFlag(
+    const ChannelStrictness& channel_strictness) {
+  return ChannelStrictnessToString(channel_strictness);
+}
+
 // A channel with FIFO semantics. Send operations add an data entry to the
 // channel; receives remove an element from the channel with FIFO ordering.
 class StreamingChannel final : public Channel {
@@ -317,19 +335,19 @@ enum class Direction : int8_t { kSend, kReceive };
 
 std::string DirectionToString(Direction direction);
 
-// Abstraction representing a reference to a channel. The reference can be typed
-// to refer to the send or receive side. With proc-scoped channels (new style
-// procs), channel-using operations such as send/receive refer to channel
-// references rather than channel objects. In elaboration these channel
-// references are bound to channel objects.
+// Abstraction representing a reference to a channel. The reference can be
+// typed to refer to the send or receive side. With proc-scoped channels (new
+// style procs), channel-using operations such as send/receive refer to
+// channel references rather than channel objects. In elaboration these
+// channel references are bound to channel objects.
 class ChannelReference {
  public:
   ChannelReference(std::string_view name, Type* type, ChannelKind kind)
       : name_(name), type_(type), kind_(kind) {}
   virtual ~ChannelReference() {}
 
-  // Like most IR constructs, ChannelReferences are passed around by pointer and
-  // are not copyable.
+  // Like most IR constructs, ChannelReferences are passed around by pointer
+  // and are not copyable.
   ChannelReference(const ChannelReference&) = delete;
   ChannelReference& operator=(const ChannelReference&) = delete;
 
@@ -371,8 +389,8 @@ struct ChannelReferences {
 // Type which holds a channel or channel reference. This is a type used to
 // transition to proc-scoped channels. In the proc-scoped channel universe all
 // uses of channels use ChannelReferences rather than Channel objects.
-// TODO(https://github.com/google/xls/issues/869): Remove these and replace with
-// ChannelReference* when all procs are new style.
+// TODO(https://github.com/google/xls/issues/869): Remove these and replace
+// with ChannelReference* when all procs are new style.
 using ChannelRef = std::variant<Channel*, ChannelReference*>;
 using SendChannelRef = std::variant<Channel*, SendChannelReference*>;
 using ReceiveChannelRef = std::variant<Channel*, ReceiveChannelReference*>;

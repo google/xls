@@ -76,11 +76,8 @@ inline std::string ToString(
 
 }  // namespace
 
-absl::StatusOr<std::optional<xls::ChannelStrictness>>
-Translator::GetChannelStrictness(
-    const clang::NamedDecl& decl,
-    const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
-        channel_strictness_map,
+absl::StatusOr<xls::ChannelStrictness> Translator::GetChannelStrictness(
+    const clang::NamedDecl& decl, const ChannelOptions& channel_options,
     absl::flat_hash_map<std::string, xls::ChannelStrictness>&
         unused_strictness_options) {
   std::optional<xls::ChannelStrictness> channel_strictness;
@@ -92,8 +89,8 @@ Translator::GetChannelStrictness(
         _.SetPrepend() << ErrorMessage(
             GetLoc(decl), "Invalid hls_channel_strictness pragma: "));
   }
-  if (auto it = channel_strictness_map.find(decl.getNameAsString());
-      it != channel_strictness_map.end()) {
+  if (auto it = channel_options.strictness_map.find(decl.getNameAsString());
+      it != channel_options.strictness_map.end()) {
     if (channel_strictness.has_value() && *channel_strictness != it->second) {
       return absl::InvalidArgumentError(ErrorMessage(
           GetLoc(decl),
@@ -109,7 +106,7 @@ Translator::GetChannelStrictness(
     // Record that we used this strictness-map entry.
     unused_strictness_options.erase(decl.getNameAsString());
   }
-  return channel_strictness;
+  return channel_strictness.value_or(channel_options.default_strictness);
 }
 
 absl::Status Translator::GenerateExternalChannels(
@@ -217,8 +214,7 @@ absl::Status Translator::GenerateExternalChannels(
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     xls::Package* package, const HLSBlock& block, int top_level_init_interval,
-    const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
-        channel_strictness_map) {
+    const ChannelOptions& channel_options) {
   package_ = package;
 
   absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
@@ -247,7 +243,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   std::list<ExternalChannelInfo> top_decls;
   absl::flat_hash_map<std::string, xls::ChannelStrictness>
-      unused_strictness_options = channel_strictness_map;
+      unused_strictness_options = channel_options.strictness_map;
   for (int pidx = 0; pidx < definition->getNumParams(); ++pidx) {
     const clang::ParmVarDecl* param = definition->getParamDecl(pidx);
 
@@ -265,13 +261,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
               channel_spec.type() == ChannelType::MEMORY);
 
     ExternalChannelInfo channel_info = {.decl = param};
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<xls::ChannelStrictness> channel_strictness,
-        GetChannelStrictness(*param, channel_strictness_map,
-                             unused_strictness_options));
-    if (channel_strictness.has_value()) {
-      channel_info.strictness = *channel_strictness;
-    }
+    XLS_ASSIGN_OR_RETURN(channel_info.strictness,
+                         GetChannelStrictness(*param, channel_options,
+                                              unused_strictness_options));
     if (channel_spec.type() == ChannelType::DIRECT_IN) {
       channel_info.interface_type = InterfaceType::kDirect;
       XLS_ASSIGN_OR_RETURN(StrippedType stripped,
@@ -440,9 +432,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
     xls::Package* package, HLSBlock* block_spec_out,
-    int top_level_init_interval,
-    const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
-        channel_strictness_map) {
+    int top_level_init_interval, const ChannelOptions& channel_options) {
   package_ = package;
   block_spec_out->Clear();
 
@@ -497,7 +487,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
 
   std::list<ExternalChannelInfo> top_decls;
   absl::flat_hash_map<std::string, xls::ChannelStrictness>
-      unused_strictness_options = channel_strictness_map;
+      unused_strictness_options = channel_options.strictness_map;
   for (const clang::FieldDecl* field_decl : record_decl->fields()) {
     std::shared_ptr<CField> field = struct_type->get_field(field_decl);
     std::shared_ptr<CType> field_type = field->type();
@@ -530,15 +520,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
             .channel_type = channel_type,
             .interface_type = InterfaceType::kFIFO,
             .is_input = channel_type->GetOpType() == OpType::kRecv};
-
         XLS_ASSIGN_OR_RETURN(
-            std::optional<xls::ChannelStrictness> channel_strictness,
-            GetChannelStrictness(*field->name(), channel_strictness_map,
+            channel_info.strictness,
+            GetChannelStrictness(*field->name(), channel_options,
                                  unused_strictness_options));
-        if (channel_strictness.has_value()) {
-          channel_info.strictness = *channel_strictness;
-        }
-
         top_decls.push_back(channel_info);
       } else if (channel_type->GetMemorySize() > 0) {
         xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
@@ -551,15 +536,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
             .decl = field->name(),
             .channel_type = channel_type,
             .interface_type = InterfaceType::kMemory};
-
         XLS_ASSIGN_OR_RETURN(
-            std::optional<xls::ChannelStrictness> channel_strictness,
-            GetChannelStrictness(*field->name(), channel_strictness_map,
+            channel_info.strictness,
+            GetChannelStrictness(*field->name(), channel_options,
                                  unused_strictness_options));
-        if (channel_strictness.has_value()) {
-          channel_info.strictness = *channel_strictness;
-        }
-
         top_decls.push_back(channel_info);
       } else {
         return absl::InvalidArgumentError(
@@ -583,15 +563,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
                                              /*memory_size=*/-1),
           .interface_type = InterfaceType::kDirect,
           .is_input = true};
-
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<xls::ChannelStrictness> channel_strictness,
-          GetChannelStrictness(*field->name(), channel_strictness_map,
-                               unused_strictness_options));
-      if (channel_strictness.has_value()) {
-        channel_info.strictness = *channel_strictness;
-      }
-
+      XLS_ASSIGN_OR_RETURN(channel_info.strictness,
+                           GetChannelStrictness(*field->name(), channel_options,
+                                                unused_strictness_options));
       top_decls.push_back(channel_info);
     }
   }

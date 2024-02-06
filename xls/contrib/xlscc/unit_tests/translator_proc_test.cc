@@ -4544,9 +4544,10 @@ TEST_P(TranslatorProcTest, IOWithStrictnessSpecifiedOnCommandLine) {
   HLSBlock block_spec;
   XLS_ASSERT_OK(translator_->GenerateIR_BlockFromClass(
       package_.get(), &block_spec, /*top_level_init_interval=*/0,
-      /*channel_strictness_map=*/
-      {{"in", xls::ChannelStrictness::kProvenMutuallyExclusive},
-       {"out", xls::ChannelStrictness::kArbitraryStaticOrder}}));
+      /*channel_options=*/
+      {.strictness_map = {
+           {"in", xls::ChannelStrictness::kProvenMutuallyExclusive},
+           {"out", xls::ChannelStrictness::kArbitraryStaticOrder}}}));
 
   for (xls::Channel* channel : package_->channels()) {
     EXPECT_EQ(channel->kind(), xls::ChannelKind::kStreaming)
@@ -4587,10 +4588,11 @@ TEST_P(TranslatorProcTest, IOWithUnusedStrictnessesSpecifiedOnCommandLine) {
   ASSERT_THAT(
       translator_->GenerateIR_BlockFromClass(
           package_.get(), &block_spec, /*top_level_init_interval=*/0,
-          /*channel_strictness_map=*/
-          {{"in", xls::ChannelStrictness::kProvenMutuallyExclusive},
-           {"in_unused", xls::ChannelStrictness::kProvenMutuallyExclusive},
-           {"out", xls::ChannelStrictness::kArbitraryStaticOrder}}),
+          /*channel_options=*/
+          {.strictness_map =
+               {{"in", xls::ChannelStrictness::kProvenMutuallyExclusive},
+                {"in_unused", xls::ChannelStrictness::kProvenMutuallyExclusive},
+                {"out", xls::ChannelStrictness::kArbitraryStaticOrder}}}),
       xls::status_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           AllOf(testing::HasSubstr("Unused channel strictness"),

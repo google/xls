@@ -119,6 +119,10 @@ ABSL_FLAG(xlscc::ChannelStrictnessMap, channel_strictness,
           xlscc::ChannelStrictnessMap(),
           "Comma separated map of channels to strictness modes");
 
+ABSL_FLAG(xls::ChannelStrictness, default_channel_strictness,
+          xls::ChannelStrictness::kArbitraryStaticOrder,
+          "Default strictness for channels not otherwise specified");
+
 ABSL_FLAG(std::string, io_op_token_ordering, "none",
           "none (default), channel_wise, lexical");
 
@@ -140,6 +144,11 @@ static absl::Status Run(std::string_view cpp_path) {
     std::cerr << "Unknown --io_op_token_ordering: "
               << absl::GetFlag(FLAGS_io_op_token_ordering) << '\n';
   }
+
+  xlscc::ChannelOptions channel_options = {
+      .default_strictness = absl::GetFlag(FLAGS_default_channel_strictness),
+      .strictness_map = absl::GetFlag(FLAGS_channel_strictness).map,
+  };
 
   xlscc::Translator translator(
       absl::GetFlag(FLAGS_error_on_init_interval),
@@ -254,13 +263,13 @@ static absl::Status Run(std::string_view cpp_path) {
           proc,
           translator.GenerateIR_Block(
               &package, block, absl::GetFlag(FLAGS_top_level_init_interval),
-              absl::GetFlag(FLAGS_channel_strictness).map));
+              channel_options));
     } else {
       XLS_ASSIGN_OR_RETURN(
           proc,
           translator.GenerateIR_BlockFromClass(
               &package, &block, absl::GetFlag(FLAGS_top_level_init_interval),
-              absl::GetFlag(FLAGS_channel_strictness).map));
+              channel_options));
 
       if (!block_pb_name.empty()) {
         XLS_RETURN_IF_ERROR(xls::SetTextProtoFile(block_pb_name, block));

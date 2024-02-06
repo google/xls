@@ -194,6 +194,7 @@ def _xls_cc_ir_impl(ctx):
         "z3_rlimit",
         "generate_fsms_for_pipelined_loops",
         "channel_strictness",
+        "default_channel_strictness",
     )
 
     xlscc_args = append_default_to_args(

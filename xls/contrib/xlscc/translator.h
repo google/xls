@@ -1089,6 +1089,12 @@ enum IOOpOrdering {
   kLexical = 2,
 };
 
+struct ChannelOptions {
+  xls::ChannelStrictness default_strictness =
+      xls::ChannelStrictness::kArbitraryStaticOrder;
+  absl::flat_hash_map<std::string, xls::ChannelStrictness> strictness_map;
+};
+
 class Translator {
   void debug_prints(const TranslationContext& context);
 
@@ -1139,16 +1145,14 @@ class Translator {
   absl::StatusOr<xls::Proc*> GenerateIR_Block(
       xls::Package* package, const HLSBlock& block,
       int top_level_init_interval = 0,
-      const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
-          channel_strictness_map = {});
+      const ChannelOptions& channel_options = {});
 
   // Generates IR as an HLS block / XLS proc.
   // Top is a method, block specification is extracted from the class.
   absl::StatusOr<xls::Proc*> GenerateIR_BlockFromClass(
       xls::Package* package, HLSBlock* block_spec_out,
       int top_level_init_interval = 0,
-      const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
-          channel_strictness_map = {});
+      const ChannelOptions& channel_options = {});
 
   // Ideally, this would be done using the opt_main tool, but for now
   //  codegen is done by XLS[cc] for combinational blocks.
@@ -1590,7 +1594,7 @@ class Translator {
     bool is_input = false;
     ChannelBundle external_channels;
     xls::ChannelStrictness strictness =
-        xls::ChannelStrictness::kArbitraryStaticOrder;
+        xls::ChannelStrictness::kProvenMutuallyExclusive;
   };
 
   absl::StatusOr<xls::Proc*> GenerateIR_Block(
@@ -2122,10 +2126,8 @@ class Translator {
   std::string LocString(const xls::SourceInfo& loc);
   xls::SourceInfo GetLoc(const clang::Stmt& stmt);
   xls::SourceInfo GetLoc(const clang::Decl& decl);
-  absl::StatusOr<std::optional<xls::ChannelStrictness>> GetChannelStrictness(
-      const clang::NamedDecl& decl,
-      const absl::flat_hash_map<std::string, xls::ChannelStrictness>&
-          channel_strictness_map,
+  absl::StatusOr<xls::ChannelStrictness> GetChannelStrictness(
+      const clang::NamedDecl& decl, const ChannelOptions& channel_options,
       absl::flat_hash_map<std::string, xls::ChannelStrictness>&
           unused_strictness_options);
   inline std::string LocString(const clang::Decl& decl) {
