@@ -1627,6 +1627,7 @@ py_binary(
     srcs = ["gather_design_stats.py"],
     python_version = "PY3",
     srcs_version = "PY3",
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         ":design_stats_py_pb2",
         "//xls/common:gfile",
