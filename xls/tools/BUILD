@@ -1079,6 +1079,11 @@ proto_library(
     srcs = ["codegen_flags.proto"],
 )
 
+py_proto_library(
+    name = "codegen_flags_py_pb2",
+    deps = [":codegen_flags_proto"],
+)
+
 cc_proto_library(
     name = "codegen_flags_cc_proto",
     deps = [":codegen_flags_proto"],
