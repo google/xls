@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//static_timing:build_defs.bzl", "run_opensta")
+load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
@@ -23,9 +26,6 @@ load(
     "xls_ir_verilog_fdo",
     "xls_synthesis_metrics",
 )
-load("@rules_hdl//verilog:providers.bzl", "verilog_library")
-load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
-load("@rules_hdl//static_timing:build_defs.bzl", "run_opensta")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -204,7 +204,9 @@ cc_library(
     hdrs = ["streams.h"],
     deps = [
         ":constants",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/status:ret_check",

@@ -1407,7 +1407,9 @@ cc_library(
     hdrs = ["channel_ops.h"],
     deps = [
         "//xls/common/logging",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
 
