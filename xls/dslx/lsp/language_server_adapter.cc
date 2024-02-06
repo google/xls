@@ -15,6 +15,7 @@
 #include "xls/dslx/lsp/language_server_adapter.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -76,19 +77,19 @@ void AppendDiagnosticFromTypecheck(
 LanguageServerAdapter::LanguageServerAdapter(
     std::string_view stdlib,
     const std::vector<std::filesystem::path>& dslx_paths)
-    : stdlib_(stdlib),
-      dslx_paths_(dslx_paths),
-      last_parse_data_(absl::FailedPreconditionError(
-          "No DSLX file has been parsed yet by the Language Server.")) {}
+    : stdlib_(stdlib), dslx_paths_(dslx_paths) {}
+
+const LanguageServerAdapter::ParseData* LanguageServerAdapter::FindParsedForUri(
+    std::string_view uri) const {
+  if (auto found = uri_parse_data_.find(uri); found != uri_parse_data_.end()) {
+    return found->second.get();
+  }
+  return nullptr;
+}
 
 absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
                                            std::string_view dslx_code) {
-  // TODO(hzeller): remember per file_uri for more sophisticated features.
-  ImportData import_data =
-      CreateImportData(stdlib_, dslx_paths_, kAllWarningsSet);
   const absl::Time start = absl::Now();
-  std::string contents{dslx_code};
-
   absl::StatusOr<std::string> module_name_or = ExtractModuleName(file_uri);
   if (!module_name_or.ok()) {
     LspLog() << "Could not determine module name from file URI: " << file_uri
@@ -96,32 +97,37 @@ absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
     return absl::OkStatus();
   }
 
+  auto inserted = uri_parse_data_.emplace(file_uri, nullptr);
+  std::unique_ptr<ParseData>& insert_value = inserted.first->second;
+
+  ImportData import_data =
+      CreateImportData(stdlib_, dslx_paths_, kAllWarningsSet);
   const std::string& module_name = module_name_or.value();
-  absl::StatusOr<TypecheckedModule> typechecked_module_or = ParseAndTypecheck(
-      contents, /*path=*/file_uri, /*module_name=*/module_name, &import_data);
+  absl::StatusOr<TypecheckedModule> typechecked_module = ParseAndTypecheck(
+      dslx_code, /*path=*/file_uri, /*module_name=*/module_name, &import_data);
+
+  insert_value.reset(
+      new ParseData({.import_data = std::move(import_data),
+                     .typechecked_module = std::move(typechecked_module)}));
+
   const absl::Duration duration = absl::Now() - start;
   if (duration > absl::Milliseconds(200)) {
     LspLog() << "Parsing " << file_uri << " took " << duration << "\n";
   }
 
-  if (typechecked_module_or.ok()) {
-    last_parse_data_.emplace(LastParseData{
-        std::move(import_data), std::move(typechecked_module_or).value(),
-        std::filesystem::path{file_uri}, std::move(contents)});
-  } else {
-    last_parse_data_ = typechecked_module_or.status();
-  }
-  return last_parse_data_.status();
+  return insert_value->status();
 }
 
 std::vector<verible::lsp::Diagnostic>
 LanguageServerAdapter::GenerateParseDiagnostics(std::string_view uri) const {
   std::vector<verible::lsp::Diagnostic> result;
-  if (last_parse_data_.ok()) {
-    const TypecheckedModule& tm = last_parse_data_->typechecked_module;
-    AppendDiagnosticFromTypecheck(tm, &result);
-  } else {
-    AppendDiagnosticFromStatus(last_parse_data_.status(), &result);
+  if (const ParseData* parsed = FindParsedForUri(uri)) {
+    if (parsed->ok()) {
+      const TypecheckedModule& tm = *parsed->typechecked_module;
+      AppendDiagnosticFromTypecheck(tm, &result);
+    } else {
+      AppendDiagnosticFromStatus(parsed->status(), &result);
+    }
   }
   return result;
 }
@@ -129,9 +135,8 @@ LanguageServerAdapter::GenerateParseDiagnostics(std::string_view uri) const {
 std::vector<verible::lsp::DocumentSymbol>
 LanguageServerAdapter::GenerateDocumentSymbols(std::string_view uri) const {
   XLS_VLOG(1) << "GenerateDocumentSymbols; uri: " << uri;
-  if (last_parse_data_.ok()) {
-    const Module& module = last_parse_data_->module();
-    return ToDocumentSymbols(module);
+  if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    return ToDocumentSymbols(parsed->module());
   }
   return {};
 }
@@ -140,11 +145,9 @@ std::vector<verible::lsp::Location> LanguageServerAdapter::FindDefinitions(
     std::string_view uri, const verible::lsp::Position& position) const {
   const Pos pos = ConvertLspPositionToPos(uri, position);
   XLS_VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
-  if (last_parse_data_.ok()) {
-    const TypecheckedModule& tm = last_parse_data_->typechecked_module;
-    const Module& m = *tm.module;
+  if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     std::optional<Span> maybe_definition_span =
-        xls::dslx::FindDefinition(m, pos);
+        xls::dslx::FindDefinition(parsed->module(), pos);
     if (maybe_definition_span.has_value()) {
       verible::lsp::Location location =
           ConvertSpanToLspLocation(maybe_definition_span.value());
@@ -165,8 +168,8 @@ LanguageServerAdapter::FormatRange(std::string_view uri,
   // `:LspDocumentRangeFormat`, so if you want the last character in a line to
   // be included it's not clear what you can do. This is annoying!
   const Span target = ConvertLspRangeToSpan(uri, range);
-  if (last_parse_data_.ok()) {
-    const Module& module = last_parse_data_->module();
+  if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    const Module& module = parsed->module();
     const AstNode* intercepting_block =
         module.FindNode(AstNodeKind::kBlock, target);
     if (intercepting_block == nullptr) {

@@ -47,6 +47,7 @@ cc_library(
         ":document_symbols",
         ":find_definition",
         ":lsp_type_utils",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:indent",
@@ -68,6 +69,7 @@ cc_test(
     srcs = ["language_server_adapter_test.cc"],
     deps = [
         ":language_server_adapter",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

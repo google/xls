@@ -17,9 +17,13 @@
 #include <string_view>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+
+using xls::status_testing::StatusIs;
 
 namespace xls::dslx {
 namespace {
@@ -34,7 +38,7 @@ bool operator==(const verible::lsp::Range& lhs,
 }
 
 TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
   constexpr std::string_view kUri = "memfile://test.x";
   XLS_ASSERT_OK(adapter.Update(kUri, "fn f() { () }"));
   std::vector<verible::lsp::Diagnostic> diagnostics =
@@ -45,8 +49,32 @@ TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
   ASSERT_EQ(symbols.size(), 1);
 }
 
+TEST(LanguageServerAdapterTest, LanguageServerRetainsParseResultForAllBuffers) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+
+  // Fill language server editor buffers with two files (one valid, one not)
+  constexpr std::string_view kUriValidContent = "memfile://valid.x";
+  EXPECT_THAT(adapter.Update(kUriValidContent, "fn f() { () }"),
+              StatusIs(absl::StatusCode::kOk));
+
+  constexpr std::string_view kUriErrorContent = "memfile://error.x";
+  EXPECT_THAT(adapter.Update(kUriErrorContent, "parse-error: not a valid file"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+
+  // Now, query each buffer individually and get accurate information for each.
+  EXPECT_EQ(adapter.GenerateParseDiagnostics(kUriValidContent).size(), 0);
+  EXPECT_EQ(adapter.GenerateDocumentSymbols(kUriValidContent).size(), 1);
+
+  EXPECT_EQ(adapter.GenerateParseDiagnostics(kUriErrorContent).size(), 1);
+  EXPECT_EQ(adapter.GenerateDocumentSymbols(kUriErrorContent).size(), 0);
+
+  // Query of unknown buffer is handled gracefully.
+  EXPECT_EQ(adapter.GenerateParseDiagnostics("non-existent.x").size(), 0);
+  EXPECT_EQ(adapter.GenerateDocumentSymbols("non-existent.x").size(), 0);
+}
+
 TEST(LanguageServerAdapterTest, TestFindDefinitionsFunctionRef) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
   constexpr std::string_view kUri = "memfile://test.x";
   XLS_ASSERT_OK(adapter.Update(kUri, R"(fn f() { () }
 fn main() { f() })"));
@@ -64,7 +92,7 @@ fn main() { f() })"));
 }
 
 TEST(LanguageServerAdapterTest, TestFindDefinitionsTypeRef) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
   constexpr std::string_view kUri = "memfile://test.x";
   XLS_ASSERT_OK(adapter.Update(kUri, R"(
 type T = ();
@@ -86,7 +114,7 @@ fn f() -> T { () }
 // After we parse an invalid file the language server can still get requests,
 // check that works reasonably.
 TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
   constexpr std::string_view kUri = "memfile://test.x";
   ASSERT_FALSE(adapter.Update(kUri, "blahblahblah").ok());
 
@@ -112,7 +140,7 @@ TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
 }
 
 TEST(LanguageServerAdapterTest, TestFormatRange) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
   constexpr std::string_view kUri = "memfile://test.x";
   XLS_ASSERT_OK(adapter.Update(kUri, R"(fn main() -> u32 {
   { let x = u32:42; x + x }

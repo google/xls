@@ -17,11 +17,13 @@
 
 #include <filesystem>  // NOLINT
 #include <iostream>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -41,9 +43,14 @@ class LanguageServerAdapter {
                         const std::vector<std::filesystem::path>& dslx_paths);
 
   // Note: this is parsing is triggered for every keystroke. Fine for now.
+  // Successful and unsuccessful parses are memoized so that their status
+  // and can be queried.
+  // Implementation note: since we currently do not react to buffer closed
+  // events in the buffer change listener, we keep track of every file ever
+  // opened and never delete.
   absl::Status Update(std::string_view file_uri, std::string_view dslx_code);
 
-  // Generate LSP diagnostics for the last file update.
+  // Generate LSP diagnostics for the file with given uri
   std::vector<verible::lsp::Diagnostic> GenerateParseDiagnostics(
       std::string_view uri) const;
 
@@ -61,19 +68,27 @@ class LanguageServerAdapter {
       std::string_view uri, const verible::lsp::Range& range) const;
 
  private:
+  struct ParseData;
   const std::string stdlib_;
   const std::vector<std::filesystem::path> dslx_paths_;
 
-  struct LastParseData {
-    ImportData import_data;
-    TypecheckedModule typechecked_module;
-    std::filesystem::path path;
-    std::string contents;
+  // Find parse result of opened file with given URI or nullptr, if not opened.
+  const ParseData* FindParsedForUri(std::string_view uri) const;
 
-    const Module& module() const { return *typechecked_module.module; }
+  // Everything relevant for a parsed editor buffer.
+  // Note, each buffer independently currently keeps track of its import data.
+  // This could maybe be considered to be put in a single place.
+  struct ParseData {
+    ImportData import_data;
+    absl::StatusOr<TypecheckedModule> typechecked_module;
+
+    bool ok() const { return typechecked_module.ok(); }
+    absl::Status status() const { return typechecked_module.status(); }
+
+    const Module& module() const { return *typechecked_module->module; }
   };
 
-  absl::StatusOr<LastParseData> last_parse_data_;
+  absl::flat_hash_map<std::string, std::unique_ptr<ParseData>> uri_parse_data_;
 };
 
 }  // namespace xls::dslx
