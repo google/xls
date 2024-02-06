@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <deque>
 #include <filesystem>  // NOLINT
 #include <functional>
@@ -29,6 +30,7 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -306,8 +308,8 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
     std::vector<std::pair<std::string, dslx::Expr*>> members;
     for (const auto& child : struct_def->members()) {
       XLS_ASSIGN_OR_RETURN(dslx::Expr * expr,
-                           MakeZeroValuedElement(module, child.second));
-      members.push_back({child.first->identifier(), expr});
+                           MakeZeroValuedElement(module, child.type));
+      members.push_back({child.name, expr});
     }
     return module->Make<dslx::StructInstance>(span, typeref_type, members);
   }
@@ -522,13 +524,13 @@ absl::Status EmitEnumDef(dslx::Module* module, MessageRecord* message_record) {
 absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
                            NameToRecord* name_to_record) {
   dslx::Span span(dslx::Pos{}, dslx::Pos{});
-  std::vector<std::pair<dslx::NameDef*, dslx::TypeAnnotation*>> elements;
+  std::vector<dslx::StructMember> elements;
 
   const Descriptor* descriptor =
       std::get<const Descriptor*>(message_record->descriptor);
   for (int i = 0; i < descriptor->field_count(); i++) {
     const FieldDescriptor* fd = descriptor->field(i);
-    auto* name_def = module->Make<dslx::NameDef>(span, fd->name(), nullptr);
+    const std::string name = fd->name();
     MessageRecord::ChildElement element =
         message_record->children.at(fd->name());
     if (element.unsupported) {
@@ -569,21 +571,20 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
       continue;
     }
     if (!fd->is_repeated()) {
-      elements.push_back(std::make_pair(name_def, type_annot));
+      elements.push_back(dslx::StructMember{span, name, type_annot});
     } else {
       auto* array_size = module->Make<dslx::Number>(
           span, absl::StrCat(element.count), dslx::NumberKind::kOther,
           /*type=*/nullptr);
       type_annot =
           module->Make<dslx::ArrayTypeAnnotation>(span, type_annot, array_size);
-      elements.push_back(std::make_pair(name_def, type_annot));
+      elements.push_back(dslx::StructMember{span, name, type_annot});
 
-      auto* name_def = module->Make<dslx::NameDef>(
-          span, absl::StrCat(fd->name(), "_count"), nullptr);
+      std::string name_with_count = absl::StrCat(fd->name(), "_count");
       auto* u32_annot = module->Make<dslx::BuiltinTypeAnnotation>(
           span, dslx::BuiltinType::kU32,
           module->GetOrCreateBuiltinNameDef("u32"));
-      elements.push_back({name_def, u32_annot});
+      elements.push_back(dslx::StructMember{span, name_with_count, u32_annot});
     }
   }
 
@@ -677,11 +678,12 @@ absl::Status EmitArray(
     dslx::Module* module, const Message& message, const FieldDescriptor* fd,
     const Reflection* reflection, const MessageRecord& message_record,
     std::vector<dslx::Expr*>* array_elements,
-    std::function<absl::StatusOr<dslx::Expr*>()> make_zero_valued_element,
+    const std::function<absl::StatusOr<dslx::Expr*>()>&
+        make_zero_valued_element,
     std::vector<std::pair<std::string, dslx::Expr*>>* elements) {
   dslx::Span span(dslx::Pos{}, dslx::Pos{});
   std::string field_name = fd->name();
-  int total_submsgs = message_record.children.at(field_name).count;
+  int64_t total_submsgs = message_record.children.at(field_name).count;
   int num_submsgs = reflection->FieldSize(message, fd);
   bool has_ellipsis = false;
   if (num_submsgs != total_submsgs) {
@@ -727,7 +729,7 @@ absl::Status EmitStructData(
   std::string field_name = fd->name();
 
   if (fd->is_repeated()) {
-    int total_submsgs = message_record.children.at(field_name).count;
+    int64_t total_submsgs = message_record.children.at(field_name).count;
     int num_submsgs = reflection->FieldSize(message, fd);
     if (total_submsgs == 0) {
       return absl::OkStatus();

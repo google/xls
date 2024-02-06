@@ -2097,13 +2097,21 @@ class EnumDef : public AstNode {
   bool is_public_;
 };
 
+// Helper struct for DSLX-struct items defined inside of DSLX-structs.
+struct StructMember {
+  Span name_span;
+  std::string name;
+  TypeAnnotation* type;
+
+  Span GetSpan() const { return Span(name_span.start(), type->span().limit()); }
+};
+
 // Represents a struct definition.
 class StructDef : public AstNode {
  public:
   StructDef(Module* owner, Span span, NameDef* name_def,
             std::vector<ParametricBinding*> parametric_bindings,
-            std::vector<std::pair<NameDef*, TypeAnnotation*>> members,
-            bool is_public);
+            std::vector<StructMember> members, bool is_public);
 
   ~StructDef() override;
 
@@ -2126,16 +2134,12 @@ class StructDef : public AstNode {
   const std::vector<ParametricBinding*>& parametric_bindings() const {
     return parametric_bindings_;
   }
-  const std::vector<std::pair<NameDef*, TypeAnnotation*>>& members() const {
-    return members_;
-  }
+  const std::vector<StructMember>& members() const { return members_; }
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
-  const std::string& GetMemberName(int64_t i) const {
-    return members_[i].first->identifier();
-  }
+  const std::string& GetMemberName(int64_t i) const { return members_[i].name; }
   std::vector<std::string> GetMemberNames() const;
 
   int64_t size() const { return members_.size(); }
@@ -2144,13 +2148,14 @@ class StructDef : public AstNode {
   Span span_;
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
-  std::vector<std::pair<NameDef*, TypeAnnotation*>> members_;
+  std::vector<StructMember> members_;
   bool public_;
 };
 
 // Represents instantiation of a struct via member expressions.
 //
-// TODO(leary): 2020-09-08 Break out a StructMember type in lieu of the pair.
+// TODO(leary): 2020-09-08 Break out a StructInstanceMember type in lieu of the
+// pair.
 class StructInstance : public Expr {
  public:
   StructInstance(Module* owner, Span span, TypeAnnotation* struct_ref,

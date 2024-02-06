@@ -1247,8 +1247,7 @@ std::string FormatMacro::FormatArgs() const {
 
 StructDef::StructDef(Module* owner, Span span, NameDef* name_def,
                      std::vector<ParametricBinding*> parametric_bindings,
-                     std::vector<std::pair<NameDef*, TypeAnnotation*>> members,
-                     bool is_public)
+                     std::vector<StructMember> members, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
@@ -1263,9 +1262,10 @@ std::vector<AstNode*> StructDef::GetChildren(bool want_types) const {
   for (auto* pb : parametric_bindings_) {
     results.push_back(pb);
   }
-  for (const auto& pair : members_) {
-    results.push_back(pair.first);
-    results.push_back(pair.second);
+  if (want_types) {
+    for (const auto& member : members_) {
+      results.push_back(member.type);
+    }
   }
   return results;
 }
@@ -1283,8 +1283,8 @@ std::string StructDef::ToString() const {
   std::string result = absl::StrFormat(
       "%sstruct %s%s {\n", public_ ? "pub " : "", identifier(), parametric_str);
   for (const auto& item : members_) {
-    absl::StrAppendFormat(&result, "%s%s: %s,\n", kRustOneIndent,
-                          item.first->ToString(), item.second->ToString());
+    absl::StrAppendFormat(&result, "%s%s: %s,\n", kRustOneIndent, item.name,
+                          item.type->ToString());
   }
   absl::StrAppend(&result, "}");
   return result;
@@ -1294,7 +1294,7 @@ std::vector<std::string> StructDef::GetMemberNames() const {
   std::vector<std::string> names;
   names.reserve(members_.size());
   for (auto& item : members_) {
-    names.push_back(item.first->identifier());
+    names.push_back(item.name);
   }
   return names;
 }

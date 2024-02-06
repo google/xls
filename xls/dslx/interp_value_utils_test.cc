@@ -139,15 +139,19 @@ TEST(InterpValueHelpersTest, CreateZeroStructValue) {
   const Span kFakeSpan = Span::Fake();
 
   Module module("test", /*fs_path=*/std::nullopt);
-  std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
+
+  std::vector<StructMember> ast_members;
   ast_members.emplace_back(
-      module.Make<NameDef>(kFakeSpan, "x", nullptr),
-      module.Make<BuiltinTypeAnnotation>(
-          kFakeSpan, BuiltinType::kU8, module.GetOrCreateBuiltinNameDef("u8")));
+      StructMember{kFakeSpan, "x",
+                   module.Make<BuiltinTypeAnnotation>(
+                       kFakeSpan, BuiltinType::kU8,
+                       module.GetOrCreateBuiltinNameDef("u8"))});
   ast_members.emplace_back(
-      module.Make<NameDef>(kFakeSpan, "y", nullptr),
-      module.Make<BuiltinTypeAnnotation>(
-          kFakeSpan, BuiltinType::kU1, module.GetOrCreateBuiltinNameDef("u1")));
+      StructMember{kFakeSpan, "y",
+                   module.Make<BuiltinTypeAnnotation>(
+                       kFakeSpan, BuiltinType::kU1,
+                       module.GetOrCreateBuiltinNameDef("u1"))});
+
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
       std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);
@@ -234,12 +238,15 @@ TEST(InterpValueHelpersTest, ValueToInterpValue) {
           {InterpValue::MakeU32(3), InterpValue::MakeU32(4)}))));
   NameDef struct_name_def(/*owner=*/nullptr, /*span=*/Span::Fake(), "my_struct",
                           /*definer=*/nullptr);
+
   StructDef struct_def(/*owner=*/nullptr, /*span=*/Span::Fake(),
                        /*name_def=*/&struct_name_def,
                        /*parametric_bindings=*/{},
                        // these members are unused, but need to have the same
                        // number of elements as members in 'struct_type'.
-                       /*members=*/{{nullptr, nullptr}, {nullptr, nullptr}},
+                       /*members=*/
+                       std::vector<StructMember>{{Span::Fake(), "", nullptr},
+                                                 {Span::Fake(), "", nullptr}},
                        /*is_public=*/false);
   std::vector<std::unique_ptr<ConcreteType>> members;
   members.push_back(BitsType::MakeU8());

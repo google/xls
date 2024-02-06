@@ -2699,26 +2699,25 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
 
-  using StructMember = std::pair<NameDef*, TypeAnnotation*>;
   auto parse_struct_member = [this,
                               &bindings]() -> absl::StatusOr<StructMember> {
-    XLS_ASSIGN_OR_RETURN(
-        Token tok, PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
-                                   "Expected struct definition member name"));
-    XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
+    Span name_span;
+    XLS_ASSIGN_OR_RETURN(std::string name, PopIdentifierOrError(&name_span));
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on struct field"));
     XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
-    return StructMember{name_def, type};
+    return StructMember{name_span, name, type};
   };
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<StructMember> members,
       ParseCommaSeq<StructMember>(parse_struct_member, TokenKind::kCBrace));
+
   Span span(start_pos, GetPos());
-  auto* struct_def = module_->Make<StructDef>(
-      span, name_def, std::move(parametric_bindings), members, is_public);
+  auto* struct_def =
+      module_->Make<StructDef>(span, name_def, std::move(parametric_bindings),
+                               std::move(members), is_public);
   bindings.Add(name_def->identifier(), struct_def);
   return struct_def;
 }

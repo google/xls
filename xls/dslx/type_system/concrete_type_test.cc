@@ -27,8 +27,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/parametric_expression.h"
+#include "xls/ir/bits.h"
 
 namespace xls::dslx {
 namespace {
@@ -146,15 +150,19 @@ TEST(ConcreteTypeTest, FromInterpValueTupleOfTwoNumbers) {
 
 TEST(ConcreteTypeTest, StructTypeGetTotalBitCount) {
   Module module("test", /*fs_path=*/std::nullopt);
-  std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
+
+  std::vector<StructMember> ast_members;
   ast_members.emplace_back(
-      module.Make<NameDef>(kFakeSpan, "x", nullptr),
-      module.Make<BuiltinTypeAnnotation>(
-          kFakeSpan, BuiltinType::kU8, module.GetOrCreateBuiltinNameDef("u8")));
+      StructMember{kFakeSpan, "x",
+                   module.Make<BuiltinTypeAnnotation>(
+                       kFakeSpan, BuiltinType::kU8,
+                       module.GetOrCreateBuiltinNameDef("u8"))});
   ast_members.emplace_back(
-      module.Make<NameDef>(kFakeSpan, "y", nullptr),
-      module.Make<BuiltinTypeAnnotation>(
-          kFakeSpan, BuiltinType::kU1, module.GetOrCreateBuiltinNameDef("u1")));
+      StructMember{kFakeSpan, "y",
+                   module.Make<BuiltinTypeAnnotation>(
+                       kFakeSpan, BuiltinType::kU1,
+                       module.GetOrCreateBuiltinNameDef("u1"))});
+
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
       std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);
@@ -171,7 +179,7 @@ TEST(ConcreteTypeTest, StructTypeGetTotalBitCount) {
 
 TEST(ConcreteTypeTest, EmptyStructTypeIsNotUnit) {
   Module module("test", /*fs_path=*/std::nullopt);
-  std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
+  std::vector<StructMember> ast_members;
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
       std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);

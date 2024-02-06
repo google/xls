@@ -560,7 +560,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(
   }
 
   std::vector<std::unique_ptr<ConcreteType>> members;
-  for (auto [name_def, type] : node->members()) {
+  for (const auto& [_, name_def, type] : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete,
                          DeduceAndResolve(type, ctx));
     XLS_ASSIGN_OR_RETURN(concrete,

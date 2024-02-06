@@ -49,13 +49,17 @@ cc_test(
     srcs = ["concrete_type_test.cc"],
     deps = [
         ":concrete_type",
+        ":parametric_expression",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
+        "//xls/ir:bits",
     ],
 )
 

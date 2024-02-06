@@ -674,12 +674,11 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleStructDef(const StructDef* struct_def) override {
-    for (const std::pair<NameDef*, TypeAnnotation*>& member_pair :
-         struct_def->members()) {
+    for (const StructMember& member : struct_def->members()) {
       if (token_found_) {
         break;
       }
-      XLS_RETURN_IF_ERROR(member_pair.second->Accept(this));
+      XLS_RETURN_IF_ERROR(member.type->Accept(this));
     }
     return absl::OkStatus();
   }

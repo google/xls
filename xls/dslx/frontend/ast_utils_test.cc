@@ -200,10 +200,9 @@ struct TheStruct {
   }
   ASSERT_NE(the_struct_def, nullptr);
   auto get_type_metadata = [&](std::string_view name) {
-    for (std::pair<NameDef*, TypeAnnotation*> member :
-         the_struct_def->members()) {
-      if (member.first->identifier() == name) {
-        return ExtractBitVectorMetadata(member.second);
+    for (const StructMember& member : the_struct_def->members()) {
+      if (member.name == name) {
+        return ExtractBitVectorMetadata(member.type);
       }
     }
     XLS_LOG(FATAL) << "Unknown field: " << name;

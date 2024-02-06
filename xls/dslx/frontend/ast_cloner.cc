@@ -649,11 +649,11 @@ class AstCloner : public AstNodeVisitor {
           down_cast<ParametricBinding*>(old_to_new_.at(pb)));
     }
 
-    std::vector<std::pair<NameDef*, TypeAnnotation*>> new_members;
-    for (const std::pair<NameDef*, TypeAnnotation*>& member : n->members()) {
-      new_members.push_back(std::make_pair(
-          down_cast<NameDef*>(old_to_new_.at(member.first)),
-          down_cast<TypeAnnotation*>(old_to_new_.at(member.second))));
+    std::vector<StructMember> new_members;
+    for (const StructMember& member : n->members()) {
+      new_members.push_back(StructMember{
+          member.name_span, member.name,
+          down_cast<TypeAnnotation*>(old_to_new_.at(member.type))});
     }
 
     old_to_new_[n] = module_->Make<StructDef>(

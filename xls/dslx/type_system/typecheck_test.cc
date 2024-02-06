@@ -1375,7 +1375,7 @@ struct Foo {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::optional<BuiltinType> as_builtin,
         GetAsBuiltinType(module.module, module.type_info, &import_data,
-                         struct_def->members()[i].second));
+                         struct_def->members()[i].type));
 
     if (i == 4 || i == 8 || i == 9 || i == 10) {
       ASSERT_FALSE(as_builtin.has_value()) << "Case : " << i;
