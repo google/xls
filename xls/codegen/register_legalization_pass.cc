@@ -14,8 +14,13 @@
 
 #include "xls/codegen/register_legalization_pass.h"
 
+#include <iterator>
+#include <optional>
+#include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/status_macros.h"
@@ -35,6 +40,7 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
 
   std::vector<Register*> registers(block->GetRegisters().begin(),
                                    block->GetRegisters().end());
+  absl::flat_hash_set<void*> removed_regs;
   for (Register* reg : registers) {
     if (reg->type()->GetFlatBitCount() == 0) {
       // Replace the uses of RegisterRead of a zero-width register with a
@@ -47,6 +53,7 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
       XLS_RETURN_IF_ERROR(
           reg_read->ReplaceUsesWithNew<xls::Literal>(ZeroOfType(reg->type()))
               .status());
+      removed_regs.insert(reg);
       XLS_RETURN_IF_ERROR(block->RemoveNode(reg_read));
       XLS_RETURN_IF_ERROR(block->RemoveNode(reg_write));
       XLS_RETURN_IF_ERROR(block->RemoveRegister(reg));
@@ -56,6 +63,23 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
 
   if (changed) {
     unit->GcNodeMap();
+    // Pull the registers out of pipeline-register & state list if they are
+    // there.
+    for (std::optional<StateRegister>& reg :
+         unit->streaming_io_and_pipeline.state_registers) {
+      if (reg && removed_regs.contains(reg->reg)) {
+        reg.reset();
+      }
+    }
+    for (auto& stage : unit->streaming_io_and_pipeline.pipeline_registers) {
+      PipelineStageRegisters new_regs;
+      new_regs.reserve(stage.size());
+      absl::c_copy_if(stage, std::back_inserter(new_regs),
+                      [&](const PipelineRegister& p) {
+                        return !removed_regs.contains(p.reg);
+                      });
+      stage = std::move(new_regs);
+    }
   }
 
   return changed;

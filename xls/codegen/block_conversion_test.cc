@@ -31,28 +31,37 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -851,6 +860,7 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
   EXPECT_FALSE(HasNode("out2_vld", block_default_suffix));
 
   CodegenOptions options = codegen_options()
+                               .module_name("with_explicit_suffixs")
                                .streaming_channel_data_suffix("_data")
                                .streaming_channel_ready_suffix("_ready")
                                .streaming_channel_valid_suffix("_valid");
@@ -1476,7 +1486,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
   options.reset("rst_n", false, /*active_low=*/true, false);
 
   {
-    options.flop_single_value_channels(true);
+    options.flop_single_value_channels(true).module_name(
+        "with_single_value_channel");
 
     XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                              ProcToPipelinedBlock(schedule, options, proc));
@@ -1492,7 +1503,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
   }
 
   {
-    options.flop_single_value_channels(false);
+    options.flop_single_value_channels(false).module_name(
+        "no_single_value_channel");
 
     XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                              ProcToPipelinedBlock(schedule, options, proc));
@@ -3608,7 +3620,7 @@ TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {
     options.streaming_channel_data_suffix("_data");
     options.streaming_channel_valid_suffix("_valid");
     options.streaming_channel_ready_suffix("_ready");
-    options.module_name("pipelined_proc");
+    options.module_name(absl::StrFormat("pipelined_proc-%d", i));
 
     XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                              ProcToPipelinedBlock(schedule, options, proc));
@@ -3704,7 +3716,7 @@ TEST_F(ProcConversionTestFixture, AddRandomScheduler) {
     options.streaming_channel_data_suffix("_data");
     options.streaming_channel_valid_suffix("_valid");
     options.streaming_channel_ready_suffix("_ready");
-    options.module_name("pipelined_proc");
+    options.module_name(absl::StrFormat("pipelined_proc-%d", i));
 
     XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                              ProcToPipelinedBlock(schedule, options, proc));
@@ -3811,7 +3823,7 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
     options.streaming_channel_data_suffix("_data");
     options.streaming_channel_valid_suffix("_valid");
     options.streaming_channel_ready_suffix("_ready");
-    options.module_name("pipelined_proc");
+    options.module_name(absl::StrFormat("pipelined_proc-%d", i));
 
     XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                              ProcToPipelinedBlock(schedule, options, proc));
@@ -4349,7 +4361,7 @@ TEST_F(ProcConversionTestFixture, RecvDataFeedingSendPredicate) {
     options.streaming_channel_data_suffix("_data");
     options.streaming_channel_valid_suffix("_valid");
     options.streaming_channel_ready_suffix("_ready");
-    options.module_name("pipelined_proc");
+    options.module_name(absl::StrFormat("pipelined_proc-%d", i));
 
     XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                              ProcToPipelinedBlock(schedule, options, proc));
@@ -4799,6 +4811,53 @@ top proc proc_ut(tkn: token, _ZZN4Test4mainEvE1i__1: bits[8], init={4}) {
                            ProcToPipelinedBlock(schedule, options, proc));
 }
 
+TEST_F(BlockConversionTest, NoDanglingPipelinePointers) {
+  constexpr std::string_view kIrText = R"(
+package subrosa
+
+chan chan_0(bits[3], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+
+top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={0, 0}) {
+  literal.4: bits[18] = literal(value=0, id=4)
+  eq.5: bits[1] = eq(param__1, literal.4, id=5)
+  receive.6: (token, bits[3]) = receive(param, predicate=eq.5, channel=chan_0, id=6)
+  tuple_index.9: bits[3] = tuple_index(receive.6, index=1, id=9)
+  tuple_index.10: token = tuple_index(receive.6, index=0, id=10)
+  sel.11: bits[3] = sel(eq.5, cases=[param__2, tuple_index.9], id=11)
+  next (tuple_index.10, literal.4, sel.11)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           xls::Parser::ParsePackage(kIrText));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("proc_0"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(2)));
+
+  CodegenOptions options;
+  options.reset("rst", false, false, false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  absl::flat_hash_set<Node*> nodes(unit.block->nodes().begin(),
+                                   unit.block->nodes().end());
+  for (const auto& stage : unit.streaming_io_and_pipeline.pipeline_registers) {
+    for (const auto& reg : stage) {
+      EXPECT_THAT(nodes, testing::Contains(reg.reg_read));
+      EXPECT_THAT(nodes, testing::Contains(reg.reg_write));
+      EXPECT_THAT(unit.block->GetRegisters(), testing::Contains(reg.reg));
+    }
+  }
+  for (const auto& state : unit.streaming_io_and_pipeline.state_registers) {
+    EXPECT_THAT(nodes, testing::Contains(state->reg_read));
+    EXPECT_THAT(nodes, testing::Contains(state->reg_write));
+    EXPECT_THAT(unit.block->GetRegisters(), testing::Contains(state->reg));
+  }
+}
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

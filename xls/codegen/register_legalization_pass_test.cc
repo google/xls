@@ -14,12 +14,19 @@
 
 #include "xls/codegen/register_legalization_pass.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -29,11 +36,14 @@ using ::testing::UnorderedElementsAre;
 
 class RegisterLegalizationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(Block* block) {
+  absl::StatusOr<bool> Run(CodegenPassUnit& unit) {
     PassResults results;
-    CodegenPassUnit unit(block->package(), block);
     return RegisterLegalizationPass().Run(&unit, CodegenPassOptions(),
                                           &results);
+  }
+  absl::StatusOr<bool> Run(Block* block) {
+    CodegenPassUnit unit(block->package(), block);
+    return Run(unit);
   }
 };
 
@@ -66,6 +76,43 @@ TEST_F(RegisterLegalizationPassTest, RegistersOfDifferentSizes) {
   // Pass should be idempotent.
   EXPECT_THAT(Run(block), IsOkAndHolds(false));
   EXPECT_EQ(block->GetRegisters().size(), 2);
+}
+
+namespace m {
+MATCHER_P3(PipelineRegister, reg, write, read, "") {
+  const ::xls::verilog::PipelineRegister& pr = arg;
+  return testing::ExplainMatchResult(reg, pr.reg, result_listener) &&
+         testing::ExplainMatchResult(write, pr.reg_write, result_listener) &&
+         testing::ExplainMatchResult(read, pr.reg_read, result_listener);
+}
+}  // namespace m
+
+TEST_F(RegisterLegalizationPassTest, KeepsUnitListsValid) {
+  auto p = CreatePackage();
+
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  auto read32 = bb.InsertRegister("reg32", bb.Literal(UBits(32, 32)));
+  auto read0 = bb.InsertRegister("reg0", bb.Tuple({}));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto* reg32, blk->GetRegister("reg32"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* write32, blk->GetRegisterWrite(reg32));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* reg0, blk->GetRegister("reg0"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* write0, blk->GetRegisterWrite(reg0));
+  CodegenPassUnit unit(p.get(), blk);
+  unit.streaming_io_and_pipeline.pipeline_registers.push_back(
+      {PipelineRegister{.reg = reg32,
+                        .reg_write = write32->As<RegisterWrite>(),
+                        .reg_read = read32.node()->As<RegisterRead>()},
+
+       PipelineRegister{.reg = reg0,
+                        .reg_write = write0->As<RegisterWrite>(),
+                        .reg_read = read0.node()->As<RegisterRead>()}});
+
+  XLS_ASSERT_OK(Run(unit));
+  EXPECT_THAT(unit.streaming_io_and_pipeline.pipeline_registers,
+              testing::ElementsAre(testing::ElementsAre(
+                  m::PipelineRegister(reg32, write32, read32.node()))));
 }
 
 }  // namespace

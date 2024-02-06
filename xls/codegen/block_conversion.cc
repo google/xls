@@ -34,8 +34,10 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/codegen/bdd_io_analysis.h"
+#include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/casts.h"
@@ -166,15 +168,15 @@ static absl::StatusOr<std::vector<Node*>> MakePipelineStagesForValid(
 static absl::Status MakePipelineStagesForValidIO(
     StreamingIOPipeline& streaming_io,
     const std::optional<xls::Reset>& reset_behavior, Block* block) {
-  std::vector<Node*> &recvs_valid = streaming_io.all_active_inputs_valid;
+  std::vector<Node*>& recvs_valid = streaming_io.all_active_inputs_valid;
   std::vector<PipelineStageRegisters>& pipeline_registers =
       streaming_io.pipeline_registers;
-  std::vector<Node*> &pipeline_valid = streaming_io.pipeline_valid;
-  std::vector<Node*> &stage_valid = streaming_io.stage_valid;
-  std::vector<Node*> &stage_done = streaming_io.stage_done;
-  std::vector<Node*> &states_valid = streaming_io.all_active_states_valid;
-  std::vector<Node*> &sends_ready = streaming_io.all_active_outputs_ready;
-  std::vector<Node*> &states_ready = streaming_io.all_active_states_ready;
+  std::vector<Node*>& pipeline_valid = streaming_io.pipeline_valid;
+  std::vector<Node*>& stage_valid = streaming_io.stage_valid;
+  std::vector<Node*>& stage_done = streaming_io.stage_done;
+  std::vector<Node*>& states_valid = streaming_io.all_active_states_valid;
+  std::vector<Node*>& sends_ready = streaming_io.all_active_outputs_ready;
+  std::vector<Node*>& states_ready = streaming_io.all_active_states_ready;
 
   Type* u1 = block->package()->GetBitsType(1);
 
@@ -604,7 +606,7 @@ static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
 }
 
 static absl::StatusOr<ValidPorts> AddValidSignal(
-    absl::Span<const PipelineStageRegisters> pipeline_registers,
+    absl::Span<PipelineStageRegisters> pipeline_registers,
     const CodegenOptions& options, Block* block,
     std::vector<Node*>& pipelined_valids) {
   // Add valid input port.
@@ -641,16 +643,15 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
                               PipelineSignalName("load_en", stage),
                               reset_behavior, block));
 
-      for (const PipelineRegister& pipeline_reg :
-           pipeline_registers.at(stage)) {
-        XLS_RETURN_IF_ERROR(block
-                                ->MakeNode<RegisterWrite>(
-                                    /*loc=*/SourceInfo(),
-                                    pipeline_reg.reg_write->data(),
-                                    /*load_enable=*/load_enable,
-                                    /*reset=*/std::nullopt, pipeline_reg.reg)
-                                .status());
+      for (PipelineRegister& pipeline_reg : pipeline_registers.at(stage)) {
+        XLS_ASSIGN_OR_RETURN(
+            auto* new_write,
+            block->MakeNode<RegisterWrite>(
+                /*loc=*/SourceInfo(), pipeline_reg.reg_write->data(),
+                /*load_enable=*/load_enable,
+                /*reset=*/std::nullopt, pipeline_reg.reg));
         XLS_RETURN_IF_ERROR(block->RemoveNode(pipeline_reg.reg_write));
+        pipeline_reg.reg_write = new_write;
       }
     }
   }
@@ -1444,9 +1445,10 @@ static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
 // Ready is asserted if the input is ready and either a) the flop
 // is invalid; or b) the flop is valid but the pipeline will accept the data,
 // on the next clock tick.
-static absl::Status AddInputOutputFlops(
-    const CodegenOptions& options, StreamingIOPipeline& streaming_io,
-    Block* block, std::vector<Node*>& valid_nodes) {
+static absl::Status AddInputOutputFlops(const CodegenOptions& options,
+                                        StreamingIOPipeline& streaming_io,
+                                        Block* block,
+                                        std::vector<Node*>& valid_nodes) {
   absl::flat_hash_set<Node*> handled_io_nodes;
 
   // Flop streaming inputs.
@@ -1454,8 +1456,7 @@ static absl::Status AddInputOutputFlops(
     for (StreamingInput& input : vec) {
       if (options.flop_inputs()) {
         XLS_RETURN_IF_ERROR(
-            AddRegisterAfterStreamingInput(input, options,
-                                           block, valid_nodes)
+            AddRegisterAfterStreamingInput(input, options, block, valid_nodes)
                 .status());
 
         handled_io_nodes.insert(input.port);
@@ -1472,10 +1473,9 @@ static absl::Status AddInputOutputFlops(
   for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
       if (options.flop_outputs()) {
-        XLS_RETURN_IF_ERROR(
-            AddRegisterBeforeStreamingOutput(output, options,
-                                             block, valid_nodes)
-                .status());
+        XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(output, options,
+                                                             block, valid_nodes)
+                                .status());
 
         handled_io_nodes.insert(output.port);
         handled_io_nodes.insert(output.port_valid);
@@ -1858,8 +1858,8 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
 static absl::Status AddCombinationalFlowControl(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    std::vector<Node*>& stage_valid,
-    const CodegenOptions& options, Block* block) {
+    std::vector<Node*>& stage_valid, const CodegenOptions& options,
+    Block* block) {
   std::string_view valid_suffix = options.streaming_channel_valid_suffix();
   std::string_view ready_suffix = options.streaming_channel_ready_suffix();
 
@@ -1894,33 +1894,26 @@ static absl::Status AddCombinationalFlowControl(
 // Send/receive nodes are not cloned from the proc into the block, but the
 // network of tokens connecting these send/receive nodes *is* cloned. This
 // function removes the token operations.
-static absl::Status RemoveDeadTokenNodes(Block* block) {
+static absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
   // Receive nodes produce a tuple of a token and a data value. In the block
   // this becomes a tuple of a token and an InputPort. Run tuple simplification
   // to disentangle the tuples so DCE can do its work and eliminate the token
   // network.
+
+  // TODO: We really shouldn't be running passes like this during block
+  // conversion. These should be fully in the pipeline. This is work for the
+  // future.
   PassResults pass_results;
-
-  XLS_RETURN_IF_ERROR(
-      TupleSimplificationPass()
-          .RunOnFunctionBase(block, OptimizationPassOptions(), &pass_results)
-          .status());
-
-  XLS_RETURN_IF_ERROR(
-      DeadCodeEliminationPass()
-          .RunOnFunctionBase(block, OptimizationPassOptions(), &pass_results)
-          .status());
-
-  CodegenPassUnit unit(block->package(), block);
   CodegenPassOptions pass_options;
-  XLS_RETURN_IF_ERROR(RegisterLegalizationPass()
-                          .Run(&unit, pass_options, &pass_results)
-                          .status());
-  XLS_RETURN_IF_ERROR(
-      DeadCodeEliminationPass()
-          .RunOnFunctionBase(block, OptimizationPassOptions(), &pass_results)
-          .status());
+  CodegenCompoundPass ccp("block_conversion_dead_token_removal",
+                          "Dead token removal during block-conversion process");
+  ccp.AddInvariantChecker<CodegenChecker>();
+  ccp.Add<CodegenWrapperPass>(std::make_unique<TupleSimplificationPass>());
+  ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+  ccp.Add<RegisterLegalizationPass>();
+  ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
 
+  XLS_RETURN_IF_ERROR(ccp.Run(unit, pass_options, &pass_results).status());
   // Nodes like cover and assert have token types and will cause
   // a dangling token network remaining.
   //
@@ -2630,8 +2623,9 @@ class CloneNodesIntoBlockHandler {
   //
   // Returns a PipelineRegister whose reg_read field can be used
   // to chain dependent ops to.
-  absl::StatusOr<PipelineRegister> CreatePipelineRegister(
-      std::string_view name, Node* node, Block* block) {
+  absl::StatusOr<PipelineRegister> CreatePipelineRegister(std::string_view name,
+                                                          Node* node,
+                                                          Block* block) {
     XLS_ASSIGN_OR_RETURN(Register * reg,
                          block_->AddRegister(name, node->GetType()));
     XLS_ASSIGN_OR_RETURN(
@@ -2996,9 +2990,10 @@ absl::StatusOr<CodegenPassUnit> FunctionToPipelinedBlock(
   if (options.valid_control().has_value()) {
     XLS_ASSIGN_OR_RETURN(
         function_metadata.valid_ports,
-        AddValidSignal(unit.streaming_io_and_pipeline.pipeline_registers,
-                       options, unit.block,
-                       unit.streaming_io_and_pipeline.pipeline_valid));
+        AddValidSignal(
+            absl::MakeSpan(unit.streaming_io_and_pipeline.pipeline_registers),
+            options, unit.block,
+            unit.streaming_io_and_pipeline.pipeline_valid));
   }
 
   // Reorder the ports of the block to the following:
@@ -3137,7 +3132,7 @@ absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
-  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(unit.block));
+  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(&unit));
 
   XLS_VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, unit.block->DumpIr());
@@ -3274,24 +3269,24 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
-  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block));
-  XLS_VLOG(3) << "After RemoveDeadTokenNodes";
-  XLS_VLOG_LINES(3, block->DumpIr());
-
-  XLS_RETURN_IF_ERROR(UpdateChannelMetadata(streaming_io, block));
-  XLS_VLOG(3) << "After UpdateChannelMetadata";
-  XLS_VLOG_LINES(3, block->DumpIr());
-
   CodegenPassUnit unit(block->package(), block);
   unit.streaming_io_and_pipeline = std::move(streaming_io);
   unit.conversion_metadata.emplace<ProcConversionMetadata>();
+  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(&unit));
+  XLS_VLOG(3) << "After RemoveDeadTokenNodes";
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
+
+  XLS_RETURN_IF_ERROR(
+      UpdateChannelMetadata(unit.streaming_io_and_pipeline, unit.block));
+  XLS_VLOG(3) << "After UpdateChannelMetadata";
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
+
   unit.GcNodeMap();
   return unit;
 }
 
 absl::StatusOr<CodegenPassUnit> FunctionBaseToCombinationalBlock(
     FunctionBase* f, const CodegenOptions& options) {
-
   if (f->IsFunction()) {
     return FunctionToCombinationalBlock(f->AsFunctionOrDie(), options);
   }
