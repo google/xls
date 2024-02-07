@@ -26,7 +26,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/types/span.h"
@@ -1253,10 +1252,11 @@ class FunctionMatcher {
       std::optional<::testing::Matcher<const std::string>> name)
       : name_(std::move(name)) {}
 
-  template <typename T, typename = absl::enable_if_t<
-                            std::is_convertible_v<T*, ::xls::FunctionBase*>>>
+  template <typename T>
   bool MatchAndExplain(const T* fb,
-                       ::testing::MatchResultListener* listener) const {
+                       ::testing::MatchResultListener* listener) const
+    requires(std::is_convertible_v<T*, ::xls::FunctionBase*>)
+  {
     if (fb == nullptr) {
       return false;
     }
@@ -1273,10 +1273,11 @@ class FunctionMatcher {
     return true;
   }
 
-  template <typename T, typename = absl::enable_if_t<
-                            std::is_convertible_v<T*, ::xls::FunctionBase*>>>
+  template <typename T>
   bool MatchAndExplain(const std::unique_ptr<T>& fb,
-                       ::testing::MatchResultListener* listener) const {
+                       ::testing::MatchResultListener* listener) const
+    requires(std::is_convertible_v<T*, ::xls::FunctionBase*>)
+  {
     return MatchAndExplain(fb.get(), listener);
   }
 
@@ -1313,10 +1314,11 @@ class ProcMatcher {
       std::optional<::testing::Matcher<const std::string>> name)
       : name_(std::move(name)) {}
 
-  template <typename T, typename = absl::enable_if_t<
-                            std::is_convertible_v<T*, ::xls::FunctionBase*>>>
+  template <typename T>
   bool MatchAndExplain(const T* fb,
-                       ::testing::MatchResultListener* listener) const {
+                       ::testing::MatchResultListener* listener) const
+    requires(std::is_convertible_v<T*, ::xls::FunctionBase*>)
+  {
     if (fb == nullptr) {
       return false;
     }
@@ -1333,10 +1335,11 @@ class ProcMatcher {
     return true;
   }
 
-  template <typename T, typename = absl::enable_if_t<
-                            std::is_convertible_v<T*, ::xls::FunctionBase*>>>
+  template <typename T>
   bool MatchAndExplain(const std::unique_ptr<T>& fb,
-                       ::testing::MatchResultListener* listener) const {
+                       ::testing::MatchResultListener* listener) const
+    requires(std::is_convertible_v<T*, ::xls::FunctionBase*>)
+  {
     return MatchAndExplain(fb.get(), listener);
   }
 
@@ -1357,6 +1360,68 @@ inline ::testing::PolymorphicMatcher<ProcMatcher> Proc(
     ::testing::Matcher<const std::string> name) {
   return ::testing::MakePolymorphicMatcher(
       ::xls::op_matchers::ProcMatcher(std::move(name)));
+}
+
+// Matcher for blocks. Supported forms:
+//
+//   m::Block();
+//   m::Block(/*name=*/"foo");
+//   m::Block(/*name=*/HasSubstr("substr"));
+//
+class BlockMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit BlockMatcher(
+      std::optional<::testing::Matcher<const std::string>> name)
+      : name_(std::move(name)) {}
+
+  template <typename T>
+  bool MatchAndExplain(const T* fb,
+                       ::testing::MatchResultListener* listener) const
+    requires(std::is_convertible_v<T*, ::xls::FunctionBase*>)
+  {
+    if (fb == nullptr) {
+      return false;
+    }
+    *listener << fb->name();
+    if (!fb->IsBlock()) {
+      *listener << " is not a block.";
+      return false;
+    }
+    // Now, match on FunctionBase.
+    if (!FunctionBase(name_).MatchAndExplain(fb, listener)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  template <typename T>
+  bool MatchAndExplain(const std::unique_ptr<T>& fb,
+                       ::testing::MatchResultListener* listener) const
+    requires(std::is_convertible_v<T*, ::xls::FunctionBase*>)
+  {
+    return MatchAndExplain(fb.get(), listener);
+  }
+
+  void DescribeTo(::std::ostream* os) const;
+  void DescribeNegationTo(std::ostream* os) const;
+
+ protected:
+  std::optional<::testing::Matcher<const std::string>> name_;
+};
+
+inline ::testing::PolymorphicMatcher<BlockMatcher> Block(
+    std::optional<std::string> name = std::nullopt) {
+  return testing::MakePolymorphicMatcher(
+      ::xls::op_matchers::BlockMatcher(std::move(name)));
+}
+
+inline ::testing::PolymorphicMatcher<BlockMatcher> Block(
+    ::testing::Matcher<const std::string> name) {
+  return testing::MakePolymorphicMatcher(
+      ::xls::op_matchers::BlockMatcher(std::move(name)));
 }
 
 // Matcher for instances. Supported forms:

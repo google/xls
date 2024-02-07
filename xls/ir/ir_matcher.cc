@@ -650,6 +650,28 @@ void FunctionMatcher::DescribeNegationTo(std::ostream* os) const {
   *os << absl::StreamFormat("FunctionBase was not a function%s.", name_str);
 }
 
+void BlockMatcher::DescribeTo(::std::ostream* os) const {
+  std::stringstream ss;
+  std::optional<std::string> name_str;
+  if (name_.has_value()) {
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
+  }
+  *os << absl::StreamFormat("block %s { ... }",
+                            name_str.value_or("<unspecified>"));
+}
+
+void BlockMatcher::DescribeNegationTo(std::ostream* os) const {
+  std::string name_str;
+  if (name_.has_value()) {
+    std::stringstream ss;
+    ss << " named ";
+    name_->DescribeTo(&ss);
+    name_str = ss.str();
+  }
+  *os << absl::StreamFormat("FunctionBase was not a block%s.", name_str);
+}
+
 bool MinDelayMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!NodeMatcher::MatchAndExplain(node, listener)) {

@@ -535,32 +535,52 @@ TEST(IrMatchersTest, FunctionBaseMatcher) {
   BValue send_token = pb.Send(ch1, rcv_token, f_of_data);
   XLS_ASSERT_OK(pb.Build(send_token, {}).status());
 
+  BlockBuilder bb("test_block", &p);
+  BValue a = bb.InputPort("x", p.GetBitsType(32));
+  BValue b = bb.InputPort("y", p.GetBitsType(32));
+  bb.OutputPort("out", bb.Add(a, b));
+  XLS_ASSERT_OK(bb.Build());
+
   // Match FunctionBases.
   EXPECT_THAT(
       p.GetFunctionBases(),
-      UnorderedElementsAre(m::FunctionBase("f"), m::FunctionBase("test_proc")));
+      UnorderedElementsAre(m::FunctionBase("f"), m::FunctionBase("test_proc"),
+                           m::FunctionBase("test_block")));
   EXPECT_THAT(p.GetFunctionBases(),
               UnorderedElementsAre(m::FunctionBase(HasSubstr("f")),
-                                   m::FunctionBase(HasSubstr("test"))));
+                                   m::FunctionBase(HasSubstr("test_pr")),
+                                   m::FunctionBase(HasSubstr("test_b"))));
   EXPECT_THAT(p.GetFunctionBases(),
               ::testing::Not(Contains(m::FunctionBase("foobar"))));
 
-  // Match Function and Proc.
+  // Match Function, Proc and Block.
   EXPECT_THAT(p.GetFunctionBases(),
-              UnorderedElementsAre(m::Function("f"), m::Proc("test_proc")));
+              UnorderedElementsAre(m::Function("f"), m::Proc("test_proc"),
+                                   m::Block("test_block")));
   EXPECT_THAT(p.GetFunctionBases(),
               UnorderedElementsAre(m::Function(HasSubstr("f")),
-                                   m::Proc(HasSubstr("test"))));
+                                   m::Proc(HasSubstr("test_p")),
+                                   m::Block(HasSubstr("test_b"))));
   EXPECT_THAT(p.GetFunctionBases(),
               ::testing::Not(Contains(m::Function("test_proc"))));
   EXPECT_THAT(p.GetFunctionBases(),
               Not(Contains(m::Function(HasSubstr("proc")))));
+  EXPECT_THAT(p.GetFunctionBases(),
+              Not(Contains(m::Function(HasSubstr("block")))));
   EXPECT_THAT(p.GetFunctionBases(), ::testing::Not(Contains(m::Proc("f"))));
   EXPECT_THAT(p.GetFunctionBases(),
               ::testing::Not(Contains(m::Proc(HasSubstr("f")))));
+  EXPECT_THAT(p.GetFunctionBases(),
+              ::testing::Not(Contains(m::Proc(HasSubstr("block")))));
+  EXPECT_THAT(p.GetFunctionBases(), ::testing::Not(Contains(m::Block("f"))));
+  EXPECT_THAT(p.GetFunctionBases(),
+              ::testing::Not(Contains(m::Block(HasSubstr("f")))));
+  EXPECT_THAT(p.GetFunctionBases(),
+              ::testing::Not(Contains(m::Block(HasSubstr("proc")))));
 
   EXPECT_THAT(p.procs(), UnorderedElementsAre(m::Proc("test_proc")));
   EXPECT_THAT(p.functions(), UnorderedElementsAre(m::Function("f")));
+  EXPECT_THAT(p.blocks(), UnorderedElementsAre(m::Block("test_block")));
 }
 
 TEST(IrMatchersTest, MinDelayMatcher) {
