@@ -78,7 +78,7 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
   }
 }
 
-/*static*/ absl::StatusOr<RamConfig> RamConfig::FromProto(
+/* static */ absl::StatusOr<RamConfig> RamConfig::FromProto(
     const RamConfigProto& proto) {
   XLS_ASSIGN_OR_RETURN(RamKind kind, RamKindFromProto(proto.kind()));
   return RamConfig{
@@ -92,7 +92,7 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
   };
 }
 
-/*static*/ absl::StatusOr<RamRewrite> RamRewrite::FromProto(
+/* static */ absl::StatusOr<RamRewrite> RamRewrite::FromProto(
     const RamRewriteProto& proto) {
   if (proto.has_model_builder()) {
     return absl::UnimplementedError("Model builders not yet implemented.");

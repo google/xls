@@ -33,7 +33,7 @@
 
 namespace xls {
 
-/*static*/ absl::StatusOr<FileLineReader> FileLineReader::Create(
+/* static */ absl::StatusOr<FileLineReader> FileLineReader::Create(
     const std::filesystem::path& path) {
   XLS_ASSIGN_OR_RETURN(FileStream fs, FileStream::Open(path, "r"));
   return FileLineReader(std::move(fs));
@@ -59,7 +59,7 @@ absl::StatusOr<std::optional<std::string>> FileLineReader::ReadLine() {
   return std::nullopt;
 }
 
-/*static*/ absl::StatusOr<FileLineWriter> FileLineWriter::Create(
+/* static */ absl::StatusOr<FileLineWriter> FileLineWriter::Create(
     const std::filesystem::path& path) {
   XLS_ASSIGN_OR_RETURN(FileStream fs, FileStream::Open(path, "w"));
   return FileLineWriter(std::move(fs));
@@ -80,7 +80,7 @@ absl::Status FileLineWriter::WriteLine(std::string_view line) {
   return absl::OkStatus();
 }
 
-/*static*/ absl::StatusOr<NamedPipe> NamedPipe::Create(
+/* static */ absl::StatusOr<NamedPipe> NamedPipe::Create(
     const std::filesystem::path& path) {
   // Create with RW permissions for the user only.
   int ec = mkfifo(path.c_str(), S_IRUSR | S_IWUSR);

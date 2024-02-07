@@ -68,21 +68,18 @@ void Bits::SetRange(int64_t start_index, int64_t end_index, bool value) {
   bitmap_.SetRange(start_index, end_index, value);
 }
 
-/* static */
-Bits Bits::AllOnes(int64_t bit_count) {
+/* static */ Bits Bits::AllOnes(int64_t bit_count) {
   return Bits::FromBitmap(InlineBitmap(bit_count, /*fill=*/true));
 }
 
-/* static */
-Bits Bits::MaxSigned(int64_t bit_count) {
+/* static */ Bits Bits::MaxSigned(int64_t bit_count) {
   if (bit_count == 0) {
     return SBits(0, 0);
   }
   return Bits::AllOnes(bit_count).UpdateWithSet(bit_count - 1, false);
 }
 
-/* static */
-Bits Bits::MinSigned(int64_t bit_count) {
+/* static */ Bits Bits::MinSigned(int64_t bit_count) {
   if (bit_count == 0) {
     return SBits(0, 0);
   }
@@ -106,8 +103,7 @@ absl::InlinedVector<bool, 1> Bits::ToBitVector() const {
   return bits;
 }
 
-/* static */
-Bits Bits::PowerOfTwo(int64_t set_bit_index, int64_t bit_count) {
+/* static */ Bits Bits::PowerOfTwo(int64_t set_bit_index, int64_t bit_count) {
   Bits result(bit_count);
   result.bitmap_.Set(set_bit_index, true);
   return result;

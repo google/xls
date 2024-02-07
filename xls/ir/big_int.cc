@@ -15,16 +15,23 @@
 #include "xls/ir/big_int.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <limits>
 #include <ostream>
+#include <string>
 #include <tuple>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "openssl/base.h"
 #include "openssl/bn.h"
 #include "openssl/mem.h"
+#include "xls/common/bits_util.h"
 #include "xls/common/logging/logging.h"
+#include "xls/ir/bits.h"
 
 namespace xls {
 
@@ -56,8 +63,7 @@ bool BigInt::operator==(const BigInt& other) const {
   return BN_cmp(&bn_, &other.bn_) == 0;
 }
 
-/* static */
-BigInt BigInt::MakeUnsigned(const Bits& bits) {
+/* static */ BigInt BigInt::MakeUnsigned(const Bits& bits) {
   BigInt value;
   std::vector<uint8_t> byte_vector = bits.ToBytes();
   // ToBytes returns in little-endian. BN expects big-endian.
@@ -66,8 +72,7 @@ BigInt BigInt::MakeUnsigned(const Bits& bits) {
   return value;
 }
 
-/* static */
-BigInt BigInt::MakeSigned(const Bits& bits) {
+/* static */ BigInt BigInt::MakeSigned(const Bits& bits) {
   if (bits.bit_count() == 0 || !bits.msb()) {
     return MakeUnsigned(bits);
   }
@@ -94,15 +99,13 @@ BigInt BigInt::MakeSigned(const Bits& bits) {
   return value;
 }
 
-/* static */
-BigInt BigInt::Zero() {
+/* static */ BigInt BigInt::Zero() {
   BigInt value;
   BN_zero(&value.bn_);
   return value;
 }
 
-/* static */
-BigInt BigInt::One() {
+/* static */ BigInt BigInt::One() {
   BigInt value;
   XLS_CHECK(BN_one(&value.bn_));
   return value;
@@ -353,8 +356,8 @@ bool BigInt::operator>=(const BigInt& rhs) const {
   return num_significant_bits;
 }
 
-/* static */
-std::tuple<BigInt, int64_t> BigInt::FactorizePowerOfTwo(const BigInt& input) {
+/* static */ std::tuple<BigInt, int64_t> BigInt::FactorizePowerOfTwo(
+    const BigInt& input) {
   const BigInt zero = BigInt::Zero();
   const BigInt two = BigInt::Exp2(1);
   int64_t power = 0;

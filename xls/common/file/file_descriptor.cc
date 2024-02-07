@@ -14,9 +14,13 @@
 
 #include "xls/common/file/file_descriptor.h"
 
+#include <cerrno>
+#include <cstdio>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <utility>
 
+#include "absl/status/statusor.h"
 #include "xls/common/status/error_code_to_status.h"
 
 namespace xls {
@@ -27,7 +31,7 @@ FileStream::~FileStream() {
   }
 }
 
-/*static*/ absl::StatusOr<FileStream> FileStream::Open(
+/* static */ absl::StatusOr<FileStream> FileStream::Open(
     const std::filesystem::path& path, const std::string& mode) {
   FILE* f = fopen(path.c_str(), mode.c_str());
   if (f == nullptr) {

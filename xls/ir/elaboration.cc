@@ -232,8 +232,7 @@ absl::Status Elaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   return absl::OkStatus();
 }
 
-/*static*/
-absl::StatusOr<Elaboration> Elaboration::Elaborate(Proc* top) {
+/* static */ absl::StatusOr<Elaboration> Elaboration::Elaborate(Proc* top) {
   if (!top->is_new_style_proc()) {
     return absl::UnimplementedError(
         absl::StrFormat("Cannot elaborate old-style proc `%s`", top->name()));
@@ -376,7 +375,7 @@ std::string InstantiationPath::ToString() const {
           }));
 }
 
-/*static*/ absl::StatusOr<Elaboration> Elaboration::ElaborateOldStylePackage(
+/* static */ absl::StatusOr<Elaboration> Elaboration::ElaborateOldStylePackage(
     Package* package) {
   // Iterate through every proc and channel and create a single instance for
   // each.

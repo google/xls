@@ -39,7 +39,7 @@ static absl::Status TemplateParseError(int64_t col, std::string_view message) {
   return absl::InvalidArgumentError(absl::StrFormat("%d: %s", col, message));
 }
 
-/*static*/ int64_t CodeTemplate::ExtractErrorColumn(const absl::Status& s) {
+/* static */ int64_t CodeTemplate::ExtractErrorColumn(const absl::Status& s) {
   static const RE2 sColExtractRE("^([0-9]+):");
   int64_t result = 0;  // Fallback if there is no column.
   RE2::PartialMatch(s.message(), sColExtractRE, &result);

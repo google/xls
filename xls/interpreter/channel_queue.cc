@@ -128,8 +128,7 @@ ChannelQueueManager::Create(Package* package) {
   return Create(std::move(elaboration));
 }
 
-/* static */
-absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
+/* static */ absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
 ChannelQueueManager::Create(std::vector<std::unique_ptr<ChannelQueue>>&& queues,
                             Elaboration elaboration) {
   // Verify there is exactly one queue per channel.
@@ -164,8 +163,7 @@ ChannelQueueManager::Create(std::vector<std::unique_ptr<ChannelQueue>>&& queues,
       new ChannelQueueManager(std::move(elaboration), std::move(queues)));
 }
 
-/* static */
-absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
+/* static */ absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
 ChannelQueueManager::Create(Elaboration elaboration) {
   std::vector<std::unique_ptr<ChannelQueue>> queues;
 

@@ -76,8 +76,7 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
   return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
 
-/* static */
-absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
+/* static */ absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args) {
   XLS_VLOG(2) << "Interpreting function " << function->name()
               << " with arguments:";

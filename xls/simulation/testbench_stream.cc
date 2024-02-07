@@ -42,7 +42,7 @@
 namespace xls {
 namespace verilog {
 
-/*static*/ VastStreamEmitter VastStreamEmitter::Create(
+/* static */ VastStreamEmitter VastStreamEmitter::Create(
     const TestbenchStream& stream, Module* m) {
   VastStreamEmitter emitter(stream);
   emitter.file_descriptor_ =
@@ -145,9 +145,9 @@ void VastStreamEmitter::EmitClose(StatementBlock* block) const {
                              std::vector<Expression*>{file_descriptor_});
 }
 
-/*static*/ absl::StatusOr<TestbenchStreamThread> TestbenchStreamThread::Create(
-    const TestbenchStream& stream,
-    const std::filesystem::path& named_pipe_path) {
+/* static */ absl::StatusOr<TestbenchStreamThread>
+TestbenchStreamThread::Create(const TestbenchStream& stream,
+                              const std::filesystem::path& named_pipe_path) {
   XLS_ASSIGN_OR_RETURN(NamedPipe named_pipe,
                        NamedPipe::Create(named_pipe_path));
   return TestbenchStreamThread(stream, std::move(named_pipe));

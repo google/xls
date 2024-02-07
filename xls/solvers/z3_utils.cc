@@ -52,7 +52,7 @@ ScopedErrorHandler::~ScopedErrorHandler() {
   g_handler = prev_handler_;
 }
 
-/*static*/ void ScopedErrorHandler::Handler(Z3_context c, Z3_error_code e) {
+/* static */ void ScopedErrorHandler::Handler(Z3_context c, Z3_error_code e) {
   g_handler->status_ = absl::InternalError(absl::StrFormat(
       "Z3 error @ %s:%d: %s", g_handler->source_location_.file_name(),
       g_handler->source_location_.line(), Z3_get_error_msg(c, e)));

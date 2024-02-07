@@ -222,7 +222,7 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
   return ptr;
 }
 
-/*static*/ std::vector<std::string> FunctionBase::GetIrReservedWords() {
+/* static */ std::vector<std::string> FunctionBase::GetIrReservedWords() {
   std::vector<std::string> words(Token::GetKeywords().begin(),
                                  Token::GetKeywords().end());
   // Sort to avoid nondeterminism because GetKeywords returns a flat hashmap.

@@ -630,8 +630,7 @@ std::string DslxTypeNameToCpp(std::string_view dslx_type) {
   return Camelize(dslx_type);
 }
 
-/*static*/
-absl::StatusOr<std::unique_ptr<CppEmitter>> CppEmitter::Create(
+/* static */ absl::StatusOr<std::unique_ptr<CppEmitter>> CppEmitter::Create(
     const TypeAnnotation* type_annotation, std::string_view dslx_type,
     TypeInfo* type_info, ImportData* import_data) {
   // Both builtin (e.g., `u32`) and array types (e.g, `sU[22]`) can represent

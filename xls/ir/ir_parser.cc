@@ -2494,8 +2494,7 @@ static absl::Status VerifyAndSwapError(Package* package) {
   return status;
 }
 
-/* static */
-absl::StatusOr<Function*> Parser::ParseFunction(
+/* static */ absl::StatusOr<Function*> Parser::ParseFunction(
     std::string_view input_string, Package* package, bool verify_function_only,
     const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
@@ -2514,10 +2513,9 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   return function;
 }
 
-/* static */
-absl::StatusOr<Proc*> Parser::ParseProc(std::string_view input_string,
-                                        Package* package,
-                                        const DeclAttributes& attributes) {
+/* static */ absl::StatusOr<Proc*> Parser::ParseProc(
+    std::string_view input_string, Package* package,
+    const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   XLS_ASSIGN_OR_RETURN(Proc * proc, p.ParseProc(package, attributes));
@@ -2528,10 +2526,9 @@ absl::StatusOr<Proc*> Parser::ParseProc(std::string_view input_string,
   return proc;
 }
 
-/* static */
-absl::StatusOr<Block*> Parser::ParseBlock(std::string_view input_string,
-                                          Package* package,
-                                          const DeclAttributes& attributes) {
+/* static */ absl::StatusOr<Block*> Parser::ParseBlock(
+    std::string_view input_string, Package* package,
+    const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   XLS_ASSIGN_OR_RETURN(Block * proc, p.ParseBlock(package, attributes));
@@ -2542,8 +2539,7 @@ absl::StatusOr<Block*> Parser::ParseBlock(std::string_view input_string,
   return proc;
 }
 
-/* static */
-absl::StatusOr<Channel*> Parser::ParseChannel(
+/* static */ absl::StatusOr<Channel*> Parser::ParseChannel(
     std::string_view input_string, Package* package,
     const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
@@ -2551,8 +2547,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
   return p.ParseChannel(package, attributes);
 }
 
-/* static */
-absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
+/* static */ absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
     std::string_view input_string, std::optional<std::string_view> filename) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        ParsePackageNoVerify(input_string, filename));
@@ -2560,33 +2555,32 @@ absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
   return package;
 }
 
-/* static */
-absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageWithEntry(
-    std::string_view input_string, std::string_view entry,
-    std::optional<std::string_view> filename) {
+/* static */ absl::StatusOr<std::unique_ptr<Package>>
+Parser::ParsePackageWithEntry(std::string_view input_string,
+                              std::string_view entry,
+                              std::optional<std::string_view> filename) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        ParsePackageNoVerify(input_string, filename, entry));
   XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
   return package;
 }
 
-/* static */
-absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageNoVerify(
-    std::string_view input_string, std::optional<std::string_view> filename,
-    std::optional<std::string_view> entry) {
+/* static */ absl::StatusOr<std::unique_ptr<Package>>
+Parser::ParsePackageNoVerify(std::string_view input_string,
+                             std::optional<std::string_view> filename,
+                             std::optional<std::string_view> entry) {
   return ParseDerivedPackageNoVerify<Package>(input_string, filename, entry);
 }
 
-/* static */
-absl::StatusOr<Value> Parser::ParseValue(std::string_view input_string,
-                                         Type* expected_type) {
+/* static */ absl::StatusOr<Value> Parser::ParseValue(
+    std::string_view input_string, Type* expected_type) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseValueInternal(expected_type);
 }
 
-/* static */
-absl::StatusOr<Value> Parser::ParseTypedValue(std::string_view input_string) {
+/* static */ absl::StatusOr<Value> Parser::ParseTypedValue(
+    std::string_view input_string) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseValueInternal(/*expected_type=*/std::nullopt);

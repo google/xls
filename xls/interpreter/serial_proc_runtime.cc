@@ -33,8 +33,8 @@
 
 namespace xls {
 
-/* static */
-absl::StatusOr<std::unique_ptr<SerialProcRuntime>> SerialProcRuntime::Create(
+/* static */ absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
+SerialProcRuntime::Create(
     std::vector<std::unique_ptr<ProcEvaluator>>&& evaluators,
     std::unique_ptr<ChannelQueueManager>&& queue_manager) {
   // Verify there exists exactly one evaluator per proc in the package.

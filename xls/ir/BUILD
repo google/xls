@@ -1194,8 +1194,10 @@ cc_library(
     hdrs = ["big_int.h"],
     deps = [
         ":bits",
+        "//xls/common:bits_util",
         "//xls/common/logging",
         "@boringssl//:crypto",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ],

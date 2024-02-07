@@ -90,7 +90,7 @@ std::vector<std::string> ParseIrChannelNames(
   return ir_channel_names;
 }
 
-/*static*/ absl::StatusOr<SampleOptions> SampleOptions::FromPbtxt(
+/* static */ absl::StatusOr<SampleOptions> SampleOptions::FromPbtxt(
     std::string_view text) {
   fuzzer::SampleOptionsProto proto;
   XLS_RETURN_IF_ERROR(ParseTextProto(text,
@@ -104,7 +104,7 @@ std::string SampleOptions::ToPbtxt() const {
   return pbtxt;
 }
 
-/*static*/ absl::StatusOr<SampleOptions> SampleOptions::FromProto(
+/* static */ absl::StatusOr<SampleOptions> SampleOptions::FromProto(
     fuzzer::SampleOptionsProto proto) {
   SampleOptions options;
   options.proto_ = std::move(proto);
@@ -116,7 +116,7 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
   return df.Compare(proto_, other.proto_);
 }
 
-/*static*/ fuzzer::SampleOptionsProto SampleOptions::DefaultOptionsProto() {
+/* static */ fuzzer::SampleOptionsProto SampleOptions::DefaultOptionsProto() {
   fuzzer::SampleOptionsProto proto;
   proto.set_input_is_dslx(true);
   proto.set_sample_type(fuzzer::SAMPLE_TYPE_FUNCTION);

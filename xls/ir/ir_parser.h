@@ -319,8 +319,7 @@ class Parser {
   Scanner scanner_;
 };
 
-/* static */
-template <typename PackageT>
+/* static */ template <typename PackageT>
 absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
     std::string_view input_string, std::optional<std::string_view> filename,
     std::optional<std::string_view> entry) {

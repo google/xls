@@ -654,10 +654,9 @@ class StructCppTypeGenerator : public CppTypeGenerator {
 
 }  // namespace
 
-/* static */
-absl::StatusOr<std::unique_ptr<CppTypeGenerator>> CppTypeGenerator::Create(
-    const TypeDefinition& type_definition, TypeInfo* type_info,
-    ImportData* import_data) {
+/* static */ absl::StatusOr<std::unique_ptr<CppTypeGenerator>>
+CppTypeGenerator::Create(const TypeDefinition& type_definition,
+                         TypeInfo* type_info, ImportData* import_data) {
   return absl::visit(
       Visitor{[&](const TypeAlias* type_alias)
                   -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {

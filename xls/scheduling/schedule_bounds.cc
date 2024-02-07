@@ -167,8 +167,8 @@ absl::Status ScheduleBounds::PropagateUpperBounds() {
   return absl::OkStatus();
 }
 
-/* static */
-absl::StatusOr<ScheduleBounds> ScheduleBounds::ComputeAsapAndAlapBounds(
+/* static */ absl::StatusOr<ScheduleBounds>
+ScheduleBounds::ComputeAsapAndAlapBounds(
     FunctionBase* f, int64_t clock_period_ps,
     const DelayEstimator& delay_estimator) {
   XLS_VLOG(4) << "ComputeAsapAndAlapBounds()";

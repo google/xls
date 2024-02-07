@@ -563,7 +563,7 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
   return ModuleSignature::FromProto(proto_);
 }
 
-/*static*/ absl::StatusOr<ModuleSignature> ModuleSignature::FromProto(
+/* static */ absl::StatusOr<ModuleSignature> ModuleSignature::FromProto(
     const ModuleSignatureProto& proto) {
   XLS_RETURN_IF_ERROR(ValidateProto(proto));
 

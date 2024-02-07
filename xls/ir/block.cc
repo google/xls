@@ -579,7 +579,7 @@ absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
   return absl::OkStatus();
 }
 
-/*static*/ std::string Block::PortName(const Port& port) {
+/* static */ std::string Block::PortName(const Port& port) {
   return absl::visit(Visitor{
                          [](ClockPort* p) { return p->name; },
                          [](InputPort* p) { return p->GetName(); },

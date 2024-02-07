@@ -249,9 +249,9 @@ absl::StatusOr<StateTableSignal> StateTableSignalFromProto(
 
 // Constructs an AbstractStateTable object from the matching proto.
 template <typename EvalT>
-/* static */
-absl::StatusOr<AbstractStateTable<EvalT>> AbstractStateTable<EvalT>::FromProto(
-    const StateTableProto& proto, EvalT zero, EvalT one) {
+/* static */ absl::StatusOr<AbstractStateTable<EvalT>>
+AbstractStateTable<EvalT>::FromProto(const StateTableProto& proto, EvalT zero,
+                                     EvalT one) {
   std::vector<Row> rows;
   absl::flat_hash_set<std::string> signals;
   absl::flat_hash_set<std::string> internal_names;
