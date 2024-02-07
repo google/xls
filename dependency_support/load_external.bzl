@@ -267,12 +267,13 @@ def load_external_repositories():
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
 
-    # 2023-03-17
+    # 2023-12-15  Last version compatible with absl with or without VLOG()
     http_archive(
         name = "verible",
-        sha256 = "335673a5c74c9c10ce42e8abb36e89d93502734b54c6a9ff5a269a444dfe46a6",
-        strip_prefix = "verible-2f16e8418e1b452d4f301a95f8af307079dd8e05",
-        urls = ["https://github.com/chipsalliance/verible/archive/2f16e8418e1b452d4f301a95f8af307079dd8e05.tar.gz"],
+        sha256 = "133bb3f7b041ce5009f6bb369ed62f1d6c3760e3ab9b44ab08484a7245d096d3",
+        strip_prefix = "verible-0.0-3498-g82ac5189",
+        urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/v0.0-3498-g82ac5189.tar.gz"],
+        patch_args = ["-p1"],
         patches = ["@com_google_xls//dependency_support/verible:visibility.patch"],
     )
 
