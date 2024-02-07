@@ -1165,11 +1165,22 @@ class TypeRef : public AstNode {
 };
 
 // Represents an import statement; e.g.
-//  import std as my_std
+//  import std;
+// Or:
+//  import foo.bar.baz;
+// Or:
+//  import foo.bar.baz as my_alias;
+//
+// Attributes:
+//  span: Span of the overall import statement in the text.
+//  subject: The imported name; e.g. `foo.bar.baz`.
+//  name_def: The name definition node for the binding this import creates.
+//  alias: Alias that the imported name is bound to (if an `as` keyword was
+//    present).
 class Import : public AstNode {
  public:
   Import(Module* owner, Span span, std::vector<std::string> subject,
-         NameDef* name_def, std::optional<std::string> alias);
+         NameDef& name_def, std::optional<std::string> alias);
 
   ~Import() override;
 
@@ -1179,29 +1190,24 @@ class Import : public AstNode {
     return v->HandleImport(this);
   }
   std::string_view GetNodeTypeName() const override { return "Import"; }
-  const std::string& identifier() const { return name_def_->identifier(); }
+  const std::string& identifier() const { return name_def_.identifier(); }
 
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {name_def_};
+    return {&name_def_};
   }
 
   const std::vector<std::string>& subject() const { return subject_; }
-  NameDef* name_def() const { return name_def_; }
+  NameDef& name_def() const { return name_def_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
   const std::optional<std::string>& alias() const { return alias_; }
 
  private:
-  // Span of the import in the text.
   Span span_;
-  // Name of the module being imported ("original" name before aliasing); e.g.
-  // "std".
   std::vector<std::string> subject_;
-  // The name definition we bind the import to.
-  NameDef* name_def_;
-  // The identifier text we bind the import to.
+  NameDef& name_def_;
   std::optional<std::string> alias_;
 };
 

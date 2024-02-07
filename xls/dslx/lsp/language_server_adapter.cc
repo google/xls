@@ -24,15 +24,21 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "external/verible/common/lsp/lsp-file-utils.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/indent.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/extract_module_name.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/lsp/document_symbols.h"
 #include "xls/dslx/lsp/find_definition.h"
@@ -213,7 +219,7 @@ LanguageServerAdapter::ProvideImportLinks(std::string_view uri) const {
         continue;
       }
       verible::lsp::DocumentLink link = {
-          .range = ConvertSpanToLspRange(import_node->name_def()->span()),
+          .range = ConvertSpanToLspRange(import_node->name_def().span()),
           .target = verible::lsp::PathToLSPUri(info.value()->path().string()),
           .has_target = true,
       };

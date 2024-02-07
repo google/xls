@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -140,7 +141,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   Module module("test_module", /*fs_path=*/std::nullopt);
   NameDef* module_def =
       module.Make<NameDef>(Span::Fake(), "import_module", nullptr);
-  Import* import = module.Make<Import>(Span::Fake(), import_tokens, module_def,
+  Import* import = module.Make<Import>(Span::Fake(), import_tokens, *module_def,
                                        std::nullopt);
   module_def->set_definer(import);
   NameRef* module_ref =

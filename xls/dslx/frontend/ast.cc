@@ -751,14 +751,13 @@ TypeRef::~TypeRef() = default;
 // -- class Import
 
 Import::Import(Module* owner, Span span, std::vector<std::string> subject,
-               NameDef* name_def, std::optional<std::string> alias)
+               NameDef& name_def, std::optional<std::string> alias)
     : AstNode(owner),
       span_(std::move(span)),
       subject_(std::move(subject)),
       name_def_(name_def),
       alias_(std::move(alias)) {
   XLS_CHECK(!subject_.empty());
-  XLS_CHECK(name_def != nullptr);
 }
 
 Import::~Import() = default;

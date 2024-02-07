@@ -35,6 +35,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/proc.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 namespace {
@@ -341,7 +342,7 @@ class AstCloner : public AstNodeVisitor {
 
     old_to_new_[n] = module_->Make<Import>(
         n->span(), n->subject(),
-        down_cast<NameDef*>(old_to_new_.at(n->name_def())), n->alias());
+        *down_cast<NameDef*>(old_to_new_.at(&n->name_def())), n->alias());
     return absl::OkStatus();
   }
 

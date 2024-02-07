@@ -25,8 +25,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/variant.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -94,7 +98,7 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
     return std::get<StructDef*>(bn)->name_def();
   }
   if (std::holds_alternative<Import*>(bn)) {
-    return std::get<Import*>(bn)->name_def();
+    return &std::get<Import*>(bn)->name_def();
   }
   XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
                  << ToAstNode(bn)->ToString() << " "

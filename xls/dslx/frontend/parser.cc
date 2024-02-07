@@ -1405,7 +1405,7 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
       DropTokenOrError(TokenKind::kSemi, /*start=*/&kw,
                        /*context=*/"Expect an ';' at end of import statement"));
 
-  auto* import = module_->Make<Import>(kw.span(), subject, name_def, alias);
+  auto* import = module_->Make<Import>(kw.span(), subject, *name_def, alias);
   name_def->set_definer(import);
   bindings.Add(name_def->identifier(), import);
   return import;
