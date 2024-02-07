@@ -25,6 +25,8 @@ jobs:
           # if it doesn't already exist.
           key: bazel-cache-latest-${{ github.sha }}
           restore-keys: bazel-cache-latest-
+      - name: Install dependencies via apt
+        run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
       - name: Install bazelisk
         run: |
           curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64"
