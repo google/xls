@@ -209,12 +209,8 @@ LanguageServerAdapter::ProvideImportLinks(std::string_view uri) const {
   if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     const Module& module = parsed->module();
     for (const auto& [_, import_node] : module.GetImportByName()) {
-      absl::StatusOr<ImportTokens> tok =
-          ImportTokens::FromString(import_node->identifier());
-      if (!tok.ok()) {
-        continue;
-      }
-      absl::StatusOr<ModuleInfo*> info = parsed->import_data.Get(tok.value());
+      const ImportTokens tok(import_node->subject());
+      absl::StatusOr<ModuleInfo*> info = parsed->import_data.Get(tok);
       if (!info.ok()) {
         continue;
       }
