@@ -23,7 +23,9 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
@@ -37,6 +39,7 @@
 #include "xls/dslx/run_routines.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/format_preference.h"
+#include "re2/re2.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, dslx_path, "",
@@ -53,9 +56,8 @@ ABSL_FLAG(std::string, compare, "jit",
 ABSL_FLAG(
     int64_t, seed, 0,
     "Seed for quickcheck random stimulus; 0 for an nondetermistic value.");
-// TODO(leary): 2021-01-19 allow filters with wildcards.
 ABSL_FLAG(std::string, test_filter, "",
-          "Target (currently *single*) test name to run.");
+          "Regexp that must be a full match of test name(s) to run.");
 
 ABSL_FLAG(std::string, disable_warnings, "",
           "Comma-delimited list of warnings to disable -- not generally "
@@ -110,8 +112,21 @@ absl::StatusOr<TestResult> RealMain(std::string_view entry_module_path,
       break;
   }
 
+  std::optional<RE2> test_filter_re;
+  const RE2* test_filter_re_ptr = nullptr;
+  if (test_filter.has_value()) {
+    test_filter_re.emplace(test_filter.value());
+    if (!test_filter_re->ok()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Could not create regular expression from test "
+                          "filter: `%s`; error: %s; error argument: `%s`",
+                          test_filter.value(), test_filter_re->error(),
+                          test_filter_re->error_arg()));
+    }
+    test_filter_re_ptr = &test_filter_re.value();
+  }
   ParseAndTestOptions options = {.dslx_paths = dslx_paths,
-                                 .test_filter = test_filter,
+                                 .test_filter = test_filter_re_ptr,
                                  .format_preference = format_preference,
                                  .run_comparator = run_comparator.get(),
                                  .execute = execute,
@@ -121,9 +136,9 @@ absl::StatusOr<TestResult> RealMain(std::string_view entry_module_path,
                                  .trace_channels = trace_channels,
                                  .max_ticks = max_ticks};
   XLS_ASSIGN_OR_RETURN(
-      TestResult test_result,
+      TestResultData test_result,
       ParseAndTest(program, module_name, entry_module_path, options));
-  return test_result;
+  return test_result.result;
 }
 
 }  // namespace

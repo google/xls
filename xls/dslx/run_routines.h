@@ -29,13 +29,17 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/events.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 
@@ -84,8 +88,8 @@ class AbstractRunComparator {
 //   warnings: Set of warnings to enable for reporting.
 struct ParseAndTestOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
-  absl::Span<const std::filesystem::path> dslx_paths = {};
-  std::optional<std::string_view> test_filter = std::nullopt;
+  absl::Span<const std::filesystem::path> dslx_paths;
+  const RE2* test_filter = nullptr;
   FormatPreference format_preference = FormatPreference::kDefault;
   AbstractRunComparator* run_comparator = nullptr;
   bool execute = true;
@@ -104,6 +108,29 @@ enum class TestResult : uint8_t {
   kParseOrTypecheckError,
 };
 
+std::string_view TestResultToString(TestResult tr);
+
+template <typename Sink>
+inline void AbslStringify(Sink& sink, TestResult tr) {
+  absl::Format(&sink, "%s", TestResultToString(tr));
+}
+
+struct TestResultData {
+  TestResult result;
+  int64_t ran;
+  int64_t failed;
+  int64_t skipped;
+
+  bool operator==(const TestResultData& other) const = default;
+};
+
+template <typename Sink>
+inline void AbslStringify(Sink& sink, const TestResultData& trd) {
+  absl::Format(&sink,
+               "TestResultData{.result=%v, .ran=%d, .failed=%d, .skipped=%d}",
+               trd.result, trd.ran, trd.failed, trd.skipped);
+}
+
 // Parses program and run all tests contained inside.
 //
 // Args:
@@ -114,11 +141,11 @@ enum class TestResult : uint8_t {
 //   options: Bundles together optional arguments -- see ParseAndTestOptions.
 //
 // Returns:
-//   Whether any test failed (as a boolean).
-absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
-                                        std::string_view module_name,
-                                        std::string_view filename,
-                                        const ParseAndTestOptions& options);
+//  Status of passing tests and associated pass/fail/skip counts.
+absl::StatusOr<TestResultData> ParseAndTest(std::string_view program,
+                                            std::string_view module_name,
+                                            std::string_view filename,
+                                            const ParseAndTestOptions& options);
 
 struct QuickCheckResults {
   std::vector<std::vector<Value>> arg_sets;

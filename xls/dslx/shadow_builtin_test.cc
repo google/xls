@@ -62,9 +62,9 @@ fn test_main() {
     std::string program = absl::StrFormat(kTemplate, name, name);
     ParseAndTestOptions options;
     XLS_ASSERT_OK_AND_ASSIGN(
-        TestResult test_result,
+        TestResultData test_result,
         ParseAndTest(program, /*module_name=*/"fake", kFakePath, options));
-    EXPECT_EQ(test_result, TestResult::kAllPassed);
+    EXPECT_EQ(test_result.result, TestResult::kAllPassed);
   }
 }
 
@@ -95,9 +95,9 @@ fn test_main() {
     std::string program = absl::StrFormat(kTemplate, name, name);
     ParseAndTestOptions options;
     XLS_ASSERT_OK_AND_ASSIGN(
-        TestResult test_result,
+        TestResultData test_result,
         ParseAndTest(program, /*module_name=*/"fake", kFakePath, options));
-    EXPECT_EQ(test_result, TestResult::kAllPassed);
+    EXPECT_EQ(test_result.result, TestResult::kAllPassed);
   }
 }
 

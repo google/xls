@@ -35,27 +35,34 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -137,12 +144,11 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
 }  // namespace
 
 static bool TestMatchesFilter(std::string_view test_name,
-                              std::optional<std::string_view> test_filter) {
-  if (!test_filter.has_value()) {
+                              const RE2* test_filter) {
+  if (test_filter == nullptr) {
     return true;
   }
-  // TODO(leary): 2019-08-28 Implement wildcards.
-  return test_name == *test_filter;
+  return RE2::FullMatch(test_name, *test_filter);
 }
 
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
@@ -223,10 +229,12 @@ using HandleError = const std::function<void(
 static absl::Status RunQuickChecksIfJitEnabled(
     Module* entry_module, TypeInfo* type_info,
     AbstractRunComparator* run_comparator, Package* ir_package,
-    std::optional<int64_t> seed, const HandleError& handle_error) {
+    std::optional<int64_t> seed, const HandleError& handle_error, int64_t& ran,
+    int64_t& failed, int64_t& skipped) {
   if (run_comparator == nullptr) {
     std::cerr << "[ SKIPPING QUICKCHECKS  ] (JIT is disabled)"
               << "\n";
+    skipped++;
     return absl::OkStatus();
   }
   if (!seed.has_value()) {
@@ -238,12 +246,14 @@ static absl::Status RunQuickChecksIfJitEnabled(
   std::cerr << absl::StreamFormat("[ SEED %*d ]", kQuickcheckSpaces + 1, *seed)
             << "\n";
   for (QuickCheck* quickcheck : entry_module->GetQuickChecks()) {
+    ran++;
     const std::string& test_name = quickcheck->identifier();
     std::cerr << "[ RUN QUICKCHECK        ] " << test_name
               << " count: " << quickcheck->GetTestCountOrDefault() << "\n";
     absl::Status status =
         RunQuickCheck(run_comparator, ir_package, quickcheck, type_info, *seed);
     if (!status.ok()) {
+      failed++;
       handle_error(status, test_name, /*is_quickcheck=*/true);
     } else {
       std::cerr << "[                    OK ] " << test_name << "\n";
@@ -256,13 +266,17 @@ static absl::Status RunQuickChecksIfJitEnabled(
   return absl::OkStatus();
 }
 
-absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
-                                        std::string_view module_name,
-                                        std::string_view filename,
-                                        const ParseAndTestOptions& options) {
+absl::StatusOr<TestResultData> ParseAndTest(
+    std::string_view program, std::string_view module_name,
+    std::string_view filename, const ParseAndTestOptions& options) {
   int64_t ran = 0;
   int64_t failed = 0;
   int64_t skipped = 0;
+
+  auto make_result = [&](TestResult result) {
+    return TestResultData{
+        .result = result, .ran = ran, .failed = failed, .skipped = skipped};
+  };
 
   auto handle_error = [&](const absl::Status& status,
                           std::string_view test_name, bool is_quickcheck) {
@@ -286,7 +300,10 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     std::cerr << absl::StreamFormat("[ %sFAILED ] %s%s", spaces, test_name,
                                     suffix)
               << "\n";
-    failed += 1;
+    // Quickcheck routine bumps the fail count directly.
+    if (!is_quickcheck) {
+      failed += 1;
+    }
   };
 
   auto import_data = CreateImportData(options.stdlib_path, options.dslx_paths,
@@ -296,7 +313,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
-      return TestResult::kParseOrTypecheckError;
+      return make_result(TestResult::kParseOrTypecheckError);
     }
     return tm_or.status();
   }
@@ -310,12 +327,12 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
   }
 
   if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
-    return TestResult::kFailedWarnings;
+    return make_result(TestResult::kFailedWarnings);
   }
 
   // If not executing tests and quickchecks, then return vacuous success.
   if (!options.execute) {
-    return TestResult::kAllPassed;
+    return make_result(TestResult::kAllPassed);
   }
 
   Module* entry_module = tm_or.value().module;
@@ -330,7 +347,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
                                options.convert_options);
     if (!ir_package_or.ok()) {
       if (TryPrintError(ir_package_or.status())) {
-        return TestResult::kSomeFailed;
+        return make_result(TestResult::kSomeFailed);
       }
       return ir_package_or.status();
     }
@@ -394,10 +411,25 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
   if (!entry_module->GetQuickChecks().empty()) {
     XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
         entry_module, tm_or.value().type_info, options.run_comparator,
-        ir_package.get(), options.seed, handle_error));
+        ir_package.get(), options.seed, handle_error, ran, failed, skipped));
   }
 
-  return failed == 0 ? TestResult::kAllPassed : TestResult::kSomeFailed;
+  return make_result(failed == 0 ? TestResult::kAllPassed
+                                 : TestResult::kSomeFailed);
+}
+
+std::string_view TestResultToString(TestResult tr) {
+  switch (tr) {
+    case TestResult::kFailedWarnings:
+      return "failed-warnings";
+    case TestResult::kSomeFailed:
+      return "some-failed";
+    case TestResult::kAllPassed:
+      return "all-passed";
+    case TestResult::kParseOrTypecheckError:
+      return "parse-or-typecheck-error";
+  }
+  XLS_LOG(FATAL) << "Invalid test result value: " << static_cast<int>(tr);
 }
 
 }  // namespace xls::dslx

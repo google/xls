@@ -1572,10 +1572,12 @@ proc BTester {
   constexpr std::string_view kModuleName = "test";
   ParseAndTestOptions options;
   ::testing::internal::CaptureStderr();
-  absl::StatusOr<TestResult> result = ParseAndTest(
-      kProgram, kModuleName, std::string{temp_file.path()}, options);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
+                   options));
   std::string stdcerr(::testing::internal::GetCapturedStderr());
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+  EXPECT_EQ(result.result, TestResult::kSomeFailed);
   EXPECT_THAT(stdcerr, HasSubstr("were not equal"));
 }
 
@@ -1644,9 +1646,11 @@ proc BTester {
                            TempFile::CreateWithContent(kProgram, "_test.x"));
   constexpr std::string_view kModuleName = "test";
   ParseAndTestOptions options;
-  absl::StatusOr<TestResult> result = ParseAndTest(
-      kProgram, kModuleName, std::string{temp_file.path()}, options);
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kAllPassed));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
+                   options));
+  EXPECT_EQ(result.result, TestResult::kAllPassed);
 }
 
 TEST(BytecodeInterpreterTest, PrettyPrintsStructs) {
