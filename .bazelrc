@@ -1,16 +1,16 @@
-build --action_env=BAZEL_CXXOPTS=-std=c++17
-build --cxxopt "-std=c++17"
+build --action_env=BAZEL_CXXOPTS=-std=c++20
+build --cxxopt "-std=c++20"
 # Enable default C++ extensions (required in switching to our packaged LLVM)
 build --copt "-D_DEFAULT_SOURCE=1"
-# Signal that we're using a compliant C++17 implementation with features removed
+# Signal that we're using a compliant C++20 implementation with features removed
 # (Required for (e.g.) Boost compatibility)
 build --copt "-D_HAS_AUTO_PTR_ETC=0"
 build --copt "-Wno-sign-compare"
 build --copt "-Wno-comment"
-build --host_cxxopt "-std=c++17"
+build --host_cxxopt "-std=c++20"
 # Enable default C++ extensions (required in switching to our packaged LLVM)
 build --host_copt "-D_DEFAULT_SOURCE=1"
-# Signal that we're using a compliant C++17 implementation with features removed
+# Signal that we're using a compliant C++20 implementation with features removed
 # (Required for (e.g.) Boost compatibility)
 build --host_copt "-D_HAS_AUTO_PTR_ETC=0"
 build --host_copt "-Wno-sign-compare"

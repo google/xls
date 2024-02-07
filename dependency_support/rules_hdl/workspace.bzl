@@ -37,9 +37,9 @@ def repo():
         sha256 = "fd9e99f6ccb9e946755f9bc444abefbdd1eedb32c372c56dcacc7eb486aed178",
     )
 
-    # Current as of 2023-12-21
-    git_hash = "08884ef0ca94fc8fc4a1bd96cd02203e7788a137"
-    archive_sha256 = "d19bb835722318d61406fc58a5762dcbb52db689eadde5ff459a6a1b7941c3d2"
+    # Current as of 2024-02-01
+    git_hash = "b99dfa1869f340c0e598522960ff514345b40a7b"
+    archive_sha256 = "2a6da82f4f51aefa38ddf82291d49846736dd6abf95f3ea149129eb985ae09ed"
 
     maybe(
         http_archive,

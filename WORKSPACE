@@ -20,25 +20,23 @@ workspace(name = "com_google_xls")
 # files because it's not allowed to use `load` inside of a function.
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-# Commit on  2023-07-17, current as of 2023-08-05.
+# Commit on  2024-01-19, current as of 2024-02-01.
 http_archive(
-    name = "com_grail_bazel_toolchain",
-    sha256 = "5fb0a6ae0f5bc72a7d80e6de0edad906c9936729734009f1c01dac4b06f966e0",
-    strip_prefix = "bazel-toolchain-f94335f1f5434256b1793dafbb7dd07773b0e76e",
-    urls = [
-        "https://github.com/grailbio/bazel-toolchain/archive/f94335f1f5434256b1793dafbb7dd07773b0e76e.zip",
-    ],
+    name = "toolchains_llvm",
+    sha256 = "5b01ab0cf15ddf9c7e4412964238e24ca869ba0e2d0825b70d055f2b2cd895a9",
+    strip_prefix = "bazel-toolchain-05f0bc1f4b1b12ad7ce0ad5ef9235a94ff39ff54",
+    url = "https://github.com/grailbio/bazel-toolchain/archive/05f0bc1f4b1b12ad7ce0ad5ef9235a94ff39ff54.tar.gz",
 )
 
-load("@com_grail_bazel_toolchain//toolchain:deps.bzl", "bazel_toolchain_dependencies")
+load("@toolchains_llvm//toolchain:deps.bzl", "bazel_toolchain_dependencies")
 
 bazel_toolchain_dependencies()
 
-load("@com_grail_bazel_toolchain//toolchain:rules.bzl", "llvm_toolchain")
+load("@toolchains_llvm//toolchain:rules.bzl", "llvm_toolchain")
 
 llvm_toolchain(
     name = "llvm_toolchain",
-    llvm_version = "16.0.0",
+    llvm_version = "17.0.2",
 )
 
 load("@llvm_toolchain//:toolchains.bzl", "llvm_register_toolchains")

@@ -185,13 +185,13 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
-    # Released on 2023-06-01, current as of 2023-06-06.
-    # https://github.com/grpc/grpc/releases/tag/v1.55.1
+    # Released on 2023-11-28, current as of 2024-02-01.
+    # https://github.com/grpc/grpc/releases/tag/v1.60.0
     http_archive(
         name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/v1.55.1.tar.gz"],
-        sha256 = "9c3c0a0ad986ee4fc0a9b58fd71255010068df7d1437c425b525d68c30c85ac7",
-        strip_prefix = "grpc-1.55.1",
+        urls = ["https://github.com/grpc/grpc/archive/v1.60.0.tar.gz"],
+        integrity = "sha256-Q3BouLd307M52pTTSY8dwgZCrJv6dttDq91SIYaxVCs=",
+        strip_prefix = "grpc-1.60.0",
         repo_mapping = {
             "@local_config_python": "@python39",
             "@system_python": "@python39",
