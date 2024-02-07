@@ -42,6 +42,10 @@ jobs:
           mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
 
+      - name: Install clang deps
+        run: |
+          sudo apt install -y libtinfo5
+
       - name: Bazel fetch
         # Let's fetch all WORKSPACE artifacts to see if they can resolve fully
         run: |
