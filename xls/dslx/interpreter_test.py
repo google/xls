@@ -25,7 +25,7 @@ import dataclasses
 import subprocess as subp
 import sys
 import textwrap
-from typing import List, Sequence, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 from xls.common import runfiles
 from xls.common import test_base
@@ -50,6 +50,7 @@ class InterpreterTest(test_base.TestCase):
       warnings_as_errors: bool = True,
       disable_warnings: Sequence[str] = (),
       extra_flags: Sequence[str] = (),
+      test_filter: Optional[str] = None,
   ) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
@@ -61,7 +62,8 @@ class InterpreterTest(test_base.TestCase):
     if disable_warnings:
       cmd.append('--disable_warnings=%s' % ','.join(disable_warnings))
     cmd.extend(extra_flags)
-    p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
+    env = {} if test_filter is None else dict(TESTBRIDGE_TEST_ONLY=test_filter)
+    p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8', env=env)
     if want_error:
       self.assertNotEqual(p.returncode, 0)
     else:
@@ -559,6 +561,83 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn(
         'Tuple expression (with >1 element) is on a single line, but has a'
         ' trailing comma.',
+        stderr,
+    )
+
+  def test_env_based_test_filter(self):
+    """Tests environment-variable based filtering."""
+    program = """
+    #[test] fn test_one() {}
+    #[test] fn test_two() {}
+    """
+    stderr = self._parse_and_test(
+        program,
+        alsologtostderr=True,
+        test_filter='.*_two',
+    )
+    self.assertIn(
+        '1 test(s) ran; 0 failed; 1 skipped',
+        stderr,
+    )
+
+  def test_env_based_test_filter_one_failing(self):
+    """Tests environment-variable based filtering."""
+    program = """
+    #[test] fn test_failing() { assert_eq(false, true) }
+    #[test] fn test_passing() {}
+    """
+    stderr = self._parse_and_test(
+        program,
+        alsologtostderr=True,
+        want_error=True,
+        test_filter='.*_failing',
+    )
+    self.assertIn(
+        '1 test(s) ran; 1 failed; 1 skipped',
+        stderr,
+    )
+    # Now filter to the passing one.
+    stderr = self._parse_and_test(
+        program,
+        alsologtostderr=True,
+        test_filter='.*_passing',
+    )
+    self.assertIn(
+        '1 test(s) ran; 0 failed; 1 skipped',
+        stderr,
+    )
+
+  def test_flag_based_test_filter(self):
+    """Tests environment-variable based filtering."""
+    program = """
+    #[test] fn test_one() {}
+    #[test] fn test_two() {}
+    """
+    stderr = self._parse_and_test(
+        program,
+        alsologtostderr=True,
+        extra_flags=['--test_filter', '.*_two'],
+    )
+    self.assertIn(
+        '1 test(s) ran; 0 failed; 1 skipped',
+        stderr,
+    )
+
+  def test_both_test_filters_errors(self):
+    """Tests environment-variable based filtering."""
+    program = """
+    #[test] fn test_one() {}
+    #[test] fn test_two() {}
+    """
+    stderr = self._parse_and_test(
+        program,
+        alsologtostderr=True,
+        want_error=True,
+        test_filter='.*_two',
+        extra_flags=['--test_filter=".*_two"'],
+    )
+    self.assertIn(
+        'only one is allowed',
         stderr,
     )
 

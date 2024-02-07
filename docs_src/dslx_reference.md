@@ -1905,6 +1905,30 @@ toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
 LLVM JIT are compared against each other to assert equality. This is to ensure
 DSLX implementations are IR-convertible and that IR translation is correct.
 
+#### Test Filtering
+
+The DSLX main (runner) binary can also filter what tests are run from a file via
+the `--test_filter=REGEXP` flag.
+
+Unit tests run via Bazel can also be filtered via the typical Bazel
+`--test_filter` flag; i.e.
+
+```
+bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed
+```
+
+vs selecting one test:
+
+```
+bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed --test_filter=one_x_one_plus_one_f32
+```
+
+vs selecting multiple tests to run via regular expression:
+
+```
+bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed --test_filter=.*f32.*
+```
+
 ### QuickCheck
 
 QuickCheck is a [testing framework concept][hughes-paper] founded on

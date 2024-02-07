@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -192,6 +193,22 @@ int main(int argc, char* argv[]) {
   std::optional<std::string> test_filter;
   if (std::string flag = absl::GetFlag(FLAGS_test_filter); !flag.empty()) {
     test_filter = std::move(flag);
+  }
+
+  // See https://bazel.build/reference/test-encyclopedia
+  std::string_view test_filter_env;
+  if (const char* testbridge_value = getenv("TESTBRIDGE_TEST_ONLY");
+      testbridge_value != nullptr) {
+    test_filter_env = testbridge_value;
+  }
+
+  if (!test_filter_env.empty()) {
+    if (test_filter.has_value()) {
+      std::cerr << "TESTBRIDGE_TEST_ONLY environment variable set "
+                   "simultaneously with --test_filter; only one is allowed.\n";
+      return EXIT_FAILURE;
+    }
+    test_filter = test_filter_env;
   }
 
   xls::FormatPreference preference = xls::FormatPreference::kDefault;
