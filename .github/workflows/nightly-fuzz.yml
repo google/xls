@@ -13,18 +13,18 @@ jobs:
   build:
     name: Nightly Fuzz
     runs-on:
-      labels: ubuntu-20.04-64core
+      labels: ubuntu-latest-64core
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache
         uses: actions/cache@v3
         with:
           path: "~/.cache/bazel"
-          # Create/use a cache called bazel-cache-20_04-<commit hash>
-          # and read the latest cache with prefix bazel-cache-20_04-
+          # Create/use a cache called bazel-cache-latest-<commit hash>
+          # and read the latest cache with prefix bazel-cache-latest-
           # if it doesn't already exist.
-          key: bazel-cache-20_04-${{ github.sha }}
-          restore-keys: bazel-cache-20_04-
+          key: bazel-cache-latest-${{ github.sha }}
+          restore-keys: bazel-cache-latest-
       - name: Install bazelisk
         run: |
           curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64"

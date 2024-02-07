@@ -72,8 +72,8 @@ Currently, XLS must be built from source using the Bazel build system.
 we hope to enable them via continuous integration,
 [see this issue](https://github.com/google/xls/issues/108).
 
-The following instructions are for the Ubuntu 20.04 (Focal Fossa) and Ubuntu
-22.04 (Jammy Jellyfish) Linux distributions.
+The following instructions are for the Ubuntu 22.04 (Jammy Jellyfish) Linux
+distribution.
 
 We start by assuming
 [Bazel has been installed](https://bazel.build/install/ubuntu).
@@ -87,12 +87,14 @@ command lines below:
 
 ~/xls$ # Follow the bazel install instructions:
 ~/xls$ # https://bazel.build/install/ubuntu
+~/xls$ # If you do use bazelisk, be aware that documentation here generally uses `bazel`,
+~/xls$ # so you may want to alias bazelisk to bazel.
 ~/xls$ # Afterwards we observe:
 ~/xls$ bazel --version
-bazel 5.2.0
+bazel 6.4.0
 
 ~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
-~/xls$ # here, since that is not the case by default on Ubuntu 20.04.
+~/xls$ # here, since that has not been the case by default on past Ubuntus.
 ~/xls$ # This is important. Without this step, you may experience cryptic error messages:
 ~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3
 

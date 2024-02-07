@@ -20,7 +20,7 @@ jobs:
   build:
     name: Bazel Build (opt)
     runs-on:
-      labels: ubuntu-20.04-64core
+      labels: ubuntu-22.04-64core
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
@@ -29,11 +29,11 @@ jobs:
         uses: actions/cache@v3
         with:
           path: "~/.cache/bazel"
-          # Create/use a cache called bazel-cache-20_04-<commit hash>
-          # and read the latest cache with prefix bazel-cache-20_04-
+          # Create/use a cache called bazel-cache-22_04-<commit hash>
+          # and read the latest cache with prefix bazel-cache-22_04-
           # if it doesn't already exist.
-          key: bazel-cache-20_04-${{ github.sha }}
-          restore-keys: bazel-cache-20_04-
+          key: bazel-cache-22_04-${{ github.sha }}
+          restore-keys: bazel-cache-22_04-
 
       - name: Install bazelisk
         run: |
