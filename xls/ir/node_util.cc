@@ -183,6 +183,25 @@ absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
       Op::kAnd, name);
 }
 
+absl::StatusOr<Node*> NaryOrIfNeeded(FunctionBase* f,
+                                     absl::Span<Node* const> operands,
+                                     std::string_view name,
+                                     const SourceInfo& source_info) {
+  if (operands.empty()) {
+    return f->MakeNodeWithName<Literal>(source_info, Value(UBits(0, 1)), name);
+  }
+
+  absl::btree_set<Node*, Node::NodeIdLessThan> unique_operands(operands.begin(),
+                                                               operands.end());
+  if (unique_operands.size() == 1) {
+    return operands[0];
+  }
+  return f->MakeNodeWithName<NaryOp>(
+      source_info,
+      std::vector<Node*>(unique_operands.begin(), unique_operands.end()),
+      Op::kOr, name);
+}
+
 absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
                                       absl::Span<Node* const> operands,
                                       std::string_view name,

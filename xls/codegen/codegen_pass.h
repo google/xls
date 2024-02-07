@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -153,10 +154,20 @@ struct PipelineRegister {
 // and 0 when it is not. Stages in flow control may wait on reg_full_read to
 // determine when they can run.
 struct StateRegister {
+  struct NextValue {
+    Stage stage;
+
+    // If absent, this is a next value that leaves the previous value unchanged.
+    std::optional<Node*> value;
+
+    // If absent, this is an unpredicated next value, and is always used.
+    std::optional<Node*> predicate;
+  };
+
   std::string name;
   Value reset_value;
   Stage read_stage;
-  Stage write_stage;
+  std::vector<NextValue> next_values;
   Register* reg;
   RegisterWrite* reg_write;
   RegisterRead* reg_read;
@@ -198,9 +209,6 @@ struct StreamingIOPipeline {
   // Node in each stage that represents when all inputs channels (that are
   // predicated true) are valid.  See MakeInputValidPortsForInputChannels().
   std::vector<Node*> all_active_inputs_valid;
-  // Node in each stage that represents when all state values (that are
-  // predicated true) are ready.  See MakeReadyNodesForOutputStates().
-  std::vector<Node*> all_active_states_ready;
   // Node in each stage that represents when all state values (that are
   // predicated true) are valid.  See MakeValidNodesForInputStates().
   std::vector<Node*> all_active_states_valid;

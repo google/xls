@@ -174,6 +174,14 @@ absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
                                       std::string_view name = "",
                                       const SourceInfo& source_info = {});
 
+// Or-reduce the given operands if needed. If there are 2+ operands, returns an
+// N-ary OR of them; if there is 1 operand, returns that operand; and if there
+// are no operands, returns a literal 0.
+absl::StatusOr<Node*> NaryOrIfNeeded(FunctionBase* f,
+                                     absl::Span<Node* const> operands,
+                                     std::string_view name = "",
+                                     const SourceInfo& source_info = {});
+
 // Nor-reduce the given operands if needed. If there are 2+ operands, returns an
 // N-ary NOR of them; if there is 1 operand, returns a negation of it; and if
 // there are no operands, fails.

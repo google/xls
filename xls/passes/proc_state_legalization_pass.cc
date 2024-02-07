@@ -14,6 +14,7 @@
 
 #include "xls/passes/proc_state_legalization_pass.h"
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -21,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
@@ -33,6 +35,28 @@
 namespace xls {
 
 namespace {
+
+absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
+  XLS_CHECK(proc->next_values().empty());
+
+  for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
+    Param* param = proc->GetStateParam(index);
+    Node* next_value = proc->GetNextStateElement(index);
+    XLS_RETURN_IF_ERROR(
+        proc->MakeNodeWithName<Next>(param->loc(), /*param=*/param,
+                                     /*value=*/next_value,
+                                     /*predicate=*/std::nullopt,
+                                     absl::StrCat(param->name(), "_next"))
+            .status());
+
+    if (next_value != static_cast<Node*>(param)) {
+      // Nontrivial next-state element; remove it so we pass verification.
+      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, param));
+    }
+  }
+
+  return proc->GetStateElementCount() > 0;
+}
 
 absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param) {
   absl::btree_set<Node*, Node::NodeIdLessThan> predicates;
@@ -116,10 +140,11 @@ absl::StatusOr<bool> AddDefaultNextValues(Proc* proc) {
 absl::StatusOr<bool> ProcStateLegalizationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options,
     PassResults* results) const {
-  // Leave old-style `next (...)` value handling alone for now.
-  // TODO(epastor): Modernize old-style to new-style `next_value` nodes.
+  // Convert old-style `next (...)` value handling into explicit nodes.
+  // TODO(epastor): Clean up after removing support for `next (...)` values.
   if (proc->next_values().empty()) {
-    return false;
+    // No need to legalize; all of the nodes will be unconditional.
+    return ModernizeNextValues(proc);
   }
 
   return AddDefaultNextValues(proc);

@@ -641,7 +641,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 2,
@@ -667,7 +668,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 2,
@@ -700,7 +702,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp_rcv: (token, ()) = receive(extra1_token, channel=wr_comp)
   wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 4,
@@ -750,7 +753,8 @@ proc my_proc(__token: token, __state: (), init={()}) {
   wr_comp2_token: token = tuple_index(wr_comp2_rcv, index=0)
   after_all_token: token = after_all(rcv0_token, rcv1_token, rcv2_token, wr_comp0_token, wr_comp1_token, wr_comp2_token)
   next_state: () = tuple()
-  next (after_all_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (after_all_token)
 }
   )",
         .pipeline_stages = 20,
@@ -776,7 +780,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 3,
@@ -803,7 +808,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 3,
@@ -837,7 +843,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 3,
@@ -886,7 +893,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   next_token: token = after_all(rcv_token2, wr_comp0_token, wr_comp1_token, wr_comp2_token)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (next_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (next_token)
 }
   )",
         .pipeline_stages = 20,
@@ -925,7 +933,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
   next_token: token = after_all(send_token2, wr_comp0_token, wr_comp1_token)
   next_state: bits[32] = add(__state, one_lit)
-  next (next_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (next_token)
 }
   )",
         .pipeline_stages = 4,
@@ -1036,7 +1045,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (wr_comp_token)
 }
   )",
       {
@@ -1097,7 +1107,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   wr_comp_token: token = tuple_index(wr_comp_recv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (wr_comp_token, next_state)
+  next_state_value: () = next_value(param=__state, value=next_state)
+  next (wr_comp_token)
 }
   )",
       {

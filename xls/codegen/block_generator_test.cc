@@ -1139,7 +1139,8 @@ proc running_sum(tkn: token, first_cycle: bits[1], init={1}) {
   out_send: token = send(all_recv_tkn, sum, channel=out)
   loopback_send: token = send(out_send, sum, channel=loopback)
   lit0: bits[1] = literal(value=0)
-  next (loopback_send, lit0)
+  next_first_cycle: () = next_value(param=first_cycle, value=lit0)
+  next (loopback_send)
 }
 )";
 
@@ -1309,6 +1310,122 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
   EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
                                            ready_valid_holdoffs),
               status_testing::IsOkAndHolds(expected_output_values));
+}
+
+TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithNonUpdateCase) {
+  const std::string ir_text = R"(package test
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+  lit1: bits[32] = literal(value=1)
+  incremented_counter: bits[32] = add(counter, lit1)
+  even_iteration: bits[1] = not(odd_iteration)
+  send.1: token = send(tkn, counter, channel=out, id=1)
+  next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
+  next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
+  next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
+  next (send.1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("slow_counter"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *estimator,
+                          SchedulingOptions()
+                              .pipeline_stages(2)
+                              .worst_case_throughput(2)
+                              .add_constraint(NodeInCycleConstraint(
+                                  *proc->GetNode("next_counter_odd"), 0))
+                              .add_constraint(NodeInCycleConstraint(
+                                  *proc->GetNode("next_counter_even"), 1))));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.block, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
+TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithOnlyUpdateCases) {
+  const std::string ir_text = R"(package test
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc bad_alternator(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+  lit1: bits[32] = literal(value=1)
+  incremented_counter: bits[32] = add(counter, lit1)
+  even_iteration: bits[1] = not(odd_iteration)
+  send.1: token = send(tkn, counter, channel=out, id=1)
+  next_counter_odd: () = next_value(param=counter, value=lit1, predicate=odd_iteration)
+  next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
+  next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
+  next (send.1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("bad_alternator"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *estimator,
+                          SchedulingOptions()
+                              .pipeline_stages(2)
+                              .worst_case_throughput(2)
+                              .add_constraint(NodeInCycleConstraint(
+                                  *proc->GetNode("next_counter_odd"), 0))
+                              .add_constraint(NodeInCycleConstraint(
+                                  *proc->GetNode("next_counter_even"), 1))));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.block, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
 }
 
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,

@@ -14,7 +14,6 @@ module pipelined_proc(
   wire p0_all_active_states_valid;
   wire in_data_valid_or;
   wire out_data_from_skid_rdy;
-  wire p0_all_active_states_ready;
   wire p0_stage_done;
   wire pipeline_enable;
   wire __out_valid_buf;
@@ -34,8 +33,7 @@ module pipelined_proc(
   assign p0_all_active_states_valid = 1'h1;
   assign in_data_valid_or = in_valid | __in_data_valid_skid_reg;
   assign out_data_from_skid_rdy = ~__out_data_valid_skid_reg;
-  assign p0_all_active_states_ready = 1'h1;
-  assign p0_stage_done = p0_all_active_states_valid & in_data_valid_or & out_data_from_skid_rdy & p0_all_active_states_ready;
+  assign p0_stage_done = p0_all_active_states_valid & in_data_valid_or & out_data_from_skid_rdy;
   assign pipeline_enable = p0_stage_done & p0_stage_done;
   assign __out_valid_buf = in_data_valid_or & p0_all_active_states_valid & 1'h1;
   assign in_data_from_skid_rdy = ~__in_data_valid_skid_reg;

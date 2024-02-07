@@ -1118,7 +1118,8 @@ proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
   send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
-  next (send.6, tuple_index.5)
+  next_st: () = next_value(param=st, value=tuple_index.5)
+  next (send.6)
 }
 )",
                                                TestBaseName());

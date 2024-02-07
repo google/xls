@@ -136,7 +136,6 @@ absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
 
 bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
   Function* as_func = dynamic_cast<Function*>(function_base_);
-  Proc* as_proc = dynamic_cast<Proc*>(function_base_);
 
   if (cycle(node) > c) {
     return false;
@@ -151,17 +150,21 @@ bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
   }
 
   for (Node* user : node->users()) {
-    if (cycle(user) > c) {
-      return true;
+    if (cycle(user) <= c) {
+      continue;
     }
-  }
-
-  if (as_proc != nullptr) {
-    for (int64_t index : as_proc->GetNextStateIndices(node)) {
-      if (cycle(as_proc->GetStateParam(index)) > c) {
-        return true;
+    if (user->Is<Next>()) {
+      Next* user_next = user->As<Next>();
+      if (user_next->predicate() != node && user_next->value() != node) {
+        XLS_CHECK_EQ(user_next->param(), node);
+        // This Next node only uses this Param node to target the state register
+        // it needs to write to; it doesn't actually need the value read out of
+        // the Param node, so we don't need to keep the value in pipeline
+        // registers for its sake.
+        continue;
       }
     }
+    return true;
   }
 
   return false;

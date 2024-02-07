@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -176,7 +177,6 @@ static absl::Status MakePipelineStagesForValidIO(
   std::vector<Node*>& stage_done = streaming_io.stage_done;
   std::vector<Node*>& states_valid = streaming_io.all_active_states_valid;
   std::vector<Node*>& sends_ready = streaming_io.all_active_outputs_ready;
-  std::vector<Node*>& states_ready = streaming_io.all_active_states_ready;
 
   Type* u1 = block->package()->GetBitsType(1);
 
@@ -212,7 +212,6 @@ static absl::Status MakePipelineStagesForValidIO(
                 stage_valid[stage],
                 recvs_valid[stage],
                 sends_ready[stage],
-                states_ready[stage],
             },
             Op::kAnd, PipelineSignalName("stage_done", stage)));
 
@@ -524,32 +523,114 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
     if (!state_register.has_value()) {
       continue;
     }
-    XLS_CHECK_GE(state_register->write_stage, 0);
+    XLS_CHECK(!state_register->next_values.empty());
+
+    std::vector<Node*> values;
+    std::vector<Node*> write_conditions;
+    std::vector<Node*> unchanged_conditions;
+    values.reserve(state_register->next_values.size());
+    write_conditions.reserve(state_register->next_values.size());
+    unchanged_conditions.reserve(state_register->next_values.size());
+    for (const StateRegister::NextValue& next_value :
+         state_register->next_values) {
+      Node* activated_predicate;
+      if (next_value.predicate.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            activated_predicate,
+            block->MakeNode<NaryOp>(
+                state_register->reg_write->loc(),
+                std::vector<Node*>{*next_value.predicate,
+                                   state_enables.at(next_value.stage)},
+                Op::kAnd));
+      } else {
+        activated_predicate = state_enables.at(next_value.stage);
+      }
+
+      if (next_value.value.has_value()) {
+        values.push_back(*next_value.value);
+        write_conditions.push_back(activated_predicate);
+      } else {
+        unchanged_conditions.push_back(activated_predicate);
+      }
+    }
+
+    Node* value;
+    std::optional<Node*> load_enable;
+    if (values.empty()) {
+      // If we never change the state element, write the current value
+      // unconditionally.
+      value = state_register->reg_read;
+      load_enable = std::nullopt;
+    } else if (values.size() == 1) {
+      value = values[0];
+      load_enable = write_conditions[0];
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          Node * selector,
+          block->MakeNode<xls::Concat>(state_register->reg_write->loc(),
+                                       write_conditions));
+
+      // Reverse the order of the values, so they match up to the selector.
+      std::reverse(values.begin(), values.end());
+      XLS_ASSIGN_OR_RETURN(
+          value, block->MakeNode<OneHotSelect>(state_register->reg_write->loc(),
+                                               selector, values));
+
+      XLS_ASSIGN_OR_RETURN(
+          load_enable, block->MakeNode<NaryOp>(state_register->reg_write->loc(),
+                                               write_conditions, Op::kOr));
+    }
+
     XLS_ASSIGN_OR_RETURN(RegisterWrite * new_reg_write,
                          block->MakeNode<RegisterWrite>(
                              /*loc=*/state_register->reg_write->loc(),
-                             /*data=*/state_register->reg_write->data(),
-                             /*load_enable=*/
-                             state_enables.at(state_register->write_stage),
+                             /*data=*/value,
+                             /*load_enable=*/load_enable,
                              /*reset=*/state_register->reg_write->reset(),
                              /*reg=*/state_register->reg_write->GetRegister()));
     XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
     state_register->reg_write = new_reg_write;
 
     if (state_register->reg_full) {
+      // The state register's fullness changes whenever we read or write the
+      // state parameter's value - and it changes to 1 if we're writing, or 0
+      // if we're only reading. In other words, the fullness register should
+      // be load-enabled if we're reading or writing, and its value should be
+      // set to 1 if we're writing.
+
+      // However, it also updates to 1 if we *would have* written an unchanged
+      // value (even though that lets us skip actually writing to the state
+      // register), so we also need to account for those.
+      Node* value_determined;
+      if (unchanged_conditions.empty()) {
+        // There should be an active write, since there's nothing to support
+        // leaving the register unchanged.
+        XLS_CHECK(load_enable.has_value());
+        value_determined = *load_enable;
+      } else {
+        std::vector<Node*> determined_conditions = unchanged_conditions;
+        if (load_enable.has_value()) {
+          determined_conditions.push_back(*load_enable);
+        }
+        XLS_ASSIGN_OR_RETURN(
+            value_determined,
+            block->MakeNode<NaryOp>(state_register->reg_write->loc(),
+                                    determined_conditions, Op::kOr));
+      }
+
       XLS_ASSIGN_OR_RETURN(
-          Node * reg_full_change,
+          Node * reg_full_load_enable,
           block->MakeNode<NaryOp>(
-              SourceInfo(),
+              state_register->reg_full_write->loc(),
               std::vector<Node*>{state_enables.at(state_register->read_stage),
-                                 state_enables.at(state_register->write_stage)},
+                                 value_determined},
               Op::kOr));
       XLS_ASSIGN_OR_RETURN(
           RegisterWrite * new_reg_full_write,
           block->MakeNode<RegisterWrite>(
               /*loc=*/state_register->reg_full_write->loc(),
-              /*data=*/state_enables.at(state_register->write_stage),
-              /*load_enable=*/reg_full_change,
+              /*data=*/value_determined,
+              /*load_enable=*/reg_full_load_enable,
               /*reset=*/state_register->reg_full_write->reset(),
               /*reg=*/state_register->reg_full_write->GetRegister()));
       XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_full_write));
@@ -589,12 +670,31 @@ static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
 
   for (std::optional<StateRegister>& state_register : state_registers) {
     if (state_register.has_value()) {
+      std::vector<Node*> write_predicates;
+      for (const StateRegister::NextValue& next_value :
+           state_register->next_values) {
+        if (next_value.value.has_value() && next_value.predicate.has_value()) {
+          write_predicates.push_back(*next_value.predicate);
+        }
+      }
+
+      Node* load_enable = pipeline_enable;
+      if (!write_predicates.empty()) {
+        XLS_ASSIGN_OR_RETURN(Node * active_write,
+                             NaryOrIfNeeded(block, write_predicates));
+        XLS_ASSIGN_OR_RETURN(
+            load_enable,
+            block->MakeNode<NaryOp>(
+                state_register->reg_write->loc(),
+                std::vector<Node*>{active_write, pipeline_enable}, Op::kAnd));
+      }
+
       XLS_ASSIGN_OR_RETURN(
           RegisterWrite * new_reg_write,
           block->MakeNode<RegisterWrite>(
               /*loc=*/state_register->reg_write->loc(),
               /*data=*/state_register->reg_write->data(),
-              /*load_enable=*/pipeline_enable,
+              /*load_enable=*/load_enable,
               /*reset=*/state_register->reg_write->reset(),
               /*reg=*/state_register->reg_write->GetRegister()));
       XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
@@ -1041,50 +1141,6 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
                         PipelineSignalName("all_active_states_valid", stage)));
 
     result.push_back(all_active_states_valid);
-  }
-
-  return result;
-}
-
-// For each output state element, add a corresponding check that it's ready.
-// Combinationally combine those ready signals with their predicates to
-// generate an all_active_states_ready signal.
-//
-// Upon success returns a Node* to the all_active_states_ready signal.
-static absl::StatusOr<std::vector<Node*>> MakeReadyNodesForOutputStates(
-    std::vector<std::vector<int64_t>>& output_states,
-    absl::Span<std::optional<StateRegister> const> state_registers,
-    int64_t stage_count, std::string_view ready_suffix, Block* block) {
-  std::vector<Node*> result;
-
-  // Add a ready node for each next state element with non-trivial backedge.
-  // Gather the ready signals into a vector.
-  for (Stage stage = 0; stage < stage_count; ++stage) {
-    std::vector<Node*> active_readys;
-    for (const int64_t index : output_states[stage]) {
-      const std::optional<StateRegister>& state_register =
-          state_registers[index];
-      if (!state_register.has_value() || !state_register->reg_full) {
-        // The state is replaced by the same cycle that reads it, so it will
-        // always be ready.
-        continue;
-      }
-      XLS_ASSIGN_OR_RETURN(
-          Node * reg_ready,
-          block->MakeNodeWithName<UnOp>(
-              SourceInfo(), state_register->reg_full_read, Op::kNot,
-              /*name=*/absl::StrCat(state_register->name, "_ready")));
-
-      active_readys.push_back(reg_ready);
-    }
-
-    // And reduce all the active ready signals. This signal is true iff all
-    // active states are ready.
-    XLS_ASSIGN_OR_RETURN(
-        Node * all_active_states_ready,
-        NaryAndIfNeeded(block, active_readys,
-                        PipelineSignalName("all_active_states_ready", stage)));
-    result.push_back(all_active_states_ready);
   }
 
   return result;
@@ -1771,15 +1827,6 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
   XLS_VLOG(3) << "After States Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<Node*> all_active_states_ready,
-      MakeReadyNodesForOutputStates(streaming_io.output_states,
-                                    streaming_io.state_registers, stage_count,
-                                    ready_suffix, block));
-  streaming_io.all_active_states_ready = all_active_states_ready;
-  XLS_VLOG(3) << "After States Ready";
-  XLS_VLOG_LINES(3, block->DumpIr());
-
   std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
 
   XLS_RETURN_IF_ERROR(
@@ -2021,9 +2068,6 @@ class CloneNodesIntoBlockHandler {
     if (is_proc_) {
       Proc* proc = function_base_->AsProcOrDie();
       token_param_ = proc->TokenParam();
-      for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-        next_state_nodes_[proc->GetNextStateElement(i)].push_back(i);
-      }
       result_.state_registers.resize(proc->GetStateElementCount());
     }
     if (stage_count > 1) {
@@ -2045,16 +2089,14 @@ class CloneNodesIntoBlockHandler {
           if (node == token_param_) {
             XLS_ASSIGN_OR_RETURN(next_node, HandleTokenParam(node));
           } else {
-            XLS_ASSIGN_OR_RETURN(
-                int64_t index,
-                node->function_base()->AsProcOrDie()->GetStateParamIndex(
-                    node->As<Param>()));
-            XLS_ASSIGN_OR_RETURN(next_node,
-                                 HandleStateParam(node, stage, index));
+            XLS_ASSIGN_OR_RETURN(next_node, HandleStateParam(node, stage));
           }
         } else {
           XLS_ASSIGN_OR_RETURN(next_node, HandleFunctionParam(node));
         }
+      } else if (node->Is<Next>()) {
+        XLS_RET_CHECK(is_proc_);
+        XLS_RETURN_IF_ERROR(HandleNextValue(node, stage));
       } else if (IsChannelNode(node)) {
         XLS_RET_CHECK(is_proc_);
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
@@ -2104,13 +2146,8 @@ class CloneNodesIntoBlockHandler {
         XLS_ASSIGN_OR_RETURN(next_node, HandleGeneralNode(node));
       }
       node_map_[node] = next_node;
-      result_.node_to_stage_map[next_node] = stage;
-
-      // After cloning, handle writing of next state values into state
-      // registers.
-      if (is_proc_ && next_state_nodes_.contains(node)) {
-        XLS_RETURN_IF_ERROR(
-            SetNextStateNode(next_node, stage, next_state_nodes_.at(node)));
+      if (next_node != nullptr) {
+        result_.node_to_stage_map[next_node] = stage;
       }
     }
 
@@ -2160,13 +2197,16 @@ class CloneNodesIntoBlockHandler {
     return block_->MakeNode<AfterAll>(node->loc(), std::vector<Node*>());
   }
 
-  // Replace state parameter at the given index with Literal empty tuple.
-  absl::StatusOr<Node*> HandleStateParam(Node* node, Stage stage,
-                                         int64_t index) {
+  // Don't clone state Param operations. Instead replace with a RegisterRead
+  // operation.
+  absl::StatusOr<Node*> HandleStateParam(Node* node, Stage stage) {
     XLS_CHECK_GE(stage, 0);
 
     Proc* proc = function_base_->AsProcOrDie();
+    Param* param = node->As<Param>();
+    XLS_ASSIGN_OR_RETURN(int64_t index, proc->GetStateParamIndex(param));
 
+    // Replace zero-width state parameter with Literal empty tuple.
     if (node->GetType()->GetFlatBitCount() == 0) {
       if (node->GetType() != proc->package()->GetTupleType({})) {
         return absl::UnimplementedError(
@@ -2181,46 +2221,27 @@ class CloneNodesIntoBlockHandler {
     // Create a temporary name as this register will later be removed
     // and updated.  That register should be created with the
     // state parameter's name.  See UpdateStateRegisterWithReset().
-    std::string name = block_->UniquifyNodeName(
-        absl::StrCat("__", proc->GetStateParam(index)->name()));
+    std::string name =
+        block_->UniquifyNodeName(absl::StrCat("__", param->name()));
 
     XLS_ASSIGN_OR_RETURN(Register * reg,
                          block_->AddRegister(name, node->GetType()));
-
-    RegisterWrite* reg_write = nullptr;
-    Stage write_stage = -1;
-    if (auto it = node_map_.find(proc->GetNextStateElement(index));
-        it != node_map_.end()) {
-      // We already cloned the next state node (in this stage or earlier), and
-      // SetNextStateNode was unable to create the register write; we create it
-      // here, in the current stage.
-      Node* next_state = it->second;
-      XLS_ASSIGN_OR_RETURN(reg_write, block_->MakeNode<RegisterWrite>(
-                                          next_state->loc(), next_state,
-                                          /*load_enable=*/std::nullopt,
-                                          /*reset=*/std::nullopt, reg));
-      write_stage = stage;
-    }
-    // Otherwise, the register write will be created later in SetNextStateNode.
 
     XLS_ASSIGN_OR_RETURN(
         RegisterRead * reg_read,
         block_->MakeNodeWithName<RegisterRead>(node->loc(), reg,
                                                /*name=*/reg->name()));
 
+    // The register write will be created later in HandleNextValue.
     result_.state_registers[index] =
-        StateRegister{.name = std::string(proc->GetStateParam(index)->name()),
+        StateRegister{.name = std::string(param->name()),
                       .reset_value = proc->GetInitValueElement(index),
                       .read_stage = stage,
-                      .write_stage = write_stage,
                       .reg = reg,
-                      .reg_write = reg_write,
+                      .reg_write = nullptr,
                       .reg_read = reg_read};
 
     result_.input_states[stage].push_back(index);
-    if (write_stage >= 0) {
-      result_.output_states[stage].push_back(index);
-    }
 
     return reg_read;
   }
@@ -2230,6 +2251,89 @@ class CloneNodesIntoBlockHandler {
     Param* param = node->As<Param>();
     return block_->AddInputPort(param->GetName(), param->GetType(),
                                 param->loc());
+  }
+
+  // Replace next values with a RegisterWrite.
+  absl::Status HandleNextValue(Node* node, Stage stage) {
+    Proc* proc = function_base_->AsProcOrDie();
+    Next* next = node->As<Next>();
+    Param* param = next->param()->As<Param>();
+    XLS_ASSIGN_OR_RETURN(int64_t index, proc->GetStateParamIndex(param));
+
+    XLS_CHECK_EQ(proc->GetNextStateElement(index), param);
+
+    if (param->GetType()->GetFlatBitCount() == 0) {
+      if (param->GetType() != proc->package()->GetTupleType({})) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Proc has zero-width state element %d, but type is "
+                            "not empty tuple, instead got %s.",
+                            index, node->GetType()->ToString()));
+      }
+      // No register write needed; the state element is empty.
+      return absl::OkStatus();
+    }
+
+    StateRegister& state_register = *result_.state_registers.at(index);
+    state_register.next_values.push_back(
+        {.stage = stage,
+         .value = next->value() == next->param()
+                      ? std::nullopt
+                      : std::make_optional(node_map_.at(next->value())),
+         .predicate =
+             next->predicate().has_value()
+                 ? std::make_optional(node_map_.at(next->predicate().value()))
+                 : std::nullopt});
+
+    bool last_next_value =
+        absl::c_all_of(proc->next_values(param), [&](Next* next_value) {
+          return next_value == next || node_map_.contains(next_value);
+        });
+    if (!last_next_value) {
+      // We don't create the RegisterWrite until we're at the last `next_value`
+      // for this `param`, so we've translated all the values already.
+      return absl::OkStatus();
+    }
+    // We should only create the RegisterWrite once.
+    XLS_CHECK_EQ(state_register.reg_write, nullptr);
+
+    // Make a placeholder RegisterWrite; the real one requires access to all the
+    // `next_value` nodes and the control flow logic.
+    XLS_ASSIGN_OR_RETURN(state_register.reg_write,
+                         block_->MakeNode<RegisterWrite>(
+                             next->loc(), node_map_.at(next->value()),
+                             /*load_enable=*/std::nullopt,
+                             /*reset=*/std::nullopt, state_register.reg));
+    result_.output_states[stage].push_back(index);
+
+    // If the next state can be determined in a later cycle than the param
+    // access, we have a non-trivial backedge between initiations (II>1); use a
+    // "full" bit to track whether the state is currently valid.
+    //
+    // TODO(epastor): Consider an optimization that merges the "full" bits for
+    // all states with the same read stage & matching write stages/predicates...
+    // or maybe a more general optimization that merges registers with identical
+    // type, input, and load-enable values.
+    if (stage > state_register.read_stage) {
+      XLS_ASSIGN_OR_RETURN(
+          state_register.reg_full,
+          block_->AddRegister(absl::StrCat(state_register.reg->name(), "_full"),
+                              block_->package()->GetBitsType(1)));
+      XLS_ASSIGN_OR_RETURN(state_register.reg_full_read,
+                           block_->MakeNodeWithName<RegisterRead>(
+                               next->loc(), state_register.reg_full,
+                               /*name=*/state_register.reg_full->name()));
+      XLS_ASSIGN_OR_RETURN(
+          Node * literal_1,
+          block_->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
+      XLS_ASSIGN_OR_RETURN(
+          state_register.reg_full_write,
+          block_->MakeNode<RegisterWrite>(next->loc(), literal_1,
+                                          /*load_enable=*/std::nullopt,
+                                          /*reset=*/std::nullopt,
+                                          state_register.reg_full));
+    }
+
+    return absl::OkStatus();
   }
 
   // Don't clone Receive operations. Instead replace with a tuple
@@ -2541,75 +2645,6 @@ class CloneNodesIntoBlockHandler {
     return token_buf;
   }
 
-  // Sets the next state value for the state elements with the given indices to
-  // `next_state`.
-  absl::Status SetNextStateNode(Node* next_state, Stage stage,
-                                absl::Span<const int64_t> indices) {
-    if (next_state->GetType()->GetFlatBitCount() == 0) {
-      Proc* proc = function_base_->AsProcOrDie();
-
-      if (next_state->GetType() != proc->package()->GetTupleType({})) {
-        return absl::UnimplementedError(
-            absl::StrFormat("Proc has no state, but (state type is not"
-                            "empty tuple), instead got %s.",
-                            next_state->GetType()->ToString()));
-      }
-      return absl::OkStatus();
-    }
-
-    for (int64_t index : indices) {
-      if (!result_.state_registers.at(index).has_value()) {
-        // Next state node cloned before param access; will be dealt with when
-        // the state param is accessed.
-        continue;
-      }
-
-      StateRegister& state_register = *result_.state_registers.at(index);
-      // There should only be one next state node.
-      XLS_CHECK_EQ(state_register.reg_write, nullptr);
-
-      XLS_ASSIGN_OR_RETURN(state_register.reg_write,
-                           block_->MakeNode<RegisterWrite>(
-                               next_state->loc(), next_state,
-                               /*load_enable=*/std::nullopt,
-                               /*reset=*/std::nullopt, state_register.reg));
-      state_register.write_stage = stage;
-      result_.output_states[stage].push_back(index);
-
-      // If the next state is determined in a later cycle than the param access,
-      // we have a non-trivial backedge between initiations (II>1); use a "full"
-      // bit to track whether the state is currently valid.
-      //
-      // TODO: Consider merging the "full" bits for all states with the same
-      // read & write stages, since they share identical logic. (This might also
-      // be easy to clean up in an optimization pass; we literally have two
-      // registers & their corresponding Read/Writes connected to the exact same
-      // inputs.)
-      if (stage > state_register.read_stage) {
-        XLS_ASSIGN_OR_RETURN(
-            state_register.reg_full,
-            block_->AddRegister(
-                absl::StrCat(state_register.reg->name(), "_full"),
-                block_->package()->GetBitsType(1)));
-        XLS_ASSIGN_OR_RETURN(state_register.reg_full_read,
-                             block_->MakeNodeWithName<RegisterRead>(
-                                 next_state->loc(), state_register.reg_full,
-                                 /*name=*/state_register.reg_full->name()));
-        XLS_ASSIGN_OR_RETURN(
-            Node * literal_1,
-            block_->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
-        XLS_ASSIGN_OR_RETURN(
-            state_register.reg_full_write,
-            block_->MakeNode<RegisterWrite>(next_state->loc(), literal_1,
-                                            /*load_enable=*/std::nullopt,
-                                            /*reset=*/std::nullopt,
-                                            state_register.reg_full));
-      }
-    }
-
-    return absl::OkStatus();
-  }
-
   // Clone the operation from the source to the block as is.
   absl::StatusOr<Node*> HandleGeneralNode(Node* node) {
     std::vector<Node*> new_operands;
@@ -2712,14 +2747,6 @@ class CloneNodesIntoBlockHandler {
   bool is_proc_;
   FunctionBase* function_base_;
   Node* token_param_;
-  std::vector<Node*> state_params_;
-  // A map from each next state node to it's index(es) in the state element
-  // vector. A vector is used because node may be a next state value for more
-  // than one state element.
-  absl::flat_hash_map<Node*, std::vector<int64_t>> next_state_nodes_;
-  // A map from state indices to the stage where the next state value is
-  // scheduled.
-  std::vector<Stage> next_state_stage_;
 
   const CodegenOptions& options_;
 

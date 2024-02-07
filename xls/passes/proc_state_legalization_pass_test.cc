@@ -69,9 +69,13 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
   ProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {x, y}).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {x, y}));
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->next_values(),
+              UnorderedElementsAre(m::Next(x.node(), x.node()),
+                                   m::Next(y.node(), y.node())));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
@@ -79,9 +83,13 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
   ProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {y, x}).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {y, x}));
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->next_values(),
+              UnorderedElementsAre(m::Next(x.node(), y.node()),
+                                   m::Next(y.node(), x.node())));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {

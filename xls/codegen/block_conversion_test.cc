@@ -627,7 +627,8 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
   send: token = send(rcv_token, negate, channel=out)
-  next (send, my_state)
+  next_my_state: () = next_value(param=my_state, value=my_state)
+  next (send)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -680,8 +681,11 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
   b.Send(q_out, q);
 
   // `x_plus_one` is the next state value for both `x` and `y` state elements.
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           b.Build({x_plus_one, x_plus_one, z, literal_one}));
+  b.Next(/*param=*/x, /*value=*/x_plus_one);
+  b.Next(/*param=*/y, /*value=*/x_plus_one);
+  b.Next(/*param=*/z, /*value=*/z);
+  b.Next(/*param=*/q, /*value=*/literal_one);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -756,7 +760,8 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
   BValue min_delay = b.MinDelay(send_received, 1);
   BValue send_q = b.Send(q_out, min_delay, q);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send_q, {received_data}));
+  BValue next_q = b.Next(/*param=*/q, /*value=*/received_data);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send_q));
 
   PipelineSchedule schedule(proc,
                             ScheduleCycleMap({{tkn.node(), 0},
@@ -766,12 +771,12 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
                                               {send_received.node(), 0},
                                               {q.node(), 1},
                                               {min_delay.node(), 1},
-                                              {send_q.node(), 1}}),
+                                              {send_q.node(), 1},
+                                              {next_q.node(), 1}}),
                             /*length=*/3);
 
   // Verify that we really did schedule the param after the next-state node.
-  ASSERT_GT(schedule.cycle(proc->GetStateParam(0)),
-            schedule.cycle(proc->GetNextStateElement(0)));
+  ASSERT_GT(schedule.cycle(q.node()), schedule.cycle(received_data.node()));
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
@@ -830,8 +835,9 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
 
   send: token = send(rcv_token, negate, channel=out)
   send2: token = send(rcv2_token, negate2, channel=out2)
-  fin : token = after_all(send, send2)
-  next (fin, my_state)
+  fin: token = after_all(send, send2)
+  next_my_state: () = next_value(param=my_state, value=my_state)
+  next (fin)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -918,7 +924,8 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
   tmp: bits[32] = add(neg_data1, data2_times_two)
   sum: bits[32] = add(tmp, data0)
   send: token = send(rcv2_token, sum, channel=out)
-  next (send, my_state)
+  next_my_state: () = next_value(param=my_state, value=my_state)
+  next (send)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -946,7 +953,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
   literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15, predicate=literal.21, channel=out, id=20, pos=[(1,5,1)])
-  next (send.20, st)
+  next_st: () = next_value(param=st, value=st)
+  next (send.20)
 }
 
 )";
@@ -978,7 +986,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15,
                         channel=out, id=20, pos=[(1,5,1)])
-  next (send.20, st)
+  next_st: () = next_value(param=st, value=st)
+  next (send.20)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -1014,7 +1023,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15,
                         channel=out, id=20, pos=[(1,5,1)])
-  next (send.20, st)
+  next_st: () = next_value(param=st, value=st)
+  next (send.20)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -1043,7 +1053,9 @@ proc my_proc(tkn: token, st: (), init={()}) {
   receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
-  send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20) next (send.20, st)
+  send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20)
+  next_st: () = next_value(param=st, value=st)
+  next (send.20)
 }
 )";
 
@@ -1465,7 +1477,9 @@ proc my_proc(tkn: token, st: (), init={()}) {
   receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
-  send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20) next (send.20, st)
+  send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20)
+  next_st: () = next_value(param=st, value=st)
+  next (send.20)
 }
 )";
 
@@ -2092,7 +2106,8 @@ class SimpleRunningCounterProcTestSweepFixture
 
     BValue buffered_state = pb.Not(pb.Not(pb.Not(pb.Not(next_state))));
     pb.Send(ch_out, buffered_state);
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({next_state}));
+    pb.Next(/*param=*/state, /*value=*/next_state);
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     XLS_VLOG(2) << "Simple counting proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -2731,7 +2746,9 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
     BValue sum = pb.Add(next_accum0, next_accum1);
 
     pb.Send(ch_out, sum);
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({next_accum0, next_accum1}));
+    pb.Next(/*param=*/accum0, /*value=*/next_accum0);
+    pb.Next(/*param=*/accum1, /*value=*/next_accum1);
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     XLS_VLOG(2) << "Multi input streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -3013,7 +3030,8 @@ class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
     BValue state_plus_in1 = pb.Add(state, in1_val);
     pb.Send(ch_out1, state_plus_in1);
 
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({next_state}));
+    pb.Next(/*param=*/state, /*value=*/next_state);
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     XLS_VLOG(2) << "Multi io streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -3378,7 +3396,8 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 
 proc pipelined_proc(tkn: token, st: bits[32], init={1}) {
   send.1: token = send(tkn, st, channel=out, id=1)
-  next (send.1, st)
+  next_st: () = next_value(param=st, value=st)
+  next (send.1)
 }
 )";
 
@@ -3444,7 +3463,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
   send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
-  next (send.6, tuple_index.5)
+  next_st: () = next_value(param=st, value=tuple_index.5)
+  next (send.6)
 }
 )";
 
@@ -3523,7 +3543,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
   send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
-  next (send.6, tuple_index.5)
+  next_st: () = next_value(param=st, value=tuple_index.5)
+  next (send.6)
 }
 )";
 
@@ -4186,7 +4207,10 @@ class ProcWithStateTest : public BlockConversionTest {
     add.100: bits[32] = add(st_0, tuple_index.35, id=100)
     add.101: bits[32] = add(st_1, tuple_index.44, id=101)
     add.102: bits[32] = add(st_2, tuple_index.53, id=102)
-    next (after_all.59, add.100, add.101, add.102)
+    next_st_0: () = next_value(param=st_0, value=add.100)
+    next_st_1: () = next_value(param=st_1, value=add.101)
+    next_st_2: () = next_value(param=st_2, value=add.102)
+    next (after_all.59)
   }
   )";
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -4451,7 +4475,8 @@ proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   sum: bits[32] = add(loopback_data, st)
   out_send: token = send(loopback_tkn, sum, channel=out)
   loopback_send: token = send(out_send, sum, channel=loopback)
-  next (loopback_send, sum)
+  next_st: () = next_value(param=st, value=sum)
+  next (loopback_send)
 }
 )";
 
@@ -4505,7 +4530,8 @@ proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   loopback0_send: token = send(out_send, sum, channel=loopback0)
   loopback1_send: token = send(out_send, sum, channel=loopback1)
   loopback_send: token = after_all(loopback0_send, loopback1_send)
-  next (loopback_send, sum)
+  next_st: () = next_value(param=st, value=sum)
+  next (loopback_send)
 }
 )";
 
@@ -4548,7 +4574,8 @@ proc proc_ut(tkn: token, st: bits[32], init={0}) {
   lit1: bits[32] = literal(value=1)
   next_state: bits[32] = add(st, lit1)
   send.1: token = send(tkn, st, channel=out, id=1)
-  next (send.1, next_state)
+  next_st: () = next_value(param=st, value=next_state)
+  next (send.1)
 }
 )";
 
@@ -4661,7 +4688,8 @@ proc proc_ut(tkn: token, st: bits[32], init={0}) {
   send_token: token = send(tkn, st, channel=out, id=1)
 
   next_token: token = after_all(recv_token, send_token)
-  next (next_token, next_state)
+  next_st: () = next_value(param=st, value=next_state)
+  next (next_token)
 }
 )";
 
@@ -4783,7 +4811,8 @@ top proc proc_ut(tkn: token, _ZZN4Test4mainEvE1i__1: bits[8], init={4}) {
   literal.35: bits[8] = literal(value=1, id=35, pos=[(1,2,1)])
   add.37: bits[8] = add(_ZZN4Test4mainEvE1i__1, literal.35, id=37, pos=[(1,10,3)])
   send.41: token = send(tkn, _ZZN4Test4mainEvE1i__1, channel=out, id=41, pos=[(1,9,6)])
-  next (send.41, add.37)
+  next_st: () = next_value(param=_ZZN4Test4mainEvE1i__1, value=add.37)
+  next (send.41)
 }
 )";
 
@@ -4824,7 +4853,9 @@ top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={0, 0}
   tuple_index.9: bits[3] = tuple_index(receive.6, index=1, id=9)
   tuple_index.10: token = tuple_index(receive.6, index=0, id=10)
   sel.11: bits[3] = sel(eq.5, cases=[param__2, tuple_index.9], id=11)
-  next (tuple_index.10, literal.4, sel.11)
+  next_value.12: () = next_value(param=param__1, value=literal.4, id=12)
+  next_value.13: () = next_value(param=param__2, value=sel.11, id=13)
+  next (tuple_index.10)
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -4858,6 +4889,180 @@ top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={0, 0}
     EXPECT_THAT(unit.block->GetRegisters(), testing::Contains(state->reg));
   }
 }
+
+TEST_F(ProcConversionTestFixture, ProcWithConditionalNextValues) {
+  const std::string ir_text = R"(package test
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+  lit1: bits[32] = literal(value=1)
+  incremented_counter: bits[32] = add(counter, lit1)
+  even_iteration: bits[1] = not(odd_iteration)
+  send.1: token = send(tkn, counter, channel=out, id=1)
+  next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
+  next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
+  next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
+  next (send.1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("slow_counter"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("slow_counter");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::vector<ChannelSource> sources{};
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out_data", "out_valid", "out_ready", 1.0, unit.block,
+                  /*reset_behavior=*/ChannelSink::kAttendValid),
+  };
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> non_streaming_inputs(
+      25, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{reset_name, reset_active}},
+                                     non_streaming_inputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          unit.block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+          non_streaming_inputs, options.reset()));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+      results.inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+      results.outputs;
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  XLS_VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"out_data", SignalType::kOutput},
+                              {"out_valid", SignalType::kOutput},
+                              {"out_ready", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  EXPECT_THAT(sinks.at(0).GetOutputCycleSequenceAsUint64(),
+              IsOkAndHolds(Skipping(10, ElementsAre(0, 1, 1, 2, 2, 3, 3, 4, 4,
+                                                    5, 5, 6, 6, 7, 7))));
+}
+
+TEST_F(ProcConversionTestFixture, ProcWithDynamicStateFeedback) {
+  const std::string ir_text = R"(package test
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+  lit1: bits[32] = literal(value=1)
+  incremented_counter: bits[32] = add(counter, lit1)
+  even_iteration: bits[1] = not(odd_iteration)
+  send.1: token = send(tkn, counter, channel=out, id=1)
+  next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
+  next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
+  next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
+  next (send.1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("slow_counter"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions()
+                              .pipeline_stages(2)
+                              .worst_case_throughput(2)
+                              .add_constraint(NodeInCycleConstraint(
+                                  *proc->GetNode("next_counter_odd"), 0))
+                              .add_constraint(NodeInCycleConstraint(
+                                  *proc->GetNode("next_counter_even"), 1))));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("slow_counter");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::vector<ChannelSource> sources{};
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out_data", "out_valid", "out_ready", 1.0, unit.block,
+                  /*reset_behavior=*/ChannelSink::kAttendValid),
+  };
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> non_streaming_inputs(
+      32, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{reset_name, reset_active}},
+                                     non_streaming_inputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          unit.block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+          non_streaming_inputs, options.reset()));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+      results.inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+      results.outputs;
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  XLS_VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"out_data", SignalType::kOutput},
+                              {"out_valid", SignalType::kOutput},
+                              {"out_ready", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  EXPECT_THAT(
+      sinks.at(0).GetOutputCycleSequenceAsUint64(),
+      IsOkAndHolds(Skipping(
+          10, ElementsAre(0, std::nullopt, 1, 1, std::nullopt, 2, 2,
+                          std::nullopt, 3, 3, std::nullopt, 4, 4, std::nullopt,
+                          5, 5, std::nullopt, 6, 6, std::nullopt, 7, 7))));
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls
