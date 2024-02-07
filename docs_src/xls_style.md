@@ -110,6 +110,14 @@ in the XLS project, with the relevant Google style guides
     functionality. Prefer the suffix `_utils.h` for these, vs `_helpers.h` or
     other alternatives.
 
+*   Static member functions should be used sparingly, generally only for
+    factories that call a private constructor. We prefer to document
+    implementations with a `/* static */` comment as a reminder to readers (and
+    writers that there is no `this` available). Comments are not an ideal way to
+    mark this kind of information, but there should be a small number of these
+    functions and as factories it is unlikely the static qualifier will be
+    dropped in the future to put the comments out of sync.
+
 ### Functions
 
 *   Short or easily-explained argument lists (as defined by the developer) can
