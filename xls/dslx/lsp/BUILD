@@ -60,6 +60,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:bindings",
+        "@verible//common/lsp:lsp-file-utils",
         "@verible//common/lsp:lsp-protocol",
     ],
 )
@@ -70,10 +71,12 @@ cc_test(
     deps = [
         ":language_server_adapter",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
+        "@verible//common/lsp:lsp-protocol",
     ],
 )
 

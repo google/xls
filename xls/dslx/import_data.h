@@ -126,7 +126,7 @@ class ImportData {
   // entry, returning an error iff it is not.
   absl::Status PopFromImporterStack(const Span& import_span);
 
-  absl::StatusOr<ModuleInfo*> Get(const ImportTokens& subject);
+  absl::StatusOr<ModuleInfo*> Get(const ImportTokens& subject) const;
 
   absl::StatusOr<ModuleInfo*> Put(const ImportTokens& subject,
                                   std::unique_ptr<ModuleInfo> module_info);

@@ -71,6 +71,10 @@ InitializeResult InitializeServer(const nlohmann::json& params) {
       {"dynamicRegistration", false},
       {"linkSupport", true},
   };
+  capabilities["documentLinkProvider"] = {
+      {"dynamicRegistration", false},
+      {"tooltipSupport", false},
+  };
   capabilities["documentRangeFormattingProvider"] = true;
   return InitializeResult{
       .capabilities = std::move(capabilities),
@@ -188,6 +192,13 @@ absl::Status RealMain() {
         LspLog() << "could not format requested range: "
                  << text_edits_or.status() << "\n";
         return std::vector<verible::lsp::TextEdit>{};
+      });
+
+  dispatcher.AddRequestHandler(
+      "textDocument/documentLink",
+      [&](const verible::lsp::DocumentLinkParams& params) {
+        return language_server_adapter.ProvideImportLinks(
+            params.textDocument.uri);
       });
 
   // Main loop. Feeding the stream-splitter that then calls the dispatcher.

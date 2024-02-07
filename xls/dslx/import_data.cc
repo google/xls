@@ -42,7 +42,7 @@ namespace xls::dslx {
   return ImportTokens(absl::StrSplit(module_name, '.'));
 }
 
-absl::StatusOr<ModuleInfo*> ImportData::Get(const ImportTokens& subject) {
+absl::StatusOr<ModuleInfo*> ImportData::Get(const ImportTokens& subject) const {
   auto it = modules_.find(subject);
   if (it == modules_.end()) {
     return absl::NotFoundError("Module information was not found for import " +

@@ -67,6 +67,10 @@ class LanguageServerAdapter {
   absl::StatusOr<std::vector<verible::lsp::TextEdit>> FormatRange(
       std::string_view uri, const verible::lsp::Range& range) const;
 
+  // Present links to imports to directly open the relevant file.
+  std::vector<verible::lsp::DocumentLink> ProvideImportLinks(
+      std::string_view uri) const;
+
  private:
   struct ParseData;
   const std::string stdlib_;

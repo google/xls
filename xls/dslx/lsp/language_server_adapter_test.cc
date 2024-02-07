@@ -20,6 +20,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
+#include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 
@@ -159,6 +161,20 @@ TEST(LanguageServerAdapterTest, TestFormatRange) {
         let x = u32:42;
         x + x
     })");
+}
+
+TEST(LanguageServerAdapterTest, DocumentLinksAreCreatedForImports) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  constexpr std::string_view kUri = "memfile://test.x";
+  XLS_ASSERT_OK(adapter.Update(kUri, "import std;"));
+  //                             pos: 0123456789A
+  std::vector<verible::lsp::DocumentLink> links =
+      adapter.ProvideImportLinks(kUri);
+  ASSERT_EQ(links.size(), 1);
+  EXPECT_EQ(links.front().range.start.line, 0);
+  EXPECT_EQ(links.front().range.start.character, 7);  // link over 'std'.
+  EXPECT_EQ(links.front().range.end.character, 10);
+  EXPECT_TRUE(absl::StrContains(links.front().target, "stdlib/std.x"));
 }
 
 }  // namespace

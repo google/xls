@@ -15,6 +15,7 @@
 #include "xls/dslx/lsp/language_server_adapter.h"
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,6 +25,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "external/verible/common/lsp/lsp-file-utils.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/indent.h"
 #include "xls/dslx/create_import_data.h"
@@ -193,6 +195,32 @@ LanguageServerAdapter::FormatRange(std::string_view uri,
   }
   return absl::FailedPreconditionError(
       "Language server did not have a successful prior parse to format.");
+}
+
+std::vector<verible::lsp::DocumentLink>
+LanguageServerAdapter::ProvideImportLinks(std::string_view uri) const {
+  std::vector<verible::lsp::DocumentLink> result;
+  if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    const Module& module = parsed->module();
+    for (const auto& [_, import_node] : module.GetImportByName()) {
+      absl::StatusOr<ImportTokens> tok =
+          ImportTokens::FromString(import_node->identifier());
+      if (!tok.ok()) {
+        continue;
+      }
+      absl::StatusOr<ModuleInfo*> info = parsed->import_data.Get(tok.value());
+      if (!info.ok()) {
+        continue;
+      }
+      verible::lsp::DocumentLink link = {
+          .range = ConvertSpanToLspRange(import_node->name_def()->span()),
+          .target = verible::lsp::PathToLSPUri(info.value()->path().string()),
+          .has_target = true,
+      };
+      result.emplace_back(link);
+    }
+  }
+  return result;
 }
 
 }  // namespace xls::dslx
