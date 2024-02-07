@@ -32,7 +32,7 @@ class PipelineSchedulingPass : public SchedulingPass {
 
  protected:
   absl::StatusOr<bool> RunInternal(
-      SchedulingUnit<>* unit, const SchedulingPassOptions& options,
+      SchedulingUnit* unit, const SchedulingPassOptions& options,
       SchedulingPassResults* results) const override;
 };
 

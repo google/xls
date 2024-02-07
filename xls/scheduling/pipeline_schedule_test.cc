@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -24,6 +25,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -45,11 +48,47 @@
 
 namespace m = ::xls::op_matchers;
 
+// Matcher for use with UnorderedPointwise where you get a tuple<pair<key_t,
+// value_v>, key_t>, useful for checking that an array's elements are the same
+// as the keys of a map.
+MATCHER(KeyEqElement, "") { return std::get<0>(arg).first == std::get<1>(arg); }
+
+// Matcher to check that all nodes in FunctionBase `arg` are scheduled in the
+// matcher param.
+MATCHER_P(AllNodesScheduled, schedules, "") {
+  const ::xls::PipelineSchedule& schedule = schedules.at(arg);
+  for (::xls::Node* node : arg->nodes()) {
+    if (!schedule.IsScheduled(node)) {
+      *result_listener << absl::StreamFormat("%v  is not scheduled.", *node);
+      return false;
+    }
+  }
+  return true;
+}
+
+// Matcher to check that lhs and rhs PackagePipelineSchedules both have the same
+// schedule.
+MATCHER_P2(CyclesMatch, lhs, rhs, "") {
+  const ::xls::PipelineSchedule& lhs_schedule = lhs.at(arg);
+  const ::xls::PipelineSchedule& rhs_schedule = rhs.at(arg);
+  for (::xls::Node* node : arg->nodes()) {
+    if (lhs_schedule.cycle(node) != rhs_schedule.cycle(node)) {
+      *result_listener << absl::StreamFormat(
+          "%v (%d) is not scheduled in the same cycle as clone (%d).", *node,
+          lhs_schedule.cycle(node), rhs_schedule.cycle(node));
+      return false;
+    }
+  }
+  return true;
+}
+
 namespace xls {
 namespace {
 
+using ::testing::Each;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
+using ::testing::UnorderedPointwise;
 using xls::status_testing::StatusIs;
 
 class PipelineScheduleTest : public IrTestBase {};
@@ -1550,6 +1589,43 @@ TEST_F(PipelineScheduleTest, LoopbackChannelWithConstraint) {
     EXPECT_EQ(schedule.cycle(loopback_send.node()) - schedule.cycle(rcv.node()),
               i);
   }
+}
+
+TEST_F(PipelineScheduleTest,
+       PackagePipelineSchedulesProtoSerializeAndDeserialize) {
+  auto p = CreatePackage();
+  auto make_test_fn = [](Package* p, std::string_view name) {
+    FunctionBuilder fb(name, p);
+    Type* u32 = p->GetBitsType(32);
+    auto x = fb.Param("x", u32);
+    // Perform several additions to populate the schedule with some nodes.
+    return fb.BuildWithReturnValue(x + x + x + x + x + x);
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * func0, make_test_fn(p.get(), absl::StrCat(TestName(), "0")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * func1, make_test_fn(p.get(), absl::StrCat(TestName(), "1")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule0,
+      RunPipelineSchedule(func0, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule1,
+      RunPipelineSchedule(func1, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
+  PackagePipelineSchedules schedules = {{func0, schedule0}, {func1, schedule1}};
+
+  PackagePipelineSchedulesProto proto =
+      PackagePipelineSchedulesToProto(schedules, TestDelayEstimator());
+  XLS_ASSERT_OK_AND_ASSIGN(PackagePipelineSchedules clone,
+                           PackagePipelineSchedulesFromProto(p.get(), proto));
+  ASSERT_THAT(schedules,
+              UnorderedPointwise(KeyEqElement(), p->GetFunctionBases()));
+  ASSERT_THAT(clone, UnorderedPointwise(KeyEqElement(), p->GetFunctionBases()));
+  ASSERT_THAT(p->GetFunctionBases(), Each(AllNodesScheduled(schedules)));
+  ASSERT_THAT(p->GetFunctionBases(), Each(AllNodesScheduled(clone)));
+  EXPECT_THAT(p->GetFunctionBases(), Each(CyclesMatch(schedules, clone)));
 }
 
 }  // namespace

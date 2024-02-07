@@ -734,7 +734,7 @@ absl::Status AddSelectPredicates(Predicates* p, FunctionBase* f) {
         // Finally, propagate a `selector == case_index` condition to all nodes
         // dominated by this case node.
         for (Node* dominated : pda->GetNodesPostDominatedByNode(case_node)) {
-          // TODO(taktoa): code postdominated by the default case should have
+          // TODO(taktoa): code post dominated by the default case should have
           // the predicate `selector > select->cases().size()` added to it.
           predicate_sets[dominated].settings.insert(
               SelectorEquals{select->selector(), UBits(index, selector_bits)});
@@ -939,18 +939,16 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
 }
 
 absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
-    SchedulingUnit<FunctionBase*>* unit, const SchedulingPassOptions& options,
+    FunctionBase* f, SchedulingUnit* unit, const SchedulingPassOptions& options,
     SchedulingPassResults* results) const {
-  FunctionBase* f = unit->ir;
-
   ScheduleCycleMap scm;
-  if (unit->schedule.has_value()) {
-    if (f != unit->schedule.value().function_base()) {
+  if (unit->schedules().contains(f)) {
+    if (f != unit->schedules().at(f).function_base()) {
       return false;
     }
-    scm = unit->schedule.value().GetCycleMap();
+    scm = unit->schedules().at(f).GetCycleMap();
   } else {
-    for (Node* node : unit->ir->nodes()) {
+    for (Node* node : f->nodes()) {
       scm[node] = 0;
     }
   }
@@ -996,8 +994,9 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
     XLS_ASSIGN_OR_RETURN(bool subpass_changed, MergeNodes(&p, f, merge_class));
     changed = changed || subpass_changed;
   }
+
   if (changed) {
-    unit->schedule = std::nullopt;
+    unit->schedules().clear();
   }
 
   return changed;

@@ -41,11 +41,16 @@ message StageProto {
   repeated TimedNodeProto timed_nodes = 3;
 }
 
-// Holds the overall module pipeline schedule.
+// Holds the pipeline schedule for a function or proc.
 message PipelineScheduleProto {
   // The name of the [IR] function matching this schedule.
   optional string function = 1;
 
   // The set of stages comprising this schedule.
   repeated StageProto stages = 2;
+}
+
+// Holds pipeline schedules for a subset of functions/procs in a package.
+message PackagePipelineSchedulesProto {
+  map<string, PipelineScheduleProto> schedules = 1;
 }

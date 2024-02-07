@@ -37,6 +37,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -51,6 +52,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"
@@ -108,8 +110,10 @@ class SideEffectConditionPassTest
     // First, schedule.
     std::unique_ptr<SchedulingPass> scheduling_pipeline =
         CreateSchedulingPassPipeline();
-    SchedulingUnit<> scheduling_unit;
-    scheduling_unit.ir = p;
+    XLS_RET_CHECK(p->GetTop().has_value());
+    FunctionBase* top = p->GetTop().value();
+    auto scheduling_unit =
+        SchedulingUnit::CreateForSingleFunction(p->GetTop().value());
     SchedulingPassOptions scheduling_pass_options{
         .scheduling_options = std::move(scheduling_options),
         .delay_estimator = GetDelayEstimator("unit").value()};
@@ -118,21 +122,16 @@ class SideEffectConditionPassTest
                             ->Run(&scheduling_unit, scheduling_pass_options,
                                   &scheduling_results)
                             .status());
-    XLS_RET_CHECK(scheduling_unit.schedule.has_value());
-
-    FunctionBase* top = p->GetTop().value_or(nullptr);
-    XLS_RET_CHECK(top != nullptr);
-
     codegen_options.clock_name("clk");
     codegen_options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
                           /*reset_data_path=*/false);
-    XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
-                         FunctionBaseToPipelinedBlock(*scheduling_unit.schedule,
-                                                      codegen_options, top));
+    const PipelineSchedule& schedule = scheduling_unit.schedules().at(top);
+    XLS_ASSIGN_OR_RETURN(
+        CodegenPassUnit unit,
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, top));
     PassResults results;
-    CodegenPassOptions codegen_pass_option{
-        .codegen_options = codegen_options,
-        .schedule = scheduling_unit.schedule};
+    CodegenPassOptions codegen_pass_option{.codegen_options = codegen_options,
+                                           .schedule = schedule};
     return GetParam()->Run(&unit, codegen_pass_option, &results);
   }
   static absl::StatusOr<std::vector<std::string>> RunInterpreterWithEvents(

@@ -1252,7 +1252,6 @@ cc_binary(
         "//xls/codegen:pipeline_generator",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common:math_util",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:ret_check",

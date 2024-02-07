@@ -11,6 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// Abstractions for describing the binding of Nodes to cycles.
+// PackagePipelineSchedules map FunctionBases to a PipelineSchedule, and
+// PipelineSchedule maps nodes in a FunctionBase to an integer value
+// representing a pipeline stage.
 
 #ifndef XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
 #define XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
@@ -20,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -32,7 +38,7 @@
 
 namespace xls {
 
-// Abstraction describing the binding of Nodes to cycles.
+// Abstraction describing the binding of Nodes to cycles for a FunctionBase.
 class PipelineSchedule {
  public:
   // Reconstructs a PipelineSchedule object from a proto representation.
@@ -115,6 +121,22 @@ class PipelineSchedule {
   // The nodes scheduled each cycle.
   std::vector<std::vector<Node*>> cycle_to_nodes_;
 };
+
+// Group of PipelineSchedules for subset of FunctionBases in a package.
+using PackagePipelineSchedules =
+    absl::flat_hash_map<FunctionBase*, PipelineSchedule>;
+
+// Reconstructs a PackagePipelineSchedules object from a proto representation.
+// Will return an error status if the proto schedules reference nodes that don't
+// exist in the package.
+absl::StatusOr<PackagePipelineSchedules> PackagePipelineSchedulesFromProto(
+    Package* p, const PackagePipelineSchedulesProto& proto);
+
+// Returns a protobuf holding the PackagePipelineSchedules object's scheduling
+// info.
+PackagePipelineSchedulesProto PackagePipelineSchedulesToProto(
+    const PackagePipelineSchedules& schedules,
+    const DelayEstimator& delay_estimator);
 
 }  // namespace xls
 

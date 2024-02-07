@@ -15,60 +15,68 @@
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 
 #include <cstdint>
-#include <optional>
+#include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
 
+namespace {
+
+// Adds cycle constraints from a PipelineSchedule into SchedulingOptions.
+void AddCycleConstraints(const PipelineSchedule& schedule,
+                         SchedulingOptions& scheduling_options) {
+  for (int64_t c = 0; c < schedule.length(); ++c) {
+    for (Node* node : schedule.nodes_in_cycle(c)) {
+      scheduling_options.add_constraint(NodeInCycleConstraint(node, c));
+    }
+  }
+}
+}  // namespace
+
 absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
-    SchedulingUnit<>* unit, const SchedulingPassOptions& options,
+    SchedulingUnit* unit, const SchedulingPassOptions& options,
     SchedulingPassResults* results) const {
   XLS_RET_CHECK_NE(options.delay_estimator, nullptr);
+  bool changed = false;
 
-  absl::flat_hash_map<Node*, int64_t> schedule_cycle_map_before;
-  SchedulingOptions scheduling_options = options.scheduling_options;
-  if (unit->schedule.has_value()) {
-    for (int64_t c = 0; c < unit->schedule.value().length(); ++c) {
-      for (Node* node : unit->schedule.value().nodes_in_cycle(c)) {
-        schedule_cycle_map_before[node] = c;
-        if (!scheduling_options.use_fdo()) {
-          scheduling_options.add_constraint(NodeInCycleConstraint(node, c));
-        }
+  XLS_ASSIGN_OR_RETURN(std::vector<FunctionBase*> schedulable_functions,
+                       unit->GetSchedulableFunctions());
+  for (FunctionBase* f : schedulable_functions) {
+    if (f->ForeignFunctionData().has_value()) {
+      continue;
+    }
+    absl::flat_hash_map<Node*, int64_t> schedule_cycle_map_before;
+    SchedulingOptions scheduling_options = options.scheduling_options;
+    auto schedule_itr = unit->schedules().find(f);
+    if (schedule_itr != unit->schedules().end()) {
+      const PipelineSchedule& schedule = schedule_itr->second;
+      schedule_cycle_map_before = schedule.GetCycleMap();
+      if (!scheduling_options.use_fdo()) {
+        AddCycleConstraints(schedule, scheduling_options);
       }
     }
+
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        RunPipelineSchedule(f, *options.delay_estimator, scheduling_options,
+                            options.synthesizer));
+
+    // Compute `changed` before moving schedule into unit->schedules.
+    changed = changed || (schedule_cycle_map_before != schedule.GetCycleMap());
+
+    unit->schedules().insert_or_assign(schedule_itr, f, std::move(schedule));
   }
-
-  FunctionBase* f = nullptr;
-  if (unit->schedule.has_value()) {
-    f = unit->schedule.value().function_base();
-  } else {
-    std::optional<FunctionBase*> top = unit->ir->GetTop();
-    XLS_RET_CHECK(top.has_value())
-        << "Package " << unit->name() << " needs a top function/proc.";
-    f = top.value();
-  }
-
-  XLS_ASSIGN_OR_RETURN(
-      unit->schedule,
-      RunPipelineSchedule(f, *options.delay_estimator, scheduling_options,
-                          options.synthesizer));
-
-  absl::flat_hash_map<Node*, int64_t> schedule_cycle_map_after;
-  for (int64_t c = 0; c < unit->schedule.value().length(); ++c) {
-    for (Node* node : unit->schedule.value().nodes_in_cycle(c)) {
-      schedule_cycle_map_after[node] = c;
-    }
-  }
-
-  return schedule_cycle_map_before != schedule_cycle_map_after;
+  return changed;
 }
 
 }  // namespace xls

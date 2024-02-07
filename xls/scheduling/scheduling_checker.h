@@ -24,7 +24,7 @@ namespace xls {
 // invariants of the schedule.
 class SchedulingChecker : public SchedulingInvariantChecker {
  public:
-  absl::Status Run(SchedulingUnit<>* unit, const SchedulingPassOptions& options,
+  absl::Status Run(SchedulingUnit* unit, const SchedulingPassOptions& options,
                    SchedulingPassResults* results) const override;
 };
 

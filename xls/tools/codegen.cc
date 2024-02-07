@@ -148,7 +148,6 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator,
     synthesis::Synthesizer* synthesizer) {
-  Package* p = main->package();
   SchedulingPassOptions sched_options;
   sched_options.scheduling_options = scheduling_options;
   sched_options.delay_estimator = delay_estimator;
@@ -156,7 +155,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
       CreateSchedulingPassPipeline();
   SchedulingPassResults results;
-  SchedulingUnit<> scheduling_unit = {p, /*schedule=*/std::nullopt};
+  auto scheduling_unit = SchedulingUnit::CreateForSingleFunction(main);
   absl::Status scheduling_status =
       scheduling_pipeline->Run(&scheduling_unit, sched_options, &results)
           .status();
@@ -178,9 +177,10 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     }
     return scheduling_status;
   }
-  XLS_RET_CHECK(scheduling_unit.schedule.has_value());
+  auto schedule_itr = scheduling_unit.schedules().find(main);
+  XLS_RET_CHECK(schedule_itr != scheduling_unit.schedules().end());
 
-  return scheduling_unit.schedule.value();
+  return schedule_itr->second;
 }
 
 }  // namespace

@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_pass.h"
 
@@ -46,7 +47,7 @@ class SchedulingWrapperPass : public SchedulingPass {
 
  protected:
   absl::StatusOr<bool> RunInternal(
-      SchedulingUnit<>* unit, const SchedulingPassOptions& options,
+      SchedulingUnit* unit, const SchedulingPassOptions& options,
       SchedulingPassResults* results) const override;
 
  private:

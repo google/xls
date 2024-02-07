@@ -44,7 +44,6 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
@@ -201,7 +200,7 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
                                   pass_results.invocations.size());
 
   // Aggregate run times by the pass name and print a table of the aggregate
-  // execution time of each pass in decending order.
+  // execution time of each pass in descending order.
   absl::flat_hash_map<std::string, absl::Duration> pass_times;
   absl::flat_hash_map<std::string, int64_t> pass_counts;
   absl::flat_hash_map<std::string, int64_t> changed_counts;
@@ -372,7 +371,7 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
       CreateSchedulingPassPipeline();
   SchedulingPassResults results;
-  SchedulingUnit<> scheduling_unit = {package, /*schedule=*/std::nullopt};
+  auto scheduling_unit = SchedulingUnit::CreateForSingleFunction(*top);
 
   absl::Time start = absl::Now();
   XLS_RETURN_IF_ERROR(
@@ -381,7 +380,7 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
                                   total_time / absl::Milliseconds(1));
 
-  return std::move(*scheduling_unit.schedule);
+  return std::move(scheduling_unit.schedules().at(*top));
 }
 
 absl::Status PrintCodegenInfo(FunctionBase* f,
@@ -501,7 +500,8 @@ absl::Status PrintProcInfo(Proc* p) {
 
 // Invokes `f` until (approximately) at least`duration_ms` milliseconds have
 // passed and returns the number of calls per second.
-absl::StatusOr<float> CountRate(std::function<void()> f, int64_t duration_ms) {
+absl::StatusOr<float> CountRate(const std::function<void()>& f,
+                                int64_t duration_ms) {
   // To avoid including absl::Now() calls in the time measurement, first
   // estimate how many calls it will take for `duration_ms` milliseconds to
   // elapse. This is done my running until `duration_ms / 10` milliseconds have
@@ -785,7 +785,7 @@ absl::Status RealMain(std::string_view path,
 
   std::optional<int64_t> effective_clock_period_ps;
   if (clock_period_ps.has_value()) {
-    effective_clock_period_ps = *clock_period_ps;
+    effective_clock_period_ps = clock_period_ps;
     if (clock_margin_percent.has_value()) {
       effective_clock_period_ps =
           *effective_clock_period_ps -

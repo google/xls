@@ -14,17 +14,30 @@
 
 #include "xls/scheduling/mutual_exclusion_pass.h"
 
+#include <cstdint>
+#include <memory>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/ir/function.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/op.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
+#include "xls/ir/verifier.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
+#include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
 namespace {
@@ -41,32 +54,46 @@ class SimplificationPass : public OptimizationCompoundPass {
   }
 };
 
-class MutualExclusionPassTest : public IrTestBase {
- protected:
-  MutualExclusionPassTest() = default;
+using MutualExclusionPassTest = IrTestBase;
 
-  absl::StatusOr<bool> Run(FunctionBase* f) {
-    PassResults results;
-    bool changed = false;
-    bool subpass_changed;
-    {
-      SchedulingUnit<FunctionBase*> unit;
-      unit.ir = f;
-      SchedulingPassResults scheduling_results;
-      XLS_ASSIGN_OR_RETURN(
-          subpass_changed,
-          MutualExclusionPass().RunOnFunctionBase(
-              &unit, SchedulingPassOptions(), &scheduling_results));
-      changed = changed || subpass_changed;
-    }
-    XLS_ASSIGN_OR_RETURN(
-        subpass_changed,
-        SimplificationPass().Run(f->package(), OptimizationPassOptions(),
-                                 &results));
+absl::StatusOr<bool> RunMutualExlusionPass(SchedulingUnit&& unit) {
+  PassResults results;
+  bool changed = false;
+  bool subpass_changed;
+  {
+    SchedulingPassResults scheduling_results;
+    XLS_ASSIGN_OR_RETURN(subpass_changed, MutualExclusionPass().Run(
+                                              &unit, SchedulingPassOptions(),
+                                              &scheduling_results));
     changed = changed || subpass_changed;
-    return changed;
   }
-};
+  XLS_ASSIGN_OR_RETURN(
+      subpass_changed,
+      SimplificationPass().Run(unit.GetPackage(), OptimizationPassOptions(),
+                               &results));
+  changed = changed || subpass_changed;
+  return changed;
+}
+
+absl::StatusOr<bool> RunMutualExclusionPass(Package* p) {
+  return RunMutualExlusionPass(SchedulingUnit::CreateForWholePackage(p));
+}
+absl::StatusOr<bool> RunMutualExclusionPass(FunctionBase* f) {
+  return RunMutualExlusionPass(SchedulingUnit::CreateForSingleFunction(f));
+}
+
+absl::StatusOr<Proc*> CreateTwoParallelSendsProc(Package* p,
+                                                 std::string_view name,
+                                                 Channel* channel) {
+  ProcBuilder pb(name, "__token", p);
+  BValue st = pb.StateElement("__state", Value(UBits(0, 1)));
+  BValue not_st = pb.Not(st);
+  BValue lit50 = pb.Literal(UBits(50, 32));
+  BValue lit60 = pb.Literal(UBits(60, 32));
+  BValue send0 = pb.SendIf(channel, pb.GetTokenParam(), st, lit50);
+  BValue send1 = pb.SendIf(channel, pb.GetTokenParam(), not_st, lit60);
+  return pb.Build(pb.AfterAll({send0, send1}), {not_st});
+}
 
 absl::StatusOr<Node*> FindOp(FunctionBase* f, Op op) {
   Node* result = nullptr;
@@ -93,25 +120,14 @@ int64_t NumberOfOp(FunctionBase* f, Op op) {
 }
 
 TEST_F(MutualExclusionPassTest, TwoParallelSends) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
-     package test_module
-
-     chan test_channel(
-       bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
-
-     top proc main(__token: token, __state: bits[1], init={0}) {
-       not.1: bits[1] = not(__state)
-       literal.2: bits[32] = literal(value=50)
-       literal.3: bits[32] = literal(value=60)
-       send.4: token = send(__token, literal.2, predicate=__state, channel=test_channel)
-       send.5: token = send(__token, literal.3, predicate=not.1, channel=test_channel)
-       after_all.6: token = after_all(send.4, send.5)
-       next (after_all.6, not.1)
-     }
-  )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * test_channel,
+      p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
+                                p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, CreateTwoParallelSendsProc(p.get(), "main", test_channel));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
   XLS_EXPECT_OK(VerifyProc(proc, true));
 }
@@ -142,7 +158,7 @@ TEST_F(MutualExclusionPassTest, ThreeParallelSends) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
   XLS_EXPECT_OK(VerifyProc(proc, true));
   XLS_ASSERT_OK_AND_ASSIGN(Node * one_hot_select, FindOp(proc, Op::kOneHotSel));
@@ -175,7 +191,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
 }
 
@@ -202,7 +218,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 3);
 }
 
@@ -236,7 +252,7 @@ TEST_F(MutualExclusionPassTest, Complex) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 3);
 }
 
@@ -263,7 +279,7 @@ TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 1);
   XLS_EXPECT_OK(VerifyProc(proc, true));
 }
@@ -291,7 +307,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 1);
 }
 
@@ -323,7 +339,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
 }
 
@@ -351,7 +367,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithDataDep) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
 }
 
@@ -386,7 +402,7 @@ TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunMutualExclusionPass(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
 }
 
@@ -415,40 +431,29 @@ TEST_F(MutualExclusionPassTest, SelectPredicates) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   Predicates preds;
   XLS_ASSERT_OK(AddSelectPredicates(&preds, proc));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("selector1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("selector2")).has_value());
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("input1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("input2")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("input3")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("not_input1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("not_input2")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("not_input3")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("select1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("select2")).has_value());
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("zero")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("selector1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("selector2")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input2")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input3")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input2")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input3")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("select1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("select2")).has_value());
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("zero")).has_value());
 }
 
 TEST_F(MutualExclusionPassTest, SelectPredicatesCaseFanout) {
@@ -477,40 +482,28 @@ TEST_F(MutualExclusionPassTest, SelectPredicatesCaseFanout) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   Predicates preds;
   XLS_ASSERT_OK(AddSelectPredicates(&preds, proc));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("selector1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("selector2")).has_value());
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("input1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("input2")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("input3")).has_value());
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("not_input1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("not_input2")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("not_input3")).has_value());
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("select1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("select2")).has_value());
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("anded")).has_value());
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("zero")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("selector1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("selector2")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input2")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("input3")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input2")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("not_input3")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("select1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("select2")).has_value());
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("anded")).has_value());
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("zero")).has_value());
 }
 
 TEST_F(MutualExclusionPassTest, SelectPredicatesImplicitUses) {
@@ -538,38 +531,48 @@ TEST_F(MutualExclusionPassTest, SelectPredicatesImplicitUses) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   Predicates preds;
   XLS_ASSERT_OK(AddSelectPredicates(&preds, proc));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("selector1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("selector2")).has_value());
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("input1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("input2")).has_value());
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("input3")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("not_input1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("not_input2")).value(),
-      m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-             m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("not_input3")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
-  EXPECT_THAT(
-      preds.GetPredicate(*proc->GetNode("select1")).value(),
-      m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("select2")).has_value());
-  EXPECT_FALSE(
-      preds.GetPredicate(*proc->GetNode("zero")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("selector1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("selector2")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("input2")).has_value());
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input3")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input2")).value(),
+              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input3")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
+  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("select1")).value(),
+              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("select2")).has_value());
+  EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("zero")).has_value());
+}
+
+TEST_F(MutualExclusionPassTest, TwoProcsBothHavingTwoParallelSends) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * test_channel0,
+      p->CreateStreamingChannel("test_channel0", ChannelOps::kSendOnly,
+                                p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * test_channel1,
+      p->CreateStreamingChannel("test_channel1", ChannelOps::kSendOnly,
+                                p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc0, CreateTwoParallelSendsProc(
+                                             p.get(), "proc0", test_channel0));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, CreateTwoParallelSendsProc(
+                                             p.get(), "proc1", test_channel1));
+  EXPECT_THAT(RunMutualExclusionPass(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfOp(proc0, Op::kSend), 1);
+  EXPECT_EQ(NumberOfOp(proc1, Op::kSend), 1);
+  XLS_EXPECT_OK(VerifyProc(proc0, true));
+  XLS_EXPECT_OK(VerifyProc(proc1, true));
 }
 
 }  // namespace

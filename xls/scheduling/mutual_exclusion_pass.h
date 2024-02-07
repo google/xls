@@ -19,6 +19,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_pass.h"
 
@@ -114,7 +115,8 @@ class MutualExclusionPass : public SchedulingOptimizationFunctionBasePass {
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      SchedulingUnit<FunctionBase*>* unit, const SchedulingPassOptions& options,
+      FunctionBase* f, SchedulingUnit* unit,
+      const SchedulingPassOptions& options,
       SchedulingPassResults* results) const override;
 };
 

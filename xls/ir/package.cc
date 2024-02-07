@@ -120,7 +120,7 @@ absl::StatusOr<Block*> Package::GetTopAsBlock() const {
 }
 
 absl::StatusOr<FunctionBase*> Package::GetFunctionBaseByName(
-    std::string_view name) {
+    std::string_view name) const {
   std::vector<FunctionBase*> fbs = GetFunctionBases();
   int64_t count = std::count_if(
       fbs.begin(), fbs.end(),

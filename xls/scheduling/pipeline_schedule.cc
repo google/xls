@@ -42,6 +42,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -562,6 +563,32 @@ int64_t PipelineSchedule::CountFinalInteriorPipelineRegisters() const {
   }
 
   return reg_count;
+}
+
+/*static*/ absl::StatusOr<PackagePipelineSchedules>
+PackagePipelineSchedulesFromProto(Package* p,
+                                  const PackagePipelineSchedulesProto& proto) {
+  PackagePipelineSchedules schedules;
+  for (const auto& [fb_name, proto_schedule] : proto.schedules()) {
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Converting proto for Functionbase with name %s", fb_name);
+    XLS_ASSIGN_OR_RETURN(FunctionBase * fb, p->GetFunctionBaseByName(fb_name));
+    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
+                         PipelineSchedule::FromProto(fb, proto_schedule));
+    schedules.insert({fb, std::move(schedule)});
+  }
+  return schedules;
+}
+
+PackagePipelineSchedulesProto PackagePipelineSchedulesToProto(
+    const PackagePipelineSchedules& schedules,
+    const DelayEstimator& delay_estimator) {
+  PackagePipelineSchedulesProto proto;
+  for (const auto& [fb, schedule] : schedules) {
+    proto.mutable_schedules()->insert(
+        {fb->name(), schedule.ToProto(delay_estimator)});
+  }
+  return proto;
 }
 
 }  // namespace xls
