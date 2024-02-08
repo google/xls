@@ -16,12 +16,14 @@ pub const DATA_WIDTH = u32:64;
 pub const MAX_ID = u32::MAX;
 pub const SYMBOL_WIDTH = u32:8;
 pub const BLOCK_SIZE_WIDTH = u32:21;
+pub const OFFSET_WIDTH = u32:22;
 
 pub type BlockData = bits[DATA_WIDTH];
 pub type BlockPacketLength = u32;
 pub type BlockSize = bits[BLOCK_SIZE_WIDTH];
 pub type CopyOrMatchContent = BlockData;
 pub type CopyOrMatchLength = u64;
+pub type Offset = bits[OFFSET_WIDTH];
 
 pub enum BlockType : u2 {
     RAW = 0,
