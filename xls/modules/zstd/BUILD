@@ -598,3 +598,23 @@ xls_dslx_test(
     name = "ram_printer_dslx_test",
     library = ":ram_printer_dslx",
 )
+
+xls_dslx_library(
+    name = "sequence_executor_dslx",
+    srcs = [
+        "sequence_executor.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":ram_printer_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "sequence_executor_dslx_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":sequence_executor_dslx",
+)
