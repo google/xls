@@ -19,8 +19,10 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -144,7 +146,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   return options;
 }
 
-absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
+using PipelineScheduleOrGroup =
+    std::variant<PipelineSchedule, PackagePipelineSchedules>;
+
+absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator,
     synthesis::Synthesizer* synthesizer) {
@@ -154,8 +159,14 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
   sched_options.synthesizer = synthesizer;
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
       CreateSchedulingPassPipeline();
+  absl::flat_hash_map<FunctionBase*, PipelineSchedule> schedules;
+
   SchedulingPassResults results;
-  auto scheduling_unit = SchedulingUnit::CreateForSingleFunction(main);
+  XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
+  auto scheduling_unit =
+      (scheduling_options.schedule_all_procs())
+          ? SchedulingUnit::CreateForWholePackage(main->package())
+          : SchedulingUnit::CreateForSingleFunction(main);
   absl::Status scheduling_status =
       scheduling_pipeline->Run(&scheduling_unit, sched_options, &results)
           .status();
@@ -176,6 +187,10 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
              << error_message << ": ";
     }
     return scheduling_status;
+  }
+  XLS_RET_CHECK(scheduling_unit.schedules().contains(main));
+  if (scheduling_options.schedule_all_procs()) {
+    return std::move(scheduling_unit).schedules();
   }
   auto schedule_itr = scheduling_unit.schedules().find(main);
   XLS_RET_CHECK(schedule_itr != scheduling_unit.schedules().end());
@@ -231,19 +246,38 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
                            SetUpSynthesizer(scheduling_options));
     }
 
-    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
+    XLS_ASSIGN_OR_RETURN(PipelineScheduleOrGroup schedules,
                          RunSchedulingPipeline(main(), scheduling_options,
                                                &delay_estimator, synthesizer));
 
     XLS_RETURN_IF_ERROR(VerifyPackage(p, /*codegen=*/true));
 
-    XLS_ASSIGN_OR_RETURN(
-        verilog::ModuleGeneratorResult result,
-        verilog::ToPipelineModuleText(schedule, main(), codegen_options,
-                                      &delay_estimator));
+    if (main()->IsProc()) {
+      // Force using non-pretty printed codegen when generating procs.
+      // TODO(tedhong): 2021-09-25 - Update pretty-printer to support
+      //  blocks with flow control.
+      codegen_options.emit_as_pipeline(false);
+    }
+
+    verilog::ModuleGeneratorResult result;
+    PackagePipelineSchedulesProto package_pipeline_schedules_proto;
+    if (std::holds_alternative<PipelineSchedule>(schedules)) {
+      const PipelineSchedule& schedule = std::get<PipelineSchedule>(schedules);
+      XLS_ASSIGN_OR_RETURN(
+          result, verilog::ToPipelineModuleText(
+                      schedule, main(), codegen_options, &delay_estimator));
+      package_pipeline_schedules_proto.mutable_schedules()->insert(
+          {schedule.function_base()->name(),
+           schedule.ToProto(delay_estimator)});
+    } else if (std::holds_alternative<PackagePipelineSchedules>(schedules)) {
+      XLS_LOG(FATAL) << "Cannot codegen multi-proc schedule.";
+    } else {
+      XLS_LOG(FATAL) << absl::StreamFormat("Unknown schedules type (%d).",
+                                           schedules.index());
+    }
     return CodegenResult{
         .module_generator_result = result,
-        .pipeline_schedule_proto = schedule.ToProto(delay_estimator),
+        .package_pipeline_schedules_proto = package_pipeline_schedules_proto,
     };
   }
 

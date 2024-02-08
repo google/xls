@@ -105,7 +105,8 @@ absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
 
 struct ScheduleAndCodegenResult {
   verilog::ModuleGeneratorResult module_generator_result;
-  std::optional<PipelineScheduleProto> pipeline_schedule_proto = std::nullopt;
+  std::optional<PackagePipelineSchedulesProto> pipeline_schedule_group_proto =
+      std::nullopt;
 };
 
 // Schedules and codegen a given package.

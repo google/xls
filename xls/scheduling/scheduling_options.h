@@ -241,7 +241,8 @@ class SchedulingOptions {
         fdo_fanout_driven_path_number_(0),
         fdo_refinement_stochastic_ratio_(1.0),
         fdo_path_evaluate_strategy_(PathEvaluateStrategy::WINDOW),
-        fdo_synthesizer_name_("yosys") {}
+        fdo_synthesizer_name_("yosys"),
+        schedule_all_procs_(false) {}
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
@@ -460,6 +461,11 @@ class SchedulingOptions {
     return fdo_synthesis_libraries_;
   }
 
+  SchedulingOptions& schedule_all_procs(bool value) {
+    schedule_all_procs_ = value;
+    return *this;
+  }
+  bool schedule_all_procs() const { return schedule_all_procs_; }
 
  private:
   SchedulingStrategy strategy_;
@@ -486,6 +492,7 @@ class SchedulingOptions {
   std::string fdo_yosys_path_;
   std::string fdo_sta_path_;
   std::string fdo_synthesis_libraries_;
+  bool schedule_all_procs_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.

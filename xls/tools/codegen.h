@@ -28,7 +28,8 @@ namespace xls {
 
 struct CodegenResult {
   verilog::ModuleGeneratorResult module_generator_result;
-  std::optional<PipelineScheduleProto> pipeline_schedule_proto = std::nullopt;
+  std::optional<PackagePipelineSchedulesProto>
+      package_pipeline_schedules_proto = std::nullopt;
 };
 
 absl::StatusOr<CodegenResult> ScheduleAndCodegen(

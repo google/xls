@@ -78,6 +78,34 @@ fn gate_example(x: bits[32], y: bits[1]) -> bits[32] {
 }
 """
 
+MULTI_PROC_IR = """package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only,
+        flow_control=ready_valid, metadata="")
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive,
+        flow_control=ready_valid, metadata="")
+chan out(bits[32], id=2, kind=streaming, ops=send_only,
+        flow_control=ready_valid, metadata="")
+
+proc proc0(my_token: token, my_state: (), init={()}) {
+  rcv: (token, bits[32]) = receive(my_token, channel=in)
+  data: bits[32] = tuple_index(rcv, index=1)
+  negate: bits[32] = neg(data)
+  rcv_token: token = tuple_index(rcv, index=0)
+  send: token = send(rcv_token, negate, channel=internal)
+  next (send, my_state)
+}
+
+proc proc1(my_token: token, my_state: (), init={()}) {
+  rcv: (token, bits[32]) = receive(my_token, channel=internal)
+  data: bits[32] = tuple_index(rcv, index=1)
+  negate: bits[32] = neg(data)
+  rcv_token: token = tuple_index(rcv, index=0)
+  send: token = send(rcv_token, negate, channel=out)
+  next (send, my_state)
+}
+"""
+
 
 class CodeGenMainTest(parameterized.TestCase):
 
@@ -319,6 +347,49 @@ class CodeGenMainTest(parameterized.TestCase):
         '--flop_outputs_kind=zerolatency', ir_file.full_path
     ]).decode('utf-8')
     self._compare_to_golden(verilog)
+
+  def test_multi_proc(self):
+    ir_file = self.create_tempfile(content=MULTI_PROC_IR)
+    with self.assertRaises(subprocess.CalledProcessError) as cm:
+      subprocess.check_output(
+          [
+              CODEGEN_MAIN_PATH,
+              '--generator=pipeline',
+              '--pipeline_stages=2',
+              '--reset=rst',
+              '--multi_proc',
+              '--delay_model=unit',
+              '--alsologtostderr',
+              '--top=proc0',
+              '--module_name=multi_proc',
+              ir_file.full_path,
+          ],
+          stderr=subprocess.STDOUT,
+      ).decode('utf-8')
+    self.assertContainsExactSubsequence(
+        str(cm.exception.output), 'Cannot codegen multi-proc schedule.'
+    )
+
+  def test_multi_proc_container_has_name_of_block(self):
+    ir_file = self.create_tempfile(content=MULTI_PROC_IR)
+    with self.assertRaises(subprocess.CalledProcessError) as cm:
+      subprocess.check_output(
+          [
+              CODEGEN_MAIN_PATH,
+              '--generator=pipeline',
+              '--pipeline_stages=2',
+              '--reset=rst',
+              '--multi_proc',
+              '--delay_model=unit',
+              '--alsologtostderr',
+              '--top=proc0',
+              ir_file.full_path,
+          ],
+          stderr=subprocess.STDOUT,
+      ).decode('utf-8')
+    self.assertContainsExactSubsequence(
+        str(cm.exception.output), 'Cannot codegen multi-proc schedule.'
+    )
 
 
 if __name__ == '__main__':

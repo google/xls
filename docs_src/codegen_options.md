@@ -162,6 +162,7 @@ Some names can be set at codegen via the following flags:
     `@always_ff`, asserts, covers, etc. True by default.
 -   `--separate_lines` causes every subexpression to be emitted on a separate
     line. False by default.
+-   `--multi_proc` causes every proc to be codegen'd.
 
 ## Format Strings
 

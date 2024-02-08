@@ -308,6 +308,7 @@ def xls_ir_verilog_impl(ctx, src):
         "fdo_yosys_path",
         "fdo_sta_path",
         "fdo_synthesis_libraries",
+        "multi_proc",
     )
 
     is_args_valid(codegen_args, CODEGEN_FLAGS + SCHEDULING_FLAGS)

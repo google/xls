@@ -87,7 +87,8 @@ absl::Status RealMain(std::string_view ir_path) {
       ScheduleAndCodegen(p.get(), scheduling_options_flags_proto,
                          codegen_flags_proto, delay_model_flag_passed));
   verilog::ModuleGeneratorResult result = r.module_generator_result;
-  std::optional<PipelineScheduleProto> schedule = r.pipeline_schedule_proto;
+  std::optional<PackagePipelineSchedulesProto> schedule =
+      r.package_pipeline_schedules_proto;
 
   if (!absl::GetFlag(FLAGS_output_schedule_ir_path).empty()) {
     XLS_RETURN_IF_ERROR(
@@ -106,8 +107,8 @@ absl::Status RealMain(std::string_view ir_path) {
   }
 
   if (!absl::GetFlag(FLAGS_output_block_ir_path).empty()) {
-    XLS_QCHECK_EQ(p->blocks().size(), 1)
-        << "There should be exactly one block in the package after generating "
+    XLS_QCHECK_GE(p->blocks().size(), 1)
+        << "There should be at least one block in the package after generating "
            "module text.";
     XLS_RETURN_IF_ERROR(SetFileContents(
         absl::GetFlag(FLAGS_output_block_ir_path), p->DumpIr()));

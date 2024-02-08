@@ -54,4 +54,5 @@ message SchedulingOptionsFlagsProto {
   optional string fdo_sta_path = 19;
   optional string fdo_synthesis_libraries = 20;
   optional bool minimize_clock_on_failure = 21;
+  optional bool multi_proc = 24;
 }

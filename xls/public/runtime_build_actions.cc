@@ -108,7 +108,7 @@ absl::StatusOr<ScheduleAndCodegenResult> ScheduleAndCodegenPackage(
                          with_delay_model));
   return ScheduleAndCodegenResult{
       .module_generator_result = result.module_generator_result,
-      .pipeline_schedule_proto = result.pipeline_schedule_proto,
+      .pipeline_schedule_group_proto = result.package_pipeline_schedules_proto,
   };
 }
 

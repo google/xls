@@ -131,6 +131,10 @@ ABSL_FLAG(std::string, fdo_yosys_path, "", "Absolute path of Yosys");
 ABSL_FLAG(std::string, fdo_sta_path, "", "Absolute path of OpenSTA");
 ABSL_FLAG(std::string, fdo_synthesis_libraries, "",
           "Synthesis and STA libraries");
+// TODO: google/xls#869 - Remove when proc-scoped channels supplant old-style
+// procs.
+ABSL_FLAG(bool, multi_proc, false,
+          "If true, schedule all procs and codegen them all.");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //docs_src/codegen_options.md
@@ -177,6 +181,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(fdo_yosys_path);
   POPULATE_FLAG(fdo_sta_path);
   POPULATE_FLAG(fdo_synthesis_libraries);
+  POPULATE_FLAG(multi_proc);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
 
@@ -393,6 +398,8 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   scheduling_options.fdo_yosys_path(proto.fdo_yosys_path());
   scheduling_options.fdo_sta_path(proto.fdo_sta_path());
   scheduling_options.fdo_synthesis_libraries(proto.fdo_synthesis_libraries());
+
+  scheduling_options.schedule_all_procs(proto.multi_proc());
 
   return scheduling_options;
 }
