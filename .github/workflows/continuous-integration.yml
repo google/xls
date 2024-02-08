@@ -57,3 +57,10 @@ jobs:
       - name: Bazel Test All (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=errors -- //xls/...
+
+      - name: Trim cache
+        # The bazel cache is too big for github, so clear out k8-opt-exec
+        # (likely invalidated and quickly re-linked) and external downloads.
+        run: |
+          find ~/.cache/bazel -name "k8-opt-exec*" -type d -exec rm -rf {} \;
+          rm -rf ~/.cache/bazel/*/*/external
