@@ -973,13 +973,20 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
                         outer_prepared.xls_func->return_value_count, body_loc);
 
   xls::BValue context_out = pb.TupleIndex(ret_io_value, /*idx=*/0, body_loc);
+  xls::BValue enter_condition =
+      pb.TupleIndex(ret_io_value, /*idx=*/1, body_loc);
+  XLS_CHECK_EQ(enter_condition.GetType()->GetFlatBitCount(), 1);
 
   // Generate inner FSM
   XLS_ASSIGN_OR_RETURN(
       PipelinedLoopContentsReturn contents_ret,
       GenerateIR_PipelinedLoopContents(
           *sub_proc_invoked, pb, outer_prepared.token, context_out,
-          /*in_state_condition=*/outer_state.in_this_state,
+          /*in_state_condition=*/
+          pb.And(outer_state.in_this_state, enter_condition, body_loc,
+                 /*name=*/
+                 absl::StrFormat("%s_loop_contents_condition",
+                                 sub_proc_invoked->name_prefix)),
           /*in_fsm=*/true));
 
   outer_prepared.token = contents_ret.token_out;
@@ -1001,8 +1008,17 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
       absl::StrFormat("%s_state_%i_context_receive_invoke", fsm_prefix,
                       outer_state.index));
 
+  xls::BValue not_enter_condition = pb.Not(
+      enter_condition, body_loc,
+      /*name=*/
+      absl::StrFormat("%s_not_enter_condition", sub_proc_invoked->name_prefix));
+
   return SubFSMReturn{
-      .exit_state_condition = contents_ret.do_break,
+      .exit_state_condition =
+          pb.Or(not_enter_condition, contents_ret.do_break, body_loc,
+                /*name=*/
+                absl::StrFormat("%s_not_exit_state_condition",
+                                sub_proc_invoked->name_prefix)),
       .return_value = context_receive_ret_val,
       .extra_next_state_values = contents_ret.extra_next_state_values};
 }
