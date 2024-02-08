@@ -585,3 +585,16 @@ place_and_route(
     synthesized_rtl = ":block_dec_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "ram_printer_dslx",
+    srcs = ["ram_printer.x"],
+    deps = [
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "ram_printer_dslx_test",
+    library = ":ram_printer_dslx",
+)
