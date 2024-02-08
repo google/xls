@@ -555,6 +555,35 @@ cc_library(
 )
 
 cc_library(
+    name = "register_chaining_analysis",
+    srcs = ["register_chaining_analysis.cc"],
+    hdrs = ["register_chaining_analysis.h"],
+    deps = [
+        ":codegen_pass",
+        "//xls/ir",
+        "//xls/ir:register",
+        "@com_google_absl//absl/algorithm:container",
+    ],
+)
+
+cc_test(
+    name = "register_chaining_analysis_test",
+    srcs = ["register_chaining_analysis_test.cc"],
+    deps = [
+        ":register_chaining_analysis",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:register",
+        "@com_google_absl//absl/algorithm:container",
+    ],
+)
+
+cc_library(
     name = "register_legalization_pass",
     srcs = ["register_legalization_pass.cc"],
     hdrs = ["register_legalization_pass.h"],
