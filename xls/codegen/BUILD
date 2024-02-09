@@ -447,6 +447,7 @@ cc_library(
     hdrs = ["codegen_pass_pipeline.h"],
     deps = [
         ":block_metrics_generation_pass",
+        ":block_stitching_pass",
         ":codegen_checker",
         ":codegen_pass",
         ":codegen_wrapper_pass",
@@ -1277,5 +1278,17 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "block_stitching_pass",
+    srcs = ["block_stitching_pass.cc"],
+    hdrs = ["block_stitching_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )

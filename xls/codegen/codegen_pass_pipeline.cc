@@ -21,6 +21,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_metrics_generation_pass.h"
+#include "xls/codegen/block_stitching_pass.h"
 #include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
@@ -48,6 +49,10 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   // proc is transformed in a way which affects its externally visible
   // interface.
   top->Add<SignatureGenerationPass>();
+
+  // Stitch multi-block designs together in a top-level block that instantiates
+  // and stitches the others.
+  top->Add<BlockStitchingPass>();
 
   // Rewrite channels that codegen options have labeled as to/from a RAM. This
   // removes ready+valid ports, instead AND-ing the request valid signal with
