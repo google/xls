@@ -1,21 +1,22 @@
+# Minimium c++ standard used.
+build --cxxopt "-std=c++20"            --host_cxxopt "-std=c++20"
 build --action_env=BAZEL_CXXOPTS=-std=c++20
-build --cxxopt "-std=c++20"
+
+# Depending on the installation, clang or clang-tidy need to be told that
+# a c++ file is, indeed, containing c++ (bazel just invokes clang, not clang++)
+build --cxxopt "-xc++"                 --host_cxxopt "-xc++"
+
 # Enable default C++ extensions (required in switching to our packaged LLVM)
-build --copt "-D_DEFAULT_SOURCE=1"
-# Signal that we're using a compliant C++20 implementation with features removed
-# (Required for (e.g.) Boost compatibility)
-build --copt "-D_HAS_AUTO_PTR_ETC=0"
-build --copt "-Wno-sign-compare"
-build --copt "-Wno-comment"
-build --host_cxxopt "-std=c++20"
-# Enable default C++ extensions (required in switching to our packaged LLVM)
-build --host_copt "-D_DEFAULT_SOURCE=1"
-# Signal that we're using a compliant C++20 implementation with features removed
-# (Required for (e.g.) Boost compatibility)
-build --host_copt "-D_HAS_AUTO_PTR_ETC=0"
-build --host_copt "-Wno-sign-compare"
-build --host_copt "-Wno-comment"
-# use absl in googletest to work around
+build --copt "-D_DEFAULT_SOURCE=1"     --host_copt "-D_DEFAULT_SOURCE=1"
+
+# Tell that auto_ptr<> is not available. Needed for boost (still needed ?)
+build --copt "-D_HAS_AUTO_PTR_ETC=0"   --host_copt "-D_HAS_AUTO_PTR_ETC=0"
+
+# Disable a couple of warnings we're not interested in.
+build --copt "-Wno-sign-compare"       --host_copt "-Wno-sign-compare"
+build --copt "-Wno-comment"            --host_copt "-Wno-comment"
+
+# Use absl in googletest to work around
 # https://github.com/google/googletest/issues/4383
 build --define absl=1
 build --incompatible_enable_cc_toolchain_resolution
