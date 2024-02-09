@@ -18,20 +18,26 @@
 #ifndef XLS_DSLX_RUN_ROUTINES_H_
 #define XLS_DSLX_RUN_ROUTINES_H_
 
+#include <algorithm>
+#include <any>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/test_xml.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/events.h"
@@ -115,21 +121,53 @@ inline void AbslStringify(Sink& sink, TestResult tr) {
   absl::Format(&sink, "%s", TestResultToString(tr));
 }
 
-struct TestResultData {
-  TestResult result;
-  int64_t ran;
-  int64_t failed;
-  int64_t skipped;
+inline std::ostream& operator<<(std::ostream& os, TestResult tr) {
+  os << TestResultToString(tr);
+  return os;
+}
+
+// Holds the results (and summary result) from test execution from e.g.
+// `ParseAndTest()`.
+//
+// Implementation note: this datatype also serves as a test data collector --
+// ideally those concerns might be separated out but there's a minimal amount of
+// functionality really required so doesn't seem worthwhile.
+class TestResultData {
+ public:
+  TestResultData(absl::Time start_time,
+                 std::vector<test_xml::TestCase> test_cases);
 
   bool operator==(const TestResultData& other) const = default;
-};
 
-template <typename Sink>
-inline void AbslStringify(Sink& sink, const TestResultData& trd) {
-  absl::Format(&sink,
-               "TestResultData{.result=%v, .ran=%d, .failed=%d, .skipped=%d}",
-               trd.result, trd.ran, trd.failed, trd.skipped);
-}
+  int64_t GetRanCount() const { return test_cases_.size(); }
+  int64_t GetFailedCount() const;
+  int64_t GetSkippedCount() const;
+  bool DidAnyFail() const;
+
+  // Wraps up the test cases we observed into a suites object which is the root
+  // of XML-based reporting.
+  test_xml::TestSuites ToXmlSuites(std::string_view module_name) const;
+
+  void AddTestCase(test_xml::TestCase test_case) {
+    test_cases_.push_back(std::move(test_case));
+  }
+  // When the test data is completed we can note the final test result (status)
+  // and the duration it took.
+  void Finish(TestResult result, absl::Duration duration) {
+    result_ = result;
+    duration_ = duration;
+  }
+
+  TestResult result() const { return result_; }
+  const absl::Time& start_time() const { return start_time_; }
+  const absl::Duration& duration() const { return duration_; }
+
+ private:
+  TestResult result_ = TestResult::kAllPassed;
+  absl::Time start_time_;
+  absl::Duration duration_ = absl::InfiniteDuration();
+  std::vector<test_xml::TestCase> test_cases_;
+};
 
 // Parses program and run all tests contained inside.
 //

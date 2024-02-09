@@ -22,10 +22,13 @@ file, etc.
 """
 
 import dataclasses
+import os
 import subprocess as subp
 import sys
+import tempfile
 import textwrap
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
+import xml.etree.ElementTree as ET
 
 from xls.common import runfiles
 from xls.common import test_base
@@ -51,6 +54,7 @@ class InterpreterTest(test_base.TestCase):
       disable_warnings: Sequence[str] = (),
       extra_flags: Sequence[str] = (),
       test_filter: Optional[str] = None,
+      extra_env: Optional[Dict[str, str]] = None,
   ) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
@@ -63,6 +67,7 @@ class InterpreterTest(test_base.TestCase):
       cmd.append('--disable_warnings=%s' % ','.join(disable_warnings))
     cmd.extend(extra_flags)
     env = {} if test_filter is None else dict(TESTBRIDGE_TEST_ONLY=test_filter)
+    env.update(extra_env if extra_env else {})
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8', env=env)
     if want_error:
       self.assertNotEqual(p.returncode, 0)
@@ -566,19 +571,31 @@ class InterpreterTest(test_base.TestCase):
 
   def test_env_based_test_filter(self):
     """Tests environment-variable based filtering."""
-    program = """
-    #[test] fn test_one() {}
-    #[test] fn test_two() {}
-    """
-    stderr = self._parse_and_test(
-        program,
-        alsologtostderr=True,
-        test_filter='.*_two',
-    )
-    self.assertIn(
-        '1 test(s) ran; 0 failed; 1 skipped',
-        stderr,
-    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+      output_xml = os.path.join(tmpdir, 'test.xml')
+
+      program = """
+      #[test] fn test_one() {}
+      #[test] fn test_two() {}
+      """
+      stderr = self._parse_and_test(
+          program,
+          alsologtostderr=True,
+          test_filter='.*_two',
+          extra_env=dict(XML_OUTPUT_FILE=output_xml),
+      )
+      self.assertIn(
+          '2 test(s) ran; 0 failed; 1 skipped',
+          stderr,
+      )
+
+      with open(output_xml) as f:
+        xml_got = f.read()
+
+      root = ET.fromstring(xml_got)
+      self.assertLen(root.findall(".//testcase[@name='test_one']"), 1)
+      self.assertLen(root.findall(".//testcase[@name='test_two']"), 1)
+      self.assertLen(root.findall('.//failure'), 0)
 
   def test_env_based_test_filter_one_failing(self):
     """Tests environment-variable based filtering."""
@@ -586,26 +603,72 @@ class InterpreterTest(test_base.TestCase):
     #[test] fn test_failing() { assert_eq(false, true) }
     #[test] fn test_passing() {}
     """
-    stderr = self._parse_and_test(
-        program,
-        alsologtostderr=True,
-        want_error=True,
-        test_filter='.*_failing',
-    )
-    self.assertIn(
-        '1 test(s) ran; 1 failed; 1 skipped',
-        stderr,
-    )
+    # First we only run the failing test.
+    with tempfile.TemporaryDirectory() as tmpdir:
+      output_xml = os.path.join(tmpdir, 'test.xml')
+      stderr = self._parse_and_test(
+          program,
+          alsologtostderr=True,
+          want_error=True,
+          test_filter='.*_failing',
+          extra_env=dict(XML_OUTPUT_FILE=output_xml),
+      )
+      self.assertIn(
+          '2 test(s) ran; 1 failed; 1 skipped',
+          stderr,
+      )
+
+      with open(output_xml) as f:
+        xml_got = f.read()
+
+      root = ET.fromstring(xml_got)
+      self.assertLen(
+          root.findall(
+              ".//testcase[@name='test_failing'][@result='completed']"
+          ),
+          1,
+      )
+      self.assertLen(
+          root.findall(".//testcase[@name='test_failing']/failure"), 1
+      )
+      self.assertLen(
+          root.findall(".//testcase[@name='test_passing'][@result='filtered']"),
+          1,
+      )
+      self.assertLen(root.findall('.//failure'), 1)
+
     # Now filter to the passing one.
-    stderr = self._parse_and_test(
-        program,
-        alsologtostderr=True,
-        test_filter='.*_passing',
-    )
-    self.assertIn(
-        '1 test(s) ran; 0 failed; 1 skipped',
-        stderr,
-    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+      output_xml = os.path.join(tmpdir, 'test.xml')
+      stderr = self._parse_and_test(
+          program,
+          alsologtostderr=True,
+          test_filter='.*_passing',
+          extra_env=dict(XML_OUTPUT_FILE=output_xml),
+      )
+      self.assertIn(
+          '2 test(s) ran; 0 failed; 1 skipped',
+          stderr,
+      )
+
+      with open(output_xml) as f:
+        xml_got = f.read()
+
+      root = ET.fromstring(xml_got)
+      self.assertLen(
+          root.findall(
+              ".//testcase[@name='test_passing'][@result='completed']"
+          ),
+          1,
+      )
+      self.assertLen(
+          root.findall(".//testcase[@name='test_failing'][@result='filtered']"),
+          1,
+      )
+      self.assertLen(
+          root.findall(".//testcase[@name='test_failing']/failure"), 0
+      )
+      self.assertLen(root.findall('.//failure'), 0)
 
   def test_flag_based_test_filter(self):
     """Tests environment-variable based filtering."""
@@ -613,15 +676,32 @@ class InterpreterTest(test_base.TestCase):
     #[test] fn test_one() {}
     #[test] fn test_two() {}
     """
-    stderr = self._parse_and_test(
-        program,
-        alsologtostderr=True,
-        extra_flags=['--test_filter', '.*_two'],
-    )
-    self.assertIn(
-        '1 test(s) ran; 0 failed; 1 skipped',
-        stderr,
-    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+      output_xml = os.path.join(tmpdir, 'test.xml')
+      stderr = self._parse_and_test(
+          program,
+          alsologtostderr=True,
+          extra_flags=['--test_filter', '.*_two'],
+          extra_env=dict(XML_OUTPUT_FILE=output_xml),
+      )
+      self.assertIn(
+          '2 test(s) ran; 0 failed; 1 skipped',
+          stderr,
+      )
+
+      with open(output_xml) as f:
+        xml_got = f.read()
+
+      print('xml_got:', xml_got)
+      root = ET.fromstring(xml_got)
+      print('root:', root)
+      self.assertLen(
+          root.findall(".//testcase[@name='test_two'][@result='completed']"), 1
+      )
+      self.assertLen(
+          root.findall(".//testcase[@name='test_one'][@result='filtered']"), 1
+      )
+      self.assertLen(root.findall('.//failure'), 0)
 
   def test_both_test_filters_errors(self):
     """Tests environment-variable based filtering."""

@@ -401,4 +401,11 @@ bool IsPublic(const ModuleMember& member) {
                      member);
 }
 
+Pos GetPos(const ModuleMember& module_member) {
+  const AstNode* n = ToAstNode(module_member);
+  std::optional<Span> span = n->GetSpan();
+  XLS_CHECK(span.has_value());
+  return span->start();
+}
+
 }  // namespace xls::dslx

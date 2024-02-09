@@ -73,8 +73,15 @@ class Pos {
   bool operator>=(const Pos& other) const { return !((*this) < other); }
 
   const std::string& filename() const { return filename_; }
+
+  // Note: these lineno/colno values are zero-based.
   int64_t lineno() const { return lineno_; }
   int64_t colno() const { return colno_; }
+
+  // Returns a line number as we'd display it to a human (i.e. with one-based
+  // indexing, the first line of the file is called "line 1" instead of "line
+  // 0").
+  int64_t GetHumanLineno() const { return lineno_ + 1; }
 
   Pos BumpCol() const { return Pos(filename_, lineno_, colno_ + 1); }
 

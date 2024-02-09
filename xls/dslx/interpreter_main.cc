@@ -38,6 +38,7 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/run_comparator.h"
 #include "xls/dslx/run_routines.h"
+#include "xls/dslx/test_xml.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/format_preference.h"
 #include "re2/re2.h"
@@ -87,13 +88,14 @@ const char* kUsage = R"(
 Parses, typechecks, and executes all tests inside of a DSLX module.
 )";
 
-absl::StatusOr<TestResult> RealMain(std::string_view entry_module_path,
-                      absl::Span<const std::filesystem::path> dslx_paths,
-                      const std::optional<std::string>& test_filter,
-                      FormatPreference format_preference,
-                      CompareFlag compare_flag, bool execute,
-                      bool warnings_as_errors, std::optional<int64_t> seed,
-                      bool trace_channels, std::optional<int64_t> max_ticks) {
+absl::StatusOr<TestResult> RealMain(
+    std::string_view entry_module_path,
+    absl::Span<const std::filesystem::path> dslx_paths,
+    const std::optional<std::string>& test_filter,
+    FormatPreference format_preference, CompareFlag compare_flag, bool execute,
+    bool warnings_as_errors, std::optional<int64_t> seed, bool trace_channels,
+    std::optional<int64_t> max_ticks,
+    std::optional<std::string_view> xml_output_file) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
       WarningKindSetFromDisabledString(absl::GetFlag(FLAGS_disable_warnings)));
@@ -136,10 +138,19 @@ absl::StatusOr<TestResult> RealMain(std::string_view entry_module_path,
                                  .warnings = warnings,
                                  .trace_channels = trace_channels,
                                  .max_ticks = max_ticks};
+
   XLS_ASSIGN_OR_RETURN(
       TestResultData test_result,
       ParseAndTest(program, module_name, entry_module_path, options));
-  return test_result.result;
+
+  if (xml_output_file.has_value()) {
+    test_xml::TestSuites suites = test_result.ToXmlSuites(module_name);
+    std::unique_ptr<test_xml::XmlNode> root = ToXml(suites);
+    std::string contents = test_xml::XmlRootToString(*root);
+    XLS_RETURN_IF_ERROR(SetFileContents(xml_output_file.value(), contents));
+  }
+
+  return test_result.result();
 }
 
 }  // namespace
@@ -211,6 +222,14 @@ int main(int argc, char* argv[]) {
     test_filter = test_filter_env;
   }
 
+  // See https://bazel.build/reference/test-encyclopedia#initial-conditions
+  std::optional<std::string> xml_output_file;
+  if (const char* xml_output_file_env = getenv("XML_OUTPUT_FILE");
+      xml_output_file_env != nullptr &&
+      !std::string_view(xml_output_file_env).empty()) {
+    xml_output_file = xml_output_file_env;
+  }
+
   xls::FormatPreference preference = xls::FormatPreference::kDefault;
   if (!absl::GetFlag(FLAGS_format_preference).empty()) {
     absl::StatusOr<xls::FormatPreference> flag_preference =
@@ -224,7 +243,7 @@ int main(int argc, char* argv[]) {
 
   absl::StatusOr<xls::dslx::TestResult> test_result = xls::dslx::RealMain(
       args[0], dslx_paths, test_filter, preference, compare_flag, execute,
-      warnings_as_errors, seed, trace_channels, max_ticks);
+      warnings_as_errors, seed, trace_channels, max_ticks, xml_output_file);
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }

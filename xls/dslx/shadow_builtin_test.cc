@@ -64,7 +64,7 @@ fn test_main() {
     XLS_ASSERT_OK_AND_ASSIGN(
         TestResultData test_result,
         ParseAndTest(program, /*module_name=*/"fake", kFakePath, options));
-    EXPECT_EQ(test_result.result, TestResult::kAllPassed);
+    EXPECT_EQ(test_result.result(), TestResult::kAllPassed);
   }
 }
 
@@ -97,7 +97,7 @@ fn test_main() {
     XLS_ASSERT_OK_AND_ASSIGN(
         TestResultData test_result,
         ParseAndTest(program, /*module_name=*/"fake", kFakePath, options));
-    EXPECT_EQ(test_result.result, TestResult::kAllPassed);
+    EXPECT_EQ(test_result.result(), TestResult::kAllPassed);
   }
 }
 

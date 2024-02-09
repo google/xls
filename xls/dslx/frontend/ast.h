@@ -2463,6 +2463,7 @@ class QuickCheck : public AstNode {
   }
   std::optional<int64_t> test_count() const { return test_count_; }
   std::optional<Span> GetSpan() const override { return span_; }
+  const Span& span() const { return span_; }
 
  private:
   Span span_;

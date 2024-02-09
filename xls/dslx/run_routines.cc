@@ -16,6 +16,7 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <ctime>
 #include <functional>
@@ -34,6 +35,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -49,11 +52,14 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/test_xml.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -143,9 +149,66 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
 
 }  // namespace
 
+TestResultData::TestResultData(absl::Time start_time,
+                               std::vector<test_xml::TestCase> test_cases)
+    : start_time_(start_time), test_cases_(std::move(test_cases)) {}
+
+int64_t TestResultData::GetFailedCount() const {
+  return std::count_if(
+      test_cases_.begin(), test_cases_.end(),
+      [](const auto& test_case) { return test_case.failure.has_value(); });
+}
+int64_t TestResultData::GetSkippedCount() const {
+  return std::count_if(
+      test_cases_.begin(), test_cases_.end(), [](const auto& test_case) {
+        return test_case.result == test_xml::RunResult::kFiltered;
+      });
+}
+
+bool TestResultData::DidAnyFail() const {
+  return std::any_of(
+      test_cases_.begin(), test_cases_.end(),
+      [](const auto& test_case) { return test_case.failure.has_value(); });
+}
+
+test_xml::TestSuites TestResultData::ToXmlSuites(
+    std::string_view module_name) const {
+  test_xml::TestCounts counts = {
+      .tests = static_cast<int64_t>(test_cases_.size()),
+      .failures = GetFailedCount(),
+      .disabled = 0,
+      .skipped = GetSkippedCount(),
+      .errors = 0,
+  };
+  test_xml::TestSuites suites = {
+      .counts = counts,
+      .time = duration_,
+      .timestamp = start_time_,
+      .test_suites =
+          {
+              // We currently consider all the test cases inside of a single
+              // file to be part of one suite.
+              //
+              // TODO(leary): 2024-02-08 We may want to break out quickcheck
+              // tests vs
+              // unit tests in the future.
+              test_xml::TestSuite{
+                  .name = absl::StrCat(module_name, " tests"),
+                  .counts = counts,
+                  .time = duration_,
+                  .timestamp = start_time_,
+                  .test_cases = test_cases_,
+              },
+          },
+  };
+  return suites;
+}
+
 static bool TestMatchesFilter(std::string_view test_name,
                               const RE2* test_filter) {
   if (test_filter == nullptr) {
+    // All tests vacuously match the filter if there is no filter (i.e. we run
+    // them all).
     return true;
   }
   return RE2::FullMatch(test_name, *test_filter);
@@ -224,17 +287,19 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
 }
 
 using HandleError = const std::function<void(
-    const absl::Status&, std::string_view test_name, bool is_quickcheck)>;
+    const absl::Status&, std::string_view test_name, const Pos& pos,
+    const absl::Time& start, const absl::Duration&, bool is_quickcheck)>;
 
 static absl::Status RunQuickChecksIfJitEnabled(
     Module* entry_module, TypeInfo* type_info,
     AbstractRunComparator* run_comparator, Package* ir_package,
-    std::optional<int64_t> seed, const HandleError& handle_error, int64_t& ran,
-    int64_t& failed, int64_t& skipped) {
+    std::optional<int64_t> seed, const HandleError& handle_error,
+    TestResultData& result) {
   if (run_comparator == nullptr) {
+    // TODO(leary): 2024-02-08 Note that this skips /all/ the quickchecks so we
+    // don't make an entry for it right now in the test XML.
     std::cerr << "[ SKIPPING QUICKCHECKS  ] (JIT is disabled)"
               << "\n";
-    skipped++;
     return absl::OkStatus();
   }
   if (!seed.has_value()) {
@@ -246,16 +311,23 @@ static absl::Status RunQuickChecksIfJitEnabled(
   std::cerr << absl::StreamFormat("[ SEED %*d ]", kQuickcheckSpaces + 1, *seed)
             << "\n";
   for (QuickCheck* quickcheck : entry_module->GetQuickChecks()) {
-    ran++;
     const std::string& test_name = quickcheck->identifier();
     std::cerr << "[ RUN QUICKCHECK        ] " << test_name
               << " count: " << quickcheck->GetTestCountOrDefault() << "\n";
+    auto start = absl::Now();
     absl::Status status =
         RunQuickCheck(run_comparator, ir_package, quickcheck, type_info, *seed);
+    auto end = absl::Now();
+    auto duration = end - start;
+    const Pos& start_pos = quickcheck->span().start();
     if (!status.ok()) {
-      failed++;
-      handle_error(status, test_name, /*is_quickcheck=*/true);
+      handle_error(status, test_name, start_pos, start, duration,
+                   /*is_quickcheck=*/true);
     } else {
+      result.AddTestCase(test_xml::TestCase{
+          test_name, start_pos.filename(), start_pos.GetHumanLineno(),
+          test_xml::RunStatus::kRun, test_xml::RunResult::kCompleted, duration,
+          start});
       std::cerr << "[                    OK ] " << test_name << "\n";
     }
   }
@@ -269,41 +341,45 @@ static absl::Status RunQuickChecksIfJitEnabled(
 absl::StatusOr<TestResultData> ParseAndTest(
     std::string_view program, std::string_view module_name,
     std::string_view filename, const ParseAndTestOptions& options) {
-  int64_t ran = 0;
-  int64_t failed = 0;
-  int64_t skipped = 0;
-
-  auto make_result = [&](TestResult result) {
-    return TestResultData{
-        .result = result, .ran = ran, .failed = failed, .skipped = skipped};
-  };
+  const auto start = absl::Now();
+  TestResultData result(start, /*test_cases=*/{});
 
   auto handle_error = [&](const absl::Status& status,
-                          std::string_view test_name, bool is_quickcheck) {
+                          std::string_view test_name, const Pos& start_pos,
+                          const absl::Time& start,
+                          const absl::Duration& duration, bool is_quickcheck) {
     XLS_VLOG(1) << "Handling error; status: " << status
                 << " test_name: " << test_name;
     absl::StatusOr<PositionalErrorData> data_or =
         GetPositionalErrorData(status);
+
+    std::string one_liner;
     std::string suffix;
     if (data_or.ok()) {
       const auto& data = data_or.value();
       XLS_CHECK_OK(PrintPositionalError(
           data.span, data.GetMessageWithType(), std::cerr,
           /*get_file_contents=*/nullptr, PositionalErrorColor::kErrorColor));
+      one_liner = data.GetMessageWithType();
     } else {
       // If we can't extract positional data we log the error and put the error
       // status into the "failed" prompted.
       XLS_LOG(ERROR) << "Internal error: " << status;
       suffix = absl::StrCat(": internal error: ", status.ToString());
+      one_liner = suffix;
     }
+
+    // Add to test tracking data.
+    result.AddTestCase(test_xml::TestCase{
+        std::string(test_name), start_pos.filename(),
+        start_pos.GetHumanLineno(), test_xml::RunStatus::kRun,
+        test_xml::RunResult::kCompleted, duration, start,
+        test_xml::Failure{one_liner}});
+
     std::string spaces((is_quickcheck ? kQuickcheckSpaces : kUnitSpaces), ' ');
     std::cerr << absl::StreamFormat("[ %sFAILED ] %s%s", spaces, test_name,
                                     suffix)
               << "\n";
-    // Quickcheck routine bumps the fail count directly.
-    if (!is_quickcheck) {
-      failed += 1;
-    }
   };
 
   auto import_data = CreateImportData(options.stdlib_path, options.dslx_paths,
@@ -313,7 +389,8 @@ absl::StatusOr<TestResultData> ParseAndTest(
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
-      return make_result(TestResult::kParseOrTypecheckError);
+      result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
+      return result;
     }
     return tm_or.status();
   }
@@ -327,12 +404,14 @@ absl::StatusOr<TestResultData> ParseAndTest(
   }
 
   if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
-    return make_result(TestResult::kFailedWarnings);
+    result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
+    return result;
   }
 
   // If not executing tests and quickchecks, then return vacuous success.
   if (!options.execute) {
-    return make_result(TestResult::kAllPassed);
+    result.Finish(TestResult::kAllPassed, absl::Now() - start);
+    return result;
   }
 
   Module* entry_module = tm_or.value().module;
@@ -347,7 +426,8 @@ absl::StatusOr<TestResultData> ParseAndTest(
                                options.convert_options);
     if (!ir_package_or.ok()) {
       if (TryPrintError(ir_package_or.status())) {
-        return make_result(TestResult::kSomeFailed);
+        result.Finish(TestResult::kSomeFailed, absl::Now() - start);
+        return result;
       }
       return ir_package_or.status();
     }
@@ -370,15 +450,21 @@ absl::StatusOr<TestResultData> ParseAndTest(
 
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {
+    auto test_case_start = absl::Now();
+    ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
+    const Pos start_pos = GetPos(*member);
+
     if (!TestMatchesFilter(test_name, options.test_filter)) {
-      skipped += 1;
+      auto test_case_end = absl::Now();
+      result.AddTestCase(test_xml::TestCase{
+          test_name, start_pos.filename(), start_pos.GetHumanLineno(),
+          test_xml::RunStatus::kRun, test_xml::RunResult::kFiltered,
+          test_case_end - test_case_start, test_case_start});
       continue;
     }
 
-    ran += 1;
     std::cerr << "[ RUN UNITTEST  ] " << test_name << '\n';
     absl::Status status;
-    ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
     BytecodeInterpreterOptions interpreter_options;
     interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
         .trace_hook(InfoLoggingTraceHook)
@@ -394,28 +480,40 @@ absl::StatusOr<TestResultData> ParseAndTest(
       status = RunTestProc(&import_data, tm_or.value().type_info, entry_module,
                            tp, interpreter_options);
     }
+    auto test_case_end = absl::Now();
 
     if (status.ok()) {
+      // Add to the tracking data.
+      result.AddTestCase(test_xml::TestCase{
+          test_name, start_pos.filename(), start_pos.GetHumanLineno(),
+          test_xml::RunStatus::kRun, test_xml::RunResult::kCompleted,
+          test_case_end - test_case_start, test_case_start});
+
       std::cerr << "[            OK ]" << '\n';
     } else {
-      handle_error(status, test_name, /*is_quickcheck=*/false);
+      handle_error(status, test_name, start_pos, test_case_start,
+                   test_case_end - test_case_start,
+                   /*is_quickcheck=*/false);
     }
   }
 
   std::cerr << absl::StreamFormat(
                    "[===============] %d test(s) ran; %d failed; %d skipped.",
-                   ran, failed, skipped)
+                   result.GetRanCount(), result.GetFailedCount(),
+                   result.GetSkippedCount())
             << '\n';
 
   // Run quickchecks, but only if the JIT is enabled.
   if (!entry_module->GetQuickChecks().empty()) {
     XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
         entry_module, tm_or.value().type_info, options.run_comparator,
-        ir_package.get(), options.seed, handle_error, ran, failed, skipped));
+        ir_package.get(), options.seed, handle_error, result));
   }
 
-  return make_result(failed == 0 ? TestResult::kAllPassed
-                                 : TestResult::kSomeFailed);
+  result.Finish(
+      result.DidAnyFail() ? TestResult::kSomeFailed : TestResult::kAllPassed,
+      absl::Now() - start);
+  return result;
 }
 
 std::string_view TestResultToString(TestResult tr) {

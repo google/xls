@@ -1577,7 +1577,7 @@ proc BTester {
       ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
                    options));
   std::string stdcerr(::testing::internal::GetCapturedStderr());
-  EXPECT_EQ(result.result, TestResult::kSomeFailed);
+  EXPECT_EQ(result.result(), TestResult::kSomeFailed);
   EXPECT_THAT(stdcerr, HasSubstr("were not equal"));
 }
 
@@ -1650,7 +1650,7 @@ proc BTester {
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
                    options));
-  EXPECT_EQ(result.result, TestResult::kAllPassed);
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 
 TEST(BytecodeInterpreterTest, PrettyPrintsStructs) {

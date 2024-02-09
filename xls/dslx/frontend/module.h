@@ -43,6 +43,12 @@ using ModuleMember =
                  TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*,
                  ConstAssert*>;
 
+// Returns the starting position of the given module member.
+//
+// This is sometimes used in reporting; e.g. for test metadata, instead of a
+// full span.
+Pos GetPos(const ModuleMember& module_member);
+
 std::string_view GetModuleMemberTypeName(const ModuleMember& module_member);
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);

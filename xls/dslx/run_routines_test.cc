@@ -22,7 +22,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/run_comparator.h"
@@ -34,9 +33,36 @@
 
 namespace xls::dslx {
 namespace {
+
 // A fake mangled IR name for use in some direct DoQuickCheck calls (will be
 // used as a JIT cache key).
-constexpr const char* kFakeIrName = "__test__fake";
+constexpr std::string_view kFakeIrName = "__test__fake";
+
+// Matcher that helps us compare against a TestResultData value and what it
+// reflects as the summary result status and counts.
+MATCHER_P4(IsTestResult, result, ran_count, skipped_count, failed_count, "") {
+  if (result != arg.result()) {
+    *result_listener << "got " << arg.result() << " want " << result;
+    return false;
+  }
+  if (ran_count != arg.GetRanCount()) {
+    *result_listener << "ran count got " << arg.GetRanCount() << " want "
+                     << ran_count;
+    return false;
+  }
+  if (skipped_count != arg.GetSkippedCount()) {
+    *result_listener << "skipped count got " << arg.GetSkippedCount()
+                     << " want " << skipped_count;
+    return false;
+  }
+  if (failed_count != arg.GetFailedCount()) {
+    *result_listener << "skipped count got " << arg.GetFailedCount() << " want "
+                     << failed_count;
+    return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 TEST(RunRoutinesTest, TestInvokedFunctionDoesJit) {
@@ -54,7 +80,7 @@ fn test_simple() { unit() }
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
-  EXPECT_THAT(result, testing::FieldsAre(TestResult::kAllPassed, 1, 0, 0));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
 
   EXPECT_EQ(jit_comparator.jit_cache_.size(), 1);
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__unit");
@@ -77,10 +103,7 @@ fn trivial(x: u5) -> bool { id(true) }
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
 
-  EXPECT_EQ(result, (TestResultData{.result = TestResult::kAllPassed,
-                                    .ran = 1,
-                                    .failed = 0,
-                                    .skipped = 0}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
 
   ASSERT_EQ(jit_comparator.jit_cache_.size(), 1);
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
@@ -101,10 +124,7 @@ fn trivial(x: u5) -> bool { id(true) }
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
-  EXPECT_EQ(result, (TestResultData{.result = TestResult::kAllPassed,
-                                    .ran = 1,
-                                    .failed = 0,
-                                    .skipped = 0}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
 
   ASSERT_EQ(jit_comparator.jit_cache_.size(), 1);
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
@@ -126,10 +146,7 @@ fn trivial(x: u5) -> bool { false }
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, std::string(temp_file.path()),
                    options));
-  EXPECT_EQ(result, (TestResultData{.result = TestResult::kSomeFailed,
-                                    .ran = 1,
-                                    .failed = 1,
-                                    .skipped = 0}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
 }
 
 TEST(RunRoutinesTest, FailingProc) {
@@ -155,11 +172,8 @@ proc doomed {
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, std::string(temp_file.path()),
                    options));
-  EXPECT_EQ(result,
-            (TestResultData{.result = TestResult::kParseOrTypecheckError,
-                            .ran = 0,
-                            .failed = 0,
-                            .skipped = 0}));
+  EXPECT_THAT(result,
+              IsTestResult(TestResult::kParseOrTypecheckError, 0, 0, 0));
 }
 
 // Verifies that the QuickCheck mechanism can find counter-examples for a simple
@@ -328,7 +342,7 @@ proc tester_proc {
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, "test_module", "test.x", options));
-  EXPECT_THAT(result, testing::FieldsAre(TestResult::kSomeFailed, 1, 1, 0));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
 }
 
 TEST(ParseAndTestTest, TooManyTicks) {
@@ -376,7 +390,7 @@ proc tester_proc {
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, "test_module", "test.x", options));
-  EXPECT_THAT(result, testing::FieldsAre(TestResult::kSomeFailed, 1, 1, 0));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
 }
 
 inline constexpr std::string_view kTwoTests = R"(
@@ -388,7 +402,7 @@ TEST(ParseAndTestTest, TestFilterEmpty) {
   const ParseAndTestOptions options;
   XLS_ASSERT_OK_AND_ASSIGN(TestResultData result,
                            ParseAndTest(kTwoTests, "test", "test.x", options));
-  EXPECT_THAT(result, testing::FieldsAre(TestResult::kAllPassed, 2, 0, 0));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 0, 0));
 }
 
 TEST(ParseAndTestTest, TestFilterSelectNone) {
@@ -397,10 +411,7 @@ TEST(ParseAndTestTest, TestFilterSelectNone) {
   options.test_filter = &test_filter;
   XLS_ASSERT_OK_AND_ASSIGN(TestResultData result,
                            ParseAndTest(kTwoTests, "test", "test.x", options));
-  EXPECT_EQ(result, (TestResultData{.result = TestResult::kAllPassed,
-                                    .ran = 0,
-                                    .failed = 0,
-                                    .skipped = 2}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 2, 0));
 }
 
 TEST(ParseAndTestTest, TestFilterSelectOne) {
@@ -409,11 +420,7 @@ TEST(ParseAndTestTest, TestFilterSelectOne) {
   options.test_filter = &test_filter;
   XLS_ASSERT_OK_AND_ASSIGN(TestResultData result,
                            ParseAndTest(kTwoTests, "test", "test.x", options));
-  EXPECT_EQ(result.result, TestResult::kAllPassed);
-  EXPECT_EQ(result, (TestResultData{.result = TestResult::kAllPassed,
-                                    .ran = 1,
-                                    .failed = 0,
-                                    .skipped = 1}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 1, 0));
 }
 
 TEST(ParseAndTestTest, TestFilterSelectBoth) {
@@ -422,10 +429,7 @@ TEST(ParseAndTestTest, TestFilterSelectBoth) {
   options.test_filter = &test_filter;
   XLS_ASSERT_OK_AND_ASSIGN(TestResultData result,
                            ParseAndTest(kTwoTests, "test", "test.x", options));
-  EXPECT_EQ(result, (TestResultData{.result = TestResult::kAllPassed,
-                                    .ran = 2,
-                                    .failed = 0,
-                                    .skipped = 0}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 0, 0));
 }
 
 }  // namespace xls::dslx
