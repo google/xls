@@ -79,10 +79,12 @@ cc_test(
         "//xls/common:casts",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:scanner",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
@@ -832,5 +834,29 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+cc_library(
+    name = "test_xml",
+    srcs = ["test_xml.cc"],
+    hdrs = ["test_xml.h"],
+    deps = [
+        "//xls/common:indent",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_test(
+    name = "test_xml_test",
+    srcs = ["test_xml_test.cc"],
+    deps = [
+        ":test_xml",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/time",
     ],
 )
