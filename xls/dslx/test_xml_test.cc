@@ -86,7 +86,7 @@ TEST(TestResultSerdesTest, OneTestCase) {
   };
   // clang-format on
 
-  std::unique_ptr<XmlNode> node = ToXml(suites);
+  std::unique_ptr<XmlNode> node = ToXml(suites, la);
   std::string got = XmlNodeToString(*node);
   EXPECT_EQ(
       got,

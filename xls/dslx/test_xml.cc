@@ -56,10 +56,10 @@ std::string_view ToXmlString(RunResult rr) {
 }
 
 template <typename T>
-static void TimesToAttrs(XmlNode& node, const T& item) {
+static void TimesToAttrs(XmlNode& node, const T& item, absl::TimeZone tz) {
   node.attrs["time"] =
       absl::StrFormat("%.03f", absl::ToDoubleSeconds(item.time));
-  node.attrs["timestamp"] = absl::StrCat(item.timestamp);
+  node.attrs["timestamp"] = absl::FormatTime(item.timestamp, tz);
 }
 
 static void CountsToAttrs(XmlNode& node, const TestCounts& counts) {
@@ -79,7 +79,7 @@ static std::unique_ptr<XmlNode> ToXml(const Failure& failure) {
   return node;
 }
 
-std::unique_ptr<XmlNode> ToXml(const TestCase& test_case) {
+std::unique_ptr<XmlNode> ToXml(const TestCase& test_case, absl::TimeZone tz) {
   auto node = std::make_unique<XmlNode>("testcase");
   node->attrs["name"] = test_case.name;
   node->attrs["file"] = test_case.file;
@@ -91,31 +91,31 @@ std::unique_ptr<XmlNode> ToXml(const TestCase& test_case) {
     node->children.push_back(ToXml(test_case.failure.value()));
   }
 
-  TimesToAttrs(*node, test_case);
+  TimesToAttrs(*node, test_case, tz);
   return node;
 }
 
-std::unique_ptr<XmlNode> ToXml(const TestSuite& suite) {
+std::unique_ptr<XmlNode> ToXml(const TestSuite& suite, absl::TimeZone tz) {
   auto node = std::make_unique<XmlNode>("testsuite");
   node->attrs["name"] = suite.name;
   CountsToAttrs(*node, suite.counts);
-  TimesToAttrs(*node, suite);
+  TimesToAttrs(*node, suite, tz);
   for (const TestCase& test_case : suite.test_cases) {
-    node->children.push_back(ToXml(test_case));
+    node->children.push_back(ToXml(test_case, tz));
   }
   return node;
 }
 
-std::unique_ptr<XmlNode> ToXml(const TestSuites& suites) {
+std::unique_ptr<XmlNode> ToXml(const TestSuites& suites, absl::TimeZone tz) {
   auto node = std::make_unique<XmlNode>("testsuites");
 
   node->attrs["name"] = "all tests";
 
   CountsToAttrs(*node, suites.counts);
-  TimesToAttrs(*node, suites);
+  TimesToAttrs(*node, suites, tz);
 
   for (const TestSuite& suite : suites.test_suites) {
-    node->children.push_back(ToXml(suite));
+    node->children.push_back(ToXml(suite, tz));
   }
   return node;
 }

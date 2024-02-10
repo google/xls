@@ -29,6 +29,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -145,7 +146,8 @@ absl::StatusOr<TestResult> RealMain(
 
   if (xml_output_file.has_value()) {
     test_xml::TestSuites suites = test_result.ToXmlSuites(module_name);
-    std::unique_ptr<test_xml::XmlNode> root = ToXml(suites);
+    absl::TimeZone local_tz = absl::LocalTimeZone();
+    std::unique_ptr<test_xml::XmlNode> root = ToXml(suites, local_tz);
     std::string contents = test_xml::XmlRootToString(*root);
     XLS_RETURN_IF_ERROR(SetFileContents(xml_output_file.value(), contents));
   }

@@ -140,7 +140,7 @@ struct TestCase {
   std::optional<Failure> failure;
 };
 
-std::unique_ptr<XmlNode> ToXml(const TestCase& test_case);
+std::unique_ptr<XmlNode> ToXml(const TestCase& test_case, absl::TimeZone tz);
 
 struct TestCounts {
   int64_t tests;
@@ -165,7 +165,7 @@ struct TestSuite {
   std::vector<TestCase> test_cases;
 };
 
-std::unique_ptr<XmlNode> ToXml(const TestSuite& suite);
+std::unique_ptr<XmlNode> ToXml(const TestSuite& suite, absl::TimeZone tz);
 
 // Top-level object that contains all the test suites for a given test running
 // session.
@@ -182,7 +182,7 @@ struct TestSuites {
   std::vector<TestSuite> test_suites;
 };
 
-std::unique_ptr<XmlNode> ToXml(const TestSuites& suites);
+std::unique_ptr<XmlNode> ToXml(const TestSuites& suites, absl::TimeZone tz);
 
 std::string XmlNodeToString(const XmlNode& root);
 
