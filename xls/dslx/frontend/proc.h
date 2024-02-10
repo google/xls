@@ -73,8 +73,7 @@ class Proc : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "proc"; }
 
-  Proc(Module* owner, Span span, NameDef* name_def, NameDef* config_name_def,
-       NameDef* next_name_def,
+  Proc(Module* owner, Span span, NameDef* name_def,
        const std::vector<ParametricBinding*>& parametric_bindings,
        std::vector<ProcMember*> members, Function* config, Function* next,
        Function* init, bool is_public);
@@ -91,8 +90,6 @@ class Proc : public AstNode {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   NameDef* name_def() const { return name_def_; }
-  NameDef* config_name_def() const { return config_name_def_; }
-  NameDef* next_name_def() const { return next_name_def_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
@@ -103,12 +100,6 @@ class Proc : public AstNode {
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
 
-  std::vector<std::string> GetFreeParametricKeys() const;
-  absl::btree_set<std::string> GetFreeParametricKeySet() const {
-    std::vector<std::string> keys = GetFreeParametricKeys();
-    return absl::btree_set<std::string>(keys.begin(), keys.end());
-  }
-
   Function* config() const { return config_; }
   Function* next() const { return next_; }
   Function* init() const { return init_; }
@@ -117,8 +108,6 @@ class Proc : public AstNode {
  private:
   Span span_;
   NameDef* name_def_;
-  NameDef* config_name_def_;
-  NameDef* next_name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
 
   Function* config_;

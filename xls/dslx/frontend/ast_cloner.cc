@@ -554,8 +554,6 @@ class AstCloner : public AstNodeVisitor {
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
     Proc* p = module_->Make<Proc>(
         n->span(), new_name_def,
-        down_cast<NameDef*>(old_to_new_.at(n->config_name_def())),
-        down_cast<NameDef*>(old_to_new_.at(n->next_name_def())),
         new_parametric_bindings, new_members,
         down_cast<Function*>(old_to_new_.at(n->config())),
         down_cast<Function*>(old_to_new_.at(n->next())),

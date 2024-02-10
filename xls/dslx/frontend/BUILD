@@ -177,6 +177,7 @@ cc_test(
     deps = [
         ":ast",
         ":ast_utils",
+        ":module",
         ":parser",
         ":pos",
         ":scanner",

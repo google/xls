@@ -25,6 +25,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
@@ -71,10 +72,9 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       FunctionTag::kProcNext, /*is_public=*/true);
   std::vector<ProcMember*> members;
   std::vector<ParametricBinding*> bindings;
-  Proc* original_proc =
-      module.Make<Proc>(Span::Fake(), name_def, config_name_def, next_name_def,
-                        bindings, members, config, next, init,
-                        /*is_public=*/true);
+  Proc* original_proc = module.Make<Proc>(Span::Fake(), name_def, bindings,
+                                          members, config, next, init,
+                                          /*is_public=*/true);
   XLS_ASSERT_OK(module.AddTop(original_proc, /*make_collision_error=*/nullptr));
   name_def->set_definer(original_proc);
 
@@ -131,9 +131,9 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       FunctionTag::kProcInit, /*is_public=*/true);
   std::vector<ProcMember*> members;
   std::vector<ParametricBinding*> bindings;
-  Proc* original_proc = import_module->Make<Proc>(
-      Span::Fake(), name_def, config_name_def, next_name_def, bindings, members,
-      config, next, init, /*is_public=*/true);
+  Proc* original_proc =
+      import_module->Make<Proc>(Span::Fake(), name_def, bindings, members,
+                                config, next, init, /*is_public=*/true);
   XLS_ASSERT_OK(
       import_module->AddTop(original_proc, /*make_collision_error=*/nullptr));
   name_def->set_definer(original_proc);

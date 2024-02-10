@@ -31,15 +31,12 @@ namespace xls::dslx {
 // -- class Proc
 
 Proc::Proc(Module* owner, Span span, NameDef* name_def,
-           NameDef* config_name_def, NameDef* next_name_def,
            const std::vector<ParametricBinding*>& parametric_bindings,
            std::vector<ProcMember*> members, Function* config, Function* next,
            Function* init, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
-      config_name_def_(config_name_def),
-      next_name_def_(next_name_def),
       parametric_bindings_(parametric_bindings),
       config_(config),
       next_(next),
@@ -106,17 +103,6 @@ std::string Proc::ToString() const {
       Indent(config_->ToUndecoratedString("config"), kRustSpacesPerIndent),
       init_str,
       Indent(next_->ToUndecoratedString("next"), kRustSpacesPerIndent));
-}
-
-std::vector<std::string> Proc::GetFreeParametricKeys() const {
-  // TODO(rspringer): 2021-09-29: Mutants found holes in test coverage here.
-  std::vector<std::string> results;
-  for (ParametricBinding* b : parametric_bindings_) {
-    if (b->expr() == nullptr) {
-      results.push_back(b->name_def()->identifier());
-    }
-  }
-  return results;
 }
 
 // -- class TestProc

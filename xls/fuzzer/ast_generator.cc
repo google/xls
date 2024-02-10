@@ -2900,8 +2900,7 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Proc* proc = module_->Make<Proc>(
-      fake_span_, name_def, config_function->name_def(),
-      next_function.function->name_def(),
+      fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       proc_properties_.members, config_function, next_function.function,
       init_fn,

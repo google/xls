@@ -2342,9 +2342,8 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
   const Span span(proc_token.span().start(), cbrace.span().limit());
   auto proc =
-      module_->Make<Proc>(span, name_def, config->name_def(), next->name_def(),
-                          std::move(parametric_bindings), proc_members, config,
-                          next, init, is_public);
+      module_->Make<Proc>(span, name_def, std::move(parametric_bindings),
+                          proc_members, config, next, init, is_public);
   name_def->set_definer(proc);
   config->set_proc(proc);
   next->set_proc(proc);
