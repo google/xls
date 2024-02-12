@@ -833,11 +833,13 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "//xls/common:stopwatch",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
+        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:binary_decision_diagram",
@@ -957,8 +959,10 @@ cc_library(
 
 cc_library(
     name = "pass_base",
+    srcs = ["pass_base.cc"],
     hdrs = ["pass_base.h"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

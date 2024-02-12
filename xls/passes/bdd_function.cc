@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -30,11 +31,14 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/stopwatch.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/abstract_evaluator.h"
@@ -278,12 +282,54 @@ bool ShouldEvaluate(Node* node) {
   XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
 }
 
+// Data structure which aggregates BDD performance statistics across ops.
+class BddStatistics {
+ public:
+  // Note the compute time of a single node with the given op.
+  void AddOp(Op op, const absl::Duration& duration) {
+    op_durations_[op] += duration;
+    absl::Duration max_duration = std::max(duration, max_op_duration_[op]);
+    max_op_duration_[op] = max_duration;
+    ++op_counts_[op];
+  }
+
+  absl::Duration GetTotalDuration(Op op) const {
+    return op_durations_.contains(op) ? op_durations_.at(op) : absl::Duration();
+  }
+
+  absl::Duration GetMaxDuration(Op op) const {
+    return max_op_duration_.contains(op) ? max_op_duration_.at(op)
+                                         : absl::Duration();
+  }
+
+  std::string ToString() const {
+    std::string s = "BDD compute time per op:\n";
+    std::vector<Op> ops_by_duration = AllOps();
+    std::sort(ops_by_duration.begin(), ops_by_duration.end(), [&](Op a, Op b) {
+      return GetTotalDuration(a) > GetTotalDuration(b);
+    });
+    for (Op op : ops_by_duration) {
+      absl::StrAppendFormat(&s, "  %20s (%5d): %s (max %s)\n", OpToString(op),
+                            op_counts_.contains(op) ? op_counts_.at(op) : 0,
+                            absl::FormatDuration(GetTotalDuration(op)),
+                            absl::FormatDuration(GetMaxDuration(op)));
+    }
+    return s;
+  }
+
+ private:
+  absl::flat_hash_map<Op, absl::Duration> op_durations_;
+  absl::flat_hash_map<Op, absl::Duration> max_op_duration_;
+  absl::flat_hash_map<Op, int64_t> op_counts_;
+};
+
 }  // namespace
 
 /* static */ absl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
     FunctionBase* f, int64_t path_limit,
     std::optional<std::function<bool(const Node*)>> node_filter) {
-  XLS_VLOG(1) << absl::StreamFormat("BddFunction::Run(%s):", f->name());
+  XLS_VLOG(1) << absl::StreamFormat(
+      "BddFunction::Run(%s), %d nodes:", f->name(), f->node_count());
   XLS_VLOG_LINES(5, f->DumpIr());
 
   auto bdd_function = absl::WrapUnique(new BddFunction(f));
@@ -291,9 +337,9 @@ bool ShouldEvaluate(Node* node) {
 
   // Create and return a vector containing newly defined BDD variables.
   auto create_new_node_vector = [&](Node* n) {
-    SaturatingBddNodeVector v;
+    SaturatingBddNodeVector v(n->BitCountOrDie());
     for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
-      v.push_back(bdd_function->bdd().NewVariable());
+      v[i] = bdd_function->bdd().NewVariable();
     }
     bdd_function->saturated_expressions_.insert(n);
     return v;
@@ -301,6 +347,7 @@ bool ShouldEvaluate(Node* node) {
 
   XLS_VLOG(3) << "BDD expressions:";
   absl::flat_hash_map<Node*, SaturatingBddNodeVector> values;
+  BddStatistics bdd_stats;
   for (Node* node : TopoSort(f)) {
     XLS_VLOG(3) << "node: " << node->ToString();
     if (!node->GetType()->IsBits()) {
@@ -308,6 +355,12 @@ bool ShouldEvaluate(Node* node) {
                   << node->GetType()->ToString();
       continue;
     }
+
+    std::optional<Stopwatch> stop_watch;
+    if (XLS_VLOG_IS_ON(2)) {
+      stop_watch = Stopwatch();
+    }
+
     // If we shouldn't evaluate this node, the node is to be modeled as
     // variables, or the node includes some non-bits-typed operands, then just
     // create a vector of new BDD variables for this node.
@@ -315,11 +368,12 @@ bool ShouldEvaluate(Node* node) {
         (node_filter.has_value() && !node_filter.value()(node)) ||
         std::any_of(node->operands().begin(), node->operands().end(),
                     [](Node* o) { return !o->GetType()->IsBits(); })) {
-      XLS_VLOG(2) << "  node filtered out.";
+      XLS_VLOG(3) << "  node filtered out.";
       values[node] = create_new_node_vector(node);
     } else {
-      XLS_VLOG(2) << "  computing BDD value...";
+      XLS_VLOG(3) << "  computing BDD value...";
       std::vector<SaturatingBddNodeVector> operand_values;
+      operand_values.reserve(node->operand_count());
       for (Node* operand : node->operands()) {
         operand_values.push_back(values.at(operand));
       }
@@ -337,15 +391,21 @@ bool ShouldEvaluate(Node* node) {
         }
       }
     }
-    XLS_VLOG(5) << "  " << node->GetName() << ":";
-    for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-      XLS_VLOG(5) << absl::StreamFormat(
-          "    bit %d : %s", i,
-          bdd_function->bdd().ToStringDnf(
-              std::get<BddNodeIndex>(values.at(node)[i]),
-              /*minterm_limit=*/15));
+    if (XLS_VLOG_IS_ON(5)) {
+      XLS_VLOG(5) << "  " << node->GetName() << ":";
+      for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
+        XLS_VLOG(5) << absl::StreamFormat(
+            "    bit %d : %s", i,
+            bdd_function->bdd().ToStringDnf(
+                std::get<BddNodeIndex>(values.at(node)[i]),
+                /*minterm_limit=*/15));
+      }
+    }
+    if (stop_watch.has_value()) {
+      bdd_stats.AddOp(node->op(), stop_watch->GetElapsedTime());
     }
   }
+  XLS_VLOG_LINES(2, bdd_stats.ToString());
 
   // Copy over the vector and BDD variables into the node map which is exposed
   // via the BddFunction interface. At this point any TooManyPaths sentinel
@@ -370,7 +430,7 @@ absl::StatusOr<Value> BddFunction::Evaluate(
   absl::flat_hash_map<BddNodeIndex, bool> bdd_variable_values;
   XLS_RET_CHECK_EQ(args.size(), function->params().size());
   for (Node* node : TopoSort(function)) {
-    XLS_VLOG(2) << "node: " << node;
+    XLS_VLOG(3) << "node: " << node;
     Value result;
     if (node->Is<Param>()) {
       XLS_ASSIGN_OR_RETURN(int64_t param_index,
@@ -400,7 +460,7 @@ absl::StatusOr<Value> BddFunction::Evaluate(
     }
     values[node] = result;
 
-    XLS_VLOG(2) << "  result: " << result;
+    XLS_VLOG(3) << "  result: " << result;
     // Write BDD variable values into the map used for evaluation.
     if (node_map_.contains(node)) {
       const BddNodeVector& bdd_vector = node_map_.at(node);
@@ -415,12 +475,6 @@ absl::StatusOr<Value> BddFunction::Evaluate(
 }
 
 bool IsCheapForBdds(const Node* node) {
-  if (std::all_of(node->operands().begin(), node->operands().end(),
-                  IsSingleBitType) &&
-      IsSingleBitType(node)) {
-    return true;
-  }
-
   // The expense of evaluating a node using a BDD can depend strongly on the
   // width of the inputs or outputs. The nodes are roughly classified into
   // different groups based on their expense with width thresholds set for each

@@ -1064,7 +1064,7 @@ TransformMetrics TransformMetrics::operator-(
   };
 }
 
-std::string TransformMetrics::ToString() {
+std::string TransformMetrics::ToString() const {
   return absl::StrFormat(
       "{ nodes added: %d, nodes removed: %d, nodes replaced: %d, operands "
       "replaced: %d }",

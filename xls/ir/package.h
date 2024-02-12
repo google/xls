@@ -55,22 +55,22 @@ class StreamingChannel;
 struct TransformMetrics {
   // Number of nodes added (number of invocations of
   // FunctionBase::AddNodeInternal).
-  int64_t nodes_added;
+  int64_t nodes_added = 0;
 
   // Number of nodes removed (number of invocations of
   // FunctionBase::RemoveNode).
-  int64_t nodes_removed;
+  int64_t nodes_removed = 0;
 
   // Number of nodes replaced (number of calls to Node::ReplaceUsesWith).
-  int64_t nodes_replaced;
+  int64_t nodes_replaced = 0;
 
   // Number of operands replaced (number of calls to
   // Node::ReplaceOperand[Number]).
-  int64_t operands_replaced;
+  int64_t operands_replaced = 0;
 
   TransformMetrics operator+(const TransformMetrics& other) const;
   TransformMetrics operator-(const TransformMetrics& other) const;
-  std::string ToString();
+  std::string ToString() const;
 };
 
 class Package {

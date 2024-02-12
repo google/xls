@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -176,6 +177,43 @@ class InvariantCheckerBase {
                            ResultsT* results) const = 0;
 };
 
+// Data structure holding statistics about a particular pass.
+struct SinglePassResult {
+  // How many times the pass was run.
+  int64_t run_count = 0;
+  // How many runs changed the IR.
+  int64_t changed_count = 0;
+  // Aggregate transformation metrics across the runs.
+  TransformMetrics metrics;
+  // Total duration of the running of the pass.
+  absl::Duration duration;
+};
+
+// Data structure returned by contains aggregate statistics about the passes run
+// in a compound pass.
+class CompoundPassResult {
+ public:
+  // Whether the IR was changed.
+  bool changed() const { return changed_; }
+  void set_changed(bool value) { changed_ = value; }
+
+  // Add the results of a single run of a pass.
+  void AddSinglePassResult(std::string_view pass_name, bool changed,
+                           absl::Duration duration,
+                           const TransformMetrics& metrics);
+
+  // Accumulates the statistics in `other` into this one.
+  void AccumulateCompoundPassResult(const CompoundPassResult& other);
+
+  std::string ToString() const;
+
+ private:
+  bool changed_ = false;
+
+  // Aggregate results for each pass. Indexed by short name.
+  absl::flat_hash_map<std::string, SinglePassResult> pass_results_;
+};
+
 // CompoundPass is a container for other passes. For example, the scalar
 // optimizer can be a compound pass holding many passes for scalar
 // optimizations.
@@ -235,24 +273,26 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
                                  "start",
                                  /*ordinal=*/0, /*changed=*/false));
     }
-    return RunNested(ir, options, results, this->short_name(),
-                     /*invariant_checkers=*/{});
+    XLS_ASSIGN_OR_RETURN(CompoundPassResult compound_result,
+                         RunNested(ir, options, results, this->short_name(),
+                                   /*invariant_checkers=*/{}));
+    return compound_result.changed();
   }
-
-  // Internal implementation of Run for compound passes. Invoked when a compound
-  // pass is nested within another compound pass. Enables passing of invariant
-  // checkers and name of the top-level pass to nested compound passes.
-  virtual absl::StatusOr<bool> RunNested(
-      IrT* ir, const OptionsT& options, ResultsT* results,
-      std::string_view top_level_name,
-      absl::Span<const InvariantChecker* const> invariant_checkers) const;
 
   bool IsCompound() const override { return true; }
 
  protected:
+  // Internal implementation of Run for compound passes. Invoked when a compound
+  // pass is nested within another compound pass. Enables passing of invariant
+  // checkers and name of the top-level pass to nested compound passes.
+  virtual absl::StatusOr<CompoundPassResult> RunNested(
+      IrT* ir, const OptionsT& options, ResultsT* results,
+      std::string_view top_level_name,
+      absl::Span<const InvariantChecker* const> invariant_checkers) const;
+
   // Dump the IR to a file in the given directory. Name is determined by the
-  // various arguments passed in. File names will be lexographically ordered by
-  // package name and ordinal.
+  // various arguments passed in. File names will be lexicographically ordered
+  // by package name and ordinal.
   absl::Status DumpIr(const std::filesystem::path& ir_dump_path, IrT* ir,
                       std::string_view top_level_name, std::string_view tag,
                       int64_t ordinal, bool changed) const {
@@ -279,34 +319,38 @@ class FixedPointCompoundPassBase
                              std::string_view long_name)
       : CompoundPassBase<IrT, OptionsT, ResultsT>(short_name, long_name) {}
 
-  absl::StatusOr<bool> RunNested(
+ protected:
+  absl::StatusOr<CompoundPassResult> RunNested(
       IrT* ir, const OptionsT& options, ResultsT* results,
       std::string_view top_level_name,
       absl::Span<const typename CompoundPassBase<
           IrT, OptionsT, ResultsT>::InvariantChecker* const>
           invariant_checkers) const override {
     bool local_changed = true;
-    bool global_changed = false;
     int64_t iteration_count = 0;
+    CompoundPassResult aggregate_result;
     while (local_changed) {
       ++iteration_count;
       XLS_ASSIGN_OR_RETURN(
-          local_changed,
+          CompoundPassResult compound_result,
           (CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
               ir, options, results, top_level_name, invariant_checkers)),
           _ << "Running pass #" << results->invocations.size() << ": "
             << this->long_name() << " [short: " << this->short_name() << "]");
-      global_changed = global_changed || local_changed;
+      local_changed = compound_result.changed();
+      aggregate_result.AccumulateCompoundPassResult(compound_result);
     }
     XLS_VLOG(1) << absl::StreamFormat(
         "Fixed point compound pass %s iterated %d times.", this->long_name(),
         iteration_count);
-    return global_changed;
+    XLS_VLOG_LINES(2, aggregate_result.ToString());
+    return aggregate_result;
   }
 };
 
 template <typename IrT, typename OptionsT, typename ResultsT>
-absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
+absl::StatusOr<CompoundPassResult>
+CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     IrT* ir, const OptionsT& options, ResultsT* results,
     std::string_view top_level_name,
     absl::Span<const InvariantChecker* const> invariant_checkers) const {
@@ -335,11 +379,12 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
   XLS_RETURN_IF_ERROR(run_invariant_checkers(
       absl::StrCat("start of compound pass '", this->long_name(), "'")));
 
+  CompoundPassResult aggregate_result;
   bool changed = false;
   for (const auto& pass : passes_) {
-    XLS_VLOG(1) << absl::StreamFormat("Running %s (%s) pass on package %s",
+    XLS_VLOG(1) << absl::StreamFormat("Running %s (%s, #%d) pass on package %s",
                                       pass->long_name(), pass->short_name(),
-                                      ir->name());
+                                      results->invocations.size(), ir->name());
 
     TransformMetrics before_metrics;
     if (XLS_VLOG_IS_ON(1)) {
@@ -370,11 +415,12 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     bool pass_changed;
     if (pass->IsCompound()) {
       XLS_ASSIGN_OR_RETURN(
-          pass_changed,
+          CompoundPassResult compound_result,
           (down_cast<CompoundPassBase<IrT, OptionsT, ResultsT>*>(pass.get())
                ->RunNested(ir, options, results, top_level_name, checkers)),
           _ << "Running pass #" << results->invocations.size() << ": "
             << pass->long_name() << " [short: " << pass->short_name() << "]");
+      pass_changed = compound_result.changed();
     } else {
       XLS_ASSIGN_OR_RETURN(pass_changed, pass->Run(ir, options, results));
     }
@@ -397,13 +443,13 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     }
 #endif
     changed = changed || pass_changed;
+    TransformMetrics pass_metrics = ir->transform_metrics() - before_metrics;
     XLS_VLOG(1) << absl::StreamFormat(
         "[elapsed %s] Pass %s %s.", FormatDuration(duration),
         pass->short_name(),
         (pass_changed ? "changed IR" : "did not change IR"));
-    if (pass_changed && XLS_VLOG_IS_ON(1)) {
-      XLS_VLOG(1) << absl::StrFormat(
-          "Metrics: %s", (ir->transform_metrics() - before_metrics).ToString());
+    if (pass_changed) {
+      XLS_VLOG(1) << absl::StrFormat("Metrics: %s", pass_metrics.ToString());
     }
     if (!pass->IsCompound()) {
       results->invocations.push_back(
@@ -415,6 +461,10 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
                                  /*ordinal=*/results->invocations.size(),
                                  /*changed=*/pass_changed));
     }
+
+    aggregate_result.AddSinglePassResult(pass->short_name(), pass_changed,
+                                         duration, pass_metrics);
+
     // Only run the verifiers if the pass changed.
     if (pass_changed) {
       absl::Time checker_start = absl::Now();
@@ -428,7 +478,9 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     XLS_VLOG(5) << "After " << pass->long_name() << ":";
     XLS_VLOG_LINES(5, ir->DumpIr());
   }
-  return changed;
+
+  aggregate_result.set_changed(changed);
+  return aggregate_result;
 }
 
 }  // namespace xls
