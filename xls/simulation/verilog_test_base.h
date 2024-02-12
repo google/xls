@@ -197,8 +197,8 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
       absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions =
           {},
       absl::Span<const VerilogInclude> includes = {}) {
-    return GetDefaultVerilogSimulator().RunSyntaxChecking(
-        text, GetFileType(), macro_definitions, includes);
+    return GetSimulator()->RunSyntaxChecking(text, GetFileType(),
+                                             macro_definitions, includes);
   }
 
   // EXPECTs that the given strings are equal and are valid Verilog. The
