@@ -42,7 +42,8 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline() {
       std::make_unique<ProcStateLegalizationPass>());
 
   top->Add<MutualExclusionPass>();
-  top->Add<SchedulingWrapperPass>(std::make_unique<SimplificationPass>(3));
+  top->Add<SchedulingWrapperPass>(
+      std::make_unique<FixedPointSimplificationPass>(3));
   top->Add<SchedulingWrapperPass>(std::make_unique<LiteralUncommoningPass>());
   top->Add<PipelineSchedulingPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());

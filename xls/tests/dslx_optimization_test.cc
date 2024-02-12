@@ -103,11 +103,6 @@ fn main(i: u32) -> (bool, u32) {
   EXPECT_FALSE(HasOp(entry, Op::kArrayIndex));
   EXPECT_FALSE(HasOp(entry, Op::kArrayUpdate));
   EXPECT_FALSE(HasOp(entry, Op::kReverse));
-
-  // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Sensitivity
-  // analysis should be able to remove these nodes.
-  EXPECT_TRUE(HasOp(entry, Op::kSignExt));
-  EXPECT_TRUE(HasOp(entry, Op::kAnd));
 }
 
 TEST_F(DslxOptimizationTest, AttributeNamePropagation) {

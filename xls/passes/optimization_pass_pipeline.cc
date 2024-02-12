@@ -82,49 +82,65 @@
 
 namespace xls {
 
+namespace {
+
+void AddSimplificationPasses(OptimizationCompoundPass& pass,
+                             int64_t opt_level) {
+  pass.Add<IdentityRemovalPass>();
+  pass.Add<ConstantFoldingPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<CanonicalizationPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ArithSimplificationPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ComparisonSimplificationPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<TableSwitchPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ReceiveDefaultValueSimplificationPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<SelectSimplificationPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ConditionalSpecializationPass>(/*use_bdd=*/false);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ReassociationPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ConstantFoldingPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<BitSliceSimplificationPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ConcatSimplificationPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<TupleSimplificationPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<StrengthReductionPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ArraySimplificationPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<CsePass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ArithSimplificationPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<NarrowingPass>(/*analysis=*/NarrowingPass::AnalysisType::kTernary,
+                          opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<BooleanSimplificationPass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<TokenSimplificationPass>();
+  pass.Add<DeadCodeEliminationPass>();
+}
+
+}  // namespace
+
 SimplificationPass::SimplificationPass(int64_t opt_level)
-    : OptimizationFixedPointCompoundPass("simp", "Simplification") {
-  Add<IdentityRemovalPass>();
-  Add<ConstantFoldingPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<CanonicalizationPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<ArithSimplificationPass>(opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<ComparisonSimplificationPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<TableSwitchPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<ReceiveDefaultValueSimplificationPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<SelectSimplificationPass>(opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<ConditionalSpecializationPass>(/*use_bdd=*/false);
-  Add<DeadCodeEliminationPass>();
-  Add<ReassociationPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<ConstantFoldingPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<BitSliceSimplificationPass>(opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<ConcatSimplificationPass>(opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<TupleSimplificationPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<StrengthReductionPass>(opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<ArraySimplificationPass>(opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<NarrowingPass>(/*analysis=*/NarrowingPass::AnalysisType::kTernary,
-                     opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<ArithSimplificationPass>(opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<BooleanSimplificationPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<TokenSimplificationPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<CsePass>();
+    : OptimizationCompoundPass("simp", "Simplification") {
+  AddSimplificationPasses(*this, opt_level);
+}
+
+FixedPointSimplificationPass::FixedPointSimplificationPass(int64_t opt_level)
+    : OptimizationFixedPointCompoundPass("fixedpoint_simp",
+                                         "Fixed-point Simplification") {
+  AddSimplificationPasses(*this, opt_level);
 }
 
 std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
@@ -145,6 +161,8 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   top->Add<InliningPass>();
   top->Add<DeadFunctionEliminationPass>();
 
+  top->Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
+
   top->Add<BddSimplificationPass>(std::min(int64_t{2}, opt_level));
   top->Add<DeadCodeEliminationPass>();
   top->Add<BddCsePass>();
@@ -155,7 +173,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   top->Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
 
   top->Add<DeadCodeEliminationPass>();
-  top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
+  top->Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
 
   top->Add<NarrowingPass>(
       /*analysis=*/NarrowingPass::AnalysisType::kRangeWithOptionalContext,
@@ -179,7 +197,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   top->Add<ChannelLegalizationPass>();
   top->Add<TokenDependencyPass>();
   // Simplify the adapter procs before inlining.
-  top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
+  top->Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
   top->Add<ProcInliningPass>();
 
   // After proc inlining flatten and optimize the proc state. Run tuple
@@ -199,7 +217,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   top->Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
   top->Add<DeadCodeEliminationPass>();
 
-  top->Add<SimplificationPass>(std::min(int64_t{3}, opt_level));
+  top->Add<FixedPointSimplificationPass>(std::min(int64_t{3}, opt_level));
 
   top->Add<UselessAssertRemovalPass>();
   top->Add<UselessIORemovalPass>();
@@ -309,6 +327,12 @@ absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>> MakeOptMap(
   passes["simp"] = Pass<SimplificationPass>(std::min(int64_t{2}, opt_level));
   passes["simp(2)"] = Pass<SimplificationPass>(std::min(int64_t{2}, opt_level));
   passes["simp(3)"] = Pass<SimplificationPass>(std::min(int64_t{3}, opt_level));
+  passes["fixedpoint_simp"] =
+      Pass<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
+  passes["fixedpoint_simp(2)"] =
+      Pass<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
+  passes["fixedpoint_simp(3)"] =
+      Pass<FixedPointSimplificationPass>(std::min(int64_t{3}, opt_level));
   passes["sparsify_select"] = Pass<SparsifySelectPass>();
   passes["strength_red"] = Pass<StrengthReductionPass>(opt_level);
   passes["table_switch"] = Pass<TableSwitchPass>();

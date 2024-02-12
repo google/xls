@@ -25,9 +25,14 @@
 
 namespace xls {
 
-class SimplificationPass : public OptimizationFixedPointCompoundPass {
+class SimplificationPass : public OptimizationCompoundPass {
  public:
   explicit SimplificationPass(int64_t opt_level);
+};
+
+class FixedPointSimplificationPass : public OptimizationFixedPointCompoundPass {
+ public:
+  explicit FixedPointSimplificationPass(int64_t opt_level);
 };
 
 // CreateOptimizationPassPipeline connects together the various optimization
