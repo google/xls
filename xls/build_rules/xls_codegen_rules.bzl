@@ -50,6 +50,7 @@ _VERILOG_LINE_MAP_TEXTPROTO_FILE_EXTENSION = ".verilog_line_map.textproto"
 _BLOCK_IR_FILE_EXTENSION = ".block.ir"
 _SCHEDULE_IR_FILE_EXTENSION = ".schedule.opt.ir"
 _CODEGEN_LOG_FILE_EXTENSION = ".codegen.log"
+_CODEGEN_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION = ".codegen_options.textproto"
 
 xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
@@ -113,6 +114,13 @@ xls_ir_verilog_attrs = {
               "If not specified, the basename of the Verilog file followed " +
               "by a " + _CODEGEN_LOG_FILE_EXTENSION + " extension is used.",
     ),
+    "codegen_options_used_textproto_file": attr.output(
+        doc = "The filename to write the full configuration options used for " +
+              "this codegen. If not specified, the basename of the Verilog " +
+              "file followed by a " +
+              _CODEGEN_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION + " extension " +
+              "is used.",
+    ),
 }
 
 def _is_combinational_generator(arguments):
@@ -170,6 +178,10 @@ def append_xls_ir_verilog_generated_files(args, basename, arguments):
     args.setdefault(
         "codegen_log_file",
         basename + _CODEGEN_LOG_FILE_EXTENSION,
+    )
+    args.setdefault(
+        "codegen_options_used_textproto_file",
+        basename + _CODEGEN_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION,
     )
     return args
 
@@ -401,6 +413,17 @@ def xls_ir_verilog_impl(ctx, src):
     )
     log_file = ctx.actions.declare_file(codegen_log_filename)
     my_generated_files.append(log_file)
+
+    codegen_config_textproto_file = get_output_filename_value(
+        ctx,
+        "codegen_options_used_textproto_file",
+        verilog_basename + _CODEGEN_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION,
+    )
+    config_textproto_file = ctx.actions.declare_file(codegen_config_textproto_file)
+    my_generated_files.append(config_textproto_file)
+    final_args += " --codegen_options_used_textproto_file={}".format(
+        config_textproto_file.path,
+    )
 
     ctx.actions.run_shell(
         outputs = my_generated_files,

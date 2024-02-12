@@ -37,6 +37,8 @@ codegen can generate files useful for understanding or integrating the RTL.
     signature describes the ports, channels, external memories, etc.
 -   `--output_verilog_line_map_path` is the path to the verilog line map
     associating lines of verilog to lines of IR.
+-   `--codegen_options_used_textproto_file` is the path to write a textproto
+    containing the actual configuration used for codegen.
 
 # Pipelining and Scheduling Options
 
@@ -90,8 +92,8 @@ control the scheduler.
 -   `explain_infeasibility` configures what to do if scheduling fails. If set,
     the scheduling problem is reformulated with extra slack variables in an
     attempt to explain why scheduling failed.
--   `infeasible_per_state_backedge_slack_pool` If specified, the specified
-    value must be > 0. Setting this configures how the scheduling problem is
+-   `infeasible_per_state_backedge_slack_pool` If specified, the specified value
+    must be > 0. Setting this configures how the scheduling problem is
     reformulated in the case that scheduling fails. If specified, this value
     will cause the reformulated problem to include per-state backedge slack
     variables, which increases the complexity. This value scales the objective
@@ -109,7 +111,7 @@ feedbacks (typically from downstream tools, e.g., OpenROAD) to guide the delay
 estimation refinements in XLS. For now, FDO is disabled by default
 (`--use_fdo=false`).
 
--   `--use_fdo=true/false` Enable FDO.  If false, then the `--fdo_*` options are
+-   `--use_fdo=true/false` Enable FDO. If false, then the `--fdo_*` options are
     ignored.
 -   `--fdo_iteration_number=...` The number of FDO iterations during the
     pipeline scheduling. Must be an integer >= 2.
@@ -304,12 +306,11 @@ string. These format strings use placeholders to fill in relevant information.
 
     3.  All valid signals for the input channels.
 
--   For functions, when `--generator` is set to `pipeline`,
-    optional 'valid' logic can be added by using
-    `--input_valid_signal=...` and `--output_valid_signal=...`,
-    which also set the names for the valid I/O signals.  This logic
-    has no 'ready' signal and thus provides no backpressure.  See
-    also [Naming](#naming).
+-   For functions, when `--generator` is set to `pipeline`, optional 'valid'
+    logic can be added by using `--input_valid_signal=...` and
+    `--output_valid_signal=...`, which also set the names for the valid I/O
+    signals. This logic has no 'ready' signal and thus provides no backpressure.
+    See also [Naming](#naming).
 
 -   See also [Reset Signal Configuration](#reset-signal-configuration).
 

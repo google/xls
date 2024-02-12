@@ -14,6 +14,7 @@
 
 #include "xls/tools/codegen_flags.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -22,7 +23,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/tools/codegen_flags.pb.h"
 
@@ -134,6 +137,10 @@ ABSL_FLAG(bool, array_index_bounds_checking, true,
           "Otherwise, the bounds checking is not evaluated.");
 ABSL_FLAG(std::string, codegen_options_proto, "",
           "Path to a protobuf containing all codegen args.");
+ABSL_FLAG(std::optional<std::string>, codegen_options_used_textproto_file,
+          std::nullopt,
+          "If present, path to write a protobuf recording all codegen args "
+          "used (including those set on the cmd line).");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //docs_src/codegen_options.md
@@ -242,6 +249,12 @@ absl::StatusOr<CodegenFlagsProto> GetCodegenFlags() {
   } else if (FLAGS_codegen_options_proto.IsSpecifiedOnCommandLine()) {
     XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
         absl::GetFlag(FLAGS_codegen_options_proto), &proto));
+  }
+  if (absl::GetFlag(FLAGS_codegen_options_used_textproto_file)) {
+    std::string out;
+    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(proto, &out));
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        *absl::GetFlag(FLAGS_codegen_options_used_textproto_file), out));
   }
   return proto;
 }

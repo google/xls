@@ -1096,11 +1096,13 @@ cc_library(
     deps = [
         ":codegen_flags_cc_proto",
         "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
