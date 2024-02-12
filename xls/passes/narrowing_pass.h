@@ -29,7 +29,7 @@ namespace xls {
 class NarrowingPass : public OptimizationFunctionBasePass {
  public:
   enum class AnalysisType : uint8_t {
-    kBdd,
+    kTernary,
     kRange,
     // Use the select context of instructions when calculating ranges.
     kRangeWithContext,

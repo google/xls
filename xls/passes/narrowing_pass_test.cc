@@ -69,7 +69,7 @@ class NarrowingPassTestBase : public IrTestBase {
   }
   bool DoesRangeAnalysis() const {
     switch (analysis()) {
-      case NarrowingPass::AnalysisType::kBdd:
+      case NarrowingPass::AnalysisType::kTernary:
         return false;
       case NarrowingPass::AnalysisType::kRange:
       case NarrowingPass::AnalysisType::kRangeWithContext:
@@ -110,7 +110,7 @@ TEST_P(NarrowingPassTest, NarrowSub) {
 }
 
 TEST_P(NarrowingPassTest, NoChangeIsNoChangeWithMaybeNarrowableSubNegative) {
-  if (analysis() == NarrowingPass::AnalysisType::kBdd) {
+  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
     GTEST_SKIP() << "BDD Unable to determine sign of subtraction";
   }
   // Regression test for issue where we added nodes but the pass reported no
@@ -130,7 +130,7 @@ TEST_P(NarrowingPassTest, NoChangeIsNoChangeWithMaybeNarrowableSubNegative) {
 }
 
 TEST_P(NarrowingPassTest, NarrowableSubPositive) {
-  if (analysis() == NarrowingPass::AnalysisType::kBdd) {
+  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
     GTEST_SKIP() << "BDD Unable to determine sign of subtraction";
   }
   auto p = CreatePackage();
@@ -1261,7 +1261,7 @@ TEST_F(ContextNarrowingPassTest, KnownSmallAdd) {
 
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
-    testing::Values(NarrowingPass::AnalysisType::kBdd,
+    testing::Values(NarrowingPass::AnalysisType::kTernary,
                     NarrowingPass::AnalysisType::kRange,
                     NarrowingPass::AnalysisType::kRangeWithContext),
     testing::PrintToStringParamName());

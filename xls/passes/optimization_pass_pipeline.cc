@@ -115,7 +115,8 @@ SimplificationPass::SimplificationPass(int64_t opt_level)
   Add<DeadCodeEliminationPass>();
   Add<ArraySimplificationPass>(opt_level);
   Add<DeadCodeEliminationPass>();
-  Add<NarrowingPass>(/*analysis=*/NarrowingPass::AnalysisType::kBdd, opt_level);
+  Add<NarrowingPass>(/*analysis=*/NarrowingPass::AnalysisType::kTernary,
+                     opt_level);
   Add<DeadCodeEliminationPass>();
   Add<ArithSimplificationPass>(opt_level);
   Add<DeadCodeEliminationPass>();
@@ -290,8 +291,8 @@ absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>> MakeOptMap(
   passes["map_inlining"] = Pass<MapInliningPass>();
   passes["narrow"] =
       Pass<NarrowingPass>(NarrowingPass::AnalysisType::kRange, opt_level);
-  passes["narrow(Bdd)"] =
-      Pass<NarrowingPass>(NarrowingPass::AnalysisType::kBdd, opt_level);
+  passes["narrow(Ternary)"] =
+      Pass<NarrowingPass>(NarrowingPass::AnalysisType::kTernary, opt_level);
   passes["narrow(Context)"] = Pass<NarrowingPass>(
       NarrowingPass::AnalysisType::kRangeWithContext, opt_level);
   passes["narrow(OptionalContext)"] = Pass<NarrowingPass>(

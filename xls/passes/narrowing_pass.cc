@@ -1801,8 +1801,8 @@ AnalysisType NarrowingPass::RealAnalysis(
 
 std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
   switch (a) {
-    case NarrowingPass::AnalysisType::kBdd:
-      return os << "Bdd";
+    case NarrowingPass::AnalysisType::kTernary:
+      return os << "Ternary";
     case NarrowingPass::AnalysisType::kRange:
       return os << "Range";
     case NarrowingPass::AnalysisType::kRangeWithContext:
