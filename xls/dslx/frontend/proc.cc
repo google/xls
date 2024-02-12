@@ -19,6 +19,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -28,20 +30,27 @@
 
 namespace xls::dslx {
 
+absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n) {
+  if (auto* s = dynamic_cast<Function*>(n)) {
+    return s;
+  }
+  if (auto* s = dynamic_cast<ProcMember*>(n)) {
+    return s;
+  }
+  return absl::InvalidArgumentError(absl::StrCat(
+      "Node is not a valid ProcStmt; type: ", n->GetNodeTypeName()));
+}
+
 // -- class Proc
 
 Proc::Proc(Module* owner, Span span, NameDef* name_def,
-           const std::vector<ParametricBinding*>& parametric_bindings,
-           std::vector<ProcMember*> members, Function* config, Function* next,
-           Function* init, bool is_public)
+           std::vector<ParametricBinding*> parametric_bindings, ProcBody body,
+           bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
-      parametric_bindings_(parametric_bindings),
-      config_(config),
-      next_(next),
-      init_(init),
-      members_(std::move(members)),
+      parametric_bindings_(std::move(parametric_bindings)),
+      body_(std::move(body)),
       is_public_(is_public) {}
 
 Proc::~Proc() = default;
@@ -51,12 +60,12 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   for (ParametricBinding* pb : parametric_bindings_) {
     results.push_back(pb);
   }
-  for (ProcMember* p : members_) {
+  for (ProcMember* p : body_.members) {
     results.push_back(p);
   }
-  results.push_back(config_);
-  results.push_back(next_);
-  results.push_back(init_);
+  results.push_back(body_.config);
+  results.push_back(body_.next);
+  results.push_back(body_.init);
   return results;
 }
 
@@ -72,25 +81,18 @@ std::string Proc::ToString() const {
               absl::StrAppend(out, parametric_binding->ToString());
             }));
   }
-  auto param_append = [](std::string* out, const Param* p) {
-    out->append(absl::StrCat(p->ToString(), ";"));
-  };
-  auto member_append = [](std::string* out, const ProcMember* member) {
-    out->append(absl::StrCat(member->ToString(), ";"));
-  };
-  std::string config_params_str =
-      absl::StrJoin(config_->params(), ", ", param_append);
-  std::string state_params_str =
-      absl::StrJoin(next_->params(), ", ", param_append);
-  std::string members_str = absl::StrJoin(members_, "\n", member_append);
-  if (!members_str.empty()) {
+  std::string members_str = absl::StrJoin(
+      members(), "\n", [](std::string* out, const ProcMember* member) {
+        out->append(absl::StrCat(member->ToString(), ";"));
+      });
+  if (!members().empty()) {
     members_str.append("\n");
   }
 
   // Init functions are special, since they shouldn't be printed with
   // parentheses (since they can't take args).
   std::string init_str = Indent(
-      absl::StrCat("init ", init_->body()->ToString()), kRustSpacesPerIndent);
+      absl::StrCat("init ", init()->body()->ToString()), kRustSpacesPerIndent);
 
   constexpr std::string_view kTemplate = R"(%sproc %s%s {
 %s%s
@@ -100,9 +102,9 @@ std::string Proc::ToString() const {
   return absl::StrFormat(
       kTemplate, pub_str, name_def()->identifier(), parametric_str,
       Indent(members_str, kRustSpacesPerIndent),
-      Indent(config_->ToUndecoratedString("config"), kRustSpacesPerIndent),
+      Indent(config()->ToUndecoratedString("config"), kRustSpacesPerIndent),
       init_str,
-      Indent(next_->ToUndecoratedString("next"), kRustSpacesPerIndent));
+      Indent(next()->ToUndecoratedString("next"), kRustSpacesPerIndent));
 }
 
 // -- class TestProc

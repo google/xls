@@ -18,11 +18,14 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/container/btree_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 
@@ -68,15 +71,33 @@ class ProcMember : public AstNode {
   Span span_;
 };
 
+// TODO(leary): 2024-02-09 Extend this to allow for type aliases, constant
+// definitions, constant asserts, etc.
+using ProcStmt = std::variant<Function*, ProcMember*>;
+
+absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n);
+
+// Constructs that we encountered during parsing that are present within a
+// proc's body scope.
+struct ProcBody {
+  // Note: this is the statements in the proc as parsed in order -- the fields
+  // below are specially extracted items from these statements.
+  std::vector<ProcStmt> stmts;
+
+  Function* config;
+  Function* next;
+  Function* init;
+  std::vector<ProcMember*> members;
+};
+
 // Represents a parsed 'process' specification in the DSL.
 class Proc : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "proc"; }
 
   Proc(Module* owner, Span span, NameDef* name_def,
-       const std::vector<ParametricBinding*>& parametric_bindings,
-       std::vector<ProcMember*> members, Function* config, Function* next,
-       Function* init, bool is_public);
+       std::vector<ParametricBinding*> parametric_bindings, ProcBody body,
+       bool is_public);
 
   ~Proc() override;
 
@@ -100,20 +121,18 @@ class Proc : public AstNode {
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
 
-  Function* config() const { return config_; }
-  Function* next() const { return next_; }
-  Function* init() const { return init_; }
-  const std::vector<ProcMember*>& members() const { return members_; }
+  Function* config() const { return body_.config; }
+  Function* next() const { return body_.next; }
+  Function* init() const { return body_.init; }
+  absl::Span<ProcMember* const> members() const { return body_.members; }
+  absl::Span<ProcStmt const> stmts() const { return body_.stmts; }
 
  private:
   Span span_;
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
 
-  Function* config_;
-  Function* next_;
-  Function* init_;
-  std::vector<ProcMember*> members_;
+  ProcBody body_;
   bool is_public_;
 };
 

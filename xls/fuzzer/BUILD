@@ -664,6 +664,7 @@ cc_library(
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:proc",
         "//xls/dslx/frontend:token",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",

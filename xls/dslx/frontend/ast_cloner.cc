@@ -551,13 +551,25 @@ class AstCloner : public AstNodeVisitor {
       new_members.push_back(down_cast<ProcMember*>(old_to_new_.at(member)));
     }
 
+    std::vector<ProcStmt> new_stmts;
+    new_stmts.reserve(n->stmts().size());
+    for (const ProcStmt& stmt : n->stmts()) {
+      XLS_ASSIGN_OR_RETURN(ProcStmt new_stmt,
+                           ToProcStmt(old_to_new_.at(ToAstNode(stmt))));
+      new_stmts.push_back(new_stmt);
+    }
+
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
-    Proc* p = module_->Make<Proc>(
-        n->span(), new_name_def,
-        new_parametric_bindings, new_members,
-        down_cast<Function*>(old_to_new_.at(n->config())),
-        down_cast<Function*>(old_to_new_.at(n->next())),
-        down_cast<Function*>(old_to_new_.at(n->init())), n->is_public());
+    ProcBody new_body = {
+        .stmts = new_stmts,
+        .config = down_cast<Function*>(old_to_new_.at(n->config())),
+        .next = down_cast<Function*>(old_to_new_.at(n->next())),
+        .init = down_cast<Function*>(old_to_new_.at(n->init())),
+        .members = new_members,
+    };
+    Proc* p =
+        module_->Make<Proc>(n->span(), new_name_def, new_parametric_bindings,
+                            new_body, n->is_public());
     new_name_def->set_definer(p);
     old_to_new_[n] = p;
     return absl::OkStatus();

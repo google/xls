@@ -52,6 +52,7 @@
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/scanner_keywords.inc"
 #include "xls/dslx/frontend/token.h"
 #include "xls/ir/code_template.h"
@@ -2341,9 +2342,16 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
   const Span span(proc_token.span().start(), cbrace.span().limit());
+  ProcBody body = {
+      .stmts = {},  // TODO(leary): 2024-02-09 Populate statements.
+      .config = config,
+      .next = next,
+      .init = init,
+      .members = proc_members,
+  };
   auto proc =
       module_->Make<Proc>(span, name_def, std::move(parametric_bindings),
-                          proc_members, config, next, init, is_public);
+                          std::move(body), is_public);
   name_def->set_definer(proc);
   config->set_proc(proc);
   next->set_proc(proc);

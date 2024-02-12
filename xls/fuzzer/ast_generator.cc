@@ -54,6 +54,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/ast_generator_options.pb.h"
 #include "xls/fuzzer/value_generator.h"
@@ -2899,11 +2900,15 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
+  ProcBody body = {
+      .config = config_function,
+      .next = next_function.function,
+      .init = init_fn,
+      .members = proc_properties_.members,
+  };
   Proc* proc = module_->Make<Proc>(
       fake_span_, name_def,
-      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
-      proc_properties_.members, config_function, next_function.function,
-      init_fn,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(), body,
       /*is_public=*/false);
   name_def->set_definer(proc);
   return AnnotatedProc{.proc = proc, .min_stages = next_function.min_stage};
