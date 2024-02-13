@@ -122,8 +122,9 @@ class Value {
   // of binary data that's fine) but just to change weird OOM crashes when fed
   // with fuzzed/corrupted data into more debuggable Status errors. Set this to
   // std::number_limits<int64_t>::max() to disable the check.
-  static absl::StatusOr<Value> FromProto(
-      const ValueProto& proto, int64_t max_bit_size = int64_t{1} << 33);
+  static absl::StatusOr<Value> FromProto(const ValueProto& proto,
+                                         int64_t max_bit_size = int64_t{1}
+                                                                << 33);
 
   // Serializes the contents of this value as bits in the buffer.
   void FlattenTo(BitPushBuffer* buffer) const;
@@ -178,6 +179,11 @@ class Value {
 
   bool operator==(const Value& other) const;
   bool operator!=(const Value& other) const { return !(*this == other); }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Value& v) {
+    absl::Format(&sink, "%s", v.ToString(FormatPreference::kDefault));
+  }
 
  private:
   Value(ValueKind kind, absl::Span<const Value> elements)
