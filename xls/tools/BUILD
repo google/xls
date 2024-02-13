@@ -1492,7 +1492,7 @@ cc_binary(
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system:typecheck",
+        "//xls/dslx/type_system:typecheck_module",
         "//xls/ir",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/scheduling:pipeline_schedule",

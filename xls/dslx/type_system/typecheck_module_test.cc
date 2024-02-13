@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system/typecheck.h"
-
-#include <cstdint>
 #include <iostream>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1346,79 +1342,6 @@ fn f<N: u32>() -> bool { true }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Quickchecking parametric functions is unsupported")));
-}
-
-TEST(TypecheckTest, GetAsBuiltinType) {
-  constexpr std::string_view kProgram = R"(
-struct Foo {
-  a: u64,
-  b: u1,
-  c: bits[1],
-  d: bits[64],
-  e: sN[0],
-  f: sN[1],
-  g: uN[1],
-  h: uN[64],
-  i: uN[66],
-  j: bits[32][32],
-  k: u64[32],
-}
-)";
-
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule module,
-      ParseAndTypecheck(kProgram, "fake_path", "MyModule", &import_data));
-  StructDef* struct_def = module.module->GetStructDefs()[0];
-  // The classic for-switch pattern. :)
-  for (int i = 0; i < struct_def->members().size(); i++) {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::optional<BuiltinType> as_builtin,
-        GetAsBuiltinType(module.module, module.type_info, &import_data,
-                         struct_def->members()[i].type));
-
-    if (i == 4 || i == 8 || i == 9 || i == 10) {
-      ASSERT_FALSE(as_builtin.has_value()) << "Case : " << i;
-      continue;
-    }
-
-    XLS_ASSERT_OK_AND_ASSIGN(bool is_signed,
-                             GetBuiltinTypeSignedness(as_builtin.value()));
-    XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_count,
-                             GetBuiltinTypeBitCount(as_builtin.value()));
-    switch (i) {
-      case 0:
-        EXPECT_FALSE(is_signed);
-        EXPECT_EQ(bit_count, 64);
-        break;
-      case 1:
-        EXPECT_FALSE(is_signed);
-        EXPECT_EQ(bit_count, 1);
-        break;
-      case 2:
-        EXPECT_FALSE(is_signed);
-        EXPECT_EQ(bit_count, 1);
-        break;
-      case 3:
-        EXPECT_FALSE(is_signed);
-        EXPECT_EQ(bit_count, 64);
-        break;
-      case 5:
-        EXPECT_TRUE(is_signed);
-        EXPECT_EQ(bit_count, 1);
-        break;
-      case 6:
-        EXPECT_FALSE(is_signed);
-        EXPECT_EQ(bit_count, 1);
-        break;
-      case 7:
-        EXPECT_FALSE(is_signed);
-        EXPECT_EQ(bit_count, 64);
-        break;
-      default:
-        FAIL();
-    }
-  }
 }
 
 TEST(TypecheckTest, NumbersAreConstexpr) {

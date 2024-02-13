@@ -37,7 +37,7 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck.h"
+#include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -63,9 +63,9 @@ absl::StatusOr<TestData> CreateTestData(std::string_view module_text) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
   TestData test_data{std::move(module), CreateImportDataForTest()};
   WarningCollector warnings(kAllWarningsSet);
-  XLS_ASSIGN_OR_RETURN(
-      test_data.type_info,
-      CheckModule(test_data.module.get(), &test_data.import_data, &warnings));
+  XLS_ASSIGN_OR_RETURN(test_data.type_info,
+                       TypecheckModule(test_data.module.get(),
+                                       &test_data.import_data, &warnings));
   return std::move(test_data);
 }
 

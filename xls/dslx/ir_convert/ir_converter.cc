@@ -62,7 +62,7 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck.h"
+#include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/channel.h"
@@ -450,7 +450,7 @@ absl::Status AddContentsToPackage(std::string_view file_contents,
                 /*filename=*/path.value_or("<UNKNOWN>"), printed_error));
   WarningCollector warnings(import_data->enabled_warnings());
   absl::StatusOr<TypeInfo*> type_info_or =
-      CheckModule(module.get(), import_data, &warnings);
+      TypecheckModule(module.get(), import_data, &warnings);
   if (!type_info_or.ok()) {
     *printed_error = TryPrintError(type_info_or.status());
     return type_info_or.status();

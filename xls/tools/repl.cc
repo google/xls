@@ -52,7 +52,7 @@
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck.h"
+#include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/function.h"
@@ -324,7 +324,7 @@ absl::Status CommandReload() {
       /*enabled_warnings=*/dslx::kAllWarningsSet));
   dslx::WarningCollector warnings(import_data.enabled_warnings());
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * type_info,
-                       CheckModule(module.get(), &import_data, &warnings));
+                       TypecheckModule(module.get(), &import_data, &warnings));
   globals->dslx = std::make_unique<DslxGlobals>(std::move(import_data),
                                                 std::move(module), type_info);
   globals->identifier_trie = PopulateIdentifierTrie();

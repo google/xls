@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system/typecheck.h"
+#include "xls/dslx/type_system/typecheck_module.h"
 
 #include <cstdint>
 #include <memory>
@@ -164,8 +164,8 @@ static bool CanTypecheckProc(Proc* p) {
   return true;
 }
 
-absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
-                               ImportData* import_data, DeduceCtx* ctx) {
+absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
+                                   ImportData* import_data, DeduceCtx* ctx) {
   if (std::holds_alternative<Import*>(member)) {
     Import* import = std::get<Import*>(member);
     XLS_ASSIGN_OR_RETURN(
@@ -292,14 +292,15 @@ absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
 
 }  // namespace
 
-absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,
-                                      WarningCollector* warnings) {
+absl::StatusOr<TypeInfo*> TypecheckModule(Module* module,
+                                          ImportData* import_data,
+                                          WarningCollector* warnings) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->type_info_owner().New(module));
 
   auto typecheck_module =
       [import_data, warnings](Module* module) -> absl::StatusOr<TypeInfo*> {
-    return CheckModule(module, import_data, warnings);
+    return TypecheckModule(module, import_data, warnings);
   };
 
   DeduceCtx ctx(type_info, module,
@@ -311,50 +312,14 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,
   ctx.AddFnStackEntry(FnStackEntry::MakeTop(module));
 
   for (const ModuleMember& member : module->top()) {
-    absl::Status status = CheckModuleMember(member, module, import_data, &ctx);
+    absl::Status status =
+        TypecheckModuleMember(member, module, import_data, &ctx);
     if (!status.ok()) {
       return MaybeExpandTypeErrorData(status, ctx);
     }
   }
 
   return type_info;
-}
-
-absl::StatusOr<std::optional<BuiltinType>> GetAsBuiltinType(
-    Module* module, TypeInfo* type_info, ImportData* import_data,
-    const TypeAnnotation* type) {
-  if (auto* builtin_type = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {
-    return builtin_type->builtin_type();
-  }
-
-  if (auto* array_type = dynamic_cast<const ArrayTypeAnnotation*>(type)) {
-    TypeAnnotation* element_type = array_type->element_type();
-    auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(element_type);
-    if (builtin_type == nullptr) {
-      return std::nullopt;
-    }
-
-    // If the array size/dim is a scalar < 64b, then the element is really an
-    // integral type.
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue array_dim_value,
-        InterpretExpr(import_data, type_info, array_type->dim(), /*env=*/{}));
-
-    if (builtin_type->builtin_type() != BuiltinType::kBits &&
-        builtin_type->builtin_type() != BuiltinType::kUN &&
-        builtin_type->builtin_type() != BuiltinType::kSN) {
-      return std::nullopt;
-    }
-
-    XLS_ASSIGN_OR_RETURN(uint64_t array_dim,
-                         array_dim_value.GetBitValueUnsigned());
-    if (array_dim_value.IsBits() && array_dim > 0 && array_dim <= 64) {
-      return GetBuiltinType(builtin_type->builtin_type() == BuiltinType::kSN,
-                            array_dim);
-    }
-  }
-
-  return std::nullopt;
 }
 
 }  // namespace xls::dslx

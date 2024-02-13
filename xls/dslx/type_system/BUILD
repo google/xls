@@ -306,9 +306,9 @@ cc_library(
 )
 
 cc_library(
-    name = "typecheck",
-    srcs = ["typecheck.cc"],
-    hdrs = ["typecheck.h"],
+    name = "typecheck_module",
+    srcs = ["typecheck_module.cc"],
+    hdrs = ["typecheck_module.h"],
     deps = [
         ":concrete_type",
         ":deduce",
@@ -358,11 +358,11 @@ cc_library(
 )
 
 cc_test(
-    name = "typecheck_test",
-    srcs = ["typecheck_test.cc"],
+    name = "typecheck_module_test",
+    srcs = ["typecheck_module_test.cc"],
     deps = [
         ":type_info",
-        ":typecheck",
+        ":typecheck_module",
         ":typecheck_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -384,7 +384,7 @@ cc_test(
     name = "proc_typecheck_test",
     srcs = ["proc_typecheck_test.cc"],
     deps = [
-        ":typecheck",
+        ":typecheck_module",
         ":typecheck_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
