@@ -288,6 +288,8 @@ the tool and the input file path remains unchanged.
 auto-formatted using the latest `dslx_fmt` results:
 
 ```
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_fmt_test")
+
 xls_dslx_fmt_test(
     name = "my_file_dslx_fmt_test",
     src = "my_file.x",
