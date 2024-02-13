@@ -271,15 +271,18 @@ DocRef Fmt(const ChannelTypeAnnotation& n, const Comments& comments,
       arena.oangle(),
       Fmt(*n.payload(), comments, arena),
       arena.cangle(),
-      arena.space(),
-      arena.Make(n.direction() == ChannelDirection::kIn ? Keyword::kIn
-                                                        : Keyword::kOut),
   };
   if (n.dims().has_value()) {
     for (const Expr* dim : *n.dims()) {
+      pieces.push_back(arena.obracket());
       pieces.push_back(Fmt(*dim, comments, arena));
+      pieces.push_back(arena.cbracket());
     }
   }
+
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.Make(
+      n.direction() == ChannelDirection::kIn ? Keyword::kIn : Keyword::kOut));
   return ConcatNGroup(arena, pieces);
 }
 
@@ -753,7 +756,9 @@ DocRef Fmt(const ChannelDecl& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.cangle());
   if (n.dims().has_value()) {
     for (const Expr* dim : *n.dims()) {
+      pieces.push_back(arena.obracket());
       pieces.push_back(Fmt(*dim, comments, arena));
+      pieces.push_back(arena.cbracket());
     }
   }
   return ConcatNGroup(arena, pieces);

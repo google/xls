@@ -1227,6 +1227,10 @@ TEST_F(ModuleFmtTest, TypeRefChannelTypeAnnotation) {
   Run("type MyChan = chan<u32> out;\n");
 }
 
+TEST_F(ModuleFmtTest, TypeRefChannelArrayTypeAnnotation) {
+  Run("type MyChan = chan<u32>[2] out;\n");
+}
+
 TEST_F(ModuleFmtTest, ColonRefWithImportSubject) {
   Run(
       R"(import foo;
@@ -1438,6 +1442,24 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelDecl) {
 
     config() {
         let (cin, cout) = chan<u32>;
+        (cin, cout)
+    }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SimpleProcWithChannelArrayDecl) {
+  Run(
+      R"(pub proc p {
+    cin: chan<u32>[2] in;
+    cout: chan<u32>[2] out;
+
+    config() {
+        let (cin, cout) = chan<u32>[2];
         (cin, cout)
     }
 
