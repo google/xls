@@ -981,6 +981,26 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_struct_update_non_struct(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/struct_update_non_struct.x',
+    )
+    self.assertIn('TypeInferenceError:', stderr)
+    self.assertIn(
+        "Type given to 'splatted' struct instantiation was not a struct",
+        stderr,
+    )
+
+  def test_struct_update_non_struct_type(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/struct_update_non_struct_type.x',
+    )
+    self.assertIn('TypeInferenceError:', stderr)
+    self.assertIn(
+        'uN[32] Type given to struct instantiation was not a struct',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

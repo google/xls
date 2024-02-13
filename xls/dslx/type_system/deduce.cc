@@ -1585,6 +1585,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   XLS_ASSIGN_OR_RETURN(struct_type_ct,
                        UnwrapMetaType(std::move(struct_type_ct), node->span(),
                                       "splatted struct instance type"));
+
+  // The type of the splatted value; e.g. in `MyStruct{..s}` the type of `s`.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> splatted_type_ct,
                        ctx->Deduce(node->splatted()));
 
@@ -1592,13 +1594,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   // because that's where we're filling in the default values from (those values
   // that were not directly provided by the user).
   auto* struct_type = dynamic_cast<StructType*>(struct_type_ct.get());
-  auto* splatted_type = dynamic_cast<StructType*>(splatted_type_ct.get());
+  if (struct_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->struct_ref()->span(), struct_type_ct.get(),
+        absl::StrFormat("Type given to struct instantiation was not a struct"));
+  }
 
-  // TODO(leary): 2020-12-13 Create a test case that hits this assertion, this
-  // is a type error users can make; e.g. if they try to splat-instantiate a
-  // tuple type alias.
-  XLS_RET_CHECK(struct_type != nullptr);
-  XLS_RET_CHECK(splatted_type != nullptr);
+  auto* splatted_type = dynamic_cast<StructType*>(splatted_type_ct.get());
+  if (splatted_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->splatted()->span(), splatted_type_ct.get(),
+        absl::StrFormat(
+            "Type given to 'splatted' struct instantiation was not a struct"));
+  }
+
   if (&struct_type->nominal_type() != &splatted_type->nominal_type()) {
     return ctx->TypeMismatchError(
         node->span(), nullptr, *struct_type, nullptr, *splatted_type,
