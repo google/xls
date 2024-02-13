@@ -43,23 +43,30 @@
 #include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
+namespace {
+
+// Sees if the function is named with a `_test` suffix but not marked with a
+// test annotation -- this is likely to be a user mistake, so we give a warning.
+void WarnIfConfusinglyNamedLikeTest(Function* f, DeduceCtx* ctx) {
+  if (!absl::EndsWith(f->identifier(), "_test")) {
+    return;
+  }
+  AstNode* parent = f->parent();
+  if (parent == nullptr || parent->kind() != AstNodeKind::kTestFunction) {
+    ctx->warnings()->Add(
+        f->span(), WarningKind::kMisleadingFunctionName,
+        absl::StrFormat("Function `%s` ends with `_test` but is "
+                        "not marked as a unit test via #[test]",
+                        f->identifier()));
+  }
+}
+
+}  // namespace
 
 absl::Status TypecheckFunction(Function* f, DeduceCtx* ctx) {
   XLS_VLOG(2) << "Typechecking fn: " << f->identifier();
 
-  // See if the function is named with a `_test` suffix but not marked with a
-  // test annotation -- this is likely to be a user mistake, so we give a
-  // warning.
-  if (absl::EndsWith(f->identifier(), "_test")) {
-    AstNode* parent = f->parent();
-    if (parent == nullptr || parent->kind() != AstNodeKind::kTestFunction) {
-      ctx->warnings()->Add(
-          f->span(), WarningKind::kMisleadingFunctionName,
-          absl::StrFormat("Function `%s` ends with `_test` but is "
-                          "not marked as a unit test via #[test]",
-                          f->identifier()));
-    }
-  }
+  WarnIfConfusinglyNamedLikeTest(f, ctx);
 
   // Every top-level proc needs its own type info (that's shared between both
   // proc functions). Otherwise, the implicit channels created during top-level
