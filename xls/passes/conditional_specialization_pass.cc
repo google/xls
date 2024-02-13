@@ -338,7 +338,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     XLS_VLOG(4) << absl::StreamFormat("Considering node %s: %s",
                                       node->GetName(), set.ToString());
 
-    if (OpIsSideEffecting(node->op()) && !node->Is<Send>()) {
+    if (OpIsSideEffecting(node->op()) && !node->Is<Send>() &&
+        !node->Is<Next>()) {
       // Inputs to side-effecting operations should not change so don't assume
       // any conditions for this node or it's predecessors.
       XLS_VLOG(4) << absl::StreamFormat("Node %s is side-effecting",
@@ -422,13 +423,11 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
     if (node->Is<Send>()) {
       Send* send = node->As<Send>();
-
       if (!send->predicate().has_value()) {
         continue;
       }
 
-      Node* predicate = send->predicate().value();
-
+      Node* predicate = *send->predicate();
       if (predicate->Is<Literal>()) {
         continue;
       }
@@ -439,7 +438,29 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
       ConditionSet edge_set = set;
       edge_set.AddCondition(Condition{predicate, /*value=*/1});
-      condition_map.SetEdgeConditionSet(node, /*operand_no=*/1,
+      condition_map.SetEdgeConditionSet(node, Send::kDataOperand,
+                                        std::move(edge_set));
+    }
+
+    if (node->Is<Next>()) {
+      Next* next = node->As<Next>();
+      if (!next->predicate().has_value()) {
+        continue;
+      }
+
+      Node* predicate = *next->predicate();
+      if (predicate->Is<Literal>()) {
+        continue;
+      }
+
+      XLS_VLOG(4) << absl::StreamFormat(
+          "%s is a conditional next_value, assuming predicate %s is true for "
+          "data %s",
+          node->GetName(), predicate->GetName(), next->value()->GetName());
+
+      ConditionSet edge_set = set;
+      edge_set.AddCondition(Condition{predicate, /*value=*/1});
+      condition_map.SetEdgeConditionSet(node, Next::kValueOperand,
                                         std::move(edge_set));
     }
 

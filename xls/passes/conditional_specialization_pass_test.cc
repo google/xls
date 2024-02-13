@@ -617,6 +617,62 @@ TEST_F(ConditionalSpecializationPassTest, SendChange) {
   EXPECT_THAT(send->data(), m::Param("value2"));
 }
 
+TEST_F(ConditionalSpecializationPassTest, NextValueNoChangeLiteralPred) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
+                           ParsePackageNoVerify(R"(
+      package my_package
+
+      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+        literal.1: bits[1] = literal(value=1, id=1)
+        literal.2: bits[32] = literal(value=400, id=2)
+        eq.3: bits[1] = eq(value1, literal.2, id=3)
+        sel.4: bits[32] = sel(eq.3, cases=[literal.2, value2], id=4)
+        next_value.5: () = next_value(param=value1, value=sel.4, predicate=literal.1, id=5)
+        next (tkn)
+      }
+    )"));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest, NextValueNoChangeUnprovable) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
+                           ParsePackageNoVerify(R"(
+      package my_package
+
+      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+        literal.1: bits[32] = literal(value=400, id=1)
+        literal.2: bits[32] = literal(value=55, id=2)
+        eq.3: bits[1] = eq(value1, literal.1, id=3)
+        ugt.4: bits[1] = ugt(value1, literal.2, id=4)
+        sel.5: bits[32] = sel(eq.3, cases=[literal.1, value2], id=5)
+        next_value.6: () = next_value(param=value1, value=sel.5, predicate=ugt.4, id=6)
+        next (tkn)
+      }
+    )"));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
+                           ParsePackageNoVerify(R"(
+      package my_package
+
+      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+        literal.1: bits[32] = literal(value=400, id=1)
+        eq.2: bits[1] = eq(value1, literal.1, id=2)
+        sel.3: bits[32] = sel(eq.2, cases=[literal.1, value2], id=3)
+        next_value.4: () = next_value(param=value1, value=sel.3, predicate=eq.2, id=4)
+        next (tkn)
+      }
+    )"));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
+  EXPECT_THAT(
+      f->next_values(f->GetStateParam(0)),
+      ElementsAre(m::Next(m::Param("value1"), m::Param("value2"), m::Eq())));
+}
+
 TEST_F(ConditionalSpecializationPassTest, LogicalAndImpliedValue) {
   // AND(a, OR(a, b)) => AND(a, OR(1, b))
   auto p = CreatePackage();
