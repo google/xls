@@ -439,7 +439,15 @@ absl::Status LiteralChainToStateMachine(Proc* proc,
             SourceInfo(), machine_too_large,
             std::vector<Node*>({machine_plus_one, state_machine_param}),
             std::nullopt));
-    XLS_RETURN_IF_ERROR(proc->SetNextStateElement(state_machine_index, sel));
+    // TODO(epastor): Clean this up once we no longer use next-state elements.
+    if (proc->next_values().empty()) {
+      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(state_machine_index, sel));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          proc->MakeNode<Next>(SourceInfo(), /*param=*/state_machine_param,
+                               /*value=*/sel, /*predicate=*/std::nullopt)
+              .status());
+    }
   }
 
   std::vector<Node*> initial_state_literals;
