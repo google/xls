@@ -123,7 +123,33 @@ absl::StatusOr<Node*> AndReduceTrailing(
   XLS_ASSIGN_OR_RETURN(
       Node * bit_slice,
       f->MakeNode<BitSlice>(loc, node, /*start=*/0, /*width=*/bit_count));
+  if (bit_count == 1) {
+    return bit_slice;
+  }
   return f->MakeNode<BitwiseReductionOp>(loc, bit_slice, Op::kAndReduce);
+}
+
+absl::StatusOr<Node*> NorReduceTrailing(
+    Node* node, int64_t bit_count,
+    const std::optional<SourceInfo>& source_info) {
+  SourceInfo loc = source_info.value_or(node->loc());
+  FunctionBase* f = node->function_base();
+  // Reducing zero bits returns one (documented convention).
+  if (bit_count == 0) {
+    return f->MakeNode<Literal>(loc, Value(UBits(1, 1)));
+  }
+  const int64_t width = node->BitCountOrDie();
+  XLS_CHECK_LE(bit_count, width);
+  XLS_ASSIGN_OR_RETURN(Node * bit_slice,
+                       f->MakeNode<BitSlice>(loc, node,
+                                             /*start=*/0,
+                                             /*width=*/bit_count));
+  Node* reduced = bit_slice;
+  if (bit_count > 1) {
+    XLS_ASSIGN_OR_RETURN(reduced, f->MakeNode<BitwiseReductionOp>(
+                                      loc, bit_slice, Op::kOrReduce));
+  }
+  return f->MakeNode<UnOp>(loc, reduced, Op::kNot);
 }
 
 absl::StatusOr<Node*> OrReduceLeading(
@@ -141,6 +167,9 @@ absl::StatusOr<Node*> OrReduceLeading(
                        f->MakeNode<BitSlice>(loc, node,
                                              /*start=*/width - bit_count,
                                              /*width=*/bit_count));
+  if (bit_count == 1) {
+    return bit_slice;
+  }
   return f->MakeNode<BitwiseReductionOp>(loc, bit_slice, Op::kOrReduce);
 }
 
@@ -159,8 +188,11 @@ absl::StatusOr<Node*> NorReduceLeading(
                        f->MakeNode<BitSlice>(loc, node,
                                              /*start=*/width - bit_count,
                                              /*width=*/bit_count));
-  XLS_ASSIGN_OR_RETURN(Node * reduced, f->MakeNode<BitwiseReductionOp>(
-                                           loc, bit_slice, Op::kOrReduce));
+  Node* reduced = bit_slice;
+  if (bit_count > 1) {
+    XLS_ASSIGN_OR_RETURN(reduced, f->MakeNode<BitwiseReductionOp>(
+                                      loc, bit_slice, Op::kOrReduce));
+  }
   return f->MakeNode<UnOp>(loc, reduced, Op::kNot);
 }
 

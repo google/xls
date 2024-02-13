@@ -40,6 +40,7 @@ struct OptOptions {
   std::optional<std::string> ir_path = std::nullopt;
   std::vector<std::string> skip_passes;
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
+  std::optional<int64_t> split_next_value_selects = std::nullopt;
   bool inline_procs;
   std::vector<RamRewrite> ram_rewrites = {};
   bool use_context_narrowing_analysis;
@@ -58,9 +59,9 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
 absl::StatusOr<std::string> OptimizeIrForTop(
     std::string_view input_path, int64_t opt_level, std::string_view top,
     std::string_view ir_dump_path, absl::Span<const std::string> skip_passes,
-    int64_t convert_array_index_to_select, bool inline_procs,
-    std::string_view ram_rewrites_pb, bool use_context_narrowing_analysis,
-    std::optional<std::string> pass_list,
+    int64_t convert_array_index_to_select, int64_t split_next_value_selects,
+    bool inline_procs, std::string_view ram_rewrites_pb,
+    bool use_context_narrowing_analysis, std::optional<std::string> pass_list,
     std::optional<int64_t> bisect_limit);
 
 }  // namespace xls::tools

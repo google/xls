@@ -124,6 +124,11 @@ ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
           "equal to the given number of possible indices (by range analysis) "
           "into chains of selects. Otherwise, this optimization is skipped, "
           "since it can sometimes reduce output quality.");
+ABSL_FLAG(
+    int64_t, split_next_value_selects, -1,
+    "If specified, split `next_value`s that assign `sel`s to state params if "
+    "they have fewer than the given number of cases. Otherwise, this "
+    "optimization is skipped, since it can sometimes reduce output quality.");
 ABSL_FLAG(bool, use_context_narrowing_analysis, false,
           "Use context sensitive narrowing analysis. This is somewhat slower "
           "but might produce better results in some circumstances by using "
@@ -186,6 +191,12 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
       (convert_array_index_to_select < 0)
           ? std::nullopt
           : std::make_optional(convert_array_index_to_select);
+  int64_t split_next_value_selects =
+      absl::GetFlag(FLAGS_split_next_value_selects);
+  pass_options.split_next_value_selects =
+      (split_next_value_selects < 0)
+          ? std::nullopt
+          : std::make_optional(split_next_value_selects);
   // TODO(meheff): 2022/3/23 Add this as a flag and benchmark_ir option.
   pass_options.inline_procs = true;
   pass_options.use_context_narrowing_analysis =

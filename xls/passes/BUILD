@@ -45,6 +45,7 @@ cc_library(
         ":literal_uncommoning_pass",
         ":map_inlining_pass",
         ":narrowing_pass",
+        ":next_value_optimization_pass",
         ":optimization_pass",
         ":pass_base",
         ":proc_inlining_pass",
@@ -2529,5 +2530,49 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+    ],
+)
+
+cc_library(
+    name = "next_value_optimization_pass",
+    srcs = ["next_value_optimization_pass.cc"],
+    hdrs = ["next_value_optimization_pass.h"],
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+    ],
+)
+
+cc_test(
+    name = "next_value_optimization_pass_test",
+    srcs = ["next_value_optimization_pass_test.cc"],
+    deps = [
+        ":next_value_optimization_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
     ],
 )

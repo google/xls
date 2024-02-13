@@ -119,6 +119,11 @@ struct OptimizationPassOptions : public PassOptionsBase {
   // sometimes reduce output quality.
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
 
+  // If this is not `std::nullopt`, split `next_value`s that assign `sel`s to
+  // state params if they have fewer than the given number of cases. Otherwise,
+  // this optimization is skipped, since it can sometimes reduce output quality.
+  std::optional<int64_t> split_next_value_selects = std::nullopt;
+
   // List of RAM rewrites, generally lowering abstract RAMs into concrete
   // variants.
   std::vector<RamRewrite> ram_rewrites;

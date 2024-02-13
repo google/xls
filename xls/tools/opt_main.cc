@@ -75,6 +75,12 @@ ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
           "equal to the given number of possible indices (by range analysis) "
           "into chains of selects. Otherwise, this optimization is skipped, "
           "since it can sometimes reduce output quality.");
+ABSL_FLAG(
+    int64_t, split_next_value_selects, 4,
+    "If positive, split `next_value`s that assign `sel`s to state params if "
+    "they have fewer than the given number of cases. This optimization is "
+    "skipped for selects with more cases, since it can sometimes reduce output "
+    "quality by replacing MUX trees with separate equality checks.");
 ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
           absl::StrFormat("Optimization level. Ranges from 1 to %d.",
                           xls::kMaxOptLevel));
@@ -161,6 +167,8 @@ absl::Status RealMain(std::string_view input_path) {
   std::vector<std::string> skip_passes = absl::GetFlag(FLAGS_skip_passes);
   int64_t convert_array_index_to_select =
       absl::GetFlag(FLAGS_convert_array_index_to_select);
+  int64_t split_next_value_selects =
+      absl::GetFlag(FLAGS_split_next_value_selects);
   bool inline_procs = absl::GetFlag(FLAGS_inline_procs);
   std::string ram_rewrites_pb = absl::GetFlag(FLAGS_ram_rewrites_pb);
   bool use_context_narrowing_analysis =
@@ -177,6 +185,7 @@ absl::Status RealMain(std::string_view input_path) {
           /*ir_dump_path=*/ir_dump_path,
           /*skip_passes=*/skip_passes,
           /*convert_array_index_to_select=*/convert_array_index_to_select,
+          /*split_next_value_selects=*/split_next_value_selects,
           /*inline_procs=*/inline_procs,
           /*ram_rewrites_pb=*/ram_rewrites_pb,
           /*use_context_narrowing_analysis=*/use_context_narrowing_analysis,

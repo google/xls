@@ -201,6 +201,7 @@ def _optimize_ir(ctx, src):
         "ir_dump_path",
         "passes",
         "skip_passes",
+        "split_next_value_selects",
         "opt_level",
         "convert_array_index_to_select",
         "inline_procs",
@@ -438,6 +439,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "delay_model",
         "convert_array_index_to_select",
         "scheduling_options_proto",
+        "split_next_value_selects",
         "use_context_narrowing_analysis",
         "worst_case_throughput",
     )

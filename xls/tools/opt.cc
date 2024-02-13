@@ -14,6 +14,7 @@
 
 #include "xls/tools/opt.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -78,6 +79,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
   pass_options.inline_procs = options.inline_procs;
   pass_options.convert_array_index_to_select =
       options.convert_array_index_to_select;
+  pass_options.split_next_value_selects = options.split_next_value_selects;
   pass_options.ram_rewrites = options.ram_rewrites;
   pass_options.use_context_narrowing_analysis =
       options.use_context_narrowing_analysis;
@@ -91,9 +93,10 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
 absl::StatusOr<std::string> OptimizeIrForTop(
     std::string_view input_path, int64_t opt_level, std::string_view top,
     std::string_view ir_dump_path, absl::Span<const std::string> skip_passes,
-    int64_t convert_array_index_to_select, bool inline_procs,
-    std::string_view ram_rewrites_pb, bool use_context_narrowing_analysis,
-    std::optional<std::string> pass_list, std::optional<int64_t> bisect_limit) {
+    int64_t convert_array_index_to_select, int64_t split_next_value_selects,
+    bool inline_procs, std::string_view ram_rewrites_pb,
+    bool use_context_narrowing_analysis, std::optional<std::string> pass_list,
+    std::optional<int64_t> bisect_limit) {
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
   std::vector<RamRewrite> ram_rewrites;
   if (!ram_rewrites_pb.empty()) {
@@ -112,6 +115,10 @@ absl::StatusOr<std::string> OptimizeIrForTop(
           (convert_array_index_to_select < 0)
               ? std::nullopt
               : std::make_optional(convert_array_index_to_select),
+      .split_next_value_selects =
+          (split_next_value_selects < 0)
+              ? std::nullopt
+              : std::make_optional(split_next_value_selects),
       .inline_procs = inline_procs,
       .ram_rewrites = std::move(ram_rewrites),
       .use_context_narrowing_analysis = use_context_narrowing_analysis,

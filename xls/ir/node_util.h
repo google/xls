@@ -148,6 +148,15 @@ absl::StatusOr<Node*> AndReduceTrailing(
     Node* node, int64_t bit_count,
     const std::optional<SourceInfo>& source_info = std::nullopt);
 
+// Nor-reduces the trailing (least significant) "bit_count" bits of node.
+// If `source_info` is provided, will set all generated nodes to have the given
+// `source_info`.
+//
+// If bit_count == 0, returns a literal 1.
+absl::StatusOr<Node*> NorReduceTrailing(
+    Node* node, int64_t bit_count,
+    const std::optional<SourceInfo>& source_info = std::nullopt);
+
 // Or-reduces the leading (most significant) "bit_count" bits of node.
 // If `source_info` is provided, will set all generated nodes to have the given
 // `source_info`.

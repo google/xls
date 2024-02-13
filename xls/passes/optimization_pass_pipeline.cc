@@ -59,6 +59,7 @@
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
+#include "xls/passes/next_value_optimization_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/proc_inlining_pass.h"
@@ -206,6 +207,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   top->Add<ProcStateFlatteningPass>();
   top->Add<IdentityRemovalPass>();
   top->Add<TupleSimplificationPass>();
+  top->Add<NextValueOptimizationPass>();
   top->Add<ProcStateOptimizationPass>();
   top->Add<DeadCodeEliminationPass>();
 
@@ -221,6 +223,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
 
   top->Add<UselessAssertRemovalPass>();
   top->Add<UselessIORemovalPass>();
+  top->Add<NextValueOptimizationPass>();
   top->Add<ProcStateOptimizationPass>();
   top->Add<DeadCodeEliminationPass>();
 
@@ -317,6 +320,7 @@ absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>> MakeOptMap(
       NarrowingPass::AnalysisType::kRangeWithOptionalContext, opt_level);
   passes["narrow(Range)"] =
       Pass<NarrowingPass>(NarrowingPass::AnalysisType::kRange, opt_level);
+  passes["next_value_opt"] = Pass<NextValueOptimizationPass>();
   passes["proc_inlining"] = Pass<ProcInliningPass>();
   passes["proc_state_flat"] = Pass<ProcStateFlatteningPass>();
   passes["proc_state_opt"] = Pass<ProcStateOptimizationPass>();
@@ -341,6 +345,7 @@ absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>> MakeOptMap(
   passes["tuple_simp"] = Pass<TupleSimplificationPass>();
   passes["useless_assert_remove"] = Pass<UselessAssertRemovalPass>();
   passes["useless_io_remove"] = Pass<UselessIORemovalPass>();
+  // LINT.ThenChange(:pass_includes)
   return passes;
 }
 std::vector<absl::flat_hash_map<std::string_view, std::unique_ptr<BaseAdd>>>
