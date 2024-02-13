@@ -52,6 +52,7 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:concrete_type_zero_value",
+        "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:unwrap_meta_type",

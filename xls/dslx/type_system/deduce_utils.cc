@@ -15,23 +15,104 @@
 #include "xls/dslx/type_system/deduce_utils.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <variant>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
+namespace {
+
+using ColonRefSubjectT =
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
+                 StructDef*, ColonRef*>;
+
+}  // namespace
+
+// Has to be an enum or builtin-type name, given the context we're in: looking
+// for _values_ hanging off, e.g. in service of a `::` ref.
+static absl::StatusOr<
+    std::variant<EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
+                                        const TypeInfo* type_info,
+                                        TypeAlias* type_def) {
+  XLS_VLOG(5) << "ResolveTypeDefToDirectColonRefSubject; type_def: `"
+              << type_def->ToString() << "`";
+
+  TypeDefinition td = type_def;
+  while (std::holds_alternative<TypeAlias*>(td)) {
+    TypeAlias* next_type_alias = std::get<TypeAlias*>(td);
+    XLS_VLOG(5) << "TypeAlias: `" << next_type_alias->ToString() << "`";
+    TypeAnnotation* type = next_type_alias->type_annotation();
+    XLS_VLOG(5) << "TypeAnnotation: `" << type->ToString() << "`";
+
+    if (auto* bti = dynamic_cast<BuiltinTypeAnnotation*>(type);
+        bti != nullptr) {
+      return bti->builtin_name_def();
+    }
+    if (auto* ata = dynamic_cast<ArrayTypeAnnotation*>(type); ata != nullptr) {
+      return ata;
+    }
+
+    TypeRefTypeAnnotation* type_ref_type =
+        dynamic_cast<TypeRefTypeAnnotation*>(type);
+    // TODO(rspringer): We'll need to collect parametrics from type_ref_type to
+    // support parametric TypeDefs.
+    XLS_RET_CHECK(type_ref_type != nullptr)
+        << type->ToString() << " :: " << type->GetNodeTypeName();
+    XLS_VLOG(5) << "TypeRefTypeAnnotation: `" << type_ref_type->ToString()
+                << "`";
+
+    td = type_ref_type->type_ref()->type_definition();
+  }
+
+  if (std::holds_alternative<ColonRef*>(td)) {
+    ColonRef* colon_ref = std::get<ColonRef*>(td);
+    XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectForTypeChecking(
+                                           import_data, type_info, colon_ref));
+    XLS_RET_CHECK(std::holds_alternative<Module*>(subject));
+    Module* module = std::get<Module*>(subject);
+    XLS_ASSIGN_OR_RETURN(td, module->GetTypeDefinition(colon_ref->attr()));
+
+    if (std::holds_alternative<TypeAlias*>(td)) {
+      // We need to get the right type info for the enum's containing module. We
+      // can get the top-level module since [currently?] enums can't be
+      // parameterized.
+      type_info = import_data->GetRootTypeInfo(module).value();
+      return ResolveTypeAliasToDirectColonRefSubject(import_data, type_info,
+                                                     std::get<TypeAlias*>(td));
+    }
+  }
+
+  if (!std::holds_alternative<EnumDef*>(td)) {
+    return absl::InternalError(
+        "ResolveTypeDefToDirectColonRefSubject() can only be called when the "
+        "TypeAlias "
+        "directory or indirectly refers to an EnumDef.");
+  }
+
+  return std::get<EnumDef*>(td);
+}
 
 absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
   XLS_VLOG(5) << "TryEnsureFitsInType; number: " << number.ToString() << " @ "
@@ -119,6 +200,145 @@ absl::Status ValidateNumber(const Number& number, const ConcreteType& type) {
                         type.GetDebugTypeName()));
   }
   return TryEnsureFitsInType(number, *bits_type);
+}
+
+// When a ColonRef's subject is a NameRef, this resolves the entity referred to
+// by that ColonRef. In a valid program that can only be a limited set of
+// things, which is reflected in the return type provided.
+//
+// e.g.
+//
+//    A::B
+//    ^
+//    \- subject name_ref
+//
+// Args:
+//  name_ref: The subject in the colon ref.
+//
+// Returns the entity the subject name_ref is referring to.
+static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
+    NameRef* name_ref, ImportData* import_data, const TypeInfo* type_info) {
+  XLS_VLOG(5) << "ResolveColonRefNameRefSubject for `" << name_ref->ToString()
+              << "`";
+
+  std::variant<const NameDef*, BuiltinNameDef*> any_name_def =
+      name_ref->name_def();
+  if (std::holds_alternative<BuiltinNameDef*>(any_name_def)) {
+    return std::get<BuiltinNameDef*>(any_name_def);
+  }
+
+  const NameDef* name_def = std::get<const NameDef*>(any_name_def);
+  AstNode* definer = name_def->definer();
+  XLS_VLOG(5) << " ResolveColonRefNameRefSubject definer: `"
+              << definer->ToString()
+              << "` type: " << definer->GetNodeTypeName();
+
+  if (Import* import = dynamic_cast<Import*>(definer); import != nullptr) {
+    std::optional<const ImportedInfo*> imported =
+        type_info->GetImported(import);
+    if (!imported.has_value()) {
+      return absl::InternalError(absl::StrCat(
+          "Could not find Module for Import: ", import->ToString()));
+    }
+    return imported.value()->module;
+  }
+
+  // If the LHS isn't an Import, then it has to be an EnumDef (possibly via a
+  // TypeAlias).
+  if (EnumDef* enum_def = dynamic_cast<EnumDef*>(definer);
+      enum_def != nullptr) {
+    return enum_def;
+  }
+
+  TypeAlias* type_alias = dynamic_cast<TypeAlias*>(definer);
+  XLS_RET_CHECK(type_alias != nullptr);
+
+  if (type_alias->owner() != type_info->module()) {
+    // We need to get the right type info for the enum's containing module. We
+    // can get the top-level module since [currently?] enums can't be
+    // parameterized (and we know this must be an enum, per the above).
+    type_info = import_data->GetRootTypeInfo(type_alias->owner()).value();
+  }
+  XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeAliasToDirectColonRefSubject(
+                                          import_data, type_info, type_alias));
+  return WidenVariantTo<ColonRefSubjectT>(resolved);
+}
+
+absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
+    ImportData* import_data, const TypeInfo* type_info,
+    const ColonRef* colon_ref) {
+  XLS_VLOG(5) << "ResolveColonRefSubject for " << colon_ref->ToString();
+
+  // If the subject is a name reference we use a helper routine.
+  if (std::holds_alternative<NameRef*>(colon_ref->subject())) {
+    NameRef* name_ref = std::get<NameRef*>(colon_ref->subject());
+    return ResolveColonRefNameRefSubject(name_ref, import_data, type_info);
+  }
+
+  XLS_RET_CHECK(std::holds_alternative<ColonRef*>(colon_ref->subject()));
+  ColonRef* subject = std::get<ColonRef*>(colon_ref->subject());
+  XLS_ASSIGN_OR_RETURN(
+      ColonRefSubjectT resolved_subject,
+      ResolveColonRefSubjectForTypeChecking(import_data, type_info, subject));
+
+  // Has to be a module, since it's a ColonRef inside a ColonRef.
+  if (!std::holds_alternative<Module*>(resolved_subject)) {
+    return TypeInferenceErrorStatus(
+        subject->span(), nullptr,
+        absl::StrFormat("Cannot resolve `::` -- subject is %s",
+                        ToAstNode(resolved_subject)->GetNodeTypeName()));
+  }
+
+  Module* module = std::get<Module*>(resolved_subject);
+
+  // And the subject has to be a type, namely an enum, since the ColonRef must
+  // be of the form: <MODULE>::SOMETHING::SOMETHING_ELSE. Keep in mind, though,
+  // that we might have to traverse an EnumDef.
+  XLS_ASSIGN_OR_RETURN(TypeDefinition td,
+                       module->GetTypeDefinition(subject->attr()));
+
+  using ReturnT = absl::StatusOr<ColonRefSubjectT>;
+
+  return absl::visit(
+      Visitor{
+          [&](TypeAlias* type_alias) -> ReturnT {
+            XLS_ASSIGN_OR_RETURN(auto resolved,
+                                 ResolveTypeAliasToDirectColonRefSubject(
+                                     import_data, type_info, type_alias));
+            return WidenVariantTo<ColonRefSubjectT>(resolved);
+          },
+          [](StructDef* struct_def) -> ReturnT { return struct_def; },
+          [](EnumDef* enum_def) -> ReturnT { return enum_def; },
+          [](ColonRef* colon_ref) -> ReturnT { return colon_ref; },
+      },
+      td);
+}
+
+absl::StatusOr<
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
+                                        const TypeInfo* type_info,
+                                        const ColonRef* colon_ref) {
+  XLS_ASSIGN_OR_RETURN(auto result, ResolveColonRefSubjectForTypeChecking(
+                                        import_data, type_info, colon_ref));
+  using ReturnT = absl::StatusOr<
+      std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>;
+  return absl::visit(
+      Visitor{
+          [](Module* x) -> ReturnT { return x; },
+          [](EnumDef* x) -> ReturnT { return x; },
+          [](BuiltinNameDef* x) -> ReturnT { return x; },
+          [](ArrayTypeAnnotation* x) -> ReturnT { return x; },
+          [](StructDef*) -> ReturnT {
+            return absl::InternalError(
+                "After type checking colon-ref subject cannot be a StructDef");
+          },
+          [](ColonRef*) -> ReturnT {
+            return absl::InternalError(
+                "After type checking colon-ref subject cannot be a StructDef");
+          },
+      },
+      result);
 }
 
 }  // namespace xls::dslx

@@ -17,6 +17,7 @@
 
 #include <optional>
 #include <string_view>
+#include <variant>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -25,8 +26,10 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 
@@ -42,6 +45,30 @@ bool IsNameRefTo(const Expr* e, const NameDef* name_def);
 
 // Checks that "number" can legitmately conform to type "type".
 absl::Status ValidateNumber(const Number& number, const ConcreteType& type);
+
+// Returns the basis of the given ColonRef.
+//
+// In valid cases this will generally be:
+// * a module
+// * an enum definition
+// * a builtin type (with a constant item on it, a la `u7::MAX`)
+//
+// Struct definitions cannot currently have constant items on them, so this will
+// have to be flagged by the type checker.
+absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
+                            ArrayTypeAnnotation*, StructDef*, ColonRef*>>
+ResolveColonRefSubjectForTypeChecking(ImportData* import_data,
+                                      const TypeInfo* type_info,
+                                      const ColonRef* colon_ref);
+
+// Implementation of the above that can be called after type checking has been
+// performed, in which case we can eliminate some of the (invalid) possibilities
+// so they no longer need to be handled.
+absl::StatusOr<
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
+                                        const TypeInfo* type_info,
+                                        const ColonRef* colon_ref);
 
 // Returns an AST node typed T from module "m", resolved via name "name".
 //

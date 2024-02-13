@@ -46,6 +46,7 @@
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/make_value_format_descriptor.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/value_format_descriptor.h"

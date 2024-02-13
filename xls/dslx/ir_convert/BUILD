@@ -186,6 +186,7 @@ cc_library(
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "//xls/ir",

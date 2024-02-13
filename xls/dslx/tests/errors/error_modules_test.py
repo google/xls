@@ -1001,6 +1001,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_invalid_enum_attr_access(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/invalid_enum_attr_access.x',
+    )
+    self.assertIn('TypeInferenceError:', stderr)
+    self.assertIn(
+        'Cannot resolve `::` -- subject is EnumDef',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

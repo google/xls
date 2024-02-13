@@ -66,30 +66,6 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 // current module, returns a status error.
 absl::StatusOr<StructDef*> ResolveLocalStructDef(TypeDefinition td);
 
-// Returns the basis of the given ColonRef.
-//
-// In valid cases this will generally be:
-// * a module
-// * an enum definition
-// * a builtin type (with a constant item on it, a la `u7::MAX`)
-//
-// Struct definitions cannot currently have constant items on them, so this will
-// have to be flagged by the type checker.
-absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
-                            ArrayTypeAnnotation*, StructDef*, ColonRef*>>
-ResolveColonRefSubjectForTypeChecking(ImportData* import_data,
-                                      const TypeInfo* type_info,
-                                      const ColonRef* colon_ref);
-
-// Implementation of the above that can be called after type checking has been
-// performed, in which case we can eliminate some of the (invalid) possibilities
-// so they no longer need to be handled.
-absl::StatusOr<
-    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
-ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
-                                        const TypeInfo* type_info,
-                                        const ColonRef* colon_ref);
-
 // Verifies that every node's child thinks that that node is its parent.
 absl::Status VerifyParentage(const Module* module);
 absl::Status VerifyParentage(const AstNode* root);
