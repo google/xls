@@ -16,24 +16,14 @@
 #define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_H_
 
 #include <optional>
-#include <variant>
 
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
-
-using TopNode =
-    std::variant<Function*, Proc*, TestFunction*, StructDef*, TypeAlias*>;
-
-// Assigns concrete types and validates such on all elements of `f`, which must
-// be a non-parametric user-defined function.
-absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
 
 // Validates type annotations on all functions within "module".
 //
