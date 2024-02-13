@@ -1091,7 +1091,7 @@ enum IOOpOrdering {
 
 struct ChannelOptions {
   xls::ChannelStrictness default_strictness =
-      xls::ChannelStrictness::kArbitraryStaticOrder;
+      xls::ChannelStrictness::kProvenMutuallyExclusive;
   absl::flat_hash_map<std::string, xls::ChannelStrictness> strictness_map;
 };
 

@@ -4479,7 +4479,7 @@ TEST_P(TranslatorProcTest, IODefaultStrictness) {
       continue;
     }
     EXPECT_EQ(xls::down_cast<xls::StreamingChannel*>(channel)->GetStrictness(),
-              xls::ChannelStrictness::kArbitraryStaticOrder)
+              xls::ChannelStrictness::kProvenMutuallyExclusive)
         << "Incorrect strictness for channel: " << channel->name();
   }
 }

@@ -120,7 +120,7 @@ ABSL_FLAG(xlscc::ChannelStrictnessMap, channel_strictness,
           "Comma separated map of channels to strictness modes");
 
 ABSL_FLAG(xls::ChannelStrictness, default_channel_strictness,
-          xls::ChannelStrictness::kArbitraryStaticOrder,
+          xls::ChannelStrictness::kProvenMutuallyExclusive,
           "Default strictness for channels not otherwise specified");
 
 ABSL_FLAG(std::string, io_op_token_ordering, "none",
