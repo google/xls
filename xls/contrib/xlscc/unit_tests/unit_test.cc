@@ -667,18 +667,20 @@ absl::StatusOr<bool> XlsccTestBase::NodeIsAfterTokenWise(xls::Proc* proc,
   return false;
 }
 
-absl::StatusOr<std::vector<xls::Node*>> XlsccTestBase::GetOpsForChannel(
-    std::string_view channel) {
+absl::StatusOr<std::vector<xls::Node*>>
+XlsccTestBase::GetOpsForChannelNameContains(std::string_view channel) {
   std::vector<xls::Node*> ret;
   XLS_CHECK_NE(package_.get(), nullptr);
   for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
     for (xls::Node* node : proc->nodes()) {
       if (node->Is<xls::Receive>() &&
-          node->As<xls::Receive>()->channel_name() == channel) {
+          node->As<xls::Receive>()->channel_name().find(channel) !=
+              std::string_view::npos) {
         ret.push_back(node);
       }
       if (node->Is<xls::Send>() &&
-          node->As<xls::Send>()->channel_name() == channel) {
+          node->As<xls::Send>()->channel_name().find(channel) !=
+              std::string_view::npos) {
         ret.push_back(node);
       }
     }

@@ -49,6 +49,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
@@ -1473,7 +1474,7 @@ class Translator {
       const std::pair<const IOChannel*, ChannelBundle>& pair);
 
   // Kept ordered for determinism
-  std::list<xls::Channel*> unused_external_channels_;
+  std::list<std::tuple<xls::Channel*, bool>> unused_xls_channel_ops_;
 
   // Used as a stack, but need to peek 2nd to top
   std::list<TranslationContext> context_stack_;
@@ -1640,6 +1641,7 @@ class Translator {
                                     xls::ProcBuilder& pb,
                                     const xls::SourceInfo& body_loc);
   absl::Status GenerateDefaultIOOp(xls::Channel* channel,
+                                   bool is_send,
                                    std::vector<xls::BValue>& final_tokens,
                                    xls::ProcBuilder& pb,
                                    const xls::SourceInfo& loc);

@@ -4711,6 +4711,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
           /*initial_values=*/{}, /*fifo_config=*/xls::FifoConfig{.depth = 0},
           xls::FlowControl::kReadyValid));
 
+  unused_xls_channel_ops_.push_back({xls_channel, /*is_send=*/true});
+  unused_xls_channel_ops_.push_back({xls_channel, /*is_send=*/false});
+
   IOChannel new_channel;
   new_channel.item_type = channel_type->GetItemType();
   new_channel.unique_name = ch_name;

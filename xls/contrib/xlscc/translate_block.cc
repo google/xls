@@ -137,14 +137,16 @@ absl::Status Translator::GenerateExternalChannels(
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               /*strictness=*/top_decl.strictness));
-      unused_external_channels_.push_back(new_channel.regular);
+      unused_xls_channel_ops_.push_back(
+          {new_channel.regular, /*is_send=*/!top_decl.is_input});
     } else if (top_decl.interface_type == InterfaceType::kDirect) {
       XLS_CHECK(top_decl.is_input);
       XLS_ASSIGN_OR_RETURN(new_channel.regular,
                            package_->CreateSingleValueChannel(
                                decl->getNameAsString(),
                                xls::ChannelOps::kReceiveOnly, data_type));
-      unused_external_channels_.push_back(new_channel.regular);
+      unused_xls_channel_ops_.push_back(
+          {new_channel.regular, /*is_send=*/false});
     } else if (top_decl.interface_type == InterfaceType::kMemory) {
       const std::string& memory_name = top_decl.decl->getNameAsString();
 
@@ -159,7 +161,8 @@ absl::Status Translator::GenerateExternalChannels(
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               /*strictness=*/top_decl.strictness));
-      unused_external_channels_.push_back(new_channel.read_request);
+      unused_xls_channel_ops_.push_back(
+          {new_channel.read_request, /*is_send=*/true});
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * read_response_type,
@@ -172,7 +175,8 @@ absl::Status Translator::GenerateExternalChannels(
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               /*strictness=*/top_decl.strictness));
-      unused_external_channels_.push_back(new_channel.read_response);
+      unused_xls_channel_ops_.push_back(
+          {new_channel.read_response, /*is_send=*/false});
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * write_request_type,
@@ -185,7 +189,8 @@ absl::Status Translator::GenerateExternalChannels(
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               /*strictness=*/top_decl.strictness));
-      unused_external_channels_.push_back(new_channel.write_request);
+      unused_xls_channel_ops_.push_back(
+          {new_channel.write_request, /*is_send=*/true});
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * write_response_type,
@@ -198,7 +203,8 @@ absl::Status Translator::GenerateExternalChannels(
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
               /*strictness=*/top_decl.strictness));
-      unused_external_channels_.push_back(new_channel.write_response);
+      unused_xls_channel_ops_.push_back(
+          {new_channel.write_response, /*is_send=*/false});
     } else {
       return absl::InvalidArgumentError(
           ErrorMessage(GetLoc(*decl), "Unknown interface type for channel %s",
@@ -583,7 +589,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
 }
 
 absl::Status Translator::GenerateDefaultIOOp(
-    xls::Channel* channel, std::vector<xls::BValue>& final_tokens,
+    xls::Channel* channel, bool is_send, std::vector<xls::BValue>& final_tokens,
     xls::ProcBuilder& pb, const xls::SourceInfo& loc) {
   xls::BValue token;
 
@@ -592,10 +598,12 @@ absl::Status Translator::GenerateDefaultIOOp(
   xls::Value data_0_val = xls::ZeroOfType(channel->type());
   xls::BValue data_0 = pb.Literal(data_0_val, loc);
 
-  if (channel->CanReceive()) {
+  if (!is_send) {
+    XLSCC_CHECK(channel->CanReceive(), loc);
     xls::BValue tup = pb.ReceiveIf(channel, pb.GetTokenParam(), pred_0, loc);
     token = pb.TupleIndex(tup, 0);
-  } else if (channel->CanSend()) {
+  } else if (is_send) {
+    XLSCC_CHECK(channel->CanSend(), loc);
     token = pb.SendIf(channel, pb.GetTokenParam(), pred_0, data_0, loc);
   } else {
     return absl::UnimplementedError(ErrorMessage(
@@ -609,15 +617,15 @@ absl::Status Translator::GenerateDefaultIOOp(
 absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
                                               xls::ProcBuilder& pb,
                                               const xls::SourceInfo& body_loc) {
-  if (unused_external_channels_.empty()) {
+  if (unused_xls_channel_ops_.empty()) {
     return absl::OkStatus();
   }
 
   std::vector<xls::BValue> final_tokens = {prepared.token};
 
-  for (xls::Channel* channel : unused_external_channels_) {
+  for (const auto& [channel, is_send] : unused_xls_channel_ops_) {
     XLS_RETURN_IF_ERROR(
-        GenerateDefaultIOOp(channel, final_tokens, pb, body_loc));
+        GenerateDefaultIOOp(channel, is_send, final_tokens, pb, body_loc));
   }
 
   prepared.token =
@@ -1063,7 +1071,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
   if (op.op == OpType::kRecv) {
     xls::Channel* xls_channel = bundle_ptr->regular;
 
-    unused_external_channels_.remove(xls_channel);
+    unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/false});
 
     XLS_CHECK_NE(xls_channel, nullptr);
 
@@ -1089,7 +1097,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
   } else if (op.op == OpType::kSend) {
     xls::Channel* xls_channel = bundle_ptr->regular;
 
-    unused_external_channels_.remove(xls_channel);
+    unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/true});
 
     XLS_CHECK_NE(xls_channel, nullptr);
     xls::BValue val = pb.TupleIndex(ret_io_value, 0, op_loc);
@@ -1105,8 +1113,10 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     XLS_CHECK_NE(bundle_ptr->read_request, nullptr);
     XLS_CHECK_NE(bundle_ptr->read_response, nullptr);
 
-    unused_external_channels_.remove(bundle_ptr->read_request);
-    unused_external_channels_.remove(bundle_ptr->read_response);
+    unused_xls_channel_ops_.remove(
+        {bundle_ptr->read_request, /*is_send=*/true});
+    unused_xls_channel_ops_.remove(
+        {bundle_ptr->read_response, /*is_send=*/false});
 
     xls::BValue addr = pb.TupleIndex(ret_io_value, 0, op_loc);
     xls::BValue condition = pb.TupleIndex(ret_io_value, 1, op_loc);
@@ -1132,8 +1142,10 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     XLS_CHECK_NE(bundle_ptr->write_request, nullptr);
     XLS_CHECK_NE(bundle_ptr->write_response, nullptr);
 
-    unused_external_channels_.remove(bundle_ptr->write_request);
-    unused_external_channels_.remove(bundle_ptr->write_response);
+    unused_xls_channel_ops_.remove(
+        {bundle_ptr->write_request, /*is_send=*/true});
+    unused_xls_channel_ops_.remove(
+        {bundle_ptr->write_response, /*is_send=*/false});
 
     // This has (addr, value)
     xls::BValue send_tuple = pb.TupleIndex(ret_io_value, 0, op_loc);
@@ -1498,7 +1510,7 @@ Translator::GenerateIRBlockPrepare(
 
     const ChannelBundle& bundle = top_decl.external_channels;
     xls::Channel* xls_channel = bundle.regular;
-    unused_external_channels_.remove(xls_channel);
+    unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/false});
 
     xls::BValue receive = pb.Receive(xls_channel, prepared.token);
     prepared.token = pb.TupleIndex(receive, 0);

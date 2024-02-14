@@ -184,7 +184,7 @@ class XlsccTestBase : public xls::IrTestBase, public ::absl::LogSink {
   absl::StatusOr<bool> NodeIsAfterTokenWise(xls::Proc* proc, xls::Node* before,
                                             xls::Node* after);
 
-  absl::StatusOr<std::vector<xls::Node*>> GetOpsForChannel(
+  absl::StatusOr<std::vector<xls::Node*>> GetOpsForChannelNameContains(
       std::string_view channel);
 
   std::unique_ptr<xls::Package> package_;

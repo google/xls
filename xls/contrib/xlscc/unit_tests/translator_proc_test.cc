@@ -230,14 +230,14 @@ TEST_P(TranslatorProcTest, IOProcUnusedChannels) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("in_unused1"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->name()));
+                             GetOpsForChannelNameContains(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("in_unused2"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->name()));
+                             GetOpsForChannelNameContains(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
 
@@ -252,6 +252,52 @@ TEST_P(TranslatorProcTest, IOProcUnusedChannels) {
     outputs["out2"] = {};
 
     ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+TEST_P(TranslatorProcTest, IOProcUnusedLocal) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_In>& in;
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int value = in.read();
+
+          static __xls_channel<int> unused;
+          unused.write(value);
+
+          out.write(3*value);
+        }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
+          .status());
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
+                             GetOpsForChannelNameContains("unused"));
+    EXPECT_EQ(ops.size(), 2);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(11, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(3L * 11L, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
   }
 }
 
@@ -300,7 +346,7 @@ TEST_P(TranslatorProcTest, IOProcUnusedDirectIn) {
                            package_->GetChannel("dir_unused"));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                           GetOpsForChannel(channel->name()));
+                           GetOpsForChannelNameContains(channel->name()));
 
   EXPECT_FALSE(ops.empty());
 

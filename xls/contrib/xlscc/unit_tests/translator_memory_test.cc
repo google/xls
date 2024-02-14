@@ -1023,21 +1023,21 @@ TEST_F(TranslatorMemoryTest, MemoryUnused) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("foo_unused__read_request"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->name()));
+                             GetOpsForChannelNameContains(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("foo_unused__read_response"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->name()));
+                             GetOpsForChannelNameContains(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
                              package_->GetChannel("foo_unused__write_request"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->name()));
+                             GetOpsForChannelNameContains(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
   {
@@ -1045,7 +1045,7 @@ TEST_F(TranslatorMemoryTest, MemoryUnused) {
         xls::Channel * channel,
         package_->GetChannel("foo_unused__write_response"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                             GetOpsForChannel(channel->name()));
+                             GetOpsForChannelNameContains(channel->name()));
     EXPECT_FALSE(ops.empty());
   }
 
