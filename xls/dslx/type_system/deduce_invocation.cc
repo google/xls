@@ -110,16 +110,18 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
   XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
                        ctx->typecheck_invocation()(ctx, element_invocation,
                                                    /*constexpr_env=*/{}));
-  const ParametricEnv& caller_bindings =
-      ctx->fn_stack().back().parametric_env();
+
+  const FnStackEntry& caller_fn_entry = ctx->fn_stack().back();
+  const ParametricEnv& caller_bindings = caller_fn_entry.parametric_env();
+  Function* caller = caller_fn_entry.f();
 
   std::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
       element_invocation, caller_bindings);
   if (dti.has_value()) {
-    ctx->type_info()->AddInvocationTypeInfo(node, caller_bindings,
+    ctx->type_info()->AddInvocationTypeInfo(*node, caller, caller_bindings,
                                             tab.parametric_env, dti.value());
   } else {
-    ctx->type_info()->AddInvocationTypeInfo(node, caller_bindings,
+    ctx->type_info()->AddInvocationTypeInfo(*node, caller, caller_bindings,
                                             tab.parametric_env,
                                             /*derived_type_info=*/nullptr);
   }

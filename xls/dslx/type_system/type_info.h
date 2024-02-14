@@ -72,6 +72,14 @@ struct InvocationData {
   // Invocation/Spawn AST node.
   const Invocation* node;
 
+  // Function containing the above invocation "node". This is held for
+  // "referential integrity" so we can check the validity of the caller
+  // environments in "env_to_callee_data".
+  //
+  // Note that this can be nullptr when the invocation is at the top level, e.g.
+  // in a const binding.
+  const Function* caller;
+
   // Map from symbolic bindings in the caller to the corresponding symbolic
   // bindings in the callee for this invocation.
   absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
@@ -137,11 +145,14 @@ class TypeInfo {
   // Args:
   //   invocation: The invocation node that (may have) caused parametric
   //     instantiation.
-  //   caller: The caller's symbolic bindings at the point of invocation.
-  //   callee: The callee's computed symbolic bindings for the invocation.
-  void AddInvocationTypeInfo(const Invocation* call,
-                             const ParametricEnv& caller,
-                             const ParametricEnv& callee,
+  //   caller: The function containing the invocation -- note that this can be
+  //     nullptr if the invocation is at the top level of the module.
+  //   caller_env: The caller's symbolic bindings at the point of invocation.
+  //   callee_env: The callee's computed symbolic bindings for the invocation.
+  void AddInvocationTypeInfo(const Invocation& invocation,
+                             const Function* caller,
+                             const ParametricEnv& caller_env,
+                             const ParametricEnv& callee_env,
                              TypeInfo* derived_type_info);
 
   // Attempts to retrieve "instantiation" type information -- that is, when

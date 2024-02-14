@@ -145,7 +145,7 @@ static absl::Status ValidateWithinProc(std::string_view builtin_name,
 }
 
 static absl::Status TypecheckCoverBuiltinInvocation(
-    DeduceCtx* ctx, const Invocation* invocation, Function* caller) {
+    DeduceCtx* ctx, const Invocation* invocation) {
   // Make sure that the coverpoint's identifier is valid in both Verilog
   // and DSLX - notably, we don't support Verilog escaped strings.
   // TODO(rspringer): 2021-05-26: Ensure only one instance of an identifier
@@ -213,7 +213,8 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     arg_spans.push_back(arg->span());
   }
 
-  if (callee_name == "fail!" || callee_name == "cover!") {
+  if ((callee_name == "fail!" || callee_name == "cover!") &&
+      caller != nullptr) {
     ctx->type_info()->NoteRequiresImplicitToken(caller, true);
   }
 
@@ -268,14 +269,14 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
 
   XLS_VLOG(5) << "TypeInfo::AddInvocationCallBindings; type_info: "
               << ctx->type_info() << "; node: `" << invocation->ToString()
-              << "`; caller: " << fn_parametric_env
-              << "; callee: " << tab.parametric_env;
+              << "`; caller_env: " << fn_parametric_env
+              << "; callee_env: " << tab.parametric_env;
 
   // Note that, since this is not a user-defined function, there is no derived
   // type information for it.
-  ctx->type_info()->AddInvocationTypeInfo(invocation,
-                                          /*caller=*/fn_parametric_env,
-                                          /*callee=*/tab.parametric_env,
+  ctx->type_info()->AddInvocationTypeInfo(*invocation, caller,
+                                          /*caller_env=*/fn_parametric_env,
+                                          /*callee_env=*/tab.parametric_env,
                                           /*derived_type_info=*/nullptr);
 
   ctx->type_info()->SetItem(invocation->callee(), *fn_type);
@@ -301,8 +302,7 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
   }
 
   if (callee_nameref->identifier() == "cover!") {
-    XLS_RETURN_IF_ERROR(
-        TypecheckCoverBuiltinInvocation(ctx, invocation, caller));
+    XLS_RETURN_IF_ERROR(TypecheckCoverBuiltinInvocation(ctx, invocation));
   }
 
   // fsignature returns a tab w/a fn type, not the fn return type (which is
@@ -426,7 +426,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   // instantiation of a proc. If we didn't create new bindings/a new TypeInfo
   // here, then if we instantiated the same proc 2x from some parent proc, we'd
   // end up with only a single set of constexpr values for proc members.
-  original_ti->AddInvocationTypeInfo(invocation, caller_parametric_env,
+  original_ti->AddInvocationTypeInfo(*invocation, caller, caller_parametric_env,
                                      callee_tab.parametric_env,
                                      derived_type_info);
 

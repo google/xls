@@ -216,11 +216,12 @@ absl::StatusOr<ConcreteType*> TypeInfo::GetItemOrError(
       absl::StrCat("Could not find concrete type for node: ", key->ToString()));
 }
 
-void TypeInfo::AddInvocationTypeInfo(const Invocation* call,
-                                     const ParametricEnv& caller,
-                                     const ParametricEnv& callee,
+void TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
+                                     const Function* caller,
+                                     const ParametricEnv& caller_env,
+                                     const ParametricEnv& callee_env,
                                      TypeInfo* derived_type_info) {
-  XLS_CHECK_EQ(call->owner(), module_);
+  XLS_CHECK_EQ(invocation.owner(), module_);
 
   // We keep all instantiation info on the top-level type info. The "context
   // stack" doesn't matter so it creates a more understandable tree to flatten
@@ -229,21 +230,22 @@ void TypeInfo::AddInvocationTypeInfo(const Invocation* call,
 
   XLS_VLOG(3) << "Type info " << top
               << " adding instantiation call bindings for invocation: `"
-              << call->ToString() << "` @ " << call->span()
-              << " caller: " << caller.ToString()
-              << " callee: " << callee.ToString();
-  auto it = top->invocations_.find(call);
+              << invocation.ToString() << "` @ " << invocation.span()
+              << " caller_env: " << caller_env.ToString()
+              << " callee_env: " << callee_env.ToString();
+  auto it = top->invocations_.find(&invocation);
   if (it == top->invocations_.end()) {
     absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
-    env_to_callee_data[caller] =
-        InvocationCalleeData{callee, derived_type_info};
-    top->invocations_[call] = InvocationData{call, env_to_callee_data};
+    env_to_callee_data[caller_env] =
+        InvocationCalleeData{callee_env, derived_type_info};
+    top->invocations_[&invocation] =
+        InvocationData{&invocation, caller, env_to_callee_data};
     return;
   }
   XLS_VLOG(3) << "Adding to existing invocation data.";
   InvocationData& invocation_data = it->second;
-  invocation_data.env_to_callee_data[caller] =
-      InvocationCalleeData{callee, derived_type_info};
+  invocation_data.env_to_callee_data[caller_env] =
+      InvocationCalleeData{callee_env, derived_type_info};
 }
 
 std::optional<bool> TypeInfo::GetRequiresImplicitToken(
