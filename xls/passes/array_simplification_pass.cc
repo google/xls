@@ -598,7 +598,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
       XLS_RET_CHECK_LT(operand_no, array_literal.size());
 
       std::vector<Node*> array_operands;
-      ArrayUpdate* new_array_update;
+      ArrayUpdate* new_array_update = nullptr;
       for (int64_t i = 0; i < array_literal.size(); ++i) {
         XLS_ASSIGN_OR_RETURN(Literal * array_element,
                              func->MakeNode<Literal>(array_update->loc(),
