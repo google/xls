@@ -1133,6 +1133,66 @@ proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
     }
 }
 
+const ZSTD_HISTORY_BUFFER_SIZE_KB: u32 = u32:64;
+const ZSTD_RAM_SIZE = ram_size(ZSTD_HISTORY_BUFFER_SIZE_KB);
+const ZSTD_RAM_ADDR_WIDTH = ram_addr_width(ZSTD_HISTORY_BUFFER_SIZE_KB);
+
+pub proc SequenceExecutorZstd {
+
+    init {  }
+
+    config(
+        input_r: chan<SequenceExecutorPacket> in,
+        output_s: chan<ZstdDecodedPacket> out,
+        rd_req_m0_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
+        rd_req_m1_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
+        rd_req_m2_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
+        rd_req_m3_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
+        rd_req_m4_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
+        rd_req_m5_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
+        rd_req_m6_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
+        rd_req_m7_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
+        rd_resp_m0_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
+        rd_resp_m1_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
+        rd_resp_m2_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
+        rd_resp_m3_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
+        rd_resp_m4_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
+        rd_resp_m5_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
+        rd_resp_m6_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
+        rd_resp_m7_r: chan<ram::ReadResp<RAM_DATA_WIDTH>> in,
+        wr_req_m0_s: chan<ram::WriteReq<ZSTD_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>> out,
+        wr_req_m1_s: chan<ram::WriteReq<ZSTD_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>> out,
+        wr_req_m2_s: chan<ram::WriteReq<ZSTD_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>> out,
+        wr_req_m3_s: chan<ram::WriteReq<ZSTD_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>> out,
+        wr_req_m4_s: chan<ram::WriteReq<ZSTD_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>> out,
+        wr_req_m5_s: chan<ram::WriteReq<ZSTD_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>> out,
+        wr_req_m6_s: chan<ram::WriteReq<ZSTD_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>> out,
+        wr_req_m7_s: chan<ram::WriteReq<ZSTD_RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>> out,
+        wr_resp_m0_r: chan<ram::WriteResp> in,
+        wr_resp_m1_r: chan<ram::WriteResp> in,
+        wr_resp_m2_r: chan<ram::WriteResp> in,
+        wr_resp_m3_r: chan<ram::WriteResp> in,
+        wr_resp_m4_r: chan<ram::WriteResp> in,
+        wr_resp_m5_r: chan<ram::WriteResp> in,
+        wr_resp_m6_r: chan<ram::WriteResp> in,
+        wr_resp_m7_r: chan<ram::WriteResp> in
+    ) {
+        spawn SequenceExecutor<ZSTD_HISTORY_BUFFER_SIZE_KB> (
+            input_r, output_s,
+            rd_req_m0_s, rd_req_m1_s, rd_req_m2_s, rd_req_m3_s,
+            rd_req_m4_s, rd_req_m5_s, rd_req_m6_s, rd_req_m7_s,
+            rd_resp_m0_r, rd_resp_m1_r, rd_resp_m2_r, rd_resp_m3_r,
+            rd_resp_m4_r, rd_resp_m5_r, rd_resp_m6_r, rd_resp_m7_r,
+            wr_req_m0_s, wr_req_m1_s, wr_req_m2_s, wr_req_m3_s,
+            wr_req_m4_s, wr_req_m5_s, wr_req_m6_s, wr_req_m7_s,
+            wr_resp_m0_r, wr_resp_m1_r, wr_resp_m2_r, wr_resp_m3_r,
+            wr_resp_m4_r, wr_resp_m5_r, wr_resp_m6_r, wr_resp_m7_r
+        );
+    }
+
+    next (tok: token, state: ()) { }
+}
+
 const LITERAL_TEST_INPUT_DATA = SequenceExecutorPacket[6]:[
      SequenceExecutorPacket {
         msg_type: SequenceExecutorMessageType::LITERAL,

@@ -17,6 +17,7 @@ pub const MAX_ID = u32::MAX;
 pub const SYMBOL_WIDTH = u32:8;
 pub const BLOCK_SIZE_WIDTH = u32:21;
 pub const OFFSET_WIDTH = u32:22;
+pub const HISTORY_BUFFER_SIZE_KB = u32:64;
 
 pub type BlockData = bits[DATA_WIDTH];
 pub type BlockPacketLength = u32;
