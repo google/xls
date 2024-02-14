@@ -87,7 +87,7 @@ ABSL_FLAG(bool, receives_first_sends_last, false,
           "If true, this forces receives into the first cycle and sends into "
           "the last cycle.");
 ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
-          "Resource limit for solver in mutual exclusion pass");
+          "Resource limit for solver in mutual exclusion pass.");
 ABSL_FLAG(std::string, scheduling_options_proto, "",
           "Path to a protobuf containing all scheduling options args.");
 ABSL_FLAG(bool, explain_infeasibility, true,
@@ -124,19 +124,19 @@ ABSL_FLAG(
     "*path_number paths are randomly selected from them for synthesis in each "
     "FDO iteration. Must be a positive float <= 1.0.");
 ABSL_FLAG(std::string, fdo_path_evaluate_strategy, "window",
-          "Support path, cone, and window for now");
+          "Path evaluation strategy for FDO. Supports path, cone, and window.");
 ABSL_FLAG(std::string, fdo_synthesizer_name, "yosys",
-          "Only support yosys for now");
-ABSL_FLAG(std::string, fdo_yosys_path, "", "Absolute path of Yosys");
-ABSL_FLAG(std::string, fdo_sta_path, "", "Absolute path of OpenSTA");
+          "Name of synthesis backend for FDO. Only supports yosys.");
+ABSL_FLAG(std::string, fdo_yosys_path, "", "Absolute path of yosys.");
+ABSL_FLAG(std::string, fdo_sta_path, "", "Absolute path of OpenSTA.");
 ABSL_FLAG(std::string, fdo_synthesis_libraries, "",
-          "Synthesis and STA libraries");
+          "Synthesis and STA libraries.");
 // TODO: google/xls#869 - Remove when proc-scoped channels supplant old-style
 // procs.
 ABSL_FLAG(bool, multi_proc, false,
           "If true, schedule all procs and codegen them all.");
 // LINT.ThenChange(
-//   //xls/build_rules/xls_codegen_rules.bzl,
+//   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
 // )
 

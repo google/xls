@@ -74,14 +74,14 @@ ABSL_FLAG(bool, flop_outputs, true,
           "If true, the module outputs are flopped into registers before "
           "leaving module. Only used with pipeline generator.");
 ABSL_FLAG(std::string, flop_inputs_kind, "flop",
-          "Kind of inputs register to add.  "
-          "Valid values: flop, skid, zerolatency");
+          "Kind of input register to add.  "
+          "Valid values: flop, skid, zerolatency.");
 ABSL_FLAG(std::string, flop_outputs_kind, "flop",
           "Kind of output register to add.  "
-          "Valid values: flop, skid, zerolatency");
+          "Valid values: flop, skid, zerolatency.");
 ABSL_FLAG(bool, flop_single_value_channels, true,
-          "If false, flop_inputs() and flop_outputs() will not flop"
-          "single value channels");
+          "If false, flop_inputs() and flop_outputs() will not flop "
+          "single value channels.");
 ABSL_FLAG(bool, add_idle_output, false,
           "If true, an additional idle signal tied to valids of input and "
           "flops is added to the block. This output signal is not registered, "
@@ -89,7 +89,7 @@ ABSL_FLAG(bool, add_idle_output, false,
           "use in generated pipelines. Only used with pipeline generator.");
 ABSL_FLAG(std::string, module_name, "",
           "Explicit name to use for the generated module; if not provided the "
-          "mangled IR function name is used");
+          "mangled IR function name is used.");
 ABSL_FLAG(std::string, reset, "",
           "Name of the reset signal. If empty, no reset signal is used.");
 ABSL_FLAG(bool, reset_active_low, false,

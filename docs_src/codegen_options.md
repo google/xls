@@ -123,9 +123,11 @@ estimation refinements in XLS. For now, FDO is disabled by default
     refinement_stochastic_ratio paths are extracted and \*path_number paths are
     randomly selected from them for synthesis in each FDO iteration. Must be a
     positive float <= 1.0.
--   `--fdo_path_evaluate_strategy=...` Support path, cone, and window for now.
--   `--fdo_synthesizer_name=...` Only support yosys for now.
--   `--fdo_yosys_path=...` Absolute path of Yosys.
+-   `--fdo_path_evaluate_strategy=...` Path evaluation strategy for FDO.
+    Supports path, cone, and window.
+-   `--fdo_synthesizer_name=...` Name of synthesis backend for FDO. Only
+    supports yosys.
+-   `--fdo_yosys_path=...` Absolute path of yosys.
 -   `--fdo_sta_path=...` Absolute path of OpenSTA.
 -   `--fdo_synthesis_libraries=...` Synthesis and STA libraries.
 
@@ -133,7 +135,7 @@ estimation refinements in XLS. For now, FDO is disabled by default
 
 Some names can be set at codegen via the following flags:
 
--   `--module_name=...` sets the name of the generated verilog module
+-   `--module_name=...` sets the name of the generated verilog module.
 -   For functions, `--input_valid_signal=...` and `--output_valid_signal=...`
     adds and sets the name of valid signals when `--generator` is set to
     `pipeline`.
@@ -294,7 +296,7 @@ string. These format strings use placeholders to fill in relevant information.
 
 ![Zero Latency Buffer](./zero_latency_buffer.svg)
 
--   `--flop_single_value_channels` control if single-value channels should be
+-   `--flop_single_value_channels` controls if single-value channels should be
     flopped.
 
 -   `--add_idle_output` adds an additional output port named `idle`. `idle` is
