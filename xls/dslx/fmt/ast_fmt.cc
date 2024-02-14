@@ -1909,6 +1909,11 @@ static DocRef Fmt(const ConstantDef& n, const Comments& comments,
   leader_pieces.push_back(arena.Make(Keyword::kConst));
   leader_pieces.push_back(arena.break1());
   leader_pieces.push_back(arena.MakeText(n.identifier()));
+  if (n.type_annotation() != nullptr) {
+    leader_pieces.push_back(arena.colon());
+    leader_pieces.push_back(arena.space());
+    leader_pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
+  }
   leader_pieces.push_back(arena.break1());
   leader_pieces.push_back(arena.equals());
   leader_pieces.push_back(arena.space());

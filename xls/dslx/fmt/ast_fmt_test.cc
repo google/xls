@@ -976,6 +976,17 @@ const D = u32:256;
 
 TEST_F(ModuleFmtTest, ConstantDef) { Run("pub const MOL = u32:42;\n"); }
 
+TEST_F(ModuleFmtTest, ConstantDefWithType) {
+  Run("pub const MOL: u32 = u32:42;\n");
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithTypeAliasTypeAnnotation) {
+  Run(R"(type MyU32 = u32;
+
+pub const MOL: MyU32 = MyU32:42;
+)");
+}
+
 TEST_F(ModuleFmtTest, ConstantDefArray) {
   Run("pub const VALS = u32[2]:[32, 64];\n");
 }
