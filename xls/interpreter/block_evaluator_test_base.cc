@@ -49,6 +49,37 @@ using testing::Not;
 using testing::Pair;
 using testing::UnorderedElementsAre;
 
+TEST_P(BlockEvaluatorTest, PackagesAreIndependent) {
+  auto p1 = CreatePackage();
+  auto p2 = CreatePackage();
+  BlockBuilder b1(TestName(), p1.get());
+  BlockBuilder b2(TestName(), p2.get());
+  b1.OutputPort("out", b1.Add(b1.Literal(UBits(1, 32)),
+                              b1.InputPort("inp", p1->GetBitsType(32))));
+  b2.OutputPort("out", b2.Subtract(b2.InputPort("inp", p2->GetBitsType(32)),
+                                   b2.Literal(UBits(1, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block1, b1.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block2, b2.Build());
+  auto v = [](int64_t v) { return Value(UBits(v, 32)); };
+  std::vector<absl::flat_hash_map<std::string, Value>> inputs = {
+      {{"inp", v(1)}},  {{"inp", v(10)}}, {{"inp", v(12)}}, {{"inp", v(22)}},
+      {{"inp", v(33)}}, {{"inp", v(44)}}, {{"inp", v(55)}},
+  };
+  auto oracle_1 = [](auto v) { return v.bits().ToUint64().value() + 1; };
+  auto oracle_2 = [](auto v) { return v.bits().ToUint64().value() - 1; };
+  XLS_ASSERT_OK_AND_ASSIGN(auto e1, evaluator().NewContinuation(block1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto e2, evaluator().NewContinuation(block2));
+  for (const auto& inp : inputs) {
+    XLS_EXPECT_OK(e1->RunOneCycle(inp));
+    XLS_EXPECT_OK(e2->RunOneCycle(inp));
+    EXPECT_THAT(e1->output_ports().at("out").bits().ToUint64(),
+                IsOkAndHolds(oracle_1(inp.at("inp"))));
+    EXPECT_THAT(e2->output_ports().at("out").bits().ToUint64(),
+                IsOkAndHolds(oracle_2(inp.at("inp"))));
+  }
+}
+
 TEST_P(BlockEvaluatorTest, EmptyBlock) {
   auto package = CreatePackage();
   BlockBuilder b(TestName(), package.get());
