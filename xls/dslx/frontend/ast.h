@@ -1610,8 +1610,30 @@ class Function : public AstNode {
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
+
+  // Returns all of the parametric identifiers that must be bound by the caller
+  // in an invocation; i.e. they have no default expression.
+  //
+  // In a function like:
+  //
+  //    fn p<X: u32, Y: u32, Z: u32 = X+Y>()
+  //
+  // The free parametric keys are `["X", "Y"]`.
   std::vector<std::string> GetFreeParametricKeys() const;
+
+  // As above but gives the result as a (order-stable) set.
   absl::btree_set<std::string> GetFreeParametricKeySet() const;
+
+  // Returns all parametric binding identifiers; e.g. in the above example:
+  //
+  //    {"X", "Y", "Z"}
+  //
+  // This is useful when we want to check that a parametric environment is valid
+  // to use as an environment a given function.
+  const absl::flat_hash_set<std::string>& parametric_keys() const {
+    return parametric_keys_;
+  }
+
   NameDef* name_def() const { return name_def_; }
 
   TypeAnnotation* return_type() const { return return_type_; }
@@ -1635,6 +1657,7 @@ class Function : public AstNode {
   Span span_;
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
+  absl::flat_hash_set<std::string> parametric_keys_;
   std::vector<Param*> params_;
   TypeAnnotation* return_type_;  // May be null.
   Block* body_;
@@ -1642,7 +1665,7 @@ class Function : public AstNode {
   std::optional<Proc*> proc_;
 
   const bool is_public_;
-  std::optional<::xls::ForeignFunctionData> extern_verilog_module_;
+  std::optional<ForeignFunctionData> extern_verilog_module_;
 };
 
 // Represents a single arm in a match expression.

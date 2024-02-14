@@ -69,8 +69,37 @@ struct InvocationCalleeData {
 
 // Parametric instantiation information related to an invocation AST node.
 struct InvocationData {
+ public:
+  InvocationData(const Invocation* node, const Function* caller,
+                 absl::flat_hash_map<ParametricEnv, InvocationCalleeData>
+                     env_to_callee_data);
+
+  const Invocation* node() const { return node_; }
+  const Function* caller() const { return caller_; }
+
+  const absl::flat_hash_map<ParametricEnv, InvocationCalleeData>&
+  env_to_callee_data() const {
+    return env_to_callee_data_;
+  }
+
+  // Adds information for this invocation node when invoked in the environment
+  // "caller_env" -- it associates that caller environment with the given
+  // "callee_data" (which describes what the callee parametric bindings are and
+  // whether there is a derivative type information to start using to resolve
+  // types in the callee for that invocation).
+  //
+  // Returns an error if the `caller_env` is invalid
+  absl::Status Add(ParametricEnv caller_env, InvocationCalleeData callee_data);
+
+  std::string ToString() const;
+
+ private:
+  // Validates that the keys in "env" are a subset of the parametric keys in
+  // "caller()".
+  absl::Status ValidateEnvForCaller(const ParametricEnv& env) const;
+
   // Invocation/Spawn AST node.
-  const Invocation* node;
+  const Invocation* node_;
 
   // Function containing the above invocation "node". This is held for
   // "referential integrity" so we can check the validity of the caller
@@ -78,13 +107,11 @@ struct InvocationData {
   //
   // Note that this can be nullptr when the invocation is at the top level, e.g.
   // in a const binding.
-  const Function* caller;
+  const Function* caller_;
 
   // Map from symbolic bindings in the caller to the corresponding symbolic
   // bindings in the callee for this invocation.
-  absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
-
-  std::string ToString() const;
+  absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data_;
 };
 
 // Owns "type information" objects created during the type checking process.
@@ -149,11 +176,14 @@ class TypeInfo {
   //     nullptr if the invocation is at the top level of the module.
   //   caller_env: The caller's symbolic bindings at the point of invocation.
   //   callee_env: The callee's computed symbolic bindings for the invocation.
-  void AddInvocationTypeInfo(const Invocation& invocation,
-                             const Function* caller,
-                             const ParametricEnv& caller_env,
-                             const ParametricEnv& callee_env,
-                             TypeInfo* derived_type_info);
+  //
+  // Returns an error status if internal invariants are violated; e.g. if the
+  // "caller_env" is not a valid env for the "caller".
+  absl::Status AddInvocationTypeInfo(const Invocation& invocation,
+                                     const Function* caller,
+                                     const ParametricEnv& caller_env,
+                                     const ParametricEnv& callee_env,
+                                     TypeInfo* derived_type_info);
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to

@@ -118,12 +118,12 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
   std::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
       element_invocation, caller_bindings);
   if (dti.has_value()) {
-    ctx->type_info()->AddInvocationTypeInfo(*node, caller, caller_bindings,
-                                            tab.parametric_env, dti.value());
+    XLS_RETURN_IF_ERROR(ctx->type_info()->AddInvocationTypeInfo(
+        *node, caller, caller_bindings, tab.parametric_env, dti.value()));
   } else {
-    ctx->type_info()->AddInvocationTypeInfo(*node, caller, caller_bindings,
-                                            tab.parametric_env,
-                                            /*derived_type_info=*/nullptr);
+    XLS_RETURN_IF_ERROR(ctx->type_info()->AddInvocationTypeInfo(
+        *node, caller, caller_bindings, tab.parametric_env,
+        /*derived_type_info=*/nullptr));
   }
 
   ArrayType* arg0_array_type = dynamic_cast<ArrayType*>(arg0_type.get());

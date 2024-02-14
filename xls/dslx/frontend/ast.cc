@@ -1558,7 +1558,11 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       return_type_(return_type),
       body_(body),
       tag_(tag),
-      is_public_(is_public) {}
+      is_public_(is_public) {
+  for (const ParametricBinding* pb : parametric_bindings_) {
+    XLS_CHECK(parametric_keys_.insert(pb->identifier()).second);
+  }
+}
 
 Function::~Function() = default;
 

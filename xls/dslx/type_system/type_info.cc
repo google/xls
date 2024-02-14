@@ -30,6 +30,7 @@
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -39,10 +40,21 @@
 
 namespace xls::dslx {
 
+InvocationData::InvocationData(
+    const Invocation* node, const Function* caller,
+    absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data)
+    : node_(node),
+      caller_(caller),
+      env_to_callee_data_(std::move(env_to_callee_data)) {
+  for (const auto& [env, _] : env_to_callee_data_) {
+    XLS_CHECK_OK(ValidateEnvForCaller(env));
+  }
+}
+
 std::string InvocationData::ToString() const {
   return absl::StrCat(
       "{",
-      absl::StrJoin(env_to_callee_data, ", ",
+      absl::StrJoin(env_to_callee_data_, ", ",
                     [](std::string* out, const auto& item) {
                       const InvocationCalleeData& callee_data = item.second;
                       absl::StrAppendFormat(
@@ -51,6 +63,33 @@ std::string InvocationData::ToString() const {
                           callee_data.derived_type_info);
                     }),
       "}");
+}
+
+absl::Status InvocationData::Add(ParametricEnv caller_env,
+                                 InvocationCalleeData callee_data) {
+  XLS_RETURN_IF_ERROR(ValidateEnvForCaller(caller_env));
+
+  // TODO(leary): 2024-02-13 It'd be nice to be able to fail if the invocation
+  // data is already present -- right now we do redundant work when parametric
+  // functions are instantiated, if we eliminate that we should be able to make
+  // a "this is populated exactly once" check.
+  env_to_callee_data_.insert_or_assign(std::move(caller_env),
+                                       std::move(callee_data));
+  return absl::OkStatus();
+}
+
+absl::Status InvocationData::ValidateEnvForCaller(
+    const ParametricEnv& env) const {
+  for (const auto& k : env.GetKeySet()) {
+    if (!caller_->parametric_keys().contains(k)) {
+      return absl::InternalError(
+          absl::StrFormat("caller %s given env with key %s not present in "
+                          "parametric keys: {%s}",
+                          caller_->identifier(), k,
+                          absl::StrJoin(caller_->parametric_keys(), ",")));
+    }
+  }
+  return absl::OkStatus();
 }
 
 // -- class TypeInfoOwner
@@ -176,12 +215,13 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
   std::vector<std::string> pieces = {absl::StrFormat("root %p:", top)};
   for (const auto& [invocation, invocation_data] : top->invocations_) {
     XLS_CHECK(invocation != nullptr);
-    XLS_CHECK_EQ(invocation, invocation_data.node);
+    XLS_CHECK_EQ(invocation, invocation_data.node());
 
     pieces.push_back(
-        absl::StrFormat("  `%s` @ %v", invocation_data.node->ToString(),
-                        SpanToString(invocation_data.node->span())));
-    for (const auto& [env, callee_data] : invocation_data.env_to_callee_data) {
+        absl::StrFormat("  `%s` @ %v", invocation_data.node()->ToString(),
+                        SpanToString(invocation_data.node()->span())));
+    for (const auto& [env, callee_data] :
+         invocation_data.env_to_callee_data()) {
       pieces.push_back(absl::StrFormat(
           "    caller: %s => callee: %s type_info: %p", env.ToString(),
           callee_data.callee_bindings.ToString(),
@@ -216,11 +256,11 @@ absl::StatusOr<ConcreteType*> TypeInfo::GetItemOrError(
       absl::StrCat("Could not find concrete type for node: ", key->ToString()));
 }
 
-void TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
-                                     const Function* caller,
-                                     const ParametricEnv& caller_env,
-                                     const ParametricEnv& callee_env,
-                                     TypeInfo* derived_type_info) {
+absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
+                                             const Function* caller,
+                                             const ParametricEnv& caller_env,
+                                             const ParametricEnv& callee_env,
+                                             TypeInfo* derived_type_info) {
   XLS_CHECK_EQ(invocation.owner(), module_);
 
   // We keep all instantiation info on the top-level type info. The "context
@@ -235,17 +275,20 @@ void TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
               << " callee_env: " << callee_env.ToString();
   auto it = top->invocations_.find(&invocation);
   if (it == top->invocations_.end()) {
+    // No data for this invocation yet.
     absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
     env_to_callee_data[caller_env] =
         InvocationCalleeData{callee_env, derived_type_info};
-    top->invocations_[&invocation] =
-        InvocationData{&invocation, caller, env_to_callee_data};
-    return;
+
+    top->invocations_.emplace(
+        &invocation,
+        InvocationData{&invocation, caller, std::move(env_to_callee_data)});
+    return absl::OkStatus();
   }
   XLS_VLOG(3) << "Adding to existing invocation data.";
   InvocationData& invocation_data = it->second;
-  invocation_data.env_to_callee_data[caller_env] =
-      InvocationCalleeData{callee_env, derived_type_info};
+  return invocation_data.Add(
+      caller_env, InvocationCalleeData{callee_env, derived_type_info});
 }
 
 std::optional<bool> TypeInfo::GetRequiresImplicitToken(
@@ -293,8 +336,8 @@ std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
   XLS_VLOG(5) << "Invocation " << invocation->ToString()
               << " caller bindings: " << caller
               << " invocation data: " << invocation_data.ToString();
-  auto it2 = invocation_data.env_to_callee_data.find(caller);
-  if (it2 == invocation_data.env_to_callee_data.end()) {
+  auto it2 = invocation_data.env_to_callee_data().find(caller);
+  if (it2 == invocation_data.env_to_callee_data().end()) {
     return std::nullopt;
   }
   return it2->second.derived_type_info;
@@ -352,8 +395,8 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
     return std::nullopt;
   }
   const InvocationData& invocation_data = it->second;
-  auto it2 = invocation_data.env_to_callee_data.find(caller);
-  if (it2 == invocation_data.env_to_callee_data.end()) {
+  auto it2 = invocation_data.env_to_callee_data().find(caller);
+  if (it2 == invocation_data.env_to_callee_data().end()) {
     XLS_VLOG(3)
         << "Could not find caller symbolic bindings in instantiation data: "
         << caller.ToString() << " " << invocation->ToString() << " @ "

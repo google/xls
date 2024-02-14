@@ -346,6 +346,22 @@ fn f() -> u32 {
 })"));
 }
 
+TEST(TypecheckTest, ForInParametricInvokedTwice) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn p<N: u32>(x: uN[N]) -> uN[N] {
+    for (idx, accum) in range(u32:0, N) {
+        accum
+    }(uN[N]:0)
+}
+
+#[test]
+fn two_invocation_test() {
+    assert_eq(u4:0, p(u4:8));
+    assert_eq(u4:0, p(u4:8));
+}
+)"));
+}
+
 TEST(TypecheckTest, ForNoAnnotation) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {

@@ -476,10 +476,11 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 
     const InvocationData& invocation_data =
         caller_type_info->GetRootInvocations().at(invocation);
-    XLS_RET_CHECK(invocation_data.env_to_callee_data.contains(caller_bindings));
+    XLS_RET_CHECK(
+        invocation_data.env_to_callee_data().contains(caller_bindings));
 
     const InvocationCalleeData& callee_data =
-        invocation_data.env_to_callee_data.at(caller_bindings);
+        invocation_data.env_to_callee_data().at(caller_bindings);
     callee_type_info = callee_data.derived_type_info;
     callee_bindings = callee_data.callee_bindings;
   } else {

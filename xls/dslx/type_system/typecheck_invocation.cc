@@ -274,10 +274,11 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
 
   // Note that, since this is not a user-defined function, there is no derived
   // type information for it.
-  ctx->type_info()->AddInvocationTypeInfo(*invocation, caller,
-                                          /*caller_env=*/fn_parametric_env,
-                                          /*callee_env=*/tab.parametric_env,
-                                          /*derived_type_info=*/nullptr);
+  XLS_RETURN_IF_ERROR(
+      ctx->type_info()->AddInvocationTypeInfo(*invocation, caller,
+                                              /*caller_env=*/fn_parametric_env,
+                                              /*callee_env=*/tab.parametric_env,
+                                              /*derived_type_info=*/nullptr));
 
   ctx->type_info()->SetItem(invocation->callee(), *fn_type);
   // We don't want to store a type on a BuiltinNameDef.
@@ -426,9 +427,9 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   // instantiation of a proc. If we didn't create new bindings/a new TypeInfo
   // here, then if we instantiated the same proc 2x from some parent proc, we'd
   // end up with only a single set of constexpr values for proc members.
-  original_ti->AddInvocationTypeInfo(*invocation, caller, caller_parametric_env,
-                                     callee_tab.parametric_env,
-                                     derived_type_info);
+  XLS_RETURN_IF_ERROR(original_ti->AddInvocationTypeInfo(
+      *invocation, caller, caller_parametric_env, callee_tab.parametric_env,
+      derived_type_info));
 
   if (callee_fn->proc().has_value()) {
     Proc* p = callee_fn->proc().value();

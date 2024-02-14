@@ -24,6 +24,7 @@
 #include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
@@ -31,6 +32,7 @@ namespace xls::dslx {
 class BytecodeCache : public BytecodeCacheInterface {
  public:
   explicit BytecodeCache(ImportData* import_data);
+
   absl::StatusOr<BytecodeFunction*> GetOrCreateBytecodeFunction(
       const Function* f, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings) override;
