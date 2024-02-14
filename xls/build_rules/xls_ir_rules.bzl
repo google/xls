@@ -1207,7 +1207,7 @@ xls_ir_cc_library = rule(
                 executable = True,
                 allow_files = True,
                 cfg = "exec",
-                default = Label("@llvm_toolchain_llvm//:bin/clang-format"),
+                default = Label("@llvm_toolchain//:clang-format"),
             ),
             "with_msan": attr.bool(
                 doc = "if the jit code should be compiled with msan",
