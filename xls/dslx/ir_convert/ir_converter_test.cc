@@ -787,11 +787,61 @@ fn main(x: u10, y: u10) -> u10 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, OneHotSelSplatVariadic) {
+TEST(IrConverterTest, OneHotSelSplat) {
   const char* program =
       R"(
 fn main(s: u2) -> u32 {
   one_hot_sel(s, u32[2]:[2, 3])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, OneHotSelNonArrayNode) {
+  // Tests that the cases parameter of a one_hot_sel can take a node that
+  // is not an Array node, but rather a name that refers to an Array.
+  //
+  // See https://github.com/google/xls/issues/1303
+  const char* program =
+      R"(
+fn main(s: u2) -> u32 {
+  let cases = u32[2]:[2, 3];
+  one_hot_sel(s, cases)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, PrioritySelSplat) {
+  const char* program =
+      R"(
+fn main(s: u2) -> u32 {
+  priority_sel(s, u32[2]:[2, 3])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, PrioritySelNonArrayNode) {
+  // Tests that the cases parameter of a priority_sel can take a node that
+  // is not an Array node, but rather a name that refers to an Array.
+  //
+  // See https://github.com/google/xls/issues/1303
+
+  const char* program =
+      R"(
+fn main(s: u2) -> u32 {
+  let cases = u32[2]:[2, 3];
+  priority_sel(s, cases)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(

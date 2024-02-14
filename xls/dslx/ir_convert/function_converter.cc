@@ -2921,18 +2921,46 @@ absl::Status FunctionConverter::HandleBuiltinOneHotSel(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue selector, Use(node->args()[0]));
 
+  // Implementation note:  During IR conversion, we will scalarize the
+  // array element into BValues using multiple ArrayIndex ops
+  // to create cases for the select operation.  This will bloat the
+  // unoptimized IR  -- especially in the case where we are given
+  // a literal array.
+  //
+  // For example, given a `one_hot_sel(sel, cases=[a, b, c])` the un-opt IR
+  // will redundantly create individual array_index ops for each element
+  // to then pass to the select op:
+  //   array_val: bits[32][4] = array(a, b, c)
+  //   literal_0: bits[32] = literal(value=0)
+  //   literal_1: bits[32] = literal(value=1)
+  //   literal_2: bits[32] = literal(value=2)
+  //   array_index_0: bits[32] = array_index(array_val, indices=[literal_0])
+  //   array_index_1: bits[32] = array_index(array_val, indices=[literal_1])
+  //   array_index_2: bits[32] = array_index(array_val, indices=[literal_2])
+  //   one_hot_sel_val: bits[32]
+  //     = one_hot_sel(s, cases=[array_index_0, array_index_1, array_index_2])
+  //
+  // This is ok as the optimizer will look through this and simplify to
+  //   one_hot_sel_val: bits[32] = one_hot_sel(s, cases=[a, b, c])
+  //
   const Expr* cases_arg = node->args()[1];
   std::vector<BValue> cases;
-  const auto* array = dynamic_cast<const Array*>(cases_arg);
-  XLS_RET_CHECK_NE(array, nullptr);
-  for (const auto& sel_case : array->members()) {
-    XLS_ASSIGN_OR_RETURN(BValue bvalue_case, Use(sel_case));
-    cases.push_back(bvalue_case);
-  }
+
+  XLS_ASSIGN_OR_RETURN(BValue bvalue_cases_arg, Use(cases_arg));
+  XLS_ASSIGN_OR_RETURN(xls::ArrayType * cases_arg_type,
+                       bvalue_cases_arg.GetType()->AsArray());
 
   Def(node, [&](const SourceInfo& loc) {
+    for (int64_t i = 0; i < cases_arg_type->size(); ++i) {
+      BValue index = function_builder_->Literal(UBits(i, 32), loc);
+      BValue bvalue_case =
+          function_builder_->ArrayIndex(bvalue_cases_arg, {index}, loc);
+      cases.push_back(bvalue_case);
+    }
+
     return function_builder_->OneHotSelect(selector, cases, loc);
   });
+
   return absl::OkStatus();
 }
 
@@ -2941,18 +2969,25 @@ absl::Status FunctionConverter::HandleBuiltinPrioritySel(
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue selector, Use(node->args()[0]));
 
+  // See implementation note for HandleBuildinOneHotSel().
   const Expr* cases_arg = node->args()[1];
   std::vector<BValue> cases;
-  const auto* array = dynamic_cast<const Array*>(cases_arg);
-  XLS_RET_CHECK_NE(array, nullptr);
-  for (const auto& sel_case : array->members()) {
-    XLS_ASSIGN_OR_RETURN(BValue bvalue_case, Use(sel_case));
-    cases.push_back(bvalue_case);
-  }
+
+  XLS_ASSIGN_OR_RETURN(BValue bvalue_cases_arg, Use(cases_arg));
+  XLS_ASSIGN_OR_RETURN(xls::ArrayType * cases_arg_type,
+                       bvalue_cases_arg.GetType()->AsArray());
 
   Def(node, [&](const SourceInfo& loc) {
+    for (int64_t i = 0; i < cases_arg_type->size(); ++i) {
+      BValue index = function_builder_->Literal(UBits(i, 32), loc);
+      BValue bvalue_case =
+          function_builder_->ArrayIndex(bvalue_cases_arg, {index}, loc);
+      cases.push_back(bvalue_case);
+    }
+
     return function_builder_->PrioritySelect(selector, cases, loc);
   });
+
   return absl::OkStatus();
 }
 
