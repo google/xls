@@ -361,11 +361,14 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(std::string_view name,
   return port;
 }
 
-absl::StatusOr<Register*> Block::AddRegister(std::string_view name, Type* type,
+absl::StatusOr<Register*> Block::AddRegister(std::string_view requested_name,
+                                             Type* type,
                                              std::optional<Reset> reset) {
-  if (registers_.contains(name)) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Register already exists with name %s", name));
+  std::string name =
+      register_name_uniquer_.GetSanitizedUniqueName(requested_name);
+  if (name != requested_name) {
+    XLS_LOG(INFO) << "Multiple registers with name `" << requested_name
+                  << "` requested. Using name `" << name << "`.";
   }
   if (reset.has_value()) {
     if (type != package()->GetTypeForValue(reset.value().reset_value)) {

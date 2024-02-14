@@ -1364,7 +1364,13 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
         "attributes (reset_value, asynchronous, active_low)");
   }
 
-  return block->AddRegister(reg_name.value(), reg_type, reset);
+  XLS_ASSIGN_OR_RETURN(Register * reg,
+                       block->AddRegister(reg_name.value(), reg_type, reset));
+  if (reg->name() != reg_name.value()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Register already exists with name %s", reg_name.value()));
+  }
+  return reg;
 }
 
 absl::StatusOr<ProcInstantiation*> Parser::ParseProcInstantiation(Proc* proc) {

@@ -640,10 +640,14 @@ TEST_F(BlockTest, AddDuplicateRegisters) {
   Package p(TestName());
   Block* blk = p.AddBlock(std::make_unique<Block>("block1", &p));
   XLS_ASSERT_OK(blk->AddClockPort("clk"));
-  XLS_ASSERT_OK(blk->AddRegister("my_reg", p.GetBitsType(32)).status());
-  EXPECT_THAT(blk->AddRegister("my_reg", p.GetBitsType(32)).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Register already exists with name my_reg")));
+  static constexpr std::string_view kRegName = "my_reg";
+  XLS_ASSERT_OK(blk->AddRegister(kRegName, p.GetBitsType(32)).status());
+  // Adding a duplicate will succeed but the duplicated register will have a
+  // different name.
+  XLS_ASSERT_OK_AND_ASSIGN(Register * r,
+                           blk->AddRegister(kRegName, p.GetBitsType(32)));
+  EXPECT_THAT(r->name(), testing::Not(testing::StrEq(kRegName)));
+  EXPECT_THAT(r->name(), testing::StartsWith(kRegName));
 }
 
 TEST_F(BlockTest, RemoveRegisterNotOwnedByBlock) {

@@ -28,6 +28,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
@@ -47,7 +48,7 @@ namespace xls {
 class Block : public FunctionBase {
  public:
   Block(std::string_view name, Package* package)
-      : FunctionBase(name, package) {}
+      : FunctionBase(name, package), register_name_uniquer_("__") {}
   ~Block() override = default;
 
   // Abstraction describing the clock port.
@@ -112,8 +113,12 @@ class Block : public FunctionBase {
   absl::StatusOr<Register*> GetRegister(std::string_view name) const;
 
   // Adds a register to the block.
+  //
+  // The requested_name is the name which will be used if possible. If the name
+  // is already used a uniquified name will be used. Query the register to get
+  // the actual name used by the register.
   absl::StatusOr<Register*> AddRegister(
-      std::string_view name, Type* type,
+      std::string_view requested_name, Type* type,
       std::optional<Reset> reset = std::nullopt);
 
   // Removes the given register from the block. If the register is not owned by
@@ -253,6 +258,7 @@ class Block : public FunctionBase {
 
   std::optional<ClockPort> clock_port_;
   std::optional<InputPort*> reset_port_;
+  NameUniquer register_name_uniquer_;
 };
 
 }  // namespace xls
