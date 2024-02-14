@@ -83,7 +83,7 @@ absl::Status InvocationData::ValidateEnvForCaller(
   for (const auto& k : env.GetKeySet()) {
     if (!caller_->parametric_keys().contains(k)) {
       return absl::InternalError(
-          absl::StrFormat("caller %s given env with key %s not present in "
+          absl::StrFormat("caller `%s` given env with key `%s` not present in "
                           "parametric keys: {%s}",
                           caller_->identifier(), k,
                           absl::StrJoin(caller_->parametric_keys(), ",")));
