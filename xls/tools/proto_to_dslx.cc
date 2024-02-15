@@ -1081,4 +1081,26 @@ absl::StatusOr<std::unique_ptr<Message>> ConstructProtoViaText(
   return new_message;
 }
 
+absl::StatusOr<std::unique_ptr<dslx::Module>> CreateDslxFromParams(
+    std::string_view module_name,
+    absl::Span<const std::pair<std::string_view, const google::protobuf::Message*>>
+        params) {
+  auto module = std::make_unique<dslx::Module>(std::string{module_name},
+                                               /*fs_path=*/std::nullopt);
+
+  ProtoToDslxManager proto_to_dslx(module.get());
+
+  for (std::pair<std::string_view, const google::protobuf::Message*> p : params) {
+    std::string_view binding_name = p.first;
+    const google::protobuf::Message* proto_param = p.second;
+
+    XLS_RET_CHECK(proto_param != nullptr);
+
+    XLS_RET_CHECK_OK(proto_to_dslx.AddProtoInstantiationToDslxModule(
+        binding_name, *proto_param));
+  }
+
+  return module;
+}
+
 }  // namespace xls

@@ -471,5 +471,50 @@ pub const b1 = TypeB { index_b: uN[64]:2 };
 pub const b2 = TypeB { index_b: uN[64]:3 };)");
 }
 
+TEST(ProtoToDslxTest, CreateDslxFromParamsTest) {
+  const std::string kSchema = R"(
+syntax = "proto2";
+
+package xls;
+
+message TypeA {
+  optional uint32 index_a = 1;
+}
+)";
+
+  std::string textproto_a1 = R"(
+  index_a: 10
+)";
+  std::string textproto_a2 = R"(
+  index_a: 11
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<google::protobuf::DescriptorPool> descriptor_pool,
+      ProcessStringProtoSchema(kSchema));
+  google::protobuf::DynamicMessageFactory factory;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<google::protobuf::Message> message_a1,
+      ConstructProtoViaText(textproto_a1, "xls.TypeA", descriptor_pool.get(),
+                            &factory));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<google::protobuf::Message> message_a2,
+      ConstructProtoViaText(textproto_a2, "xls.TypeA", descriptor_pool.get(),
+                            &factory));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> module,
+      CreateDslxFromParams(
+          "module_test", {{"a1", message_a1.get()}, {"a2", message_a2.get()}}));
+
+  EXPECT_EQ(module->ToString(),
+            R"(pub struct TypeA {
+    index_a: uN[32],
+}
+pub const a1 = TypeA { index_a: uN[32]:10 };
+pub const a2 = TypeA { index_a: uN[32]:11 };)");
+}
+
 }  // namespace
 }  // namespace xls
