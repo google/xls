@@ -66,6 +66,33 @@ SIMPLE_VERILOG = """module main(
 endmodule
 """
 
+COMBINATIONAL_BLOCK_IR = """package add
+
+top block my_function(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=6)
+  b: bits[32] = input_port(name=b, id=7)
+  sum: bits[32] = add(a, b, id=8)
+  not_sum: bits[32] = not(sum, id=9)
+  not_not_sum: bits[32] = not(not_sum, id=10)
+  out: () = output_port(not_not_sum, name=out, id=11)
+}
+"""
+
+COMBINATIONAL_SIMPLE_VERILOG = """module my_function(
+  input wire [31:0] a,
+  input wire [31:0] b,
+  output wire [31:0] out
+);
+  wire [31:0] sum;
+  wire [31:0] not_sum;
+  wire [31:0] not_not_sum;
+  assign sum = a + b;
+  assign not_sum = ~sum;
+  assign not_not_sum = ~not_sum;
+  assign out = not_not_sum;
+endmodule
+"""
+
 
 class CodeGenMainTest(test_base.TestCase):
 
@@ -85,6 +112,7 @@ class CodeGenMainTest(test_base.TestCase):
     self.assertIn('Max input-to-reg delay: 0ps', output)
     self.assertIn('Max reg-to-output delay: 2ps', output)
     self.assertIn('Lines of Verilog: 7', output)
+    self.assertIn('Codegen time:', output)
     self.assertIn('Scheduling time:', output)
 
   def test_simple_block_no_delay_model(self):
@@ -92,8 +120,11 @@ class CodeGenMainTest(test_base.TestCase):
     block_ir_file = self.create_tempfile(content=BLOCK_IR)
     verilog_file = self.create_tempfile(content=SIMPLE_VERILOG)
     output = subprocess.check_output([
-        BENCHMARK_CODEGEN_MAIN_PATH, '--schedule=false', opt_ir_file.full_path,
-        block_ir_file.full_path, verilog_file.full_path
+        BENCHMARK_CODEGEN_MAIN_PATH,
+        '--measure_codegen_timing=false',
+        opt_ir_file.full_path,
+        block_ir_file.full_path,
+        verilog_file.full_path,
     ]).decode('utf-8')
 
     self.assertIn('Flop count: 96', output)
@@ -102,6 +133,26 @@ class CodeGenMainTest(test_base.TestCase):
     self.assertNotIn('Max input-to-reg delay', output)
     self.assertNotIn('Max reg-to-output delay', output)
     self.assertIn('Lines of Verilog: 7', output)
+
+  def test_simple_block_combinational(self):
+    opt_ir_file = self.create_tempfile(content=OPT_IR)
+    block_ir_file = self.create_tempfile(content=COMBINATIONAL_BLOCK_IR)
+    verilog_file = self.create_tempfile(content=COMBINATIONAL_SIMPLE_VERILOG)
+    output = subprocess.check_output([
+        BENCHMARK_CODEGEN_MAIN_PATH,
+        opt_ir_file.full_path,
+        block_ir_file.full_path,
+        verilog_file.full_path,
+        '--generator=combinational',
+    ]).decode('utf-8')
+    self.assertIn('Codegen time:', output)
+    self.assertNotIn('Scheduling time:', output)
+    self.assertIn('Flop count: 0', output)
+    self.assertIn('Has feedthrough path: true', output)
+    self.assertIn('Lines of Verilog: 14', output)
+    self.assertNotIn('Max reg-to-reg delay: 1ps', output)
+    self.assertNotIn('Max input-to-reg delay: 0ps', output)
+    self.assertNotIn('Max reg-to-output delay: 2ps', output)
 
 
 if __name__ == '__main__':

@@ -28,6 +28,7 @@
 #include "absl/time/time.h"
 #include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/xls_metrics.pb.h"
@@ -35,6 +36,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
@@ -57,7 +59,8 @@ Usage:
      OPT_IR_FILE BLOCK_IR_FILE VERILOG_FILE
 )";
 
-ABSL_FLAG(bool, schedule, true, "Enable running the scheduler.");
+ABSL_FLAG(bool, measure_codegen_timing, true,
+          "Measure timing of codegen (including scheduling).");
 
 namespace xls {
 namespace {
@@ -81,8 +84,23 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   return schedule;
 }
 
-absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
-                              const verilog::CodegenOptions& codegen_options) {
+absl::Status PrintCombinationalCodegenInfo(
+    FunctionBase* f, const verilog::CodegenOptions& codegen_options,
+    const DelayEstimator* delay_estimator) {
+  absl::Time start = absl::Now();
+  XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult result,
+                       verilog::GenerateCombinationalModule(f, codegen_options,
+                                                            delay_estimator));
+  absl::Duration total_time = absl::Now() - start;
+  std::cout << absl::StreamFormat("Codegen time: %dms\n",
+                                  total_time / absl::Milliseconds(1));
+
+  return absl::OkStatus();
+}
+
+absl::Status PrintPipelinedCodegenInfo(
+    FunctionBase* f, const PipelineSchedule& schedule,
+    const verilog::CodegenOptions& codegen_options) {
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(
       verilog::ModuleGeneratorResult codegen_result,
@@ -131,25 +149,46 @@ absl::Status RealMain(std::string_view opt_ir_path,
 
   const DelayEstimator* delay_estimator = nullptr;
 
-  if (absl::GetFlag(FLAGS_schedule)) {
+  if (absl::GetFlag(FLAGS_measure_codegen_timing)) {
     XLS_ASSIGN_OR_RETURN(
         SchedulingOptionsFlagsProto scheduling_options_flags_proto,
         GetSchedulingOptionsFlagsProto());
-    XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                         SetUpSchedulingOptions(scheduling_options_flags_proto,
-                                                block_package.get()));
-    XLS_ASSIGN_OR_RETURN(delay_estimator,
-                         SetUpDelayEstimator(scheduling_options_flags_proto));
-
-    XLS_ASSIGN_OR_RETURN(
-        PipelineSchedule schedule,
-        ScheduleAndPrintStats(opt_package.get(), *delay_estimator,
-                              scheduling_options));
-    XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags, GetCodegenFlags());
+    XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags_proto,
+                         GetCodegenFlags());
     XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
-                         CodegenOptionsFromProto(codegen_flags));
-    XLS_RETURN_IF_ERROR(
-        PrintCodegenInfo(*opt_package->GetTop(), schedule, codegen_options));
+                         CodegenOptionsFromProto(codegen_flags_proto));
+
+    std::optional<FunctionBase*> top = opt_package->GetTop();
+    XLS_RET_CHECK(top.has_value());
+
+    if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
+      XLS_ASSIGN_OR_RETURN(
+          bool with_delay_model,
+          IsDelayModelSpecifiedViaFlag(scheduling_options_flags_proto));
+      if (with_delay_model) {
+        XLS_ASSIGN_OR_RETURN(
+            delay_estimator,
+            SetUpDelayEstimator(scheduling_options_flags_proto));
+      }
+      XLS_RETURN_IF_ERROR(PrintCombinationalCodegenInfo(*top, codegen_options,
+                                                        delay_estimator));
+    } else {
+      XLS_RET_CHECK_EQ(codegen_flags_proto.generator(),
+                       GENERATOR_KIND_PIPELINE);
+      XLS_ASSIGN_OR_RETURN(
+          SchedulingOptions scheduling_options,
+          SetUpSchedulingOptions(scheduling_options_flags_proto,
+                                 block_package.get()));
+      XLS_ASSIGN_OR_RETURN(delay_estimator,
+                           SetUpDelayEstimator(scheduling_options_flags_proto));
+
+      XLS_ASSIGN_OR_RETURN(
+          PipelineSchedule schedule,
+          ScheduleAndPrintStats(opt_package.get(), *delay_estimator,
+                                scheduling_options));
+      XLS_RETURN_IF_ERROR(
+          PrintPipelinedCodegenInfo(*top, schedule, codegen_options));
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(block_package.get()));
