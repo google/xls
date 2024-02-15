@@ -99,9 +99,9 @@ ABSL_FLAG(bool, error_on_init_interval, false,
           "than supported");
 
 ABSL_FLAG(
-    bool, generate_fsms_for_pipelined_loops, false,
-    "Generate an FSM for pipelined loops. This can allow for area savings "
-    "in some cases, for example where maximum throughput isn't required.");
+    bool, generate_fsms_for_pipelined_loops, true,
+    "Generate an FSM for pipelined loops. Non-FSM mode should be considered "
+    "experimental, as it can generate semantically incorrect IR.");
 
 ABSL_FLAG(int, top_level_init_interval, 1,
           "Initiation interval of block top level (Run/main function)");
