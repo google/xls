@@ -51,6 +51,7 @@ _BLOCK_IR_FILE_EXTENSION = ".block.ir"
 _SCHEDULE_IR_FILE_EXTENSION = ".schedule.opt.ir"
 _CODEGEN_LOG_FILE_EXTENSION = ".codegen.log"
 _CODEGEN_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION = ".codegen_options.textproto"
+_SCHEDULING_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION = ".schedule_options.textproto"
 
 xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
@@ -121,6 +122,13 @@ xls_ir_verilog_attrs = {
               _CODEGEN_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION + " extension " +
               "is used.",
     ),
+    "scheduling_options_used_textproto_file": attr.output(
+        doc = "The filename to write the full configuration options used for " +
+              "this scheduling. If not specified, the basename of the Verilog " +
+              "file followed by a " +
+              _SCHEDULING_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION + " extension " +
+              "is used.",
+    ),
 }
 
 def _is_combinational_generator(arguments):
@@ -182,6 +190,10 @@ def append_xls_ir_verilog_generated_files(args, basename, arguments):
     args.setdefault(
         "codegen_options_used_textproto_file",
         basename + _CODEGEN_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION,
+    )
+    args.setdefault(
+        "scheduling_options_used_textproto_file",
+        basename + _SCHEDULING_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION,
     )
     return args
 
@@ -423,6 +435,16 @@ def xls_ir_verilog_impl(ctx, src):
     my_generated_files.append(config_textproto_file)
     final_args += " --codegen_options_used_textproto_file={}".format(
         config_textproto_file.path,
+    )
+    schedule_config_textproto_file = get_output_filename_value(
+        ctx,
+        "scheduling_options_used_textproto_file",
+        verilog_basename + _SCHEDULING_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION,
+    )
+    sched_config_textproto_file = ctx.actions.declare_file(schedule_config_textproto_file)
+    my_generated_files.append(sched_config_textproto_file)
+    final_args += " --scheduling_options_used_textproto_file={}".format(
+        sched_config_textproto_file.path,
     )
 
     ctx.actions.run_shell(

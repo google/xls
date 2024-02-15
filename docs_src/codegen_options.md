@@ -102,6 +102,9 @@ control the scheduler.
     slack variable is preferred. Increasing this value should give more specific
     information about how much slack each failing backedge needs at the cost of
     less actionable and harder to understand output.
+-   `--scheduling_options_used_textproto_file` is the path to write a textproto
+    containing the actual configuration used for scheduling.
+
 
 # Feedback-driven Optimization (FDO) Options
 

@@ -27,7 +27,9 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -139,6 +141,10 @@ ABSL_FLAG(bool, multi_proc, false,
 //   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
 // )
+ABSL_FLAG(std::optional<std::string>, scheduling_options_used_textproto_file,
+          std::nullopt,
+          "If present, path to write a protobuf recording all schedule args "
+          "used (including those set on the cmd line).");
 
 namespace xls {
 
@@ -216,6 +222,12 @@ absl::StatusOr<SchedulingOptionsFlagsProto> GetSchedulingOptionsFlagsProto() {
   } else if (FLAGS_scheduling_options_proto.IsSpecifiedOnCommandLine()) {
     XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
         absl::GetFlag(FLAGS_scheduling_options_proto), &proto));
+  }
+  if (absl::GetFlag(FLAGS_scheduling_options_used_textproto_file)) {
+    std::string out;
+    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(proto, &out));
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        *absl::GetFlag(FLAGS_scheduling_options_used_textproto_file), out));
   }
   return proto;
 }
