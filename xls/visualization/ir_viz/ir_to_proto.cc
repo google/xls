@@ -433,9 +433,11 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
       // Wrap the next elements in spans.
       XLS_RETURN_IF_ERROR(
           WrapNextNodeInSpan(current_proc->NextToken(), function_ids, &line));
-      for (Node* next_state : current_proc->NextState()) {
-        XLS_RETURN_IF_ERROR(
-            WrapNextNodeInSpan(next_state, function_ids, &line));
+      if (current_proc->next_values().empty()) {
+        for (Node* next_state : current_proc->NextState()) {
+          XLS_RETURN_IF_ERROR(
+              WrapNextNodeInSpan(next_state, function_ids, &line));
+        }
       }
       lines.push_back(std::string{line});
       continue;

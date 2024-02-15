@@ -21,6 +21,7 @@ TARGETS=(
 "//xls/simulation:verilog_test_base_test"
 "//xls/tools:codegen_main_test"
 "//xls/tools:wrap_io_test"
+"//xls/visualization/ir_viz:ir_to_proto_test"
 )
 
 if [[ "$@" ]]
