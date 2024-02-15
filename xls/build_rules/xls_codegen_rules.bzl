@@ -496,7 +496,7 @@ def _xls_benchmark_verilog_impl(ctx):
     benchmark_codegen_tool = ctx.executable._xls_benchmark_codegen_tool
     codegen_info = ctx.attr.verilog_target[CodegenInfo]
     opt_ir_info = ctx.attr.verilog_target[OptIRInfo]
-    if not codegen_info.top:
+    if not hasattr(codegen_info, "top"):
         fail("Verilog target '%s' does not provide a top value" %
              ctx.attr.verilog_target.label.name)
     cmd = "{tool} {opt_ir} {block_ir} {verilog} --top={top}".format(
@@ -506,12 +506,13 @@ def _xls_benchmark_verilog_impl(ctx):
         tool = benchmark_codegen_tool.short_path,
         block_ir = codegen_info.block_ir_file.short_path,
     )
-    if getattr(codegen_info, "delay_model", None):
-        cmd += " --delay_model={}".format(codegen_info.delay_model)
-    if getattr(codegen_info, "pipeline_stages", None):
-        cmd += " --pipeline_stages={}".format(codegen_info.pipeline_stages)
-    if getattr(codegen_info, "clock_period_ps", None):
-        cmd += " --clock_period_ps={}".format(codegen_info.clock_period_ps)
+    for flag in _CODEGEN_FLAGS + _SCHEDULING_FLAGS:
+        if flag in ["top", "verilog_file", "block_ir_file"]:
+            # already handled above
+            continue
+        value = getattr(codegen_info, flag, None)
+        if value != None:
+            cmd += " --{flag}={value}".format(flag = flag, value = value)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
 
     # Get runfiles

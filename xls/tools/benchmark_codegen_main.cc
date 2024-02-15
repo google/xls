@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -23,8 +24,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "xls/codegen/block_metrics.h"
+#include "xls/codegen/codegen_options.h"
+#include "xls/codegen/module_signature.h"
+#include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -38,6 +43,8 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/codegen_flags.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -50,16 +57,14 @@ Usage:
      OPT_IR_FILE BLOCK_IR_FILE VERILOG_FILE
 )";
 
-ABSL_FLAG(std::string, top, "",
-          "Name of top block to use in lieu of the default.");
 ABSL_FLAG(bool, schedule, true, "Enable running the scheduler.");
 
 namespace xls {
 namespace {
 
-absl::Status ScheduleAndPrintStats(Package* package,
-                                   const DelayEstimator& delay_estimator,
-                                   const SchedulingOptions& options) {
+absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
+    Package* package, const DelayEstimator& delay_estimator,
+    const SchedulingOptions& options) {
   std::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {
     return absl::InternalError(absl::StrFormat(
@@ -71,6 +76,19 @@ absl::Status ScheduleAndPrintStats(Package* package,
       RunPipelineSchedule(top.value(), delay_estimator, options));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
+                                  total_time / absl::Milliseconds(1));
+
+  return schedule;
+}
+
+absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
+                              const verilog::CodegenOptions& codegen_options) {
+  absl::Time start = absl::Now();
+  XLS_ASSIGN_OR_RETURN(
+      verilog::ModuleGeneratorResult codegen_result,
+      verilog::ToPipelineModuleText(schedule, f, codegen_options));
+  absl::Duration total_time = absl::Now() - start;
+  std::cout << absl::StreamFormat("Codegen time: %dms\n",
                                   total_time / absl::Milliseconds(1));
 
   return absl::OkStatus();
@@ -123,8 +141,15 @@ absl::Status RealMain(std::string_view opt_ir_path,
     XLS_ASSIGN_OR_RETURN(delay_estimator,
                          SetUpDelayEstimator(scheduling_options_flags_proto));
 
-    XLS_RETURN_IF_ERROR(ScheduleAndPrintStats(
-        opt_package.get(), *delay_estimator, scheduling_options));
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        ScheduleAndPrintStats(opt_package.get(), *delay_estimator,
+                              scheduling_options));
+    XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags, GetCodegenFlags());
+    XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
+                         CodegenOptionsFromProto(codegen_flags));
+    XLS_RETURN_IF_ERROR(
+        PrintCodegenInfo(*opt_package->GetTop(), schedule, codegen_options));
   }
 
   XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(block_package.get()));

@@ -66,6 +66,60 @@ verilog::CodegenOptions::IOKind ToIOKind(IOKindProto p) {
   }
 }
 
+using PipelineScheduleOrGroup =
+    std::variant<PipelineSchedule, PackagePipelineSchedules>;
+
+absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
+    FunctionBase* main, const SchedulingOptions& scheduling_options,
+    const DelayEstimator* delay_estimator,
+    synthesis::Synthesizer* synthesizer) {
+  SchedulingPassOptions sched_options;
+  sched_options.scheduling_options = scheduling_options;
+  sched_options.delay_estimator = delay_estimator;
+  sched_options.synthesizer = synthesizer;
+  std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
+      CreateSchedulingPassPipeline();
+  absl::flat_hash_map<FunctionBase*, PipelineSchedule> schedules;
+
+  SchedulingPassResults results;
+  XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
+  auto scheduling_unit =
+      (scheduling_options.schedule_all_procs())
+          ? SchedulingUnit::CreateForWholePackage(main->package())
+          : SchedulingUnit::CreateForSingleFunction(main);
+  absl::Status scheduling_status =
+      scheduling_pipeline->Run(&scheduling_unit, sched_options, &results)
+          .status();
+  if (!scheduling_status.ok()) {
+    if (absl::IsResourceExhausted(scheduling_status)) {
+      // Resource exhausted error indicates that the schedule was
+      // infeasible. Emit a meaningful error in this case.
+      std::string error_message = "Design cannot be scheduled";
+      if (scheduling_options.pipeline_stages().has_value()) {
+        absl::StrAppendFormat(&error_message, " in %d stages",
+                              scheduling_options.pipeline_stages().value());
+      }
+      if (scheduling_options.clock_period_ps().has_value()) {
+        absl::StrAppendFormat(&error_message, " with a %dps clock",
+                              scheduling_options.clock_period_ps().value());
+      }
+      return xabsl::StatusBuilder(scheduling_status).SetPrepend()
+             << error_message << ": ";
+    }
+    return scheduling_status;
+  }
+  XLS_RET_CHECK(scheduling_unit.schedules().contains(main));
+  if (scheduling_options.schedule_all_procs()) {
+    return std::move(scheduling_unit).schedules();
+  }
+  auto schedule_itr = scheduling_unit.schedules().find(main);
+  XLS_RET_CHECK(schedule_itr != scheduling_unit.schedules().end());
+
+  return schedule_itr->second;
+}
+
+}  // namespace
+
 absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     const CodegenFlagsProto& p) {
   verilog::CodegenOptions options;
@@ -145,60 +199,6 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
 
   return options;
 }
-
-using PipelineScheduleOrGroup =
-    std::variant<PipelineSchedule, PackagePipelineSchedules>;
-
-absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
-    FunctionBase* main, const SchedulingOptions& scheduling_options,
-    const DelayEstimator* delay_estimator,
-    synthesis::Synthesizer* synthesizer) {
-  SchedulingPassOptions sched_options;
-  sched_options.scheduling_options = scheduling_options;
-  sched_options.delay_estimator = delay_estimator;
-  sched_options.synthesizer = synthesizer;
-  std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-      CreateSchedulingPassPipeline();
-  absl::flat_hash_map<FunctionBase*, PipelineSchedule> schedules;
-
-  SchedulingPassResults results;
-  XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
-  auto scheduling_unit =
-      (scheduling_options.schedule_all_procs())
-          ? SchedulingUnit::CreateForWholePackage(main->package())
-          : SchedulingUnit::CreateForSingleFunction(main);
-  absl::Status scheduling_status =
-      scheduling_pipeline->Run(&scheduling_unit, sched_options, &results)
-          .status();
-  if (!scheduling_status.ok()) {
-    if (absl::IsResourceExhausted(scheduling_status)) {
-      // Resource exhausted error indicates that the schedule was
-      // infeasible. Emit a meaningful error in this case.
-      std::string error_message = "Design cannot be scheduled";
-      if (scheduling_options.pipeline_stages().has_value()) {
-        absl::StrAppendFormat(&error_message, " in %d stages",
-                              scheduling_options.pipeline_stages().value());
-      }
-      if (scheduling_options.clock_period_ps().has_value()) {
-        absl::StrAppendFormat(&error_message, " with a %dps clock",
-                              scheduling_options.clock_period_ps().value());
-      }
-      return xabsl::StatusBuilder(scheduling_status).SetPrepend()
-             << error_message << ": ";
-    }
-    return scheduling_status;
-  }
-  XLS_RET_CHECK(scheduling_unit.schedules().contains(main));
-  if (scheduling_options.schedule_all_procs()) {
-    return std::move(scheduling_unit).schedules();
-  }
-  auto schedule_itr = scheduling_unit.schedules().find(main);
-  XLS_RET_CHECK(schedule_itr != scheduling_unit.schedules().end());
-
-  return schedule_itr->second;
-}
-
-}  // namespace
 
 absl::StatusOr<CodegenResult> ScheduleAndCodegen(
     Package* p,

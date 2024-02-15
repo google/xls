@@ -15,6 +15,7 @@
 #include <optional>
 
 #include "absl/status/statusor.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -31,6 +32,9 @@ struct CodegenResult {
   std::optional<PackagePipelineSchedulesProto>
       package_pipeline_schedules_proto = std::nullopt;
 };
+
+absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
+    const CodegenFlagsProto& p);
 
 absl::StatusOr<CodegenResult> ScheduleAndCodegen(
     Package* p,
