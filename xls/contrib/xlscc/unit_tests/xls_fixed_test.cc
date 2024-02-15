@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <string>
 
 #include "gtest/gtest.h"
+#include "xls/common/source_location.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
 namespace xlscc {
@@ -33,6 +35,46 @@ TEST_F(XlsFixedTest, Add) {
     })";
   RunAcDatatypeTest({{"a", 3}, {"b", 5}}, 8, content,
                     xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, UnaryPlus) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+
+    long long my_package(long long a) {
+      XlsFixed<8, 7, true, ac_datatypes::AC_RND_CONV_ODD, ac_datatypes::AC_SAT> result = 0;
+      XlsFixed<11, 10, true> input = a;
+      result = +input;
+      return result.to_long();
+     })";
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -5}}, -5, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, UnaryPlusToUnsigned) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+
+    long long my_package(long long a) {
+      XlsFixed<8, 7, false, ac_datatypes::AC_RND_CONV_ODD, ac_datatypes::AC_SAT> result = 0;
+      XlsFixed<11, 10, true> input = a;
+      result = +input;
+      return result.to_ulong();
+     })";
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -5}}, 0, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, CompareWithQuantization) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+
+    long long my_package() {
+      XlsFixed<8, 3, true, ac_datatypes::AC_RND_CONV> x = 5;
+      XlsFixed<8, 3, true, ac_datatypes::AC_RND_CONV> y = 4;
+      return x > y;
+     })";
+  RunAcDatatypeTest({}, 1, content, xabsl::SourceLocation::current());
 }
 
 TEST_F(XlsFixedTest, AddDifferentSizes) {
@@ -825,7 +867,6 @@ TEST_F(XlsFixedTest, QuantizationModeRndZeroNegative) {
   RunAcDatatypeTest({{"a", -7}}, -3, content, xabsl::SourceLocation::current());
 }
 
-
 TEST_F(XlsFixedTest, QuantizationModeRndInfPositive) {
   const std::string content = R"(
     #include "xls_fixed.h"
@@ -921,7 +962,6 @@ TEST_F(XlsFixedTest, QuantizationModeRndConvNegative) {
     })";
   RunAcDatatypeTest({{"a", -7}}, -4, content, xabsl::SourceLocation::current());
 }
-
 
 TEST_F(XlsFixedTest, QuantizationModeRndConvOddPositive) {
   const std::string content = R"(

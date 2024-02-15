@@ -438,6 +438,16 @@ class XlsIntBase<Width, false> {
     return reti;
   }
 
+  explicit inline operator bool() const {
+    __xls_bits<1> ret(ConvertBits<Width, 1, false>::Convert(storage));
+    bool reti;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_0_(aid): bits[i] = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(reti)
+        : "i"(1), "a"(ret));
+    return reti;
+  }
+
   __xls_bits<Width> storage;
 };
 
@@ -465,9 +475,20 @@ class XlsIntBase<Width, true> {
     return reti;
   }
 
+  explicit inline operator bool() const {
+    __xls_bits<1> ret(ConvertBits<Width, 1, false>::Convert(storage));
+    bool reti;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_0_(aid): bits[i] = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(reti)
+        : "i"(1), "a"(ret));
+    return reti;
+  }
+
   __xls_bits<Width> storage;
 };
-template <int W, bool S> class XlsInt;
+template <int W, bool S>
+class XlsInt;
 
 // BitElemRef is returned from XlsInt's non-const operator [].
 // It represents a reference to a certain bit inside an XlsInt.
@@ -481,16 +502,19 @@ struct BitElemRef {
   inline BitElemRef(bool in) : v(in) {}
 
   inline operator bool() const { return v; }
-  template<int W2, bool S2>
-  operator XlsInt<W2, S2> () const { return operator bool (); }
+  template <int W2, bool S2>
+  operator XlsInt<W2, S2>() const {
+    return operator bool();
+  }
 
-  inline BitElemRef operator =(int val) {
-    v = val & 1;
+  inline BitElemRef operator=(int val) {
+    v = static_cast<bool>(val);
     return *this;
   }
 
-  inline BitElemRef operator =(const BitElemRef &val) {
-    return operator =((int) (bool) val);
+  inline BitElemRef operator=(const BitElemRef &val) {
+    v = static_cast<bool>(val.v);
+    return *this;
   }
 
   bool v;
@@ -568,6 +592,22 @@ class XlsInt : public XlsIntBase<Width, Signed> {
   }
 
   inline unsigned int to_uint() const { return (unsigned int)to_int(); }
+  inline long long to_int64() const {
+    __xls_bits<64> ret(ConvertBits<Width, 64, true>::Convert(this->storage));
+    long long reti;
+
+    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_1_(aid): bits[i] = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(reti)
+        : "i"(64), "a"(ret));
+
+    return reti;
+  }
+  inline unsigned long long to_uint64() const {
+    return (unsigned long long)to_int64();
+  }
+  inline long to_long() const { return (long)to_int64(); }
+  inline unsigned long to_ulong() const { return (unsigned long)to_int64(); }
 
   static const int width = Width;
   static const int i_width = Width;
@@ -593,6 +633,8 @@ class XlsInt : public XlsIntBase<Width, Signed> {
   };
 
   bool operator!() const { return (*this) == XlsInt(0); }
+
+  XlsInt operator+() const { return (*this); }
 
   inline typename rt_unary::neg operator-() const {
     typename rt_unary::neg as = *this;
@@ -820,7 +862,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 
   // --- Hack: see comments for BitElemRef
   inline BitElemRef operator[](index_t i) {
-    return BitElemRef((bool)slc<1>(i));
+    return BitElemRef(static_cast<bool>(slc<1>(i)));
 
     // NOP to ensure that clang parses the set_element functions
     set_element_bitref(0, 1);

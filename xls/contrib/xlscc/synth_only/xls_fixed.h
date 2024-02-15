@@ -134,7 +134,8 @@ class Adjustment {
  public:
   inline static __xls_bits<W> Adjust(__xls_bits<FromW> in) {
     const XlsInt<FromW, FromSigned> input_val(in);
-
+    const XlsInt<W, S> min_val = MinValue<W, S>::Value();
+    const XlsInt<W, S> max_val = MaxValue<W, S>::Value();
     constexpr int shift = (W - I) - (FromW - FromI);
     constexpr int shift_log = 32;  // Log2Ceil<shift>;
     if constexpr (shift == 0) {
@@ -146,17 +147,15 @@ class Adjustment {
         if constexpr (o_mode == ac_datatypes::AC_WRAP) {
           return SliceBits<FromW, W>::Convert(in);
         }
-        const auto min =
-            XlsInt<FromW, FromSigned>(XlsInt<W, S>(MinValue<W, S>::Value()));
+        const auto min = XlsInt<FromW, FromSigned>(min_val);
         if (input_val < min) {
           if constexpr (o_mode == ac_datatypes::AC_SAT_ZERO) {
             return XlsInt<W, S>(0).storage;
           } else {
-            return MinValue<W, S>::Value();
+          return MinValue<W, S>::Value();
           }
         }
-        const auto max =
-            XlsInt<FromW, FromSigned>(XlsInt<W, S>(MaxValue<W, S>::Value()));
+        const auto max = XlsInt<FromW, FromSigned>(max_val);
         if (input_val > max) {
           if constexpr (o_mode == ac_datatypes::AC_SAT_ZERO) {
             return XlsInt<W, S>(0).storage;
@@ -416,9 +415,11 @@ class XlsFixed {
     return ret;
   }
 
+  inline XlsFixed operator+() const { return *this; }
+
   inline XlsFixed operator++() {
     val = val + 1;
-    return (*this);
+    return *this;
   }
 
   inline XlsFixed operator++(int) {
@@ -429,7 +430,7 @@ class XlsFixed {
 
   inline XlsFixed operator--() {
     val = val - 1;
-    return (*this);
+    return *this;
   }
 
   inline XlsFixed operator--(int) {
@@ -489,8 +490,10 @@ class XlsFixed {
           "parama"(__IMPL<Result::width, ToSign>::Operate(a, b)));             \
     return ret;                                                                \
   }                                                                            \
-  template <int ToW, int ToI, bool ToSign>                                     \
-  inline XlsFixed operator __OP##=(const XlsFixed<ToW, ToI, ToSign> &o) {      \
+  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode ToQ,        \
+            ac_datatypes::ac_o_mode ToO>                                       \
+  inline XlsFixed operator __OP##=(                                            \
+                         const XlsFixed<ToW, ToI, ToSign, ToQ, ToO> &o) {      \
     (*this) = (*this)__OP o;                                                   \
     return (*this);                                                            \
   }
@@ -549,8 +552,10 @@ class XlsFixed {
   }
 
 #define COMPARISON_OP_FIXED(__OP, __IR)                                     \
-  template <int ToW, int ToI, bool ToSign>                                  \
-  inline bool operator __OP(const XlsFixed<ToW, ToI, ToSign> &o) const {    \
+  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode Q2,      \
+            ac_datatypes::ac_o_mode O2>                                     \
+  inline bool operator __OP(                                                \
+                    const XlsFixed<ToW, ToI, ToSign, Q2, O2> &o) const {    \
     XlsFixed fixed(o);                                                      \
     bool ret;                                                               \
     asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[1] { ret (aid): bits[1] " \
@@ -563,14 +568,17 @@ class XlsFixed {
 
   COMPARISON_OP_FIXED(==, "eq");
 
-  template <int ToW, int ToI, bool ToSign>
-  inline bool operator!=(const XlsFixed<ToW, ToI, ToSign> &o) const {
+  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode Q2,
+            ac_datatypes::ac_o_mode O2>
+  inline bool operator!=(const XlsFixed<ToW, ToI, ToSign, Q2, O2> &o) const {
     return !((*this) == o);
   }
 
 #define COMPARISON_OP_FIXED_WITH_SIGN(__OP, __IMPL)                      \
-  template <int ToW, int ToI, bool ToSign>                               \
-  inline bool operator __OP(const XlsFixed<ToW, ToI, ToSign> &o) const { \
+  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode Q2,   \
+            ac_datatypes::ac_o_mode O2>                                  \
+  inline bool operator __OP(                                             \
+                    const XlsFixed<ToW, ToI, ToSign, Q2, O2> &o) const { \
     XlsFixed fixed(o);                                                   \
     bool ret;                                                            \
     asm("fn (fid)(a: bits[i]) -> bits[1] { ret op_6_(aid): bits[1] = "   \
@@ -904,7 +912,6 @@ XLS_FX_ASSIGN_OP_WITH_AC_INT(+=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(-=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(*=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(/=)
-XLS_FX_ASSIGN_OP_WITH_AC_INT(%=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(&=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(|=)
 XLS_FX_ASSIGN_OP_WITH_AC_INT(^=)

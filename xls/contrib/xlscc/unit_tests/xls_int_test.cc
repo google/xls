@@ -811,6 +811,19 @@ TEST_F(XlsIntTest, XlsIntDirectAssignLongLong) {
                     xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, XlsIntUnaryPlus) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<11, false> result = a;
+      return (+result).to_long();
+    })";
+  RunAcDatatypeTest({{"a", -5}}, -5, content,
+                     xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content,
+                     xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

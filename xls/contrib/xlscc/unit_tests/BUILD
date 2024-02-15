@@ -350,6 +350,7 @@ cc_test(
     ],
     deps = [
         ":unit_test",
+        "//xls/common:source_location",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
     ],
