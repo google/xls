@@ -668,10 +668,24 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
           subject_cr.f()->tag() == FunctionTag::kProcNext;
       bool either_is_parametric =
           function_cr.f()->IsParametric() || subject_cr.f()->IsParametric();
+      bool both_are_parametric =
+          function_cr.f()->IsParametric() && subject_cr.f()->IsParametric();
 
-      if (same_fns && !either_is_proc_instance_fn && !either_is_parametric) {
-        iter_subject = ready->erase(iter_subject);
-        continue;
+      if (same_fns && !either_is_proc_instance_fn) {
+        // If neither are parametric, then function identity comparison is
+        // a sufficient test to eliminate detected duplicates.
+        if (!either_is_parametric) {
+          iter_subject = ready->erase(iter_subject);
+          continue;
+        }
+
+        // If the functions are the same and they have the same parametric
+        // environment, eliminate any duplicates.
+        if (both_are_parametric &&
+            function_cr.parametric_env() == subject_cr.parametric_env()) {
+          iter_subject = ready->erase(iter_subject);
+          continue;
+        }
       }
       iter_subject++;
     }

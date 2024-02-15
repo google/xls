@@ -2034,5 +2034,45 @@ fn main(x: u32[4]) -> u32[4] {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, InvokeParametricFunctionInBothFuncAndProc) {
+  constexpr std::string_view program =
+      R"(
+fn square<IMPL: bool>(x:u32) -> u32 {
+  x * x
+}
+
+fn square_zero() -> u32 {
+  square<false>(u32:0)
+}
+
+proc Counter {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init {
+    u32:0
+  }
+
+  config(in_ch: chan<u32> in, out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+
+  next(tok: token, state: u32) {
+    let (tok, in_data) = recv(tok, in_ch);
+    let x = square<false>(in_data);
+    let next_state = state + x;
+    let tok = send(tok, out_ch, next_state);
+
+     next_state
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
