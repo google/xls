@@ -29,7 +29,7 @@ load(
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
-load("//xls/build_rules:xls_providers.bzl", "CodegenInfo", "OptIRInfo")
+load("//xls/build_rules:xls_providers.bzl", "CODEGEN_FIELDS", "CodegenInfo", "OptIRInfo", "SCHEDULING_FIELDS")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "xls_toolchain_attrs",
@@ -52,6 +52,8 @@ _SCHEDULE_IR_FILE_EXTENSION = ".schedule.opt.ir"
 _CODEGEN_LOG_FILE_EXTENSION = ".codegen.log"
 _CODEGEN_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION = ".codegen_options.textproto"
 _SCHEDULING_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION = ".schedule_options.textproto"
+_CODEGEN_FLAGS = CODEGEN_FIELDS.keys()
+_SCHEDULING_FLAGS = SCHEDULING_FIELDS.keys()
 
 xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
@@ -273,70 +275,9 @@ def xls_ir_verilog_impl(ctx, src):
         )
 
     # parse arguments
-    CODEGEN_FLAGS = (
-        "top",
-        "generator",
-        "input_valid_signal",
-        "output_valid_signal",
-        "manual_load_enable_signal",
-        "flop_inputs",
-        "flop_inputs_kind",
-        "flop_outputs",
-        "flop_outputs_kind",
-        "flop_single_value_channels",
-        "add_idle_output",
-        "module_name",
-        "assert_format",
-        "gate_format",
-        "reset",
-        "reset_active_low",
-        "reset_asynchronous",
-        "reset_data_path",
-        "use_system_verilog",
-        "separate_lines",
-        "streaming_channel_data_suffix",
-        "streaming_channel_ready_suffix",
-        "streaming_channel_valid_suffix",
-        "assert_format",
-        "gate_format",
-        "smulp_format",
-        "umulp_format",
-        "ram_configurations",
-        "gate_recvs",
-        "array_index_bounds_checking",
-        "inline_procs",
-    )
 
-    SCHEDULING_FLAGS = (
-        "clock_period_ps",
-        "pipeline_stages",
-        "delay_model",
-        "clock_margin_percent",
-        "period_relaxation_percent",
-        "minimize_clock_on_error",
-        "worst_case_throughput",
-        "additional_input_delay_ps",
-        "ffi_fallback_delay_ps",
-        "io_constraints",
-        "receives_first_sends_last",
-        "mutual_exclusion_z3_rlimit",
-        "explain_infeasibility",
-        "infeasible_per_state_backedge_slack_pool",
-        "use_fdo",
-        "fdo_iteration_number",
-        "fdo_delay_driven_path_number",
-        "fdo_fanout_driven_path_number",
-        "fdo_refinement_stochastic_ratio",
-        "fdo_path_evaluate_strategy",
-        "fdo_synthesizer_name",
-        "fdo_yosys_path",
-        "fdo_sta_path",
-        "fdo_synthesis_libraries",
-        "multi_proc",
-    )
-
-    is_args_valid(codegen_args, CODEGEN_FLAGS + SCHEDULING_FLAGS)
-    codegen_str_args = args_to_string(codegen_args, CODEGEN_FLAGS + SCHEDULING_FLAGS)
+    is_args_valid(codegen_args, _CODEGEN_FLAGS + _SCHEDULING_FLAGS)
+    codegen_str_args = args_to_string(codegen_args, _CODEGEN_FLAGS + _SCHEDULING_FLAGS)
     uses_combinational_generator = _is_combinational_generator(codegen_args)
     final_args = codegen_str_args
 
@@ -461,6 +402,11 @@ def xls_ir_verilog_impl(ctx, src):
         progress_message = "Building Verilog file: %s" % (verilog_file.path),
         toolchain = None,
     )
+
+    # Set top to match module_name if it is set
+    if "module_name" in codegen_args:
+        codegen_args = {k: v for k, v in codegen_args.items()}
+        codegen_args["top"] = codegen_args["module_name"]
     return [
         CodegenInfo(
             verilog_file = verilog_file,
@@ -469,11 +415,7 @@ def xls_ir_verilog_impl(ctx, src):
             schedule_file = schedule_file,
             schedule_ir_file = schedule_ir_file,
             block_ir_file = block_ir_file,
-            delay_model = codegen_args.get("delay_model"),
-            top = codegen_args.get("module_name", codegen_args.get("top")),
-            pipeline_stages = codegen_args.get("pipeline_stages"),
-            clock_period_ps = codegen_args.get("clock_period_ps"),
-            use_fdo = codegen_args.get("use_fdo"),
+            **codegen_args
         ),
         my_generated_files,
         runfiles,
@@ -564,11 +506,11 @@ def _xls_benchmark_verilog_impl(ctx):
         tool = benchmark_codegen_tool.short_path,
         block_ir = codegen_info.block_ir_file.short_path,
     )
-    if codegen_info.delay_model:
+    if getattr(codegen_info, "delay_model", None):
         cmd += " --delay_model={}".format(codegen_info.delay_model)
-    if codegen_info.pipeline_stages:
+    if getattr(codegen_info, "pipeline_stages", None):
         cmd += " --pipeline_stages={}".format(codegen_info.pipeline_stages)
-    if codegen_info.clock_period_ps:
+    if getattr(codegen_info, "clock_period_ps", None):
         cmd += " --clock_period_ps={}".format(codegen_info.clock_period_ps)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
 

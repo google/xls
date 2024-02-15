@@ -89,6 +89,9 @@ bzl_library(
 bzl_library(
     name = "xls_providers_bzl",
     srcs = ["xls_providers.bzl"],
+    deps = [
+        "@bazel_skylib//lib:dicts",
+    ],
 )
 
 bzl_library(

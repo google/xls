@@ -14,6 +14,8 @@
 
 """This module contains the providers for the XLS build rules."""
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
+
 DslxInfo = provider(
     doc = "A provider containing DSLX file information for the target. The " +
           "provider is primarily created and returned by the " +
@@ -54,29 +56,112 @@ OptIRInfo = provider(
     },
 )
 
+CODEGEN_FIELDS = {
+    "top": "String: Name of top level block in the IR.",
+    "generator": "The generator to use when emitting the device function.",
+    "input_valid_signal": "If specified, the emitted module will use an " +
+                          'external "valid" signal as the load enable for ' +
+                          "pipeline registers.",
+    "output_valid_signal": "The name of the output port which holds the " +
+                           "pipelined valid signal.",
+    "manual_load_enable_signal": "If specified the load-enable of the " +
+                                 "pipeline registers of each stage is " +
+                                 "controlled via an input port of the " +
+                                 "indicated name.",
+    "flop_inputs": "If true, inputs of the module are flopped into registers " +
+                   "before use in generated pipelines.",
+    "flop_inputs_kind": "Kind of input register to add.",
+    "flop_outputs": "If true, the module outputs are flopped into registers " +
+                    "before leaving module.",
+    "flop_outputs_kind": "Kind of output register to add.",
+    "flop_single_value_channels": "If false, flop_inputs() and " +
+                                  "flop_outputs() will not flop single value " +
+                                  "channels.",
+    "add_idle_output": "If true, an additional idle signal tied to valids of " +
+                       "input and flops is added to the block.",
+    "module_name": "Explicit name to use for the generated module; if not " +
+                   "provided the mangled IR function name is used.",
+    "reset": "Name of the reset signal.",
+    "reset_active_low": "Whether the reset signal is active low.",
+    "reset_asynchronous": "Whether the reset signal is asynchronous.",
+    "reset_data_path": "Whether to also reset the datapath.",
+    "use_system_verilog": "If true, emit SystemVerilog otherwise emit Verilog.",
+    "separate_lines": "If true, emit every subexpression on a separate line.",
+    "streaming_channel_data_suffix": "Suffix to append to data signals for " +
+                                     "streaming channels.",
+    "streaming_channel_ready_suffix": "Suffix to append to ready signals for " +
+                                      "streaming channels.",
+    "streaming_channel_valid_suffix": "Suffix to append to valid signals for " +
+                                      "streaming channels.",
+    "assert_format": "Format string to use for assertions.",
+    "gate_format": "Format string to use for gate! ops.",
+    "smulp_format": "Format string to use for smulp.",
+    "umulp_format": "Format string to use for smulp.",
+    "ram_configurations": "A comma-separated list of ram configurations.",
+    "gate_recvs": "If true, emit logic to gate the data value to zero for a " +
+                  "receive operation in Verilog.",
+    "array_index_bounds_checking": "If true, emit bounds checking on " +
+                                   "array-index operations in Verilog.",
+}
+
+SCHEDULING_FIELDS = {
+    "clock_period_ps": "Optional(string): The clock period used for " +
+                       "scheduling.",
+    "pipeline_stages": "Optional(string): The number of pipeline stages.",
+    "delay_model": "Optional(string) Delay model used in codegen.",
+    "clock_margin_percent": "The percentage of clock period to set aside as " +
+                            "a margin to ensure timing is met.",
+    "period_relaxation_percent": "The percentage of clock period that will " +
+                                 "be relaxed when scheduling without an " +
+                                 "explicit --clock_period_ps.",
+    "minimize_clock_on_error": "If true, when `--clock_period_ps` is given " +
+                               "but is infeasible for scheduling, search for " +
+                               "& report the shortest feasible clock period.",
+    "worst_case_throughput": "Allow scheduling a pipeline with worst-case " +
+                             "throughput no slower than once per N cycles.",
+    "additional_input_delay_ps": "The additional delay added to each receive " +
+                                 "node.",
+    "ffi_fallback_delay_ps": "Delay of foreign function calls if not " +
+                             "otherwise specified.",
+    "io_constraints": "A comma-separated list of IO constraints.",
+    "receives_first_sends_last": "If true, this forces receives into the " +
+                                 "first cycle and sends into the last cycle.",
+    "mutual_exclusion_z3_rlimit": "Resource limit for solver in mutual " +
+                                  "exclusion pass.",
+    "explain_infeasibility": "If scheduling fails, re-run scheduling with " +
+                             "extra slack variables in an attempt to explain " +
+                             "why scheduling failed.",
+    "infeasible_per_state_backedge_slack_pool": "If specified, the specified " +
+                                                "value must be > 0.",
+    "use_fdo": "Optional(bool): Enable FDO when true.",
+    "fdo_iteration_number": "Optional(int): How many scheduling " +
+                            "iterations to run (minimum 2).",
+    "fdo_delay_driven_path_number": "The number of delay-driven subgraphs in " +
+                                    "each FDO iteration.",
+    "fdo_fanout_driven_path_number": "The number of fanout-driven subgraphs " +
+                                     "in each FDO iteration.",
+    "fdo_refinement_stochastic_ratio": "Must be a positive float <= 1.0.",
+    "fdo_path_evaluate_strategy": "Support window, cone, and path for now.",
+    "fdo_synthesizer_name": "Only support yosys for now.",
+    "fdo_yosys_path": "Absolute path of Yosys.",
+    "fdo_sta_path": "Absolute path of OpenSTA.",
+    "fdo_synthesis_libraries": "Synthesis and STA libraries.",
+    "multi_proc": "If true, schedule all procs and codegen them all.",
+}
+
+_VERILOG_FIELDS = {
+    "schedule_ir_file": "File: The IR file post-scheduling.",
+    "block_ir_file": "File: The block IR file.",
+    "module_sig_file": "File: The module signature of the Verilog file.",
+    "schedule_file": "File: The schedule of the module.",
+    "verilog_line_map_file": "File: The Verilog line map file.",
+    "verilog_file": "File: The Verilog file.",
+}
+
 CodegenInfo = provider(
     doc = "A provider containing Codegen file information for the target. It " +
           "is created and returned by the xls_ir_verilog rule.",
-    fields = {
-        "schedule_ir_file": "File: The IR file post-scheduling.",
-        "block_ir_file": "File: The block IR file.",
-        "delay_model": "Optional(string) Delay model used in codegen.",
-        "module_sig_file": "File: The module signature of the Verilog file.",
-        "schedule_file": "File: The schedule of the module.",
-        "top": "String: Name of top level block in the IR.",
-        "verilog_line_map_file": "File: The Verilog line map file.",
-        "verilog_file": "File: The Verilog file.",
-        "pipeline_stages": "Optional(string): The number of pipeline stages.",
-        "clock_period_ps": "Optional(string): The clock period used for " +
-                           "scheduling.",
-        "use_fdo": "Optional(bool): Enable FDO when true.",
-        "fdo_iteration_number": "Optional(int): How many scheduling " +
-                                "iterations to run (minimum 2).",
-        "fdo_delay_driven_path_number": "The number of delay-driven subgraphs in each FDO iteration.",
-        "fdo_fanout_driven_path_number": "The number of fanout-driven subgraphs in each FDO iteration.",
-        "fdo_refinement_stochastic_ratio": "Must be a positive float <= 1.0.",
-        "fdo_path_evaluate_strategy": "Support window, cone, and path for now.",
-    },
+    fields = dicts.add(CODEGEN_FIELDS, SCHEDULING_FIELDS, _VERILOG_FIELDS),
 )
 
 JitWrapperInfo = provider(
