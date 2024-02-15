@@ -122,6 +122,8 @@ def scrape_opensta(model: design_stats_pb2.DesignStats, f):
   data_arrival_regex = re.compile(r"([\d\.]+)\s+data arrival time")
   critcal_path_end_regex = re.compile(r"p(\d+)mod Endpoint.*: (.+)$")
   critcal_path_start_regex = re.compile(r"p(\d+)mod Startpoint: (.+)$")
+  wns_regex = re.compile(r"wns (-?\d+(\.\d+)?)$")
+  tns_regex = re.compile(r"tns (-?\d+(\.\d+)?)$")
   while line := f.readline():
     if _DEBUG.value:
       if re.search(r"p(\d+)mod", line):
@@ -154,6 +156,20 @@ def scrape_opensta(model: design_stats_pb2.DesignStats, f):
       name = str(m.group(2))
       ensure_stage(model, stage)
       model.per_stage[stage].crit_path_start = name
+
+    # wns -0.02
+    # NOTE: We expect that the WNS will be returned with a negative sign if it
+    # exists; we express it as a positive number in our output.
+    if m := re.search(wns_regex, line):
+      wns = float(m.group(1))
+      model.overall.wns = -wns if wns < 0 else 0.0
+
+    # tns -39.67
+    # NOTE: We expect that the TNS will be returned with a negative sign if it
+    # exists; we express it as a positive number in our output.
+    if m := re.search(tns_regex, line):
+      tns = float(m.group(1))
+      model.overall.tns = -tns if tns < 0 else 0.0
 
 
 def scrape_file(model: design_stats_pb2.DesignStats, path: str):

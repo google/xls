@@ -17,19 +17,29 @@ syntax = "proto3";
 package xls;
 
 message PpaInfo {
-    optional float area_um2 = 1;
-    optional int32 levels = 2;
-    optional int32 flops = 3;
-    optional int32 cells = 4;
-    optional float crit_path_delay_ps = 5;
-    optional string crit_path_start = 6;
-    optional string crit_path_end = 7;
+  optional float area_um2 = 1;
+  optional int32 levels = 2;
+  optional int32 flops = 3;
+  optional int32 cells = 4;
+  optional float crit_path_delay_ps = 5;
+  optional string crit_path_start = 6;
+  optional string crit_path_end = 7;
+
+  // Worst negative slack; i.e., the greatest delay from the configured clock
+  // period to when a piece of data generated during the clock actually reaches
+  // a sequential element. Expressed as a positive number.
+  optional float wns = 8;
+
+  // Total negative slack; i.e., the sum of all delays from the configured clock
+  // period to when data generated during the clock actually reaches a
+  // sequential element. Expressed as a positive number.
+  optional float tns = 9;
 }
 
 message DesignStats {
-    optional string design = 1;
-    optional int32 repo_cl = 2;
-    optional string flow_identifier = 3;
-    optional PpaInfo overall = 4;
-    repeated PpaInfo per_stage = 5;
+  optional string design = 1;
+  optional int32 repo_cl = 2;
+  optional string flow_identifier = 3;
+  optional PpaInfo overall = 4;
+  repeated PpaInfo per_stage = 5;
 }
