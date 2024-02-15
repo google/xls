@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_NEXT_VALUE_OPTIMIZATION_PASS_H_
 #define XLS_PASSES_NEXT_VALUE_OPTIMIZATION_PASS_H_
 
+#include <string_view>
 #include "absl/status/statusor.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/optimization_pass.h"
@@ -35,8 +36,9 @@ namespace xls {
 // converting them to `next_value` nodes.
 class NextValueOptimizationPass : public OptimizationProcPass {
  public:
+  static constexpr std::string_view kName = "next_value_opt";
   NextValueOptimizationPass()
-      : OptimizationProcPass("next_value_opt", "Next Value Optimization") {}
+      : OptimizationProcPass(kName, "Next Value Optimization") {}
   ~NextValueOptimizationPass() override = default;
 
  protected:

@@ -14,21 +14,29 @@
 
 #include "xls/passes/inlining_pass.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/call_graph.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -221,5 +229,7 @@ absl::StatusOr<bool> InliningPass::RunInternal(
   }
   return changed;
 }
+
+REGISTER_OPT_PASS(InliningPass);
 
 }  // namespace xls

@@ -15,11 +15,15 @@
 #ifndef XLS_PASSES_RAM_REWRITE_PASS_H_
 #define XLS_PASSES_RAM_REWRITE_PASS_H_
 
+#include <cstdint>
 #include <optional>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -56,7 +60,8 @@ Type* GetMaskType(Package* package, std::optional<int64_t> mask_width);
 // some kind of lowering from more abstract to concrete RAMs.
 class RamRewritePass : public OptimizationPass {
  public:
-  explicit RamRewritePass() : OptimizationPass("ram_rewrite", "RAM Rewrite") {}
+  static constexpr std::string_view kName = "ram_rewrite";
+  explicit RamRewritePass() : OptimizationPass(kName, "RAM Rewrite") {}
 
   ~RamRewritePass() override = default;
 

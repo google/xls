@@ -28,6 +28,7 @@ namespace xls {
 // maps to Verilog.
 class MapInliningPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "map_inlining";
   MapInliningPass();
 
   // Inline a single Map instruction. Provided for test and utility

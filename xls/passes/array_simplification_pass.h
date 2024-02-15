@@ -15,9 +15,13 @@
 #ifndef XLS_PASSES_ARRAY_SIMPLIFICATION_H_
 #define XLS_PASSES_ARRAY_SIMPLIFICATION_H_
 
+#include <cstdint>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -25,8 +29,9 @@ namespace xls {
 // ArrayIndex.
 class ArraySimplificationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "array_simp";
   explicit ArraySimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass("array_simp", "Array Simplification"),
+      : OptimizationFunctionBasePass(kName, "Array Simplification"),
         opt_level_(opt_level) {}
 
  protected:

@@ -26,8 +26,10 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
@@ -37,6 +39,7 @@
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 
@@ -44,7 +47,7 @@ namespace xls {
 
 namespace {
 
-// Returns a conscise string representation of the given node if it is a
+// Returns a concise string representation of the given node if it is a
 // comparator. For example, a kEq with a literal operand might produce:
 // "x == 42".
 std::string SelectorToString(Node* node) {
@@ -349,5 +352,14 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
 
   return modified || selects_collapsed;
 }
+
+XLS_REGISTER_MODULE_INITIALIZER(bdd_simp, {
+  XLS_CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
+      "bdd_simp", pass_config::kOptLevel));
+  XLS_CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
+      "bdd_simp(2)", pass_config::CappedOptLevel{2}));
+  XLS_CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
+      "bdd_simp(3)", pass_config::CappedOptLevel{3}));
+});
 
 }  // namespace xls

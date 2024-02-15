@@ -19,8 +19,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 
 namespace xls {
 namespace {
@@ -80,5 +82,7 @@ absl::StatusOr<bool> UnrollPass::RunOnFunctionBaseInternal(
   }
   return changed;
 }
+
+REGISTER_OPT_PASS(UnrollPass);
 
 }  // namespace xls

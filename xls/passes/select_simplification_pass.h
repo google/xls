@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_SELECT_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_SELECT_SIMPLIFICATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/optimization_pass.h"
@@ -25,8 +27,9 @@ namespace xls {
 // include removing dead arms and eliminating selects with constant selectors.
 class SelectSimplificationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "select_simp";
   explicit SelectSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass("select_simp", "Select Simplification"),
+      : OptimizationFunctionBasePass(kName, "Select Simplification"),
         opt_level_(opt_level) {}
   ~SelectSimplificationPass() override = default;
 

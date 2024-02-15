@@ -33,6 +33,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/token_provenance_analysis.h"
 
@@ -219,5 +220,7 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
 
   return changed;
 }
+
+REGISTER_OPT_PASS(TokenDependencyPass);
 
 }  // namespace xls

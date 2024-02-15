@@ -53,6 +53,7 @@
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/token_provenance_analysis.h"
@@ -1877,5 +1878,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
 
   return true;
 }
+
+REGISTER_OPT_PASS(ProcInliningPass);
 
 }  // namespace xls

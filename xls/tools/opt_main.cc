@@ -95,23 +95,22 @@ ABSL_FLAG(bool, use_context_narrowing_analysis, false,
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(
     std::optional<std::string>, passes, std::nullopt,
-    absl::StrFormat(
-        "Explicit list of passes to run in a specific order. Passes are named "
-        "by 'short_name' and if they have non-opt-level arguments these are "
-        "placed in (). Fixed point sets of passes can be put within []. Pass "
-        "names are separated based on spaces. For example a simple pipeline "
-        "might be \"dfe dce [ ident_remove const_fold dce canon dce arith dce "
-        "comparison_simp ] loop_unroll map_inline\". This should not be used "
-        "with --skip_passes. If this is given the standard optimization "
-        "pipeline is ignored entierly, care should be taken to ensure the "
-        "given pipeline will run in reasonable amount of time. See the map in "
-        "passes/optimization_pass_pipeline.cc for pass mappings. Available "
-        "passes: %s",
-        xls::GetOptimizationPipelineGenerator(xls::kMaxOptLevel)
-            .GetAvailablePassesStr()));
+    "Explicit list of passes to run in a specific order. Passes are named "
+    "by 'short_name' and if they have non-opt-level arguments these are "
+    "placed in (). Fixed point sets of passes can be put within []. Pass "
+    "names are separated based on spaces. For example a simple pipeline "
+    "might be \"dfe dce [ ident_remove const_fold dce canon dce arith dce "
+    "comparison_simp ] loop_unroll map_inline\". This should not be used "
+    "with --skip_passes. If this is given the standard optimization "
+    "pipeline is ignored entierly, care should be taken to ensure the "
+    "given pipeline will run in reasonable amount of time. See the map in "
+    "passes/optimization_pass_pipeline.cc for pass mappings. Available "
+    "passes shown by running with --list_passes");
 ABSL_FLAG(std::optional<int64_t>, passes_bisect_limit, std::nullopt,
           "Number of passes to allow to execute. This can be used as compiler "
           "fuel to ensure the compiler finishes at a particular point.");
+ABSL_FLAG(bool, list_passes, false,
+          "If passed list the names of all passes and exit.");
 
 namespace xls::tools {
 namespace {
@@ -206,6 +205,11 @@ int main(int argc, char **argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
+  if (absl::GetFlag(FLAGS_list_passes)) {
+    std::cout << xls::GetOptimizationPipelineGenerator(xls::kMaxOptLevel)
+                     .GetAvailablePassesStr();
+    return 0;
+  }
   if (positional_arguments.empty()) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <path>",
                                           argv[0]);

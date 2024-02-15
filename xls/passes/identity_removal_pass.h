@@ -17,9 +17,12 @@
 #ifndef XLS_PASSES_IDENTITY_REMOVAL_PASS_H_
 #define XLS_PASSES_IDENTITY_REMOVAL_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -28,8 +31,9 @@ namespace xls {
 // identity's def.
 class IdentityRemovalPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "ident_remove";
   IdentityRemovalPass()
-      : OptimizationFunctionBasePass("ident_remove", "Identity Removal") {}
+      : OptimizationFunctionBasePass(kName, "Identity Removal") {}
   ~IdentityRemovalPass() override = default;
 
  protected:

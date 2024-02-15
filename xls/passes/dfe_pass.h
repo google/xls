@@ -17,9 +17,12 @@
 #ifndef XLS_PASSES_DFE_PASS_H_
 #define XLS_PASSES_DFE_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -27,8 +30,9 @@ namespace xls {
 // pass requires `top` be set in order remove any constructs.
 class DeadFunctionEliminationPass : public OptimizationPass {
  public:
+  static constexpr std::string_view kName = "dfe";
   explicit DeadFunctionEliminationPass()
-      : OptimizationPass("dfe", "Dead Function Elimination") {}
+      : OptimizationPass(kName, "Dead Function Elimination") {}
   ~DeadFunctionEliminationPass() override = default;
 
  protected:

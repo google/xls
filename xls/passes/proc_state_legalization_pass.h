@@ -31,8 +31,9 @@ namespace xls {
 // later optimization passes.
 class ProcStateLegalizationPass : public OptimizationProcPass {
  public:
+  static constexpr std::string_view kName = "proc_state_legal";
   ProcStateLegalizationPass()
-      : OptimizationProcPass("proc_state_legal", "Proc State Legalization") {}
+      : OptimizationProcPass(kName, "Proc State Legalization") {}
   ~ProcStateLegalizationPass() override = default;
 
  protected:

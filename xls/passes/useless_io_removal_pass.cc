@@ -30,6 +30,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -134,5 +135,7 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
   }
   return changed;
 }
+
+REGISTER_OPT_PASS(UselessIORemovalPass);
 
 }  // namespace xls

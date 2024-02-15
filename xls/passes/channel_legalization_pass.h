@@ -15,8 +15,12 @@
 #ifndef XLS_PASSES_CHANNEL_LEGALIZATION_PASS_H_
 #define XLS_PASSES_CHANNEL_LEGALIZATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -75,9 +79,9 @@ namespace xls {
 //
 class ChannelLegalizationPass : public OptimizationPass {
  public:
+  static constexpr std::string_view kName = "channel_legalization";
   ChannelLegalizationPass()
-      : OptimizationPass("channel_legalization",
-                         "Legalize multiple send/recvs per channel") {}
+      : OptimizationPass(kName, "Legalize multiple send/recvs per channel") {}
   ~ChannelLegalizationPass() override = default;
 
  protected:

@@ -15,9 +15,13 @@
 #ifndef XLS_PASSES_ARITH_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_ARITH_SIMPLIFICATION_PASS_H_
 
+#include <cstdint>
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -26,9 +30,9 @@ namespace xls {
 // add of 0, etc.
 class ArithSimplificationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "arith_simp";
   explicit ArithSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass("arith_simp",
-                                     "Arithmetic Simplifications"),
+      : OptimizationFunctionBasePass(kName, "Arithmetic Simplifications"),
         opt_level_(opt_level) {}
   ~ArithSimplificationPass() override = default;
 

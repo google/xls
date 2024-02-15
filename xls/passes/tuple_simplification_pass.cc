@@ -24,6 +24,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 
 namespace xls {
 
@@ -114,5 +115,7 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBaseInternal(
   }
   return changed;
 }
+
+REGISTER_OPT_PASS(TupleSimplificationPass);
 
 }  // namespace xls

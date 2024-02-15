@@ -14,16 +14,26 @@
 
 #include "xls/passes/canonicalization_pass.h"
 
+#include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -323,5 +333,7 @@ absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBaseInternal(
     PassResults* results) const {
   return TransformNodesToFixedPoint(func, CanonicalizeNode);
 }
+
+REGISTER_OPT_PASS(CanonicalizationPass);
 
 }  // namespace xls

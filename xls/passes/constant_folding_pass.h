@@ -15,9 +15,12 @@
 #ifndef XLS_PASSES_CONSTANT_FOLDING_PASS_H_
 #define XLS_PASSES_CONSTANT_FOLDING_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -25,8 +28,9 @@ namespace xls {
 // replaced by a equivalent literal. Runs DCE after constant folding.
 class ConstantFoldingPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "const_fold";
   ConstantFoldingPass()
-      : OptimizationFunctionBasePass("const_fold", "Constant folding") {}
+      : OptimizationFunctionBasePass(kName, "Constant folding") {}
   ~ConstantFoldingPass() override = default;
 
  protected:

@@ -34,9 +34,9 @@ namespace xls {
 //  - The Select ops have to be binary (i.e., selecting between only two cases).
 class TableSwitchPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "table_switch";
   TableSwitchPass()
-      : OptimizationFunctionBasePass("table_switch",
-                                     "Table switch conversion") {}
+      : OptimizationFunctionBasePass(kName, "Table switch conversion") {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

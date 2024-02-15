@@ -15,21 +15,34 @@
 #include "xls/passes/boolean_simplification_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/dfs_visitor.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
-#include "xls/netlist/logical_effort.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -373,13 +386,13 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
   //
   // Starting at node, recursively invokes itself until it gets to the "frontier
   // nodes" at the frontier of the boolean computation. Those get initialized
-  // with the full truth table of possibiliites for two variables:
+  // with the full truth table of possibilities for two variables:
   //
   //    X: 0 0 1 1 0 0 1 1
   //    Y: 0 1 0 1 0 1 0 1
   //    Z: 0 0 0 0 1 1 1 1
   //
-  // Once we've pushed this vector of possiblities though all the intermediate
+  // Once we've pushed this vector of possibilities though all the intermediate
   // bitwise nodes what we're left with at "node" is the resulting logical
   // function. At that point we can just look up whether there's a simplified
   // expression of that logical function is and replace it accordingly, as we do
@@ -496,5 +509,7 @@ absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunctionBaseInternal(
   }
   return !visitor.node_replacements().empty();
 }
+
+REGISTER_OPT_PASS(BooleanSimplificationPass);
 
 }  // namespace xls

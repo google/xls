@@ -38,6 +38,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -1630,5 +1631,7 @@ absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
   return TransformNodesToFixedPoint(
       f, [this](Node* n) { return MatchArithPatterns(opt_level_, n); });
 }
+
+REGISTER_OPT_PASS(ArithSimplificationPass, pass_config::kOptLevel);
 
 }  // namespace xls

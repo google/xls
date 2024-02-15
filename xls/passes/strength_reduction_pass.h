@@ -25,8 +25,9 @@ namespace xls {
 // by a power-of-two constant may be replaced with a shift left.
 class StrengthReductionPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "strength_red";
   explicit StrengthReductionPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass("strength_red", "Strength Reduction"),
+      : OptimizationFunctionBasePass(kName, "Strength Reduction"),
         opt_level_(opt_level) {}
   ~StrengthReductionPass() override = default;
 

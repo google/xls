@@ -17,9 +17,12 @@
 #ifndef XLS_PASSES_DCE_PASS_H_
 #define XLS_PASSES_DCE_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -28,8 +31,9 @@ namespace xls {
 // are considered dead.
 class DeadCodeEliminationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "dce";
   DeadCodeEliminationPass()
-      : OptimizationFunctionBasePass("dce", "Dead Code Elimination") {}
+      : OptimizationFunctionBasePass(kName, "Dead Code Elimination") {}
   ~DeadCodeEliminationPass() override = default;
 
  protected:

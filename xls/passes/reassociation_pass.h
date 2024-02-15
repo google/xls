@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_REASSOCIATION_PASS_H_
 #define XLS_PASSES_REASSOCIATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
@@ -27,8 +29,8 @@ namespace xls {
 // in the expression for folding.
 class ReassociationPass : public OptimizationFunctionBasePass {
  public:
-  ReassociationPass()
-      : OptimizationFunctionBasePass("reassociation", "Reassociation") {}
+  static constexpr std::string_view kName = "reassociation";
+  ReassociationPass() : OptimizationFunctionBasePass(kName, "Reassociation") {}
   ~ReassociationPass() override = default;
 
  protected:

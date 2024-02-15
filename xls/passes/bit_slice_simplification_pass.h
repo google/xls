@@ -15,9 +15,13 @@
 #ifndef XLS_PASSES_BIT_SLICE_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BIT_SLICE_SIMPLIFICATION_PASS_H_
 
+#include <cstdint>
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -25,9 +29,9 @@ namespace xls {
 // bit-slices, eliminating degenerate full-width slices, and others.
 class BitSliceSimplificationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "bitslice_simp";
   explicit BitSliceSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass("bitslice_simp",
-                                     "Bit-slice simplification"),
+      : OptimizationFunctionBasePass(kName, "Bit-slice simplification"),
         opt_level_(opt_level) {}
   ~BitSliceSimplificationPass() override = default;
 

@@ -40,6 +40,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -811,5 +812,7 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
   }
   return !options.ram_rewrites.empty();
 }
+
+REGISTER_OPT_PASS(RamRewritePass);
 
 }  // namespace xls

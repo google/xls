@@ -26,7 +26,8 @@ namespace xls {
 
 class InliningPass : public OptimizationPass {
  public:
-  InliningPass() : OptimizationPass("inlining", "Inlines invocations") {}
+  static constexpr std::string_view kName = "inlining";
+  InliningPass() : OptimizationPass(kName, "Inlines invocations") {}
 
   // Inline a single invoke instruction. Provided for test and utility
   // (ir_minimizer) use.

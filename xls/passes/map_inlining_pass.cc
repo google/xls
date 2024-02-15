@@ -18,19 +18,21 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "absl/time/time.h"
-#include "xls/common/math_util.h"
-#include "xls/common/status/ret_check.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
 
 MapInliningPass::MapInliningPass()
-    : OptimizationFunctionBasePass("map_inlining", "Inline map operations") {}
+    : OptimizationFunctionBasePass(MapInliningPass::kName,
+                                   "Inline map operations") {}
 
 absl::StatusOr<bool> MapInliningPass::RunOnFunctionBaseInternal(
     FunctionBase* function, const OptimizationPassOptions& options,
@@ -83,5 +85,7 @@ absl::Status MapInliningPass::ReplaceMap(Map* map) const {
           .status());
   return function->RemoveNode(map);
 }
+
+REGISTER_OPT_PASS(MapInliningPass);
 
 }  // namespace xls

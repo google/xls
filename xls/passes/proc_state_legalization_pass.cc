@@ -30,6 +30,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -149,5 +150,7 @@ absl::StatusOr<bool> ProcStateLegalizationPass::RunOnProcInternal(
 
   return AddDefaultNextValues(proc);
 }
+
+REGISTER_OPT_PASS(ProcStateLegalizationPass);
 
 }  // namespace xls

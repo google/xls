@@ -15,11 +15,19 @@
 #ifndef XLS_PASSES_BOOLEAN_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BOOLEAN_SIMPLIFICATION_PASS_H_
 
+#include <cstdint>
 #include <optional>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "absl/types/span.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace internal {
@@ -68,8 +76,9 @@ class TruthTable {
 // variables).
 class BooleanSimplificationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "bool_simp";
   BooleanSimplificationPass()
-      : OptimizationFunctionBasePass("bool_simp", "boolean simplification") {}
+      : OptimizationFunctionBasePass(kName, "boolean simplification") {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

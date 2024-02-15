@@ -42,6 +42,7 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
@@ -581,5 +582,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
   }
   return modified;
 }
+
+REGISTER_OPT_PASS(StrengthReductionPass, pass_config::kOptLevel);
 
 }  // namespace xls

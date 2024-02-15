@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_TUPLE_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_TUPLE_SIMPLIFICATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
@@ -26,8 +28,9 @@ namespace xls {
 // followed by a tuple index instruction with the tuple element itself.
 class TupleSimplificationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "tuple_simp";
   TupleSimplificationPass()
-      : OptimizationFunctionBasePass("tuple_simp", "Tuple simplification") {}
+      : OptimizationFunctionBasePass(kName, "Tuple simplification") {}
   ~TupleSimplificationPass() override = default;
 
  protected:

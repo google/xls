@@ -23,6 +23,7 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -65,5 +66,7 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
   XLS_VLOG(2) << "Removed " << removed_count << " dead nodes";
   return removed_count > 0;
 }
+
+REGISTER_OPT_PASS(DeadCodeEliminationPass);
 
 }  // namespace xls

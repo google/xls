@@ -22,6 +22,7 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 
 namespace xls {
 
@@ -122,5 +123,7 @@ absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
 
   return changed;
 }
+
+REGISTER_OPT_PASS(ReceiveDefaultValueSimplificationPass);
 
 }  // namespace xls

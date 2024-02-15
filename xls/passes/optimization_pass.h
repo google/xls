@@ -30,6 +30,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_registry.h"
 #include "xls/passes/pipeline_generator.h"
 
 namespace xls {
@@ -147,6 +148,14 @@ using OptimizationPipelineGenerator =
     PipelineGeneratorBase<Package, OptimizationPassOptions>;
 
 inline constexpr int64_t kMaxOptLevel = 3;
+
+using OptimizationPassStandardConfig = decltype(kMaxOptLevel);
+using OptimizationPassRegistry =
+    PassRegistry<Package, OptimizationPassOptions, PassResults,
+                 OptimizationPassStandardConfig>;
+using OptimizationPassGenerator =
+    PassGenerator<Package, OptimizationPassOptions, PassResults,
+                  OptimizationPassStandardConfig>;
 
 // Whether optimizations which split operations into multiple pieces should be
 // performed at the given optimization level.

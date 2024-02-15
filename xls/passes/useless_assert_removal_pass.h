@@ -14,6 +14,8 @@
 #ifndef XLS_PASSES_USELESS_ASSERT_REMOVAL_PASS_H_
 #define XLS_PASSES_USELESS_ASSERT_REMOVAL_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/optimization_pass.h"
@@ -24,8 +26,9 @@ namespace xls {
 // they are never triggered. Rewires tokens to ensure nothing breaks.
 class UselessAssertRemovalPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "useless_assert_remove";
   UselessAssertRemovalPass()
-      : OptimizationFunctionBasePass("useless_assert_remove",
+      : OptimizationFunctionBasePass(kName,
                                      "Remove useless (always true) asserts") {}
   ~UselessAssertRemovalPass() override = default;
 

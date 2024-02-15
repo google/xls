@@ -15,9 +15,12 @@
 #ifndef XLS_PASSES_USELESS_IO_REMOVAL_PASS_H_
 #define XLS_PASSES_USELESS_IO_REMOVAL_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -26,8 +29,9 @@ namespace xls {
 // their condition.
 class UselessIORemovalPass : public OptimizationPass {
  public:
+  static constexpr std::string_view kName = "useless_io_remove";
   UselessIORemovalPass()
-      : OptimizationPass("useless_io_remove", "Remove useless send/receive") {}
+      : OptimizationPass(kName, "Remove useless send/receive") {}
   ~UselessIORemovalPass() override = default;
 
  protected:

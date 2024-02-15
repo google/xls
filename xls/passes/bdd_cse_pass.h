@@ -15,9 +15,12 @@
 #ifndef XLS_PASSES_BDD_CSE_PASS_H_
 #define XLS_PASSES_BDD_CSE_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -25,9 +28,10 @@ namespace xls {
 // diagrams.
 class BddCsePass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "bdd_cse";
   explicit BddCsePass()
       : OptimizationFunctionBasePass(
-            "bdd_cse", "BDD-based Common Subexpression Elimination") {}
+            kName, "BDD-based Common Subexpression Elimination") {}
   ~BddCsePass() override = default;
 
  protected:

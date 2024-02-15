@@ -15,9 +15,12 @@
 #ifndef XLS_PASSES_PROC_STATE_OPTIMIZATION_PASS_H_
 #define XLS_PASSES_PROC_STATE_OPTIMIZATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -26,8 +29,9 @@ namespace xls {
 // zero-width elements.
 class ProcStateOptimizationPass : public OptimizationProcPass {
  public:
+  static constexpr std::string_view kName = "proc_state_opt";
   ProcStateOptimizationPass()
-      : OptimizationProcPass("proc_state_opt", "Proc State Optimization") {}
+      : OptimizationProcPass(kName, "Proc State Optimization") {}
   ~ProcStateOptimizationPass() override = default;
 
  protected:

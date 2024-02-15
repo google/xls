@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_LABEL_RECOVERY_PASS_H_
 #define XLS_PASSES_LABEL_RECOVERY_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
@@ -29,8 +31,8 @@ namespace xls {
 // overqualified.
 class LabelRecoveryPass : public OptimizationFunctionBasePass {
  public:
-  LabelRecoveryPass()
-      : OptimizationFunctionBasePass("label-recovery", "LabelRecovery") {}
+  static constexpr std::string_view kName = "label-recovery";
+  LabelRecoveryPass() : OptimizationFunctionBasePass(kName, "LabelRecovery") {}
   ~LabelRecoveryPass() override = default;
 
  protected:

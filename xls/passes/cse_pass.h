@@ -15,9 +15,14 @@
 #ifndef XLS_PASSES_CSE_PASS_H_
 #define XLS_PASSES_CSE_PASS_H_
 
+#include <string_view>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -54,8 +59,9 @@ absl::flat_hash_map<T, T> FixedPointOfSPO(
 // expressions.
 class CsePass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "cse";
   CsePass()
-      : OptimizationFunctionBasePass("cse",
+      : OptimizationFunctionBasePass(kName,
                                      "Common subexpression elimination") {}
   ~CsePass() override = default;
 

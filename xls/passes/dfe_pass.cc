@@ -14,7 +14,6 @@
 
 #include "xls/passes/dfe_pass.h"
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -30,6 +29,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/elaboration.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node_util.h"
@@ -37,6 +37,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -204,5 +205,7 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
   }
   return changed;
 }
+
+REGISTER_OPT_PASS(DeadFunctionEliminationPass);
 
 }  // namespace xls

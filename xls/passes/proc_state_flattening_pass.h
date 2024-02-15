@@ -15,9 +15,12 @@
 #ifndef XLS_PASSES_PROC_STATE_FLATTENING_PASS_H_
 #define XLS_PASSES_PROC_STATE_FLATTENING_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -27,8 +30,9 @@ namespace xls {
 // in isolation.
 class ProcStateFlatteningPass : public OptimizationProcPass {
  public:
+  static constexpr std::string_view kName = "proc_state_flat";
   ProcStateFlatteningPass()
-      : OptimizationProcPass("proc_state_flat", "Proc State Flattening") {}
+      : OptimizationProcPass(kName, "Proc State Flattening") {}
   ~ProcStateFlatteningPass() override = default;
 
  protected:

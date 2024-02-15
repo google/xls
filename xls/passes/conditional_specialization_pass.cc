@@ -32,6 +32,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -44,6 +45,7 @@
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 
@@ -557,5 +559,16 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
   return changed;
 }
+
+XLS_REGISTER_MODULE_INITIALIZER(cond_spec, {
+  XLS_CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
+      "cond_spec(true)", true));
+  XLS_CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
+      "cond_spec(Bdd)", true));
+  XLS_CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
+      "cond_spec(false)", false));
+  XLS_CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
+      "cond_spec(noBdd)", false));
+});
 
 }  // namespace xls

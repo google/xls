@@ -17,10 +17,12 @@
 
 #include <cstdint>
 #include <ostream>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -36,9 +38,10 @@ class NarrowingPass : public OptimizationFunctionBasePass {
     // Use the select context controlled by the optimization options.
     kRangeWithOptionalContext,
   };
+  static constexpr std::string_view kName = "narrow";
   explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange,
                          int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass("narrow", "Narrowing"),
+      : OptimizationFunctionBasePass(kName, "Narrowing"),
         analysis_(analysis),
         opt_level_(opt_level) {}
   ~NarrowingPass() override = default;

@@ -37,6 +37,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/math_util.h"
+#include "xls/common/module_initializer.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -58,6 +59,7 @@
 #include "xls/ir/value_utils.h"
 #include "xls/passes/context_sensitive_range_query_engine.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/predicate_dominator_analysis.h"
 #include "xls/passes/predicate_state.h"
@@ -1811,5 +1813,22 @@ std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
       return os << "OptionalContext";
   }
 }
+
+XLS_REGISTER_MODULE_INITIALIZER(narrowing_pass, {
+  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>("narrow"));
+  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
+      "narrow(Ternary)", NarrowingPass::AnalysisType::kTernary,
+      pass_config::kOptLevel));
+  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
+      "narrow(Range)", NarrowingPass::AnalysisType::kRange,
+      pass_config::kOptLevel));
+  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
+      "narrow(Context)", NarrowingPass::AnalysisType::kRangeWithContext,
+      pass_config::kOptLevel));
+  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
+      "narrow(OptionalContext)",
+      NarrowingPass::AnalysisType::kRangeWithOptionalContext,
+      pass_config::kOptLevel));
+});
 
 }  // namespace xls

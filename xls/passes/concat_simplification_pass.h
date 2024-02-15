@@ -15,9 +15,13 @@
 #ifndef XLS_PASSES_CONCAT_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_CONCAT_SIMPLIFICATION_PASS_H_
 
+#include <cstdint>
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -25,8 +29,9 @@ namespace xls {
 // flattening trees of dependent concats, and others.
 class ConcatSimplificationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "concat_simp";
   explicit ConcatSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass("concat_simp", "Concat simplification"),
+      : OptimizationFunctionBasePass(kName, "Concat simplification"),
         opt_level_(opt_level) {}
   ~ConcatSimplificationPass() override = default;
 

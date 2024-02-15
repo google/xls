@@ -15,15 +15,20 @@
 #ifndef XLS_PASSES_PROC_INLINING_PASS_H_
 #define XLS_PASSES_PROC_INLINING_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
 // Pass which inlines all procs into the top-level proc.
 class ProcInliningPass : public OptimizationPass {
  public:
-  ProcInliningPass() : OptimizationPass("proc_inlining", "Proc inlining") {}
+  static constexpr std::string_view kName = "proc_inlining";
+  ProcInliningPass() : OptimizationPass(kName, "Proc inlining") {}
   ~ProcInliningPass() override = default;
 
  protected:
