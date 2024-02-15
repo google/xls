@@ -112,7 +112,7 @@ ABSL_FLAG(int, max_unroll_iters, 1000,
 ABSL_FLAG(int, warn_unroll_iters, 100,
           "Maximum number of iterations to allow loops to be unrolled");
 
-ABSL_FLAG(int, z3_rlimit, -1,
+ABSL_FLAG(int, z3_rlimit, 100000L,
           "rlimit to set for z3 solver (eg for loop unrolling)");
 
 ABSL_FLAG(xlscc::ChannelStrictnessMap, channel_strictness,
