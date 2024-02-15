@@ -5125,12 +5125,17 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       // We use the original condition because we only care about
       //  enclosing conditions, such as if(...) { break; }
       //  Not if(...) {return;} break;
-      if (context().full_condition_on_enter_block.node() !=
+      if (context().full_condition_on_enter_block.node() ==
           context().full_switch_cond.node()) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "Conditional breaks are not supported"));
+        context().hit_break = true;
+      } else {
+        context().relative_break_condition =
+            context().relative_condition_bval(loc);
+
+        // Make the rest of the block no-op
+        XLS_RETURN_IF_ERROR(
+            and_condition(context().fb->Literal(xls::UBits(0, 1), loc), loc));
       }
-      context().hit_break = true;
     }
   } else if (clang::isa<clang::CompoundStmt>(stmt)) {
     PushContextGuard context_guard(*this, loc);

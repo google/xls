@@ -955,6 +955,29 @@ TEST_F(TranslatorLogicTest, SwitchStmtWithUnrollInCase) {
   Run({{"a", 3}}, 300, content);
 }
 
+TEST_F(TranslatorLogicTest, SwitchConditionalBreakReturn) {
+  std::string_view content = R"(
+       long long my_package(long long a, long long b) {
+         long long ret;
+         switch(a) {
+           case 1:
+             ret = 100;
+             break;
+           case 2:
+             ret = 200;
+             if(b) return 55;
+           default:
+             return 300;
+         }
+         return ret;
+       })";
+
+  Run({{"a", 1}, {"b", 0}}, 100, content);
+  Run({{"a", 2}, {"b", 0}}, 300, content);
+  Run({{"a", 2}, {"b", 1}}, 55, content);
+  Run({{"a", 3}, {"b", 0}}, 300, content);
+}
+
 TEST_F(TranslatorLogicTest, SwitchConditionalBreak) {
   std::string_view content = R"(
        long long my_package(long long a, long long b) {
@@ -973,10 +996,10 @@ TEST_F(TranslatorLogicTest, SwitchConditionalBreak) {
          return ret;
        })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Conditional breaks are not supported")));
+  Run({{"a", 1}, {"b", 0}}, 100, content);
+  Run({{"a", 2}, {"b", 0}}, 300, content);
+  Run({{"a", 2}, {"b", 1}}, 200, content);
+  Run({{"a", 3}, {"b", 0}}, 300, content);
 }
 
 TEST_F(TranslatorLogicTest, SwitchStmtDefaultTop) {
