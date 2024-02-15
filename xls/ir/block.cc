@@ -367,8 +367,8 @@ absl::StatusOr<Register*> Block::AddRegister(std::string_view requested_name,
   std::string name =
       register_name_uniquer_.GetSanitizedUniqueName(requested_name);
   if (name != requested_name) {
-    XLS_LOG(INFO) << "Multiple registers with name `" << requested_name
-                  << "` requested. Using name `" << name << "`.";
+    XLS_VLOG(2) << "Multiple registers with name `" << requested_name
+                << "` requested. Using name `" << name << "`.";
   }
   if (reset.has_value()) {
     if (type != package()->GetTypeForValue(reset.value().reset_value)) {
