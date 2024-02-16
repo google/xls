@@ -33,7 +33,7 @@ ScopedFnStackEntry::ScopedFnStackEntry(DeduceCtx* ctx, Module* module)
 //    that the entry will have already been popped. Generally this is `false`
 //    since we expect the entry to be on the top of the fn stack in the
 //    destructor, in which case we automatically pop it.
-ScopedFnStackEntry::ScopedFnStackEntry(Function* fn, DeduceCtx* ctx,
+ScopedFnStackEntry::ScopedFnStackEntry(Function& fn, DeduceCtx* ctx,
                                        WithinProc within_proc,
                                        bool expect_popped)
     : ctx_(ctx),

@@ -47,24 +47,24 @@ namespace {
 
 // Sees if the function is named with a `_test` suffix but not marked with a
 // test annotation -- this is likely to be a user mistake, so we give a warning.
-void WarnIfConfusinglyNamedLikeTest(Function* f, DeduceCtx* ctx) {
-  if (!absl::EndsWith(f->identifier(), "_test")) {
+void WarnIfConfusinglyNamedLikeTest(Function& f, DeduceCtx* ctx) {
+  if (!absl::EndsWith(f.identifier(), "_test")) {
     return;
   }
-  AstNode* parent = f->parent();
+  AstNode* parent = f.parent();
   if (parent == nullptr || parent->kind() != AstNodeKind::kTestFunction) {
     ctx->warnings()->Add(
-        f->span(), WarningKind::kMisleadingFunctionName,
+        f.span(), WarningKind::kMisleadingFunctionName,
         absl::StrFormat("Function `%s` ends with `_test` but is "
                         "not marked as a unit test via #[test]",
-                        f->identifier()));
+                        f.identifier()));
   }
 }
 
 }  // namespace
 
-absl::Status TypecheckFunction(Function* f, DeduceCtx* ctx) {
-  XLS_VLOG(2) << "Typechecking fn: " << f->identifier();
+absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
+  XLS_VLOG(2) << "Typechecking fn: " << f.identifier();
 
   WarnIfConfusinglyNamedLikeTest(f, ctx);
 
@@ -74,9 +74,9 @@ absl::Status TypecheckFunction(Function* f, DeduceCtx* ctx) {
   // declared in a TestProc and passed to it.
   TypeInfo* original_ti = ctx->type_info();
   TypeInfo* derived_type_info = nullptr;
-  if (f->proc().has_value()) {
+  if (f.proc().has_value()) {
     absl::StatusOr<TypeInfo*> proc_ti =
-        ctx->type_info()->GetTopLevelProcTypeInfo(f->proc().value());
+        ctx->type_info()->GetTopLevelProcTypeInfo(f.proc().value());
     if (proc_ti.ok()) {
       XLS_RETURN_IF_ERROR(ctx->PushTypeInfo(proc_ti.value()));
       derived_type_info = proc_ti.value();
@@ -91,18 +91,18 @@ absl::Status TypecheckFunction(Function* f, DeduceCtx* ctx) {
   // Second, typecheck the return type of the function.
   // Note: if there is no annotated return type, we assume nil.
   std::unique_ptr<ConcreteType> return_type;
-  if (f->return_type() == nullptr) {
+  if (f.return_type() == nullptr) {
     return_type = TupleType::MakeUnit();
   } else {
-    XLS_ASSIGN_OR_RETURN(return_type, DeduceAndResolve(f->return_type(), ctx));
+    XLS_ASSIGN_OR_RETURN(return_type, DeduceAndResolve(f.return_type(), ctx));
     XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
-                                                     f->return_type()->span(),
+                                                     f.return_type()->span(),
                                                      "function return type"));
   }
 
   // Add proc members to the environment before typechecking the fn body.
-  if (f->proc().has_value()) {
-    Proc* p = f->proc().value();
+  if (f.proc().has_value()) {
+    Proc* p = f.proc().value();
     for (auto* param : p->members()) {
       XLS_ASSIGN_OR_RETURN(auto type, DeduceAndResolve(param, ctx));
       ctx->type_info()->SetItem(param, *type);
@@ -112,42 +112,39 @@ absl::Status TypecheckFunction(Function* f, DeduceCtx* ctx) {
 
   // Assert type consistency between the body and deduced return types.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
-                       DeduceAndResolve(f->body(), ctx));
+                       DeduceAndResolve(f.body(), ctx));
   XLS_VLOG(3) << absl::StrFormat("Resolved return type: %s => %s",
                                  return_type->ToString(),
                                  body_type->ToString());
   if (body_type->IsMeta()) {
-    return TypeInferenceErrorStatus(f->body()->span(), body_type.get(),
+    return TypeInferenceErrorStatus(f.body()->span(), body_type.get(),
                                     "Types cannot be returned from functions");
   }
   if (*return_type != *body_type) {
     XLS_VLOG(5) << "return type: " << return_type->ToString()
                 << " body type: " << body_type->ToString();
-    if (f->tag() == FunctionTag::kProcInit) {
+    if (f.tag() == FunctionTag::kProcInit) {
       return ctx->TypeMismatchError(
-          f->body()->span(), f->body(), *body_type, f->return_type(),
-          *return_type,
+          f.body()->span(), f.body(), *body_type, f.return_type(), *return_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
-    if (f->tag() == FunctionTag::kProcNext) {
+    if (f.tag() == FunctionTag::kProcNext) {
       return ctx->TypeMismatchError(
-          f->body()->span(), f->body(), *body_type, f->return_type(),
-          *return_type,
+          f.body()->span(), f.body(), *body_type, f.return_type(), *return_type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
     return ctx->TypeMismatchError(
-        f->body()->span(), f->body(), *body_type, f->return_type(),
-        *return_type,
+        f.body()->span(), f.body(), *body_type, f.return_type(), *return_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
-                        f->identifier()));
+                        f.identifier()));
   }
 
   if (return_type->HasParametricDims()) {
     return TypeInferenceErrorStatus(
-        f->return_type()->span(), return_type.get(),
+        f.return_type()->span(), return_type.get(),
         absl::StrFormat(
             "Parametric type being returned from function -- types must be "
             "fully resolved, please fully instantiate the type"));
@@ -157,26 +154,26 @@ absl::Status TypecheckFunction(Function* f, DeduceCtx* ctx) {
   // we pop derived type info below.
   XLS_RETURN_IF_ERROR(WarnOnDefinedButUnused(f, ctx));
 
-  if (f->tag() != FunctionTag::kNormal) {
+  if (f.tag() != FunctionTag::kNormal) {
     XLS_RET_CHECK(derived_type_info != nullptr);
 
     // i.e., if this is a proc function.
-    XLS_RETURN_IF_ERROR(original_ti->SetTopLevelProcTypeInfo(f->proc().value(),
+    XLS_RETURN_IF_ERROR(original_ti->SetTopLevelProcTypeInfo(f.proc().value(),
                                                              ctx->type_info()));
     XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo(derived_type_info));
 
     // Need to capture the initial value for top-level procs. For spawned procs,
     // DeduceSpawn() handles this.
-    Proc* p = f->proc().value();
-    Function* init = p->init();
+    Proc* p = f.proc().value();
+    const Function& init = p->init();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                         ctx->Deduce(init->body()));
+                         ctx->Deduce(init.body()));
     // No need for ParametricEnv; top-level procs can't be parameterized.
     XLS_ASSIGN_OR_RETURN(InterpValue init_value,
                          ConstexprEvaluator::EvaluateToValue(
                              ctx->import_data(), ctx->type_info(),
-                             ctx->warnings(), ParametricEnv(), init->body()));
-    ctx->type_info()->NoteConstExpr(init->body(), init_value);
+                             ctx->warnings(), ParametricEnv(), init.body()));
+    ctx->type_info()->NoteConstExpr(init.body(), init_value);
   }
 
   // Implementation note: though we could have all functions have
@@ -190,8 +187,8 @@ absl::Status TypecheckFunction(Function* f, DeduceCtx* ctx) {
   }
 
   FunctionType function_type(std::move(param_types), std::move(body_type));
-  ctx->type_info()->SetItem(f, function_type);
-  ctx->type_info()->SetItem(f->name_def(), function_type);
+  ctx->type_info()->SetItem(&f, function_type);
+  ctx->type_info()->SetItem(f.name_def(), function_type);
 
   return absl::OkStatus();
 }

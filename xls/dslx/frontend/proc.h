@@ -21,7 +21,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/btree_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -121,9 +120,9 @@ class Proc : public AstNode {
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
 
-  Function* config() const { return body_.config; }
-  Function* next() const { return body_.next; }
-  Function* init() const { return body_.init; }
+  Function& config() const { return *body_.config; }
+  Function& next() const { return *body_.next; }
+  Function& init() const { return *body_.init; }
   absl::Span<ProcMember* const> members() const { return body_.members; }
   absl::Span<ProcStmt const> stmts() const { return body_.stmts; }
 

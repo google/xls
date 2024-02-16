@@ -455,10 +455,13 @@ std::string OpToString(Bytecode::Op op);
 // Holds all the bytecode implementing a function along with useful metadata.
 class BytecodeFunction {
  public:
-  // We need the function's containing module in order to get the root TypeInfo
-  // for top-level BytecodeFunctions.
-  // `source_fn` may be nullptr for ephemeral functions, such as those created
-  // for realizing `match` ops.
+  // Args:
+  //  module: The function's containing module -- we need the function's
+  //    containing module in order to get the root TypeInfo for top-level
+  //    BytecodeFunctions.
+  //  source_fn: may be nullptr for ephemeral functions, such as those created
+  //    for realizing `match` ops.
+  //
   // Note: this is an O(N) operation where N is the number of ops in the
   // bytecode.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Create(

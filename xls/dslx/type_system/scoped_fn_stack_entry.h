@@ -39,7 +39,7 @@ class ScopedFnStackEntry {
   //    that the entry will have already been popped. Generally this is `false`
   //    since we expect the entry to be on the top of the fn stack in the
   //    call to Finish(), in which case we automatically pop it.
-  ScopedFnStackEntry(Function* fn, DeduceCtx* ctx, WithinProc within_proc,
+  ScopedFnStackEntry(Function& fn, DeduceCtx* ctx, WithinProc within_proc,
                      bool expect_popped = false);
 
   // Called when we close out a scope. We can't use this object as a scope

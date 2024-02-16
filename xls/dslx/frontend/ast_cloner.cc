@@ -562,9 +562,9 @@ class AstCloner : public AstNodeVisitor {
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
     ProcBody new_body = {
         .stmts = new_stmts,
-        .config = down_cast<Function*>(old_to_new_.at(n->config())),
-        .next = down_cast<Function*>(old_to_new_.at(n->next())),
-        .init = down_cast<Function*>(old_to_new_.at(n->init())),
+        .config = down_cast<Function*>(old_to_new_.at(&n->config())),
+        .next = down_cast<Function*>(old_to_new_.at(&n->next())),
+        .init = down_cast<Function*>(old_to_new_.at(&n->init())),
         .members = new_members,
     };
     Proc* p =
@@ -717,9 +717,9 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleTestFunction(const TestFunction* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    XLS_RETURN_IF_ERROR(n->fn()->Accept(this));
+    XLS_RETURN_IF_ERROR(n->fn().Accept(this));
     old_to_new_[n] = module_->Make<TestFunction>(
-        n->span(), down_cast<Function*>(old_to_new_.at(n->fn())));
+        n->span(), *down_cast<Function*>(old_to_new_.at(&n->fn())));
     return absl::OkStatus();
   }
 

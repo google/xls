@@ -2420,7 +2420,7 @@ class TestFunction : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "test function"; }
 
-  TestFunction(Module* owner, Span span, Function* fn)
+  TestFunction(Module* owner, Span span, Function& fn)
       : AstNode(owner), span_(std::move(span)), fn_(fn) {}
 
   ~TestFunction() override;
@@ -2432,25 +2432,23 @@ class TestFunction : public AstNode {
   }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {fn_};
+    return {&fn_};
   }
 
   std::string_view GetNodeTypeName() const override { return "TestFunction"; }
   std::string ToString() const override {
-    return absl::StrFormat("#[test]\n%s", fn_->ToString());
+    return absl::StrFormat("#[test]\n%s", fn_.ToString());
   }
 
-  Function* fn() const { return fn_; }
+  Function& fn() const { return fn_; }
   std::optional<Span> GetSpan() const override { return span(); }
   const Span& span() const { return span_; }
 
-  const std::string& identifier() const {
-    return fn_->name_def()->identifier();
-  }
+  const std::string& identifier() const { return fn_.name_def()->identifier(); }
 
  private:
   const Span span_;
-  Function* const fn_;
+  Function& fn_;
 };
 
 // Represents a function to be quick-check'd.

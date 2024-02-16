@@ -243,8 +243,8 @@ class TypeInfo {
 
   // Returns whether function "f" requires an implicit token parameter; i.e. it
   // contains a `fail!()` or `cover!()` as determined during type inferencing.
-  std::optional<bool> GetRequiresImplicitToken(const Function* f) const;
-  void NoteRequiresImplicitToken(const Function* f, bool is_required);
+  std::optional<bool> GetRequiresImplicitToken(const Function& f) const;
+  void NoteRequiresImplicitToken(const Function& f, bool is_required);
 
   // Attempts to retrieve the callee's parametric values in an "instantiation".
   // That is, in the case of:

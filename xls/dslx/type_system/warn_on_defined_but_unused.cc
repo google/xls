@@ -33,11 +33,11 @@
 
 namespace xls::dslx {
 
-absl::Status WarnOnDefinedButUnused(Function* f, DeduceCtx* ctx) {
+absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx) {
   // We say we want types in case there are references in e.g. expressions
   // within type annotations, say dimensions.
   XLS_ASSIGN_OR_RETURN(std::vector<AstNode*> nodes,
-                       CollectUnder(f->body(), /*want_types=*/true));
+                       CollectUnder(f.body(), /*want_types=*/true));
 
   // Note: we use pointer sets instead of using a btree with Span as the
   // comparator because we want to avoid the case where nodes have the same span
@@ -115,7 +115,7 @@ absl::Status WarnOnDefinedButUnused(Function* f, DeduceCtx* ctx) {
         n->span(), WarningKind::kUnusedDefinition,
         absl::StrFormat(
             "Definition of `%s` (type `%s`) is not used in function `%s`",
-            n->identifier(), type.value()->ToString(), f->identifier()));
+            n->identifier(), type.value()->ToString(), f.identifier()));
   }
 
   return absl::OkStatus();

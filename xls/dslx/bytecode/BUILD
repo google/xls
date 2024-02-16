@@ -280,7 +280,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/logging",
-        "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

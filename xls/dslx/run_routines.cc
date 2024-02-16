@@ -104,7 +104,7 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
 
   std::vector<ProcInstance> proc_instances;
   XLS_ASSIGN_OR_RETURN(InterpValue terminator,
-                       ti->GetConstExpr(tp->proc()->config()->params()[0]));
+                       ti->GetConstExpr(tp->proc()->config().params()[0]));
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
       import_data, ti, tp->proc(), terminator, &proc_instances, options));
 
@@ -437,10 +437,11 @@ absl::StatusOr<TestResultData> ParseAndTest(
                             absl::Span<const InterpValue> args,
                             const ParametricEnv* parametric_env,
                             const InterpValue& got) -> absl::Status {
+      XLS_RET_CHECK(f != nullptr);
       std::optional<bool> requires_implicit_token =
           import_data.GetRootTypeInfoForNode(f)
               .value()
-              ->GetRequiresImplicitToken(f);
+              ->GetRequiresImplicitToken(*f);
       XLS_RET_CHECK(requires_implicit_token.has_value());
       return options.run_comparator->RunComparison(ir_package.get(),
                                                    *requires_implicit_token, f,

@@ -34,7 +34,7 @@ class BytecodeCache : public BytecodeCacheInterface {
   explicit BytecodeCache(ImportData* import_data);
 
   absl::StatusOr<BytecodeFunction*> GetOrCreateBytecodeFunction(
-      const Function* f, const TypeInfo* type_info,
+      const Function& f, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings) override;
 
  private:

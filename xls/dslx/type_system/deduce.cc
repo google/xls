@@ -759,11 +759,14 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefToModule(
   XLS_ASSIGN_OR_RETURN(TypeInfo * imported_type_info,
                        ctx->import_data()->GetRootTypeInfo(module));
   if (std::holds_alternative<Function*>(*elem.value())) {
-    auto* f = std::get<Function*>(*elem.value());
-    if (!imported_type_info->Contains(f->name_def())) {
+    auto* f_ptr = std::get<Function*>(*elem.value());
+    XLS_RET_CHECK(f_ptr != nullptr);
+    auto& f = *f_ptr;
+
+    if (!imported_type_info->Contains(f.name_def())) {
       XLS_VLOG(2) << "Function name not in imported_type_info; indicates it is "
                      "parametric.";
-      XLS_RET_CHECK(f->IsParametric());
+      XLS_RET_CHECK(f.IsParametric());
       // We don't type check parametric functions until invocations.
       // Let's typecheck this imported parametric function with respect to its
       // module (this will only get the type signature, the body gets
@@ -2081,16 +2084,16 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   XLS_ASSIGN_OR_RETURN(Proc * proc, resolve_proc(node, ctx));
   auto resolve_config = [proc](const Instantiation* node,
                                DeduceCtx* ctx) -> absl::StatusOr<Function*> {
-    return proc->config();
+    return &proc->config();
   };
   auto resolve_next = [proc](const Instantiation* node,
                              DeduceCtx* ctx) -> absl::StatusOr<Function*> {
-    return proc->next();
+    return &proc->next();
   };
 
   auto resolve_init = [proc](const Instantiation* node,
                              DeduceCtx* ctx) -> absl::StatusOr<Function*> {
-    return proc->init();
+    return &proc->init();
   };
 
   XLS_ASSIGN_OR_RETURN(
@@ -2114,7 +2117,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                       InterpValue>
       constexpr_env;
   size_t argc = node->config()->args().size();
-  size_t paramc = proc->config()->params().size();
+  size_t paramc = proc->config().params().size();
   if (argc != paramc) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
@@ -2127,7 +2130,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                              ctx->import_data(), ctx->type_info(),
                              ctx->warnings(), ctx->GetCurrentParametricEnv(),
                              node->config()->args()[i], nullptr));
-    constexpr_env.insert({proc->config()->params()[i], value});
+    constexpr_env.insert({proc->config().params()[i], value});
   }
 
   // TODO(rspringer): 2022-05-26: We can't currently lazily evaluate `next` args
@@ -2152,9 +2155,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   // when typechecking the `next` function. Those values are the elements in the
   // `config` function's terminating XlsTuple.
   // 1. Get the last statement in the `config` function.
-  Function* config_fn = proc->config();
+  Function& config_fn = proc->config();
   Expr* last =
-      std::get<Expr*>(config_fn->body()->statements().back()->wrapped());
+      std::get<Expr*>(config_fn.body()->statements().back()->wrapped());
   const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(last);
   XLS_RET_CHECK_NE(tuple, nullptr);
 

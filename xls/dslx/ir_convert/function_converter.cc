@@ -139,11 +139,11 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
   return fb.BuildWithReturnValue(result);
 }
 
-bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
+bool GetRequiresImplicitToken(dslx::Function& f, ImportData* import_data,
                               const ConvertOptions& options) {
-  std::optional<bool> requires_opt = import_data->GetRootTypeInfo(f->owner())
-                                         .value()
-                                         ->GetRequiresImplicitToken(f);
+  std::optional<bool> requires_opt =
+      import_data->GetRootTypeInfo(f.owner()).value()->GetRequiresImplicitToken(
+          f);
   XLS_CHECK(requires_opt.has_value());
   return requires_opt.value();
 }
@@ -381,7 +381,7 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
 }
 
 bool FunctionConverter::GetRequiresImplicitToken(dslx::Function* f) const {
-  return xls::dslx::GetRequiresImplicitToken(f, import_data_, options_);
+  return xls::dslx::GetRequiresImplicitToken(*f, import_data_, options_);
 }
 
 void FunctionConverter::SetFunctionBuilder(
@@ -2122,8 +2122,10 @@ absl::Status FunctionConverter::AddImplicitTokenParams() {
 absl::Status FunctionConverter::HandleFunction(
     Function* node, TypeInfo* type_info, const ParametricEnv* parametric_env) {
   XLS_RET_CHECK(type_info != nullptr);
+  XLS_RET_CHECK(node != nullptr);
+  Function& f = *node;
 
-  XLS_VLOG(5) << "HandleFunction: " << node->ToString();
+  XLS_VLOG(5) << "HandleFunction: " << f.ToString();
 
   if (parametric_env != nullptr) {
     SetParametricEnv(parametric_env);
@@ -2133,13 +2135,12 @@ absl::Status FunctionConverter::HandleFunction(
 
   // We use a function builder for the duration of converting this AST Function.
   const bool requires_implicit_token = GetRequiresImplicitToken(node);
-  std::string fn_name = node->identifier();
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      MangleDslxName(module_->name(), node->identifier(),
+      MangleDslxName(module_->name(), f.identifier(),
                      requires_implicit_token ? CallingConvention::kImplicitToken
                                              : CallingConvention::kTypical,
-                     node->GetFreeParametricKeySet(), parametric_env));
+                     f.GetFreeParametricKeySet(), parametric_env));
   auto builder =
       std::make_unique<FunctionBuilder>(mangled_name, package(), true);
 
@@ -2150,23 +2151,22 @@ absl::Status FunctionConverter::HandleFunction(
     XLS_RETURN_IF_ERROR(builder_ptr->SetAsTop());
   }
 
-  XLS_VLOG(6) << "Function " << node->identifier()
-              << " requires_implicit_token? "
+  XLS_VLOG(6) << "Function " << f.identifier() << " requires_implicit_token? "
               << (requires_implicit_token ? "true" : "false");
   if (requires_implicit_token) {
     XLS_RETURN_IF_ERROR(AddImplicitTokenParams());
     XLS_RET_CHECK(implicit_token_data_.has_value());
   }
 
-  for (Param* param : node->params()) {
+  for (Param* param : f.params()) {
     XLS_RETURN_IF_ERROR(Visit(param));
   }
 
   // Replace const values known here with their values in FFI template to
   // pass down templates with less variables.
-  FfiPartialValueSubstituteHelper const_prefill(node->extern_verilog_module());
+  FfiPartialValueSubstituteHelper const_prefill(f.extern_verilog_module());
 
-  for (ParametricBinding* parametric_binding : node->parametric_bindings()) {
+  for (ParametricBinding* parametric_binding : f.parametric_bindings()) {
     XLS_VLOG(5) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
 
@@ -2196,10 +2196,10 @@ absl::Status FunctionConverter::HandleFunction(
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
-  XLS_VLOG(5) << "body: " << node->body()->ToString();
-  XLS_RETURN_IF_ERROR(Visit(node->body()));
+  XLS_VLOG(5) << "body: " << f.body()->ToString();
+  XLS_RETURN_IF_ERROR(Visit(f.body()));
 
-  XLS_ASSIGN_OR_RETURN(BValue return_value, Use(node->body()));
+  XLS_ASSIGN_OR_RETURN(BValue return_value, Use(f.body()));
 
   if (requires_implicit_token) {
     // Now join all the assertion tokens together to make the output token.
@@ -2210,10 +2210,10 @@ absl::Status FunctionConverter::HandleFunction(
     return_value = function_builder_->Tuple(elements);
   }
 
-  XLS_ASSIGN_OR_RETURN(xls::Function * f,
+  XLS_ASSIGN_OR_RETURN(xls::Function * ir_fn,
                        builder_ptr->BuildWithReturnValue(return_value));
-  XLS_VLOG(5) << "Built function: " << f->name();
-  XLS_RETURN_IF_ERROR(VerifyFunction(f));
+  XLS_VLOG(5) << "Built function: " << ir_fn->name();
+  XLS_RETURN_IF_ERROR(VerifyFunction(ir_fn));
 
   // If it's a public fallible function, or it's the entry function for the
   // package, we make a wrapper so that the external world (e.g. JIT, verilog
@@ -2228,11 +2228,11 @@ absl::Status FunctionConverter::HandleFunction(
   if (requires_implicit_token && (node->is_public() || is_top_) &&
       !node->IsParametric()) {
     XLS_ASSIGN_OR_RETURN(xls::Function * wrapper,
-                         EmitImplicitTokenEntryWrapper(f, node, is_top_));
+                         EmitImplicitTokenEntryWrapper(ir_fn, node, is_top_));
     package_data_.wrappers.insert(wrapper);
   }
 
-  package_data_.ir_to_dslx[f] = node;
+  package_data_.ir_to_dslx[ir_fn] = node;
   return absl::OkStatus();
 }
 

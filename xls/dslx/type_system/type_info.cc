@@ -292,29 +292,29 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
 }
 
 std::optional<bool> TypeInfo::GetRequiresImplicitToken(
-    const Function* f) const {
-  XLS_CHECK_EQ(f->owner(), module_) << "function owner: " << f->owner()->name()
-                                    << " module: " << module_->name();
+    const Function& f) const {
+  XLS_CHECK_EQ(f.owner(), module_) << "function owner: " << f.owner()->name()
+                                   << " module: " << module_->name();
   const TypeInfo* root = GetRoot();
   const absl::flat_hash_map<const Function*, bool>& map =
       root->requires_implicit_token_;
-  auto it = map.find(f);
+  auto it = map.find(&f);
   if (it == map.end()) {
     return std::nullopt;
   }
   bool result = it->second;
   XLS_VLOG(6) << absl::StreamFormat("GetRequiresImplicitToken %p %s::%s => %s",
-                                    root, f->owner()->name(), f->identifier(),
+                                    root, f.owner()->name(), f.identifier(),
                                     (result ? "true" : "false"));
   return result;
 }
 
-void TypeInfo::NoteRequiresImplicitToken(const Function* f, bool is_required) {
+void TypeInfo::NoteRequiresImplicitToken(const Function& f, bool is_required) {
   TypeInfo* root = GetRoot();
   XLS_VLOG(6) << absl::StreamFormat(
-      "NoteRequiresImplicitToken %p: %s::%s => %s", root, f->owner()->name(),
-      f->identifier(), is_required ? "true" : "false");
-  root->requires_implicit_token_.emplace(f, is_required);
+      "NoteRequiresImplicitToken %p: %s::%s => %s", root, f.owner()->name(),
+      f.identifier(), is_required ? "true" : "false");
+  root->requires_implicit_token_.emplace(&f, is_required);
 }
 
 std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(

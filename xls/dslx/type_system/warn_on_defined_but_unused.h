@@ -23,7 +23,7 @@ namespace xls::dslx {
 
 // Emit warnings (into the WarningCollector on "ctx") for any bindings
 // considered defined-but-unused variables present in function "f".
-absl::Status WarnOnDefinedButUnused(Function* f, DeduceCtx* ctx);
+absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

@@ -137,7 +137,8 @@ absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
 
   dslx::Function* dslx_entry =
       dynamic_cast<Function*>(package_data.ir_to_dslx.at(entry));
-  if (GetRequiresImplicitToken(dslx_entry, import_data, options)) {
+  XLS_RET_CHECK(dslx_entry != nullptr);
+  if (GetRequiresImplicitToken(*dslx_entry, import_data, options)) {
     // Only create implicit token wrapper.
     return EmitImplicitTokenEntryWrapper(entry, dslx_entry, /*is_top=*/false)
         .status();
@@ -179,7 +180,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
       Proc* p = f->proc().value();
       XLS_ASSIGN_OR_RETURN(
           ConcreteType * foo,
-          record.type_info()->GetItemOrError(p->init()->body()));
+          record.type_info()->GetItemOrError(p->init().body()));
 
       // If there's no value in the map, then this should be a top-level proc.
       // Verify that there are no parametric bindings.
@@ -188,7 +189,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
           InterpValue iv,
           ConstexprEvaluator::EvaluateToValue(
               import_data, record.type_info(), kNoWarningCollector,
-              record.parametric_env(), p->init()->body(), foo));
+              record.parametric_env(), p->init().body(), foo));
       XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(iv));
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }

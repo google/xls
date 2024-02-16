@@ -16,6 +16,7 @@
 #define XLS_DSLX_TYPE_SYSTEM_DEDUCE_CTX_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -52,17 +53,17 @@ class FnStackEntry {
  public:
   // Creates an entry for type inference of function 'f' with the given symbolic
   // bindings.
-  static FnStackEntry Make(Function* f, ParametricEnv parametric_env,
+  static FnStackEntry Make(Function& f, ParametricEnv parametric_env,
                            WithinProc within_proc) {
-    return FnStackEntry(f, f->identifier(), f->owner(),
-                        std::move(parametric_env), std::nullopt, within_proc);
+    return FnStackEntry(f, f.identifier(), f.owner(), std::move(parametric_env),
+                        std::nullopt, within_proc);
   }
 
-  static FnStackEntry Make(Function* f, ParametricEnv parametric_env,
+  static FnStackEntry Make(Function& f, ParametricEnv parametric_env,
                            const Invocation* invocation,
                            WithinProc within_proc) {
-    return FnStackEntry(f, f->identifier(), f->owner(),
-                        std::move(parametric_env), invocation, within_proc);
+    return FnStackEntry(f, f.identifier(), f.owner(), std::move(parametric_env),
+                        invocation, within_proc);
   }
 
   // Creates an entry for type inference of the top level of module 'module'.
@@ -85,11 +86,11 @@ class FnStackEntry {
   bool operator!=(std::nullptr_t) const { return f_ != nullptr; }
 
  private:
-  FnStackEntry(Function* f, std::string name, Module* module,
+  FnStackEntry(Function& f, std::string name, Module* module,
                ParametricEnv parametric_env,
                std::optional<const Invocation*> invocation,
                WithinProc within_proc)
-      : f_(f),
+      : f_(&f),
         name_(std::move(name)),
         module_(module),
         parametric_env_(std::move(parametric_env)),
@@ -103,7 +104,9 @@ class FnStackEntry {
         module_(module),
         within_proc_(WithinProc::kNo) {}
 
+  // Note: can be nullptr when the entry represents the "top level" of a module.
   Function* f_;
+
   std::string name_;
   const Module* module_;
   ParametricEnv parametric_env_;
@@ -119,7 +122,7 @@ using DeduceFn = std::function<absl::StatusOr<std::unique_ptr<ConcreteType>>(
 
 // Signature used for typechecking a single function within a module (this is
 // generally used for typechecking parametric instantiations).
-using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
+using TypecheckFunctionFn = std::function<absl::Status(Function&, DeduceCtx*)>;
 
 // Similar to TypecheckFunctionFn, but for a [parametric] invocation.
 using TypecheckInvocationFn =

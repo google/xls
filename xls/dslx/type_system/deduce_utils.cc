@@ -175,7 +175,7 @@ void UseImplicitToken(DeduceCtx* ctx) {
   // can fail!() from the top level of a module; e.g. in a module-level const
   // expression.
   if (caller != nullptr) {
-    ctx->type_info()->NoteRequiresImplicitToken(caller, true);
+    ctx->type_info()->NoteRequiresImplicitToken(*caller, true);
   }
 
   // TODO(rspringer): 2021-09-01: How to fail! from inside a proc?

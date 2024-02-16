@@ -291,10 +291,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
   // a parametric builtin.
   if (!IsBuiltinFn(node->callee())) {
     XLS_ASSIGN_OR_RETURN(Function * fn, resolve_fn(node, ctx));
+    XLS_RET_CHECK(fn != nullptr);
+
     XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
                          ctx->import_data()->GetRootTypeInfoForNode(fn));
     std::optional<bool> callee_opt =
-        root_type_info->GetRequiresImplicitToken(fn);
+        root_type_info->GetRequiresImplicitToken(*fn);
     XLS_RET_CHECK(callee_opt.has_value())
         << "user-defined function should have an annotation for whether it "
            "requires an implicit token: "

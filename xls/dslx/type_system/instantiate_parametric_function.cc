@@ -57,15 +57,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricBindingToType(
 
 absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     DeduceCtx* ctx, DeduceCtx* parent_ctx, const Invocation* invocation,
-    Function* callee_fn, const FunctionType& fn_type,
+    Function& callee_fn, const FunctionType& fn_type,
     const std::vector<InstantiateArg>& instantiate_args) {
   XLS_VLOG(5) << "InstantiateParametricFunction; callee_fn: "
-              << callee_fn->identifier();
+              << callee_fn.identifier();
 
   {
     // As a special case, flag recursion (that otherwise shows up as unresolved
     // parametrics), so the cause is more clear to the user (vs the symptom).
-    Function* const current = callee_fn;
+    Function* const current = &callee_fn;
     XLS_CHECK(current != nullptr);
     for (int64_t i = 0; i < ctx->fn_stack().size(); ++i) {
       Function* previous = (ctx->fn_stack().rbegin() + i)->f();
@@ -74,16 +74,16 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
             invocation->span(), nullptr,
             absl::StrFormat("Recursive call to `%s` detected during "
                             "type-checking -- recursive calls are unsupported.",
-                            callee_fn->identifier()));
+                            callee_fn.identifier()));
       }
     }
   }
 
   const std::vector<ParametricBinding*>& parametric_bindings =
-      callee_fn->parametric_bindings();
+      callee_fn.parametric_bindings();
   absl::flat_hash_map<std::string, InterpValue> explicit_bindings;
   std::vector<ParametricConstraint> parametric_constraints;
-  parametric_constraints.reserve(callee_fn->parametric_bindings().size());
+  parametric_constraints.reserve(callee_fn.parametric_bindings().size());
   if (invocation->explicit_parametrics().size() > parametric_bindings.size()) {
     return ArgCountMismatchErrorStatus(
         invocation->span(),

@@ -2886,6 +2886,7 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
     Bindings& bindings, const Span& directive_span) {
   XLS_ASSIGN_OR_RETURN(Function * f,
                        ParseFunctionInternal(/*is_public=*/false, bindings));
+  XLS_RET_CHECK(f != nullptr);
   if (std::optional<ModuleMember*> member =
           module_->FindMemberWithName(f->identifier())) {
     return ParseErrorStatus(
@@ -2895,7 +2896,7 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
             f->identifier(), ToAstNode(**member)->GetSpan()->ToString()));
   }
   Span tf_span(directive_span.start(), f->span().limit());
-  TestFunction* tf = module_->Make<TestFunction>(tf_span, f);
+  TestFunction* tf = module_->Make<TestFunction>(tf_span, *f);
   tf->SetParentage();  // Ensure the function has its parent marked.
   return tf;
 }

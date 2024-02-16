@@ -71,9 +71,10 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, tm.module->GetMemberOrError<Function>("one_plus_one"));
+  ASSERT_TRUE(f != nullptr);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, *f, ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
@@ -972,9 +973,10 @@ fn has_params(x: u32, y: u64) -> u48 {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("has_params"));
+  ASSERT_TRUE(f != nullptr);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, *f, ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 15);
@@ -1356,7 +1358,7 @@ proc Parent {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * child,
                            tm.module->GetMemberOrError<Proc>("Child"));
 
-  Block* config_body = parent->config()->body();
+  Block* config_body = parent->config().body();
   EXPECT_EQ(config_body->statements().size(), 3);
   Spawn* spawn = down_cast<Spawn*>(
       std::get<Expr*>(config_body->statements().at(1)->wrapped()));
@@ -1447,8 +1449,8 @@ fn main() -> u32 {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
-  Function* f = tf->fn();
-  Expr* body = f->body();
+  Function& f = tf->fn();
+  Expr* body = f.body();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,

@@ -301,6 +301,7 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",

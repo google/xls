@@ -30,11 +30,12 @@ namespace xls::dslx {
 class BytecodeCacheInterface {
  public:
   virtual ~BytecodeCacheInterface() = default;
+
   // Returns the BytecodeFunction for the given function, whose types and
   // constants are held inside the given TypeInfo - different instances of a
   // parametric function will have different TypeInfos associated with them.
   virtual absl::StatusOr<BytecodeFunction*> GetOrCreateBytecodeFunction(
-      const Function* f, const TypeInfo* type_info,
+      const Function& f, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings) = 0;
 };
 

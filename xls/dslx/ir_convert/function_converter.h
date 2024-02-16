@@ -61,7 +61,7 @@ absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(AstNode* node);
 
 // Wrapper around the type information query for whether DSL function "f"
 // requires an implicit token calling convention.
-bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
+bool GetRequiresImplicitToken(dslx::Function& f, ImportData* import_data,
                               const ConvertOptions& options);
 
 // Creates a function that wraps up `implicit_token_f`.

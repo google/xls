@@ -25,6 +25,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/indent.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 
@@ -51,7 +52,11 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
       name_def_(name_def),
       parametric_bindings_(std::move(parametric_bindings)),
       body_(std::move(body)),
-      is_public_(is_public) {}
+      is_public_(is_public) {
+  XLS_CHECK(body_.config != nullptr);
+  XLS_CHECK(body_.next != nullptr);
+  XLS_CHECK(body_.init != nullptr);
+}
 
 Proc::~Proc() = default;
 
@@ -92,7 +97,7 @@ std::string Proc::ToString() const {
   // Init functions are special, since they shouldn't be printed with
   // parentheses (since they can't take args).
   std::string init_str = Indent(
-      absl::StrCat("init ", init()->body()->ToString()), kRustSpacesPerIndent);
+      absl::StrCat("init ", init().body()->ToString()), kRustSpacesPerIndent);
 
   constexpr std::string_view kTemplate = R"(%sproc %s%s {
 %s%s
@@ -102,9 +107,9 @@ std::string Proc::ToString() const {
   return absl::StrFormat(
       kTemplate, pub_str, name_def()->identifier(), parametric_str,
       Indent(members_str, kRustSpacesPerIndent),
-      Indent(config()->ToUndecoratedString("config"), kRustSpacesPerIndent),
+      Indent(config().ToUndecoratedString("config"), kRustSpacesPerIndent),
       init_str,
-      Indent(next()->ToUndecoratedString("next"), kRustSpacesPerIndent));
+      Indent(next().ToUndecoratedString("next"), kRustSpacesPerIndent));
 }
 
 // -- class TestProc

@@ -453,7 +453,7 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
 }
 
 absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
-    Function* f, const Invocation* invocation,
+    Function& f, const Invocation* invocation,
     const ParametricEnv& caller_bindings) {
   const Frame& frame = frames_.back();
   const TypeInfo* caller_type_info = frame.type_info();
@@ -464,13 +464,13 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
   std::optional<ParametricEnv> callee_bindings;
 
   TypeInfo* callee_type_info = nullptr;
-  if (f->IsParametric() || f->tag() == FunctionTag::kProcInit) {
+  if (f.IsParametric() || f.tag() == FunctionTag::kProcInit) {
     if (!caller_type_info->GetRootInvocations().contains(invocation)) {
       return absl::InternalError(absl::StrFormat(
           "BytecodeInterpreter::GetBytecodeFn; could not find information for "
           "invocation `%s` "
           "callee: %s (tag: %v), caller_bindings: %s span: %s",
-          invocation->ToString(), f->identifier(), f->tag(),
+          invocation->ToString(), f.identifier(), f.tag(),
           caller_bindings.ToString(), invocation->span().ToString()));
     }
 
@@ -487,7 +487,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     // If it's NOT parametric, then we need the root TypeInfo for the new
     // module.
     XLS_ASSIGN_OR_RETURN(callee_type_info,
-                         import_data_->GetRootTypeInfo(f->owner()));
+                         import_data_->GetRootTypeInfo(f.owner()));
   }
 
   return cache->GetOrCreateBytecodeFunction(f, callee_type_info,
@@ -512,9 +512,9 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   const ParametricEnv& caller_bindings = data.caller_bindings().has_value()
                                              ? data.caller_bindings().value()
                                              : ParametricEnv();
-  XLS_ASSIGN_OR_RETURN(
-      BytecodeFunction * bf,
-      GetBytecodeFn(user_fn_data.function, data.invocation(), caller_bindings));
+  XLS_ASSIGN_OR_RETURN(BytecodeFunction * bf,
+                       GetBytecodeFn(*user_fn_data.function, data.invocation(),
+                                     caller_bindings));
 
   // Store the _return_ PC.
   frames_.back().IncrementPc();
@@ -1609,7 +1609,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     // parameterized and B) typechecking will eagerly constexpr evaluate init
     // functions.
     XLS_ASSIGN_OR_RETURN(initial_state,
-                         parent_ti->GetConstExpr(proc->init()->body()));
+                         parent_ti->GetConstExpr(proc->init().body()));
   }
 
   full_next_args.insert(full_next_args.end(), initial_state);

@@ -127,8 +127,8 @@ BytecodeEmitter::BytecodeEmitter(
 
 BytecodeEmitter::~BytecodeEmitter() = default;
 
-absl::Status BytecodeEmitter::Init(const Function* f) {
-  for (const auto* param : f->params()) {
+absl::Status BytecodeEmitter::Init(const Function& f) {
+  for (const auto* param : f.params()) {
     namedef_to_slot_[param->name_def()] = next_slotno_++;
   }
 
@@ -137,7 +137,7 @@ absl::Status BytecodeEmitter::Init(const Function* f) {
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
-                      const Function* f,
+                      const Function& f,
                       const std::optional<ParametricEnv>& caller_bindings,
                       const BytecodeEmitterOptions& options) {
   return EmitProcNext(import_data, type_info, f, caller_bindings,
@@ -146,7 +146,7 @@ BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::EmitProcNext(
-    ImportData* import_data, const TypeInfo* type_info, const Function* f,
+    ImportData* import_data, const TypeInfo* type_info, const Function& f,
     const std::optional<ParametricEnv>& caller_bindings,
     const std::vector<NameDef*>& proc_members,
     const BytecodeEmitterOptions& options) {
@@ -157,9 +157,9 @@ BytecodeEmitter::EmitProcNext(
     emitter.namedef_to_slot_[name_def] = emitter.next_slotno_++;
   }
   XLS_RETURN_IF_ERROR(emitter.Init(f));
-  XLS_RETURN_IF_ERROR(f->body()->AcceptExpr(&emitter));
+  XLS_RETURN_IF_ERROR(f.body()->AcceptExpr(&emitter));
 
-  return BytecodeFunction::Create(f->owner(), f, type_info,
+  return BytecodeFunction::Create(f.owner(), &f, type_info,
                                   std::move(emitter.bytecode_));
 }
 

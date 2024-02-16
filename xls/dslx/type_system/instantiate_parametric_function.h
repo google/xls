@@ -35,7 +35,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricBindingToType(
 // on explicitly given parametric args) and runs the parametric instantiator.
 absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     DeduceCtx* ctx, DeduceCtx* parent_ctx, const Invocation* invocation,
-    Function* callee_fn, const FunctionType& fn_type,
+    Function& callee_fn, const FunctionType& fn_type,
     const std::vector<InstantiateArg>& instantiate_args);
 
 }  // namespace xls::dslx

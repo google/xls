@@ -641,7 +641,7 @@ static absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(
   for (Proc* proc : module->GetProcs()) {
     // Checking the presence of the config function suffices since the config
     // is instantiated prior to the next function.
-    if (callee_set.find({proc->owner(), proc->config()}) != callee_set.end()) {
+    if (callee_set.find({proc->owner(), &proc->config()}) != callee_set.end()) {
       continue;
     }
     procs.emplace_back(proc);
@@ -709,7 +709,7 @@ static absl::StatusOr<std::vector<Callee>> GetCallees(
     std::optional<ProcId> proc_id) {
   XLS_VLOG(5) << "Getting callees of " << node->ToString();
   XLS_CHECK_EQ(type_info->module(), m);
-  InvocationVisitor visitor(m, type_info, bindings, proc_id);
+  InvocationVisitor visitor(m, type_info, bindings, std::move(proc_id));
   XLS_RETURN_IF_ERROR(node->AcceptExpr(&visitor));
   return std::move(visitor.callees());
 }
@@ -737,36 +737,8 @@ static bool IsReady(std::variant<Function*, TestFunction*> f, Module* m,
 }
 
 // Forward decl.
-static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
-                               const Invocation* invocation, Module* m,
-                               TypeInfo* type_info,
-                               const ParametricEnv& bindings,
-                               std::vector<ConversionRecord>* ready,
-                               std::optional<ProcId> proc_id,
-                               bool is_top = false);
-
 static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
-                                   std::vector<ConversionRecord>* ready) {
-  // Knock out all callees that are already in the (ready) order.
-  std::vector<Callee> non_ready;
-  {
-    for (const Callee& callee : orig_callees) {
-      if (!IsReady(callee.f(), callee.m(), callee.parametric_env(), ready)) {
-        non_ready.push_back(callee);
-      }
-    }
-  }
-
-  // For all the remaining callees (that were not ready), add them to the list
-  // before us, since we depend upon them.
-  for (const Callee& callee : non_ready) {
-    XLS_RETURN_IF_ERROR(AddToReady(callee.f(), callee.invocation(), callee.m(),
-                                   callee.type_info(), callee.parametric_env(),
-                                   ready, callee.proc_id()));
-  }
-
-  return absl::OkStatus();
-}
+                                   std::vector<ConversionRecord>* ready);
 
 // Adds (f, bindings) to conversion order after deps have been added.
 static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
@@ -774,8 +746,8 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
                                TypeInfo* type_info,
                                const ParametricEnv& bindings,
                                std::vector<ConversionRecord>* ready,
-                               const std::optional<ProcId> proc_id,
-                               bool is_top) {
+                               const std::optional<ProcId>& proc_id,
+                               bool is_top = false) {
   XLS_CHECK_EQ(type_info->module(), m);
   if (IsReady(f, m, bindings, ready)) {
     return absl::OkStatus();
@@ -806,6 +778,29 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
   return absl::OkStatus();
 }
 
+static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
+                                   std::vector<ConversionRecord>* ready) {
+  // Knock out all callees that are already in the (ready) order.
+  std::vector<Callee> non_ready;
+  {
+    for (const Callee& callee : orig_callees) {
+      if (!IsReady(callee.f(), callee.m(), callee.parametric_env(), ready)) {
+        non_ready.push_back(callee);
+      }
+    }
+  }
+
+  // For all the remaining callees (that were not ready), add them to the list
+  // before us, since we depend upon them.
+  for (const Callee& callee : non_ready) {
+    XLS_RETURN_IF_ERROR(AddToReady(callee.f(), callee.invocation(), callee.m(),
+                                   callee.type_info(), callee.parametric_env(),
+                                   ready, callee.proc_id()));
+  }
+
+  return absl::OkStatus();
+}
+
 static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
     std::variant<Proc*, TestProc*> entry, TypeInfo* type_info, bool is_top) {
   std::vector<ConversionRecord> ready;
@@ -818,11 +813,11 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
 
   // The next function of a proc is the entry function when converting a proc to
   // IR.
-  XLS_RETURN_IF_ERROR(AddToReady(p->next(),
+  XLS_RETURN_IF_ERROR(AddToReady(&p->next(),
                                  /*invocation=*/nullptr, p->owner(), type_info,
                                  ParametricEnv(), &ready, ProcId{{p}, 0},
                                  is_top));
-  XLS_RETURN_IF_ERROR(AddToReady(p->config(),
+  XLS_RETURN_IF_ERROR(AddToReady(&p->config(),
                                  /*invocation=*/nullptr, p->owner(), type_info,
                                  ParametricEnv(), &ready, ProcId{{p}, 0}));
 

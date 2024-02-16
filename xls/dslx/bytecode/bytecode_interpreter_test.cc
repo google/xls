@@ -96,10 +96,11 @@ static absl::StatusOr<InterpValue> Interpret(
 
   XLS_ASSIGN_OR_RETURN(Function * f,
                        tm.module->GetMemberOrError<Function>(entry));
+  XLS_RET_CHECK(f != nullptr);
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(
-          &import_data, tm.type_info, f, ParametricEnv(),
+          &import_data, tm.type_info, *f, ParametricEnv(),
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
   XLS_RET_CHECK_EQ(bf->owner(), f->owner());
@@ -1104,9 +1105,10 @@ fn cast_bits_to_enum() -> MyEnum {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, tm.module->GetMemberOrError<Function>("cast_bits_to_enum"));
+  ASSERT_TRUE(f != nullptr);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, *f, ParametricEnv()));
 
   // Get a modifiable copy of the bytecodes.
   std::vector<Bytecode> bytecodes = bf->CloneBytecodes();
@@ -1906,7 +1908,7 @@ proc tester_proc {
       TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue terminator,
-      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+      ti->GetConstExpr(test_proc->proc()->config().params()[0]));
   std::vector<ProcInstance> proc_instances;
   std::vector<std::string> trace_output;
   XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
@@ -1988,7 +1990,7 @@ proc tester_proc {
       TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue terminator,
-      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+      ti->GetConstExpr(test_proc->proc()->config().params()[0]));
   std::vector<ProcInstance> proc_instances;
   std::vector<std::string> trace_output;
   XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
@@ -2068,7 +2070,7 @@ proc tester_proc {
       TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue terminator,
-      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+      ti->GetConstExpr(test_proc->proc()->config().params()[0]));
   std::vector<ProcInstance> proc_instances;
   std::vector<std::string> trace_output;
   XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
@@ -2150,7 +2152,7 @@ proc tester_proc {
       TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue terminator,
-      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+      ti->GetConstExpr(test_proc->proc()->config().params()[0]));
   std::vector<ProcInstance> proc_instances;
   std::vector<std::string> trace_output;
   XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
@@ -2235,7 +2237,7 @@ proc tester_proc {
       TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue terminator,
-      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+      ti->GetConstExpr(test_proc->proc()->config().params()[0]));
   std::vector<ProcInstance> proc_instances;
   std::vector<std::string> trace_output;
   XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(

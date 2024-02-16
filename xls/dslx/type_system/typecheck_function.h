@@ -23,7 +23,7 @@ namespace xls::dslx {
 
 // Typechecks a single function (as part of the module-level typechecking
 // process).
-absl::Status TypecheckFunction(Function* f, DeduceCtx* ctx);
+absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

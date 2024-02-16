@@ -15,6 +15,8 @@
 // Tool to evaluate DSLX + args and report the result.
 #include <filesystem>
 #include <iostream>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,11 +29,14 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
@@ -74,6 +79,7 @@ static absl::Status RealMain(
   XLS_ASSIGN_OR_RETURN(
       dslx::Function * f,
       tm.module->GetMemberOrError<dslx::Function>(entry_fn_name));
+  XLS_RET_CHECK(f != nullptr);
   if (f->params().size() != args.size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Incorrect number of arguments: wanted %d, got %d.",
@@ -82,7 +88,7 @@ static absl::Status RealMain(
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::BytecodeFunction> bf,
                        dslx::BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                   f, std::nullopt));
+                                                   *f, std::nullopt));
   XLS_ASSIGN_OR_RETURN(
       dslx::InterpValue result,
       dslx::BytecodeInterpreter::Interpret(&import_data, bf.get(), args));

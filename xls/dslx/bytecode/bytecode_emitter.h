@@ -26,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/bytecode/bytecode.h"
-#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -47,7 +46,7 @@ class BytecodeEmitter : public ExprVisitor {
   // _caller_ of `f`, if any, and is used to determine the symbolic bindings for
   // `f` itself. It will be nullopt for non-parametric functions.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Emit(
-      ImportData* import_data, const TypeInfo* type_info, const Function* f,
+      ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
@@ -61,7 +60,7 @@ class BytecodeEmitter : public ExprVisitor {
   // Emits a function, just as the above, but reserves the first N slots for
   // the given proc members.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitProcNext(
-      ImportData* import_data, const TypeInfo* type_info, const Function* f,
+      ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
       const std::vector<NameDef*>& proc_members,
       const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
@@ -71,7 +70,9 @@ class BytecodeEmitter : public ExprVisitor {
                   const std::optional<ParametricEnv>& caller_bindings,
                   const BytecodeEmitterOptions& options);
   ~BytecodeEmitter() override;
-  absl::Status Init(const Function* f);
+
+  // Initializes namedef-to-slot mapping.
+  absl::Status Init(const Function& f);
 
   // Precondition: node must be Bits typed.
   absl::StatusOr<bool> IsBitsTypeNodeSigned(const AstNode* node) const;

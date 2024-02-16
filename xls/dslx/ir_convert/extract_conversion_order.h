@@ -160,7 +160,7 @@ class ConversionRecord {
         type_info_(type_info),
         parametric_env_(std::move(parametric_env)),
         callees_(std::move(callees)),
-        proc_id_(proc_id),
+        proc_id_(std::move(proc_id)),
         is_top_(is_top) {}
 
   Function* f_;

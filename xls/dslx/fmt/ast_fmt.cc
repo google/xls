@@ -1698,12 +1698,12 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
 
   std::vector<DocRef> config_pieces = {
       arena.MakeText("config"),
-      FmtParams(n.config()->params(), comments, arena,
+      FmtParams(n.config().params(), comments, arena,
                 /*align_after_oparen=*/true),
       arena.space(),
       arena.ocurl(),
       arena.break1(),
-      FmtBlock(*n.config()->body(), comments, arena, /*add_curls=*/false),
+      FmtBlock(*n.config().body(), comments, arena, /*add_curls=*/false),
       arena.break1(),
       arena.ccurl(),
   };
@@ -1713,19 +1713,19 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
       arena.space(),
       arena.ocurl(),
       arena.break1(),
-      FmtBlock(*n.init()->body(), comments, arena, /*add_curls=*/false),
+      FmtBlock(*n.init().body(), comments, arena, /*add_curls=*/false),
       arena.break1(),
       arena.ccurl(),
   };
 
   std::vector<DocRef> next_pieces = {
       arena.MakeText("next"),
-      FmtParams(n.next()->params(), comments, arena,
+      FmtParams(n.next().params(), comments, arena,
                 /*align_after_oparen=*/true),
       arena.space(),
       arena.ocurl(),
       arena.break1(),
-      FmtBlock(*n.next()->body(), comments, arena, /*add_curls=*/false),
+      FmtBlock(*n.next().body(), comments, arena, /*add_curls=*/false),
       arena.break1(),
       arena.ccurl(),
   };
@@ -1759,7 +1759,7 @@ static DocRef Fmt(const TestFunction& n, const Comments& comments,
   std::vector<DocRef> pieces;
   pieces.push_back(arena.MakeText("#[test]"));
   pieces.push_back(arena.hard_line());
-  pieces.push_back(Fmt(*n.fn(), comments, arena));
+  pieces.push_back(Fmt(n.fn(), comments, arena));
   return ConcatN(arena, pieces);
 }
 

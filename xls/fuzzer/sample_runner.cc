@@ -56,6 +56,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
@@ -106,7 +107,7 @@ absl::StatusOr<ArgsBatch> ConvertFunctionKwargs(
 }
 
 absl::StatusOr<std::vector<dslx::InterpValue>> RunFunctionBatched(
-    const dslx::Function* f, dslx::ImportData& import_data,
+    const dslx::Function& f, dslx::ImportData& import_data,
     const dslx::TypecheckedModule& tm, const ArgsBatch& args_batch) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<dslx::BytecodeFunction> bf,
@@ -139,12 +140,13 @@ absl::StatusOr<std::vector<dslx::InterpValue>> InterpretDslxFunction(
   dslx::ModuleMember* member = module_member.value();
   XLS_CHECK(std::holds_alternative<dslx::Function*>(*member));
   dslx::Function* f = std::get<dslx::Function*>(*member);
+  XLS_RET_CHECK(f != nullptr);
 
   XLS_ASSIGN_OR_RETURN(ArgsBatch converted_args_batch,
                        ConvertFunctionKwargs(f, import_data, tm, args_batch));
   XLS_ASSIGN_OR_RETURN(
       std::vector<dslx::InterpValue> results,
-      RunFunctionBatched(f, import_data, tm, converted_args_batch));
+      RunFunctionBatched(*f, import_data, tm, converted_args_batch));
   XLS_ASSIGN_OR_RETURN(std::vector<Value> ir_results,
                        dslx::InterpValue::ConvertValuesToIr(results));
   std::string serialized_results = absl::StrCat(
@@ -492,11 +494,10 @@ ConvertChannelValues(
   // Positional indexes of the input channels in the config function.
   std::vector<int64_t> in_chan_indexes;
 
-  std::string module_name = proc->owner()->name();
-  for (int64_t index = 0; index < proc->config()->params().size(); ++index) {
+  for (int64_t index = 0; index < proc->config().params().size(); ++index) {
     // Currently, only channels are supported as parameters to the config
     // function of a proc.
-    dslx::Param* param = proc->config()->params().at(index);
+    dslx::Param* param = proc->config().params().at(index);
     dslx::ChannelTypeAnnotation* channel_type =
         dynamic_cast<dslx::ChannelTypeAnnotation*>(param->type_annotation());
     if (channel_type == nullptr) {
@@ -518,7 +519,7 @@ ConvertChannelValues(
     XLS_ASSIGN_OR_RETURN(
         dslx::ConcreteType * type,
         proc_type_info->GetItemOrError(
-            proc->config()->params().at(in_chan_indexes[index])));
+            proc->config().params().at(in_chan_indexes[index])));
     dslx::ChannelType* channel_type = dynamic_cast<dslx::ChannelType*>(type);
     if (channel_type == nullptr) {
       return absl::InternalError(
@@ -532,7 +533,7 @@ ConvertChannelValues(
     XLS_CHECK_EQ(in_chan_indexes.size(), values.size())
         << "The input channel count should match the args count.";
     for (int64_t index = 0; index < values.size(); ++index) {
-      dslx::Param* param = proc->config()->params().at(in_chan_indexes[index]);
+      dslx::Param* param = proc->config().params().at(in_chan_indexes[index]);
       XLS_ASSIGN_OR_RETURN(
           dslx::InterpValue payload_value,
           SignConvertValue(*channel_payload_types[index], values[index]));
@@ -562,8 +563,8 @@ RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
   std::vector<std::string> out_ir_channel_names;
 
   std::string module_name = proc->owner()->name();
-  for (int64_t index = 0; index < proc->config()->params().size(); ++index) {
-    dslx::Param* param = proc->config()->params().at(index);
+  for (int64_t index = 0; index < proc->config().params().size(); ++index) {
+    dslx::Param* param = proc->config().params().at(index);
     // Currently, only channels are supported as parameters to the config
     // function of a proc.
     dslx::ChannelTypeAnnotation* channel_type =
@@ -579,7 +580,7 @@ RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
       config_args.push_back(dslx::InterpValue::MakeChannel());
       out_chan_indexes.push_back(index);
       out_ir_channel_names.push_back(absl::StrCat(
-          module_name, "__", proc->config()->params().at(index)->identifier()));
+          module_name, "__", proc->config().params().at(index)->identifier()));
     }
   }
 
