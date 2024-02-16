@@ -253,6 +253,43 @@ pub fn unflatten<EXP_SZ: u32, FRACTION_SZ: u32, TOTAL_SZ: u32 = {u32:1 + EXP_SZ 
     }
 }
 
+//  Round to nearest, ties to even (aka roundTiesToEven).
+// if truncated bits > halfway bit: round up.
+// if truncated bits < halfway bit: round down.
+// if truncated bits == halfway bit and lsb bit is odd: round up.
+// if truncated bits == halfway bit and lsb bit is even: round down.
+fn rne<FRACTION_SZ: u32, LSB_INDEX_SZ: u32 = {std::clog2(FRACTION_SZ)}>
+    (fraction: uN[FRACTION_SZ], lsb_idx: uN[LSB_INDEX_SZ]) -> bool {
+    let lsb_bit_mask = uN[FRACTION_SZ]:1 << lsb_idx;
+    let halfway_idx = lsb_idx as uN[FRACTION_SZ] - uN[FRACTION_SZ]:1;
+    let halfway_bit_mask = uN[FRACTION_SZ]:1 << halfway_idx;
+    let trunc_mask = (uN[FRACTION_SZ]:1 << lsb_idx) - uN[FRACTION_SZ]:1;
+    let trunc_bits = trunc_mask & fraction;
+    let trunc_bits_gt_half = trunc_bits > halfway_bit_mask;
+    let trunc_bits_are_halfway = trunc_bits == halfway_bit_mask;
+    let to_fraction_is_odd = (fraction & lsb_bit_mask) == lsb_bit_mask;
+    let round_to_even = trunc_bits_are_halfway && to_fraction_is_odd;
+    let round_up = trunc_bits_gt_half || round_to_even;
+    round_up
+}
+
+#[test]
+fn rne_test() {
+    assert_eq(rne(u5:0b01101, u3:3), true);  // >halfway bit.
+    assert_eq(rne(u5:0b01001, u3:3), false);  // <halfway bit.
+    assert_eq(rne(u5:0b01100, u3:3), true);  // ==halfway bit and lsb odd.
+    assert_eq(rne(u5:0b00100, u3:3), false);  // ==halfway bit and lsb even.
+    assert_eq(rne(u5:0b000000, u3:3), false);  // 0 fraction.
+    assert_eq(rne(u8:0b11000001, u3:0b111), true);  // max lsb index, >halfway bit.
+    assert_eq(rne(u8:0b10000000, u3:0b111), false);  // max lsb index, <halfway bit.
+    assert_eq(rne(u8:0b11000000, u3:0b111), true);  // max lsb index, ==halfway bit and lsb odd.
+    assert_eq(rne(u8:0b01000000, u3:0b111), false);  // max lsb index, ==halfway bit and lsb even.
+    assert_eq(rne(u5:0b11111, u3:0b111), true);  // overflow lsb index.
+}
+
+#[quickcheck]
+fn rne_overflow_always_rounds_up(f: u5) -> bool { rne(f, u3:0b111) }
+
 // Casts the fixed point number to a floating point number using RNE
 // (Round to Nearest Even) as the rounding mode.
 pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u32>
@@ -287,15 +324,7 @@ pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u3
 
     // Round fraction (round to nearest, half to even).
     let lsb_idx = (num_trailing_nonzeros as uN[EXTENDED_FRACTION_SZ]) - uN[EXTENDED_FRACTION_SZ]:1;
-    let halfway_idx = lsb_idx - uN[EXTENDED_FRACTION_SZ]:1;
-    let halfway_bit_mask = uN[EXTENDED_FRACTION_SZ]:1 << halfway_idx;
-    let trunc_mask = (uN[EXTENDED_FRACTION_SZ]:1 << lsb_idx) - uN[EXTENDED_FRACTION_SZ]:1;
-    let trunc_bits = trunc_mask & extended_fraction;
-    let trunc_bits_gt_half = trunc_bits > halfway_bit_mask;
-    let trunc_bits_are_halfway = trunc_bits == halfway_bit_mask;
-    let fraction_is_odd = fraction[0:1] == u1:1;
-    let round_to_even = trunc_bits_are_halfway && fraction_is_odd;
-    let round_up = trunc_bits_gt_half || round_to_even;
+    let round_up = rne(extended_fraction, lsb_idx as uN[std::clog2(EXTENDED_FRACTION_SZ)]);
     let fraction = if round_up { fraction + uN[FRACTION_SZ]:1 } else { fraction };
 
     // Check if rounding up causes an exponent increment.
