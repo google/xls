@@ -389,7 +389,7 @@ cc_binary(
 
 xls_ac_fuzz_binaries(
     name = "fuzz_int",
-    seed_count = 10,
+    seed_count = 1,
     seed_start = 10,
     test_ac_fixed = False,
     test_ac_int = True,
@@ -406,7 +406,7 @@ xls_ac_fuzz_binaries(
 
 xls_ac_fuzz_binaries(
     name = "fuzz_fixed",
-    seed_count = 10,
+    seed_count = 1,
     seed_start = 10,
     test_ac_fixed = True,
     test_ac_int = False,

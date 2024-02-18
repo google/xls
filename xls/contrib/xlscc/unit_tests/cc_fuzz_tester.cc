@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <iostream>
@@ -74,7 +75,8 @@ class GeneratedTester : public XlsccTestBase {
                          xls::InvokeSubprocess({std::string(exec_filename)}));
 
     std::string stripped_result =
-        absl::StrReplaceAll(result_value.stdout, {{"0b", ""}});
+        absl::StrReplaceAll(result_value.stdout, {{"0b", ""}, {".", ""}});
+    std::reverse(stripped_result.begin(), stripped_result.end());
     absl::InlinedVector<bool, 1> expected_in;
     expected_in.reserve(stripped_result.size());
     for (char& ch : stripped_result) {
@@ -83,7 +85,7 @@ class GeneratedTester : public XlsccTestBase {
     auto expected = xls::Value(xls::Bits(expected_in));
     XLS_ASSIGN_OR_RETURN(auto calc_result, RunIntTest(expected, test_content));
     if (calc_result != expected) {
-      std::cout << expected << " " << calc_result << '\n';
+      std::cout << "ac: " << expected << " xls: " << calc_result << '\n';
       return absl::InternalError("test failed");
     }
     return absl::OkStatus();
@@ -202,7 +204,6 @@ class GeneratedTester : public XlsccTestBase {
 TEST_F(GeneratedTester, Simple) {
   xlscc::GeneratedTester tester;
   int seed = absl::GetFlag(FLAGS_seed);
-  int sample_count = absl::GetFlag(FLAGS_sample_count);
   std::string input_path = absl::GetFlag(FLAGS_input_path);
   std::string crash_path = absl::GetFlag(FLAGS_crash_path);
   bool run_failed = absl::GetFlag(FLAGS_run_failed);
@@ -227,15 +228,14 @@ TEST_F(GeneratedTester, Simple) {
     } else {
       crash_path = temp_dir;
     }
-    for (int i = seed; i < sample_count; i++) {
-      XLS_ASSERT_OK_AND_ASSIGN(
-          std::filesystem::path exec_filename,
-          xls::GetXlsRunfilePath(input_path + std::to_string(i)));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::filesystem::path exec_filename,
+        xls::GetXlsRunfilePath(input_path + std::to_string(seed)));
 
-      std::filesystem::path cc_filepath = exec_filename.string() + ".cc";
-      absl::Status status = RunExisting(cc_filepath, exec_filename);
-      XLS_EXPECT_OK(status) << "failed test case: " << std::to_string(i);
-    }
+    std::filesystem::path cc_filepath = exec_filename.string() + ".cc";
+    absl::Status status = RunExisting(cc_filepath, exec_filename);
+    XLS_EXPECT_OK(status)
+        << "failed test case: " << std::to_string(seed) << " " << cc_filepath;
   } else {
     absl::StatusOr<std::vector<std::filesystem::path>> files =
         xls::GetDirectoryEntries(crash_path);

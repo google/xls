@@ -27,78 +27,85 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
           All of the outputs of the fuzzing process.
           Including generated source code and binaries.
     """
-    all_outputs = []
+    cc_files = []
+    test_list = []
     for x in range(seed_count):
+        test_outputs = []
         seed = seed_start + x
-        srcfile = "{}_{}.cc".format(name, str(seed))
+        srcfile = "{}_{}.cc".format(name, seed)
+        cc_files.append(srcfile)
         cmd = "./$(location cc_generate_test) -seed=" + str(seed) + " --cc_filepath=$(OUTS) \
           --test_ac_int=" + str(test_ac_int) + " --test_ac_fixed=" + str(test_ac_fixed)
         native.genrule(
-            name = "fuzzfiles_{}_{}".format(name, str(seed)),
+            name = "fuzzfiles_{}_{}".format(name, seed),
             outs = [srcfile],
             cmd = cmd,
             tools = ["cc_generate_test"],
         )
 
         native.cc_binary(
-            name = "{}_{}".format(name, str(seed)),
+            name = "{}_{}".format(name, seed),
             srcs = [srcfile],
             deps = [
                 "@com_github_hlslibs_ac_types//:ac_int",
                 "@com_github_hlslibs_ac_types//:ac_fixed",
             ],
         )
-        all_outputs.append("{}_{}".format(name, str(seed)))
-        all_outputs.append(srcfile)
+        test_outputs.append("{}_{}".format(name, seed))
+        test_outputs.append(srcfile)
 
-    native.filegroup(
-        name = "{}_group".format(name),
-        data = all_outputs,
-    )
+        native.filegroup(
+            name = "{}_group_{}".format(name, seed),
+            data = test_outputs,
+        )
 
-    all_outputs.extend([
-        "//xls/contrib/xlscc:synth_only_headers",
-        "//xls/contrib/xlscc:xlscc",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
-    ])
+        test_outputs.extend([
+            "//xls/contrib/xlscc:synth_only_headers",
+            "//xls/contrib/xlscc:xlscc",
+            "@com_github_hlslibs_ac_types//:ac_types_as_data",
+        ])
 
-    native.cc_test(
+        native.cc_test(
+            name = "{}_{}_test".format(name, seed),
+            testonly = 1,
+            srcs = ["cc_fuzz_tester.cc"],
+            data = test_outputs,
+            args = [
+                "--seed={}".format(seed),
+                "--input_path=xls/contrib/xlscc/unit_tests/{}_".format(name),
+            ],
+            deps = [
+                ":cc_generator",
+                ":unit_test",
+                "@com_google_absl//absl/container:inlined_vector",
+                "@com_google_absl//absl/flags:flag",
+                "@com_google_absl//absl/status:statusor",
+                "@com_google_absl//absl/strings",
+                "@com_google_absl//absl/strings:str_format",
+                "//xls/codegen:combinational_generator",
+                "//xls/codegen:module_signature",
+                "//xls/common:init_xls",
+                "//xls/common:subprocess",
+                "//xls/common/file:filesystem",
+                "//xls/common/file:get_runfile_path",
+                "//xls/common/file:temp_directory",
+                "//xls/common/logging",
+                "//xls/common/status:matchers",
+                "//xls/common/status:status_macros",
+                "//xls/interpreter:ir_interpreter",
+                "//xls/ir",
+                "//xls/ir:events",
+                "//xls/ir:function_builder",
+                "//xls/ir:ir_test_base",
+                "//xls/ir:value",
+                "//xls/passes:optimization_pass_pipeline",
+                "//xls/simulation:module_simulator",
+                "//xls/simulation:verilog_simulators",
+            ] + deps,
+        )
+        test_list.append(":{}_{}_test".format(name, seed))
+    native.test_suite(
         name = name,
-        testonly = 1,
-        srcs = ["cc_fuzz_tester.cc"],
-        data = all_outputs,
-        args = [
-            "--seed={}".format(seed_start),
-            "--sample_count={}".format(seed_count),
-            "--input_path=xls/contrib/xlscc/unit_tests/{}_".format(name),
-        ],
-        deps = [
-            ":cc_generator",
-            ":unit_test",
-            "@com_google_absl//absl/container:inlined_vector",
-            "@com_google_absl//absl/flags:flag",
-            "@com_google_absl//absl/status:statusor",
-            "@com_google_absl//absl/strings",
-            "@com_google_absl//absl/strings:str_format",
-            "//xls/codegen:combinational_generator",
-            "//xls/codegen:module_signature",
-            "//xls/common:init_xls",
-            "//xls/common:subprocess",
-            "//xls/common/file:filesystem",
-            "//xls/common/file:get_runfile_path",
-            "//xls/common/file:temp_directory",
-            "//xls/common/logging",
-            "//xls/common/status:matchers",
-            "//xls/common/status:status_macros",
-            "//xls/interpreter:ir_interpreter",
-            "//xls/ir",
-            "//xls/ir:events",
-            "//xls/ir:function_builder",
-            "//xls/ir:ir_test_base",
-            "//xls/ir:value",
-            "//xls/passes:optimization_pass_pipeline",
-            "//xls/simulation:module_simulator",
-            "//xls/simulation:verilog_simulators",
-        ] + deps,
+        tests = test_list,
     )
-    return [DefaultInfo(files = depset(all_outputs))]
+    return [DefaultInfo(files = depset(cc_files))]

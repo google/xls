@@ -38,11 +38,9 @@ ABSL_FLAG(std::string, cc_filepath, "", "output file name");
 
 namespace {
 
-enum class TestType: uint8_t { kAcInt, kAcFixed };
-
-static bool GenerateTest(int seed, const std::string& filename, TestType type) {
-  std::string content = type == TestType::kAcInt ? xlscc::GenerateIntTest(seed)
-                                       : xlscc::GenerateFixedTest(seed);
+static bool GenerateTest(int seed, const std::string& filename,
+                         xlscc::VariableType type) {
+  std::string content = xlscc::GenerateTest(seed, type);
   std::cout << filename << '\n';
   absl::Status contents_set = xls::SetFileContents(filename, content);
   return contents_set.ok();
@@ -63,10 +61,10 @@ int main(int argc, char** argv) {
 
   bool success = true;
   if (absl::GetFlag(FLAGS_test_ac_fixed)) {
-    success &= GenerateTest(seed, cc_filepath, TestType::kAcFixed);
+    success &= GenerateTest(seed, cc_filepath, xlscc::VariableType::kAcFixed);
   }
   if (absl::GetFlag(FLAGS_test_ac_int)) {
-    success &= GenerateTest(seed, cc_filepath, TestType::kAcInt);
+    success &= GenerateTest(seed, cc_filepath, xlscc::VariableType::kAcInt);
   }
   return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
