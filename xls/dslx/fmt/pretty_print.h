@@ -235,6 +235,10 @@ class DocArena {
   // flat mode.
   DocRef break1() const { return break1_; }
 
+  // A doc that emits no text but claims to take infinite columns, which
+  // effectively forces the surrounding doc it's used in into break mode.
+  DocRef force_break_mode() const { return force_break_mode_; }
+
   // Some helpful text to have pre-defined and common.
   DocRef oparen() const { return oparen_; }
   DocRef cparen() const { return cparen_; }
@@ -276,6 +280,10 @@ class DocArena {
   DocRef hard_line_;
   DocRef break0_;
   DocRef break1_;
+
+  // Empty string but that we claim has infinite inline requirement, effectively
+  // forcing us into break mode.
+  DocRef force_break_mode_;
 
   // Some convenient often-used text fragments.
   DocRef oparen_;

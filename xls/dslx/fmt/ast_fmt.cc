@@ -569,6 +569,25 @@ static Pos AdjustCommentLimit(const Span& comment_span, DocArena& arena,
              std::numeric_limits<int32_t>::max());
 }
 
+static DocRef FmtSingleStatementBlockInline(const Block& n,
+                                            const Comments& comments,
+                                            bool add_curls, DocArena& arena) {
+  std::vector<DocRef> pieces;
+  if (add_curls) {
+    pieces = {arena.ocurl(), arena.break1()};
+  }
+
+  pieces.push_back(FmtStatement(*n.statements()[0], comments, arena,
+                                /*add_semi=*/n.trailing_semi()));
+
+  if (add_curls) {
+    pieces.push_back(arena.break1());
+    pieces.push_back(arena.ccurl());
+  }
+  DocRef block_group = ConcatNGroup(arena, pieces);
+  return arena.MakeFlatChoice(block_group, arena.MakeNest(block_group));
+}
+
 // Note: we only add leading/trailing spaces in the block if add_curls is true.
 static DocRef FmtBlock(const Block& n, const Comments& comments,
                        DocArena& arena, bool add_curls,
@@ -586,20 +605,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
   // We only want to flatten single-statement blocks -- multi-statement blocks
   // we always make line breaks between the statements.
   if (n.statements().size() == 1 && !force_multiline && !has_comments) {
-    std::vector<DocRef> pieces;
-    if (add_curls) {
-      pieces = {arena.ocurl(), arena.break1()};
-    }
-
-    pieces.push_back(FmtStatement(*n.statements()[0], comments, arena,
-                                  /*add_semi=*/n.trailing_semi()));
-
-    if (add_curls) {
-      pieces.push_back(arena.break1());
-      pieces.push_back(arena.ccurl());
-    }
-    DocRef block_group = ConcatNGroup(arena, pieces);
-    return arena.MakeFlatChoice(block_group, arena.MakeNest(block_group));
+    return FmtSingleStatementBlockInline(n, comments, add_curls, arena);
   }
 
   // Emit a '{' then nest to emit statements with semis, then emit a '}' outside
@@ -720,6 +726,12 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
   if (add_curls) {
     top.push_back(arena.hard_line());
     top.push_back(arena.ccurl());
+  } else {
+    // If we're not putting hard lines in we want to at least check that we'll
+    // force this all into break mode for multi-line emission.
+    //
+    // Note that the "inline block" case is handled specially above.
+    top.push_back(arena.force_break_mode());
   }
 
   return ConcatNGroup(arena, top);

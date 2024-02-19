@@ -425,6 +425,9 @@ DocArena::DocArena() {
   break1_ = DocRef{items_.size()};
   items_.emplace_back(Doc{1, FlatChoice{space_, hard_line_}});
 
+  force_break_mode_ = DocRef{items_.size()};
+  items_.emplace_back(Doc{InfinityRequirement(), ""});
+
   oparen_ = MakeText("(");
   cparen_ = MakeText(")");
   comma_ = MakeText(",");

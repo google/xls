@@ -187,6 +187,10 @@ class FunctionFmtTest : public testing::Test {
     std::optional<AutoFmtPostconditionViolation> maybe_violation =
         ObeysAutoFmtOpportunisticPostcondition(original, formatted);
     if (maybe_violation.has_value() && opportunistic_postcondition) {
+      XLS_LOG(ERROR) << "= original";
+      XLS_LOG_LINES(ERROR, original);
+      XLS_LOG(ERROR) << "= autofmt";
+      XLS_LOG_LINES(ERROR, formatted);
       XLS_LOG(ERROR) << "= original (transformed)";
       XLS_LOG_LINES(ERROR, maybe_violation->original_transformed);
       XLS_LOG(ERROR) << "= autofmt (transformed)";
@@ -486,6 +490,14 @@ TEST_F(FunctionFmtTest, MatchMultiPattern) {
     }
 })";
   EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, SingleStatementWithInlineComment) {
+  const std::string_view original = R"(fn f() {
+    ()  // inline comment here
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
 }
 
 TEST_F(FunctionFmtTest, MatchWithCommentsOnArms) {
