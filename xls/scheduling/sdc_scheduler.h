@@ -157,6 +157,7 @@ class SDCSchedulingModel {
       distances_to_node_;
 
   operations_research::math_opt::Variable last_stage_;
+  std::optional<operations_research::math_opt::Variable> last_stage_slack_;
 
   // Node's cycle after scheduling
   absl::flat_hash_map<Node*, operations_research::math_opt::Variable>

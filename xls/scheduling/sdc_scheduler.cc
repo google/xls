@@ -598,11 +598,17 @@ absl::Status SDCSchedulingModel::AddSlackVariables(
   }
   // Add slack variables to all relevant constraints.
 
-  // First, remove the upper bound on pipeline length, but try to minimize it
-  // (dropping any other objective we have). We assume users are most willing to
-  // relax this; i.e., they care about throughput more than latency.
-  model_.set_upper_bound(last_stage_, kInfinity);
-  model_.Minimize(last_stage_);
+  // Remove any pre-existing objective, and declare that we'll be minimizing our
+  // new objective.
+  model_.Minimize(0);
+
+  // First, try to minimize the depth of the pipeline. We assume users are most
+  // willing to relax this; i.e., they care about throughput more than latency.
+  if (last_stage_.upper_bound() < kInfinity) {
+    auto [last_stage_slack, last_stage_ub] = AddUpperBoundSlack(last_stage_);
+    model_.AddToObjective(last_stage_slack);
+    last_stage_slack_ = last_stage_slack;
+  }
 
   // Next, if this is a proc, relax the state back-edge length restriction (if
   // present). We assume users are reasonably willing to relax this; i.e., they
@@ -671,32 +677,40 @@ absl::Status SDCSchedulingModel::ExtractError(
     const math_opt::VariableMap<double>& variable_values) const {
   std::vector<std::string> problems;
   std::vector<std::string> suggestions;
-  double last_stage = variable_values.at(last_stage_);
-  if (last_stage > last_stage_.lower_bound() + 0.001) {
-    int64_t new_pipeline_length =
-        static_cast<int64_t>(std::ceil(last_stage)) + 1;
-    problems.push_back("the specified pipeline length");
-    suggestions.push_back(
-        absl::StrCat("`--pipeline_stages=", new_pipeline_length, "`"));
+  if (last_stage_slack_.has_value()) {
+    double last_stage_slack = variable_values.at(*last_stage_slack_);
+    if (last_stage_slack > 0.001) {
+      int64_t new_pipeline_length =
+          static_cast<int64_t>(std::round(variable_values.at(last_stage_))) + 1;
+      problems.push_back("the specified pipeline length");
+      suggestions.push_back(
+          absl::StrCat("`--pipeline_stages=", new_pipeline_length, "`"));
+    }
   }
   if (func_->IsProc() && shared_backedge_slack_.has_value()) {
     double backedge_slack = variable_values.at(*shared_backedge_slack_);
     if (backedge_slack > 0.001) {
       int64_t new_backedge_length =
           func_->AsProcOrDie()->GetInitiationInterval().value_or(1) +
-          static_cast<int64_t>(std::ceil(backedge_slack));
-      problems.push_back("full throughput");
+          static_cast<int64_t>(std::round(backedge_slack));
+      if (func_->AsProcOrDie()->GetInitiationInterval().value_or(1) == 1) {
+        problems.push_back("full throughput");
+      } else {
+        problems.push_back("the specified throughput");
+      }
       suggestions.push_back(
           absl::StrCat("`--worst_case_throughput=", new_backedge_length, "`"));
     }
     for (const auto& [nodes, node_backedge_var] : node_backedge_slack_) {
       double node_backedge = variable_values.at(node_backedge_var);
       if (node_backedge > 0.001) {
-        problems.push_back("full throughput");
+        if (problems.back() != "full throughput") {
+          problems.push_back("full throughput");
+        }
         suggestions.push_back(absl::StrFormat(
             "looking at paths between %v and %v (needs %d additional slack)",
             *nodes.first, *nodes.second,
-            static_cast<int64_t>(std::ceil(node_backedge))));
+            static_cast<int64_t>(std::round(node_backedge))));
       }
     }
   }
@@ -726,13 +740,13 @@ absl::Status SDCSchedulingModel::ExtractError(
     std::vector<std::string> latency_suggestions;
     if (min_slack > 0.001) {
       int64_t new_min_latency = io_constraint.MinimumLatency() -
-                                static_cast<int64_t>(std::ceil(min_slack));
+                                static_cast<int64_t>(std::round(min_slack));
       latency_suggestions.push_back(
           absl::StrCat("minimum latency ≤ ", new_min_latency));
     }
     if (max_slack > 0.001) {
       int64_t new_max_latency = io_constraint.MaximumLatency() +
-                                static_cast<int64_t>(std::ceil(max_slack));
+                                static_cast<int64_t>(std::round(max_slack));
       latency_suggestions.push_back(
           absl::StrCat("maximum latency ≥ ", new_max_latency));
     }
