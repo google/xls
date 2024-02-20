@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.6">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.10">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.50c56a3b.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.7e359304.min.css">
       
       
 
@@ -240,10 +240,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
@@ -298,10 +296,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
@@ -469,10 +465,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
@@ -647,10 +641,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
@@ -747,10 +739,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
@@ -855,10 +845,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
@@ -970,10 +958,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
@@ -1142,10 +1128,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
@@ -1259,10 +1243,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
@@ -1408,10 +1390,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
@@ -1550,10 +1530,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_6" >
@@ -1644,10 +1622,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
@@ -1702,10 +1678,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8_2" >
@@ -1979,6 +1953,8 @@ codegen can generate files useful for understanding or integrating the RTL.</p>
     signature describes the ports, channels, external memories, etc.</li>
 <li><code>--output_verilog_line_map_path</code> is the path to the verilog line map
     associating lines of verilog to lines of IR.</li>
+<li><code>--codegen_options_used_textproto_file</code> is the path to write a textproto
+    containing the actual configuration used for codegen.</li>
 </ul>
 <h1 id="pipelining-and-scheduling-options">Pipelining and Scheduling Options</h1>
 <p>The following flags control how XLS maps IR operations to RTL, and if applicable
@@ -2031,8 +2007,8 @@ control the scheduler.</p>
 <li><code>explain_infeasibility</code> configures what to do if scheduling fails. If set,
     the scheduling problem is reformulated with extra slack variables in an
     attempt to explain why scheduling failed.</li>
-<li><code>infeasible_per_state_backedge_slack_pool</code> If specified, the specified
-    value must be &gt; 0. Setting this configures how the scheduling problem is
+<li><code>infeasible_per_state_backedge_slack_pool</code> If specified, the specified value
+    must be &gt; 0. Setting this configures how the scheduling problem is
     reformulated in the case that scheduling fails. If specified, this value
     will cause the reformulated problem to include per-state backedge slack
     variables, which increases the complexity. This value scales the objective
@@ -2041,6 +2017,8 @@ control the scheduler.</p>
     slack variable is preferred. Increasing this value should give more specific
     information about how much slack each failing backedge needs at the cost of
     less actionable and harder to understand output.</li>
+<li><code>--scheduling_options_used_textproto_file</code> is the path to write a textproto
+    containing the actual configuration used for scheduling.</li>
 </ul>
 <h1 id="feedback-driven-optimization-fdo-options">Feedback-driven Optimization (FDO) Options</h1>
 <p>The following flags control the feedback-driven optimizations in XLS. For now,
@@ -2049,7 +2027,7 @@ feedbacks (typically from downstream tools, e.g., OpenROAD) to guide the delay
 estimation refinements in XLS. For now, FDO is disabled by default
 (<code>--use_fdo=false</code>).</p>
 <ul>
-<li><code>--use_fdo=true/false</code> Enable FDO.  If false, then the <code>--fdo_*</code> options are
+<li><code>--use_fdo=true/false</code> Enable FDO. If false, then the <code>--fdo_*</code> options are
     ignored.</li>
 <li><code>--fdo_iteration_number=...</code> The number of FDO iterations during the
     pipeline scheduling. Must be an integer &gt;= 2.</li>
@@ -2061,16 +2039,18 @@ estimation refinements in XLS. For now, FDO is disabled by default
     refinement_stochastic_ratio paths are extracted and *path_number paths are
     randomly selected from them for synthesis in each FDO iteration. Must be a
     positive float &lt;= 1.0.</li>
-<li><code>--fdo_path_evaluate_strategy=...</code> Support path, cone, and window for now.</li>
-<li><code>--fdo_synthesizer_name=...</code> Only support yosys for now.</li>
-<li><code>--fdo_yosys_path=...</code> Absolute path of Yosys.</li>
+<li><code>--fdo_path_evaluate_strategy=...</code> Path evaluation strategy for FDO.
+    Supports path, cone, and window.</li>
+<li><code>--fdo_synthesizer_name=...</code> Name of synthesis backend for FDO. Only
+    supports yosys.</li>
+<li><code>--fdo_yosys_path=...</code> Absolute path of yosys.</li>
 <li><code>--fdo_sta_path=...</code> Absolute path of OpenSTA.</li>
 <li><code>--fdo_synthesis_libraries=...</code> Synthesis and STA libraries.</li>
 </ul>
 <h1 id="naming">Naming</h1>
 <p>Some names can be set at codegen via the following flags:</p>
 <ul>
-<li><code>--module_name=...</code> sets the name of the generated verilog module</li>
+<li><code>--module_name=...</code> sets the name of the generated verilog module.</li>
 <li>For functions, <code>--input_valid_signal=...</code> and <code>--output_valid_signal=...</code>
     adds and sets the name of valid signals when <code>--generator</code> is set to
     <code>pipeline</code>.</li>
@@ -2101,6 +2081,7 @@ estimation refinements in XLS. For now, FDO is disabled by default
     <code>@always_ff</code>, asserts, covers, etc. True by default.</li>
 <li><code>--separate_lines</code> causes every subexpression to be emitted on a separate
     line. False by default.</li>
+<li><code>--multi_proc</code> causes every proc to be codegen'd.</li>
 </ul>
 <h2 id="format-strings">Format Strings</h2>
 <p>For some XLS ops, flags can override their default codegen behavior via format
@@ -2201,7 +2182,7 @@ string. These format strings use placeholders to fill in relevant information.</
 </code></pre></div>
 <p><img alt="Zero Latency Buffer" src="../zero_latency_buffer.svg" /></p>
 <ul>
-<li><code>--flop_single_value_channels</code> control if single-value channels should be
+<li><code>--flop_single_value_channels</code> controls if single-value channels should be
     flopped.</li>
 </ul>
 <ul>
@@ -2212,12 +2193,11 @@ string. These format strings use placeholders to fill in relevant information.</
 </li>
 </ul>
 <ul>
-<li>For functions, when <code>--generator</code> is set to <code>pipeline</code>,
-    optional 'valid' logic can be added by using
-    <code>--input_valid_signal=...</code> and <code>--output_valid_signal=...</code>,
-    which also set the names for the valid I/O signals.  This logic
-    has no 'ready' signal and thus provides no backpressure.  See
-    also <a href="#naming">Naming</a>.</li>
+<li>For functions, when <code>--generator</code> is set to <code>pipeline</code>, optional 'valid'
+    logic can be added by using <code>--input_valid_signal=...</code> and
+    <code>--output_valid_signal=...</code>, which also set the names for the valid I/O
+    signals. This logic has no 'ready' signal and thus provides no backpressure.
+    See also <a href="#naming">Naming</a>.</li>
 </ul>
 <ul>
 <li>See also <a href="#reset-signal-configuration">Reset Signal Configuration</a>.</li>
@@ -2334,7 +2314,7 @@ response-receive are scheduled to match the RAM's latency.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.e1c3ead8.min.js"></script>
+      <script src="../assets/javascripts/bundle.8fd75fb4.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.6">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.10">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.50c56a3b.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.7e359304.min.css">
       
       
 
@@ -240,10 +240,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
@@ -298,10 +296,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
@@ -469,10 +465,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
@@ -647,10 +641,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
@@ -747,10 +739,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
@@ -855,10 +845,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
@@ -972,10 +960,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
@@ -1707,6 +1693,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Unit Tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test Filtering
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1854,10 +1855,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
@@ -1961,10 +1960,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
@@ -2110,10 +2107,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
@@ -2252,10 +2247,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_6" >
@@ -2346,10 +2339,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
@@ -2404,10 +2395,8 @@
     
     
     
-    
     <li class="md-nav__item md-nav__item--nested">
       
-        
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8_2" >
@@ -3274,6 +3263,21 @@
       Unit Tests
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Unit Tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test Filtering
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -4774,7 +4778,7 @@ associativity and will be grouped accordingly.</p>
 <td>Left to right</td>
 </tr>
 <tr>
-<td><code>&lt;&lt;</code> <code>&gt;&gt;</code> <code>&gt;&gt;&gt;</code></td>
+<td><code>&lt;&lt;</code> <code>&gt;&gt;</code></td>
 <td>Left to right</td>
 </tr>
 <tr>
@@ -4786,7 +4790,7 @@ associativity and will be grouped accordingly.</p>
 <td>Left to right</td>
 </tr>
 <tr>
-<td><code>\|</code></td>
+<td><code>|</code></td>
 <td>Left to right</td>
 </tr>
 <tr>
@@ -4798,7 +4802,7 @@ associativity and will be grouped accordingly.</p>
 <td>Left to right</td>
 </tr>
 <tr>
-<td><code>\|\|</code></td>
+<td><code>||</code></td>
 <td>Left to right</td>
 </tr>
 </tbody>
@@ -4826,6 +4830,19 @@ called by unit tests are also converted to XLS IR and run through the
 toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
 LLVM JIT are compared against each other to assert equality. This is to ensure
 DSLX implementations are IR-convertible and that IR translation is correct.</p>
+<h4 id="test-filtering">Test Filtering</h4>
+<p>The DSLX main (runner) binary can also filter what tests are run from a file via
+the <code>--test_filter=REGEXP</code> flag.</p>
+<p>Unit tests run via Bazel can also be filtered via the typical Bazel
+<code>--test_filter</code> flag; i.e.</p>
+<div class="highlight"><pre><span></span><code>bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed
+</code></pre></div>
+<p>vs selecting one test:</p>
+<div class="highlight"><pre><span></span><code>bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed --test_filter=one_x_one_plus_one_f32
+</code></pre></div>
+<p>vs selecting multiple tests to run via regular expression:</p>
+<div class="highlight"><pre><span></span><code>bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed --test_filter=.*f32.*
+</code></pre></div>
 <h3 id="quickcheck">QuickCheck</h3>
 <p>QuickCheck is a <a href="https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf">testing framework concept</a> founded on
 property-based testing. Instead of specifying expected and test values,
@@ -4913,7 +4930,7 @@ production can be found in the execution log.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.e1c3ead8.min.js"></script>
+      <script src="../assets/javascripts/bundle.8fd75fb4.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
