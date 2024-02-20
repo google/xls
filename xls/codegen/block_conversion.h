@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_BLOCK_CONVERSION_H_
 #define XLS_CODEGEN_BLOCK_CONVERSION_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,7 +27,10 @@
 #include "xls/ir/block.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
@@ -98,7 +102,7 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
     std::string_view name_prefix,
     const std::optional<xls::Reset>& reset_behavior, Block* block,
-    std::vector<Node*>& valid_nodes);
+    std::vector<std::optional<Node*>>& valid_nodes);
 
 }  // namespace verilog
 }  // namespace xls

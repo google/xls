@@ -160,7 +160,7 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     XLS_RETURN_IF_ERROR(block->RemoveNode(n));
   }
   if (!to_remove.empty()) {
-    unit->GcNodeMap();
+    unit->GcMetadata();
   }
 
   return !to_remove.empty();

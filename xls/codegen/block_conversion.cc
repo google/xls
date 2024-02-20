@@ -134,13 +134,15 @@ static absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
 // by each stage. Gather the pipelined valid signal in a vector where the
 // zero-th element is the input port and subsequent elements are the pipelined
 // valid signal from each stage.
-static absl::StatusOr<std::vector<Node*>> MakePipelineStagesForValid(
+static absl::StatusOr<std::vector<std::optional<Node*>>>
+MakePipelineStagesForValid(
     Node* valid_input_port,
     absl::Span<const PipelineStageRegisters> pipeline_registers,
     const std::optional<xls::Reset>& reset_behavior, Block* block) {
   Type* u1 = block->package()->GetBitsType(1);
 
-  std::vector<Node*> pipelined_valids(pipeline_registers.size() + 1);
+  std::vector<std::optional<Node*>> pipelined_valids(pipeline_registers.size() +
+                                                     1);
   pipelined_valids[0] = valid_input_port;
 
   for (int64_t stage = 0; stage < pipeline_registers.size(); ++stage) {
@@ -150,7 +152,7 @@ static absl::StatusOr<std::vector<Node*>> MakePipelineStagesForValid(
                                             u1, reset_behavior));
     XLS_RETURN_IF_ERROR(block
                             ->MakeNode<RegisterWrite>(
-                                /*loc=*/SourceInfo(), pipelined_valids[stage],
+                                /*loc=*/SourceInfo(), *pipelined_valids[stage],
                                 /*load_enable=*/std::nullopt,
                                 /*reset=*/block->GetResetPort(), valid_reg)
                             .status());
@@ -172,9 +174,10 @@ static absl::Status MakePipelineStagesForValidIO(
   std::vector<Node*>& recvs_valid = streaming_io.all_active_inputs_valid;
   std::vector<PipelineStageRegisters>& pipeline_registers =
       streaming_io.pipeline_registers;
-  std::vector<Node*>& pipeline_valid = streaming_io.pipeline_valid;
-  std::vector<Node*>& stage_valid = streaming_io.stage_valid;
-  std::vector<Node*>& stage_done = streaming_io.stage_done;
+  std::vector<std::optional<Node*>>& pipeline_valid =
+      streaming_io.pipeline_valid;
+  std::vector<std::optional<Node*>>& stage_valid = streaming_io.stage_valid;
+  std::vector<std::optional<Node*>>& stage_done = streaming_io.stage_done;
   std::vector<Node*>& states_valid = streaming_io.all_active_states_valid;
   std::vector<Node*>& sends_ready = streaming_io.all_active_outputs_ready;
 
@@ -209,7 +212,7 @@ static absl::Status MakePipelineStagesForValidIO(
         block->MakeNodeWithName<xls::NaryOp>(
             /*loc=*/SourceInfo(),
             std::vector<xls::Node*>{
-                stage_valid[stage],
+                *stage_valid[stage],
                 recvs_valid[stage],
                 sends_ready[stage],
             },
@@ -223,7 +226,7 @@ static absl::Status MakePipelineStagesForValidIO(
                              reset_behavior));
       XLS_RETURN_IF_ERROR(block
                               ->MakeNode<RegisterWrite>(
-                                  /*loc=*/SourceInfo(), stage_done[stage],
+                                  /*loc=*/SourceInfo(), *stage_done[stage],
                                   /*load_enable=*/std::nullopt,
                                   /*reset=*/block->GetResetPort(), valid_reg)
                               .status());
@@ -235,7 +238,7 @@ static absl::Status MakePipelineStagesForValidIO(
           block->MakeNodeWithName<NaryOp>(
               SourceInfo(),
               std::vector<Node*>{states_valid[stage + 1],
-                                 pipeline_valid[stage + 1]},
+                                 *pipeline_valid[stage + 1]},
               Op::kAnd, PipelineSignalName("stage_valid", stage + 1)));
     }
   }
@@ -397,8 +400,8 @@ struct BubbleFlowControl {
 //
 static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
     absl::Span<Node* const> output_ready_nodes, const CodegenOptions& options,
-    absl::Span<Node* const> pipeline_valid_nodes,
-    absl::Span<Node* const> pipeline_done_nodes,
+    absl::Span<std::optional<Node*> const> pipeline_valid_nodes,
+    absl::Span<std::optional<Node*> const> pipeline_done_nodes,
     absl::Span<PipelineStageRegisters> pipeline_data_registers,
     absl::Span<std::optional<StateRegister>> state_registers, Block* block) {
   // Create enable signals for each pipeline stage.
@@ -443,18 +446,18 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
       enable_n.at(stage_count - 1),
       block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
   result.data_load_enable.at(stage_count - 1) =
-      pipeline_done_nodes.at(stage_count - 1);
+      *pipeline_done_nodes.at(stage_count - 1);
 
   std::vector<Node*> state_enables;
   state_enables.resize(stage_count, nullptr);
-  state_enables.at(stage_count - 1) = pipeline_done_nodes.at(stage_count - 1);
+  state_enables.at(stage_count - 1) = *pipeline_done_nodes.at(stage_count - 1);
 
   for (int64_t stage = stage_count - 2; stage >= 0; --stage) {
     // Create load enables for valid registers.
     XLS_ASSIGN_OR_RETURN(
         Node * not_valid_np1,
         block->MakeNodeWithName<UnOp>(
-            /*loc=*/SourceInfo(), pipeline_valid_nodes.at(stage + 1), Op::kNot,
+            /*loc=*/SourceInfo(), *pipeline_valid_nodes.at(stage + 1), Op::kNot,
             PipelineSignalName("not_valid", stage + 1)));
 
     XLS_ASSIGN_OR_RETURN(
@@ -468,7 +471,7 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
 
     // Update valid registers with load enables.
     RegisterRead* valid_reg_read =
-        pipeline_valid_nodes.at(stage + 1)->As<RegisterRead>();
+        pipeline_valid_nodes.at(stage + 1).value()->As<RegisterRead>();
     XLS_RET_CHECK(valid_reg_read != nullptr);
     Register* valid_reg = valid_reg_read->GetRegister();
     XLS_ASSIGN_OR_RETURN(RegisterWrite * valid_reg_write,
@@ -483,7 +486,7 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
 
     // Create load enables for datapath registers.
     std::vector<Node*> data_en_operands = {enable,
-                                           pipeline_done_nodes.at(stage)};
+                                           *pipeline_done_nodes.at(stage)};
     XLS_ASSIGN_OR_RETURN(Node * data_enable,
                          block->MakeNodeWithName<NaryOp>(
                              SourceInfo(), data_en_operands, Op::kAnd,
@@ -708,7 +711,7 @@ static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
 static absl::StatusOr<ValidPorts> AddValidSignal(
     absl::Span<PipelineStageRegisters> pipeline_registers,
     const CodegenOptions& options, Block* block,
-    std::vector<Node*>& pipelined_valids) {
+    std::vector<std::optional<Node*>>& pipelined_valids) {
   // Add valid input port.
   XLS_RET_CHECK(options.valid_control().has_value());
   if (options.valid_control()->input_name().empty()) {
@@ -739,7 +742,7 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
     if (!pipeline_registers.at(stage).empty()) {
       XLS_ASSIGN_OR_RETURN(
           Node * load_enable,
-          MakeOrWithResetNode(pipelined_valids[stage],
+          MakeOrWithResetNode(*pipelined_valids[stage],
                               PipelineSignalName("load_en", stage),
                               reset_behavior, block));
 
@@ -767,7 +770,7 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
     XLS_ASSIGN_OR_RETURN(
         valid_output_port,
         block->AddOutputPort(options.valid_control()->output_name(),
-                             pipelined_valids.back()));
+                             pipelined_valids.back().value()));
   }
 
   return ValidPorts{valid_input_port, valid_output_port};
@@ -798,7 +801,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
                                    Block* block) {
   for (const auto& inputs : io.inputs) {
     for (const StreamingInput& input : inputs) {
-      XLS_CHECK_NE(input.port, nullptr);
+      XLS_CHECK_NE(*input.port, nullptr);
       XLS_CHECK_NE(input.port_valid, nullptr);
       XLS_CHECK_NE(input.port_ready, nullptr);
       XLS_CHECK_NE(input.channel, nullptr);
@@ -806,7 +809,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       XLS_CHECK(input.IsExternal() || input.IsInstantiation());
 
       input.channel->SetBlockName(block->name());
-      XLS_ASSIGN_OR_RETURN(std::string name, StreamingIOName(input.port));
+      XLS_ASSIGN_OR_RETURN(std::string name, StreamingIOName(*input.port));
       input.channel->SetDataPortName(name);
       XLS_ASSIGN_OR_RETURN(name, StreamingIOName(input.port_valid));
       input.channel->SetValidPortName(name);
@@ -819,7 +822,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 
   for (const auto& outputs : io.outputs) {
     for (const StreamingOutput& output : outputs) {
-      XLS_CHECK_NE(output.port, nullptr);
+      XLS_CHECK_NE(*output.port, nullptr);
       XLS_CHECK_NE(output.port_valid, nullptr);
       XLS_CHECK_NE(output.port_ready, nullptr);
       XLS_CHECK_NE(output.channel, nullptr);
@@ -827,7 +830,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       XLS_CHECK(output.IsExternal() || output.IsInstantiation());
 
       output.channel->SetBlockName(block->name());
-      XLS_ASSIGN_OR_RETURN(std::string name, StreamingIOName(output.port));
+      XLS_ASSIGN_OR_RETURN(std::string name, StreamingIOName(*output.port));
       output.channel->SetDataPortName(name);
       XLS_ASSIGN_OR_RETURN(name, StreamingIOName(output.port_valid));
       output.channel->SetValidPortName(name);
@@ -979,7 +982,8 @@ static absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
     for (StreamingInput& streaming_input : streaming_inputs[stage]) {
       // Input ports for input channels are already created during
       // HandleReceiveNode().
-      Node* streaming_input_valid = streaming_input.signal_valid;
+      XLS_RET_CHECK(streaming_input.signal_valid.has_value());
+      Node* streaming_input_valid = *streaming_input.signal_valid;
 
       if (streaming_input.predicate.has_value()) {
         // Logic for the active valid signal for a Receive operation with a
@@ -1056,7 +1060,7 @@ static absl::Status MakeOutputValidPortsForOutputChannels(
         XLS_ASSIGN_OR_RETURN(
             streaming_output.port_valid,
             block->MakeNode<xls::InstantiationInput>(
-                streaming_output.port->loc(), valid,
+                streaming_output.port.value()->loc(), valid,
                 streaming_output.fifo_instantiation.value(), "push_valid"));
       } else {
         XLS_ASSIGN_OR_RETURN(
@@ -1093,7 +1097,7 @@ static absl::Status MakeOutputReadyPortsForInputChannels(
         XLS_ASSIGN_OR_RETURN(
             streaming_input.port_ready,
             block->MakeNode<xls::InstantiationInput>(
-                streaming_input.port->loc(), ready,
+                streaming_input.port.value()->loc(), ready,
                 streaming_input.fifo_instantiation.value(), "pop_ready"));
       } else {
         XLS_ASSIGN_OR_RETURN(
@@ -1177,7 +1181,7 @@ static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
     std::string_view name_prefix,
     const std::optional<xls::Reset>& reset_behavior, Block* block,
-    std::vector<Node*>& valid_nodes) {
+    std::vector<std::optional<Node*>>& valid_nodes) {
   XLS_CHECK_EQ(from_rdy->operand_count(), 1);
 
   // Add a node for load_enables (will be removed later).
@@ -1353,7 +1357,7 @@ static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
     std::string_view name_prefix,
     const std::optional<xls::Reset>& reset_behavior, Block* block,
-    std::vector<Node*>& valid_nodes) {
+    std::vector<std::optional<Node*>>& valid_nodes) {
   XLS_CHECK_EQ(from_rdy->operand_count(), 1);
 
   XLS_ASSIGN_OR_RETURN(RegisterRead * data_reg_read,
@@ -1403,26 +1407,27 @@ static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
 // Adds a register after the input streaming channel's data and valid.
 static absl::StatusOr<Node*> AddRegisterAfterStreamingInput(
     StreamingInput& input, const CodegenOptions& options, Block* block,
-    std::vector<Node*>& valid_nodes) {
+    std::vector<std::optional<Node*>>& valid_nodes) {
   const std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
 
-  XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(input.port));
+  XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(*input.port));
   if (options.flop_inputs_kind() ==
       CodegenOptions::IOKind::kZeroLatencyBuffer) {
-    return AddZeroLatencyBufferToRDVNodes(input.port, input.port_valid,
+    return AddZeroLatencyBufferToRDVNodes(*input.port, input.port_valid,
                                           input.port_ready, port_name,
                                           reset_behavior, block, valid_nodes);
   }
 
   if (options.flop_inputs_kind() == CodegenOptions::IOKind::kSkidBuffer) {
-    return AddSkidBufferToRDVNodes(input.port, input.port_valid,
+    return AddSkidBufferToRDVNodes(*input.port, input.port_valid,
                                    input.port_ready, port_name, reset_behavior,
                                    block, valid_nodes);
   }
 
   if (options.flop_inputs_kind() == CodegenOptions::IOKind::kFlop) {
-    return AddRegisterToRDVNodes(input.port, input.port_valid, input.port_ready,
-                                 port_name, reset_behavior, block, valid_nodes);
+    return AddRegisterToRDVNodes(*input.port, input.port_valid,
+                                 input.port_ready, port_name, reset_behavior,
+                                 block, valid_nodes);
   }
 
   return absl::UnimplementedError(absl::StrFormat(
@@ -1434,11 +1439,11 @@ static absl::StatusOr<Node*> AddRegisterAfterStreamingInput(
 // Returns the node for the register_read of the data.
 static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
     StreamingOutput& output, const CodegenOptions& options, Block* block,
-    std::vector<Node*>& valid_nodes) {
+    std::vector<std::optional<Node*>>& valid_nodes) {
   // Add buffers before the data/valid output ports and after
   // the ready input port to serve as points where the
   // additional logic from AddRegisterToRDVNodes() can be inserted.
-  XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(output.port));
+  XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(*output.port));
   XLS_ASSIGN_OR_RETURN(std::string port_valid_name,
                        StreamingIOName(output.port_valid));
   XLS_ASSIGN_OR_RETURN(std::string port_ready_name,
@@ -1446,12 +1451,13 @@ static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
   std::string data_buf_name = absl::StrFormat("__%s_buf", port_name);
   std::string valid_buf_name = absl::StrFormat("__%s_buf", port_valid_name);
   std::string ready_buf_name = absl::StrFormat("__%s_buf", port_ready_name);
-  XLS_ASSIGN_OR_RETURN(Node * output_port_data_buf,
-                       block->MakeNodeWithName<UnOp>(
-                           /*loc=*/SourceInfo(), output.port->operand(0),
-                           Op::kIdentity, data_buf_name));
+  XLS_ASSIGN_OR_RETURN(
+      Node * output_port_data_buf,
+      block->MakeNodeWithName<UnOp>(
+          /*loc=*/SourceInfo(), output.port.value()->operand(0), Op::kIdentity,
+          data_buf_name));
   XLS_RETURN_IF_ERROR(
-      output.port->ReplaceOperandNumber(0, output_port_data_buf));
+      output.port.value()->ReplaceOperandNumber(0, output_port_data_buf));
 
   XLS_ASSIGN_OR_RETURN(Node * output_port_valid_buf,
                        block->MakeNodeWithName<UnOp>(
@@ -1501,10 +1507,9 @@ static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
 // Ready is asserted if the input is ready and either a) the flop
 // is invalid; or b) the flop is valid but the pipeline will accept the data,
 // on the next clock tick.
-static absl::Status AddInputOutputFlops(const CodegenOptions& options,
-                                        StreamingIOPipeline& streaming_io,
-                                        Block* block,
-                                        std::vector<Node*>& valid_nodes) {
+static absl::Status AddInputOutputFlops(
+    const CodegenOptions& options, StreamingIOPipeline& streaming_io,
+    Block* block, std::vector<std::optional<Node*>>& valid_nodes) {
   absl::flat_hash_set<Node*> handled_io_nodes;
 
   // Flop streaming inputs.
@@ -1515,7 +1520,7 @@ static absl::Status AddInputOutputFlops(const CodegenOptions& options,
             AddRegisterAfterStreamingInput(input, options, block, valid_nodes)
                 .status());
 
-        handled_io_nodes.insert(input.port);
+        handled_io_nodes.insert(*input.port);
         handled_io_nodes.insert(input.port_valid);
       }
 
@@ -1533,7 +1538,7 @@ static absl::Status AddInputOutputFlops(const CodegenOptions& options,
                                                              block, valid_nodes)
                                 .status());
 
-        handled_io_nodes.insert(output.port);
+        handled_io_nodes.insert(*output.port);
         handled_io_nodes.insert(output.port_valid);
       }
 
@@ -1714,7 +1719,8 @@ static absl::Status AddOneShotOutputLogic(const CodegenOptions& options,
       // Add an buffers before the valid output ports and after
       // the ready input port to serve as points where the
       // additional logic from AddRegisterToRDVNodes() can be inserted.
-      XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(output.port));
+      XLS_ASSIGN_OR_RETURN(std::string port_name,
+                           StreamingIOName(*output.port));
       XLS_ASSIGN_OR_RETURN(std::string port_valid_name,
                            StreamingIOName(output.port_valid));
       XLS_ASSIGN_OR_RETURN(std::string port_ready_name,
@@ -1758,10 +1764,10 @@ static absl::Status AddOneShotOutputLogic(const CodegenOptions& options,
 //
 // TODO(tedhong): 2022-02-01 There may be some redundancy between B and C,
 // Create an optimization pass within the codegen pipeline to remove it.
-static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
-                                  StreamingIOPipeline& streaming_io,
-                                  Block* block) {
-  // The block is not idle (and is implcitly valid), if there are no
+static absl::Status AddIdleOutput(
+    std::vector<std::optional<Node*>>& valid_nodes,
+    StreamingIOPipeline& streaming_io, Block* block) {
+  // The block is not idle (and is implicitly valid), if there are no
   // active recvs that can block it.
   XLS_ASSIGN_OR_RETURN(Node * stage_0_has_no_active_recvs,
                        Stage0HasNoActiveRecvs(streaming_io.inputs, block));
@@ -1769,6 +1775,7 @@ static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
 
   for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
+      XLS_RET_CHECK(input.signal_valid.has_value());
       valid_nodes.push_back(input.signal_valid);
     }
   }
@@ -1779,7 +1786,18 @@ static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(Node * idle_signal, NaryNorIfNeeded(block, valid_nodes));
+  Node* idle_signal;
+  {
+    std::vector<Node*> valid_nodes_no_optional;
+    valid_nodes_no_optional.reserve(valid_nodes.size());
+    for (const std::optional<Node*>& valid_node : valid_nodes) {
+      if (valid_node.has_value()) {
+        valid_nodes_no_optional.push_back(*valid_node);
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(idle_signal,
+                         NaryNorIfNeeded(block, valid_nodes_no_optional));
+  }
 
   XLS_ASSIGN_OR_RETURN(streaming_io.idle_port,
                        block->AddOutputPort("idle", idle_signal));
@@ -1795,7 +1813,7 @@ static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
 // any used input channel is invalid, the node represented by ret[0] will
 // be invalid (see MakeInputValidPortsForInputChannels() and
 // MakePipelineStagesForValid().
-static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
+static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
     const CodegenOptions& options, StreamingIOPipeline& streaming_io,
     Block* block) {
   int64_t stage_count = streaming_io.pipeline_registers.size() + 1;
@@ -1868,10 +1886,19 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
   XLS_VLOG(3) << "After Bubble Flow Control (pipeline)";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
-      all_active_inputs_valid, streaming_io.stage_valid,
-      bubble_flow_control.next_stage_open, streaming_io.outputs, valid_suffix,
-      block));
+  {
+    // MakeOutputValidPortsForOutputChannels takes a std::vector<Node*>, not
+    // std::vector<std::optional<Node*>>.
+    std::vector<Node*> stage_valid_no_option;
+    stage_valid_no_option.reserve(streaming_io.stage_valid.size());
+    for (const std::optional<Node*>& stage_valid : streaming_io.stage_valid) {
+      stage_valid_no_option.push_back(*stage_valid);
+    }
+    XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
+        all_active_inputs_valid, stage_valid_no_option,
+        bubble_flow_control.next_stage_open, streaming_io.outputs, valid_suffix,
+        block));
+  }
 
   XLS_VLOG(3) << "After Outputs Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1882,7 +1909,7 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
         Node * input_stage_enable,
         UpdateSingleStagePipelineWithFlowControl(
             bubble_flow_control.data_load_enable.front(),
-            streaming_io.stage_done.at(0),
+            *streaming_io.stage_done.at(0),
             absl::MakeSpan(streaming_io.state_registers), block));
     bubble_flow_control.data_load_enable = {input_stage_enable};
   }
@@ -1905,8 +1932,8 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
 static absl::Status AddCombinationalFlowControl(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    std::vector<Node*>& stage_valid, const CodegenOptions& options,
-    Block* block) {
+    std::vector<std::optional<Node*>>& stage_valid,
+    const CodegenOptions& options, Block* block) {
   std::string_view valid_suffix = options.streaming_channel_valid_suffix();
   std::string_view ready_suffix = options.streaming_channel_ready_suffix();
 
@@ -2847,7 +2874,7 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
     std::string_view name_prefix,
     const std::optional<xls::Reset>& reset_behavior, Block* block,
-    std::vector<Node*>& valid_nodes) {
+    std::vector<std::optional<Node*>>& valid_nodes) {
   XLS_CHECK_EQ(from_rdy->operand_count(), 1);
 
   // Add a node for load_enables (will be removed later).
@@ -3120,7 +3147,7 @@ absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
   XLS_RET_CHECK_OK(MaybeAddResetPort(unit.block, options));
 
   XLS_ASSIGN_OR_RETURN(
-      std::vector<Node*> pipelined_valids,
+      std::vector<std::optional<Node*>> pipelined_valids,
       AddBubbleFlowControl(options, unit.streaming_io_and_pipeline,
                            unit.block));
 
@@ -3172,7 +3199,7 @@ absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
   XLS_VLOG_LINES(3, unit.block->DumpIr());
 
   // Avoid leaving any dangling pointers.
-  unit.GcNodeMap();
+  unit.GcMetadata();
 
   return unit;
 }
@@ -3230,7 +3257,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
 
   CodegenPassUnit unit(block->package(), block);
   unit.conversion_metadata.emplace<FunctionConversionMetadata>();
-  unit.GcNodeMap();
+  unit.GcMetadata();
   return unit;
 }
 
@@ -3308,7 +3335,7 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
   XLS_VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, unit.block->DumpIr());
 
-  unit.GcNodeMap();
+  unit.GcMetadata();
   return unit;
 }
 

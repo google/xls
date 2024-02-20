@@ -16,12 +16,14 @@
 
 #include <cstdint>
 #include <initializer_list>
+#include <optional>
 #include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/logging/logging.h"
@@ -132,14 +134,17 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
   // pipeline_valid.
   // TODO(google/xls#1060): revisit this when function- and proc-specific
   // metadata are refactored.
-  const std::vector<Node*>& stage_guards =
-      is_function
-          ? streaming_io.pipeline_valid
-          // If we're looking at a proc, stage_done is used for pipelined procs
-          // and stage_valid is used for combinational procs. Check if
-          // stage_done is empty- if it is, use stage_valid.
-          : (streaming_io.stage_done.empty() ? streaming_io.stage_valid
-                                             : streaming_io.stage_done);
+  absl::Span<std::optional<Node*> const> stage_guards;
+  if (is_function) {
+    stage_guards = streaming_io.pipeline_valid;
+  } else if (streaming_io.stage_done.empty()) {
+    // If we're looking at a proc, stage_done is used for pipelined procs
+    // and stage_valid is used for combinational procs. Check if
+    // stage_done is empty- if it is, use stage_valid.
+    stage_guards = streaming_io.stage_valid;
+  } else {
+    stage_guards = streaming_io.stage_done;
+  }
   if (stage_guards.empty()) {
     return absl::InternalError("No stage guards found for side-effecting ops.");
   }
@@ -155,13 +160,15 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
     int64_t condition_stage = itr->second;
     XLS_VLOG(5) << absl::StreamFormat("Condition is in stage %d.",
                                       condition_stage);
-    Node* stage_guard = stage_guards[condition_stage];
+    std::optional<Node*> stage_guard = stage_guards[condition_stage];
+    XLS_RET_CHECK(stage_guard.has_value()) << absl::StreamFormat(
+        "Stage guard not found for stage %d.", condition_stage);
     XLS_ASSIGN_OR_RETURN(int64_t condition_operand,
                          GetConditionOperandNumber(node));
     XLS_ASSIGN_OR_RETURN(
         Node * guarded_condition,
         MakeGuardedConditionForOp(node->op(), node->operand(condition_operand),
-                                  stage_guard, block));
+                                  *stage_guard, block));
     XLS_RETURN_IF_ERROR(
         node->ReplaceOperandNumber(condition_operand, guarded_condition));
     changed = true;

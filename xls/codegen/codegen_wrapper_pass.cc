@@ -29,7 +29,7 @@ absl::StatusOr<bool> CodegenWrapperPass::RunInternal(
       bool res, wrapped_pass_->RunOnFunctionBase(
                     unit->block, OptimizationPassOptions(options), results));
   if (res) {
-    unit->GcNodeMap();
+    unit->GcMetadata();
   }
   return res;
 }

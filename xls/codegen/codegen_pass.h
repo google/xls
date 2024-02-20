@@ -18,11 +18,11 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -64,7 +64,7 @@ using Stage = int64_t;
 struct StreamingInput {
   // Note that these ports can either be external I/Os or be ports from a FIFO
   // instantiation.
-  Node* port;
+  std::optional<Node*> port;
   Node* port_valid;
   Node* port_ready;
 
@@ -85,19 +85,21 @@ struct StreamingInput {
   //  |   |             |              |            |
   //  |                                             |
   //  -----------------------------------------------
-  Node* signal_data;
-  Node* signal_valid;
+  std::optional<Node*> signal_data;
+  std::optional<Node*> signal_valid;
 
   Channel* channel;
   std::optional<FifoInstantiation*> fifo_instantiation;
   std::optional<Node*> predicate;
 
   bool IsExternal() const {
-    return port->op() == Op::kInputPort && port_valid->op() == Op::kInputPort &&
+    return (!port.has_value() || port.value()->op() == Op::kInputPort) &&
+           port_valid->op() == Op::kInputPort &&
            port_ready->op() == Op::kOutputPort;
   }
   bool IsInstantiation() const {
-    return port->op() == Op::kInstantiationOutput &&
+    return (!port.has_value() ||
+            port.value()->op() == Op::kInstantiationOutput) &&
            port_valid->op() == Op::kInstantiationOutput &&
            port_ready->op() == Op::kInstantiationInput;
   }
@@ -106,7 +108,7 @@ struct StreamingInput {
 struct StreamingOutput {
   // Note that these ports can either be external I/Os or be ports from a FIFO
   // instantiation.
-  Node* port;
+  std::optional<Node*> port;
   Node* port_valid;
   Node* port_ready;
   Channel* channel;
@@ -114,12 +116,12 @@ struct StreamingOutput {
   std::optional<Node*> predicate;
 
   bool IsExternal() const {
-    return port->op() == Op::kOutputPort &&
+    return port.value()->op() == Op::kOutputPort &&
            port_valid->op() == Op::kOutputPort &&
            port_ready->op() == Op::kInputPort;
   }
   bool IsInstantiation() const {
-    return port->op() == Op::kInstantiationInput &&
+    return port.value()->op() == Op::kInstantiationInput &&
            port_valid->op() == Op::kInstantiationInput &&
            port_ready->op() == Op::kInstantiationOutput;
   }
@@ -216,14 +218,16 @@ struct StreamingIOPipeline {
   // Map of stage# -> node which denotes if the stages input data from the
   // previous stage is valid at this stage (i.e. the stage does not contain a
   // bubble). See MakePipelineStagesForValid().
-  std::vector<Node*> pipeline_valid;
+  std::vector<std::optional<Node*>> pipeline_valid;
   // Node denoting if all of the specific stage's input data is valid.
-  std::vector<Node*> stage_valid;
+  std::vector<std::optional<Node*>> stage_valid;
   // Node denoting if a specific stage is finished.
-  std::vector<Node*> stage_done;
+  std::vector<std::optional<Node*>> stage_done;
 
   // Map from node to stage.
   absl::flat_hash_map<Node*, Stage> node_to_stage_map;
+
+  absl::Status VerifyNodesInBlock(Block* block) const;
 };
 
 // Plumbs a valid signal through the block. This includes:
@@ -245,7 +249,7 @@ struct FunctionConversionMetadata {
   std::optional<ValidPorts> valid_ports;
 };
 struct ProcConversionMetadata {
-  std::vector<Node*> valid_flops;
+  std::vector<std::optional<Node*>> valid_flops;
 };
 
 // Data structure operated on by codegen passes. Contains the IR and associated
@@ -283,8 +287,8 @@ struct CodegenPassUnit {
     return package->transform_metrics();
   }
 
-  // Clean up any dangling pointers in various node-maps.
-  void GcNodeMap();
+  // Clean up any dangling pointers in codegen metadata.
+  void GcMetadata();
 };
 
 using CodegenPass = PassBase<CodegenPassUnit, CodegenPassOptions, PassResults>;

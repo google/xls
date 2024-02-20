@@ -14,13 +14,16 @@
 
 #include "xls/codegen/ram_rewrite_pass.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -219,6 +222,31 @@ absl::StatusOr<RamWPortBlockPorts> GetWBlockPorts(
   return ports;
 }
 
+// When we rewrite Ram ports, we invalidate the metadata in StreamingIOPipeline.
+// To avoid having dangling pointers, we remove the StreamingInputs and
+// StreamingOutputs associated with Ram channels.
+// TODO: github/xls#1300 - remove when metadata is refactored.
+void ClearRewrittenMetadata(
+    StreamingIOPipeline& streaming_io,
+    absl::flat_hash_set<std::string_view> channel_names) {
+  for (std::vector<StreamingInput>& inputs : streaming_io.inputs) {
+    inputs.erase(
+        std::remove_if(inputs.begin(), inputs.end(),
+                       [&channel_names](const StreamingInput& input) {
+                         return channel_names.contains(input.channel->name());
+                       }),
+        inputs.end());
+  }
+  for (std::vector<StreamingOutput>& outputs : streaming_io.outputs) {
+    outputs.erase(
+        std::remove_if(outputs.begin(), outputs.end(),
+                       [&channel_names](const StreamingOutput& output) {
+                         return channel_names.contains(output.channel->name());
+                       }),
+        outputs.end());
+  }
+}
+
 // The write completion channel exists to model the behavior of a write
 // completion and does not actually drive any bits. It is useful as a touchpoint
 // for scheduling constraints.
@@ -385,6 +413,19 @@ absl::StatusOr<bool> Ram1RWRewrite(
                            Op::kIdentity, resp_ready_port_buf_name));
 
   // Update channel ready/valid ports usages with new internal signals.
+  absl::flat_hash_map<Node*, Node*> replaced_nodes = {
+      {rw_block_ports.resp_ports.resp_data, resp_rd_data_port},
+      {rw_block_ports.resp_ports.resp_ready, resp_ready_port_buf},
+      {rw_block_ports.resp_ports.resp_ready->operand(0), resp_ready_port_buf},
+      {rw_block_ports.resp_ports.resp_valid, ram_resp_valid},
+      {rw_block_ports.req_ports.req_ready, resp_ready_port_buf},
+  };
+  for (Node*& node : unit->streaming_io_and_pipeline.all_active_outputs_ready) {
+    auto itr = replaced_nodes.find(node);
+    if (itr != replaced_nodes.end()) {
+      node = itr->second;
+    }
+  }
   XLS_RETURN_IF_ERROR(
       rw_block_ports.resp_ports.resp_ready->ReplaceOperandNumber(
           0, resp_ready_port_buf));
@@ -394,7 +435,7 @@ absl::StatusOr<bool> Ram1RWRewrite(
       rw_block_ports.req_ports.req_ready->ReplaceUsesWith(resp_ready_port_buf));
 
   // Add zero-latency buffer at output of ram
-  std::vector<Node*> valid_nodes;
+  std::vector<std::optional<Node*>> valid_nodes;
   std::string zero_latency_buffer_name =
       absl::StrCat(ram_name, "_ram_zero_latency0");
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
@@ -427,6 +468,12 @@ absl::StatusOr<bool> Ram1RWRewrite(
 
   XLS_RETURN_IF_ERROR(WriteCompletionRewrite(
       block, rw_block_ports.write_completion_ports, ram_name));
+
+  ClearRewrittenMetadata(
+      unit->streaming_io_and_pipeline,
+      {ram_config.rw_port_configuration().request_channel_name,
+       ram_config.rw_port_configuration().response_channel_name,
+       ram_config.rw_port_configuration().write_completion_channel_name});
 
   if (unit->signature.has_value()) {
     ModuleSignature* signature = &unit->signature.value();
@@ -623,7 +670,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(
       r_block_ports.req_ports.req_ready->ReplaceUsesWith(resp_ready_port_buf));
 
   // Add zero-latency buffer at output of ram
-  std::vector<Node*> valid_nodes;
+  std::vector<std::optional<Node*>> valid_nodes;
   std::string zero_latency_buffer_name =
       absl::StrCat(ram_name, "_ram_zero_latency0");
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
@@ -668,6 +715,15 @@ absl::StatusOr<bool> Ram1R1WRewrite(
 
   XLS_RETURN_IF_ERROR(WriteCompletionRewrite(
       block, w_block_ports.write_completion_ports, ram_name));
+
+  ClearRewrittenMetadata(
+      unit->streaming_io_and_pipeline,
+      {
+          ram_config.r_port_configuration().request_channel_name,
+          ram_config.r_port_configuration().response_channel_name,
+          ram_config.w_port_configuration().request_channel_name,
+          ram_config.w_port_configuration().write_completion_channel_name,
+      });
 
   if (unit->signature.has_value()) {
     ModuleSignature* signature = &unit->signature.value();
@@ -780,7 +836,8 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
     PassResults* results) const {
   bool changed = false;
 
-  for (auto& ram_configuration : options.codegen_options.ram_configurations()) {
+  for (const std::unique_ptr<RamConfiguration>& ram_configuration :
+       options.codegen_options.ram_configurations()) {
     XLS_VLOG(2) << "Rewriting channels for ram "
                 << ram_configuration->ram_name() << ".";
     XLS_ASSIGN_OR_RETURN(bool this_one_changed,
@@ -789,7 +846,7 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
   }
 
   if (changed) {
-    unit->GcNodeMap();
+    unit->GcMetadata();
   }
 
   return changed;

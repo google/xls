@@ -14,15 +14,20 @@
 
 #include "xls/codegen/codegen_checker.h"
 
+#include <cstdint>
 #include <optional>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
+#include "xls/ir/register.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/pass_base.h"
 
@@ -62,12 +67,129 @@ absl::Status CheckRegisterLists(const CodegenPassUnit& unit) {
   return absl::OkStatus();
 }
 
+// Verify that all nodes, instantiations, and registers in `streaming_io` are
+// contained in `block`.
+absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
+                              Block* block) {
+  absl::flat_hash_set<Node*> nodes(block->nodes().begin(),
+                                   block->nodes().end());
+  absl::flat_hash_set<::xls::Instantiation*> instantiations(
+      block->GetInstantiations().begin(), block->GetInstantiations().end());
+  absl::flat_hash_set<Register*> registers(block->GetRegisters().begin(),
+                                           block->GetRegisters().end());
+  for (absl::Span<StreamingInput const> streaming_inputs :
+       streaming_io.inputs) {
+    for (const StreamingInput& input : streaming_inputs) {
+      XLS_RET_CHECK(!input.fifo_instantiation.has_value() ||
+                    instantiations.contains(*input.fifo_instantiation));
+      if (input.port.has_value()) {
+        XLS_RET_CHECK(nodes.contains(*input.port)) << absl::StreamFormat(
+            "Port not found for %s", input.channel->name());
+      }
+      XLS_RET_CHECK(nodes.contains(input.port_ready)) << absl::StreamFormat(
+          "Ready port not found for %s", input.channel->name());
+      XLS_RET_CHECK(nodes.contains(input.port_valid)) << absl::StreamFormat(
+          "Valid port not found for %s", input.channel->name());
+      if (input.signal_data.has_value()) {
+        XLS_RET_CHECK(nodes.contains(*input.signal_data)) << absl::StreamFormat(
+            "Signal data not found for %s", input.channel->name());
+      }
+      if (input.signal_valid.has_value()) {
+        XLS_RET_CHECK(nodes.contains(*input.signal_valid))
+            << absl::StreamFormat("Signal valid not found for %s",
+                                  input.channel->name());
+      }
+      if (input.predicate.has_value()) {
+        XLS_RET_CHECK(nodes.contains(*input.predicate)) << absl::StreamFormat(
+            "Predicate not found for %s", input.channel->name());
+      }
+    }
+  }
+  for (absl::Span<StreamingOutput const> streaming_outputs :
+       streaming_io.outputs) {
+    for (const StreamingOutput& output : streaming_outputs) {
+      XLS_RET_CHECK(!output.fifo_instantiation.has_value() ||
+                    instantiations.contains(*output.fifo_instantiation));
+      if (output.port.has_value()) {
+        XLS_RET_CHECK(nodes.contains(*output.port));
+      }
+      XLS_RET_CHECK(nodes.contains(output.port_ready));
+      XLS_RET_CHECK(nodes.contains(output.port_valid));
+      if (output.predicate.has_value()) {
+        XLS_RET_CHECK(nodes.contains(*output.predicate)) << absl::StreamFormat(
+            "Predicate not found for %s", output.channel->name());
+      }
+    }
+  }
+  for (const SingleValueInput& input : streaming_io.single_value_inputs) {
+    XLS_RET_CHECK(nodes.contains(input.port));
+  }
+  for (const SingleValueOutput& output : streaming_io.single_value_outputs) {
+    XLS_RET_CHECK(nodes.contains(output.port));
+  }
+  for (const PipelineStageRegisters& stage_registers :
+       streaming_io.pipeline_registers) {
+    for (const PipelineRegister& stage_register : stage_registers) {
+      XLS_RET_CHECK(registers.contains(stage_register.reg));
+      XLS_RET_CHECK(nodes.contains(stage_register.reg_read));
+      XLS_RET_CHECK(nodes.contains(stage_register.reg_write));
+    }
+  }
+  for (const std::optional<StateRegister>& state_register :
+       streaming_io.state_registers) {
+    if (state_register.has_value()) {
+      XLS_RET_CHECK(registers.contains(state_register->reg));
+      XLS_RET_CHECK(nodes.contains(state_register->reg_read));
+      XLS_RET_CHECK(nodes.contains(state_register->reg_write));
+    }
+  }
+  if (streaming_io.idle_port.has_value()) {
+    XLS_RET_CHECK(nodes.contains(*streaming_io.idle_port))
+        << absl::StreamFormat("Idle port not found for %s", block->name());
+  }
+  for (Node* node : streaming_io.all_active_outputs_ready) {
+    XLS_RET_CHECK(nodes.contains(node)) << absl::StreamFormat(
+        "Active ready port not found for %s", block->name());
+  }
+  for (Node* node : streaming_io.all_active_inputs_valid) {
+    XLS_RET_CHECK(nodes.contains(node)) << absl::StreamFormat(
+        "Active valid port not found for %s", block->name());
+  }
+  for (Node* node : streaming_io.all_active_states_valid) {
+    XLS_RET_CHECK(nodes.contains(node)) << absl::StreamFormat(
+        "Active state valid port not found for %s", block->name());
+  }
+  int64_t stage = 0;
+  for (const std::optional<Node*>& node : streaming_io.pipeline_valid) {
+    XLS_RET_CHECK(!node.has_value() || nodes.contains(*node))
+        << absl::StreamFormat("Stage %d pipeline valid not found for %s", stage,
+                              block->name());
+    stage++;
+  }
+  for (const std::optional<Node*>& node : streaming_io.stage_valid) {
+    XLS_RET_CHECK(!node.has_value() || nodes.contains(*node))
+        << absl::StreamFormat("Stage %d valid not found for %s", stage,
+                              block->name());
+  }
+  for (const std::optional<Node*>& node : streaming_io.stage_done) {
+    XLS_RET_CHECK(!node.has_value() || nodes.contains(*node))
+        << absl::StreamFormat("Stage %d done not found for %s", stage,
+                              block->name());
+  }
+  for (const auto& [node, _] : streaming_io.node_to_stage_map) {
+    XLS_RET_CHECK(nodes.contains(node));
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 absl::Status CodegenChecker::Run(CodegenPassUnit* unit,
                                  const CodegenPassOptions& options,
                                  PassResults* results) const {
   XLS_RETURN_IF_ERROR(CheckNodeToStageMap(*unit)) << unit->block->DumpIr();
   XLS_RETURN_IF_ERROR(CheckRegisterLists(*unit)) << unit->block->DumpIr();
+  XLS_RETURN_IF_ERROR(
+      CheckStreamingIO(unit->streaming_io_and_pipeline, unit->block));
   return VerifyPackage(unit->package);
 }
 

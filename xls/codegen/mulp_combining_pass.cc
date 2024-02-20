@@ -105,7 +105,7 @@ absl::StatusOr<bool> MulpCombiningPass::RunInternal(
     }
   }
   if (changed) {
-    unit->GcNodeMap();
+    unit->GcMetadata();
   }
   return changed;
 }

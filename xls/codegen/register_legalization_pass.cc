@@ -62,7 +62,7 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
   }
 
   if (changed) {
-    unit->GcNodeMap();
+    unit->GcMetadata();
     // Pull the registers out of pipeline-register & state list if they are
     // there.
     for (std::optional<StateRegister>& reg :

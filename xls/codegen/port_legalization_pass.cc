@@ -94,7 +94,7 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
   }
 
   if (changed) {
-    unit->GcNodeMap();
+    unit->GcMetadata();
   }
 
   return changed;
