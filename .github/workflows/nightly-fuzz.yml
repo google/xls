@@ -20,11 +20,11 @@ jobs:
         uses: actions/cache@v3
         with:
           path: "~/.cache/bazel"
-          # Create/use a cache called bazel-cache-latest-<commit hash>
+          # Create/use a cache called bazel-cache-22_04-<commit hash>
           # and read the latest cache with prefix bazel-cache-latest-
           # if it doesn't already exist.
-          key: bazel-cache-latest-${{ github.sha }}
-          restore-keys: bazel-cache-latest-
+          key: bazel-cache-22_04-${{ github.sha }}
+          restore-keys: bazel-cache-22_04-
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
       - name: Install bazelisk
