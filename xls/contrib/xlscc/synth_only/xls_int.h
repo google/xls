@@ -439,12 +439,13 @@ class XlsIntBase<Width, false> {
   }
 
   explicit inline operator bool() const {
-    __xls_bits<1> ret(ConvertBits<Width, 1, false>::Convert(storage));
+    __xls_bits<Width> zero(ConvertBits<32, Width, false>::Convert(
+            BuiltinIntToBits<unsigned int, 32>::Convert(0)));
     bool reti;
-    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_0_(aid): bits[i] = "
-        "identity(a, pos=(loc)) }"
+    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[1] { ret op_0_(aid): bits[1] = "
+        "ne(a, b, pos=(loc)) }"
         : "=r"(reti)
-        : "i"(1), "a"(ret));
+        : "i"(Width), "a"(storage), "b"(zero));
     return reti;
   }
 
@@ -476,12 +477,13 @@ class XlsIntBase<Width, true> {
   }
 
   explicit inline operator bool() const {
-    __xls_bits<1> ret(ConvertBits<Width, 1, false>::Convert(storage));
+    __xls_bits<Width> zero(ConvertBits<32, Width, false>::Convert(
+            BuiltinIntToBits<unsigned int, 32>::Convert(0)));
     bool reti;
-    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_0_(aid): bits[i] = "
-        "identity(a, pos=(loc)) }"
+    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[1] { ret op_0_(aid): bits[1] = "
+        "ne(a, b, pos=(loc)) }"
         : "=r"(reti)
-        : "i"(1), "a"(ret));
+        : "i"(Width), "a"(storage), "b"(zero));
     return reti;
   }
 

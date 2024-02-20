@@ -747,7 +747,6 @@ TEST_F(XlsIntTest, Reverse) {
                     xabsl::SourceLocation::current());
 }
 
-
 TEST_F(XlsIntTest, DoubleConstructor) {
   const std::string content = R"(
     #include "xls_int.h"
@@ -777,7 +776,7 @@ TEST_F(XlsIntTest, BitElemRefCast) {
       return u4.to_int();
     })";
   RunAcDatatypeTest({{"a", 5}, {"b", 3}}, 2, content,
-                     xabsl::SourceLocation::current());
+                    xabsl::SourceLocation::current());
   RunAcDatatypeTest({{"a", 3}, {"b", 5}}, 6, content,
                     xabsl::SourceLocation::current());
 }
@@ -791,10 +790,8 @@ TEST_F(XlsIntTest, BitElemRefCastToXlsInt) {
       result = u4[1];
       return result.to_int();
     })";
-  RunAcDatatypeTest({{"a", 5}}, 0, content,
-                     xabsl::SourceLocation::current());
-  RunAcDatatypeTest({{"a", 3}}, 1, content,
-                    xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 5}}, 0, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 1, content, xabsl::SourceLocation::current());
 }
 
 TEST_F(XlsIntTest, XlsIntDirectAssignLongLong) {
@@ -805,10 +802,8 @@ TEST_F(XlsIntTest, XlsIntDirectAssignLongLong) {
       result = a;
       return result.to_int();
     })";
-  RunAcDatatypeTest({{"a", 5}}, 5, content,
-                     xabsl::SourceLocation::current());
-  RunAcDatatypeTest({{"a", 3}}, 3, content,
-                    xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 5}}, 5, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
 }
 
 TEST_F(XlsIntTest, XlsIntUnaryPlus) {
@@ -818,10 +813,51 @@ TEST_F(XlsIntTest, XlsIntUnaryPlus) {
       XlsInt<11, false> result = a;
       return (+result).to_long();
     })";
-  RunAcDatatypeTest({{"a", -5}}, -5, content,
-                     xabsl::SourceLocation::current());
-  RunAcDatatypeTest({{"a", 3}}, 3, content,
-                     xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -5}}, -5, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ImplicitBool) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    unsigned long long my_package(unsigned long long a) {
+      XlsInt<32, false> ai = a;
+      bool aib = (bool)ai;
+      if(aib) {
+        return 3;
+      } else {
+        return 5;
+      }
+    })";
+  RunAcDatatypeTest({{"a", 0}}, 5, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 1}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 2}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -1}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -2}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -3}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ImplicitBoolInIf) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    unsigned long long my_package(unsigned long long a) {
+      XlsInt<32, false> ai = a;
+      if(ai) {
+        return 3;
+      } else {
+        return 5;
+      }
+    })";
+  RunAcDatatypeTest({{"a", 0}}, 5, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 1}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 2}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -1}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -2}}, 3, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", -3}}, 3, content, xabsl::SourceLocation::current());
 }
 
 }  // namespace
