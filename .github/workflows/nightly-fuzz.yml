@@ -13,7 +13,7 @@ jobs:
   build:
     name: Nightly Fuzz
     runs-on:
-      labels: ubuntu-latest-64core
+      labels: ubuntu-22.04-64core
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache
