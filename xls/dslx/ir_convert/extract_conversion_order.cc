@@ -851,31 +851,46 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
   std::vector<ConversionRecord> ready;
 
   for (ModuleMember member : module->top()) {
-    if (std::holds_alternative<QuickCheck*>(member)) {
-      auto* quickcheck = std::get<QuickCheck*>(member);
-      Function* function = quickcheck->f();
-      XLS_RET_CHECK(!function->IsParametric()) << function->ToString();
+    absl::Status status = absl::visit(
+        Visitor{
+            [&](QuickCheck* quickcheck) -> absl::Status {
+              Function* function = quickcheck->f();
+              XLS_RET_CHECK(!function->IsParametric()) << function->ToString();
 
-      XLS_RETURN_IF_ERROR(AddToReady(function, /*invocation=*/nullptr, module,
-                                     type_info, ParametricEnv(), &ready, {}));
-    } else if (std::holds_alternative<Function*>(member)) {
-      // Proc creation is driven by Spawn instantiations - the required constant
-      // args are only specified there, so we can't convert Procs as encountered
-      // at top level.
-      Function* f = std::get<Function*>(member);
-      if (f->IsParametric() || f->proc().has_value()) {
-        continue;
-      }
+              return AddToReady(function, /*invocation=*/nullptr, module,
+                                type_info, ParametricEnv(), &ready, {});
+            },
+            [&](Function* f) -> absl::Status {
+              // NOTE: Proc creation is driven by Spawn instantiations - the
+              // required constant args are only specified there, so we can't
+              // convert Procs as encountered at top level.
+              if (f->IsParametric() || f->proc().has_value()) {
+                return absl::OkStatus();
+              }
 
-      XLS_RETURN_IF_ERROR(AddToReady(f, /*invocation=*/nullptr, module,
-                                     type_info, ParametricEnv(), &ready, {}));
-    } else if (std::holds_alternative<ConstantDef*>(member)) {
-      auto* constant_def = std::get<ConstantDef*>(member);
-      XLS_ASSIGN_OR_RETURN(const std::vector<Callee> callees,
-                           GetCallees(constant_def->value(), module, type_info,
-                                      ParametricEnv(), {}));
-      XLS_RETURN_IF_ERROR(ProcessCallees(callees, &ready));
-    }
+              return AddToReady(f, /*invocation=*/nullptr, module, type_info,
+                                ParametricEnv(), &ready, {});
+            },
+            [&](ConstantDef* constant_def) -> absl::Status {
+              XLS_ASSIGN_OR_RETURN(const std::vector<Callee> callees,
+                                   GetCallees(constant_def->value(), module,
+                                              type_info, ParametricEnv(), {}));
+              return ProcessCallees(callees, &ready);
+            },
+            // See note above: proc creation is driven by spawn()
+            // instantiations.
+            [](Proc*) { return absl::OkStatus(); },
+            [](TestProc*) { return absl::OkStatus(); },
+
+            [](TestFunction*) { return absl::OkStatus(); },
+            [](TypeAlias*) { return absl::OkStatus(); },
+            [](StructDef*) { return absl::OkStatus(); },
+            [](EnumDef*) { return absl::OkStatus(); },
+            [](Import*) { return absl::OkStatus(); },
+            [](ConstAssert*) { return absl::OkStatus(); },
+        },
+        member);
+    XLS_RETURN_IF_ERROR(status);
   }
 
   // Collect the top level procs.
