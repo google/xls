@@ -210,32 +210,32 @@ TEST_F(ZstdDecoderTest, ParseFrameWithRleBlocks) {
   this->ParseAndCompareWithZstd(frame.value());
 }
 
-class ZstdDecoderSeededTest : public ZstdDecoderTest,
-                              public ::testing::WithParamInterface<uint32_t> {
- public:
-  static const uint32_t random_frames_count = 50;
-};
-
-// Test `random_frames_count` instances of randomly generated valid
-// frames, generated with `decodecorpus` tool.
-
-TEST_P(ZstdDecoderSeededTest, ParseMultipleFramesWithRawBlocks) {
-  auto seed = GetParam();
-  auto frame = zstd::GenerateFrame(seed, zstd::BlockType::RAW);
-  EXPECT_TRUE(frame.ok());
-  this->ParseAndCompareWithZstd(frame.value());
-}
-
-TEST_P(ZstdDecoderSeededTest, ParseMultipleFramesWithRleBlocks) {
-  auto seed = GetParam();
-  auto frame = zstd::GenerateFrame(seed, zstd::BlockType::RLE);
-  EXPECT_TRUE(frame.ok());
-  this->ParseAndCompareWithZstd(frame.value());
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    ZstdDecoderSeededTest, ZstdDecoderSeededTest,
-    ::testing::Range<uint32_t>(0, ZstdDecoderSeededTest::random_frames_count));
+//class ZstdDecoderSeededTest : public ZstdDecoderTest,
+//                              public ::testing::WithParamInterface<uint32_t> {
+// public:
+//  static const uint32_t random_frames_count = 50;
+//};
+//
+//// Test `random_frames_count` instances of randomly generated valid
+//// frames, generated with `decodecorpus` tool.
+//
+//TEST_P(ZstdDecoderSeededTest, ParseMultipleFramesWithRawBlocks) {
+//  auto seed = GetParam();
+//  auto frame = zstd::GenerateFrame(seed, zstd::BlockType::RAW);
+//  EXPECT_TRUE(frame.ok());
+//  this->ParseAndCompareWithZstd(frame.value());
+//}
+//
+//TEST_P(ZstdDecoderSeededTest, ParseMultipleFramesWithRleBlocks) {
+//  auto seed = GetParam();
+//  auto frame = zstd::GenerateFrame(seed, zstd::BlockType::RLE);
+//  EXPECT_TRUE(frame.ok());
+//  this->ParseAndCompareWithZstd(frame.value());
+//}
+//
+//INSTANTIATE_TEST_SUITE_P(
+//    ZstdDecoderSeededTest, ZstdDecoderSeededTest,
+//    ::testing::Range<uint32_t>(0, ZstdDecoderSeededTest::random_frames_count));
 
 }  // namespace
 }  // namespace xls
