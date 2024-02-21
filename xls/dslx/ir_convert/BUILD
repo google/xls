@@ -297,13 +297,14 @@ cc_test(
     deps = [
         ":extract_conversion_order",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:proc",
+        "//xls/dslx/type_system:parametric_env",
     ],
 )
 

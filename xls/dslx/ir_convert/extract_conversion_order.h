@@ -197,6 +197,21 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
     std::variant<Function*, Proc*> entry, TypeInfo* type_info);
 
+// Top level procs are procs where their config or next function is not invoked
+// within the module.
+//
+// Note that parametric procs must be instantiated, and thus are never
+// top-level.
+//
+// For example, for a given module with four procs: ProcA, ProcB, ProcC and
+// ProcD. The procs have the following invocation scheme:
+// * ProcA invokes ProcC and ProcD, and
+// * ProcB does not invoke any procs.
+// Given that there is no invocation of ProcA and ProcB, they (ProcA and ProcB)
+// are the top level procs.
+absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
+                                                    TypeInfo* type_info);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_IR_CONVERT_CPP_EXTRACT_CONVERSION_ORDER_H_

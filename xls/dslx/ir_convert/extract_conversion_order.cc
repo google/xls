@@ -620,28 +620,28 @@ class InvocationVisitor : public ExprVisitor {
   std::vector<Callee> callees_;
 };
 
-// Top level procs are procs where their config or next function is not invoked
-// within the module.
-// For example, for a given module with four procs: ProcA, ProcB, ProcC and
-// ProcD. The procs have the following invocation scheme: ProcA invokes ProcC
-// and ProcD, and ProcB does not invoke any procs. Given that there is no
-// invocation of ProcA and ProcB, they (ProcA and ProcB) are the top level
-// procs.
-static absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(
-    Module* module, TypeInfo* type_info) {
+absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
+                                                    TypeInfo* type_info) {
   CalleeCollectorVisitor visitor(module, type_info);
   std::vector<Proc*> procs;
   XLS_RETURN_IF_ERROR(WalkPostOrder(module, &visitor, /*want_types=*/true));
   absl::Span<const CalleeCollectorVisitor::CalleeInfo> callees =
       visitor.GetCallees();
+
+  // Turn the sequence into a set for O(1) testing of whether a proc is a
+  // callee.
   absl::flat_hash_set<CalleeCollectorVisitor::CalleeInfo> callee_set;
   for (auto& callee : callees) {
     callee_set.insert(callee);
   }
+
   for (Proc* proc : module->GetProcs()) {
-    // Checking the presence of the config function suffices since the config
-    // is instantiated prior to the next function.
+    // Checking the presence of the config function suffices since the config is
+    // instantiated prior to the next function.
     if (callee_set.find({proc->owner(), &proc->config()}) != callee_set.end()) {
+      continue;
+    }
+    if (proc->IsParametric()) {
       continue;
     }
     procs.emplace_back(proc);
@@ -896,6 +896,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
   // Collect the top level procs.
   XLS_ASSIGN_OR_RETURN(std::vector<Proc*> top_level_procs,
                        GetTopLevelProcs(module, type_info));
+
   // Get the order for each top level proc.
   for (Proc* proc : top_level_procs) {
     XLS_ASSIGN_OR_RETURN(TypeInfo * proc_ti,

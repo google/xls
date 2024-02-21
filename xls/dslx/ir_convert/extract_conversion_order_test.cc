@@ -21,10 +21,12 @@
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/proc.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 namespace {
@@ -668,6 +670,31 @@ proc main {
   EXPECT_EQ(order[12].proc_id().value().ToString(), "main->p1:0");
   EXPECT_EQ(order[13].f()->identifier(), "p2.next");
   EXPECT_EQ(order[13].proc_id().value().ToString(), "main->p2:0");
+}
+
+TEST(GetTopLevelProcsTest, OnlyOneParametricProc) {
+  constexpr std::string_view kProgram = R"(
+proc np {
+  init { () }
+  config() { () }
+  next(tok: token, state: ()) { () }
+}
+
+proc p<N: u32> {
+  init { () }
+  config() { () }
+  next(tok: token, state: ()) { () }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Proc*> top_level_procs,
+                           GetTopLevelProcs(tm.module, tm.type_info));
+  ASSERT_EQ(top_level_procs.size(), 1);
+  EXPECT_EQ(top_level_procs.at(0)->identifier(), "np");
 }
 
 }  // namespace
