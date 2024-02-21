@@ -118,6 +118,9 @@ in the XLS project, with the relevant Google style guides
     functions and as factories it is unlikely the static qualifier will be
     dropped in the future to put the comments out of sync.
 
+*   We prefer `absl::visit` over `std::visit` as it is reportedly higher
+    performance.
+
 ### Functions
 
 *   Short or easily-explained argument lists (as defined by the developer) can
