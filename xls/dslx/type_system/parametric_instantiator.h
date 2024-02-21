@@ -15,15 +15,15 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
 #define XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
 
-#include <cstdint>
 #include <memory>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
@@ -36,6 +36,7 @@ namespace xls::dslx {
 //
 // Args:
 //  span: Invocation span causing the instantiation to occur.
+//  callee_fn: The function being instantiated.
 //  function_type: Type (possibly parametric) of the function being
 //    instantiated.
 //  args: Arguments driving the instantiation of the function signature.
@@ -50,7 +51,7 @@ namespace xls::dslx {
 //    caller invoked `const M: u32 = 42; f<M>(x)`, this environment would
 //    be `{N: u32:42}` (since M is passed as the N value for the callee).
 absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
-    Span span, const FunctionType& function_type,
+    Span span, Function& callee_fn, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricConstraint> parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings);

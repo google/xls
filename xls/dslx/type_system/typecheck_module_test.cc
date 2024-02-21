@@ -746,6 +746,37 @@ fn bar() -> bits[1] {
                        HasSubstr("Cannot fit slice start 4 in 2 bits")));
 }
 
+TEST(TypecheckTest, NonParametricCallInParametricExpr) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn id(x: u32) -> u32 { x }
+fn p<X: u32, Y: u32 = {id(X)}>() -> u32 { Y }
+fn main() -> u32 { p<u32:42>() }
+)"));
+}
+
+TEST(TypecheckTest, ParametricCallInParametricExpr) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn pid<N: u32>(x: bits[N]) -> bits[N] { x }
+fn p<X: u32, Y: u32 = {pid(X)}>() -> u32 { Y }
+fn main() -> u32 { p<u32:42>() }
+)"));
+}
+
+TEST(TypecheckTest, ParametricCallWithDeducedValuesFromArgs) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x > y { x } else { y } }
+
+fn uadd<N: u32, M: u32, R: u32 = {umax(N, M) + u32:1}>(x: uN[N], y: uN[M]) -> uN[R] {
+    (x as uN[R]) + (y as uN[R])
+}
+
+#[test]
+fn uadd_test() {
+    assert_eq(u4:4, uadd(u3:2, u3:2));
+}
+)"));
+}
+
 TEST(TypecheckTest, BitSliceOnParametricWidth) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn get_middle_bits<N: u32, R: u32 = {N - u32:2}>(x: bits[N]) -> bits[R] {
@@ -1338,6 +1369,19 @@ TEST(TypecheckTest, ParametricWithConstantArrayEllipsis) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>(_: bits[N]) -> u8[2] { u8[2]:[0, ...] }
 fn main() -> u8[2] { p(false) }
+)"));
+}
+
+// In this test case we:
+// * make a call to `q`, where we give it an explicit parametric value,
+// * by invoking `r` (which is also parametric),
+// * doing that from within a parametric function `p`.
+TEST(TypecheckTest, ExplicitParametricCallInParametricFn) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn r<R: u32>(x: bits[R]) -> bits[R] { x }
+fn q<Q: u32>(x: bits[Q]) -> bits[Q] { x }
+fn p<P: u32>(x: bits[P]) -> bits[P] { q<{r(P+u32:0)}>(x) }
+fn main() -> u32 { p(u32:42) }
 )"));
 }
 

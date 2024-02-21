@@ -127,6 +127,11 @@ class Span {
     return absl::StrFormat("Span(%s, %s)", start().ToRepr(), limit().ToRepr());
   }
 
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Span& self) {
+    absl::Format(&sink, "%s", self.ToString());
+  }
+
   Span CloneWithLimit(Pos limit) const {
     return Span(start_, std::move(limit));
   }

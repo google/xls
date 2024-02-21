@@ -2210,7 +2210,8 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   return next;
 }
 
-// Basically ParseFunction, except with no return type.
+// Implementation note: this is basically ParseFunction(), except with no return
+// type.
 absl::StatusOr<Function*> Parser::ParseProcInit(
     Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
     std::string_view proc_name) {

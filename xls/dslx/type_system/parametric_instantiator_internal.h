@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_INTERNAL_H_
 #define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_INTERNAL_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -22,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
@@ -133,7 +135,7 @@ class ParametricInstantiator {
 class FunctionInstantiator : public ParametricInstantiator {
  public:
   static absl::StatusOr<std::unique_ptr<FunctionInstantiator>> Make(
-      Span span, const FunctionType& function_type,
+      Span span, Function& callee_fn, const FunctionType& function_type,
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
       absl::Span<const ParametricConstraint> parametric_constraints,
       const absl::flat_hash_map<std::string, InterpValue>&
@@ -150,15 +152,17 @@ class FunctionInstantiator : public ParametricInstantiator {
 
  private:
   FunctionInstantiator(
-      Span span, const FunctionType& function_type,
+      Span span, Function& callee_fn, const FunctionType& function_type,
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
       absl::Span<const ParametricConstraint> parametric_constraints,
       const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics)
       : ParametricInstantiator(std::move(span), args, ctx,
                                parametric_constraints, explicit_parametrics),
+        callee_fn_(callee_fn),
         function_type_(CloneToUnique(function_type)),
         param_types_(function_type_->params()) {}
 
+  Function& callee_fn_;
   std::unique_ptr<FunctionType> function_type_;
   absl::Span<std::unique_ptr<ConcreteType> const> param_types_;
 };

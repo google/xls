@@ -49,6 +49,7 @@
 #include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
+#include "xls/dslx/type_system/scoped_fn_stack_entry.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_kind.h"
@@ -285,7 +286,7 @@ absl::Status ParametricInstantiator::InstantiateOneArg(
 
 /* static */ absl::StatusOr<std::unique_ptr<FunctionInstantiator>>
 FunctionInstantiator::Make(
-    Span span, const FunctionType& function_type,
+    Span span, Function& callee_fn, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricConstraint> parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics) {
@@ -299,12 +300,18 @@ FunctionInstantiator::Make(
         "argument(s)",
         span.ToString(), function_type.params().size(), args.size()));
   }
-  return absl::WrapUnique(
-      new FunctionInstantiator(std::move(span), function_type, args, ctx,
-                               parametric_constraints, explicit_parametrics));
+  return absl::WrapUnique(new FunctionInstantiator(
+      std::move(span), callee_fn, function_type, args, ctx,
+      parametric_constraints, explicit_parametrics));
 }
 
 absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
+  ScopedFnStackEntry parametric_env_expr_scope(callee_fn_, &ctx(),
+                                               WithinProc::kNo);
+  XLS_VLOG(5) << absl::StreamFormat(
+      "Entering parametric env scope; callee fn: `%s`",
+      callee_fn_.identifier());
+
   // Phase 1: instantiate actuals against parametrics in left-to-right order.
   XLS_VLOG(10) << "Phase 1: instantiate actuals";
   for (int64_t i = 0; i < args().size(); ++i) {
@@ -348,6 +355,8 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
         span(), resolved.get(),
         "Instantiated return type did not have all parametrics resolved.");
   }
+
+  parametric_env_expr_scope.Finish();
 
   return TypeAndParametricEnv{std::move(resolved),
                               ParametricEnv(parametric_env_map())};

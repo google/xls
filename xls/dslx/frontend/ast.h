@@ -1652,6 +1652,7 @@ class Function : public AstNode {
   FunctionTag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
   void set_proc(Proc* proc) { proc_ = proc; }
+  bool IsInProc() const { return proc_.has_value(); }
 
  private:
   Span span_;

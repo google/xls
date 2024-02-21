@@ -1072,6 +1072,8 @@ dslx_lang_test(
 
 dslx_lang_test(name = "local_const_value_non_bitstype")
 
+dslx_lang_test(name = "gh_1197")
+
 dslx_lang_test(
     name = "proc_counter_issue_947",
     # No normal 'function' entry point, it is a test proc.

@@ -46,6 +46,33 @@ InvocationData::InvocationData(
     : node_(node),
       caller_(caller),
       env_to_callee_data_(std::move(env_to_callee_data)) {
+  // If we have a caller, check that the invocation node is contained within the
+  // confines of the caller.
+  //
+  // Since we have the caller and the invocation here, it's an ideal place to do
+  // this integrity check.
+  //
+  // Note: we do a lexical position check as a cheap approximation since we
+  // don't necessarily have parent() links set up that take us back to the
+  // containing function.
+  if (caller != nullptr && !caller->span().Contains(node->span())) {
+    // Special case: functions present in parametric procs refer to the
+    // proc-level parametric AST nodes, so they have invocation expressions that
+    // can be outside of the function body. That is:
+    //
+    //  proc MyProc<N: u32 = {clog(MY_CONSTANT)}> {
+    //    next(tok, ...) { ... }
+    //  --^~~^ implicitly refers to the clog() call in the parametric above
+    //  }
+    bool is_fn_in_parametric_proc =
+        caller->IsInProc() && caller->proc().value()->IsParametric();
+    if (!is_fn_in_parametric_proc) {
+      XLS_LOG(FATAL) << "Invocation node: `" << node->ToString() << "` @ "
+                     << node->span() << " is not contained within caller: "
+                     << caller->identifier() << " @ " << caller->span();
+    }
+  }
+
   for (const auto& [env, _] : env_to_callee_data_) {
     XLS_CHECK_OK(ValidateEnvForCaller(env));
   }

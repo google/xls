@@ -31,6 +31,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -53,6 +54,7 @@
 #include "xls/dslx/type_system/instantiate_parametric_function.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/scoped_fn_stack_entry.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -232,9 +234,14 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     Expr* arg = invocation->args()[argno];
 
     XLS_ASSIGN_OR_RETURN(
-        auto env,
+        (absl::flat_hash_map<std::string, InterpValue> env),
         MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
                          arg, ctx->fn_stack().back().parametric_env()));
+
+    XLS_VLOG(5)
+        << "TypecheckParametricBuiltinInvocation.constexpr_eval; argno: "
+        << argno << " expr: `" << arg->ToString() << "`"
+        << " env: " << EnvMapToString(env);
 
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
@@ -260,7 +267,8 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
       fsignature(SignatureData{arg_type_ptrs, arg_spans,
                                invocation->explicit_parametrics(),
                                callee_nameref->identifier(), invocation->span(),
-                               /*parametric_bindings=*/{}, constexpr_eval},
+                               /*parametric_bindings=*/{}, constexpr_eval,
+                               invocation->args()},
                  ctx));
 
   FunctionType* fn_type = dynamic_cast<FunctionType*>(tab.type.get());
@@ -319,7 +327,10 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation,
     const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
                               InterpValue>& constexpr_env) {
-  XLS_VLOG(3) << "Typechecking invocation: `" << invocation->ToString() << "`";
+  XLS_VLOG(5) << "Typechecking invocation: `" << invocation->ToString()
+              << "` @ " << invocation->span();
+  XLS_VLOG_LINES(5, ctx->GetFnStackDebugString());
+
   Expr* callee = invocation->callee();
 
   Function* caller = ctx->fn_stack().back().f();
@@ -536,28 +547,36 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 
 absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
 TypecheckFunctionParams(Function& f, DeduceCtx* ctx) {
-  for (ParametricBinding* parametric : f.parametric_bindings()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
-                         ctx->Deduce(parametric->type_annotation()));
-    XLS_ASSIGN_OR_RETURN(parametric_binding_type,
-                         UnwrapMetaType(std::move(parametric_binding_type),
-                                        parametric->type_annotation()->span(),
-                                        "parametric binding type"));
+  {
+    ScopedFnStackEntry parametric_env_expr_scope(f, ctx, WithinProc::kNo);
 
-    if (parametric->expr() != nullptr) {
-      // TODO(leary): 2020-07-06 Fully document the behavior of parametric
-      // function calls in parametric expressions.
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
-                           ctx->Deduce(parametric->expr()));
-      if (*expr_type != *parametric_binding_type) {
-        return ctx->TypeMismatchError(
-            parametric->span(), parametric->type_annotation(),
-            *parametric_binding_type, parametric->expr(), *expr_type,
-            "Annotated type of derived parametric value "
-            "did not match inferred type.");
+    for (ParametricBinding* parametric : f.parametric_bindings()) {
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<ConcreteType> parametric_binding_type,
+          ctx->Deduce(parametric->type_annotation()));
+      XLS_ASSIGN_OR_RETURN(parametric_binding_type,
+                           UnwrapMetaType(std::move(parametric_binding_type),
+                                          parametric->type_annotation()->span(),
+                                          "parametric binding type"));
+
+      if (parametric->expr() != nullptr) {
+        // TODO(leary): 2020-07-06 Fully document the behavior of parametric
+        // function calls in parametric expressions.
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
+                             ctx->Deduce(parametric->expr()));
+        if (*expr_type != *parametric_binding_type) {
+          return ctx->TypeMismatchError(
+              parametric->span(), parametric->type_annotation(),
+              *parametric_binding_type, parametric->expr(), *expr_type,
+              "Annotated type of derived parametric value "
+              "did not match inferred type.");
+        }
       }
+      ctx->type_info()->SetItem(parametric->name_def(),
+                                *parametric_binding_type);
     }
-    ctx->type_info()->SetItem(parametric->name_def(), *parametric_binding_type);
+
+    parametric_env_expr_scope.Finish();
   }
 
   std::vector<std::unique_ptr<ConcreteType>> param_types;

@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 
@@ -26,17 +27,13 @@ TEST(TypecheckTest, ConfigSpawnTerminatingSemicolonNoMembers) {
   constexpr std::string_view kProgram = R"(
 proc foo {
     init { }
-    config() {
-    }
-    next(tok: token, state: ()) {
-    }
+    config() { }
+    next(tok: token, state: ()) { }
 }
 
 proc entry {
     init { () }
-    config() {
-        spawn foo();
-    }
+    config() { spawn foo(); }
     next (tok: token, state: ()) { () }
 }
 )";
@@ -272,6 +269,30 @@ proc producer {
         let tok = send_if(tok, s, do_send, ((do_send) as u32));
         !do_send
     }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithParametricExpr) {
+  constexpr std::string_view kProgram = R"(
+fn id<N: u32>(x: bits[N]) -> bits[N] { x }
+
+pub proc MyProc<X:u32, Y:u32={id(X)}> {
+  config() { () }
+  init { () }
+  next(tok: token, state: ()) { state }
+}
+
+#[test_proc]
+proc MyTestProc {
+  init { () }
+
+  config (terminator: chan<bool> out) {
+    spawn MyProc<u32:7>();
+  }
+
+  next(tok: token, st:()) { }
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));

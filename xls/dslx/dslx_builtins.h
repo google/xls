@@ -26,6 +26,7 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -57,6 +58,14 @@ struct SignatureData {
   // function arguments; which is requested is given by argno.
   const std::function<absl::StatusOr<InterpValue>(int64_t argno)>&
       constexpr_eval;
+
+  // Argument expressions -- note that these should generally not be needed by
+  // type inferencing routines for builtins, except in special cases like map()
+  // where we know an argument must be a literal function reference that we may
+  // want to use in instantiation machinery. (Even in that case ideally we'd
+  // only need the types, but we use the function in some cases for soundness
+  // checking.)
+  absl::Span<Expr* const> args;
 };
 
 // Deduction rule that determines the FunctionType and any associated symbolic

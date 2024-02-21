@@ -206,6 +206,11 @@ class DeduceCtx {
   // Adds an entry to the stack of functions currently being deduced.
   void AddFnStackEntry(FnStackEntry entry);
 
+  // Gets the current function stack as a string suitable for debugging.
+  //
+  // E.g. XLS_VLOG_LINES(3, ctx->GetFnStackDebugString());
+  std::string GetFnStackDebugString() const;
+
   // Pops an entry from the stack of functions currently being deduced and
   // returns it, conceptually the inverse of AddFnStackEntry().
   std::optional<FnStackEntry> PopFnStackEntry();

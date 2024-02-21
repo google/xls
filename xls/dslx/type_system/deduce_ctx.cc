@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -39,6 +40,11 @@
 namespace xls::dslx {
 
 std::string FnStackEntry::ToReprString() const {
+  if (f_ != nullptr) {
+    return absl::StrFormat(
+        "FnStackEntry{.f = `%s` @ %v, .name = \"%s\", .parametric_env = %s}",
+        f_->identifier(), f_->span(), name_, parametric_env_.ToString());
+  }
   return absl::StrFormat("FnStackEntry{\"%s\", %s}", name_,
                          parametric_env_.ToString());
 }
@@ -144,6 +150,15 @@ std::optional<FnStackEntry> DeduceCtx::PopFnStackEntry() {
   FnStackEntry result = fn_stack_.back();
   fn_stack_.pop_back();
   return result;
+}
+
+std::string DeduceCtx::GetFnStackDebugString() const {
+  std::stringstream ss;
+  ss << absl::StreamFormat("== Function Stack for DeduceCtx %p\n", this);
+  for (const FnStackEntry& fse : fn_stack_) {
+    ss << "  " << fse.ToReprString() << "\n";
+  }
+  return ss.str();
 }
 
 }  // namespace xls::dslx

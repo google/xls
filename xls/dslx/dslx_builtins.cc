@@ -14,6 +14,7 @@
 
 #include "xls/dslx/dslx_builtins.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -31,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/errors.h"
@@ -42,6 +44,7 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -484,9 +487,8 @@ absl::StatusOr<TypeAndParametricEnv> CheckJoinSignature(
       CloneToUnique(data.arg_types), std::move(return_type))};
 }
 
-void PopulateSignatureToLambdaMap(
-    absl::flat_hash_map<std::string, SignatureFn>* map_ptr) {
-  auto& map = *map_ptr;
+static void AddUnaryArbitraryTypeIdentitySignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
   map["(T) -> T"] = [](const SignatureData& data,
                        DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(
@@ -494,6 +496,50 @@ void PopulateSignatureToLambdaMap(
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
+}
+
+static void AddBinaryArbitraryTypeSignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
+  map["(T, T) -> T"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
+                            .Len(2)
+                            .ArgsSameType(0, 1)
+                            .status());
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
+  };
+}
+
+static void AddBinaryArbitrarySignToUnitSignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
+  map["(xN[N], xN[N]) -> ()"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                       .Len(2)
+                       .IsBits(0)
+                       .IsBits(1)
+                       .ArgsSameType(0, 1);
+    XLS_RETURN_IF_ERROR(checker.status());
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
+  };
+}
+
+void PopulateSignatureToLambdaMap(
+    absl::flat_hash_map<std::string, SignatureFn>* map_ptr) {
+  auto& map = *map_ptr;
+
+  // Note: we start to break some of these out to helper functions as they run
+  // afoul of over-long function lint. (It at least gives us the opportunity to
+  // put some slightly more descriptive names for the signature in the C++
+  // function name.)
+  AddBinaryArbitrarySignToUnitSignature(map);
+  AddUnaryArbitraryTypeIdentitySignature(map);
+  AddBinaryArbitraryTypeSignature(map);
+
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
@@ -530,18 +576,6 @@ void PopulateSignatureToLambdaMap(
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
   };
-  map["(xN[N], xN[N]) -> ()"] =
-      [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
-    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
-                       .Len(2)
-                       .IsBits(0)
-                       .IsBits(1)
-                       .ArgsSameType(0, 1);
-    XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndParametricEnv{std::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
-  };
   map["(xN[N], xN[M][N]) -> xN[M]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
@@ -567,16 +601,6 @@ void PopulateSignatureToLambdaMap(
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), return_type.CloneToUnique())};
-  };
-  map["(T, T) -> T"] =
-      [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
-                            .Len(2)
-                            .ArgsSameType(0, 1)
-                            .status());
-    return TypeAndParametricEnv{std::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(T, T) -> ()"] =
       [](const SignatureData& data,
@@ -864,11 +888,11 @@ void PopulateSignatureToLambdaMap(
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const ArrayType* a = nullptr;
-    const FunctionType* f = nullptr;
+    const FunctionType* f_type = nullptr;
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsArray(0, &a)
-                            .IsFn(1, /*argc=*/1, &f)
+                            .IsFn(1, /*argc=*/1, &f_type)
                             .status());
 
     const ConcreteType& t = a->element_type();
@@ -881,13 +905,20 @@ void PopulateSignatureToLambdaMap(
       mapped_parametric_bindings = data.parametric_bindings.value();
     }
 
+    Expr* fn_expr = data.args.at(1);
+    NameRef* fn_name = dynamic_cast<NameRef*>(fn_expr);
+    XLS_RET_CHECK(fn_name != nullptr);
+    AstNode* fn_ast_node = fn_name->GetDefiner();
+    auto* fn = dynamic_cast<Function*>(fn_ast_node);
+    XLS_RET_CHECK(fn != nullptr);
+
     // Note that InstantiateFunction will check that the mapped function type
     // lines up with the array (we're providing it the argument types it's being
     // invoked with).
     XLS_ASSIGN_OR_RETURN(
         TypeAndParametricEnv tab,
         InstantiateFunction(
-            data.span, *f, mapped_fn_args, ctx,
+            data.span, *fn, *f_type, mapped_fn_args, ctx,
             /*parametric_constraints=*/mapped_parametric_bindings,
             /*explicit_bindings=*/{}));
     auto return_type =

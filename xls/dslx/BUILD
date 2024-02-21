@@ -363,6 +363,7 @@ cc_library(
         ":errors",
         ":interp_value",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
