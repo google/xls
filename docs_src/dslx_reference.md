@@ -1181,6 +1181,12 @@ cannot fit in the width of the literal that an error is triggered.
 and the fact that DSLX considers this valid may change in the
 [future](https://github.com/google/xls/issues/471).**
 
+### Grouping Expression
+
+As in mathematical notation and many programming languages, an expression can be surrounded
+with an opening and closing parenthesis to make it the highest precedence (or simply for
+readability). For example, this expression evaluates to `u32:9`: `(u32:1 + u32:2) * u32:3`.
+
 ### Unary Expressions
 
 DSLX supports two types of unary expressions with type signature
@@ -1288,6 +1294,8 @@ let a = {
 };
 ```
 
+Above, `a` is equal to `4`.
+
 The value of a block expression is that of its last contained expression, or (),
 if a final expression is omitted:
 
@@ -1297,10 +1305,12 @@ let a = { let b = u32:1; };
 
 In the above case, `a` is equal to `()`.
 
-Since DSLX does not currently have the concept of lifetimes, and since names can
-be rebound (i.e., there's no concept of mutability, allowing `let a = u32:0; let
-a = u32:1;`), blocks are primarily for readability at this time, (side from
-their use as the "body" of functions and loops).
+Since DSLX does not currently have the concept of lifetimes, and since names can be rebound
+(i.e., this is valid: `let a = u32:0; let a = u32:1;`), blocks have the following uses:
+
+* to syntactically form the body of functions and loops
+* to limit the scope of variables
+* to increase readability
 
 ### Match Expression
 
@@ -1860,11 +1870,12 @@ descending precedence order. Binary operators at the same level share the same
 associativity and will be grouped accordingly.
 
 Operator                    | Associativity
---------------------------- | -------------
-Unary `-` `!`               | n/a
+----------------------------| -------------
+`(...)`                     | n/a
+unary `-` `!`               | n/a
 `as`                        | Left to right
 `*` `/` `%`                 | Left to right
-`+` `-`                     | Left to right
+`+` `-` `++`                | Left to right
 `<<` `>>`                   | Left to right
 `&`                         | Left to right
 `^`                         | Left to right
