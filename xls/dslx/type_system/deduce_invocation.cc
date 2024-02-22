@@ -63,11 +63,12 @@ extern absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
 // We need to create a fake invocation to deduce the type of a function
 // in the case where map is called with a builtin as the map function. Normally,
 // map functions (including parametric ones) have their types deduced when their
-// ast.Function nodes are encountered (where a similar fake ast.Invocation node
-// is created).
+// `Function` nodes are encountered (where a similar fake `Invocation` node is
+// created).
 //
-// Builtins don't have ast.Function nodes, so that inference can't occur, so we
-// essentually perform that synthesis and deduction here.
+// Builtins don't have `Function` nodes (since they're not userspace functions),
+// so that inference can't occur, so we essentually perform that synthesis and
+// deduction here.
 //
 // Args:
 //   module: AST node owner.
@@ -79,14 +80,18 @@ extern absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
 //   An invocation node for the given function when called with an element in
 //   the argument array.
 static Invocation* CreateElementInvocation(Module* module, const Span& span,
-                                           Expr* callee, Expr* arg_array) {
+                                           Expr* callee, Expr* arg_array,
+                                           AstNode* parent) {
   BuiltinNameDef* name = module->GetOrCreateBuiltinNameDef("u32");
   BuiltinTypeAnnotation* annotation =
       module->Make<BuiltinTypeAnnotation>(span, BuiltinType::kU32, name);
   Number* index_number =
       module->Make<Number>(span, "0", NumberKind::kOther, annotation);
   Index* index = module->Make<Index>(span, arg_array, index_number);
-  return module->Make<Invocation>(span, callee, std::vector<Expr*>{index});
+  Invocation* result =
+      module->Make<Invocation>(span, callee, std::vector<Expr*>{index});
+  result->SetParentNonLexical(parent);
+  return result;
 }
 
 static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
@@ -105,8 +110,9 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
                        DeduceAndResolve(args[0], ctx));
 
   // Then get the type and bindings for the mapping fn.
-  Invocation* element_invocation = CreateElementInvocation(
-      ctx->module(), node->span(), /*callee=*/args[1], /*arg_array=*/args[0]);
+  Invocation* element_invocation =
+      CreateElementInvocation(ctx->module(), node->span(), /*callee=*/args[1],
+                              /*arg_array=*/args[0], /*parent=*/node->parent());
   XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
                        ctx->typecheck_invocation()(ctx, element_invocation,
                                                    /*constexpr_env=*/{}));

@@ -19,6 +19,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -146,6 +147,17 @@ class AstNode {
 
   // Marks this node as the parent of all its child nodes.
   void SetParentage();
+
+  // Warning: try to avoid using this in any new code!
+  //
+  // Sometimes the frontend currently desugars AST nodes into other AST node
+  // constructs (which is not ideal, it's an AST and ideally shouldn't be
+  // treated like an IR if that can be avoided). When we do this, we may need to
+  // set a parent relationship that was not in the original source text, which
+  // is why we call this "non lexical". (In the more typical case, as we parse
+  // we can just call `SetParentage()` to have lexical parent relationships
+  // arise.)
+  void SetParentNonLexical(AstNode* parent) { parent_ = parent; }
 
  private:
   void set_parent(AstNode* parent) { parent_ = parent; }

@@ -38,7 +38,6 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 namespace {
@@ -100,24 +99,6 @@ absl::StatusOr<std::string> GetBuiltinName(Expr* callee) {
   return name_ref->identifier();
 }
 
-absl::StatusOr<Function*> ResolveFunction(Expr* callee,
-                                          const TypeInfo* type_info) {
-  if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
-    return name_ref->owner()->GetMemberOrError<Function>(
-        name_ref->identifier());
-  }
-
-  auto* colon_ref = dynamic_cast<ColonRef*>(callee);
-  XLS_RET_CHECK_NE(colon_ref, nullptr);
-  std::optional<Import*> import = colon_ref->ResolveImportSubject();
-  XLS_RET_CHECK(import.has_value())
-      << "ColonRef did not refer to an import: " << colon_ref->ToString();
-  std::optional<const ImportedInfo*> imported_info =
-      type_info->GetImported(*import);
-  return imported_info.value()->module->GetMemberOrError<Function>(
-      colon_ref->attr());
-}
-
 static absl::StatusOr<StructDef*> ResolveLocalStructDef(
     TypeAnnotation* type_annotation, const TypeDefinition& td) {
   auto error = [&](const AstNode* latest) {
@@ -155,22 +136,6 @@ absl::StatusOr<StructDef*> ResolveLocalStructDef(TypeDefinition td) {
           [&](ColonRef* n) -> absl::StatusOr<StructDef*> { return error(n); },
       },
       td);
-}
-
-absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
-  if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
-    return name_ref->owner()->GetMemberOrError<Proc>(name_ref->identifier());
-  }
-
-  auto* colon_ref = dynamic_cast<ColonRef*>(callee);
-  XLS_RET_CHECK_NE(colon_ref, nullptr);
-  std::optional<Import*> import = colon_ref->ResolveImportSubject();
-  XLS_RET_CHECK(import.has_value())
-      << "ColonRef did not refer to an import: " << colon_ref->ToString();
-  std::optional<const ImportedInfo*> imported_info =
-      type_info->GetImported(*import);
-  return imported_info.value()->module->GetMemberOrError<Proc>(
-      colon_ref->attr());
 }
 
 absl::Status VerifyParentage(const Module* module) {
@@ -473,6 +438,41 @@ const Number* IsBareNumber(const AstNode* node, bool* is_boolean) {
   }
 
   return nullptr;
+}
+
+bool ContainedWithinFunction(const Invocation& invocation,
+                             const Function& caller) {
+  XLS_VLOG(10) << absl::StreamFormat(
+      "Checking whether invocation `%s` @ %v is contained within caller `%s` @ "
+      "%v",
+      invocation.ToString(), invocation.span(), caller.identifier(),
+      caller.span());
+  const AstNode* parent = invocation.parent();
+  XLS_CHECK(parent != nullptr)
+      << absl::StreamFormat("invocation node had no parent set: `%s` @ %v",
+                            invocation.ToString(), invocation.span());
+  XLS_VLOG(10) << absl::StreamFormat("node `%s` has parent: `%s`",
+                                     invocation.ToString(), parent->ToString());
+
+  while (parent->kind() != AstNodeKind::kFunction) {
+    const AstNode* new_parent = parent->parent();
+    XLS_CHECK(new_parent != nullptr);
+    XLS_VLOG(10) << absl::StreamFormat("transitive; node `%s` has parent: `%s`",
+                                       parent->ToString(),
+                                       new_parent->ToString());
+    parent = new_parent;
+  }
+
+  bool contained = &caller == parent;
+  XLS_VLOG(10) << absl::StreamFormat(
+      "caller: %p vs found parent: %p; invocation contained? %s", &caller,
+      parent, contained ? "true" : "false");
+
+  // Here we check that, if the parent links indicate the node is contained, it
+  // is also lexically/positionally contained.
+  XLS_CHECK_EQ(contained, caller.span().Contains(invocation.span()));
+
+  return contained;
 }
 
 }  // namespace xls::dslx

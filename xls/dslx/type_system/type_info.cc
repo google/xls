@@ -32,6 +32,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -52,25 +53,22 @@ InvocationData::InvocationData(
   // Since we have the caller and the invocation here, it's an ideal place to do
   // this integrity check.
   //
-  // Note: we do a lexical position check as a cheap approximation since we
-  // don't necessarily have parent() links set up that take us back to the
-  // containing function.
-  if (caller != nullptr && !caller->span().Contains(node->span())) {
-    // Special case: functions present in parametric procs refer to the
-    // proc-level parametric AST nodes, so they have invocation expressions that
-    // can be outside of the function body. That is:
-    //
-    //  proc MyProc<N: u32 = {clog(MY_CONSTANT)}> {
-    //    next(tok, ...) { ... }
-    //  --^~~^ implicitly refers to the clog() call in the parametric above
-    //  }
-    bool is_fn_in_parametric_proc =
-        caller->IsInProc() && caller->proc().value()->IsParametric();
-    if (!is_fn_in_parametric_proc) {
-      XLS_LOG(FATAL) << "Invocation node: `" << node->ToString() << "` @ "
-                     << node->span() << " is not contained within caller: "
-                     << caller->identifier() << " @ " << caller->span();
-    }
+  // Special case: functions present in parametric procs refer to the
+  // proc-level parametric AST nodes, so they have invocation expressions that
+  // can be outside of the function body. That is:
+  //
+  //  proc MyProc<N: u32 = {clog(MY_CONSTANT)}> {
+  //    next(tok, ...) { ... }
+  //  --^~~^ implicitly refers to the clog() call in the parametric above
+  //  }
+  auto is_fn_in_parametric_proc = [caller]() -> bool {
+    return caller->IsInProc() && caller->proc().value()->IsParametric();
+  };
+  if (caller != nullptr && !is_fn_in_parametric_proc() &&
+      !ContainedWithinFunction(*node, *caller)) {
+    XLS_LOG(FATAL) << "Invocation node: `" << node->ToString() << "` @ "
+                   << node->span() << " is not contained within caller: "
+                   << caller->identifier() << " @ " << caller->span();
   }
 
   for (const auto& [env, _] : env_to_callee_data_) {

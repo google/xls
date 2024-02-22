@@ -166,9 +166,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
-        "//xls/dslx/type_system:type_info",
     ],
 )
 
@@ -183,6 +181,7 @@ cc_test(
         ":pos",
         ":proc",
         ":scanner",
+        "//xls/common:casts",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",

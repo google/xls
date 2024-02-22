@@ -29,9 +29,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 
@@ -46,17 +44,6 @@ bool IsBuiltinFn(Expr* callee,
 // Returns the name of `callee` if it's a builtin function and an error
 // otherwise.
 absl::StatusOr<std::string> GetBuiltinName(Expr* callee);
-
-// Finds the Function identified by the given node (either NameRef or ColonRef),
-// using the associated ImportData for import Module lookup.
-// The target function must have been typechecked prior to this call.
-absl::StatusOr<Function*> ResolveFunction(Expr* callee,
-                                          const TypeInfo* type_info);
-
-// Finds the Proc identified by the given node (either NameRef or ColonRef),
-// using the associated ImportData for import Module lookup.
-// The target proc must have been typechecked prior to this call.
-absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 
 // Resolves the given TypeDefinition to a struct definition node local to the
 // module.
@@ -216,6 +203,18 @@ bool IsBuiltinParametricNameRef(const NameRef* name_ref);
 // Returns whether "node" is a "bare" number (without an explicit type
 // annotation on it).
 const Number* IsBareNumber(const AstNode* node, bool* is_boolean = nullptr);
+
+// Returns whether the given "invocation" is contained within the function
+// "caller".
+//
+// Precondition: invocation should be contained within /some/ function (i.e. not
+// at module scope). Note that this could be relaxed but it's the only use case
+// we need today and it makes for stronger invariant checking.
+//
+// Implementation note: this traverses parent links from the invocation node to
+// see if we arrive at the caller node as the immediately containing function.
+bool ContainedWithinFunction(const Invocation& invocation,
+                             const Function& caller);
 
 }  // namespace xls::dslx
 

@@ -70,6 +70,17 @@ ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
                                         const TypeInfo* type_info,
                                         const ColonRef* colon_ref);
 
+// Finds the Function identified by the given node (either NameRef or ColonRef),
+// using the associated ImportData for import Module lookup.
+// The target function must have been typechecked prior to this call.
+absl::StatusOr<Function*> ResolveFunction(Expr* callee,
+                                          const TypeInfo* type_info);
+
+// Finds the Proc identified by the given node (either NameRef or ColonRef),
+// using the associated ImportData for import Module lookup.
+// The target proc must have been typechecked prior to this call.
+absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
+
 // Returns an AST node typed T from module "m", resolved via name "name".
 //
 // Errors are attributed to span "span".

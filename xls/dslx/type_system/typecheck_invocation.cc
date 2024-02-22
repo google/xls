@@ -51,6 +51,7 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/instantiate_parametric_function.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"

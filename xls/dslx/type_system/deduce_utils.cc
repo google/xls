@@ -341,4 +341,38 @@ ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
       result);
 }
 
+absl::StatusOr<Function*> ResolveFunction(Expr* callee,
+                                          const TypeInfo* type_info) {
+  if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
+    return name_ref->owner()->GetMemberOrError<Function>(
+        name_ref->identifier());
+  }
+
+  auto* colon_ref = dynamic_cast<ColonRef*>(callee);
+  XLS_RET_CHECK_NE(colon_ref, nullptr);
+  std::optional<Import*> import = colon_ref->ResolveImportSubject();
+  XLS_RET_CHECK(import.has_value())
+      << "ColonRef did not refer to an import: " << colon_ref->ToString();
+  std::optional<const ImportedInfo*> imported_info =
+      type_info->GetImported(*import);
+  return imported_info.value()->module->GetMemberOrError<Function>(
+      colon_ref->attr());
+}
+
+absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
+  if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
+    return name_ref->owner()->GetMemberOrError<Proc>(name_ref->identifier());
+  }
+
+  auto* colon_ref = dynamic_cast<ColonRef*>(callee);
+  XLS_RET_CHECK_NE(colon_ref, nullptr);
+  std::optional<Import*> import = colon_ref->ResolveImportSubject();
+  XLS_RET_CHECK(import.has_value())
+      << "ColonRef did not refer to an import: " << colon_ref->ToString();
+  std::optional<const ImportedInfo*> imported_info =
+      type_info->GetImported(*import);
+  return imported_info.value()->module->GetMemberOrError<Proc>(
+      colon_ref->attr());
+}
+
 }  // namespace xls::dslx
