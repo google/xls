@@ -733,7 +733,7 @@ fn bar() -> bits[1] {
                                  "binary operation '+'")));
 }
 
-TEST(TypecheckTest, ParametricWidthSliceStartError) {
+TEST(TypecheckErrorTest, ParametricWidthSliceStartError) {
   EXPECT_THAT(Typecheck(R"(
 fn make_u1<N: u32>(x: bits[N]) -> u1 {
   x[4 +: bits[1]]
@@ -1253,11 +1253,23 @@ TEST(TypecheckTest, WidthSlices) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u1 { x[31+:u1] }"));
 }
 
-TEST(TypecheckTest, WidthSliceNegativeStartNumber) {
-  // Start literal is treated as unsigned.
-  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"));
-  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u2 { x[-1+:u2] }"));
-  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u3 { x[-2+:u3] }"));
+TEST(TypecheckErrorTest, WidthSliceNegativeStartNumberLiteral) {
+  // Start literal cannot be negative.
+  EXPECT_THAT(
+      Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "only unsigned values are permitted; got start value: -1")));
+  EXPECT_THAT(
+      Typecheck("fn f(x: u32) -> u2 { x[-1+:u2] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "only unsigned values are permitted; got start value: -1")));
+  EXPECT_THAT(
+      Typecheck("fn f(x: u32) -> u3 { x[-2+:u3] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "only unsigned values are permitted; got start value: -2")));
 }
 
 TEST(TypecheckTest, WidthSliceEmptyStartNumber) {
@@ -1265,6 +1277,11 @@ TEST(TypecheckTest, WidthSliceEmptyStartNumber) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u31 { x[:-1] }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u30 { x[:-2] }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u29 { x[:-3] }"));
+}
+
+TEST(TypecheckTest, WidthSliceUnsignedStart) {
+  // Unsigned start literals are ok.
+  XLS_EXPECT_OK(Typecheck("fn f(start: u32, x: u32) -> u3 { x[start+:u3] }"));
 }
 
 TEST(TypecheckTest, WidthSliceSignedStart) {

@@ -941,6 +941,14 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     XLS_ASSIGN_OR_RETURN(Bits start_bits, start_number->GetBits(64));
     XLS_ASSIGN_OR_RETURN(int64_t start_int, start_bits.ToInt64());
 
+    if (start_int < 0) {
+      return TypeInferenceErrorStatus(
+          start_number->span(), nullptr,
+          absl::StrFormat("Width-slice start value cannot be negative, only "
+                          "unsigned values are permitted; got start value: %d.",
+                          start_int));
+    }
+
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_start_type,
                          Resolve(*start_type, ctx));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count_ctd,
