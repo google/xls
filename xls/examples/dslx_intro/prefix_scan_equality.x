@@ -44,7 +44,7 @@ fn prefix_scan_eq_all_zero_test() {
 
 #[test]
 fn prefix_scan_eq_doubles_test() {
-  let input = u32[8]:[0, 0, 1, 1, 2, 2, 3, 3];
+  let input = u32[8]:[0, 0, 1, 1, 2, 3, 2, 3];
   let result = prefix_scan_eq(input);
-  assert_eq(result, u3[8]:[0, 1, 0, 1, 0, 1, 0, 1])
+  assert_eq(result, u3[8]:[0, 1, 0, 1, 0, 0, 0, 0])
 }
