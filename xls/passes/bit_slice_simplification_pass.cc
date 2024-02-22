@@ -14,15 +14,20 @@
 
 #include "xls/passes/bit_slice_simplification_pass.h"
 
+#include <sys/stat.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <limits>
+#include <optional>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -33,12 +38,108 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
+
+// If we can identify `scaled_index` as a known multiple of `scale`, return the
+// unscaled value.
+absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(Node* scaled_index,
+                                                      int64_t scale) {
+  if (scale > 0 && IsPowerOfTwo(static_cast<uint64_t>(scale))) {
+    int64_t bits_to_remove = FloorOfLog2(scale);
+
+    // Check whether `scaled_index` has enough low zero-bits for us to take a
+    // slice of it as the unscaled version.
+    // TODO(epastor): Implement this using a query engine.
+    switch (scaled_index->op()) {
+      default:
+        return std::nullopt;
+      case Op::kUMul: {
+        if (!scaled_index->operand(1)->Is<Literal>()) {
+          return std::nullopt;
+        }
+        XLS_ASSIGN_OR_RETURN(
+            uint64_t potential_scalar,
+            scaled_index->operand(1)->As<Literal>()->value().bits().ToUint64(),
+            std::nullopt);
+        if (potential_scalar >
+            static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+          return std::nullopt;
+        }
+        int64_t scalar = static_cast<int64_t>(potential_scalar);
+        if (scalar % scale != 0) {
+          return std::nullopt;
+        }
+        break;
+      }
+      case Op::kShll: {
+        if (!scaled_index->operand(1)->Is<Literal>()) {
+          return std::nullopt;
+        }
+        XLS_ASSIGN_OR_RETURN(
+            uint64_t shift,
+            scaled_index->operand(1)->As<Literal>()->value().bits().ToUint64(),
+            std::nullopt);
+        if (shift >= 63 || static_cast<int64_t>(shift) < bits_to_remove) {
+          return std::nullopt;
+        }
+        break;
+      }
+      case Op::kConcat: {
+        if (!scaled_index->operands().back()->Is<Literal>()) {
+          return std::nullopt;
+        }
+        Bits tail =
+            scaled_index->operands().back()->As<Literal>()->value().bits();
+        if (tail.CountTrailingZeros() < bits_to_remove) {
+          return std::nullopt;
+        }
+        break;
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * unscaled_index,
+        scaled_index->function_base()->MakeNode<BitSlice>(
+            SourceInfo(), scaled_index, /*start=*/bits_to_remove,
+            /*width=*/scaled_index->BitCountOrDie() - bits_to_remove));
+    return unscaled_index;
+  }
+
+  // We only need to handle actual multiplication by a literal; all other cases
+  // (shift, concat) should be handled by the power-of-two case above.
+  if (scaled_index->op() != Op::kUMul) {
+    return std::nullopt;
+  }
+  if (!scaled_index->operand(1)->Is<Literal>()) {
+    return std::nullopt;
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      uint64_t potential_scalar,
+      scaled_index->operand(1)->As<Literal>()->value().bits().ToUint64(),
+      std::nullopt);
+  if (potential_scalar >
+      static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    return std::nullopt;
+  }
+  int64_t scalar = static_cast<int64_t>(potential_scalar);
+
+  // We could also handle the case where `scalar` is divisible by `scale`,
+  // reducing the product to multiplication by a smaller literal... but that
+  // involves another multiplication (even if just by a constant), so that might
+  // not be especially area-efficient.
+  if (scalar != scale) {
+    return std::nullopt;
+  }
+
+  return scaled_index->operand(0);
+}
 
 // Attempts to replace the given bit slice with a simpler or more canonical
 // form. Returns true if the bit slice was replaced. Any newly created
@@ -135,7 +236,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
       }
       operand_start += concat_operand_width;
     }
-    std::reverse(new_operands.begin(), new_operands.end());
+    absl::c_reverse(new_operands);
     XLS_VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(concat(...)) => concat(bitslice(), ...): %s",
         bit_slice->GetName());
@@ -399,6 +500,272 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
   return false;
 }
 
+// Replace bit_slice_update operations where the start index is constant with
+// bit slices and concats.
+absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update) {
+  if (!update->start()->Is<Literal>()) {
+    return false;
+  }
+
+  const Bits start = update->start()->As<Literal>()->value().bits();
+  if (bits_ops::UGreaterThanOrEqual(start, update->BitCountOrDie())) {
+    // Bit slice update is entirely out of bounds. This is a noop. Replace
+    // the update operation with the operand which is being updated.
+    XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(update->to_update()));
+    return true;
+  }
+  int64_t start_int64 = start.ToUint64().value();
+  int64_t orig_width = update->BitCountOrDie();
+  int64_t update_width = update->update_value()->BitCountOrDie();
+
+  // Replace bitslice update with expression of slices of the update value
+  // and the original vector.
+  std::vector<Node*> concat_operands;
+  if (start_int64 + update_width < orig_width) {
+    // Bit slice update is entirely in bounds and the most-significant
+    // bit(s) of the original vector are not updated.
+    //
+    //            0                              N
+    //  original: |==============================|
+    //  update  :      |=============|
+    //
+    //
+    //  concat(bitslice(original, start=0), update, bitslice(original, ...)
+    XLS_ASSIGN_OR_RETURN(
+        Node * slice, update->function_base()->MakeNode<BitSlice>(
+                          update->loc(), update->to_update(),
+                          /*start=*/start_int64 + update_width,
+                          /*width=*/orig_width - (start_int64 + update_width)));
+    concat_operands.push_back(slice);
+    concat_operands.push_back(update->update_value());
+  } else if (start_int64 + update_width == orig_width) {
+    // Bit slice update extends right up to end of updated vector.
+    //
+    //            0                              N
+    //  original: |==============================|
+    //  update  :                  |=============|
+    //
+    //
+    //  concat(bitslice(original, start=0), update)
+    concat_operands.push_back(update->update_value());
+  } else {
+    // The update value is partially out of bounds.
+    //
+    //            0                              N
+    //  original: |==============================|
+    //  update  :                       |=============|
+    //
+    //
+    //  concat(bitslice(original, start=0), bitslice(update))
+    XLS_RET_CHECK_GT(start_int64 + update_width, orig_width);
+    int64_t excess = start_int64 + update_width - orig_width;
+    XLS_ASSIGN_OR_RETURN(Node * slice,
+                         update->function_base()->MakeNode<BitSlice>(
+                             update->loc(), update->update_value(),
+                             /*start=*/0,
+                             /*width=*/update_width - excess));
+    concat_operands.push_back(slice);
+  }
+  if (start_int64 > 0) {
+    XLS_ASSIGN_OR_RETURN(Node * slice,
+                         update->function_base()->MakeNode<BitSlice>(
+                             update->loc(), update->to_update(),
+                             /*start=*/0,
+                             /*width=*/start_int64));
+    concat_operands.push_back(slice);
+  }
+  XLS_VLOG(3) << absl::StreamFormat(
+      "Replacing bitslice update %s with constant start index with concat "
+      "and bitslice operations",
+      update->GetName());
+  if (concat_operands.size() == 1) {
+    XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(concat_operands.front()));
+  } else {
+    XLS_RETURN_IF_ERROR(
+        update->ReplaceUsesWithNew<Concat>(concat_operands).status());
+  }
+
+  return true;
+}
+
+// Replace dynamic bit slices with literal indices with a static bit slice.
+absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(
+    DynamicBitSlice* bit_slice) {
+  if (!bit_slice->start()->Is<Literal>()) {
+    return false;
+  }
+
+  int64_t result_width = bit_slice->width();
+  int64_t operand_width = bit_slice->to_slice()->BitCountOrDie();
+  const Bits& start_bits = bit_slice->start()->As<Literal>()->value().bits();
+
+  // TODO(meheff): Handle OOB case.
+  if (bits_ops::UGreaterThan(start_bits, operand_width - result_width)) {
+    return false;
+  }
+
+  XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
+  XLS_VLOG(3) << absl::StreamFormat(
+      "Replacing dynamic bitslice %s with static bitslice",
+      bit_slice->GetName());
+  XLS_RETURN_IF_ERROR(bit_slice
+                          ->ReplaceUsesWithNew<BitSlice>(bit_slice->to_slice(),
+                                                         /*start=*/start,
+                                                         /*width=*/result_width)
+                          .status());
+  return true;
+}
+
+// Optimize dynamic_bit_slice operations with a start index scaled by the width
+// (where both evenly divide the bit count) by converting the bits[N] operand
+// into an array, updating the array, and converting the result back.
+absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice) {
+  int64_t bit_count = bit_slice->to_slice()->BitCountOrDie();
+  int64_t width = bit_slice->width();
+  // TODO(epastor): Remove this restriction by padding the last array element
+  // with zeros as needed.
+  if (bit_count % width != 0) {
+    return false;
+  }
+  Node* start = bit_slice->start();
+
+  XLS_ASSIGN_OR_RETURN(std::optional<Node*> index,
+                       GetUnscaledIndex(start, width));
+  if (!index.has_value()) {
+    return false;
+  }
+
+  std::vector<Node*> array_elements;
+  array_elements.reserve(bit_count / width);
+  for (int64_t element_start = 0; element_start < bit_count;
+       element_start += width) {
+    XLS_ASSIGN_OR_RETURN(Node * array_element,
+                         bit_slice->function_base()->MakeNode<BitSlice>(
+                             bit_slice->loc(), bit_slice->to_slice(),
+                             /*start=*/element_start,
+                             /*width=*/width));
+    array_elements.push_back(array_element);
+  }
+
+  // We would represent this as an ArrayIndex, but we need the past-the-end
+  // value (if needed) to be zero rather than clamped to the last element.
+  std::optional<Node*> past_the_end = std::nullopt;
+  if (index.value()->BitCountOrDie() >=
+      Bits::MinBitCountUnsigned(array_elements.size())) {
+    XLS_ASSIGN_OR_RETURN(past_the_end,
+                         bit_slice->function_base()->MakeNode<Literal>(
+                             SourceInfo(), Value(UBits(0, width))));
+  }
+  XLS_ASSIGN_OR_RETURN(Node * select, bit_slice->ReplaceUsesWithNew<Select>(
+                                          *index, array_elements,
+                                          /*default_value=*/past_the_end));
+  XLS_VLOG(3) << absl::StreamFormat(
+      "Replacing dynamic bit slice %s with constant-scaled start index with: "
+      "select %s",
+      bit_slice->GetName(), select->GetName());
+  return true;
+}
+
+absl::StatusOr<bool> SimplifyDynamicBitSlice(DynamicBitSlice* bit_slice) {
+  XLS_ASSIGN_OR_RETURN(bool literal_bit_slice_changed,
+                       SimplifyLiteralDynamicBitSlice(bit_slice));
+  if (literal_bit_slice_changed) {
+    return true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool scaled_bit_slice_changed,
+                       SimplifyScaledDynamicBitSlice(bit_slice));
+  if (scaled_bit_slice_changed) {
+    return true;
+  }
+
+  return false;
+}
+
+// Optimize bit_slice_update operations with a start index scaled by the width
+// (where both evenly divide the bit count) by converting the bits[N] operand
+// into an array, updating the array, and converting the result back.
+absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update) {
+  int64_t bit_count = update->to_update()->BitCountOrDie();
+  int64_t width = update->update_value()->BitCountOrDie();
+  // TODO(epastor): Remove this restriction by padding the last array element
+  // with zeros as needed, then removing them from the result.
+  if (bit_count % width != 0) {
+    return false;
+  }
+  Node* start = update->start();
+
+  XLS_ASSIGN_OR_RETURN(std::optional<Node*> index,
+                       GetUnscaledIndex(start, width));
+  if (!index.has_value()) {
+    return false;
+  }
+
+  std::vector<Node*> array_elements;
+  array_elements.reserve(bit_count / width);
+  for (int64_t element_start = 0; element_start < bit_count;
+       element_start += width) {
+    XLS_ASSIGN_OR_RETURN(Node * array_element,
+                         update->function_base()->MakeNode<BitSlice>(
+                             update->loc(), update->to_update(),
+                             /*start=*/element_start,
+                             /*width=*/width));
+    array_elements.push_back(array_element);
+  }
+  XLS_ASSIGN_OR_RETURN(Node * array, update->function_base()->MakeNode<Array>(
+                                         update->loc(), array_elements,
+                                         array_elements.front()->GetType()));
+
+  XLS_ASSIGN_OR_RETURN(Node * array_update,
+                       update->function_base()->MakeNode<ArrayUpdate>(
+                           update->loc(), array, update->update_value(),
+                           std::vector<Node*>({*index})));
+
+  std::vector<Node*> updated_array_elements;
+  updated_array_elements.reserve(array_elements.size());
+  const int64_t index_width =
+      array_elements.size() > 1
+          ? Bits::MinBitCountUnsigned(array_elements.size() - 1)
+          : 1;
+  for (int64_t i = 0; i < array_elements.size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(Literal * element_index,
+                         array_update->function_base()->MakeNode<Literal>(
+                             SourceInfo(), Value(UBits(i, index_width))));
+    XLS_ASSIGN_OR_RETURN(Node * updated_array_element,
+                         array_update->function_base()->MakeNode<ArrayIndex>(
+                             array_update->loc(), array_update,
+                             /*indices=*/std::vector<Node*>({element_index})));
+    updated_array_elements.push_back(updated_array_element);
+  }
+
+  // Flip the order so the concat works correctly.
+  absl::c_reverse(updated_array_elements);
+  XLS_ASSIGN_OR_RETURN(Node * updated_bits, update->ReplaceUsesWithNew<Concat>(
+                                                updated_array_elements));
+  XLS_VLOG(3) << absl::StreamFormat(
+      "Replacing bitslice update %s with constant-scaled start index with: "
+      "array conversion %s, array update %s, and flattening %s",
+      update->GetName(), array->GetName(), array_update->GetName(),
+      updated_bits->GetName());
+  return true;
+}
+
+absl::StatusOr<bool> SimplifyBitSliceUpdate(BitSliceUpdate* update) {
+  XLS_ASSIGN_OR_RETURN(bool literal_bit_slice_changed,
+                       SimplifyLiteralBitSliceUpdate(update));
+  if (literal_bit_slice_changed) {
+    return true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool scaled_bit_slice_changed,
+                       SimplifyScaledBitSliceUpdate(update));
+  if (scaled_bit_slice_changed) {
+    return true;
+  }
+
+  return false;
+}
+
 }  // namespace
 
 absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
@@ -406,116 +773,15 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     PassResults* results) const {
   bool changed = false;
 
-  // Replace dynamic bit slices with literal indices with a non-dynamic bit
-  // slice.
   for (Node* node : f->nodes()) {
-    if (node->Is<DynamicBitSlice>() && node->operand(1)->Is<Literal>()) {
-      int64_t result_width = node->BitCountOrDie();
-      int64_t operand_width = node->operand(0)->BitCountOrDie();
-      const Bits& start_bits = node->operand(1)->As<Literal>()->value().bits();
-      // TODO(meheff): Handle OOB case.
-      if (bits_ops::ULessThanOrEqual(start_bits,
-                                     operand_width - result_width)) {
-        XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
-        XLS_VLOG(3) << absl::StreamFormat(
-            "Replacing dynamic bitslice %s with static bitslice",
-            node->GetName());
-        XLS_RETURN_IF_ERROR(
-            node->ReplaceUsesWithNew<BitSlice>(node->operand(0),
-                                               /*start=*/start,
-                                               /*width=*/node->BitCountOrDie())
-                .status());
-        changed = true;
-      }
-    }
-  }
-
-  // Replace bit_slice_update operations where the start index is constant with
-  // bit slices and concats.
-  for (Node* node : f->nodes()) {
-    if (node->Is<BitSliceUpdate>() &&
-        node->As<BitSliceUpdate>()->start()->Is<Literal>()) {
-      BitSliceUpdate* update = node->As<BitSliceUpdate>();
-      const Bits start = update->start()->As<Literal>()->value().bits();
-      if (bits_ops::UGreaterThanOrEqual(start, update->BitCountOrDie())) {
-        // Bit slice update is entirely out of bounds. This is a noop. Replace
-        // the update operation with the operand which is being updated.
-        XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(update->to_update()));
-        changed = true;
-        continue;
-      }
-      int64_t start_int64 = start.ToUint64().value();
-      int64_t orig_width = update->BitCountOrDie();
-      int64_t update_width = update->update_value()->BitCountOrDie();
-
-      // Replace bitslice update with expression of slices of the update value
-      // and the original vector.
-      std::vector<Node*> concat_operands;
-      if (start_int64 + update_width < orig_width) {
-        // Bit slice update is entirely in bounds and the most-significant
-        // bit(s) of the original vector are not updated.
-        //
-        //            0                              N
-        //  original: |==============================|
-        //  update  :      |=============|
-        //
-        //
-        //  concat(bitslice(original, start=0), update, bitslice(original, ...)
-        XLS_ASSIGN_OR_RETURN(
-            Node * slice,
-            f->MakeNode<BitSlice>(
-                node->loc(), update->to_update(),
-                /*start=*/start_int64 + update_width,
-                /*width=*/orig_width - (start_int64 + update_width)));
-        concat_operands.push_back(slice);
-        concat_operands.push_back(update->update_value());
-      } else if (start_int64 + update_width == orig_width) {
-        // Bit slice update extends right up to end of updated vector.
-        //
-        //            0                              N
-        //  original: |==============================|
-        //  update  :                  |=============|
-        //
-        //
-        //  concat(bitslice(original, start=0), update)
-        concat_operands.push_back(update->update_value());
-      } else {
-        // The update value is partially out of bounds.
-        //
-        //            0                              N
-        //  original: |==============================|
-        //  update  :                       |=============|
-        //
-        //
-        //  concat(bitslice(original, start=0), bitslice(update))
-        XLS_RET_CHECK_GT(start_int64 + update_width, orig_width);
-        int64_t excess = start_int64 + update_width - orig_width;
-        XLS_ASSIGN_OR_RETURN(
-            Node * slice,
-            f->MakeNode<BitSlice>(node->loc(), update->update_value(),
-                                  /*start=*/0,
-                                  /*width=*/update_width - excess));
-        concat_operands.push_back(slice);
-      }
-      if (start_int64 > 0) {
-        XLS_ASSIGN_OR_RETURN(Node * slice, f->MakeNode<BitSlice>(
-                                               node->loc(), update->to_update(),
-                                               /*start=*/0,
-                                               /*width=*/start_int64));
-        concat_operands.push_back(slice);
-      }
-      XLS_VLOG(3) << absl::StreamFormat(
-          "Replacing bitslice update %s with constant start index with concat "
-          "and bitslice operations",
-          node->GetName());
-      if (concat_operands.size() == 1) {
-        XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(concat_operands.front()));
-      } else {
-        XLS_RETURN_IF_ERROR(
-            update->ReplaceUsesWithNew<Concat>(concat_operands).status());
-      }
-
-      changed = true;
+    if (node->Is<DynamicBitSlice>()) {
+      XLS_ASSIGN_OR_RETURN(bool node_changed, SimplifyDynamicBitSlice(
+                                                  node->As<DynamicBitSlice>()));
+      changed = changed || node_changed;
+    } else if (node->Is<BitSliceUpdate>()) {
+      XLS_ASSIGN_OR_RETURN(bool node_changed,
+                           SimplifyBitSliceUpdate(node->As<BitSliceUpdate>()));
+      changed = changed || node_changed;
     }
   }
 

@@ -347,6 +347,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -357,6 +358,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",
+        "//xls/ir:value",
     ],
 )
 
@@ -1800,6 +1802,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence",
+        "//xls/solvers:z3_ir_equivalence_testutils",
     ],
 )
 
