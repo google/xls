@@ -14,6 +14,8 @@
 
 #include "xls/codegen/block_conversion.h"
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <initializer_list>
@@ -23,6 +25,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -39,6 +42,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
+#include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/casts.h"
@@ -47,6 +51,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/instantiation.h"
@@ -63,7 +68,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -1998,6 +2002,43 @@ static absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
   return absl::OkStatus();
 }
 
+// Determine which stages are mutually exclusive with each other.
+//
+// Takes a map from stage number to the state elements which are read and
+// written to on each stage.
+//
+// Since each state element defines a mutual exclusive zone lasting from its
+// first read to its first write we can walk through the stage list updating the
+// mutual exclusion state.
+absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentGroupsFromStateWrites(
+    absl::Span<const std::optional<StateRegister>> state_registers,
+    int64_t stage_count) {
+  ConcurrentStageGroups result(stage_count);
+  // Find all the mutex regions
+  for (const auto& reg : state_registers) {
+    if (!reg) {
+      continue;
+    }
+    auto start = reg->read_stage;
+    auto end = absl::c_min_element(reg->next_values,
+                                   [](const StateRegister::NextValue& l,
+                                      const StateRegister::NextValue& r) {
+                                     return l.stage < r.stage;
+                                   })
+                   ->stage;
+    if (start == end) {
+      continue;
+    }
+    for (int64_t i = start; i < end; ++i) {
+      // NB <= since end is inclusive.
+      for (int64_t j = i + 1; j <= end; ++j) {
+        result.MarkMutuallyExclusive(i, j);
+      }
+    }
+  }
+  return result;
+}
+
 // Clones every node in the given func/proc into the given block. Some nodes are
 // handled specially:
 //
@@ -2080,12 +2121,12 @@ class CloneNodesIntoBlockHandler {
   // set to 0;
   CloneNodesIntoBlockHandler(FunctionBase* proc_or_function,
                              int64_t stage_count, const CodegenOptions& options,
-                             Block* block)
+                             CodegenPassUnit& unit)
       : is_proc_(proc_or_function->IsProc()),
         function_base_(proc_or_function),
         token_param_(nullptr),
         options_(options),
-        block_(block),
+        unit_(unit),
         fifo_instantiations_({}) {
     absl::StatusOr<absl::flat_hash_set<int64_t>>
         loopback_channel_ids_or_status =
@@ -2141,12 +2182,12 @@ class CloneNodesIntoBlockHandler {
             std::string inst_name = absl::StrFormat("fifo_%s", channel->name());
             XLS_ASSIGN_OR_RETURN(
                 instantiation,
-                block_->AddInstantiation(
+                block()->AddInstantiation(
                     inst_name,
                     std::make_unique<xls::FifoInstantiation>(
                         inst_name, *streaming_channel->fifo_config(),
                         streaming_channel->type(), streaming_channel->name(),
-                        block_->package())));
+                        block()->package())));
             itr->second = instantiation;
           } else {
             instantiation = itr->second;
@@ -2189,11 +2230,10 @@ class CloneNodesIntoBlockHandler {
       if (schedule.IsLiveOutOfCycle(function_base_node, stage)) {
         Node* node = node_map_.at(function_base_node);
 
-        XLS_ASSIGN_OR_RETURN(
-            Node * node_after_stage,
-            CreatePipelineRegistersForNode(
-                PipelineSignalName(node->GetName(), stage), node,
-                result_.pipeline_registers.at(stage), block_));
+        XLS_ASSIGN_OR_RETURN(Node * node_after_stage,
+                             CreatePipelineRegistersForNode(
+                                 PipelineSignalName(node->GetName(), stage),
+                                 node, result_.pipeline_registers.at(stage)));
 
         node_map_[function_base_node] = node_after_stage;
       }
@@ -2206,12 +2246,28 @@ class CloneNodesIntoBlockHandler {
   absl::Status AddOutputPortsIfFunction() {
     if (!is_proc_) {
       Function* function = function_base_->AsFunctionOrDie();
-      return block_
+      return block()
           ->AddOutputPort(kOutputPortName,
                           node_map_.at(function->return_value()))
           .status();
     }
 
+    return absl::OkStatus();
+  }
+
+  // Figure out based on the reads and writes to state variables what stages are
+  // mutually exclusive with one another.
+  absl::Status MarkMutualExclusiveStages(int64_t stage_count) {
+    if (!is_proc_) {
+      // feed-forward pipelines (non-procs) can't stall in ways that make mutual
+      // exclusive stages possible. All stage activation patterns are equally
+      // possible.
+      unit_.concurrent_stages.reset();
+      return absl::OkStatus();
+    }
+    XLS_ASSIGN_OR_RETURN(unit_.concurrent_stages,
+                         CalculateConcurrentGroupsFromStateWrites(
+                             result_.state_registers, stage_count));
     return absl::OkStatus();
   }
 
@@ -2221,7 +2277,7 @@ class CloneNodesIntoBlockHandler {
  private:
   // Replace token parameter with zero operand AfterAll.
   absl::StatusOr<Node*> HandleTokenParam(Node* node) {
-    return block_->MakeNode<AfterAll>(node->loc(), std::vector<Node*>());
+    return block()->MakeNode<AfterAll>(node->loc(), std::vector<Node*>());
   }
 
   // Don't clone state Param operations. Instead replace with a RegisterRead
@@ -2242,23 +2298,23 @@ class CloneNodesIntoBlockHandler {
                             index, node->GetType()->ToString()));
       }
 
-      return block_->MakeNode<xls::Literal>(node->loc(), Value::Tuple({}));
+      return block()->MakeNode<xls::Literal>(node->loc(), Value::Tuple({}));
     }
 
     // Create a temporary name as this register will later be removed
     // and updated.  That register should be created with the
     // state parameter's name.  See UpdateStateRegisterWithReset().
     std::string name =
-        block_->UniquifyNodeName(absl::StrCat("__", param->name()));
+        block()->UniquifyNodeName(absl::StrCat("__", param->name()));
 
     XLS_ASSIGN_OR_RETURN(Register * reg,
-                         block_->AddRegister(name, node->GetType()));
+                         block()->AddRegister(name, node->GetType()));
 
     XLS_ASSIGN_OR_RETURN(
         RegisterRead * reg_read,
-        block_->MakeNodeWithName<RegisterRead>(node->loc(), reg,
-                                               /*name=*/reg->name()));
 
+        block()->MakeNodeWithName<RegisterRead>(node->loc(), reg,
+                                                /*name=*/reg->name()));
     // The register write will be created later in HandleNextValue.
     result_.state_registers[index] =
         StateRegister{.name = std::string(param->name()),
@@ -2276,8 +2332,8 @@ class CloneNodesIntoBlockHandler {
   // Replace function parameters with input ports.
   absl::StatusOr<Node*> HandleFunctionParam(Node* node) {
     Param* param = node->As<Param>();
-    return block_->AddInputPort(param->GetName(), param->GetType(),
-                                param->loc());
+    return block()->AddInputPort(param->GetName(), param->GetType(),
+                                 param->loc());
   }
 
   // Replace next values with a RegisterWrite.
@@ -2326,7 +2382,7 @@ class CloneNodesIntoBlockHandler {
     // Make a placeholder RegisterWrite; the real one requires access to all the
     // `next_value` nodes and the control flow logic.
     XLS_ASSIGN_OR_RETURN(state_register.reg_write,
-                         block_->MakeNode<RegisterWrite>(
+                         block()->MakeNode<RegisterWrite>(
                              next->loc(), node_map_.at(next->value()),
                              /*load_enable=*/std::nullopt,
                              /*reset=*/std::nullopt, state_register.reg));
@@ -2343,21 +2399,22 @@ class CloneNodesIntoBlockHandler {
     if (stage > state_register.read_stage) {
       XLS_ASSIGN_OR_RETURN(
           state_register.reg_full,
-          block_->AddRegister(absl::StrCat(state_register.reg->name(), "_full"),
-                              block_->package()->GetBitsType(1)));
+          block()->AddRegister(
+              absl::StrCat(state_register.reg->name(), "_full"),
+              block()->package()->GetBitsType(1)));
       XLS_ASSIGN_OR_RETURN(state_register.reg_full_read,
-                           block_->MakeNodeWithName<RegisterRead>(
+                           block()->MakeNodeWithName<RegisterRead>(
                                next->loc(), state_register.reg_full,
                                /*name=*/state_register.reg_full->name()));
       XLS_ASSIGN_OR_RETURN(
           Node * literal_1,
-          block_->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
+          block()->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
       XLS_ASSIGN_OR_RETURN(
           state_register.reg_full_write,
-          block_->MakeNode<RegisterWrite>(next->loc(), literal_1,
-                                          /*load_enable=*/std::nullopt,
-                                          /*reset=*/std::nullopt,
-                                          state_register.reg_full));
+          block()->MakeNode<RegisterWrite>(next->loc(), literal_1,
+                                           /*load_enable=*/std::nullopt,
+                                           /*reset=*/std::nullopt,
+                                           state_register.reg_full));
     }
 
     return absl::OkStatus();
@@ -2383,24 +2440,24 @@ class CloneNodesIntoBlockHandler {
             : "";
     XLS_ASSIGN_OR_RETURN(
         InputPort * input_port,
-        block_->AddInputPort(absl::StrCat(channel->name(), data_suffix),
-                             channel->type()));
+        block()->AddInputPort(absl::StrCat(channel->name(), data_suffix),
+                              channel->type()));
 
     XLS_ASSIGN_OR_RETURN(
         Node * literal_1,
-        block_->MakeNode<xls::Literal>(node->loc(), Value(UBits(1, 1))));
+        block()->MakeNode<xls::Literal>(node->loc(), Value(UBits(1, 1))));
 
     if (channel->kind() == ChannelKind::kSingleValue) {
       if (receive->is_blocking()) {
         XLS_ASSIGN_OR_RETURN(
             next_node,
-            block_->MakeNode<Tuple>(
+            block()->MakeNode<Tuple>(
                 node->loc(), std::vector<Node*>({node_map_.at(node->operand(0)),
                                                  input_port})));
       } else {
         XLS_ASSIGN_OR_RETURN(
             next_node,
-            block_->MakeNode<Tuple>(
+            block()->MakeNode<Tuple>(
                 node->loc(), std::vector<Node*>({node_map_.at(node->operand(0)),
                                                  input_port, literal_1})));
       }
@@ -2420,8 +2477,8 @@ class CloneNodesIntoBlockHandler {
 
     XLS_ASSIGN_OR_RETURN(
         InputPort * input_valid_port,
-        block_->AddInputPort(absl::StrCat(channel->name(), valid_suffix),
-                             block_->package()->GetBitsType(1)));
+        block()->AddInputPort(absl::StrCat(channel->name(), valid_suffix),
+                              block()->package()->GetBitsType(1)));
 
     // If blocking return a tuple of (token, data), and if non-blocking
     // return a tuple of (token, data, valid).
@@ -2430,11 +2487,11 @@ class CloneNodesIntoBlockHandler {
       if (receive->predicate().has_value() && options_.gate_recvs()) {
         XLS_ASSIGN_OR_RETURN(
             Node * zero_value,
-            block_->MakeNode<xls::Literal>(node->loc(),
-                                           ZeroOfType(input_port->GetType())));
+            block()->MakeNode<xls::Literal>(node->loc(),
+                                            ZeroOfType(input_port->GetType())));
         XLS_ASSIGN_OR_RETURN(
             Select * select,
-            block_->MakeNodeWithName<Select>(
+            block()->MakeNodeWithName<Select>(
                 /*loc=*/node->loc(),
                 /*selector=*/node_map_.at(receive->predicate().value()),
                 /*cases=*/std::vector<Node*>({zero_value, input_port}),
@@ -2444,12 +2501,12 @@ class CloneNodesIntoBlockHandler {
       }
       XLS_ASSIGN_OR_RETURN(
           next_node,
-          block_->MakeNode<Tuple>(
+          block()->MakeNode<Tuple>(
               node->loc(),
               std::vector<Node*>({node_map_.at(node->operand(0)), data})));
     } else {
       XLS_ASSIGN_OR_RETURN(Node * zero_value,
-                           block_->MakeNode<xls::Literal>(
+                           block()->MakeNode<xls::Literal>(
                                node->loc(), ZeroOfType(input_port->GetType())));
       // Ensure that the output of the receive is zero when the data is not
       // valid or the predicate is false.
@@ -2459,7 +2516,7 @@ class CloneNodesIntoBlockHandler {
         if (receive->predicate().has_value()) {
           XLS_ASSIGN_OR_RETURN(
               NaryOp * and_pred,
-              block_->MakeNode<NaryOp>(
+              block()->MakeNode<NaryOp>(
                   /*loc=*/node->loc(),
                   /*args=*/
                   std::vector<Node*>(
@@ -2470,7 +2527,7 @@ class CloneNodesIntoBlockHandler {
         }
         XLS_ASSIGN_OR_RETURN(
             Select * select,
-            block_->MakeNodeWithName<Select>(
+            block()->MakeNodeWithName<Select>(
                 /*loc=*/node->loc(), /*selector=*/valid,
                 /*cases=*/std::vector<Node*>({zero_value, input_port}),
                 /*default_value=*/std::nullopt,
@@ -2479,7 +2536,7 @@ class CloneNodesIntoBlockHandler {
       }
       XLS_ASSIGN_OR_RETURN(
           next_node,
-          block_->MakeNode<Tuple>(
+          block()->MakeNode<Tuple>(
               node->loc(), std::vector<Node*>(
                                {node_map_.at(node->operand(0)), data, valid})));
     }
@@ -2515,15 +2572,15 @@ class CloneNodesIntoBlockHandler {
             : "";
     XLS_ASSIGN_OR_RETURN(
         OutputPort * output_port,
-        block_->AddOutputPort(absl::StrCat(channel->name(), data_suffix),
-                              node_map_.at(send->data())));
+        block()->AddOutputPort(absl::StrCat(channel->name(), data_suffix),
+                               node_map_.at(send->data())));
     // Map the Send node to the token operand of the Send in the
     // block.
     next_node = node_map_.at(send->token());
 
     XLS_ASSIGN_OR_RETURN(
         Node * token_buf,
-        block_->MakeNode<UnOp>(
+        block()->MakeNode<UnOp>(
             /*loc=*/SourceInfo(), node_map_.at(send->token()), Op::kIdentity));
     next_node = token_buf;
 
@@ -2554,12 +2611,12 @@ class CloneNodesIntoBlockHandler {
   absl::StatusOr<Node*> HandleFifoReceiveNode(
       Receive* receive, int64_t stage, FifoInstantiation* fifo_instantiation) {
     XLS_ASSIGN_OR_RETURN(Node * data,
-                         block_->MakeNode<xls::InstantiationOutput>(
+                         block()->MakeNode<xls::InstantiationOutput>(
                              receive->loc(), fifo_instantiation, "pop_data"));
     XLS_ASSIGN_OR_RETURN(Node * valid,
-                         block_->MakeNode<xls::InstantiationOutput>(
+                         block()->MakeNode<xls::InstantiationOutput>(
                              receive->loc(), fifo_instantiation, "pop_valid"));
-    XLS_ASSIGN_OR_RETURN(Channel * channel, block_->package()->GetChannel(
+    XLS_ASSIGN_OR_RETURN(Channel * channel, block()->package()->GetChannel(
                                                 receive->channel_name()));
     Node* signal_valid;
     if (receive->is_blocking()) {
@@ -2567,7 +2624,7 @@ class CloneNodesIntoBlockHandler {
     } else {
       XLS_ASSIGN_OR_RETURN(
           Node * literal_1,
-          block_->MakeNode<xls::Literal>(receive->loc(), Value(UBits(1, 1))));
+          block()->MakeNode<xls::Literal>(receive->loc(), Value(UBits(1, 1))));
       signal_valid = literal_1;
     }
     StreamingInput streaming_input{.port = data,
@@ -2591,10 +2648,10 @@ class CloneNodesIntoBlockHandler {
       if (receive->predicate().has_value() && options_.gate_recvs()) {
         XLS_ASSIGN_OR_RETURN(
             Node * zero_value,
-            block_->MakeNode<xls::Literal>(loc, ZeroOfType(channel->type())));
+            block()->MakeNode<xls::Literal>(loc, ZeroOfType(channel->type())));
         XLS_ASSIGN_OR_RETURN(
             Select * select,
-            block_->MakeNodeWithName<Select>(
+            block()->MakeNodeWithName<Select>(
                 /*loc=*/loc,
                 /*selector=*/node_map_.at(receive->predicate().value()),
                 /*cases=*/std::vector<Node*>({zero_value, data}),
@@ -2602,22 +2659,22 @@ class CloneNodesIntoBlockHandler {
                 /*name=*/absl::StrCat(channel->name(), "_select")));
         data = select;
       }
-      XLS_ASSIGN_OR_RETURN(
-          next_node,
-          block_->MakeNode<Tuple>(loc, std::vector<Node*>({next_token, data})));
+      XLS_ASSIGN_OR_RETURN(next_node,
+                           block()->MakeNode<Tuple>(
+                               loc, std::vector<Node*>({next_token, data})));
     } else {
       // Receive is non-blocking; we need a zero value to pass through if there
       // is no valid data.
       XLS_ASSIGN_OR_RETURN(
           Node * zero_value,
-          block_->MakeNode<xls::Literal>(loc, ZeroOfType(channel->type())));
+          block()->MakeNode<xls::Literal>(loc, ZeroOfType(channel->type())));
       // Ensure that the output of the receive is zero when the data is not
       // valid or the predicate is false.
       if (options_.gate_recvs()) {
         if (receive->predicate().has_value()) {
           XLS_ASSIGN_OR_RETURN(
               NaryOp * and_pred,
-              block_->MakeNode<NaryOp>(
+              block()->MakeNode<NaryOp>(
                   /*loc=*/loc,
                   /*args=*/
                   std::initializer_list<Node*>{
@@ -2627,7 +2684,7 @@ class CloneNodesIntoBlockHandler {
         }
         XLS_ASSIGN_OR_RETURN(
             Select * select,
-            block_->MakeNodeWithName<Select>(
+            block()->MakeNodeWithName<Select>(
                 /*loc=*/loc, /*selector=*/valid,
                 /*cases=*/
                 std::initializer_list<Node*>({zero_value, data}),
@@ -2637,7 +2694,7 @@ class CloneNodesIntoBlockHandler {
       }
       XLS_ASSIGN_OR_RETURN(
           next_node,
-          block_->MakeNode<Tuple>(
+          block()->MakeNode<Tuple>(
               loc, std::initializer_list<Node*>({next_token, data, valid})));
     }
     return next_node;
@@ -2646,13 +2703,13 @@ class CloneNodesIntoBlockHandler {
   absl::StatusOr<Node*> HandleFifoSendNode(
       Send* send, int64_t stage, FifoInstantiation* fifo_instantiation) {
     XLS_ASSIGN_OR_RETURN(Node * ready,
-                         block_->MakeNode<xls::InstantiationOutput>(
+                         block()->MakeNode<xls::InstantiationOutput>(
                              send->loc(), fifo_instantiation, "push_ready"));
     XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         block_->package()->GetChannel(send->channel_name()));
+                         block()->package()->GetChannel(send->channel_name()));
     Node* data = node_map_.at(send->data());
     XLS_ASSIGN_OR_RETURN(
-        Node * port, block_->MakeNode<xls::InstantiationInput>(
+        Node * port, block()->MakeNode<xls::InstantiationInput>(
                          send->loc(), data, fifo_instantiation, "push_data"));
     StreamingOutput streaming_output{.port = port,
                                      .port_valid = nullptr,
@@ -2667,7 +2724,7 @@ class CloneNodesIntoBlockHandler {
     // Map the Send node to the token operand of the Send in the block.
     XLS_ASSIGN_OR_RETURN(
         Node * token_buf,
-        block_->MakeNode<UnOp>(
+        block()->MakeNode<UnOp>(
             /*loc=*/SourceInfo(), node_map_.at(send->token()), Op::kIdentity));
     return token_buf;
   }
@@ -2678,7 +2735,7 @@ class CloneNodesIntoBlockHandler {
     for (Node* operand : node->operands()) {
       new_operands.push_back(node_map_.at(operand));
     }
-    return node->CloneInNewFunction(new_operands, block_);
+    return node->CloneInNewFunction(new_operands, block());
   }
 
   // Create a pipeline register for the given node.
@@ -2686,19 +2743,18 @@ class CloneNodesIntoBlockHandler {
   // Returns a PipelineRegister whose reg_read field can be used
   // to chain dependent ops to.
   absl::StatusOr<PipelineRegister> CreatePipelineRegister(std::string_view name,
-                                                          Node* node,
-                                                          Block* block) {
+                                                          Node* node) {
     XLS_ASSIGN_OR_RETURN(Register * reg,
-                         block_->AddRegister(name, node->GetType()));
+                         block()->AddRegister(name, node->GetType()));
     XLS_ASSIGN_OR_RETURN(
         RegisterWrite * reg_write,
-        block_->MakeNode<RegisterWrite>(node->loc(), node,
-                                        /*load_enable=*/std::nullopt,
-                                        /*reset=*/std::nullopt, reg));
+        block()->MakeNode<RegisterWrite>(node->loc(), node,
+                                         /*load_enable=*/std::nullopt,
+                                         /*reset=*/std::nullopt, reg));
     XLS_ASSIGN_OR_RETURN(
         RegisterRead * reg_read,
-        block_->MakeNodeWithName<RegisterRead>(node->loc(), reg,
-                                               /*name=*/reg->name()));
+        block()->MakeNodeWithName<RegisterRead>(node->loc(), reg,
+                                                /*name=*/reg->name()));
     return PipelineRegister{reg, reg_write, reg_read};
   }
 
@@ -2726,7 +2782,7 @@ class CloneNodesIntoBlockHandler {
   //
   absl::StatusOr<Node*> CreatePipelineRegistersForNode(
       std::string_view base_name, Node* node,
-      std::vector<PipelineRegister>& pipeline_registers_list, Block* block) {
+      std::vector<PipelineRegister>& pipeline_registers_list) {
     // As a special case, check if the node is a tuple
     // containing types that are of zero-width.  If so, separate them out so
     // that future optimization passes can remove them.
@@ -2742,13 +2798,13 @@ class CloneNodesIntoBlockHandler {
 
         // Create registers for each element.
         for (int64_t i = 0; i < split_registers.size(); ++i) {
-          XLS_ASSIGN_OR_RETURN(Node * split_node, block_->MakeNode<TupleIndex>(
+          XLS_ASSIGN_OR_RETURN(Node * split_node, block()->MakeNode<TupleIndex>(
                                                       node->loc(), node, i));
 
-          XLS_ASSIGN_OR_RETURN(PipelineRegister pipe_reg,
-                               CreatePipelineRegister(
-                                   absl::StrFormat("%s_index%d", base_name, i),
-                                   split_node, block));
+          XLS_ASSIGN_OR_RETURN(
+              PipelineRegister pipe_reg,
+              CreatePipelineRegister(
+                  absl::StrFormat("%s_index%d", base_name, i), split_node));
 
           split_registers.at(i) = pipe_reg.reg_read;
           pipeline_registers_list.push_back(pipe_reg);
@@ -2757,7 +2813,7 @@ class CloneNodesIntoBlockHandler {
         // Reconstruct tuple for the rest of the graph.
         XLS_ASSIGN_OR_RETURN(
             Node * merge_after_reg_read,
-            block_->MakeNode<Tuple>(node->loc(), split_registers));
+            block()->MakeNode<Tuple>(node->loc(), split_registers));
 
         return merge_after_reg_read;
       }
@@ -2765,11 +2821,13 @@ class CloneNodesIntoBlockHandler {
 
     // Create a single register to store the node
     XLS_ASSIGN_OR_RETURN(PipelineRegister pipe_reg,
-                         CreatePipelineRegister(base_name, node, block));
+                         CreatePipelineRegister(base_name, node));
 
     pipeline_registers_list.push_back(pipe_reg);
     return pipe_reg.reg_read;
   }
+
+  Block* block() const { return unit_.block; };
 
   bool is_proc_;
   FunctionBase* function_base_;
@@ -2777,7 +2835,7 @@ class CloneNodesIntoBlockHandler {
 
   const CodegenOptions& options_;
 
-  Block* block_;
+  CodegenPassUnit& unit_;
   StreamingIOPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;
   absl::flat_hash_set<int64_t> loopback_channel_ids_;
@@ -2789,18 +2847,19 @@ class CloneNodesIntoBlockHandler {
 // should be empty prior to calling this function.
 static absl::StatusOr<StreamingIOPipeline> CloneNodesIntoPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
-    Block* block) {
+    CodegenPassUnit& unit) {
   FunctionBase* function_base = schedule.function_base();
   XLS_RET_CHECK(function_base->IsProc() || function_base->IsFunction());
 
   CloneNodesIntoBlockHandler cloner(function_base, schedule.length(), options,
-                                    block);
+                                    unit);
   for (int64_t stage = 0; stage < schedule.length(); ++stage) {
     XLS_RET_CHECK_OK(cloner.CloneNodes(schedule.nodes_in_cycle(stage), stage));
     XLS_RET_CHECK_OK(cloner.AddNextPipelineStage(schedule, stage));
   }
 
   XLS_RET_CHECK_OK(cloner.AddOutputPortsIfFunction());
+  XLS_RET_CHECK_OK(cloner.MarkMutualExclusiveStages(schedule.length()));
 
   return cloner.GetResult();
 }
@@ -2808,8 +2867,8 @@ static absl::StatusOr<StreamingIOPipeline> CloneNodesIntoPipelinedBlock(
 // Clones every node in the given proc into the given block. Some nodes are
 // handled specially.  See CloneNodesIntoBlockHandler for details.
 static absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
-    Proc* proc, const CodegenOptions& options, Block* block) {
-  CloneNodesIntoBlockHandler cloner(proc, /*stage_count=*/0, options, block);
+    Proc* proc, const CodegenOptions& options, CodegenPassUnit& unit) {
+  CloneNodesIntoBlockHandler cloner(proc, /*stage_count=*/0, options, unit);
   XLS_RET_CHECK_OK(cloner.CloneNodes(TopoSort(proc).AsVector(), /*stage=*/0));
   return cloner.GetResult();
 }
@@ -3012,9 +3071,10 @@ absl::StatusOr<CodegenPassUnit> FunctionToPipelinedBlock(
   std::string block_name(
       options.module_name().value_or(SanitizeIdentifier(f->name())));
 
-  CodegenPassUnit unit(f->package(),
-                       f->package()->AddBlock(
-                           std::make_unique<Block>(block_name, f->package())));
+  CodegenPassUnit unit(
+      f->package(),
+      f->package()->AddBlock(std::make_unique<Block>(block_name, f->package())),
+      /*stages=*/schedule.length());
 
   if (std::optional<int64_t> ii = f->GetInitiationInterval(); ii.has_value()) {
     unit.block->SetInitiationInterval(*ii);
@@ -3035,7 +3095,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToPipelinedBlock(
 
   XLS_ASSIGN_OR_RETURN(
       unit.streaming_io_and_pipeline,
-      CloneNodesIntoPipelinedBlock(transformed_schedule, options, unit.block));
+      CloneNodesIntoPipelinedBlock(transformed_schedule, options, unit));
 
   XLS_RET_CHECK_OK(MaybeAddResetPort(unit.block, options));
 
@@ -3100,7 +3160,8 @@ absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
 
   CodegenPassUnit unit(proc->package(),
                        proc->package()->AddBlock(std::make_unique<Block>(
-                           block_name, proc->package())));
+                           block_name, proc->package())),
+                       /*stages=*/schedule.length());
   ProcConversionMetadata& proc_metadata =
       unit.conversion_metadata.emplace<ProcConversionMetadata>();
 
@@ -3114,9 +3175,8 @@ absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
   XLS_VLOG(3) << "Schedule Used";
   XLS_VLOG_LINES(3, schedule.ToString());
 
-  XLS_ASSIGN_OR_RETURN(
-      unit.streaming_io_and_pipeline,
-      CloneNodesIntoPipelinedBlock(schedule, options, unit.block));
+  XLS_ASSIGN_OR_RETURN(unit.streaming_io_and_pipeline,
+                       CloneNodesIntoPipelinedBlock(schedule, options, unit));
 
   int64_t number_of_outputs = 0;
   for (const auto& outputs : unit.streaming_io_and_pipeline.outputs) {
@@ -3255,7 +3315,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
       block->AddOutputPort(kOutputPortName, node_map.at(f->return_value()))
           .status());
 
-  CodegenPassUnit unit(block->package(), block);
+  CodegenPassUnit unit(block->package(), block, /*stages=*/1);
   unit.conversion_metadata.emplace<FunctionConversionMetadata>();
   unit.GcMetadata();
   return unit;
@@ -3288,8 +3348,9 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
   Block* block = proc->package()->AddBlock(
       std::make_unique<Block>(module_name, proc->package()));
 
+  CodegenPassUnit unit(block->package(), block, /*stages=*/1);
   XLS_ASSIGN_OR_RETURN(StreamingIOPipeline streaming_io,
-                       CloneProcNodesIntoBlock(proc, options, block));
+                       CloneProcNodesIntoBlock(proc, options, unit));
 
   int64_t number_of_outputs = 0;
   for (const auto& outputs : streaming_io.outputs) {
@@ -3323,7 +3384,6 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
-  CodegenPassUnit unit(block->package(), block);
   unit.streaming_io_and_pipeline = std::move(streaming_io);
   unit.conversion_metadata.emplace<ProcConversionMetadata>();
   XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(&unit));

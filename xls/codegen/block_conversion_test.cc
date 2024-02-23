@@ -427,6 +427,7 @@ TEST_F(BlockConversionTest, SimpleFunction) {
 
   EXPECT_EQ(unit.block->name(), "SimpleFunctionBlock");
   EXPECT_EQ(unit.block->GetPorts().size(), 3);
+  EXPECT_EQ(unit.concurrent_stages, std::nullopt);
 
   EXPECT_THAT(GetOutputPort(unit.block),
               m::OutputPort(m::Add(m::InputPort("x"), m::InputPort("y"))));
@@ -5061,6 +5062,359 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
           10, ElementsAre(0, std::nullopt, 1, 1, std::nullopt, 2, 2,
                           std::nullopt, 3, 3, std::nullopt, 4, 4, std::nullopt,
                           5, 5, std::nullopt, 6, 6, std::nullopt, 7, 7))));
+}
+
+TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), "tok", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * chan_out,
+      p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
+                                p->GetBitsType(1)));
+  auto a = pb.StateElement("a", UBits(0, 1));
+  auto b = pb.StateElement("b", UBits(0, 1));
+  auto c = pb.StateElement("c", UBits(0, 1));
+  auto sv = pb.Or({a, b, c});
+  auto tok = pb.Send(chan_out, pb.GetTokenParam(), sv);
+  auto na = pb.Not(a);
+  auto nb = pb.Not(b);
+  auto nc = pb.Not(c);
+  auto nxt_a = pb.Next(a, na);
+  auto nxt_b = pb.Next(b, nb);
+  auto nxt_c = pb.Next(c, nc);
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+
+  PipelineSchedule ps(proc,
+                      {{pb.GetTokenParam().node(), 0},
+                       {a.node(), 0},
+                       {b.node(), 0},
+                       {c.node(), 0},
+                       {sv.node(), 1},
+                       {tok.node(), 1},
+                       {na.node(), 2},
+                       {nb.node(), 2},
+                       {nc.node(), 2},
+                       {nxt_a.node(), 2},
+                       {nxt_b.node(), 2},
+                       {nxt_c.node(), 2}},
+                      3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToPipelinedBlock(
+          ps, CodegenOptions().reset("foo", false, false, false), proc));
+
+  ASSERT_TRUE(unit.concurrent_stages);
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(0, 1));
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(0, 2));
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(1, 2));
+}
+
+TEST_F(BlockConversionTest, NodeToStageMapSimple) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  auto a = pb.StateElement("a", UBits(0, 2));
+  auto na = pb.Not(a, SourceInfo(), "not_a");
+  auto nxt_a = pb.Next(a, na);
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
+
+  PipelineSchedule ps(proc,
+                      {{pb.GetTokenParam().node(), 0},
+                       {a.node(), 0},
+                       {na.node(), 1},
+                       {nxt_a.node(), 1}},  // stage 0 can activate again
+                      2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToPipelinedBlock(
+          ps, CodegenOptions().reset("foo", false, false, false), proc));
+
+  auto has_mapping = [](auto k, auto v) {
+    return testing::Contains(testing::Pair(k, v));
+  };
+  RecordProperty("map", testing::PrintToString(
+                            unit.streaming_io_and_pipeline.node_to_stage_map));
+  EXPECT_THAT(unit.streaming_io_and_pipeline.node_to_stage_map,
+              has_mapping(m::RegisterRead("__a"), 0));
+  // TODO: It would be nice to identify the state register writes in the
+  // node-to-stage-map somehow. This is not really too important but having
+  // stage information scattered around in a bunch of places is annoying.
+  EXPECT_THAT(unit.streaming_io_and_pipeline.node_to_stage_map,
+              has_mapping(m::Not(), 1));
+  RecordProperty("block", unit.DumpIr());
+}
+
+TEST_F(BlockConversionTest, NodeToStageMapMulti) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), "tok", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * chan_out,
+      p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
+                                p->GetBitsType(2)));
+  auto a = pb.StateElement("a", UBits(0, 2));
+  auto b = pb.StateElement("b", UBits(0, 2));
+  auto c = pb.StateElement("c", UBits(0, 2));
+  auto na = pb.Not(a, SourceInfo(), "not_a");
+  auto nb = pb.Not(b, SourceInfo(), "not_b");
+  auto nc = pb.Not(c, SourceInfo(), "not_c");
+  auto sv = pb.Or({a, b, c}, SourceInfo(), "send_val");
+  auto nxt_a = pb.Next(a, na);
+  auto nxt_b = pb.Next(b, nb);
+  auto nxt_c = pb.Next(c, nc);
+  auto tok =
+      pb.Send(chan_out, pb.GetTokenParam(), sv, SourceInfo(), "send_inst");
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+
+  PipelineSchedule ps(proc,
+                      {{pb.GetTokenParam().node(), 0},
+                       {a.node(), 0},
+                       {na.node(), 1},
+                       {nxt_a.node(), 1},  // stage 0 can activate again
+                       {b.node(), 1},
+                       {nb.node(), 2},
+                       {nxt_b.node(), 2},  // stage 1 can activate again
+                       {c.node(), 2},
+                       {nc.node(), 3},
+                       {nxt_c.node(), 3},  // stage 2 can activate again
+                       {sv.node(), 4},
+                       {tok.node(), 4}},
+                      5);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToPipelinedBlock(
+          ps, CodegenOptions().reset("foo", false, false, false), proc));
+
+  auto has_mapping = [](auto k, auto v) {
+    return testing::Contains(testing::Pair(k, v));
+  };
+  // TODO: It would be nice to identify the state registers in the
+  // node-to-stage-map somehow. This is not really too important but having
+  // stage information scattered around in a bunch of places is annoying.
+  EXPECT_THAT(unit.streaming_io_and_pipeline.node_to_stage_map,
+              has_mapping(m::RegisterRead("__a"), 0));
+  EXPECT_THAT(unit.streaming_io_and_pipeline.node_to_stage_map,
+              has_mapping(m::RegisterRead("__b"), 1));
+  EXPECT_THAT(unit.streaming_io_and_pipeline.node_to_stage_map,
+              has_mapping(m::RegisterRead("__c"), 2));
+  RecordProperty("block", unit.DumpIr());
+  RecordProperty("map", testing::PrintToString(
+                            unit.streaming_io_and_pipeline.node_to_stage_map));
+}
+
+TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), "tok", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * chan_out,
+      p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
+                                p->GetBitsType(1)));
+  auto a = pb.StateElement("a", UBits(0, 1));
+  auto b = pb.StateElement("b", UBits(0, 1));
+  auto c = pb.StateElement("c", UBits(0, 1));
+  auto sv = pb.Or({a, b, c});
+  auto tok = pb.Send(chan_out, pb.GetTokenParam(), sv);
+  auto na = pb.Not(a);
+  auto nb = pb.Not(b);
+  auto nc = pb.Not(c);
+  auto nxt_a = pb.Next(a, na);
+  auto nxt_b = pb.Next(b, nb);
+  auto nxt_c = pb.Next(c, nc);
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+
+  PipelineSchedule ps(proc,
+                      {{pb.GetTokenParam().node(), 0},
+                       {a.node(), 0},
+                       {b.node(), 0},
+                       {c.node(), 0},
+                       {na.node(), 1},
+                       {nb.node(), 1},
+                       {nc.node(), 1},
+                       {nxt_a.node(), 1},
+                       {nxt_b.node(), 1},
+                       {nxt_c.node(), 1},
+                       {sv.node(), 2},
+                       {tok.node(), 2}},
+                      3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToPipelinedBlock(
+          ps, CodegenOptions().reset("foo", false, false, false), proc));
+
+  ASSERT_TRUE(unit.concurrent_stages);
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(0, 1));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(0, 2));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(1, 2));
+}
+
+TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), "tok", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * chan_out,
+      p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
+                                p->GetBitsType(1)));
+  auto a = pb.StateElement("a", UBits(0, 1));
+  auto b = pb.StateElement("b", UBits(0, 1));
+  auto c = pb.StateElement("c", UBits(0, 1));
+  auto sv = pb.Or({a, b, c});
+  auto tok = pb.Send(chan_out, pb.GetTokenParam(), sv);
+  auto na = pb.Not(a);
+  auto nb = pb.Not(b);
+  auto nc = pb.Not(c);
+  auto nxt_a = pb.Next(a, na);
+  auto nxt_b = pb.Next(b, nb);
+  auto nxt_c = pb.Next(c, nc);
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+
+  PipelineSchedule ps(proc,
+                      {{pb.GetTokenParam().node(), 0},
+                       {a.node(), 0},
+                       {b.node(), 0},
+                       {c.node(), 0},
+                       {na.node(), 0},
+                       {nb.node(), 0},
+                       {nc.node(), 0},
+                       {nxt_a.node(), 0},
+                       {nxt_b.node(), 0},
+                       {nxt_c.node(), 0},
+                       {sv.node(), 1},
+                       {tok.node(), 2}},
+                      3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToPipelinedBlock(
+          ps, CodegenOptions().reset("foo", false, false, false), proc));
+
+  ASSERT_TRUE(unit.concurrent_stages);
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(0, 1));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(0, 2));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(1, 2));
+}
+
+TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), "tok", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * chan_out,
+      p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
+                                p->GetBitsType(2)));
+  auto a = pb.StateElement("a", UBits(0, 2));
+  auto b = pb.StateElement("b", UBits(0, 2));
+  auto c = pb.StateElement("c", UBits(0, 2));
+  auto na = pb.Not(a, SourceInfo(), "not_a");
+  auto nb = pb.Not(b, SourceInfo(), "not_b");
+  auto nc = pb.Not(c, SourceInfo(), "not_c");
+  auto sv = pb.Or({a, b, c}, SourceInfo(), "send_val");
+  auto tok =
+      pb.Send(chan_out, pb.GetTokenParam(), sv, SourceInfo(), "send_inst");
+  auto nxt_a = pb.Next(a, na);
+  auto nxt_b = pb.Next(b, nb);
+  auto nxt_c = pb.Next(c, nc);
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+
+  PipelineSchedule ps(proc,
+                      {{pb.GetTokenParam().node(), 0},
+                       {a.node(), 0},
+                       {na.node(), 1},
+                       {nxt_a.node(), 1},  // stage 0 can activate again
+                       {b.node(), 1},
+                       {nb.node(), 2},
+                       {nxt_b.node(), 2},  // stage 1 can activate again
+                       {c.node(), 2},
+                       {nc.node(), 3},
+                       {nxt_c.node(), 3},  // stage 2 can activate again
+                       {sv.node(), 4},
+                       {tok.node(), 4}},
+                      5);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToPipelinedBlock(
+          ps, CodegenOptions().reset("foo", false, false, false), proc));
+
+  ASSERT_TRUE(unit.concurrent_stages);
+  RecordProperty("concurrency", unit.concurrent_stages->ToString());
+
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(0, 1));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(0, 2));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(0, 3));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(0, 4));
+
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(1, 2));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(1, 3));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(1, 4));
+
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(2, 3));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(2, 4));
+
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(3, 4));
+}
+
+TEST_F(BlockConversionTest, CoveringRegions) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), "tok", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * chan_out,
+      p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
+                                p->GetBitsType(2)));
+  auto a = pb.StateElement("a", UBits(0, 2));
+  auto b = pb.StateElement("b", UBits(0, 2));
+  auto c = pb.StateElement("c", UBits(0, 2));
+  auto na = pb.Not(a, SourceInfo(), "not_a");
+  auto nb = pb.Not(b, SourceInfo(), "not_b");
+  auto nc = pb.Not(c, SourceInfo(), "not_c");
+  auto sv = pb.Or({a, b, c}, SourceInfo(), "send_val");
+  auto tok =
+      pb.Send(chan_out, pb.GetTokenParam(), sv, SourceInfo(), "send_inst");
+  auto nxt_a = pb.Next(a, na);
+  auto nxt_b = pb.Next(b, nb);
+  auto nxt_c = pb.Next(c, nc);
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+
+  // One region entierly covers the others.
+  // A is live [0, 3]
+  // B is live [2, 3]
+  // C is live [1, 2]
+  PipelineSchedule ps(proc,
+                      {{pb.GetTokenParam().node(), 0},
+                       {a.node(), 0},
+                       {na.node(), 3},
+                       {nxt_a.node(), 3},
+                       {b.node(), 2},
+                       {nb.node(), 3},
+                       {nxt_b.node(), 3},
+                       {c.node(), 1},
+                       {nc.node(), 2},
+                       {nxt_c.node(), 2},
+                       {sv.node(), 4},
+                       {tok.node(), 4}},
+                      5);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToPipelinedBlock(
+          ps, CodegenOptions().reset("foo", false, false, false), proc));
+
+  ASSERT_TRUE(unit.concurrent_stages);
+  RecordProperty("concurrency", unit.concurrent_stages->ToString());
+
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(0, 1));
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(0, 2));
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(0, 3));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(0, 4));
+
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(1, 2));
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(1, 3));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(1, 4));
+
+  EXPECT_TRUE(unit.concurrent_stages->IsMutuallyExclusive(2, 3));
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(2, 4));
+
+  EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(3, 4));
 }
 
 }  // namespace

@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <variant>
 #include <vector>
@@ -24,7 +25,10 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/common/logging/logging.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
 #include "xls/ir/instantiation.h"
@@ -255,7 +259,14 @@ struct ProcConversionMetadata {
 // Data structure operated on by codegen passes. Contains the IR and associated
 // metadata which may be used and mutated by passes.
 struct CodegenPassUnit {
-  CodegenPassUnit(Package* p, Block* b) : package(p), block(b) {}
+  CodegenPassUnit(Package* p, Block* b,
+                  std::optional<int64_t> stages = std::nullopt)
+      : package(p),
+        block(b),
+        concurrent_stages(
+            stages && *stages > 1
+                ? std::make_optional<ConcurrentStageGroups>(*stages)
+                : std::nullopt) {}
 
   // The package containing IR to lower.
   Package* package;
@@ -270,6 +281,12 @@ struct CodegenPassUnit {
   // Only set when converting functions.
   std::variant<FunctionConversionMetadata, ProcConversionMetadata>
       conversion_metadata;
+
+  // Proven knowledge about which stages are active concurrently.
+  //
+  // If absent all stages should be considered potentially concurrently active
+  // with one another.
+  std::optional<ConcurrentStageGroups> concurrent_stages;
 
   // The signature is generated (and potentially mutated) during the codegen
   // process.

@@ -354,6 +354,7 @@ cc_library(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_wrapper_pass",
+        ":concurrent_stage_groups",
         ":register_legalization_pass",
         ":vast",
         "//xls/common:casts",
@@ -363,6 +364,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:node_util",
@@ -396,7 +398,10 @@ cc_library(
     hdrs = ["codegen_pass.h"],
     deps = [
         ":codegen_options",
+        ":concurrent_stage_groups",
         ":module_signature",
+        "//xls/common/logging",
+        "//xls/data_structures:inline_bitmap",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:op",
@@ -585,6 +590,17 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:register",
         "@com_google_absl//absl/algorithm:container",
+    ],
+)
+
+cc_library(
+    name = "concurrent_stage_groups",
+    srcs = ["concurrent_stage_groups.cc"],
+    hdrs = ["concurrent_stage_groups.h"],
+    deps = [
+        "//xls/common/logging",
+        "//xls/data_structures:inline_bitmap",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -789,7 +805,6 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random:bit_gen_ref",
