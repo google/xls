@@ -101,7 +101,8 @@ absl::Status AddSelectPredicates(Predicates* p, FunctionBase* f);
 
 // Use an SMT solver to populate the given `Predicates*` with information about
 // whether nodes are used in a mutually exclusive way.
-absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f);
+absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
+                                    int64_t z3_rlimit);
 
 // Pass which merges together nodes that are determined to be mutually exclusive
 // via SMT solver analysis.

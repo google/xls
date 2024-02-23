@@ -2555,6 +2555,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/solvers:z3_ir_translator",
     ],
 )
 

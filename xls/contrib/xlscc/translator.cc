@@ -5296,8 +5296,7 @@ absl::StatusOr<Z3_lbool> Translator::CheckAssumptions(
   }
 
   if (z3_rlimit_ >= 0) {
-    std::string rlimit_str = std::to_string(z3_rlimit_);
-    Z3_global_param_set("rlimit", rlimit_str.c_str());
+    z3_translator.SetRlimit(z3_rlimit_);
   }
 
   Z3_lbool satisfiable = Z3_solver_check_assumptions(

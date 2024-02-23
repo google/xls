@@ -829,13 +829,15 @@ absl::Status AddSelectPredicates(Predicates* p, FunctionBase* f) {
   return absl::OkStatus();
 }
 
-absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
+absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
+                                    int64_t z3_rlimit) {
   if (f->IsBlock()) {
     return absl::OkStatus();
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<solvers::z3::IrTranslator> translator,
                        solvers::z3::IrTranslator::CreateAndTranslate(f, true));
+  translator->SetRlimit(z3_rlimit);
 
   Z3_context ctx = translator->ctx();
 
@@ -959,13 +961,9 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
           ? options.scheduling_options.mutual_exclusion_z3_rlimit().value()
           : 5000;
 
-  const std::string z3_rlimit_str = absl::StrCat(z3_rlimit);
-
-  Z3_global_param_set("rlimit", z3_rlimit_str.c_str());
-
   Predicates p;
   XLS_RETURN_IF_ERROR(AddSendReceivePredicates(&p, f));
-  XLS_RETURN_IF_ERROR(ComputeMutualExclusion(&p, f));
+  XLS_RETURN_IF_ERROR(ComputeMutualExclusion(&p, f, z3_rlimit));
   XLS_ASSIGN_OR_RETURN(std::vector<absl::flat_hash_set<Node*>> merge_classes,
                        ComputeMergeClasses(&p, f, scm));
 

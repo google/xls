@@ -37,6 +37,7 @@
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/solvers/z3_op_translator.h"
@@ -197,6 +198,11 @@ Z3_sort_kind IrTranslator::GetValueKind(Z3_ast value) {
 void IrTranslator::SetTimeout(absl::Duration timeout) {
   std::string timeout_str = absl::StrCat(absl::ToInt64Milliseconds(timeout));
   Z3_update_param_value(ctx_, "timeout", timeout_str.c_str());
+}
+
+void IrTranslator::SetRlimit(int64_t rlimit) {
+  const std::string rlimit_str = absl::StrCat(rlimit);
+  Z3_update_param_value(ctx_, "rlimit", rlimit_str.c_str());
 }
 
 Z3_ast IrTranslator::FloatZero(Z3_sort sort) {
@@ -814,6 +820,13 @@ absl::Status IrTranslator::HandleNeg(UnOp* neg) {
   return HandleUnary(neg, Z3_mk_bvneg);
 }
 
+absl::Status IrTranslator::HandleNext(Next* next) {
+  // We don't model inductive propagation of next values - so just handle the
+  // empty-tuple placeholder value for this node.
+  NoteTranslation(next, CreateTuple(next->GetType(), {}));
+  return absl::OkStatus();
+}
+
 absl::Status IrTranslator::HandleNot(UnOp* not_op) {
   return HandleUnary(not_op, Z3_mk_bvnot);
 }
@@ -1421,14 +1434,14 @@ static absl::StatusOr<Z3_ast> PredicateToNegatedObjective(
   return objective;
 }
 
-absl::StatusOr<bool> TryProveConjunction(
-    Function* f, absl::Span<const PredicateOfNode> terms,
-    absl::Duration timeout) {
-  XLS_RET_CHECK(!terms.empty());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
-                       IrTranslator::CreateAndTranslate(f));
-  translator->SetTimeout(timeout);
+namespace {
 
+enum class PredicateCombination : std::uint8_t { kDisjunction, kConjunction };
+
+absl::StatusOr<bool> TryProveCombination(
+    std::unique_ptr<IrTranslator> translator,
+    absl::Span<const PredicateOfNode> terms,
+    PredicateCombination predicate_combination) {
   Z3OpTranslator t(translator->ctx());
   std::optional<Z3_ast> objective;
 
@@ -1444,7 +1457,14 @@ absl::StatusOr<bool> TryProveConjunction(
 
     if (objective.has_value()) {
       XLS_RET_CHECK(objective.value() != nullptr);
-      objective = t.OrBool(objective.value(), objective_term);
+      switch (predicate_combination) {
+        case PredicateCombination::kConjunction:
+          objective = t.OrBool(objective.value(), objective_term);
+          break;
+        case PredicateCombination::kDisjunction:
+          objective = t.AndBool(objective.value(), objective_term);
+          break;
+      }
       XLS_RET_CHECK(objective != nullptr);
     } else {
       objective = objective_term;
@@ -1479,10 +1499,64 @@ absl::StatusOr<bool> TryProveConjunction(
   return false;
 }
 
-absl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
-                              absl::Duration timeout) {
+}  // namespace
+
+absl::StatusOr<bool> TryProveConjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout, bool allow_unsupported) {
+  XLS_RET_CHECK(!terms.empty());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
+                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+  translator->SetTimeout(timeout);
+  return TryProveCombination(std::move(translator), terms,
+                             PredicateCombination::kConjunction);
+}
+
+absl::StatusOr<bool> TryProveConjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
+    bool allow_unsupported) {
+  XLS_RET_CHECK(!terms.empty());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
+                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+  translator->SetRlimit(rlimit);
+  return TryProveCombination(std::move(translator), terms,
+                             PredicateCombination::kConjunction);
+}
+
+absl::StatusOr<bool> TryProveDisjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout, bool allow_unsupported) {
+  XLS_RET_CHECK(!terms.empty());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
+                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+  translator->SetTimeout(timeout);
+  return TryProveCombination(std::move(translator), terms,
+                             PredicateCombination::kDisjunction);
+}
+
+absl::StatusOr<bool> TryProveDisjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
+    bool allow_unsupported) {
+  XLS_RET_CHECK(!terms.empty());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
+                       IrTranslator::CreateAndTranslate(f, allow_unsupported));
+  translator->SetRlimit(rlimit);
+  return TryProveCombination(std::move(translator), terms,
+                             PredicateCombination::kDisjunction);
+}
+
+absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
+                              absl::Duration timeout, bool allow_unsupported) {
   PredicateOfNode term{subject, std::move(p)};
-  return TryProveConjunction(f, absl::MakeConstSpan(&term, 1), timeout);
+  return TryProveConjunction(f, absl::MakeConstSpan(&term, 1), timeout,
+                             allow_unsupported);
+}
+
+absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
+                              int64_t rlimit, bool allow_unsupported) {
+  PredicateOfNode term{subject, std::move(p)};
+  return TryProveConjunction(f, absl::MakeConstSpan(&term, 1), rlimit,
+                             allow_unsupported);
 }
 
 }  // namespace z3

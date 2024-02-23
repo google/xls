@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_STATE_LEGALIZATION_PASS_H_
 #define XLS_PASSES_STATE_LEGALIZATION_PASS_H_
 
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/optimization_pass.h"
@@ -25,21 +27,28 @@ namespace xls {
 // Pass which legalizes state parameters by introducing a default `next_value`
 // node that fires if no other `next_value` node will fire.
 //
-// Attempts to pattern-match scenarios where no default is needed, but may
-// produce dead `next_value` nodes if it can't recognize that one of the
-// explicit `next_value` nodes is guaranteed to fire; these can be cleaned up in
-// later optimization passes.
+// Attempts to recognize scenarios where no default is needed (even using Z3 to
+// attempt to prove that one of the explicit `next_value` nodes is guaranteed to
+// fire), but may produce dead `next_value` nodes in some scenarios. However,
+// this should have a minimal impact on QoR.
 class ProcStateLegalizationPass : public OptimizationProcPass {
  public:
   static constexpr std::string_view kName = "proc_state_legal";
-  ProcStateLegalizationPass()
-      : OptimizationProcPass(kName, "Proc State Legalization") {}
+
+  // TODO(epastor): Replace this test-focused z3-rlimit setting with a flag.
+  explicit ProcStateLegalizationPass(int64_t z3_rlimit)
+      : OptimizationProcPass(kName, "Proc State Legalization"),
+        z3_rlimit_(z3_rlimit) {}
+  ProcStateLegalizationPass() : ProcStateLegalizationPass(5000) {}
   ~ProcStateLegalizationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
                                          const OptimizationPassOptions& options,
                                          PassResults* results) const override;
+
+ private:
+  const int64_t z3_rlimit_;
 };
 
 }  // namespace xls

@@ -26,14 +26,18 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function.h"
+#include "xls/ir/dfs_visitor.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
 #include "../z3/src/api/z3.h"  // IWYU pragma: keep
 #include "../z3/src/api/z3_api.h"
 
@@ -78,6 +82,11 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Sets the amount of time to allow Z3 to execute before aborting.
   void SetTimeout(absl::Duration timeout);
+
+  // Sets the amount of "solver resources" Z3 can use before aborting.
+  //
+  // Useful for reproducible termination, since timeout is not reproducible.
+  void SetRlimit(int64_t rlimit);
 
   // Returns the Z3 value (or set of values) corresponding to the given Node.
   // Translates if the translation is not yet stored.
@@ -159,6 +168,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleNaryXor(NaryOp* xor_op) override;
   absl::Status HandleNe(CompareOp* ne) override;
   absl::Status HandleNeg(UnOp* neg) override;
+  absl::Status HandleNext(Next* next) override;
   absl::Status HandleNot(UnOp* not_op) override;
   absl::Status HandleParam(Param* param) override;
   absl::Status HandleOneHot(OneHot* one_hot) override;
@@ -359,18 +369,37 @@ struct PredicateOfNode {
 
 // Attempts to prove the conjunction of "terms". "terms" refers to predicates on
 // nodes within function "f". Returns true iff "terms" can be proven true in
-// conjunction (over all possible inputs) within the given "timeout".
+// conjunction (over all possible inputs) within the given "timeout" or
+// "rlimit".
 absl::StatusOr<bool> TryProveConjunction(
-    Function* f, absl::Span<const PredicateOfNode> terms,
-    absl::Duration timeout);
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout, bool allow_unsupported = false);
+absl::StatusOr<bool> TryProveConjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
+    bool allow_unsupported = false);
+
+// Attempts to prove the disjunction of "terms". "terms" refers to predicates on
+// nodes within function "f". Returns true iff "terms" can be proven true in
+// disjunction (over all possible inputs) within the given "timeout" or
+// "rlimit".
+absl::StatusOr<bool> TryProveDisjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms,
+    absl::Duration timeout, bool allow_unsupported = false);
+absl::StatusOr<bool> TryProveDisjunction(
+    FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
+    bool allow_unsupported = false);
 
 // Attempts to prove node "subject" in function "f" satisfies the given
-// predicate (over all possible inputs) within the duration "timeout".
+// predicate (over all possible inputs) within the duration "timeout" or the
+// "rlimit".
 //
 // This offers a simpler subset of the functionality of TryProveConjunction
 // above.
-absl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
-                              absl::Duration timeout);
+absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
+                              absl::Duration timeout,
+                              bool allow_unsupported = false);
+absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
+                              int64_t rlimit, bool allow_unsupported = false);
 
 }  // namespace z3
 }  // namespace solvers

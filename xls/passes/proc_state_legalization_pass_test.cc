@@ -14,6 +14,7 @@
 
 #include "xls/passes/proc_state_legalization_pass.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -43,10 +44,10 @@ class ProcStateLegalizationPassTest : public IrTestBase {
  protected:
   ProcStateLegalizationPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
+  absl::StatusOr<bool> Run(Package* p, int64_t z3_rlimit = 5000) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
-                         ProcStateLegalizationPass().Run(
+                         ProcStateLegalizationPass(z3_rlimit).Run(
                              p, OptimizationPassOptions(), &results));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
@@ -61,7 +62,7 @@ TEST_F(ProcStateLegalizationPassTest, StatelessProc) {
   ProcBuilder pb("p", "tkn", p.get());
   XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), std::vector<BValue>()).status());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
@@ -71,7 +72,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {x, y}));
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(m::Next(x.node(), x.node()),
@@ -87,7 +88,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->next_values(),
+  ASSERT_THAT(proc->next_values(),
               UnorderedElementsAre(m::Next(x.node(), y.node()),
                                    m::Next(y.node(), x.node())));
 }
@@ -100,7 +101,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {
   pb.Next(x, incremented);
   XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
@@ -112,7 +113,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
   pb.Next(x, incremented, predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
@@ -130,7 +131,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
   pb.Next(x, x, pb.Not(predicate));
   XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
@@ -145,7 +146,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
   pb.Next(x, decremented, predicate2);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
@@ -169,7 +170,61 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(x, decremented, predicate2);
   XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ProcStateLegalizationPassTest, ProcWithNoExplicitDefaultNeeded) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
+  pb.Next(x, x, pb.Eq(x, pb.Literal(UBits(5, 32))));
+  pb.Next(x, incremented, pb.Ne(x, pb.Literal(UBits(5, 32))));
+  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ProcStateLegalizationPassTest,
+       ProcWithPredicatedNextValueAndSmallRlimit) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
+  BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
+  pb.Next(x, incremented, predicate);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+
+  ASSERT_THAT(Run(p.get(), /*z3_rlimit=*/1), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->next_values(),
+              UnorderedElementsAre(
+                  m::Next(x.node(), incremented.node(), predicate.node()),
+                  m::Next(x.node(), x.node(), m::Not(predicate.node()))));
+}
+
+TEST_F(ProcStateLegalizationPassTest,
+       ProcWithNoExplicitDefaultNeededButSmallRlimit) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
+  BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
+  pb.Next(x, x, positive_predicate);
+  BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
+  pb.Next(x, incremented, negative_predicate);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+
+  ASSERT_THAT(Run(p.get(), /*z3_rlimit=*/1), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::Next(x.node(), x.node(), positive_predicate.node()),
+          m::Next(x.node(), incremented.node(), negative_predicate.node()),
+          m::Next(
+              x.node(), x.node(),
+              m::Nor(positive_predicate.node(), negative_predicate.node()))));
 }
 
 }  // namespace

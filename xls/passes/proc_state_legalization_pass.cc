@@ -32,6 +32,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 namespace xls {
 
@@ -59,7 +60,8 @@ absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
   return proc->GetStateElementCount() > 0;
 }
 
-absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param) {
+absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
+                                         int64_t z3_rlimit) {
   absl::btree_set<Node*, Node::NodeIdLessThan> predicates;
   for (Next* next : proc->next_values(param)) {
     if (next->predicate().has_value()) {
@@ -108,6 +110,24 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param) {
     }
   }
 
+  // Try to prove that at least one of our predicates must be true at all times;
+  // if we can prove this, we don't need a default.
+  std::vector<solvers::z3::PredicateOfNode> z3_predicates;
+  for (Node* predicate : predicates) {
+    z3_predicates.push_back({
+        .subject = predicate,
+        .p = solvers::z3::Predicate::NotEqualToZero(),
+    });
+  }
+
+  // TODO(epastor): Use a flag to control the Z3 rlimit here.
+  absl::StatusOr<bool> no_default_needed = solvers::z3::TryProveDisjunction(
+      proc, z3_predicates, /*rlimit=*/z3_rlimit,
+      /*allow_unsupported=*/true);
+  if (no_default_needed.value_or(false)) {
+    return false;
+  }
+
   // Explicitly mark the param as unchanged when no other `next_value` node is
   // active.
   XLS_ASSIGN_OR_RETURN(
@@ -123,11 +143,12 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param) {
   return true;
 }
 
-absl::StatusOr<bool> AddDefaultNextValues(Proc* proc) {
+absl::StatusOr<bool> AddDefaultNextValues(Proc* proc, int64_t z3_rlimit) {
   bool changed = false;
 
   for (Param* param : proc->StateParams()) {
-    XLS_ASSIGN_OR_RETURN(bool param_changed, AddDefaultNextValue(proc, param));
+    XLS_ASSIGN_OR_RETURN(bool param_changed,
+                         AddDefaultNextValue(proc, param, z3_rlimit));
     if (param_changed) {
       changed = true;
     }
@@ -148,7 +169,7 @@ absl::StatusOr<bool> ProcStateLegalizationPass::RunOnProcInternal(
     return ModernizeNextValues(proc);
   }
 
-  return AddDefaultNextValues(proc);
+  return AddDefaultNextValues(proc, z3_rlimit_);
 }
 
 REGISTER_OPT_PASS(ProcStateLegalizationPass);

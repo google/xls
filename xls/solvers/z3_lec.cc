@@ -15,6 +15,7 @@
 #include "xls/solvers/z3_lec.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <iostream>
 #include <memory>
@@ -24,14 +25,29 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/internal/sysinfo.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/function.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
+#include "xls/netlist/netlist.h"
+#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/solvers/z3_ir_translator.h"
+#include "xls/solvers/z3_netlist_translator.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
