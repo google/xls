@@ -30,6 +30,7 @@
 namespace {
 
 using ::testing::AllOf;
+using ::testing::ContainsRegex;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 
@@ -261,6 +262,33 @@ TEST(AssignOrReturn, UniquePtrWorksForExistingVariable) {
   EXPECT_THAT(func().message(), Eq("EXPECTED"));
 }
 
+namespace assign_or_return {
+absl::Status CallThree() { return absl::InternalError("foobar"); }
+absl::StatusOr<int> CallTwo() {
+  XLS_RETURN_IF_ERROR(CallThree());
+  return 1;
+}
+absl::Status CallOne() {
+  XLS_ASSIGN_OR_RETURN(auto abc, CallTwo());
+  (void)abc;
+  return absl::OkStatus();
+}
+}  // namespace assign_or_return
+TEST(AssignOrReturn, KeepsBackTrace) {
+#ifndef XLS_USE_ABSL_SOURCE_LOCATION
+  GTEST_SKIP() << "Back trace not recorded";
+#endif
+  auto result = assign_or_return::CallOne();
+  RecordProperty("result", testing::PrintToString(result));
+  EXPECT_THAT(result.message(), Eq("foobar"));
+  // Expect 3 lines in the stack trace with status_macros_test.cc in them for
+  // the three deep call stack.
+  EXPECT_THAT(
+      result.ToString(absl::StatusToStringMode::kWithEverything),
+      ContainsRegex(
+          "(.*xls/common/status/status_macros_test.cc:[0-9]+.*\n?){3}"));
+}
+
 TEST(ReturnIfError, Works) {
   auto func = []() -> absl::Status {
     XLS_RETURN_IF_ERROR(ReturnOk());
@@ -323,6 +351,33 @@ TEST(ReturnIfError, WorksWithVoidReturnAdaptor) {
   func();
   EXPECT_EQ(phase, 2);
   EXPECT_EQ(code, 2);
+}
+
+namespace return_if_error {
+absl::Status CallThree() { return absl::InternalError("foobar"); }
+absl::Status CallTwo() {
+  XLS_RETURN_IF_ERROR(CallThree());
+  return absl::OkStatus();
+}
+absl::Status CallOne() {
+  XLS_RETURN_IF_ERROR(CallTwo());
+  return absl::OkStatus();
+}
+}  // namespace return_if_error
+
+TEST(ReturnIfError, KeepsBackTrace) {
+#ifndef XLS_USE_ABSL_SOURCE_LOCATION
+  GTEST_SKIP() << "Back trace not recorded";
+#endif
+  auto result = return_if_error::CallOne();
+  RecordProperty("result", testing::PrintToString(result));
+  EXPECT_THAT(result.message(), Eq("foobar"));
+  // Expect 3 lines in the stack trace with status_macros_test.cc in them for
+  // the three deep call stack.
+  EXPECT_THAT(
+      result.ToString(absl::StatusToStringMode::kWithEverything),
+      ContainsRegex(
+          "(.*xls/common/status/status_macros_test.cc:[0-9]+.*\n?){3}"));
 }
 
 // Basis for XLS_RETURN_IF_ERROR and XLS_ASSIGN_OR_RETURN benchmarks.  Derived

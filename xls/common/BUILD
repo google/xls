@@ -199,9 +199,7 @@ cc_test(
 cc_library(
     name = "source_location",
     hdrs = ["source_location.h"],
-    deps = [
-        "@com_google_absl//absl/base:config",
-    ],
+    deps = ["@com_google_absl//absl/base:config"],
 )
 
 cc_test(

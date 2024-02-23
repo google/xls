@@ -77,7 +77,10 @@ cc_test(
 
 cc_library(
     name = "status_builder",
-    srcs = ["status_builder.cc"],
+    srcs = [
+        "status_builder.cc",
+        "status_builder_oss.cc",
+    ],
     hdrs = ["status_builder.h"],
     deps = [
         "@com_google_absl//absl/base:log_severity",

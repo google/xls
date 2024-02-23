@@ -15,6 +15,7 @@
 #ifndef XLS_COMMON_STATUS_STATUS_BUILDER_H_
 #define XLS_COMMON_STATUS_STATUS_BUILDER_H_
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <ostream>
@@ -142,10 +143,8 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   // logging mutator functions.  Returns `*this` to allow method chaining.
   // If period is absl::ZeroDuration() or less, then this is equivalent to
   // calling the Log() method.
-  StatusBuilder& LogEvery(absl::LogSeverity level,
-                          absl::Duration period) &;
-  StatusBuilder&& LogEvery(absl::LogSeverity level,
-                           absl::Duration period) &&;
+  StatusBuilder& LogEvery(absl::LogSeverity level, absl::Duration period) &;
+  StatusBuilder&& LogEvery(absl::LogSeverity level, absl::Duration period) &&;
 
   // Mutates the builder so that the result status will be VLOGged (without a
   // stack trace) when this builder is converted to a Status.  `verbose_level`
@@ -268,13 +267,13 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   // Style guide exception for Ref qualified methods and rvalue refs.  This
   // allows us to avoid a copy in the common case.
   template <typename Adaptor>
-  auto With(Adaptor&& adaptor) & -> decltype(
-      std::forward<Adaptor>(adaptor)(*this)) {
+  auto With(
+      Adaptor&& adaptor) & -> decltype(std::forward<Adaptor>(adaptor)(*this)) {
     return std::forward<Adaptor>(adaptor)(*this);
   }
   template <typename Adaptor>
-  auto With(Adaptor&& adaptor) && -> decltype(
-      std::forward<Adaptor>(adaptor)(std::move(*this))) {
+  auto With(Adaptor&& adaptor) && -> decltype(std::forward<Adaptor>(adaptor)(
+                                      std::move(*this))) {
     return std::forward<Adaptor>(adaptor)(std::move(*this));
   }
 
@@ -412,6 +411,13 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   // nullptr if the result status will be OK.  Extra fields moved to the heap to
   // minimize stack space.
   std::unique_ptr<Rep> rep_;
+
+ private:
+  // Update this status to include the given source location (if supported by
+  // Status implementation).
+  //
+  // This is only for internal use by the StatusBuilder.
+  static void AddSourceLocation(absl::Status& status, SourceLocation loc);
 };
 
 // Implicitly converts `builder` to `Status` and write it to `os`.
@@ -658,13 +664,17 @@ inline absl::StatusCode StatusBuilder::code() const { return status_.code(); }
 
 inline StatusBuilder::operator absl::Status() const& {
   if (rep_ == nullptr) {
-    return status_;
+    absl::Status result = status_;
+    StatusBuilder::AddSourceLocation(result, loc_);
+    return result;
   }
   return StatusBuilder(*this).CreateStatusAndConditionallyLog();
 }
 inline StatusBuilder::operator absl::Status() && {
   if (rep_ == nullptr) {
-    return std::move(status_);
+    absl::Status result = std::move(status_);
+    StatusBuilder::AddSourceLocation(result, loc_);
+    return result;
   }
   return std::move(*this).CreateStatusAndConditionallyLog();
 }
