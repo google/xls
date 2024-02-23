@@ -312,9 +312,12 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   // selector with a select without a default.
   if (n->Is<Select>()) {
     Select* sel = n->As<Select>();
-    if (sel->default_value().has_value() &&
-        (sel->cases().size() + 1) ==
-            (1ULL << sel->selector()->BitCountOrDie())) {
+    int64_t selector_bit_count = sel->selector()->BitCountOrDie();
+    if (selector_bit_count < 63 &&  // don't consider 63+ bit selectors,
+                                    // otherwise 1ULL << selector_bit_count will
+                                    // overflow (it's too many cases anyways)
+        sel->default_value().has_value() &&
+        (sel->cases().size() + 1) == (1ULL << selector_bit_count)) {
       std::vector<Node*> new_cases(sel->cases().begin(), sel->cases().end());
       new_cases.push_back(*sel->default_value());
       XLS_RETURN_IF_ERROR(

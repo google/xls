@@ -255,5 +255,20 @@ TEST_F(CanonicalizePassTest, SelectWithInvertedSelector) {
                         /*cases=*/{m::Param("y"), m::Param("x")}));
 }
 
+TEST_F(CanonicalizePassTest, SelectWithGiantSelector) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[128], x: bits[8], y: bits[8]) -> bits[8] {
+        ret sel.2: bits[8] = sel(p, cases=[x], default=y)
+     }
+  )",
+                                                       p.get()));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Select(m::Param("p"),
+                                           /*cases=*/{m::Param("x")},
+                                           /*default_value=*/m::Param("y")));
+}
+
 }  // namespace
 }  // namespace xls
