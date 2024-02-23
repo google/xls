@@ -5417,6 +5417,53 @@ TEST_F(BlockConversionTest, CoveringRegions) {
   EXPECT_TRUE(unit.concurrent_stages->IsConcurrent(3, 4));
 }
 
+TEST_F(BlockConversionTest, PipelineRegisterStagesKnown) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_out, p->CreateStreamingChannel("x_out", ChannelOps::kSendOnly,
+                                                 p->GetBitsType(2)));
+  TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  auto a = pb.StateElement("a_val", UBits(0, 2));
+  auto na = pb.Not(a, SourceInfo(), "not_a");
+  auto lit_one = pb.Literal(UBits(1, 2));
+  auto na_plus_one = pb.Add(na, lit_one, SourceInfo(), "na_plus_one");
+  auto send = pb.Send(x_out, na_plus_one);
+  auto next = pb.Next(a, na);
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
+  PipelineSchedule ps(proc, {{pb.GetTokenParam().node(), 0},
+                             {a.node(), 0},
+                             {na.node(), 1},
+                             {lit_one.node(), 2},
+                             {na_plus_one.node(), 2},
+                             {next.node(), 5},
+                             {send.node(), 6}});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToPipelinedBlock(
+          ps, CodegenOptions().reset("foo", false, false, false), proc));
+
+  RecordProperty("blk", unit.block->DumpIr());
+  RecordProperty("map", testing::PrintToString(
+                            unit.streaming_io_and_pipeline.node_to_stage_map));
+  auto read_at = [](BValue inst, int64_t stage) -> auto {
+    return testing::Contains(testing::Pair(
+        m::RegisterRead(testing::ContainsRegex(inst.GetName())), stage));
+  };
+  auto write_at = [](BValue inst, int64_t stage) -> auto {
+    return testing::Contains(testing::Pair(
+        m::RegisterWrite(testing::ContainsRegex(inst.GetName())), stage));
+  };
+  EXPECT_THAT(
+      unit.streaming_io_and_pipeline.node_to_stage_map,
+      testing::AllOf(read_at(na_plus_one, 3), read_at(na_plus_one, 4),
+                     read_at(na_plus_one, 5), read_at(na_plus_one, 6),
+                     read_at(a, 1), read_at(na, 2), read_at(na, 3),
+                     read_at(na, 4), read_at(na, 5), write_at(na_plus_one, 2),
+                     write_at(na_plus_one, 3), write_at(na_plus_one, 4),
+                     write_at(na_plus_one, 5), write_at(a, 0), write_at(na, 1),
+                     write_at(na, 2), write_at(na, 3), write_at(na, 4)));
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls
