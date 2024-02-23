@@ -14,8 +14,13 @@
 
 #include "xls/common/logging/vlog_is_on.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/flags/flag.h"
+#include "absl/log/globals.h"
+#include "xls/common/logging/logging.h"
+
+// TODO: google/xls#1318 - remove these tests now that we're using the abseil
+// implementation of VLOG.
 
 namespace xls {
 namespace {
@@ -35,31 +40,31 @@ TEST_F(VlogIsOnTest, GlobalFlagIsUsedByDefault) {
 
 TEST_F(VlogIsOnTest, MismatchingModuleNamePatternDoesNotApply) {
   absl::SetFlag(&FLAGS_v, 5);
-  SetVLOGLevel("something_else", 10);
+  absl::SetVLogLevel("something_else", 10);
   ExpectVlogLevel(5);
 }
 
 TEST_F(VlogIsOnTest, MismatchingModuleDirectoryWildcardPatternDoesNotApply) {
   absl::SetFlag(&FLAGS_v, 5);
-  SetVLOGLevel("*/other_dir/*", 10);
+  absl::SetVLogLevel("*/other_dir/*", 10);
   ExpectVlogLevel(5);
 }
 
 TEST_F(VlogIsOnTest, ModuleNamePatternApplies) {
   absl::SetFlag(&FLAGS_v, 5);
-  SetVLOGLevel("vlog_is_on_test", 10);
+  absl::SetVLogLevel("vlog_is_on_test", 10);
   ExpectVlogLevel(10);
 }
 
 TEST_F(VlogIsOnTest, ModuleNameWithWildcardPatternApplies) {
   absl::SetFlag(&FLAGS_v, 5);
-  SetVLOGLevel("vlog_is_on*", 10);
+  absl::SetVLogLevel("vlog_is_on*", 10);
   ExpectVlogLevel(10);
 }
 
 TEST_F(VlogIsOnTest, ModuleNameWithDirectoryWildcardPatternApplies) {
   absl::SetFlag(&FLAGS_v, 5);
-  SetVLOGLevel("*/common/*", 10);
+  absl::SetVLogLevel("*/common/*", 10);
   ExpectVlogLevel(10);
 }
 

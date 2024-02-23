@@ -83,8 +83,10 @@ cc_library(
     ],
     hdrs = ["status_builder.h"],
     deps = [
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:log_entry",
         "@com_google_absl//absl/log:log_sink",
         "@com_google_absl//absl/status",
@@ -104,6 +106,8 @@ cc_test(
         ":status_builder",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/log:log_entry",
         "@com_google_absl//absl/log:log_sink",
         "@com_google_absl//absl/status",
@@ -113,8 +117,8 @@ cc_test(
         "//xls/common:source_location",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/logging:scoped_mock_log",
-        "//xls/common/logging:vlog_is_on",
     ],
 )
 

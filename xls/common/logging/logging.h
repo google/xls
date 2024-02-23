@@ -17,6 +17,8 @@
 // They still exist because historically we needed our own logging
 // implementation before Abseil released logging. XLS developers should continue
 // to use the XLS_-prefixed macros for now.
+
+// TODO: google/xls#1318 - remove these aliases.
 //
 // Defines a set of logging macros and related APIs.  The two most basic
 // invocations look like this:
@@ -103,12 +105,14 @@
 #ifndef XLS_COMMON_LOGGING_LOGGING_H_
 #define XLS_COMMON_LOGGING_LOGGING_H_
 
-#include "absl/base/optimization.h"
+// IWYU pragma: begin_exports
 #include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "xls/common/logging/log_flags.h"
 #include "xls/common/logging/vlog_is_on.h"
+// IWYU pragma: end_exports
 
 // -----------------------------------------------------------------------------
 // `XLS_LOG` Macros
@@ -178,16 +182,16 @@
 //
 // See vlog_is_on.h for further documentation, including the usage of the
 // --vmodule flag to log at different levels in different source files.
-#define XLS_VLOG(verbose_level) XLS_VLOG_IF(verbose_level, true)
+#define XLS_VLOG(verbose_level) VLOG(verbose_level)
 
-// `XLS_LOG_IF` and friends add a second argument which specifies a condition.
+// `XLS_LOG_IF` adds a second argument which specifies a condition.
 // If the condition is false, nothing is logged. Example:
 //
 //   XLS_LOG_IF(INFO, num_cookies > 10) << "Got lots of cookies";
+//
+// There is no `VLOG_IF` because the order of evaluation of the arguments is
+// ambiguous and the alternate spelling with an `if`-statement is trivial.
 #define XLS_LOG_IF(severity, condition) LOG_IF(severity, condition)
-#define XLS_VLOG_IF(verbose_level, condition)                  \
-  LOG_IF(INFO, ((condition) && XLS_VLOG_IS_ON(verbose_level))) \
-      .WithVerbosity(verbose_level)
 
 // -----------------------------------------------------------------------------
 // `XLS_CHECK` Macros

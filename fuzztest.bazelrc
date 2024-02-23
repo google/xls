@@ -44,5 +44,5 @@ build:fuzztest --copt=-DADDRESS_SANITIZER
 
 # We apply coverage tracking instrumentation to everything but the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
-build:fuzztest --per_file_copt=+//,-fuzztest/.*,-googletest/.*,-googlemock/.*@-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp
+build:fuzztest --per_file_copt=+//,-fuzztest/.*,-centipede/.*,-googletest/.*,-googlemock/.*@-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp,-fsanitize-coverage=pc-table
 

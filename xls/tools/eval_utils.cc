@@ -55,7 +55,9 @@ absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
   int64_t li = 0;
   for (const auto& line :
        absl::StrSplit(contents, '\n', absl::SkipWhitespace())) {
-    XLS_VLOG_IF(1, 0 == (li % 500)) << "Parsing values file at line " << li;
+    if (0 == (li % 500)) {
+      XLS_VLOG(1) << "Parsing values file at line " << li;
+    }
     li++;
     XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(line));
     ret.push_back(std::move(value));

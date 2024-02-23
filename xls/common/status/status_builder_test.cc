@@ -20,6 +20,8 @@
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
+#include "absl/log/globals.h"
+#include "absl/log/log.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/status/status.h"
@@ -28,8 +30,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/logging/scoped_mock_log.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/source_location.h"
 
 namespace xabsl {
@@ -371,9 +373,9 @@ TEST(StatusBuilderTest, LogEveryZeroDuration) {
 
 TEST(StatusBuilderTest, VLogModuleLvalue) {
   absl::SetFlag(&FLAGS_v, 0);
-  xls::SetVLOGLevel("level0", 0);
-  xls::SetVLOGLevel("level1", 1);
-  xls::SetVLOGLevel("level2", 2);
+  absl::SetVLogLevel("level0", 0);
+  absl::SetVLogLevel("level1", 1);
+  absl::SetVLogLevel("level2", 2);
   {
     ScopedMockLog log(kDoNotCaptureLogsYet);
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level0.cc"), _))
@@ -401,7 +403,7 @@ TEST(StatusBuilderTest, VLogModuleLvalue) {
     }
   }
 
-  xls::SetVLOGLevel("level0", 2);
+  absl::SetVLogLevel("level0", 2);
   {
     ScopedMockLog log(kDoNotCaptureLogsYet);
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level0.cc"), _))
@@ -416,9 +418,9 @@ TEST(StatusBuilderTest, VLogModuleLvalue) {
 
 TEST(StatusBuilderTest, VLogModuleRvalue) {
   absl::SetFlag(&FLAGS_v, 0);
-  xls::SetVLOGLevel("level0", 0);
-  xls::SetVLOGLevel("level1", 1);
-  xls::SetVLOGLevel("level2", 2);
+  absl::SetVLogLevel("level0", 0);
+  absl::SetVLogLevel("level1", 1);
+  absl::SetVLogLevel("level2", 2);
   {
     ScopedMockLog log(kDoNotCaptureLogsYet);
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level0.cc"), _))
@@ -442,7 +444,7 @@ TEST(StatusBuilderTest, VLogModuleRvalue) {
         StatusBuilder(absl::AbortedError(""), Locs::kLevel2).VLog(2));
   }
 
-  xls::SetVLOGLevel("level0", 2);
+  absl::SetVLogLevel("level0", 2);
   {
     ScopedMockLog log(kDoNotCaptureLogsYet);
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level0.cc"), _))

@@ -22,6 +22,12 @@ build --define absl=1
 build --incompatible_enable_cc_toolchain_resolution
 build --@llvm_zstd//:llvm_enable_zstd=false
 
+# Do not use some deps from or-tools
+build --@com_google_ortools//ortools/algorithms:with_scip=false
+build --@com_google_ortools//ortools/linear_solver:with_glpk=false
+build --@com_google_ortools//ortools/linear_solver:with_pdlp=false
+build --@com_google_ortools//ortools/linear_solver:with_scip=false
+
 # Settings for --config=asan address sanitizer build
 build:asan --strip=never
 build:asan --copt -fsanitize=address

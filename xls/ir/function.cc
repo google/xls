@@ -223,8 +223,10 @@ bool Function::IsDefinitelyEqualTo(const Function* other) const {
 
   bool result =
       IsEqualRecurse(return_value(), other->return_value(), &matched_pairs);
-  XLS_VLOG_IF(2, result) << absl::StrFormat("Function %s is equal to %s",
-                                            name(), other->name());
+  if (result) {
+    XLS_VLOG(2) << absl::StrFormat("Function %s is equal to %s", name(),
+                                   other->name());
+  }
   return result;
 }
 

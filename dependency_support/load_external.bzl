@@ -53,12 +53,12 @@ def load_external_repositories():
         sha256 = "1f357c27ca988c3f7c6b4bf68a9395005ac6761f034046e9dde0896e3aba00e4",
     )
 
-    # LTS 20230802.1 (released 2023-09-18)
+    # LTS 20240116.1 (released 2024-02-12)
     http_archive(
         name = "com_google_absl",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip"],
-        strip_prefix = "abseil-cpp-20230802.1",
-        sha256 = "497ebdc3a4885d9209b9bd416e8c3f71e7a1fb8af249f6c2a80b7cbeefcd7e21",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.1.tar.gz"],
+        strip_prefix = "abseil-cpp-20240116.1",
+        sha256 = "3c743204df78366ad2eaf236d6631d83f6bc928d1705dd0000b872e53b73dc6a",
     )
 
     # Protobuf depends on Skylib
@@ -216,18 +216,20 @@ def load_external_repositories():
         sha256 = "379113459b0feaf6bfbb584a91874c065078aa673222846ac765f86661c27407",
     )
 
-    # Released 2023-03-13, current as of 2023-05-08.
+    # Released 2024-02-22, current as of 2024-02-22.
+    # TODO(rigge): switch back to stable releases when or-tools cuts a release
+    # against abseil w/ VLOG.
+    ORTOOLS_COMMIT = "05aa100b904d23da218b6f41bfab9d20b930a3b4"
     http_archive(
         name = "com_google_ortools",
-        urls = ["https://github.com/google/or-tools/archive/refs/tags/v9.6.tar.gz"],
-        sha256 = "bc4b07dc9c23f0cca43b1f5c889f08a59c8f2515836b03d4cc7e0f8f2c879234",
-        strip_prefix = "or-tools-9.6",
+        urls = ["https://github.com/google/or-tools/archive/{commit}.tar.gz".format(commit = ORTOOLS_COMMIT)],
+        sha256 = "f0db745dca2da71038f1dffe58319906842d449e4d7f55823495be159d40c7f0",
+        strip_prefix = "or-tools-" + ORTOOLS_COMMIT,
+        patch_args = ["-p1"],
         # Removes undesired dependencies like Eigen, BLISS, SCIP
         patches = [
-            "@com_google_xls//dependency_support/com_google_ortools:add_logging_prefix.diff",
-            "@com_google_xls//dependency_support/com_google_ortools:no_glpk.diff",
-            "@com_google_xls//dependency_support/com_google_ortools:no_scip_or_pdlp.diff",
-            "@com_google_xls//dependency_support/com_google_ortools:remove_abslstringify.diff",
+            "@com_google_xls//dependency_support/com_google_ortools:0001-Fix-GLPK-Eigen-and-SCIP-deps.patch",
+            "@com_google_xls//dependency_support/com_google_ortools:0002-Remove-duplicate-logtostderr-flag.patch",
         ],
     )
 
@@ -238,16 +240,13 @@ def load_external_repositories():
         strip_prefix = "benchmark-1.7.0",
     )
 
-    # Updated 2023-10-19; latest version compatible with our current Abseil dependency.
-    FUZZTEST_COMMIT = "75e0b1ad97903dce24443948280b8f086b109ef4"
+    # Updated 2024-02-22; latest version compatible with our current Abseil dependency.
+    FUZZTEST_COMMIT = "3c5fc5246bf9db709249eb15b43c75157d3ee568"
     http_archive(
         name = "com_google_fuzztest",
         strip_prefix = "fuzztest-" + FUZZTEST_COMMIT,
         url = "https://github.com/google/fuzztest/archive/" + FUZZTEST_COMMIT + ".zip",
-        sha256 = "1f796e790889da24efbd5ebc142eaed02f702190825bdaab29e893f1376398ab",
-        patches = [
-            "@com_google_xls//dependency_support/com_google_fuzztest:make_config_generator_public.diff",
-        ],
+        sha256 = "af47d1489234249e5490b068635f5aaf141e45a08e0a8a61195157db02e9b21f",
     )
 
     # Updated 2023-2-1

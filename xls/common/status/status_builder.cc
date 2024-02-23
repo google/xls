@@ -18,10 +18,13 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 
 #include "absl/base/log_severity.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/status/status.h"
@@ -78,16 +81,22 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
       // and one for the mutex).
       struct LogSites {
         absl::Mutex mutex;
-        std::unordered_map<const void*, xls::VLogSite> sites_by_file
-            ABSL_GUARDED_BY(mutex);
+        // NOLINTNEXTLINE(abseil-no-internal-dependencies)
+        std::unordered_map<const void*, absl::log_internal::VLogSite>
+            sites_by_file ABSL_GUARDED_BY(mutex);
       };
       static auto* vlog_sites = new LogSites();
 
       vlog_sites->mutex.Lock();
-      auto& site = vlog_sites->sites_by_file[loc_.file_name()];
+      // This assumes that loc_.file_name() is a compile time constant in order
+      // to satisfy the lifetime constraints imposed by VLogSite. The
+      // constructors of SourceLocation guarantee that for us.
+      auto [iter, unused] = vlog_sites->sites_by_file.try_emplace(
+          loc_.file_name(), loc_.file_name());
+      auto& site = iter->second;
       vlog_sites->mutex.Unlock();
 
-      if (!site.IsEnabled(rep_->verbose_level, loc_.file_name())) {
+      if (!site.IsEnabled(rep_->verbose_level)) {
         return;
       }
 

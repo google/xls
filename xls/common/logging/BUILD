@@ -74,9 +74,15 @@ cc_library(
     hdrs = ["log_lines.h"],
     visibility = ["//xls:xls_utility_users"],
     deps = [
+        ":log_flags",
         ":logging",
         ":vlog_is_on",
         "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:die_if_null",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -136,9 +142,6 @@ cc_library(
     deps = [
         ":log_flags",
         ":vlog_is_on",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:die_if_null",
@@ -153,13 +156,14 @@ cc_test(
         ":capture_stream",
         ":logging",
         ":logging_test_base",
+        "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -194,18 +198,10 @@ cc_library(
 
 cc_library(
     name = "vlog_is_on",
-    srcs = [
-        "vlog_is_on.cc",
-        "vlog_is_on.inc",
-    ],
     hdrs = ["vlog_is_on.h"],
     deps = [
-        ":errno_saver",
-        ":log_flags",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/log",
     ],
 )
 
@@ -213,7 +209,10 @@ cc_test(
     name = "vlog_is_on_test",
     srcs = ["vlog_is_on_test.cc"],
     deps = [
+        ":logging",
         ":vlog_is_on",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:globals",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
     ],

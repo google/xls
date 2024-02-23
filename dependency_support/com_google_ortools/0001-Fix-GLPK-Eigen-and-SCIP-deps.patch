@@ -1,0 +1,246 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Paul Rigge <rigge@google.com>
+Date: Thu, 22 Feb 2024 13:30:50 -0800
+Subject: Fix GLPK, Eigen, and SCIP deps.
+
+
+diff --git a/ortools/linear_solver/BUILD.bazel b/ortools/linear_solver/BUILD.bazel
+index a07e48431b..07eb271361 100644
+--- a/ortools/linear_solver/BUILD.bazel
++++ b/ortools/linear_solver/BUILD.bazel
+@@ -173,7 +173,6 @@ cc_library(
+         "linear_expr.cc",
+         "linear_solver.cc",
+         "linear_solver_callback.cc",
+-        "lpi_glop.cpp",
+         "sat_interface.cc",
+         "xpress_interface.cc",
+     ] + select({
+@@ -269,9 +268,7 @@ cc_library(
+         "//ortools/gurobi:gurobi_util",
+         "//ortools/linear_solver/proto_solver:glop_proto_solver",
+         "//ortools/linear_solver/proto_solver:gurobi_proto_solver",
+-        "//ortools/linear_solver/proto_solver:pdlp_proto_solver",
+         "//ortools/linear_solver/proto_solver:sat_proto_solver",
+-        "//ortools/linear_solver/proto_solver:scip_proto_solver",
+         "//ortools/port:file",
+         "//ortools/port:proto_utils",
+         "//ortools/sat:cp_model_cc_proto",
+@@ -305,6 +302,7 @@ cc_library(
+         "//conditions:default": [],
+     }) + select({
+         ":use_pdlp": [
++            "//ortools/linear_solver/proto_solver:pdlp_proto_solver",
+             "//ortools/pdlp:primal_dual_hybrid_gradient",
+             "//ortools/pdlp:solve_log_cc_proto",
+             "//ortools/pdlp:solvers_cc_proto",
+@@ -314,6 +312,7 @@ cc_library(
+         ":use_scip": [
+             ":scip_with_glop",
+             "//ortools/gscip:legacy_scip_params",
++            "//ortools/linear_solver/proto_solver:scip_proto_solver",
+         ],
+         "//conditions:default": [],
+     }),
+@@ -345,17 +344,23 @@ cc_library(
+ 
+ copy_file(
+     name = "lpi_glop",
+-    src = "@scip//:src/lpi/lpi_glop.cpp",
++    src = select({
++        ":use_scip":"@scip//:src/lpi/lpi_glop.cpp",
++        "//conditions:default":"empty.cpp",
++    }),
+     out = "lpi_glop.cpp",
+ )
+ 
+ cc_library(
+     name = "scip_with_glop",
+     srcs = ["lpi_glop.cpp"],
+-    deps = [
+-        "//ortools/glop:lp_solver",
+-        "@scip//:libscip",
+-    ],
++    deps = select({
++        ":use_scip":[
++            "//ortools/glop:lp_solver",
++            "@scip//:libscip",
++        ],
++        "//conditions:default":[],
++    }),
+ )
+ 
+ cc_library(
+diff --git a/ortools/linear_solver/empty.cpp b/ortools/linear_solver/empty.cpp
+new file mode 100644
+index 0000000000..db2508cdc1
+--- /dev/null
++++ b/ortools/linear_solver/empty.cpp
+@@ -0,0 +1,13 @@
++// Copyright 2024 Google LLC
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
+diff --git a/ortools/linear_solver/proto_solver/BUILD.bazel b/ortools/linear_solver/proto_solver/BUILD.bazel
+index bd86f88c76..ed4e76ed54 100644
+--- a/ortools/linear_solver/proto_solver/BUILD.bazel
++++ b/ortools/linear_solver/proto_solver/BUILD.bazel
+@@ -129,7 +129,6 @@ cc_library(
+         "@com_google_absl//absl/strings",
+         "@com_google_absl//absl/strings:str_format",
+         "@com_google_absl//absl/time",
+-        "@scip//:libscip",
+     ],
+ )
+ 
+diff --git a/ortools/pdlp/BUILD.bazel b/ortools/pdlp/BUILD.bazel
+index 3034d6b01a..cdc01590d0 100644
+--- a/ortools/pdlp/BUILD.bazel
++++ b/ortools/pdlp/BUILD.bazel
+@@ -73,7 +73,6 @@ cc_library(
+         "//ortools/base",
+         "//ortools/base:mathutil",
+         "@com_google_absl//absl/random:distributions",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -89,7 +88,6 @@ cc_test(
+         ":solvers_cc_proto",
+         ":test_util",
+         "//ortools/base:protobuf_util",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -125,7 +123,6 @@ cc_library(
+         "@com_google_absl//absl/strings:str_format",
+         "@com_google_absl//absl/time",
+         "@com_google_protobuf//:protobuf",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -153,7 +150,6 @@ cc_test(
+         "@com_google_absl//absl/container:flat_hash_map",
+         "@com_google_absl//absl/status:statusor",
+         "@com_google_absl//absl/strings",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -168,7 +164,6 @@ cc_library(
+         "@com_google_absl//absl/status",
+         "@com_google_absl//absl/status:statusor",
+         "@com_google_absl//absl/strings",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -185,7 +180,6 @@ cc_test(
+         "//ortools/linear_solver:linear_solver_cc_proto",
+         "@com_google_absl//absl/status",
+         "@com_google_absl//absl/status:statusor",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -208,7 +202,6 @@ cc_library(
+         "@com_google_absl//absl/status:statusor",
+         "@com_google_absl//absl/strings",
+         "@com_google_absl//absl/strings:str_format",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -224,7 +217,6 @@ cc_library(
+         "//ortools/base",
+         "//ortools/base:mathutil",
+         "@com_google_absl//absl/random:distributions",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -240,7 +232,6 @@ cc_test(
+         ":sharder",
+         ":solve_log_cc_proto",
+         ":test_util",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -256,7 +247,6 @@ cc_library(
+         "//ortools/util:logging",
+         "@com_google_absl//absl/memory",
+         "@com_google_absl//absl/strings",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -269,7 +259,6 @@ cc_test(
+         ":sharded_quadratic_program",
+         ":sharder",
+         ":test_util",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -284,7 +273,6 @@ cc_library(
+         "//ortools/base:timer",
+         "@com_google_absl//absl/synchronization",
+         "@com_google_absl//absl/time",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -299,7 +287,6 @@ cc_test(
+         "//ortools/base:mathutil",
+         "//ortools/base:threadpool",
+         "@com_google_absl//absl/random:distributions",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -362,7 +349,6 @@ cc_library(
+         "//ortools/base",
+         "@com_google_absl//absl/types:span",
+         "@com_google_googletest//:gtest",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -374,7 +360,6 @@ cc_test(
+         ":test_util",
+         "//ortools/base",
+         "@com_google_absl//absl/types:span",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -390,7 +375,6 @@ cc_library(
+         "//ortools/base",
+         "//ortools/base:mathutil",
+         "@com_google_absl//absl/algorithm:container",
+-        "@eigen//:eigen3",
+     ],
+ )
+ 
+@@ -406,6 +390,5 @@ cc_test(
+         ":test_util",
+         ":trust_region",
+         "@com_google_absl//absl/strings",
+-        "@eigen//:eigen3",
+     ],
+ )
+-- 
+2.44.0.rc0.258.g7320e95886-goog
+

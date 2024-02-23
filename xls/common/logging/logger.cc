@@ -28,11 +28,6 @@ int main(int argc, char** argv) {
   XLS_VLOG(1) << "XLS_VLOG(1) message";
   XLS_VLOG(2) << "XLS_VLOG(2) message";
 
-  XLS_VLOG_IF(1, true) << "XLS_VLOG_IF(1, true) message";
-  XLS_VLOG_IF(1, false) << "XLS_VLOG_IF(1, false) message";
-  XLS_VLOG_IF(2, true) << "XLS_VLOG_IF(2, true) message";
-  XLS_VLOG_IF(2, false) << "XLS_VLOG_IF(2, false) message";
-
   if (XLS_VLOG_IS_ON(1)) {
     XLS_LOG(INFO) << "XLS_VLOG_IS_ON(1) message\n";
   }

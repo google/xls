@@ -18,13 +18,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/capture_stream.h"
 #include "xls/common/logging/logging_test_base.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 
 namespace my_unit_test {
 
@@ -89,35 +90,6 @@ TEST_F(LoggingTest, VlogMacroLogsVerboseMessage) {
   EXPECT_THAT(entry.text_message, HasSubstr("verbose_message"));
   EXPECT_EQ(entry.log_severity, absl::LogSeverity::kInfo);
   EXPECT_EQ(entry.verbosity, 6);
-}
-
-TEST_F(LoggingTest, LogIfLogsWhenConditionHolds) {
-  XLS_LOG_IF(INFO, true) << "logged_message";
-
-  auto entry = GetSingleEntry();
-  EXPECT_THAT(entry.text_message, HasSubstr("logged_message"));
-  EXPECT_EQ(entry.log_severity, absl::LogSeverity::kInfo);
-}
-
-TEST_F(LoggingTest, LogIfLogsNothingWhenConditionDoesNotHold) {
-  XLS_LOG_IF(INFO, false) << "logged_message";
-
-  EXPECT_EQ(entries_.size(), 0);
-}
-
-TEST_F(LoggingTest, VlogIfLogsWhenConditionHolds) {
-  XLS_VLOG_IF(5, true) << "logged_message";
-
-  auto entry = GetSingleEntry();
-  EXPECT_THAT(entry.text_message, HasSubstr("logged_message"));
-  EXPECT_EQ(entry.log_severity, absl::LogSeverity::kInfo);
-  EXPECT_EQ(entry.verbosity, 5);
-}
-
-TEST_F(LoggingTest, VlogIfLogsNothingWhenConditionDoesNotHold) {
-  XLS_VLOG_IF(5, false) << "logged_message";
-
-  EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, CheckDoesNothingWhenConditionHolds) {

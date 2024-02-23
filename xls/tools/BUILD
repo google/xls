@@ -1161,6 +1161,7 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
+        "//xls/common/logging:log_flags",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",

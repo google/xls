@@ -142,11 +142,12 @@ cc_library(
     visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/log:flags",
+        "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
-        "//xls/common/logging:vlog_is_on",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log:initialize",
     ],
 )
 
