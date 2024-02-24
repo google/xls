@@ -43,8 +43,6 @@
 namespace xlscc {
 namespace {
 
-using ::testing::UnorderedElementsAre;
-
 class TranslatorIOTest : public XlsccTestBase {
  public:
 };
