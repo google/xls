@@ -221,7 +221,7 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
        queue_mgr->elaboration().GetInstances(proc)) {
     jit->channel_queues_[proc_instance].resize(
         jit->jitted_function_base_.queue_indices().size());
-    for (auto [channel_name, index] :
+    for (const auto& [channel_name, index] :
          jit->jitted_function_base_.queue_indices()) {
       XLS_ASSIGN_OR_RETURN(
           ChannelInstance * channel_instance,
