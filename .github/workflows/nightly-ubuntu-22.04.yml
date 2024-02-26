@@ -32,6 +32,11 @@ jobs:
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
           mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
+      - name: Bazel fetch
+        # Let's fetch all WORKSPACE artifacts to see if they can resolve fully
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" fetch //...
+
       - name: Bazel Test All (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt -- //xls/...

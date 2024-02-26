@@ -45,11 +45,6 @@ jobs:
           mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
 
-      - name: Bazel fetch
-        # Let's fetch all WORKSPACE artifacts to see if they can resolve fully
-        run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" fetch //...
-
       - name: Bazel Build Tools (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" build -c opt --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
