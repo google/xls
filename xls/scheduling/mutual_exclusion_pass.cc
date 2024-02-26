@@ -957,9 +957,7 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
 
   // Sets limit on z3 "solver resources", so that the pass doesn't take too long
   const int64_t z3_rlimit =
-      options.scheduling_options.mutual_exclusion_z3_rlimit().has_value()
-          ? options.scheduling_options.mutual_exclusion_z3_rlimit().value()
-          : 5000;
+      options.scheduling_options.mutual_exclusion_z3_rlimit().value_or(5000);
 
   Predicates p;
   XLS_RETURN_IF_ERROR(AddSendReceivePredicates(&p, f));

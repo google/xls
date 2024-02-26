@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/proc_state_legalization_pass.h"
+#include "xls/scheduling/proc_state_legalization_pass.h"
 
 #include <cstdint>
 #include <optional>
@@ -29,9 +29,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
-#include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
-#include "xls/passes/pass_base.h"
+#include "xls/scheduling/scheduling_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace xls {
@@ -61,7 +59,7 @@ absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
 }
 
 absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
-                                         int64_t z3_rlimit) {
+                                         const SchedulingPassOptions& options) {
   absl::btree_set<Node*, Node::NodeIdLessThan> predicates;
   for (Next* next : proc->next_values(param)) {
     if (next->predicate().has_value()) {
@@ -104,8 +102,8 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
         predicate->operands().begin(), predicate->operands().end());
     if (excluded_conditions == other_conditions) {
       // The default case is explicitly handled in a way we can recognize; no
-      // change needed. (If we can't recognize it, no harm done; we'll just add
-      // a dead next_value node that can be eliminated in later passes.)
+      // change needed. (If we can't recognize it, no harm done; we just might
+      // add a dead next_value node that can be eliminated in later passes.)
       return false;
     }
   }
@@ -120,9 +118,10 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
     });
   }
 
-  // TODO(epastor): Use a flag to control the Z3 rlimit here.
   absl::StatusOr<bool> no_default_needed = solvers::z3::TryProveDisjunction(
-      proc, z3_predicates, /*rlimit=*/z3_rlimit,
+      proc, z3_predicates,
+      /*rlimit=*/
+      options.scheduling_options.default_next_value_z3_rlimit().value_or(5000),
       /*allow_unsupported=*/true);
   if (no_default_needed.value_or(false)) {
     return false;
@@ -143,13 +142,15 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
   return true;
 }
 
-absl::StatusOr<bool> AddDefaultNextValues(Proc* proc, int64_t z3_rlimit) {
+absl::StatusOr<bool> AddDefaultNextValues(
+    Proc* proc, const SchedulingPassOptions& options) {
   bool changed = false;
 
   for (Param* param : proc->StateParams()) {
     XLS_ASSIGN_OR_RETURN(bool param_changed,
-                         AddDefaultNextValue(proc, param, z3_rlimit));
+                         AddDefaultNextValue(proc, param, options));
     if (param_changed) {
+      XLS_VLOG(4) << "Added default next_value for param: " << param->name();
       changed = true;
     }
   }
@@ -159,9 +160,15 @@ absl::StatusOr<bool> AddDefaultNextValues(Proc* proc, int64_t z3_rlimit) {
 
 }  // namespace
 
-absl::StatusOr<bool> ProcStateLegalizationPass::RunOnProcInternal(
-    Proc* proc, const OptimizationPassOptions& options,
-    PassResults* results) const {
+absl::StatusOr<bool> ProcStateLegalizationPass::RunOnFunctionBaseInternal(
+    FunctionBase* f, SchedulingUnit* s, const SchedulingPassOptions& options,
+    SchedulingPassResults* results) const {
+  if (!f->IsProc()) {
+    // Not a proc; no change needed.
+    return false;
+  }
+  Proc* proc = f->AsProcOrDie();
+
   // Convert old-style `next (...)` value handling into explicit nodes.
   // TODO(epastor): Clean up after removing support for `next (...)` values.
   if (proc->next_values().empty()) {
@@ -169,9 +176,7 @@ absl::StatusOr<bool> ProcStateLegalizationPass::RunOnProcInternal(
     return ModernizeNextValues(proc);
   }
 
-  return AddDefaultNextValues(proc, z3_rlimit_);
+  return AddDefaultNextValues(proc, options);
 }
-
-REGISTER_OPT_PASS(ProcStateLegalizationPass);
 
 }  // namespace xls

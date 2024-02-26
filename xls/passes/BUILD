@@ -710,7 +710,6 @@ cc_library(
         ":query_engine",
         ":ternary_evaluator",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
@@ -2534,49 +2533,6 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:ir_parser",
-        "//xls/ir:value",
-    ],
-)
-
-cc_library(
-    name = "proc_state_legalization_pass",
-    srcs = ["proc_state_legalization_pass.cc"],
-    hdrs = ["proc_state_legalization_pass.h"],
-    deps = [
-        ":optimization_pass",
-        ":optimization_pass_registry",
-        ":pass_base",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:node_util",
-        "//xls/ir:op",
-        "//xls/solvers:z3_ir_translator",
-    ],
-)
-
-cc_test(
-    name = "proc_state_legalization_pass_test",
-    srcs = ["proc_state_legalization_pass_test.cc"],
-    deps = [
-        ":dce_pass",
-        ":optimization_pass",
-        ":pass_base",
-        ":proc_state_legalization_pass",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_matcher",
-        "//xls/ir:ir_test_base",
         "//xls/ir:value",
     ],
 )

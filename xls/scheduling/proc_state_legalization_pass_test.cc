@@ -12,25 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/proc_state_legalization_pass.h"
+#include "xls/scheduling/proc_state_legalization_pass.h"
 
-#include <cstdint>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -40,29 +41,36 @@ namespace {
 using status_testing::IsOkAndHolds;
 using ::testing::UnorderedElementsAre;
 
+class SimplificationPass : public OptimizationCompoundPass {
+ public:
+  explicit SimplificationPass()
+      : OptimizationCompoundPass("simp", "Simplification") {
+    Add<DeadCodeEliminationPass>();
+    Add<CsePass>();
+  }
+};
+
 class ProcStateLegalizationPassTest : public IrTestBase {
  protected:
   ProcStateLegalizationPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p, int64_t z3_rlimit = 5000) {
+  absl::StatusOr<bool> Run(Proc* f) { return Run(f, SchedulingPassOptions()); }
+  absl::StatusOr<bool> Run(Proc* f, const SchedulingPassOptions& options) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         ProcStateLegalizationPass(z3_rlimit).Run(
-                             p, OptimizationPassOptions(), &results));
-    // Run dce to clean things up.
-    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .Run(p, OptimizationPassOptions(), &results)
-                            .status());
-    return changed;
+    SchedulingUnit unit = SchedulingUnit::CreateForSingleFunction(f);
+    SchedulingPassResults scheduling_results;
+    return ProcStateLegalizationPass().RunOnFunctionBase(f, &unit, options,
+                                                         &scheduling_results);
   }
 };
 
 TEST_F(ProcStateLegalizationPassTest, StatelessProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", "tkn", p.get());
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), std::vector<BValue>()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(pb.GetTokenParam(), std::vector<BValue>()));
 
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
@@ -72,7 +80,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {x, y}));
 
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(m::Next(x.node(), x.node()),
@@ -86,7 +94,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {y, x}));
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
   ASSERT_THAT(proc->next_values(),
               UnorderedElementsAre(m::Next(x.node(), y.node()),
@@ -99,9 +107,9 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   pb.Next(x, incremented);
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
@@ -113,7 +121,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
   pb.Next(x, incremented, predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
@@ -129,9 +137,9 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
   pb.Next(x, x, pb.Not(predicate));
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
@@ -146,7 +154,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
   pb.Next(x, decremented, predicate2);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
@@ -168,9 +176,9 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(x, x, pb.Nor({predicate2, predicate1, predicate2}));
   pb.Next(x, incremented, predicate1);
   pb.Next(x, decremented, predicate2);
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithNoExplicitDefaultNeeded) {
@@ -180,9 +188,9 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithNoExplicitDefaultNeeded) {
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   pb.Next(x, x, pb.Eq(x, pb.Literal(UBits(5, 32))));
   pb.Next(x, incremented, pb.Ne(x, pb.Literal(UBits(5, 32))));
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -195,7 +203,10 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(x, incremented, predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(p.get(), /*z3_rlimit=*/1), IsOkAndHolds(true));
+  ASSERT_THAT(
+      Run(proc, {.scheduling_options =
+                     SchedulingOptions().default_next_value_z3_rlimit(1)}),
+      IsOkAndHolds(true));
 
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
@@ -215,7 +226,10 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(x, incremented, negative_predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(p.get(), /*z3_rlimit=*/1), IsOkAndHolds(true));
+  ASSERT_THAT(
+      Run(proc, {.scheduling_options =
+                     SchedulingOptions().default_next_value_z3_rlimit(1)}),
+      IsOkAndHolds(true));
 
   EXPECT_THAT(
       proc->next_values(),

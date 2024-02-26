@@ -360,6 +360,15 @@ class SchedulingOptions {
     return mutual_exclusion_z3_rlimit_;
   }
 
+  // The rlimit used for default next-value omission optimization.
+  SchedulingOptions& default_next_value_z3_rlimit(int64_t value) {
+    default_next_value_z3_rlimit_ = value;
+    return *this;
+  }
+  std::optional<int64_t> default_next_value_z3_rlimit() const {
+    return default_next_value_z3_rlimit_;
+  }
+
   // Struct that configures what should be done when scheduling fails. The
   // scheduling problem can be reformulated to give actionable feedback on how
   // to get a feasible schedule.
@@ -481,6 +490,7 @@ class SchedulingOptions {
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;
   std::optional<int64_t> mutual_exclusion_z3_rlimit_;
+  std::optional<int64_t> default_next_value_z3_rlimit_;
   SchedulingFailureBehavior failure_behavior_;
   bool use_fdo_;
   int64_t fdo_iteration_number_;

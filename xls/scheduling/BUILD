@@ -301,12 +301,56 @@ cc_library(
 )
 
 cc_library(
+    name = "proc_state_legalization_pass",
+    srcs = ["proc_state_legalization_pass.cc"],
+    hdrs = ["proc_state_legalization_pass.h"],
+    deps = [
+        ":scheduling_pass",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/solvers:z3_ir_translator",
+    ],
+)
+
+cc_test(
+    name = "proc_state_legalization_pass_test",
+    srcs = ["proc_state_legalization_pass_test.cc"],
+    deps = [
+        ":proc_state_legalization_pass",
+        ":scheduling_options",
+        ":scheduling_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "//xls/passes:cse_pass",
+        "//xls/passes:dce_pass",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+    ],
+)
+
+cc_library(
     name = "scheduling_pass_pipeline",
     srcs = ["scheduling_pass_pipeline.cc"],
     hdrs = ["scheduling_pass_pipeline.h"],
     deps = [
         ":mutual_exclusion_pass",
         ":pipeline_scheduling_pass",
+        ":proc_state_legalization_pass",
         ":scheduling_checker",
         ":scheduling_pass",
         ":scheduling_wrapper_pass",
@@ -314,7 +358,6 @@ cc_library(
         "//xls/passes:dce_pass",
         "//xls/passes:literal_uncommoning_pass",
         "//xls/passes:optimization_pass_pipeline",
-        "//xls/passes:proc_state_legalization_pass",
     ],
 )
 

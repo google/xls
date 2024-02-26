@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_STATE_LEGALIZATION_PASS_H_
-#define XLS_PASSES_STATE_LEGALIZATION_PASS_H_
-
-#include <cstdint>
+#ifndef XLS_SCHEDULING_STATE_LEGALIZATION_PASS_H_
+#define XLS_SCHEDULING_STATE_LEGALIZATION_PASS_H_
 
 #include "absl/status/statusor.h"
-#include "xls/ir/proc.h"
-#include "xls/passes/optimization_pass.h"
-#include "xls/passes/pass_base.h"
+#include "xls/ir/function_base.h"
+#include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
 
@@ -31,26 +28,22 @@ namespace xls {
 // attempt to prove that one of the explicit `next_value` nodes is guaranteed to
 // fire), but may produce dead `next_value` nodes in some scenarios. However,
 // this should have a minimal impact on QoR.
-class ProcStateLegalizationPass : public OptimizationProcPass {
+class ProcStateLegalizationPass
+    : public SchedulingOptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "proc_state_legal";
 
-  // TODO(epastor): Replace this test-focused z3-rlimit setting with a flag.
-  explicit ProcStateLegalizationPass(int64_t z3_rlimit)
-      : OptimizationProcPass(kName, "Proc State Legalization"),
-        z3_rlimit_(z3_rlimit) {}
-  ProcStateLegalizationPass() : ProcStateLegalizationPass(5000) {}
+  ProcStateLegalizationPass()
+      : SchedulingOptimizationFunctionBasePass(kName,
+                                               "Proc State Legalization") {}
   ~ProcStateLegalizationPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
-                                         const OptimizationPassOptions& options,
-                                         PassResults* results) const override;
-
- private:
-  const int64_t z3_rlimit_;
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, SchedulingUnit* s, const SchedulingPassOptions& options,
+      SchedulingPassResults* results) const override;
 };
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_STATE_LEGALIZATION_PASS_H_
+#endif  // XLS_SCHEDULING_STATE_LEGALIZATION_PASS_H_

@@ -128,6 +128,8 @@ SCHEDULING_FIELDS = {
                                  "first cycle and sends into the last cycle.",
     "mutual_exclusion_z3_rlimit": "Resource limit for solver in mutual " +
                                   "exclusion pass.",
+    "default_next_value_z3_rlimit": "Resource limit for solver when optimizing " +
+                                    "default next_value omission.",
     "explain_infeasibility": "If scheduling fails, re-run scheduling with " +
                              "extra slack variables in an attempt to explain " +
                              "why scheduling failed.",

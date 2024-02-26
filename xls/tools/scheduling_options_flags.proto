@@ -42,6 +42,7 @@ message SchedulingOptionsFlagsProto {
   repeated string io_constraints = 9;
   optional bool receives_first_sends_last = 10;
   optional int64 mutual_exclusion_z3_rlimit = 11;
+  optional int64 default_next_value_z3_rlimit = 25;
   optional SchedulingFailureBehaviorProto failure_behavior = 23;
   optional bool use_fdo = 22;
   optional int64 fdo_iteration_number = 12;

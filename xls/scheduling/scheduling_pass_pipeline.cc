@@ -22,9 +22,9 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/passes/proc_state_legalization_pass.h"
 #include "xls/scheduling/mutual_exclusion_pass.h"
 #include "xls/scheduling/pipeline_scheduling_pass.h"
+#include "xls/scheduling/proc_state_legalization_pass.h"
 #include "xls/scheduling/scheduling_checker.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_wrapper_pass.h"
@@ -38,8 +38,7 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline() {
 
   // Make sure we have all of our state in the form of `next_value` nodes before
   // scheduling.
-  top->Add<SchedulingWrapperPass>(
-      std::make_unique<ProcStateLegalizationPass>());
+  top->Add<ProcStateLegalizationPass>();
 
   top->Add<MutualExclusionPass>();
   top->Add<SchedulingWrapperPass>(

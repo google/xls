@@ -90,6 +90,9 @@ ABSL_FLAG(bool, receives_first_sends_last, false,
           "the last cycle.");
 ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
           "Resource limit for solver in mutual exclusion pass.");
+ABSL_FLAG(int64_t, default_next_value_z3_rlimit, -1,
+          "Resource limit for optimizer when attempting to prove a state param "
+          "doesn't need a default next_value.");
 ABSL_FLAG(std::string, scheduling_options_proto, "",
           "Path to a protobuf containing all scheduling options args.");
 ABSL_FLAG(bool, explain_infeasibility, true,
@@ -177,6 +180,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_REPEATED_FLAG(io_constraints);
   POPULATE_FLAG(receives_first_sends_last);
   POPULATE_FLAG(mutual_exclusion_z3_rlimit);
+  POPULATE_FLAG(default_next_value_z3_rlimit);
   POPULATE_FLAG(use_fdo);
   POPULATE_FLAG(fdo_iteration_number);
   POPULATE_FLAG(fdo_delay_driven_path_number);
@@ -314,6 +318,10 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   if (proto.mutual_exclusion_z3_rlimit() != -1) {
     scheduling_options.mutual_exclusion_z3_rlimit(
         proto.mutual_exclusion_z3_rlimit());
+  }
+  if (proto.default_next_value_z3_rlimit() != -1) {
+    scheduling_options.default_next_value_z3_rlimit(
+        proto.default_next_value_z3_rlimit());
   }
 
   if (p != nullptr) {

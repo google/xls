@@ -234,6 +234,7 @@ def xls_ir_verilog_fdo_impl(ctx, src):
         "io_constraints",
         "receives_first_sends_last",
         "mutual_exclusion_z3_rlimit",
+        "default_next_value_z3_rlimit",
         "use_fdo",
         "fdo_iteration_number",
         "fdo_delay_driven_path_number",

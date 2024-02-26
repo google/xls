@@ -383,3 +383,11 @@ response-receive are scheduled to match the RAM's latency.
     exclusive. Concretely, this roughly limits the number of `malloc` calls done
     by the Z3 solver, so the output should be deterministic across machines for
     a given rlimit.
+
+-   `--default_next_value_z3_rlimit` controls how hard our scheduling passes
+    will work to prove that state params are fully covered by their `next_value`
+    nodes, so that we can skip special handling for the case where no
+    `next_value` node triggers. This is purely an optimization; everything will
+    work correctly even if this is set to 0. Concretely, this roughly limits the
+    number of `malloc` calls done by the Z3 solver, so the output should be
+    deterministic across machines for a given rlimit.
