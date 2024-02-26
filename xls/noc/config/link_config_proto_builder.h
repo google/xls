@@ -17,6 +17,7 @@
 
 #include <string_view>
 
+#include "absl/log/die_if_null.h"
 #include "xls/common/logging/logging.h"
 #include "xls/noc/config/network_config.pb.h"
 
@@ -27,7 +28,7 @@ class LinkConfigProtoBuilder {
  public:
   // proto cannot be nullptr.
   explicit LinkConfigProtoBuilder(LinkConfigProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Adds the name of the link.
   LinkConfigProtoBuilder& WithName(std::string_view name);

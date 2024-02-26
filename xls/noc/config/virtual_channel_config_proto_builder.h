@@ -17,6 +17,7 @@
 
 #include <string_view>
 
+#include "absl/log/die_if_null.h"
 #include "xls/common/logging/logging.h"
 #include "xls/noc/config/network_config.pb.h"
 
@@ -27,7 +28,7 @@ class VirtualChannelConfigProtoBuilder {
  public:
   // proto cannot be nullptr.
   explicit VirtualChannelConfigProtoBuilder(VirtualChannelConfigProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Adds the name of the virtual channel.
   VirtualChannelConfigProtoBuilder& WithName(std::string_view name);

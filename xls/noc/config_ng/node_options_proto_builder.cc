@@ -16,13 +16,14 @@
 
 #include <string_view>
 
+#include "absl/log/die_if_null.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/proto_adaptor_utils.h"
 
 namespace xls::noc {
 
 NodeOptionsProtoBuilder::NodeOptionsProtoBuilder(NodeOptionsProto* proto_ptr)
-    : proto_ptr_(XLS_DIE_IF_NULL(proto_ptr)) {}
+    : proto_ptr_(ABSL_DIE_IF_NULL(proto_ptr)) {}
 
 NodeOptionsProtoBuilder::NodeOptionsProtoBuilder(
     NodeOptionsProto* proto_ptr,

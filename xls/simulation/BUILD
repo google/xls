@@ -320,6 +320,7 @@ cc_library(
         "//xls/common:source_location",
         "//xls/common/logging",
         "//xls/ir:bits",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -338,6 +339,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:source_location",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",

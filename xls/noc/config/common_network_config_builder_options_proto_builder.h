@@ -17,6 +17,7 @@
 #ifndef XLS_NOC_CONFIG_COMMON_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_H_
 #define XLS_NOC_CONFIG_COMMON_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_H_
 
+#include "absl/log/die_if_null.h"
 #include "xls/common/logging/logging.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_builder_options.pb.h"
@@ -28,7 +29,7 @@ class EndpointOptionsProtoBuilder {
  public:
   // Pointer cannot be nullptr.
   explicit EndpointOptionsProtoBuilder(EndpointOptionsProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Adds the number of send ports.
   EndpointOptionsProtoBuilder& WithNumSendPorts(int64_t number_send_ports);
@@ -45,7 +46,7 @@ class DataOptionsProtoBuilder {
  public:
   // Pointer cannot be nullptr.
   explicit DataOptionsProtoBuilder(DataOptionsProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Adds the data bit width.
   DataOptionsProtoBuilder& WithDataBitWidth(int64_t data_bit_width);
@@ -60,7 +61,7 @@ class FlowControlOptionsProtoBuilder {
   // Pointer cannot be nullptr.
   explicit FlowControlOptionsProtoBuilder(
       LinkConfigProto::FlowControlConfigProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // When building the flow control options proto, the last flow control
   // mechanism triggered by the user is enabled.
@@ -84,7 +85,7 @@ class LinkOptionsProtoBuilder {
  public:
   // Pointer cannot be nullptr.
   explicit LinkOptionsProtoBuilder(LinkOptionsProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Adds the pipeline stage for source to sink.
   LinkOptionsProtoBuilder& WithSourceSinkPipelineStage(int64_t pipeline_stage);
@@ -104,7 +105,7 @@ class VirtualChannelOptionsProtoBuilder {
  public:
   // Pointer cannot be nullptr.
   explicit VirtualChannelOptionsProtoBuilder(VirtualChannelOptionsProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Adds a virtual channel with depth.
   VirtualChannelOptionsProtoBuilder& WithVirtualChannelDepth(int64_t depth);
@@ -119,7 +120,7 @@ class RoutingSchemeOptionsProtoBuilder {
   // Pointer cannot be nullptr.
   explicit RoutingSchemeOptionsProtoBuilder(
       RouterOptionsProto::RoutingSchemeOptionsProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Enables distributed routing.
   RoutingSchemeOptionsProtoBuilder& EnableDistributedRouting();
@@ -134,7 +135,7 @@ class ArbiterSchemeOptionsProtoBuilder {
   // Pointer cannot be nullptr.
   explicit ArbiterSchemeOptionsProtoBuilder(
       RouterOptionsProto::ArbiterSchemeOptionsProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Enables distributed routing.
   ArbiterSchemeOptionsProtoBuilder& EnablePriority();
@@ -148,7 +149,7 @@ class RouterOptionsProtoBuilder {
  public:
   // Pointer cannot be nullptr.
   explicit RouterOptionsProtoBuilder(RouterOptionsProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Returns the routing scheme options proto builder of this builder.
   RoutingSchemeOptionsProtoBuilder GetRoutingSchemeOptionsProtoBuilder();

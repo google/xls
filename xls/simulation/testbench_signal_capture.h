@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/die_if_null.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
@@ -113,7 +114,7 @@ class EndOfCycleEvent {
  public:
   explicit EndOfCycleEvent(const TestbenchMetadata* metadata,
                            SignalCaptureManager* capture_manager)
-      : metadata_(XLS_DIE_IF_NULL(metadata)),
+      : metadata_(ABSL_DIE_IF_NULL(metadata)),
         capture_manager_(capture_manager) {}
 
   // Captures the value of the signal. The given pointer value is written with

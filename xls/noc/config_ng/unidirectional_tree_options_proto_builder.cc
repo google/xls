@@ -14,13 +14,14 @@
 
 #include "xls/noc/config_ng/unidirectional_tree_options_proto_builder.h"
 
+#include "absl/log/die_if_null.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls::noc {
 
 UnidirectionalTreeOptionsProtoBuilder::UnidirectionalTreeOptionsProtoBuilder(
     UnidirectionalTreeOptionsProto* proto_ptr)
-    : proto_ptr_(XLS_DIE_IF_NULL(proto_ptr)) {}
+    : proto_ptr_(ABSL_DIE_IF_NULL(proto_ptr)) {}
 
 UnidirectionalTreeOptionsProtoBuilder::UnidirectionalTreeOptionsProtoBuilder(
     UnidirectionalTreeOptionsProto* proto_ptr,

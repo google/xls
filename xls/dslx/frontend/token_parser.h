@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -35,7 +36,7 @@ namespace xls::dslx {
 class TokenParser {
  public:
   explicit TokenParser(Scanner* scanner)
-      : scanner_(XLS_DIE_IF_NULL(scanner)), index_(0) {}
+      : scanner_(ABSL_DIE_IF_NULL(scanner)), index_(0) {}
 
  protected:
   // Currently just a plain integer, representing the index into the token

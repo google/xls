@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/die_if_null.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -501,7 +502,7 @@ ModuleTestbenchThread::ModuleTestbenchThread(
     absl::Span<const DutInput> dut_inputs, bool generate_done_signal,
     bool wait_for_reset)
     : name_(name),
-      metadata_(XLS_DIE_IF_NULL(metadata)),
+      metadata_(ABSL_DIE_IF_NULL(metadata)),
       capture_manager_(capture_manager),
       dut_inputs_(dut_inputs.begin(), dut_inputs.end()),
       wait_for_reset_(wait_for_reset) {

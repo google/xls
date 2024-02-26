@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/base/no_destructor.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -174,7 +175,7 @@ DecoratingDelayEstimator::DecoratingDelayEstimator(
     std::function<int64_t(Node*, int64_t)> modifier)
     : DelayEstimator(name),
       decorated_(decorated),
-      modifier_(XLS_DIE_IF_NULL(std::move(modifier))) {}
+      modifier_(ABSL_DIE_IF_NULL(std::move(modifier))) {}
 
 absl::StatusOr<int64_t> DecoratingDelayEstimator::GetOperationDelayInPs(
     Node* node) const {

@@ -14,13 +14,14 @@
 
 #include "xls/noc/config_ng/butterfly_options_proto_builder.h"
 
+#include "absl/log/die_if_null.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls::noc {
 
 ButterflyOptionsProtoBuilder::ButterflyOptionsProtoBuilder(
     ButterflyOptionsProto* proto_ptr)
-    : proto_ptr_(XLS_DIE_IF_NULL(proto_ptr)) {}
+    : proto_ptr_(ABSL_DIE_IF_NULL(proto_ptr)) {}
 
 ButterflyOptionsProtoBuilder::ButterflyOptionsProtoBuilder(
     ButterflyOptionsProto* proto_ptr,

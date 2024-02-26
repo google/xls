@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/die_if_null.h"
 #include "xls/noc/config/arbiter_scheme_config_proto_builder.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/port_config_proto_builder.h"
@@ -32,7 +33,7 @@ class RouterConfigProtoBuilder {
  public:
   // proto cannot be nullptr.
   explicit RouterConfigProtoBuilder(RouterConfigProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // Adds the name of the router.
   RouterConfigProtoBuilder& WithName(std::string_view name);

@@ -17,6 +17,7 @@
 
 #include <string_view>
 
+#include "absl/log/die_if_null.h"
 #include "xls/common/logging/logging.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder_utils.h"
@@ -29,7 +30,7 @@ class ArbiterSchemeConfigProtoBuilder {
   // proto cannot be nullptr.
   explicit ArbiterSchemeConfigProtoBuilder(
       RouterConfigProto::ArbiterSchemeConfigProto* proto)
-      : proto_(XLS_DIE_IF_NULL(proto)) {}
+      : proto_(ABSL_DIE_IF_NULL(proto)) {}
 
   // If the priority arbiter scheme is not enabled, it enables the priority
   // arbiter scheme within the proto, and disables any arbiter scheme enabled.

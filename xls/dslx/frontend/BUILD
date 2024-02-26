@@ -68,6 +68,7 @@ cc_library(
         ":pos",
         ":scanner",
         ":token",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

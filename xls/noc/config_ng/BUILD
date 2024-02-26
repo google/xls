@@ -79,6 +79,7 @@ cc_library(
     hdrs = ["topology_endpoint_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -99,6 +100,7 @@ cc_library(
     hdrs = ["dimension_order_entry_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -121,6 +123,7 @@ cc_library(
         ":dimension_order_entry_options_proto_builder",
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -142,6 +145,7 @@ cc_library(
     hdrs = ["unidirectional_butterfly_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -162,6 +166,7 @@ cc_library(
     hdrs = ["bidirectional_butterfly_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -184,6 +189,7 @@ cc_library(
         ":bidirectional_butterfly_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_butterfly_options_proto_builder",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -206,6 +212,7 @@ cc_library(
     hdrs = ["level_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -226,6 +233,7 @@ cc_library(
     hdrs = ["unidirectional_tree_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -246,6 +254,7 @@ cc_library(
     hdrs = ["bidirectional_tree_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -269,6 +278,7 @@ cc_library(
         ":level_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_tree_options_proto_builder",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
     ],
@@ -293,6 +303,7 @@ cc_library(
     deps = [
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -314,6 +325,7 @@ cc_library(
     hdrs = ["coordinate_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -335,7 +347,7 @@ cc_library(
     deps = [
         ":coordinate_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
@@ -358,7 +370,7 @@ cc_library(
     hdrs = ["channel_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
@@ -382,6 +394,7 @@ cc_library(
         ":channel_options_proto_builder",
         ":node_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -404,6 +417,7 @@ cc_library(
     hdrs = ["network_component_port.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -426,6 +440,7 @@ cc_library(
     hdrs = ["network_component.h"],
     deps = [
         ":network_component_port",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/status",
         "//xls/common:iterator_range",
         "//xls/common/logging",
@@ -450,6 +465,7 @@ cc_library(
     hdrs = ["network_connection.h"],
     deps = [
         ":network_component_port",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )

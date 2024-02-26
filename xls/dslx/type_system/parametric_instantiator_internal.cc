@@ -25,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/die_if_null.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -219,7 +220,7 @@ ParametricInstantiator::ParametricInstantiator(
     const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics)
     : span_(std::move(span)),
       args_(args),
-      ctx_(XLS_DIE_IF_NULL(ctx)),
+      ctx_(ABSL_DIE_IF_NULL(ctx)),
       parametric_env_map_(explicit_parametrics) {
   // We add derived type information so we can resolve types based on
   // parametrics; e.g. in

@@ -107,7 +107,6 @@
 
 // IWYU pragma: begin_exports
 #include "absl/log/check.h"
-#include "absl/log/die_if_null.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/common/logging/log_flags.h"
@@ -242,19 +241,5 @@
 #define XLS_QCHECK_OK(val) QCHECK_OK(val)
 #define XLS_DCHECK_OK(val) DCHECK_OK(val)
 
-// `XLS_DIE_IF_NULL` behaves as `XLS_CHECK_NE` vs `nullptr` but *also* "returns"
-// its argument.  It is useful in initializers where statements (like
-// `XLS_CHECK_NE`) can't be used.  Outside initializers, prefer `XLS_CHECK` or
-// `XLS_CHECK_NE`. `XLS_DIE_IF_NULL` works for both raw pointers and
-// (compatible) smart pointers including `std::unique_ptr` and
-// `std::shared_ptr`; more generally, it works for any type that can be compared
-// to nullptr_t.  For types that aren't raw pointers, `XLS_DIE_IF_NULL` returns
-// a reference to its argument, preserving the value category. Example:
-//
-//   Foo() : bar_(XLS_DIE_IF_NULL(MethodReturningUniquePtr())) {}
-//
-// Use `XLS_CHECK(ptr != nullptr)` if the returned pointer is
-// unused.
-#define XLS_DIE_IF_NULL(val) ABSL_DIE_IF_NULL(val)
 
 #endif  // XLS_COMMON_LOGGING_LOGGING_H_

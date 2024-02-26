@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -512,7 +513,7 @@ class BlockingAssignment : public Statement {
  public:
   BlockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
                      const SourceInfo& loc)
-      : Statement(file, loc), lhs_(XLS_DIE_IF_NULL(lhs)), rhs_(rhs) {}
+      : Statement(file, loc), lhs_(ABSL_DIE_IF_NULL(lhs)), rhs_(rhs) {}
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -526,7 +527,7 @@ class NonblockingAssignment : public Statement {
  public:
   NonblockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
                         const SourceInfo& loc)
-      : Statement(file, loc), lhs_(XLS_DIE_IF_NULL(lhs)), rhs_(rhs) {}
+      : Statement(file, loc), lhs_(ABSL_DIE_IF_NULL(lhs)), rhs_(rhs) {}
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -957,7 +958,7 @@ class IndexableExpression : public Expression {
 class LogicRef : public IndexableExpression {
  public:
   LogicRef(Def* def, VerilogFile* file, const SourceInfo& loc)
-      : IndexableExpression(file, loc), def_(XLS_DIE_IF_NULL(def)) {}
+      : IndexableExpression(file, loc), def_(ABSL_DIE_IF_NULL(def)) {}
 
   bool IsLogicRef() const override { return true; }
 
@@ -1151,8 +1152,8 @@ class BinaryInfix : public Operator {
               int64_t precedence, VerilogFile* file, const SourceInfo& loc)
       : Operator(precedence, file, loc),
         op_(op),
-        lhs_(XLS_DIE_IF_NULL(lhs)),
-        rhs_(XLS_DIE_IF_NULL(rhs)) {}
+        lhs_(ABSL_DIE_IF_NULL(lhs)),
+        rhs_(ABSL_DIE_IF_NULL(rhs)) {}
 
   std::string Emit(LineInfo* line_info) const override;
 

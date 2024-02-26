@@ -144,7 +144,6 @@ cc_library(
         ":vlog_is_on",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/status",
     ],
 )

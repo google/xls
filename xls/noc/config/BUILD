@@ -43,6 +43,7 @@ cc_library(
     hdrs = ["link_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
@@ -64,6 +65,7 @@ cc_library(
     hdrs = ["virtual_channel_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
@@ -85,6 +87,7 @@ cc_library(
     hdrs = ["port_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
@@ -107,6 +110,7 @@ cc_library(
     deps = [
         ":network_config_cc_proto",
         ":network_config_proto_builder_utils",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -128,6 +132,7 @@ cc_library(
     deps = [
         ":network_config_cc_proto",
         ":network_config_proto_builder_utils",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
     ],
@@ -152,6 +157,7 @@ cc_library(
         ":network_config_cc_proto",
         ":port_config_proto_builder",
         ":routing_scheme_config_proto_builder",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
     ],
 )
@@ -214,6 +220,7 @@ cc_library(
     deps = [
         ":network_config_builder_options_cc_proto",
         ":network_config_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
@@ -234,6 +241,7 @@ cc_library(
     hdrs = ["custom_network_config_builder_options_proto_builder.h"],
     deps = [
         ":network_config_builder_options_cc_proto",
+        "@com_google_absl//absl/log:die_if_null",
         "//xls/common/logging",
     ],
 )
