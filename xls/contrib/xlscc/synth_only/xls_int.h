@@ -15,6 +15,7 @@
 #ifndef XLS_INT_H
 #define XLS_INT_H
 
+#include <algorithm>
 #include <type_traits>
 
 #include "/xls_builtin.h"
@@ -595,7 +596,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 
   inline unsigned int to_uint() const { return (unsigned int)to_int(); }
   inline long long to_int64() const {
-    __xls_bits<64> ret(ConvertBits<Width, 64, true>::Convert(this->storage));
+    XlsInt<64, true> ret(*this);
     long long reti;
 
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_1_(aid): bits[i] = "
@@ -811,13 +812,14 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 #define COMPARISON_OP_WITH_SIGN(__OP, __IMPL)                             \
   template <int ToW, bool ToSign>                                         \
   inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {         \
-    XlsInt val(o);                                                        \
+    XlsInt<std::max(ToW, Width), Signed | ToSign> valA(o);                \
+    XlsInt<std::max(ToW, Width), Signed | ToSign> valB(*this);            \
     bool ret;                                                             \
     asm("fn (fid)(a: bits[i]) -> bits[1] { ret op_6_(aid): bits[1] = "    \
         "identity(a, pos=(loc)) }"                                        \
         : "=r"(ret)                                                       \
-        : "i"(1), "parama"(__IMPL<Width, Signed>::Operate(this->storage,  \
-                                                          val.storage))); \
+        : "i"(1), "parama"(__IMPL<std::max(ToW, Width), Signed | ToSign>::\
+                      Operate(valB.storage, valA.storage)));              \
     return ret;                                                           \
   }
 

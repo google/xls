@@ -810,7 +810,7 @@ TEST_F(XlsIntTest, XlsIntUnaryPlus) {
   const std::string content = R"(
     #include "xls_int.h"
     long long my_package(long long a) {
-      XlsInt<11, false> result = a;
+      XlsInt<11, true> result = a;
       return (+result).to_long();
     })";
   RunAcDatatypeTest({{"a", -5}}, -5, content, xabsl::SourceLocation::current());
@@ -860,6 +860,48 @@ TEST_F(XlsIntTest, ImplicitBoolInIf) {
   RunAcDatatypeTest({{"a", -3}}, 3, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, XlsLessThanBounds) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<3, false> result = a;
+      XlsInt<3, true> input = -1;
+      return result < input;
+    })";
+  RunAcDatatypeTest({{"a", 2}}, 0, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, XlsLessThanEqualBounds) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+    XlsInt<2, false> result = 0;
+    XlsInt<10, true> input = a;
+    return result <= input;
+    })";
+  RunAcDatatypeTest({{"a", -4}}, 0, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, XlsGreaterThanBounds) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<2, false> result = a;
+      XlsInt<3, false> input =  7;
+      return result >= input;
+    })";
+  RunAcDatatypeTest({{"a", 3}}, 0, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, XlsToLongBounds) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<2, false> result = a;
+      return result.to_long();
+  })";
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+}
 }  // namespace
 
 }  // namespace xlscc
