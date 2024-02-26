@@ -942,5 +942,59 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateWithShiftedIndexByConcat) {
                         m::ArrayIndex(array_update, {m::Literal(0)})));
 }
 
+TEST_F(BitSliceSimplificationPassTest, BitSliceSelectorMassive) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue bit_selector = fb.Param("x", p->GetBitsType(70));
+  BValue scaled = fb.Concat({bit_selector, fb.Literal(UBits(0, 1))});
+  BValue bit_source = fb.Param("y", p->GetBitsType(8));
+  // Can only be one of first 8 bits.
+  fb.DynamicBitSlice(bit_source, scaled, 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  solvers::z3::ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Select(scaled.node(), {
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                       }, m::Literal(UBits(0, 1))));
+}
+
+TEST_F(BitSliceSimplificationPassTest, BitSliceCannotReachAllBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue bit_selector = fb.Param("x", p->GetBitsType(2));
+  BValue scaled = fb.Concat({bit_selector, fb.Literal(UBits(0, 1))});
+  BValue bit_source = fb.Param("y", p->GetBitsType(256));
+  // Can only be one of first 8 bits.
+  fb.DynamicBitSlice(bit_source, scaled, 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  solvers::z3::ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Select(scaled.node(), {
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                           m::BitSlice(bit_source.node()),
+                                       }));
+}
+
 }  // namespace
 }  // namespace xls

@@ -26,6 +26,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
@@ -650,15 +651,23 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice) {
   // We would represent this as an ArrayIndex, but we need the past-the-end
   // value (if needed) to be zero rather than clamped to the last element.
   std::optional<Node*> past_the_end = std::nullopt;
-  if (index.value()->BitCountOrDie() >=
-      Bits::MinBitCountUnsigned(array_elements.size())) {
+  // How many items could we select from?
+  uint64_t addressable_items = index.value()->BitCountOrDie() < 64
+                                   ? uint64_t{1}
+                                         << index.value()->BitCountOrDie()
+                                   : std::numeric_limits<uint64_t>::max();
+  if (addressable_items > array_elements.size()) {
     XLS_ASSIGN_OR_RETURN(past_the_end,
                          bit_slice->function_base()->MakeNode<Literal>(
                              SourceInfo(), Value(UBits(0, width))));
+    addressable_items = array_elements.size();
   }
-  XLS_ASSIGN_OR_RETURN(Node * select, bit_slice->ReplaceUsesWithNew<Select>(
-                                          *index, array_elements,
-                                          /*default_value=*/past_the_end));
+  XLS_ASSIGN_OR_RETURN(
+      Node * select,
+      bit_slice->ReplaceUsesWithNew<Select>(
+          // We can't have inaccessible items as options in the select.
+          *index, absl::MakeSpan(array_elements).subspan(0, addressable_items),
+          /*default_value=*/past_the_end));
   XLS_VLOG(3) << absl::StreamFormat(
       "Replacing dynamic bit slice %s with constant-scaled start index with: "
       "select %s",
