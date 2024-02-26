@@ -662,11 +662,17 @@ Examples:
         if k not in IR_OPT_FLAGS or k in SHARED_FLAGS
     }
 
+    # Add default opt args (setting inline_procs to true by default so both branches are comparable)
+    full_opt_args = {
+        "inline_procs": "true",
+    }
+    full_opt_args.update(opt_ir_args)
+
     opt_ir_target = name + ".default.opt_ir"
     _xls_ir_opt_ir_macro(
         name = opt_ir_target,
         src = src,
-        opt_ir_args = opt_ir_args,
+        opt_ir_args = full_opt_args,
     )
 
     # Add default codegen args

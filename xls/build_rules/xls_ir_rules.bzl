@@ -440,6 +440,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "show_known_bits",
         "convert_array_index_to_select",
         "split_next_value_selects",
+        "inline_procs",
         "use_context_narrowing_analysis",
         "run_evaluators",
     ] + _CODEGEN_FLAGS + _SCHEDULING_FLAGS
