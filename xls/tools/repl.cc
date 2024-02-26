@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -183,14 +184,14 @@ struct Globals {
 };
 
 // Returns a pointer to a global `Globals` struct.
-static Globals* GetSingletonGlobals() {
-  static auto* globals = new Globals;
-  return globals;
+static Globals& GetSingletonGlobals() {
+  static absl::NoDestructor<Globals> globals;
+  return *globals;
 }
 
 // Allows for tab completion of commands and their arguments.
 void CompletionCallback(const char* buf, linenoiseCompletions* lc) {
-  Globals* globals = GetSingletonGlobals();
+  Globals& globals = GetSingletonGlobals();
   std::string_view so_far(buf);
   std::optional<Command> maybe_command = ParseCommand(buf);
   if (maybe_command) {
@@ -198,7 +199,7 @@ void CompletionCallback(const char* buf, linenoiseCompletions* lc) {
     switch (command.command) {
       case CommandName::kType: {
         std::string_view arg = command.arguments[0];
-        for (const auto& c : globals->identifier_trie.AllSuffixesOf(arg)) {
+        for (const auto& c : globals.identifier_trie.AllSuffixesOf(arg)) {
           std::string completion_with_command = ":type " + c;
           linenoiseAddCompletion(lc, completion_with_command.c_str());
         }
@@ -209,7 +210,7 @@ void CompletionCallback(const char* buf, linenoiseCompletions* lc) {
       }
     }
   } else {
-    for (const auto& c : globals->command_trie.AllSuffixesOf(so_far)) {
+    for (const auto& c : globals.command_trie.AllSuffixesOf(so_far)) {
       linenoiseAddCompletion(lc, c.c_str());
     }
   }
@@ -246,12 +247,12 @@ void PopulateTrieFromModule(std::string prefix, dslx::Module* module,
 // Populate the global identifier trie with the identifiers defined in the
 // current module, as well as all identifiers defined in imported modules.
 Trie PopulateIdentifierTrie() {
-  Globals* globals = GetSingletonGlobals();
+  Globals& globals = GetSingletonGlobals();
   Trie trie;
-  PopulateTrieFromModule("", globals->dslx->module.get(), &trie);
-  for (const auto& import_entry : globals->dslx->module->GetImportByName()) {
+  PopulateTrieFromModule("", globals.dslx->module.get(), &trie);
+  for (const auto& import_entry : globals.dslx->module->GetImportByName()) {
     if (auto maybe_imported_info =
-            globals->dslx->type_info->GetImported(import_entry.second)) {
+            globals.dslx->type_info->GetImported(import_entry.second)) {
       const dslx::ImportedInfo* imported_info = *maybe_imported_info;
       PopulateTrieFromModule(import_entry.first, imported_info->module, &trie);
     }
@@ -259,21 +260,21 @@ Trie PopulateIdentifierTrie() {
   return trie;
 }
 
-// After this is called, the state of `GetSingletonGlobals()->ir_package` is
+// After this is called, the state of `GetSingletonGlobals().ir_package` is
 // guaranteed to be up to date with respect to the state of
-// `GetSingletonGlobals()->module`.
+// `GetSingletonGlobals().module`.
 absl::Status UpdateIr() {
-  Globals* globals = GetSingletonGlobals();
-  XLS_ASSIGN_OR_RETURN(globals->ir_package,
-                       ConvertModuleToPackage(globals->dslx->module.get(),
-                                              &globals->dslx->import_data,
+  Globals& globals = GetSingletonGlobals();
+  XLS_ASSIGN_OR_RETURN(globals.ir_package,
+                       ConvertModuleToPackage(globals.dslx->module.get(),
+                                              &globals.dslx->import_data,
                                               dslx::ConvertOptions{}));
   XLS_ASSIGN_OR_RETURN(std::string mangled_name,
-                       dslx::MangleDslxName(globals->dslx->module.get()->name(),
+                       dslx::MangleDslxName(globals.dslx->module.get()->name(),
                                             "main", /*free_keys=*/{}));
-  XLS_RETURN_IF_ERROR(globals->ir_package->SetTopByName(mangled_name));
+  XLS_RETURN_IF_ERROR(globals.ir_package->SetTopByName(mangled_name));
   XLS_RETURN_IF_ERROR(
-      RunOptimizationPassPipeline(globals->ir_package.get()).status());
+      RunOptimizationPassPipeline(globals.ir_package.get()).status());
   return absl::OkStatus();
 }
 
@@ -301,12 +302,12 @@ absl::Status CommandHelp() {
 // Function implementing the `:reload` command, which reloads the DSLX file from
 // disk and parses/typechecks it.
 absl::Status CommandReload() {
-  Globals* globals = GetSingletonGlobals();
+  Globals& globals = GetSingletonGlobals();
 
   XLS_ASSIGN_OR_RETURN(std::string dslx_contents,
-                       GetFileContents(globals->dslx_path));
+                       GetFileContents(globals.dslx_path));
 
-  dslx::Scanner scanner(std::string(globals->dslx_path), dslx_contents);
+  dslx::Scanner scanner(std::string(globals.dslx_path), dslx_contents);
   dslx::Parser parser("main", &scanner);
 
   // TODO(taktoa): 2021-03-10 allow other kinds of failures to be recoverable
@@ -325,11 +326,11 @@ absl::Status CommandReload() {
   dslx::WarningCollector warnings(import_data.enabled_warnings());
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * type_info,
                        TypecheckModule(module.get(), &import_data, &warnings));
-  globals->dslx = std::make_unique<DslxGlobals>(std::move(import_data),
-                                                std::move(module), type_info);
-  globals->identifier_trie = PopulateIdentifierTrie();
+  globals.dslx = std::make_unique<DslxGlobals>(std::move(import_data),
+                                               std::move(module), type_info);
+  globals.identifier_trie = PopulateIdentifierTrie();
 
-  std::cout << "Successfully loaded " << globals->dslx_path << "\n";
+  std::cout << "Successfully loaded " << globals.dslx_path << "\n";
 
   return absl::OkStatus();
 }
@@ -345,7 +346,7 @@ absl::Status CommandReset() {
 // the module.
 absl::Status CommandIr() {
   XLS_RETURN_IF_ERROR(UpdateIr());
-  std::cout << GetSingletonGlobals()->ir_package->DumpIr();
+  std::cout << GetSingletonGlobals().ir_package->DumpIr();
   return absl::OkStatus();
 }
 
@@ -382,8 +383,8 @@ absl::Status CommandVerilog(std::optional<std::string> function_name) {
   XLS_VLOG(1) << "Running verilog command with function name: "
               << (function_name ? *function_name : "<none>");
   XLS_RETURN_IF_ERROR(UpdateIr());
-  Package* package = GetSingletonGlobals()->ir_package.get();
-  dslx::Module* module = GetSingletonGlobals()->dslx->module.get();
+  Package* package = GetSingletonGlobals().ir_package.get();
+  dslx::Module* module = GetSingletonGlobals().dslx->module.get();
   FunctionBase* main;
   if (function_name) {
     XLS_ASSIGN_OR_RETURN(main, FindFunction(*function_name, module, package));
@@ -419,24 +420,24 @@ absl::Status CommandLlvm() {
 // Function implementing the `:type` command, which prints the type of the given
 // identifier (defined in the current module or imported).
 absl::Status CommandType(std::string_view ident) {
-  Globals* globals = GetSingletonGlobals();
+  Globals& globals = GetSingletonGlobals();
   std::vector<std::string> split = absl::StrSplit(ident, absl::ByString("::"));
   absl::flat_hash_map<std::string, dslx::Function*> function_map;
   dslx::TypeInfo* type_info;
   if (split.size() == 1) {
-    function_map = globals->dslx->module->GetFunctionByName();
-    type_info = globals->dslx->type_info;
+    function_map = globals.dslx->module->GetFunctionByName();
+    type_info = globals.dslx->type_info;
   } else if (split.size() == 2) {
     std::string import_name = split[0];
     absl::flat_hash_map<std::string, dslx::Import*> import_map =
-        globals->dslx->module->GetImportByName();
+        globals.dslx->module->GetImportByName();
     if (!import_map.contains(import_name)) {
       std::cout << "Could not find import: " << import_name << "\n";
       return absl::OkStatus();
     }
     dslx::Import* import = import_map[import_name];
     std::optional<const dslx::ImportedInfo*> maybe_imported_info =
-        globals->dslx->type_info->GetImported(import);
+        globals.dslx->type_info->GetImported(import);
     if (!maybe_imported_info) {
       std::cout << "Something is wrong with TypeInfo::GetImported\n";
       return absl::OkStatus();
@@ -465,13 +466,13 @@ absl::Status CommandType(std::string_view ident) {
 
 absl::Status RealMain(std::string_view dslx_path,
                       std::filesystem::path history_path) {
-  Globals* globals = GetSingletonGlobals();
+  Globals& globals = GetSingletonGlobals();
 
   std::cout << "Welcome to XLS. Type :help for help.\n";
 
-  globals->dslx_path = dslx_path;
-  globals->command_trie = Trie{{":help", ":quit", ":reload", ":reset", ":ir",
-                                ":verilog", ":llvm", ":type "}};
+  globals.dslx_path = dslx_path;
+  globals.command_trie = Trie{{":help", ":quit", ":reload", ":reset", ":ir",
+                               ":verilog", ":llvm", ":type "}};
 
   XLS_RETURN_IF_ERROR(CommandReload());
 

@@ -14,19 +14,26 @@
 
 #include "xls/codegen/ram_rewrite_pass.h"
 
+#include <cstdint>
 #include <memory>
+#include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
@@ -34,13 +41,20 @@
 #include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/passes/pass_base.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -67,7 +81,7 @@ class PortByNameMatcher : public ::testing::MatcherInterface<Block::Port> {
       ::testing::MatchResultListener* listener) const override {
     return absl::visit(
         Visitor{
-            [=](Block::ClockPort* p) {
+            [=, this](Block::ClockPort* p) {
               *listener << "ClockPort(" << p->name << ")";
               if (p->name != port_name_) {
                 *listener << " does not match expected " << port_name_ << ".";
@@ -138,13 +152,14 @@ inline ::testing::Matcher<::xls::verilog::PortProto> PortProtoByName(
 }
 
 CodegenPass* DefaultCodegenPassPipeline() {
-  static CodegenCompoundPass* singleton = CreateCodegenPassPipeline().release();
-  return singleton;
+  static absl::NoDestructor<std::unique_ptr<CodegenCompoundPass>> singleton(
+      CreateCodegenPassPipeline());
+  return singleton->get();
 }
 
 CodegenPass* RamRewritePassOnly() {
-  static RamRewritePass* singleton = new RamRewritePass();
-  return singleton;
+  static absl::NoDestructor<RamRewritePass> singleton;
+  return singleton.get();
 }
 
 std::string_view CodegenPassName(CodegenPass const* pass) {

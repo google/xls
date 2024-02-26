@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -67,10 +68,10 @@ class Token {
   // Returns the (singleton) set of keyword strings.
   static const absl::flat_hash_set<std::string>& GetKeywords() {
     // TODO(google/xls#1010) 2023-06-05 Verify these never used if kIdent needed
-    static const auto* keywords = new absl::flat_hash_set<std::string>{
-        "fn",    "bits",          "token", "ret",         "package",
-        "proc",  "chan",          "reg",   "next",        "block",
-        "clock", "instantiation", "top",   "file_number", "proc_instantiation"};
+    static const absl::NoDestructor<absl::flat_hash_set<std::string>> keywords(
+        {"fn", "bits", "token", "ret", "package", "proc", "chan", "reg", "next",
+         "block", "clock", "instantiation", "top", "file_number",
+         "proc_instantiation"});
     return *keywords;
   }
 

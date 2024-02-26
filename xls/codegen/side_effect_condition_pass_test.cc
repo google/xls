@@ -23,6 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -68,13 +69,14 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 
 CodegenPass* DefaultCodegenPassPipeline() {
-  static CodegenCompoundPass* singleton = CreateCodegenPassPipeline().release();
-  return singleton;
+  static absl::NoDestructor<std::unique_ptr<CodegenCompoundPass>> singleton(
+      CreateCodegenPassPipeline());
+  return singleton->get();
 }
 
 CodegenPass* SideEffectConditionPassOnly() {
-  static CodegenPass* singleton = new SideEffectConditionPass;
-  return singleton;
+  static absl::NoDestructor<SideEffectConditionPass> singleton;
+  return singleton.get();
 }
 
 std::string_view CodegenPassName(CodegenPass const* pass) {

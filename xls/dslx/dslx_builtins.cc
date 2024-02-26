@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -528,9 +529,9 @@ static void AddBinaryArbitrarySignToUnitSignature(
   };
 }
 
-void PopulateSignatureToLambdaMap(
-    absl::flat_hash_map<std::string, SignatureFn>* map_ptr) {
-  auto& map = *map_ptr;
+static absl::flat_hash_map<std::string, SignatureFn>
+PopulateSignatureToLambdaMap() {
+  absl::flat_hash_map<std::string, SignatureFn> map;
 
   // Note: we start to break some of these out to helper functions as they run
   // afoul of over-long function lint. (It at least gives us the opportunity to
@@ -1039,14 +1040,12 @@ void PopulateSignatureToLambdaMap(
   map["(token, send_chan<T>, bool, T) -> token"] = CheckSendIfSignature;
   // join
   map["(token...) -> token"] = CheckJoinSignature;
+  return map;
 }
 
 const absl::flat_hash_map<std::string, SignatureFn>& GetSignatureToLambdaMap() {
-  static auto* map = ([] {
-    auto* map = new absl::flat_hash_map<std::string, SignatureFn>();
-    PopulateSignatureToLambdaMap(map);
-    return map;
-  })();
+  static const absl::NoDestructor<absl::flat_hash_map<std::string, SignatureFn>>
+      map(PopulateSignatureToLambdaMap());
   return *map;
 }
 
@@ -1058,7 +1057,8 @@ const absl::flat_hash_map<std::string, SignatureFn>& GetSignatureToLambdaMap() {
 const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames() {
   // Set of unary builtins appropriate as functions - that transform values.
   // TODO(b/144724970): Add enumerate here (and maybe move to ir_converter.py).
-  static auto* set = new absl::flat_hash_set<std::string>{"clz", "ctz"};
+  static const absl::NoDestructor<absl::flat_hash_set<std::string>> set(
+      {"clz", "ctz"});
   return *set;
 }
 

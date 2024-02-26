@@ -2515,6 +2515,7 @@ cc_test(
         ":optimization_pass",
         ":optimization_pass_pipeline",
         ":pass_base",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

@@ -21,6 +21,7 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -271,11 +272,12 @@ absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
 }
 
 /* static */ std::optional<Keyword> Scanner::GetKeyword(std::string_view s) {
-  static const auto* mapping = new absl::flat_hash_map<std::string, Keyword>{
+  static const absl::NoDestructor<absl::flat_hash_map<std::string, Keyword>>
+      mapping({
 #define MAKE_ITEM(__enum, unused, __str, ...) {__str, Keyword::__enum},
-      XLS_DSLX_KEYWORDS(MAKE_ITEM)
+          XLS_DSLX_KEYWORDS(MAKE_ITEM)
 #undef MAKE_ITEM
-  };
+      });
   auto it = mapping->find(s);
   if (it == mapping->end()) {
     return std::nullopt;

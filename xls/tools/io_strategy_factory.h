@@ -21,6 +21,7 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/tools/io_strategy.h"
@@ -30,9 +31,9 @@ namespace verilog {
 
 class IOStrategyFactory {
  public:
-  static IOStrategyFactory* GetSingleton() {
-    static IOStrategyFactory* singleton = new IOStrategyFactory;
-    return singleton;
+  static IOStrategyFactory& GetSingleton() {
+    static absl::NoDestructor<IOStrategyFactory> singleton;
+    return *singleton;
   }
 
   static absl::StatusOr<std::unique_ptr<IOStrategy>> CreateForDevice(

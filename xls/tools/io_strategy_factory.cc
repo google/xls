@@ -24,8 +24,8 @@ namespace verilog {
 
 absl::StatusOr<std::unique_ptr<IOStrategy>> IOStrategyFactory::CreateForDevice(
     std::string_view target_device, VerilogFile* f) {
-  auto it = GetSingleton()->strategies_.find(target_device);
-  if (it == GetSingleton()->strategies_.end()) {
+  auto it = GetSingleton().strategies_.find(target_device);
+  if (it == GetSingleton().strategies_.end()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Could not find target device for I/O strategy creation: \"%s\"",
         target_device));

@@ -570,6 +570,7 @@ cc_library(
     srcs = ["stopwatch.cc"],
     hdrs = ["stopwatch.h"],
     deps = [
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/time",
         "//xls/common/logging",
     ],

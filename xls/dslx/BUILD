@@ -376,6 +376,7 @@ cc_library(
         "//xls/dslx/type_system:parametric_instantiator",
         "//xls/dslx/type_system:type_and_parametric_env",
         "//xls/dslx/type_system:unwrap_meta_type",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",

@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -43,10 +44,12 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
+#include "xls/dslx/frontend/ast_builtin_types.inc"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
@@ -468,26 +471,35 @@ absl::StatusOr<BuiltinType> BuiltinTypeFromString(std::string_view s) {
 }
 
 const absl::btree_set<BinopKind>& GetBinopSameTypeKinds() {
-  static auto* singleton = new absl::btree_set<BinopKind>{
-      BinopKind::kAdd, BinopKind::kSub, BinopKind::kMul, BinopKind::kAnd,
-      BinopKind::kOr,  BinopKind::kXor, BinopKind::kDiv,
-  };
+  static const absl::NoDestructor<absl::btree_set<BinopKind>> singleton({
+      BinopKind::kAdd,
+      BinopKind::kSub,
+      BinopKind::kMul,
+      BinopKind::kAnd,
+      BinopKind::kOr,
+      BinopKind::kXor,
+      BinopKind::kDiv,
+  });
   return *singleton;
 }
 
 const absl::btree_set<BinopKind>& GetBinopComparisonKinds() {
-  static auto* singleton = new absl::btree_set<BinopKind>{
-      BinopKind::kGe, BinopKind::kGt, BinopKind::kLe,
-      BinopKind::kLt, BinopKind::kEq, BinopKind::kNe,
-  };
+  static const absl::NoDestructor<absl::btree_set<BinopKind>> singleton({
+      BinopKind::kGe,
+      BinopKind::kGt,
+      BinopKind::kLe,
+      BinopKind::kLt,
+      BinopKind::kEq,
+      BinopKind::kNe,
+  });
   return *singleton;
 }
 
 const absl::btree_set<BinopKind>& GetBinopShifts() {
-  static auto* singleton = new absl::btree_set<BinopKind>{
+  static const absl::NoDestructor<absl::btree_set<BinopKind>> singleton({
       BinopKind::kShl,
       BinopKind::kShr,
-  };
+  });
   return *singleton;
 }
 

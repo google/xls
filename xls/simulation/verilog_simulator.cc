@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -125,7 +126,7 @@ VerilogSimulator::SimulateCombinational(
 }
 
 VerilogSimulatorManager& GetVerilogSimulatorManagerSingleton() {
-  static VerilogSimulatorManager* manager = new VerilogSimulatorManager;
+  static absl::NoDestructor<VerilogSimulatorManager> manager;
   return *manager;
 }
 

@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -38,7 +39,7 @@
 namespace xls {
 
 DelayEstimatorManager& GetDelayEstimatorManagerSingleton() {
-  static DelayEstimatorManager* manager = new DelayEstimatorManager;
+  static absl::NoDestructor<DelayEstimatorManager> manager;
   return *manager;
 }
 

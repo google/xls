@@ -39,6 +39,7 @@ cc_library(
         "//xls/netlist:cell_library",
         "//xls/netlist:logical_effort",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

@@ -16,6 +16,7 @@
 
 #include <chrono>  // NOLINT
 
+#include "absl/base/no_destructor.h"
 #include "absl/time/time.h"
 #include "xls/common/logging/logging.h"
 
@@ -110,8 +111,8 @@ absl::Duration operator-(const SteadyTime& t1, const SteadyTime& t2) {
 
 // static
 SteadyClock* SteadyClock::RealClock() {
-  static SteadyClock* real_clock = new RealTimeSteadyClock();
-  return real_clock;
+  static absl::NoDestructor<RealTimeSteadyClock> real_clock;
+  return real_clock.get();
 }
 
 }  // namespace xls

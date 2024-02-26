@@ -71,7 +71,7 @@ absl::Status RealMain(absl::Span<const std::string_view> args) {
   }
 
   absl::StatusOr<std::unique_ptr<DeviceRpcStrategy>> drpc_status =
-      DeviceRpcStrategyFactory::GetSingleton()->Create(target_device);
+      DeviceRpcStrategyFactory::GetSingleton().Create(target_device);
   XLS_QCHECK_OK(drpc_status.status());
 
   std::unique_ptr<DeviceRpcStrategy> drpc = std::move(drpc_status).value();

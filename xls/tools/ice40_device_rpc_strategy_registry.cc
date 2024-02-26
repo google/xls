@@ -17,7 +17,7 @@
 #include "xls/tools/ice40_device_rpc_strategy.h"
 
 XLS_REGISTER_MODULE_INITIALIZER(xls_tools_ice40_device_rpc_strategy_registry, {
-  xls::DeviceRpcStrategyFactory::GetSingleton()->Add("ice40", []() {
+  xls::DeviceRpcStrategyFactory::GetSingleton().Add("ice40", []() {
     return std::make_unique<xls::Ice40DeviceRpcStrategy>();
   });
 });

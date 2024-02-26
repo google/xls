@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -65,14 +66,14 @@ using ::testing::TestPartResult;
 using ::testing::TestWithParam;
 
 OptimizationPass* StandardPipelinePass() {
-  static OptimizationPass* singleton =
-      CreateOptimizationPassPipeline(3).release();
-  return singleton;
+  static absl::NoDestructor<std::unique_ptr<OptimizationPass>> singleton(
+      CreateOptimizationPassPipeline(3));
+  return singleton->get();
 }
 
 OptimizationPass* ChannelLegalizationPassOnly() {
-  static OptimizationPass* singleton = new ChannelLegalizationPass();
-  return singleton;
+  static absl::NoDestructor<ChannelLegalizationPass> singleton;
+  return singleton.get();
 }
 
 enum class PassVariant {

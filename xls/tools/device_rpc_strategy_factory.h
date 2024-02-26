@@ -21,6 +21,7 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/tools/device_rpc_strategy.h"
@@ -30,9 +31,9 @@ namespace xls {
 // Factory / registry for device-specific device-RPC discovery / functionality.
 class DeviceRpcStrategyFactory {
  public:
-  static DeviceRpcStrategyFactory* GetSingleton() {
-    static auto* singleton = new DeviceRpcStrategyFactory;
-    return singleton;
+  static DeviceRpcStrategyFactory& GetSingleton() {
+    static absl::NoDestructor<DeviceRpcStrategyFactory> singleton;
+    return *singleton;
   }
 
   ~DeviceRpcStrategyFactory() = default;

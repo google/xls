@@ -133,9 +133,9 @@ cc_library(
     hdrs = ["io_strategy_factory.h"],
     deps = [
         ":io_strategy",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -786,6 +786,7 @@ cc_library(
     hdrs = ["device_rpc_strategy_factory.h"],
     deps = [
         ":device_rpc_strategy",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1480,8 +1481,6 @@ cc_binary(
         "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
-        "//xls/codegen:module_signature_cc_proto",
-        "//xls/codegen:pipeline_generator",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -1504,8 +1503,8 @@ cc_binary(
         "//xls/passes:optimization_pass_pipeline",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_pass",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
