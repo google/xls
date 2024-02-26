@@ -1127,6 +1127,7 @@ cc_library(
         "//xls/codegen:op_override_impls",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:ram_configuration",
+        "//xls/common:stopwatch",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -1144,6 +1145,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -1259,8 +1261,12 @@ cc_binary(
     srcs = ["benchmark_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":codegen",
+        ":codegen_flags",
+        ":codegen_flags_cc_proto",
+        ":scheduling_options_flags",
+        ":scheduling_options_flags_cc_proto",
         "//xls/codegen:module_signature",
-        "//xls/codegen:pipeline_generator",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -1292,8 +1298,6 @@ cc_binary(
         "//xls/passes:pass_base",
         "//xls/passes:query_engine",
         "//xls/scheduling:pipeline_schedule",
-        "//xls/scheduling:scheduling_pass",
-        "//xls/scheduling:scheduling_pass_pipeline",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",

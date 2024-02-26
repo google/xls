@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -39,7 +40,6 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/pipeline_generator.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -77,8 +77,11 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/scheduling_pass.h"
-#include "xls/scheduling/scheduling_pass_pipeline.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/codegen_flags.h"
+#include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 const char kUsage[] = R"(
 Prints numerous metrics and other information about an XLS IR file including:
@@ -94,38 +97,15 @@ Example invocation:
 )";
 
 // LINT.IfChange
-// TODO(meheff): These codegen flags are duplicated from codegen_main. Might be
-// easier to wrap all the options into a proto or something codegen_main and
-// this could consume. It would make it less likely that the benchmark and
-// actual generated Verilog would diverge.
-ABSL_FLAG(
-    int64_t, clock_period_ps, 0,
-    "The number of picoseconds in a cycle to use when generating a pipeline "
-    "(codegen). Cannot be specified with --pipeline_stages. If both this "
-    "flag value and --pipeline_stages are zero then codegen is not"
-    "performed.");
-ABSL_FLAG(
-    int64_t, pipeline_stages, 0,
-    "The number of stages in the generated pipeline when performing codegen. "
-    "Cannot be specified with --clock_period_ps. If both this flag value and "
-    "--clock_period_ps are zero then codegen is not performed.");
-ABSL_FLAG(int64_t, clock_margin_percent, 0,
-          "The percentage of clock period to set aside as a margin to ensure "
-          "timing is met. Effectively, this lowers the clock period by this "
-          "percentage amount for the purposes of scheduling. Must be specified "
-          "with --clock_period_ps");
 ABSL_FLAG(bool, show_known_bits, false,
           "Show known bits as determined via the query engine.");
-ABSL_FLAG(std::string, top, "", "Top entity to use in lieu of the default.");
-ABSL_FLAG(std::string, delay_model, "",
-          "Delay model name to use from registry.");
 ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
           "If specified, convert array indexes with fewer than or "
           "equal to the given number of possible indices (by range analysis) "
           "into chains of selects. Otherwise, this optimization is skipped, "
           "since it can sometimes reduce output quality.");
 ABSL_FLAG(
-    int64_t, split_next_value_selects, -1,
+    int64_t, split_next_value_selects, 4,
     "If specified, split `next_value`s that assign `sel`s to state params if "
     "they have fewer than the given number of cases. Otherwise, this "
     "optimization is skipped, since it can sometimes reduce output quality.");
@@ -133,11 +113,6 @@ ABSL_FLAG(bool, use_context_narrowing_analysis, false,
           "Use context sensitive narrowing analysis. This is somewhat slower "
           "but might produce better results in some circumstances by using "
           "usage context to narrow values more aggressively.");
-ABSL_FLAG(std::optional<int64_t>, worst_case_throughput, std::nullopt,
-          "Allow scheduling a pipeline with worst-case throughput no slower "
-          "than once per N cycles. If unspecified, enforce throughput 1. Note: "
-          "a higher value for --worst_case_throughput *decreases* the "
-          "worst-case throughput, since this controls inverse throughput.");
 ABSL_FLAG(bool, run_evaluators, true,
           "Whether to run the JIT and interpreter.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
@@ -352,68 +327,6 @@ absl::StatusOr<std::vector<int64_t>> GetDelayPerStageInPs(
   return delay_per_stage;
 }
 
-absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
-    Package* package, const DelayEstimator& delay_estimator,
-    std::optional<int64_t> clock_period_ps,
-    std::optional<int64_t> pipeline_stages,
-    std::optional<int64_t> clock_margin_percent,
-    std::optional<int64_t> worst_case_throughput) {
-  SchedulingPassOptions options;
-  options.delay_estimator = &delay_estimator;
-  if (clock_period_ps.has_value()) {
-    options.scheduling_options.clock_period_ps(*clock_period_ps);
-  }
-  if (pipeline_stages.has_value()) {
-    options.scheduling_options.pipeline_stages(*pipeline_stages);
-  }
-  if (clock_margin_percent.has_value()) {
-    options.scheduling_options.clock_margin_percent(*clock_margin_percent);
-  }
-  if (worst_case_throughput.has_value()) {
-    options.scheduling_options.worst_case_throughput(*worst_case_throughput);
-  }
-
-  std::optional<FunctionBase*> top = package->GetTop();
-  if (!top.has_value()) {
-    return absl::InternalError(absl::StrFormat(
-        "Top entity not set for package: %s.", package->name()));
-  }
-
-  std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-      CreateSchedulingPassPipeline();
-  SchedulingPassResults results;
-  auto scheduling_unit = SchedulingUnit::CreateForSingleFunction(*top);
-
-  absl::Time start = absl::Now();
-  XLS_RETURN_IF_ERROR(
-      scheduling_pipeline->Run(&scheduling_unit, options, &results).status());
-  absl::Duration total_time = absl::Now() - start;
-  std::cout << absl::StreamFormat("Scheduling time: %dms\n",
-                                  total_time / absl::Milliseconds(1));
-
-  return std::move(scheduling_unit.schedules().at(*top));
-}
-
-absl::Status PrintCodegenInfo(FunctionBase* f,
-                              const PipelineSchedule& schedule) {
-  absl::Time start = absl::Now();
-  XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult codegen_result,
-                       verilog::ToPipelineModuleText(
-                           schedule, f, verilog::BuildPipelineOptions()));
-  absl::Duration total_time = absl::Now() - start;
-  std::cout << absl::StreamFormat("Codegen time: %dms\n",
-                                  total_time / absl::Milliseconds(1));
-
-  // TODO(meheff): Add an estimate of total number of gates.
-  std::cout << absl::StreamFormat(
-      "Lines of Verilog: %d\n",
-      std::vector<std::string>(
-          absl::StrSplit(codegen_result.verilog_text, '\n'))
-          .size());
-
-  return absl::OkStatus();
-}
-
 absl::Status PrintScheduleInfo(FunctionBase* f,
                                const PipelineSchedule& schedule,
                                const BddQueryEngine& bdd_query_engine,
@@ -493,6 +406,28 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
     std::cout << absl::StreamFormat("Min stage slack: %d\n", min_slack);
   }
 
+  return absl::OkStatus();
+}
+
+absl::Status PrintScheduleInfo(FunctionBase* f,
+                               const PipelineScheduleOrGroup& schedules,
+                               const BddQueryEngine& bdd_query_engine,
+                               const DelayEstimator& delay_estimator,
+                               std::optional<int64_t> clock_period_ps) {
+  if (std::holds_alternative<PipelineSchedule>(schedules)) {
+    return PrintScheduleInfo(f, std::get<PipelineSchedule>(schedules),
+                             bdd_query_engine, delay_estimator,
+                             clock_period_ps);
+  }
+
+  XLS_CHECK(std::holds_alternative<PackagePipelineSchedules>(schedules));
+  for (auto& [function_base, schedule] :
+       std::get<PackagePipelineSchedules>(schedules)) {
+    std::cout << "\n\nFunction: " << function_base->name() << "\n";
+    XLS_RETURN_IF_ERROR(PrintScheduleInfo(function_base, schedule,
+                                          bdd_query_engine, delay_estimator,
+                                          clock_period_ps));
+  }
   return absl::OkStatus();
 }
 
@@ -766,18 +701,23 @@ absl::Status RunInterpreterAndJit(FunctionBase* function_base,
   return RunProcInterpreterAndJit(proc, description, rng_engine);
 }
 
-absl::Status RealMain(std::string_view path,
-                      std::optional<int64_t> clock_period_ps,
-                      std::optional<int64_t> pipeline_stages,
-                      std::optional<int64_t> clock_margin_percent,
-                      std::optional<int64_t> worst_case_throughput) {
+absl::Status RealMain(std::string_view path) {
   XLS_VLOG(1) << "Reading contents at path: " << path;
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(contents));
-  if (!absl::GetFlag(FLAGS_top).empty()) {
-    XLS_RETURN_IF_ERROR(package->SetTopByName(absl::GetFlag(FLAGS_top)));
+
+  XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags_proto,
+                       GetCodegenFlags());
+  if (!codegen_flags_proto.top().empty()) {
+    XLS_RETURN_IF_ERROR(package->SetTopByName(codegen_flags_proto.top()));
   }
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+      GetSchedulingOptionsFlagsProto());
+  XLS_ASSIGN_OR_RETURN(
+      bool delay_model_flag_passed,
+      IsDelayModelSpecifiedViaFlag(scheduling_options_flags_proto));
 
   if (!package->GetTop().has_value()) {
     return absl::InternalError(absl::StrFormat(
@@ -795,20 +735,26 @@ absl::Status RealMain(std::string_view path,
   PrintNodeBreakdown(f);
 
   std::optional<int64_t> effective_clock_period_ps;
-  if (clock_period_ps.has_value()) {
-    effective_clock_period_ps = clock_period_ps;
-    if (clock_margin_percent.has_value()) {
+  if (scheduling_options_flags_proto.has_clock_period_ps() &&
+      scheduling_options_flags_proto.clock_period_ps() > 0) {
+    effective_clock_period_ps =
+        scheduling_options_flags_proto.clock_period_ps();
+    if (scheduling_options_flags_proto.has_clock_margin_percent()) {
       effective_clock_period_ps =
           *effective_clock_period_ps -
-          (*clock_period_ps * *clock_margin_percent + 50) / 100;
+          (*effective_clock_period_ps *
+               scheduling_options_flags_proto.clock_margin_percent() +
+           50) /
+              100;
     }
   }
   const DelayEstimator* pdelay_estimator;
-  if (absl::GetFlag(FLAGS_delay_model).empty()) {
+  if (!delay_model_flag_passed) {
     pdelay_estimator = &GetStandardDelayEstimator();
   } else {
-    XLS_ASSIGN_OR_RETURN(pdelay_estimator,
-                         GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
+    XLS_ASSIGN_OR_RETURN(
+        pdelay_estimator,
+        GetDelayEstimator(scheduling_options_flags_proto.delay_model()));
   }
   const auto& delay_estimator = *pdelay_estimator;
   XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_estimator,
@@ -820,32 +766,43 @@ absl::Status RealMain(std::string_view path,
   }
 
   const bool benchmark_codegen =
-      clock_period_ps.has_value() || pipeline_stages.has_value();
+      scheduling_options_flags_proto.clock_period_ps() > 0 ||
+      scheduling_options_flags_proto.pipeline_stages() > 0;
   if (benchmark_codegen) {
+    TimingReport timing_report;
+    PipelineScheduleOrGroup schedules = PackagePipelineSchedules();
     XLS_ASSIGN_OR_RETURN(
-        PipelineSchedule schedule,
-        ScheduleAndPrintStats(package.get(), delay_estimator, clock_period_ps,
-                              pipeline_stages, clock_margin_percent,
-                              worst_case_throughput));
+        CodegenResult codegen_result,
+        ScheduleAndCodegen(package.get(), scheduling_options_flags_proto,
+                           codegen_flags_proto, delay_model_flag_passed,
+                           &timing_report, &schedules));
+    std::cout << absl::StreamFormat(
+        "Scheduling time: %dms\n",
+        timing_report.scheduling_time / absl::Milliseconds(1));
+    std::cout << absl::StreamFormat(
+        "Codegen time: %dms\n",
+        timing_report.codegen_time / absl::Milliseconds(1));
 
-    // Only print codegen info for functions.
-    //
-    // TODO(tedhong): 2022-09-28 - Support passing additional codegen options
-    // to benchmark_main to be able to codegen procs.
-    if (f->IsFunction()) {
-      XLS_RETURN_IF_ERROR(PrintCodegenInfo(f, schedule));
-    }
+    // TODO(meheff): Add an estimate of total number of gates.
+    std::cout << absl::StreamFormat(
+        "Lines of Verilog: %d\n",
+        std::vector<std::string>(
+            absl::StrSplit(codegen_result.module_generator_result.verilog_text,
+                           '\n'))
+            .size());
 
-    XLS_RETURN_IF_ERROR(PrintScheduleInfo(f, schedule, query_engine,
-                                          delay_estimator, clock_period_ps));
+    XLS_RETURN_IF_ERROR(PrintScheduleInfo(
+        f, schedules, query_engine, delay_estimator,
+        scheduling_options_flags_proto.has_clock_period_ps()
+            ? std::make_optional(
+                  scheduling_options_flags_proto.clock_period_ps())
+            : std::nullopt));
 
     // Print out state information for procs.
     if (f->IsProc()) {
       XLS_RETURN_IF_ERROR(PrintProcInfo(f->AsProcOrDie()));
     }
-    // TODO(allight): 2023-10-30 - Until we're able to codegen procs we cannot
-    // get execution stats for them.
-    if (absl::GetFlag(FLAGS_run_evaluators) && f->IsFunction()) {
+    if (absl::GetFlag(FLAGS_run_evaluators)) {
       XLS_RETURN_IF_ERROR(
           RunInterpreterAndJit(package->blocks()[0].get(), "block"));
     }
@@ -866,19 +823,5 @@ int main(int argc, char** argv) {
                     << " <ir_path>";
   }
 
-  std::optional<int64_t> clock_period_ps;
-  if (absl::GetFlag(FLAGS_clock_period_ps) > 0) {
-    clock_period_ps = absl::GetFlag(FLAGS_clock_period_ps);
-  }
-  std::optional<int64_t> pipeline_stages;
-  if (absl::GetFlag(FLAGS_pipeline_stages) > 0) {
-    pipeline_stages = absl::GetFlag(FLAGS_pipeline_stages);
-  }
-  std::optional<int64_t> clock_margin_percent;
-  if (absl::GetFlag(FLAGS_clock_margin_percent) > 0) {
-    clock_margin_percent = absl::GetFlag(FLAGS_clock_margin_percent);
-  }
-  return xls::ExitStatus(xls::RealMain(
-      positional_arguments[0], clock_period_ps, pipeline_stages,
-      clock_margin_percent, absl::GetFlag(FLAGS_worst_case_throughput)));
+  return xls::ExitStatus(xls::RealMain(positional_arguments[0]));
 }
