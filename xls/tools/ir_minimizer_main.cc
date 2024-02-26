@@ -1074,10 +1074,21 @@ absl::StatusOr<SimplifiedIr> Simplify(FunctionBase* f,
   }
   if (absl::GetFlag(FLAGS_use_optimization_passes) &&
       absl::Bernoulli(rng, 0.2)) {
-    XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
-                         RunRandomPass(f, rng, which_transform));
-    if (pass_result != SimplificationResult::kDidNotChange) {
-      return in_place(pass_result);
+    auto orig_ir = orig_package->DumpIr();
+    auto orig_node_count = orig_package->GetNodeCount();
+
+    absl::StatusOr<SimplificationResult> pass_result =
+        RunRandomPass(f, rng, which_transform);
+    if (!pass_result.ok()) {
+      // Pass failed to run. This isn't really an error (maybe the pass is bad)
+      // but we weren't able to do anything. Restore the package and keep
+      // trying.
+      return SimplifiedIr{.result = SimplificationResult::kDidNotChange,
+                          .ir_data = orig_ir,
+                          .node_count = orig_node_count};
+    }
+    if (pass_result.value() != SimplificationResult::kDidNotChange) {
+      return in_place(pass_result.value());
     }
   }
 
