@@ -2880,6 +2880,66 @@ TEST_P(TranslatorProcTest, ForPipelinedNestedWithIO) {
             generate_fsms_for_pipelined_loops_ ? 2 * loop_body_bits : 0);
 }
 
+TEST_P(TranslatorProcTest, ForPipelinedNestedWithIO2) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& init,
+             __xls_channel<int>& out) {
+      const int n = init.read() - 5;
+      __xlscc_trace("---- init.read()!");
+
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=2;++i) {
+        __xlscc_trace("---- outer loop runs n={:u}", n);
+
+        #pragma hls_pipeline_init_interval 1
+        for(long j=1;j<=n;++j) {
+          __xlscc_trace("---- extra loop runs n={:u}", n);
+        }
+
+        // using n instead of 2 breaks it
+        // add i
+        #pragma hls_pipeline_init_interval 1
+        for(long j=1;j<=n;++j) {
+          out.write(j);
+          __xlscc_trace("---- out[{:u}].write()! n={:u}", j, n);
+        }
+
+      }
+
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_init = block_spec.add_channels();
+    ch_init->set_name("init");
+    ch_init->set_is_input(true);
+    ch_init->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  inputs["init"] = {xls::Value(xls::SBits(5 + 1, 32)),
+                    xls::Value(xls::SBits(5 + 2, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(2, 32)),
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(2, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 1);
+  }
+}
+
 TEST_P(TranslatorProcTest, ForPipelinedIOInBody) {
   const std::string content = R"(
     #include "/xls_builtin.h"

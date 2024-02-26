@@ -883,10 +883,15 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
                      absl::StrFormat("%s_default_next_state", fsm_prefix));
     }
 
-    xls::BValue go_to_next_state = pb.Select(
+    xls::BValue go_to_next_state_in_state = pb.Select(
         state_index,
         /*cases=*/go_to_next_state_by_state, default_go_to_next_state, body_loc,
-        /*name=*/absl::StrFormat("%s_go_to_next_state", fsm_prefix));
+        /*name=*/absl::StrFormat("%s_go_to_next_state_in_state", fsm_prefix));
+
+    xls::BValue go_to_next_state =
+        pb.And(go_to_next_state_in_state,
+               context().full_condition_bval(body_loc), body_loc,
+               /*name=*/absl::StrFormat("%s_go_to_next_state", fsm_prefix));
 
     xls::BValue next_state_index =
         pb.Select(go_to_next_state,
