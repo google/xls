@@ -67,9 +67,9 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/tuple_simplification_pass.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "re2/re2.h"
@@ -2001,7 +2001,7 @@ static absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
   CodegenCompoundPass ccp("block_conversion_dead_token_removal",
                           "Dead token removal during block-conversion process");
   ccp.AddInvariantChecker<CodegenChecker>();
-  ccp.Add<CodegenWrapperPass>(std::make_unique<TupleSimplificationPass>());
+  ccp.Add<CodegenWrapperPass>(std::make_unique<DataflowSimplificationPass>());
   ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
   ccp.Add<RegisterLegalizationPass>();
   ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());

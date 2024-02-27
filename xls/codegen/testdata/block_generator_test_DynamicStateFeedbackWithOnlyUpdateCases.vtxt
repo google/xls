@@ -26,7 +26,6 @@ module pipelined_proc(
   wire __out_valid_buf;
   wire out_data_valid_load_en;
   wire out_data_load_en;
-  wire __out_ready_buf;
   wire p0_stage_done;
   wire p0_data_enable;
   wire and_50;
@@ -38,7 +37,6 @@ module pipelined_proc(
   wire even_iteration;
   wire [31:0] one_hot_sel_53;
   wire or_56;
-  wire [31:0] __out_data_buf;
   assign p1_all_active_states_valid = 1'h1;
   assign p1_stage_valid = p1_all_active_states_valid & p0_valid;
   assign p1_all_active_inputs_valid = 1'h1;
@@ -51,8 +49,7 @@ module pipelined_proc(
   assign __out_valid_buf = p0_all_active_inputs_valid & __counter_full & p0_enable;
   assign out_data_valid_load_en = out_ready | out_data_valid_inv;
   assign out_data_load_en = __out_valid_buf & out_data_valid_load_en;
-  assign __out_ready_buf = out_data_load_en;
-  assign p0_stage_done = __counter_full & p0_all_active_inputs_valid & __out_ready_buf;
+  assign p0_stage_done = __counter_full & p0_all_active_inputs_valid & out_data_load_en;
   assign p0_data_enable = p0_enable & p0_stage_done;
   assign and_50 = __odd_iteration & p0_data_enable;
   assign and_51 = p0_even_iteration & p1_stage_done;
@@ -63,7 +60,6 @@ module pipelined_proc(
   assign even_iteration = ~__odd_iteration;
   assign one_hot_sel_53 = incremented_counter & {32{concat_52[0]}} | lit1 & {32{concat_52[1]}};
   assign or_56 = p0_data_enable | or_54;
-  assign __out_data_buf = __counter;
   always @ (posedge clk) begin
     if (rst) begin
       __counter <= 32'h0000_0000;
@@ -83,7 +79,7 @@ module pipelined_proc(
       p0_even_iteration <= p0_data_enable ? even_iteration : p0_even_iteration;
       __counter_full <= or_56 ? or_54 : __counter_full;
       p0_valid <= p0_enable ? p0_stage_done : p0_valid;
-      __out_data_reg <= out_data_load_en ? __out_data_buf : __out_data_reg;
+      __out_data_reg <= out_data_load_en ? __counter : __out_data_reg;
       __out_data_valid_reg <= out_data_valid_load_en ? __out_valid_buf : __out_data_valid_reg;
     end
   end

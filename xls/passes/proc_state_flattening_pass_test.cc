@@ -30,10 +30,10 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/tuple_simplification_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -100,8 +100,8 @@ class ProcStateFlatteningPassTest
     XLS_ASSIGN_OR_RETURN(
         bool changed,
         ProcStateFlatteningPass().Run(p, OptimizationPassOptions(), &results));
-    // Run tuple_simplification and dce to clean things up.
-    XLS_RETURN_IF_ERROR(TupleSimplificationPass()
+    // Run dataflow_simplification and dce to clean things up.
+    XLS_RETURN_IF_ERROR(DataflowSimplificationPass()
                             .Run(p, OptimizationPassOptions(), &results)
                             .status());
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()

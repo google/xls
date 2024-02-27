@@ -77,6 +77,7 @@
 #include "xls/passes/concat_simplification_pass.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/cse_pass.h"
+#include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/inlining_pass.h"
@@ -86,7 +87,6 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
-#include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
 
 const char* kUsage = R"(
@@ -715,7 +715,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   passes.push_back(std::make_unique<ConcatSimplificationPass>());
   passes.push_back(std::make_unique<ConstantFoldingPass>());
   passes.push_back(std::make_unique<CsePass>());
-  passes.push_back(std::make_unique<TupleSimplificationPass>());
+  passes.push_back(std::make_unique<DataflowSimplificationPass>());
   passes.push_back(std::make_unique<UnrollPass>());
   if (absl::GetFlag(FLAGS_can_inline_everything)) {
     // Only can inline from the top.

@@ -62,7 +62,6 @@ cc_library(
         ":table_switch_pass",
         ":token_dependency_pass",
         ":token_simplification_pass",
-        ":tuple_simplification_pass",
         ":unroll_pass",
         ":useless_assert_removal_pass",
         ":useless_io_removal_pass",
@@ -572,22 +571,6 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",
-    ],
-)
-
-cc_library(
-    name = "tuple_simplification_pass",
-    srcs = ["tuple_simplification_pass.cc"],
-    hdrs = ["tuple_simplification_pass.h"],
-    deps = [
-        ":optimization_pass",
-        ":optimization_pass_registry",
-        ":pass_base",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
     ],
 )
 
@@ -1632,11 +1615,11 @@ cc_test(
     name = "proc_state_flattening_pass_test",
     srcs = ["proc_state_flattening_pass_test.cc"],
     deps = [
+        ":dataflow_simplification_pass",
         ":dce_pass",
         ":optimization_pass",
         ":pass_base",
         ":proc_state_flattening_pass",
-        ":tuple_simplification_pass",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
@@ -1892,24 +1875,6 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:function_builder",
-        "//xls/ir:ir_matcher",
-        "//xls/ir:ir_test_base",
-    ],
-)
-
-cc_test(
-    name = "tuple_simplification_pass_test",
-    srcs = ["tuple_simplification_pass_test.cc"],
-    deps = [
-        ":dce_pass",
-        ":optimization_pass",
-        ":tuple_simplification_pass",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
     ],
