@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -30,6 +32,30 @@
 #include "xls/ir/type.h"
 
 namespace xls {
+
+namespace internal {
+
+// Increment a multi-dimensional array index assuming the given array bounds.
+// The last element of `array_index` is incremented and if it equals the
+// respective `bounds` element then it is set to zero and one is added to the
+// next index element, etc. Returns true if the entire index overflowed.
+bool IncrementArrayIndex(absl::Span<const int64_t> bounds,
+                         std::vector<int64_t>* array_index);
+
+// Returns information about the subarray at a particular index depth in
+// the given type. The fields in the returned struct correspond to the type
+// remaining after peeling `index_depth` outer dimensions from `type`.
+struct SubArraySize {
+  // The type of the subarray.
+  Type* type;
+  // The bounds of the subarray.
+  std::vector<int64_t> bounds;
+  // The number of leaf elements in the subarray.
+  int64_t element_count;
+};
+absl::StatusOr<SubArraySize> GetSubArraySize(Type* type, int64_t index_depth);
+
+}  // namespace internal
 
 // A container which stores values of an arbitrary type T, one value for each
 // leaf element (Bits value) of a potentially-recursive XLS type. Values are
@@ -64,6 +90,8 @@ class LeafTypeTree {
   LeafTypeTree() : type_(nullptr) {}
   LeafTypeTree(const LeafTypeTree<T>& other) = default;
   LeafTypeTree& operator=(const LeafTypeTree<T>& other) = default;
+  LeafTypeTree(LeafTypeTree<T>&& other) = default;
+  LeafTypeTree& operator=(LeafTypeTree<T>&& other) = default;
 
   explicit LeafTypeTree(Type* type)
       : type_(type), elements_(type->leaf_count()) {
@@ -240,40 +268,91 @@ class LeafTypeTree {
 
   friend bool operator==(const LeafTypeTree<T>& lhs,
                          const LeafTypeTree<T>& rhs) {
-    if (!lhs.type_->IsEqualTo(rhs.type_)) {
+    if (lhs.type_ != rhs.type_) {
       return false;
     }
     XLS_CHECK_EQ(lhs.leaf_types_.size(), rhs.leaf_types_.size());
-    for (int64_t i = 0; i < lhs.leaf_types_.size(); ++i) {
-      XLS_CHECK(lhs.leaf_types_[i]->IsEqualTo(rhs.leaf_types_[i]));
-    }
     return lhs.elements_ == rhs.elements_;
   }
 
   template <typename H>
   friend H AbslHashValue(H h, const LeafTypeTree<T>& ltt) {
-    return H::combine(std::move(h), ltt.elements());
+    return H::combine(std::move(h), ltt.type_, ltt.elements());
   }
 
   // Calls the given function on each leaf element. The element type, element
   // data, and element index is passed to the function. The elements are
-  // iterated in lexicographic order of the indices.
+  // iterated in lexicographic order of the indices. `index_prefix` can be used
+  // to limit the iteration to only those indices whose first elements match
+  // `index_prefix`.
   absl::Status ForEach(
-      const std::function<absl::Status(Type*, T&, absl::Span<const int64_t>)>&
-          f) {
-    std::vector<int64_t> type_index;
-    int64_t linear_index = 0;
-    return ForEachHelper(type_, f, linear_index, type_index);
+      const std::function<absl::Status(Type* element_type, T& element,
+                                       absl::Span<const int64_t> index)>& f,
+      absl::Span<const int64_t> index_prefix = {}) {
+    std::vector<int64_t> type_index(index_prefix.begin(), index_prefix.end());
+    auto [subtype, linear_index] = GetSubtypeAndOffset(type(), index_prefix);
+    return ForEachHelper(subtype, f, linear_index, type_index);
   }
 
   // Const overload of ForEach.
   absl::Status ForEach(
-      const std::function<absl::Status(Type*, const T&,
-                                       absl::Span<const int64_t>)>& f) const {
+      const std::function<absl::Status(Type* element_type, const T& element,
+                                       absl::Span<const int64_t> index)>& f,
+      absl::Span<const int64_t> index_prefix = {}) const {
     return const_cast<LeafTypeTree<T>*>(this)->ForEach(
         [&](Type* type, T& data, absl::Span<const int64_t> index) {
           return f(type, data, index);
         });
+  }
+
+  // Calls the given function on each sub-array/element of the
+  // type. `index_depth` determines the iteration space, specifically this is
+  // the number of outer dimensions to iterate over. For example, for a 2D array
+  // u32[3][4]:
+  //
+  //   `index_depth` == 0: `f` is called once on the entire array (u32[3][4]).
+  //
+  //   `index_depth` == 1: `f` is called once for each of the 4 1D subarrays
+  //   (u32[3]).
+  //
+  //   `index_depth` == 2: `f` is called once for each of the 12 leaf elements
+  //   (u32).
+  absl::Status ForEachSubArray(
+      int64_t index_depth,
+      const std::function<absl::Status(Type* subtype, absl::Span<T> elements,
+                                       absl::Span<const int64_t> index)>& f) {
+    XLS_ASSIGN_OR_RETURN(internal::SubArraySize subarray_size,
+                         internal::GetSubArraySize(type(), index_depth));
+    int64_t linear_index = 0;
+    std::vector<int64_t> array_index(index_depth, 0);
+    do {
+      XLS_RETURN_IF_ERROR(f(subarray_size.type,
+                            absl::MakeSpan(elements_).subspan(
+                                linear_index, subarray_size.element_count),
+                            array_index));
+      linear_index += subarray_size.element_count;
+    } while (
+        !internal::IncrementArrayIndex(subarray_size.bounds, &array_index));
+    return absl::OkStatus();
+  }
+
+  absl::Status ForEachSubArray(int64_t index_depth,
+                               const std::function<absl::Status(
+                                   Type* subtype, absl::Span<const T> elements,
+                                   absl::Span<const int64_t> index)>& f) const {
+    XLS_ASSIGN_OR_RETURN(internal::SubArraySize subarray_size,
+                         internal::GetSubArraySize(type(), index_depth));
+    int64_t linear_index = 0;
+    std::vector<int64_t> array_index(index_depth, 0);
+    do {
+      XLS_RETURN_IF_ERROR(f(subarray_size.type,
+                            absl::MakeConstSpan(elements_).subspan(
+                                linear_index, subarray_size.element_count),
+                            array_index));
+      linear_index += subarray_size.element_count;
+    } while (
+        !internal::IncrementArrayIndex(subarray_size.bounds, &array_index));
+    return absl::OkStatus();
   }
 
   // Returns the stringified elements of the LeafTypeTree in a structured

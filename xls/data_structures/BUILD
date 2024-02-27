@@ -156,9 +156,12 @@ cc_library(
 
 cc_library(
     name = "leaf_type_tree",
+    srcs = ["leaf_type_tree.cc"],
     hdrs = ["leaf_type_tree.h"],
     deps = [
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -287,7 +290,10 @@ cc_test(
     srcs = ["leaf_type_tree_test.cc"],
     deps = [
         ":leaf_type_tree",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -295,6 +301,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:ir_parser",
+        "//xls/ir:type",
     ],
 )
 

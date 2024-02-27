@@ -15,18 +15,23 @@
 #include "xls/data_structures/leaf_type_tree.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 namespace {
@@ -34,6 +39,8 @@ namespace {
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::HasSubstr;
+using ::xls::status_testing::StatusIs;
 
 class LeafTypeTreeTest : public ::testing::Test {
  protected:
@@ -307,6 +314,14 @@ TEST_F(LeafTypeTreeTest, ForEachTest) {
     result.clear();
     XLS_ASSERT_OK(tree.ForEach(append_to_result));
     EXPECT_EQ(result, "[bits[32], 23, {0}][bits[64], 42, {1}]");
+
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result, /*index_prefix=*/{0}));
+    EXPECT_EQ(result, "[bits[32], 23, {0}]");
+
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result, /*index_prefix=*/{1}));
+    EXPECT_EQ(result, "[bits[64], 42, {1}]");
   }
   {
     LeafTypeTree<int64_t> tree(AsType("bits[32][2]"));
@@ -326,7 +341,153 @@ TEST_F(LeafTypeTreeTest, ForEachTest) {
     EXPECT_EQ(
         result,
         "[bits[32], 1, {0, 0}][bits[32], 2, {0, 1}][bits[32], 3, {1, 0, 0}]");
+
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result, /*index_prefix=*/{0}));
+    EXPECT_EQ(result, "[bits[32], 1, {0, 0}][bits[32], 2, {0, 1}]");
+
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result, /*index_prefix=*/{0, 1}));
+    EXPECT_EQ(result, "[bits[32], 2, {0, 1}]");
   }
+}
+
+TEST_F(LeafTypeTreeTest, ForEachSubArray) {
+  LeafTypeTree<int64_t> tree(AsType("bits[32][1][2][3]"));
+  // The data value of each leaf is the linear index in the leaf array.
+  int64_t i = 0;
+  for (int64_t& element : tree.elements()) {
+    element = i++;
+  }
+  std::vector<std::string> result;
+  auto append_element = [&](Type* subtype, absl::Span<int64_t> elements,
+                            absl::Span<const int64_t> index) {
+    result.push_back(
+        absl::StrFormat("X[%s]: %s = [%s]", absl::StrJoin(index, ","),
+                        subtype->ToString(), absl::StrJoin(elements, ",")));
+    return absl::OkStatus();
+  };
+
+  result.clear();
+  XLS_ASSERT_OK(tree.ForEachSubArray(0, append_element));
+  EXPECT_THAT(result, ElementsAre("X[]: bits[32][1][2][3] = [0,1,2,3,4,5]"));
+
+  result.clear();
+  XLS_ASSERT_OK(tree.ForEachSubArray(1, append_element));
+  EXPECT_THAT(result, ElementsAre("X[0]: bits[32][1][2] = [0,1]",
+                                  "X[1]: bits[32][1][2] = [2,3]",
+                                  "X[2]: bits[32][1][2] = [4,5]"));
+
+  result.clear();
+  XLS_ASSERT_OK(tree.ForEachSubArray(2, append_element));
+  EXPECT_THAT(
+      result,
+      ElementsAre("X[0,0]: bits[32][1] = [0]", "X[0,1]: bits[32][1] = [1]",
+                  "X[1,0]: bits[32][1] = [2]", "X[1,1]: bits[32][1] = [3]",
+                  "X[2,0]: bits[32][1] = [4]", "X[2,1]: bits[32][1] = [5]"));
+
+  result.clear();
+  XLS_ASSERT_OK(tree.ForEachSubArray(3, append_element));
+  EXPECT_THAT(
+      result,
+      ElementsAre("X[0,0,0]: bits[32] = [0]", "X[0,1,0]: bits[32] = [1]",
+                  "X[1,0,0]: bits[32] = [2]", "X[1,1,0]: bits[32] = [3]",
+                  "X[2,0,0]: bits[32] = [4]", "X[2,1,0]: bits[32] = [5]"));
+}
+
+TEST_F(LeafTypeTreeTest, ForEachSubArray1D) {
+  LeafTypeTree<int64_t> tree(AsType("bits[32][5]"));
+  // The data value of each leaf is the linear index in the leaf array.
+  int64_t i = 0;
+  for (int64_t& element : tree.elements()) {
+    element = i++;
+  }
+
+  std::vector<std::string> result;
+  auto append_element = [&](Type* subtype, absl::Span<int64_t> elements,
+                            absl::Span<const int64_t> index) {
+    result.push_back(
+        absl::StrFormat("X[%s]: %s = [%s]", absl::StrJoin(index, ","),
+                        subtype->ToString(), absl::StrJoin(elements, ",")));
+    return absl::OkStatus();
+  };
+
+  result.clear();
+  XLS_ASSERT_OK(tree.ForEachSubArray(0, append_element));
+  EXPECT_THAT(result, ElementsAre("X[]: bits[32][5] = [0,1,2,3,4]"));
+
+  result.clear();
+  XLS_ASSERT_OK(tree.ForEachSubArray(1, append_element));
+  EXPECT_THAT(result,
+              ElementsAre("X[0]: bits[32] = [0]", "X[1]: bits[32] = [1]",
+                          "X[2]: bits[32] = [2]", "X[3]: bits[32] = [3]",
+                          "X[4]: bits[32] = [4]"));
+}
+
+TEST_F(LeafTypeTreeTest, ForEachSubArrayBitsType) {
+  LeafTypeTree<int64_t> tree(AsType("bits[32]"));
+  // The data value of each leaf is the linear index in the leaf array.
+  int64_t i = 0;
+  for (int64_t& element : tree.elements()) {
+    element = i++;
+  }
+
+  std::vector<std::string> result;
+  auto append_element = [&](Type* subtype, absl::Span<int64_t> elements,
+                            absl::Span<const int64_t> index) {
+    result.push_back(
+        absl::StrFormat("X[%s]: %s = [%s]", absl::StrJoin(index, ","),
+                        subtype->ToString(), absl::StrJoin(elements, ",")));
+    return absl::OkStatus();
+  };
+
+  result.clear();
+  XLS_ASSERT_OK(tree.ForEachSubArray(0, append_element));
+  EXPECT_THAT(result, ElementsAre("X[]: bits[32] = [0]"));
+}
+
+TEST_F(LeafTypeTreeTest, ForEachArrayWithEmptyTupleLeaf) {
+  LeafTypeTree<int64_t> tree(AsType("()[2]"));
+
+  std::vector<std::string> result;
+  auto append_element = [&](Type* subtype, absl::Span<int64_t> elements,
+                            absl::Span<const int64_t> index) {
+    result.push_back(
+        absl::StrFormat("X[%s]: %s = [%s]", absl::StrJoin(index, ","),
+                        subtype->ToString(), absl::StrJoin(elements, ",")));
+    return absl::OkStatus();
+  };
+
+  result.clear();
+  XLS_ASSERT_OK(tree.ForEachSubArray(1, append_element));
+  EXPECT_THAT(result, ElementsAre("X[0]: () = []", "X[1]: () = []"));
+}
+
+TEST_F(LeafTypeTreeTest, ForEachArrayErrors) {
+  auto f = [](Type* subtype, absl::Span<int64_t> elements,
+              absl::Span<const int64_t> index) { return absl::OkStatus(); };
+
+  LeafTypeTree<int64_t> empty_tuple_tree(AsType("()"));
+  EXPECT_THAT(
+      empty_tuple_tree.ForEachSubArray(1, f),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Type has fewer than 1 array dimensions: ()")));
+
+  LeafTypeTree<int64_t> three_d_tree(AsType("bits[32][1][2][3]"));
+  EXPECT_THAT(
+      three_d_tree.ForEachSubArray(4, f),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Type has fewer than 4 array dimensions: bits[32][1][2][3]")));
+
+  EXPECT_THAT(three_d_tree.ForEachSubArray(
+                  2,
+                  [](Type* subtype, absl::Span<int64_t> elements,
+                     absl::Span<const int64_t> index) {
+                    return absl::InternalError("Oh noes!");
+                  }),
+              StatusIs(absl::StatusCode::kInternal, HasSubstr("Oh noes!")));
 }
 
 TEST_F(LeafTypeTreeTest, ArrayOfEmptyTuples) {
@@ -345,6 +506,106 @@ TEST_F(LeafTypeTreeTest, OutOfBoundsTest) {
   EXPECT_EQ(tree.CopySubtree({1}).ToString(), "()");
   EXPECT_EQ(tree.CopySubtree({2}).ToString(), "(())");
   EXPECT_EQ(tree.CopySubtree({2, 0}).ToString(), "()");
+}
+
+TEST_F(LeafTypeTreeTest, IncrementArrayIndex0D) {
+  std::vector<int64_t> bounds;
+  std::vector<int64_t> index;
+  EXPECT_TRUE(internal::IncrementArrayIndex(bounds, &index));
+  EXPECT_TRUE(index.empty());
+}
+
+TEST_F(LeafTypeTreeTest, IncrementArrayIndex1D) {
+  {
+    std::vector<int64_t> bounds = {1};
+    std::vector<int64_t> index = {0};
+    EXPECT_TRUE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(0));
+  }
+  {
+    std::vector<int64_t> bounds = {3};
+    std::vector<int64_t> index = {0};
+    EXPECT_FALSE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(1));
+    EXPECT_FALSE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(2));
+    EXPECT_TRUE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(0));
+  }
+}
+
+TEST_F(LeafTypeTreeTest, IncrementArrayIndex2D) {
+  {
+    std::vector<int64_t> bounds = {1, 1};
+    std::vector<int64_t> index = {0, 0};
+    EXPECT_TRUE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(0, 0));
+  }
+  {
+    std::vector<int64_t> bounds = {2, 3};
+    std::vector<int64_t> index = {0, 0};
+    EXPECT_FALSE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(0, 1));
+    EXPECT_FALSE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(0, 2));
+    EXPECT_FALSE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(1, 0));
+    EXPECT_FALSE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(1, 1));
+    EXPECT_FALSE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(1, 2));
+    EXPECT_TRUE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(0, 0));
+  }
+  {
+    std::vector<int64_t> bounds = {1, 2};
+    std::vector<int64_t> index = {0, 0};
+    EXPECT_FALSE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(0, 1));
+    EXPECT_TRUE(internal::IncrementArrayIndex(bounds, &index));
+    EXPECT_THAT(index, ElementsAre(0, 0));
+  }
+}
+
+TEST_F(LeafTypeTreeTest, GetSubArraySize) {
+  XLS_ASSERT_OK_AND_ASSIGN(internal::SubArraySize bits_size,
+                           internal::GetSubArraySize(AsType("bits[32]"), 0));
+  EXPECT_EQ(bits_size.type->ToString(), "bits[32]");
+  EXPECT_TRUE(bits_size.bounds.empty());
+  EXPECT_EQ(bits_size.element_count, 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(internal::SubArraySize one_d_array_0,
+                           internal::GetSubArraySize(AsType("bits[32][2]"), 0));
+  EXPECT_EQ(one_d_array_0.type->ToString(), "bits[32][2]");
+  EXPECT_THAT(one_d_array_0.bounds, ElementsAre());
+  EXPECT_EQ(one_d_array_0.element_count, 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(internal::SubArraySize one_d_array_1,
+                           internal::GetSubArraySize(AsType("bits[32][2]"), 1));
+  EXPECT_EQ(one_d_array_1.type->ToString(), "bits[32]");
+  EXPECT_THAT(one_d_array_1.bounds, ElementsAre(2));
+  EXPECT_EQ(one_d_array_1.element_count, 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      internal::SubArraySize two_d_array_0,
+      internal::GetSubArraySize(AsType("(bits[1], bits[2])[7][3]"), 0));
+  EXPECT_EQ(two_d_array_0.type->ToString(), "(bits[1], bits[2])[7][3]");
+  EXPECT_THAT(two_d_array_0.bounds, ElementsAre());
+  EXPECT_EQ(two_d_array_0.element_count, 42);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      internal::SubArraySize two_d_array_1,
+      internal::GetSubArraySize(AsType("(bits[1], bits[2])[7][3]"), 1));
+  EXPECT_EQ(two_d_array_1.type->ToString(), "(bits[1], bits[2])[7]");
+  EXPECT_THAT(two_d_array_1.bounds, ElementsAre(3));
+  EXPECT_EQ(two_d_array_1.element_count, 14);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      internal::SubArraySize two_d_array_2,
+      internal::GetSubArraySize(AsType("(bits[1], bits[2])[7][3]"), 2));
+  EXPECT_EQ(two_d_array_2.type->ToString(), "(bits[1], bits[2])");
+  EXPECT_THAT(two_d_array_2.bounds, ElementsAre(3, 7));
+  EXPECT_EQ(two_d_array_2.element_count, 2);
 }
 
 }  // namespace
