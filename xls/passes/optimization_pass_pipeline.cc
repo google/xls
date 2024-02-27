@@ -23,15 +23,11 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <tuple>
-#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
@@ -49,6 +45,7 @@
 #include "xls/passes/conditional_specialization_pass.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/cse_pass.h"
+#include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/identity_removal_pass.h"
@@ -73,7 +70,6 @@
 #include "xls/passes/table_switch_pass.h"
 #include "xls/passes/token_dependency_pass.h"
 #include "xls/passes/token_simplification_pass.h"
-#include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
 #include "xls/passes/useless_assert_removal_pass.h"
 #include "xls/passes/useless_io_removal_pass.h"
@@ -110,7 +106,7 @@ void AddSimplificationPasses(OptimizationCompoundPass& pass,
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<ConcatSimplificationPass>(opt_level);
   pass.Add<DeadCodeEliminationPass>();
-  pass.Add<TupleSimplificationPass>();
+  pass.Add<DataflowSimplificationPass>();
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<StrengthReductionPass>(opt_level);
   pass.Add<DeadCodeEliminationPass>();
@@ -204,7 +200,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   // TODO(meheff): Consider running proc state optimization more than once.
   top->Add<ProcStateFlatteningPass>();
   top->Add<IdentityRemovalPass>();
-  top->Add<TupleSimplificationPass>();
+  top->Add<DataflowSimplificationPass>();
   top->Add<NextValueOptimizationPass>();
   top->Add<ProcStateOptimizationPass>();
   top->Add<DeadCodeEliminationPass>();

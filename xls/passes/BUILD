@@ -37,6 +37,7 @@ cc_library(
         ":conditional_specialization_pass",
         ":constant_folding_pass",
         ":cse_pass",
+        ":dataflow_simplification_pass",
         ":dce_pass",
         ":dfe_pass",
         ":identity_removal_pass",
@@ -2577,6 +2578,51 @@ cc_library(
         "//xls/ir:channel_ops",
         "//xls/ir:node_util",
         "//xls/ir:op",
+    ],
+)
+
+cc_library(
+    name = "dataflow_simplification_pass",
+    srcs = ["dataflow_simplification_pass.cc"],
+    hdrs = ["dataflow_simplification_pass.h"],
+    deps = [
+        ":dataflow_visitor",
+        ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:value",
+    ],
+)
+
+cc_test(
+    name = "dataflow_simplification_pass_test",
+    srcs = ["dataflow_simplification_pass_test.cc"],
+    deps = [
+        ":dataflow_simplification_pass",
+        ":dce_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:type",
+        "//xls/ir:value",
     ],
 )
 

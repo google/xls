@@ -24,13 +24,13 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
 #include "xls/passes/predicate_state.h"
 
@@ -39,7 +39,7 @@ namespace xls {
 // Abstraction representing a particular bit of a particular XLS Node.
 class TreeBitLocation {
  public:
-  TreeBitLocation() : node_(nullptr), bit_index_(0), tree_index_() {}
+  TreeBitLocation() : node_(nullptr), bit_index_(0) {}
 
   TreeBitLocation(Node* node, int64_t bit_index,
                   absl::Span<const int64_t> tree_index = {})
