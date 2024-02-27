@@ -33,6 +33,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -174,7 +175,7 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
 // set indicates that the corresponding node is dependent upon the i-th state
 // parameter. Dependence is tracked an a per leaf element basis using
 // LeafTypeTrees.
-class StateDependencyVisitor : public DataFlowVisitor<InlineBitmap> {
+class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
  public:
   explicit StateDependencyVisitor(Proc* proc) : proc_(proc) {}
 
@@ -219,7 +220,23 @@ class StateDependencyVisitor : public DataFlowVisitor<InlineBitmap> {
     return result;
   }
 
- private:
+ protected:
+  absl::Status AccumulateDataElement(const InlineBitmap& data_element,
+                                     Node* node,
+                                     absl::Span<const int64_t> index,
+                                     InlineBitmap& element) const override {
+    element.Union(data_element);
+    return absl::OkStatus();
+  }
+
+  absl::Status AccumulateControlElement(const InlineBitmap& control_element,
+                                        Node* node,
+                                        absl::Span<const int64_t> index,
+                                        InlineBitmap& element) const override {
+    element.Union(control_element);
+    return absl::OkStatus();
+  }
+
   Proc* proc_;
 };
 

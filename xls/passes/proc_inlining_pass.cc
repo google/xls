@@ -618,7 +618,7 @@ absl::Status VerifyTokenDependencies(Proc* proc) {
 // The leaf type tree for `x` might be:
 //
 //   ({rcv0}, {rcv0, rcv1}, {})
-class ReceiveDependencyVisitor : public DataFlowVisitor<std::vector<Receive*>> {
+class ReceiveDependencyVisitor : public DataflowVisitor<std::vector<Receive*>> {
  public:
   absl::Status DefaultHandler(Node* node) override {
     // Token-typed nodes have no receive data sources.
@@ -653,6 +653,27 @@ class ReceiveDependencyVisitor : public DataFlowVisitor<std::vector<Receive*>> {
     }
     std::vector<Receive*> element_vec = SetToSortedVector(elements);
     return element_vec;
+  }
+
+  absl::Status AccumulateDataElement(
+      const std::vector<Receive*>& data_element, Node* node,
+      absl::Span<const int64_t> index,
+      std::vector<Receive*>& element) const override {
+    absl::flat_hash_set<Receive*> set(data_element.begin(), data_element.end());
+    set.insert(element.begin(), element.end());
+    element = SetToSortedVector(set);
+    return absl::OkStatus();
+  }
+
+  absl::Status AccumulateControlElement(
+      const std::vector<Receive*>& control_element, Node* node,
+      absl::Span<const int64_t> index,
+      std::vector<Receive*>& element) const override {
+    absl::flat_hash_set<Receive*> set(control_element.begin(),
+                                      control_element.end());
+    set.insert(element.begin(), element.end());
+    element = SetToSortedVector(set);
+    return absl::OkStatus();
   }
 };
 

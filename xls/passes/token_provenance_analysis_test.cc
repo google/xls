@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -34,9 +35,11 @@
 namespace xls {
 namespace {
 
+using status_testing::StatusIs;
 using testing::AllOf;
 using testing::Contains;
 using testing::ElementsAre;
+using testing::HasSubstr;
 using testing::IsEmpty;
 using testing::Key;
 using testing::Not;
@@ -241,6 +244,19 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGNestedTuples) {
   EXPECT_THAT(topo_dag[1].predecessors, ElementsAre(proc->TokenParam()));
   EXPECT_EQ(topo_dag[2].node, recv2.node());
   EXPECT_THAT(topo_dag[2].predecessors, ElementsAre(recv.node()));
+}
+
+TEST_F(TokenProvenanceAnalysisTest, SelectOfTokens) {
+  auto p = std::make_unique<Package>(TestName());
+  // Turn off verification because a select of tokens is generally invalid.
+  ProcBuilder pb(TestName(), "token", p.get(), /*should_verify=*/false);
+  BValue token = pb.GetTokenParam();
+  BValue selector = pb.StateElement("selector", Value(UBits(0, 1)));
+  BValue select = pb.Select(selector, {token, token});
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(select, {selector}));
+  EXPECT_THAT(TokenProvenanceAnalysis(proc),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Node type should not contain a token")));
 }
 
 }  // namespace

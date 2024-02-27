@@ -58,7 +58,7 @@ inline bool OpHasTokenProvenance(Op op) {
   }
 }
 
-class TokenProvenanceVisitor : public DataFlowVisitor<Node*> {
+class TokenProvenanceVisitor : public DataflowVisitor<Node*> {
  public:
   absl::Status DefaultHandler(Node* node) override {
     LeafTypeTree<Node*> ltt(node->GetType(), nullptr);
@@ -69,11 +69,36 @@ class TokenProvenanceVisitor : public DataFlowVisitor<Node*> {
         }
       }
     } else if (TypeHasToken(node->GetType())) {
-      return absl::InternalError(absl::StrFormat(
-          "Node type contains token type even though it shouldn't: %s",
-          node->ToString()));
+      return TokenError(node);
     }
     return SetValue(node, ltt);
+  }
+
+ protected:
+  static absl::Status TokenError(Node* node) {
+    return absl::InternalError(absl::StrFormat(
+        "Node type should not contain a token: %s", node->ToString()));
+  }
+
+  absl::Status AccumulateDataElement(Node* const& data_element, Node* node,
+                                     absl::Span<const int64_t> index,
+                                     Node*& element) const override {
+    // Tokens should never be joined.
+    if (data_element != nullptr || element != nullptr) {
+      return TokenError(node);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status AccumulateControlElement(Node* const& control_element,
+                                        Node* node,
+                                        absl::Span<const int64_t> index,
+                                        Node*& element) const override {
+    // Tokens should never be joined.
+    if (control_element != nullptr || element != nullptr) {
+      return TokenError(node);
+    }
+    return absl::OkStatus();
   }
 };
 
