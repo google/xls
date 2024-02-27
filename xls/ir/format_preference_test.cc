@@ -33,7 +33,7 @@ TEST(FormatPreferenceTest, ToString) {
     std::string stringified;
     bool valid;
   };
-  for (auto [value, expected, valid] : std::vector<TestCase>{
+  for (const auto& [value, expected, valid] : std::vector<TestCase>{
            {FormatPreference::kDefault, "default", true},
            {FormatPreference::kBinary, "binary", true},
            {FormatPreference::kUnsignedDecimal, "unsigned-decimal", true},
