@@ -75,10 +75,10 @@ class CharStream {
   }
   char PeekCharOrDie() {
     if (if_.has_value()) {
-      XLS_DCHECK(!if_->eof());
+      DCHECK(!if_->eof());
       return if_->peek();
     }
-    XLS_DCHECK_LT(cursor_, text_.size());
+    DCHECK_LT(cursor_, text_.size());
     return text_[cursor_];
   }
   char PopCharOrDie() {

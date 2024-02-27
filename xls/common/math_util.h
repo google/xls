@@ -37,10 +37,10 @@ constexpr IntegralType CeilOrFloorOfRatio(IntegralType numerator,
                                           IntegralType denominator) {
   static_assert(std::numeric_limits<IntegralType>::is_integer,
                 "CeilOfRatio is only defined for integral types");
-  XLS_DCHECK_NE(0, denominator) << "Division by zero is not supported.";
-  XLS_DCHECK(!std::numeric_limits<IntegralType>::is_signed ||
-             numerator != std::numeric_limits<IntegralType>::min() ||
-             denominator != -1)
+  DCHECK_NE(0, denominator) << "Division by zero is not supported.";
+  DCHECK(!std::numeric_limits<IntegralType>::is_signed ||
+         numerator != std::numeric_limits<IntegralType>::min() ||
+         denominator != -1)
       << "Dividing " << numerator << " by -1 is not supported: it would SIGFPE";
 
   const IntegralType rounded_toward_zero = numerator / denominator;

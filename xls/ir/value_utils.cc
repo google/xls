@@ -101,9 +101,9 @@ absl::StatusOr<float> TupleToF32(const Value& v) {
   XLS_RET_CHECK_EQ(v.element(2).bits().bit_count(), 23);
   XLS_ASSIGN_OR_RETURN(uint32_t fraction, v.element(2).bits().ToUint64());
   // Validate the values were all appropriate.
-  XLS_DCHECK_EQ(sign, sign & Mask(1));
-  XLS_DCHECK_EQ(exp, exp & Mask(8));
-  XLS_DCHECK_EQ(fraction, fraction & Mask(23));
+  DCHECK_EQ(sign, sign & Mask(1));
+  DCHECK_EQ(exp, exp & Mask(8));
+  DCHECK_EQ(fraction, fraction & Mask(23));
   // Reconstruct the float.
   uint32_t x = (sign << 31) | (exp << 23) | fraction;
   return absl::bit_cast<float>(x);

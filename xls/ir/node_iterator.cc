@@ -76,8 +76,7 @@ void NodeIterator::Initialize() {
   };
   auto add_to_order = [&](Node* r) {
     XLS_VLOG(5) << "Adding node to order: " << r;
-    XLS_DCHECK(all_users_scheduled(r))
-        << r << " users size: " << r->users().size();
+    DCHECK(all_users_scheduled(r)) << r << " users size: " << r->users().size();
     ordered_->push_back(r);
 
     // We want to be careful to only bump down our operands once, since we're a
@@ -111,7 +110,7 @@ void NodeIterator::Initialize() {
         // front.
         return_value = node;
       } else {
-        XLS_DCHECK(all_users_scheduled(node));
+        DCHECK(all_users_scheduled(node));
         XLS_VLOG(5) << "At start node was ready: " << node;
         seed_ready(node);
       }

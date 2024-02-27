@@ -255,7 +255,7 @@ class PackedBitsView {
   // should be incremented).
   PackedBitsView(uint8_t* buffer, int buffer_offset)
       : buffer_(buffer), buffer_offset_(buffer_offset) {
-    XLS_DCHECK(buffer_offset >= 0 && buffer_offset <= 7);
+    DCHECK(buffer_offset >= 0 && buffer_offset <= 7);
   }
 
   // Returns the XLS IR Type corresponding to this packed view.
@@ -379,7 +379,7 @@ class PackedArrayView {
 
   // Returns the element at the given index in the array.
   ElementT Get(int index) {
-    XLS_DCHECK_LT(index, kNumElements);
+    DCHECK_LT(index, kNumElements);
     int64_t bit_increment = index * ElementT::kBitCount + buffer_offset_;
     int64_t byte_offset = bit_increment / kCharBit;
     int64_t bit_offset = bit_increment % kCharBit;

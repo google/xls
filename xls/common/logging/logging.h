@@ -197,7 +197,7 @@
 // -----------------------------------------------------------------------------
 //
 // `XLS_CHECK` macros terminate the program with a fatal error if the specified
-// condition is not true.  Except for `XLS_DCHECK`, they are not controlled by
+// condition is not true.  Except for `DCHECK`, they are not controlled by
 // `NDEBUG` (cf. `assert`), so the check will be executed regardless of
 // compilation mode.  `XLS_CHECK` and friends are thus useful for confirming
 // invariants in situations where continuing to run would be worse than
@@ -229,17 +229,8 @@
 #define XLS_QCHECK_GE(val1, val2) QCHECK_GE(val1, val2)
 #define XLS_QCHECK_GT(val1, val2) QCHECK_GT(val1, val2)
 
-#define XLS_DCHECK(condition) DCHECK(condition)
-#define XLS_DCHECK_EQ(val1, val2) DCHECK_EQ(val1, val2)
-#define XLS_DCHECK_NE(val1, val2) DCHECK_NE(val1, val2)
-#define XLS_DCHECK_LE(val1, val2) DCHECK_LE(val1, val2)
-#define XLS_DCHECK_LT(val1, val2) DCHECK_LT(val1, val2)
-#define XLS_DCHECK_GE(val1, val2) DCHECK_GE(val1, val2)
-#define XLS_DCHECK_GT(val1, val2) DCHECK_GT(val1, val2)
-
 #define XLS_CHECK_OK(val) CHECK_OK(val)
 #define XLS_QCHECK_OK(val) QCHECK_OK(val)
-#define XLS_DCHECK_OK(val) DCHECK_OK(val)
 
 
 #endif  // XLS_COMMON_LOGGING_LOGGING_H_

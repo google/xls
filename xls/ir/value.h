@@ -97,7 +97,7 @@ class Value {
   // type.
   static Value ArrayOwned(std::vector<Value>&& elements) {
     for (int64_t i = 1; i < elements.size(); ++i) {
-      XLS_DCHECK(elements[0].SameTypeAs(elements[i]));
+      DCHECK(elements[0].SameTypeAs(elements[i]));
     }
     return Value(ValueKind::kArray, std::move(elements));
   }

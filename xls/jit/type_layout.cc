@@ -20,6 +20,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/strings/str_format.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_utils.h"
 
@@ -48,7 +50,7 @@ static void LeafValueToNativeLayout(const Value& value,
 
 void TypeLayout::ValueToNativeLayout(const Value& value,
                                      uint8_t* buffer) const {
-  XLS_DCHECK(ValueConformsToType(value, type())) << absl::StreamFormat(
+  DCHECK(ValueConformsToType(value, type())) << absl::StreamFormat(
       "Value `%s` is not of type `%s`", value.ToString(), type()->ToString());
 
   if (IsLeafValue(value)) {

@@ -83,8 +83,8 @@ absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
     // bother.
     return false;
   }
-  XLS_DCHECK(!query_engine.IsFullyKnown(select_val));
-  XLS_DCHECK(select_val->AllCases(
+  DCHECK(!query_engine.IsFullyKnown(select_val));
+  DCHECK(select_val->AllCases(
       [&](Node* c) { return query_engine.IsFullyKnown(c); }));
 
   auto operands = node->operands();

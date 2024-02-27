@@ -1384,11 +1384,9 @@ int64_t JittedFunctionBase::RunUnalignedJittedFunction(
     InterpreterEvents* events, InstanceContext* instance_context,
     JitRuntime* jit_runtime, int64_t continuation) const {
   if constexpr (kForceZeroCopy) {
-    XLS_DCHECK_OK(
-        VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()));
-    XLS_DCHECK_OK(
-        VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()));
-    XLS_DCHECK(IsAligned(temp_buffer, temp_buffer_alignment_));
+    DCHECK_OK(VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()));
+    DCHECK_OK(VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()));
+    DCHECK(IsAligned(temp_buffer, temp_buffer_alignment_));
   } else {
     if (!VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()).ok() ||
         !VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()).ok() ||

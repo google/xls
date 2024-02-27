@@ -476,7 +476,7 @@ TupleType::TupleType(std::vector<std::unique_ptr<ConcreteType>> members)
     : members_(std::move(members)) {
 #ifndef NDEBUG
   for (const auto& member : members_) {
-    XLS_DCHECK(member != nullptr);
+    DCHECK(member != nullptr);
   }
 #endif
 }

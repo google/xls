@@ -221,7 +221,7 @@ absl::Status ParseTextProto(std::string_view contents,
   // Needed for this to compile in OSS, for some reason
   std::string contents_owned(contents.begin(), contents.end());
   const bool success = parser.ParseFromString(contents_owned, proto);
-  XLS_DCHECK_EQ(success, collector.status().ok());
+  DCHECK_EQ(success, collector.status().ok());
   return collector.status();
 }
 

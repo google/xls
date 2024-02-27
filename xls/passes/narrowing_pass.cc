@@ -526,7 +526,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     TernaryVector constant_bits =
         ternary_ops::BitsToTernary(elements[0].bits());
     for (const Value& element : elements) {
-      XLS_DCHECK(element.IsBits());
+      DCHECK(element.IsBits());
       ternary_ops::UpdateWithIntersection(constant_bits, element.bits());
     }
 
@@ -608,7 +608,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     if (!current_unknown_slice.empty()) {
       XLS_RETURN_IF_ERROR(finish_unknown_slice());
     }
-    XLS_DCHECK_GT(slices.size(), 1);
+    DCHECK_GT(slices.size(), 1);
 
     std::vector<Value> narrowed_elements;
     narrowed_elements.reserve(array_literal->value().elements().size());
@@ -668,7 +668,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     if (sliced_array.slices.size() == 1) {
       if (std::holds_alternative<NonconstantSlice>(sliced_array.slices[0])) {
         // This array can't be narrowed.
-        XLS_DCHECK_EQ(sliced_array.array_literal, literal);
+        DCHECK_EQ(sliced_array.array_literal, literal);
         return NoChange();
       }
 
@@ -731,7 +731,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         } else {
           XLS_CHECK(std::holds_alternative<Literal*>(slice));
           Literal* constant_slice = std::get<Literal*>(slice);
-          XLS_DCHECK(constant_slice->value().IsBits());
+          DCHECK(constant_slice->value().IsBits());
           bit_slices.push_back(constant_slice);
         }
       }

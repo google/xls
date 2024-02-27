@@ -26,8 +26,8 @@ constexpr int64_t kCharBit = 8;
 
 // Helper that generates an (unsigned) mask with "bit_count" low bits set.
 inline uint64_t Mask(int64_t bit_count) {
-  XLS_DCHECK_GE(bit_count, 0);
-  XLS_DCHECK_LE(bit_count, 64);
+  DCHECK_GE(bit_count, 0);
+  DCHECK_LE(bit_count, 64);
   return bit_count == 64 ? -1ULL : (1ULL << bit_count) - 1;
 }
 

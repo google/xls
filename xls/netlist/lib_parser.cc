@@ -122,8 +122,8 @@ absl::StatusOr<Token> Scanner::ScanQuotedString() {
 }
 
 absl::Status Scanner::PeekInternal() {
-  XLS_DCHECK(!lookahead_.has_value());
-  XLS_DCHECK(!cs_->AtEof());
+  DCHECK(!lookahead_.has_value());
+  DCHECK(!cs_->AtEof());
   if (IsIdentifierStart(cs_->PeekCharOrDie())) {
     XLS_ASSIGN_OR_RETURN(lookahead_, ScanIdentifier());
     DropWhitespaceAndComments();

@@ -95,7 +95,7 @@ class InlineBitmap {
       : bit_count_(bit_count),
         data_(CeilOfRatio(bit_count, kWordBits),
               fill ? ~uint64_t{0} : uint64_t{0}) {
-    XLS_DCHECK_GE(bit_count, 0);
+    DCHECK_GE(bit_count, 0);
     // If we initialized our data to zero, no need to mask out the bits past the
     // end of the bitmap; they're already zero.
     if (fill) {
@@ -134,15 +134,15 @@ class InlineBitmap {
     return true;
   }
   inline bool Get(int64_t index) const {
-    XLS_DCHECK_GE(index, 0);
-    XLS_DCHECK_LT(index, bit_count());
+    DCHECK_GE(index, 0);
+    DCHECK_LT(index, bit_count());
     uint64_t word = data_[index / kWordBits];
     uint64_t bitno = index % kWordBits;
     return (word >> bitno) & 1ULL;
   }
   inline void Set(int64_t index, bool value = true) {
-    XLS_DCHECK_GE(index, 0);
-    XLS_DCHECK_LT(index, bit_count());
+    DCHECK_GE(index, 0);
+    DCHECK_LT(index, bit_count());
     uint64_t& word = data_[index / kWordBits];
     uint64_t bitno = index % kWordBits;
     if (value) {
@@ -155,8 +155,8 @@ class InlineBitmap {
   // [lower_index, upper_index).
   inline void SetRange(int64_t lower_index, int64_t upper_index,
                        bool value = true) {
-    XLS_DCHECK_GE(lower_index, 0);
-    XLS_DCHECK_LE(upper_index, bit_count());
+    DCHECK_GE(lower_index, 0);
+    DCHECK_LE(upper_index, bit_count());
     for (int64_t index = lower_index; index < upper_index; ++index) {
       Set(index, value);
     }
@@ -172,11 +172,11 @@ class InlineBitmap {
     if (wordno == 0 && word_count() == 0) {
       return 0;
     }
-    XLS_DCHECK_LT(wordno, word_count());
+    DCHECK_LT(wordno, word_count());
     return data_[wordno];
   }
   void SetWord(int64_t wordno, uint64_t value) {
-    XLS_DCHECK_LT(wordno, word_count());
+    DCHECK_LT(wordno, word_count());
     data_[wordno] = value & MaskForWord(wordno);
   }
 
@@ -191,7 +191,7 @@ class InlineBitmap {
   // of word 0, byte 7 is mapped to the most significant bits of word 0, byte 8
   // is mapped to the least significant bits of word 1, and so on.
   void SetByte(int64_t byteno, uint8_t value) {
-    XLS_DCHECK_LT(byteno, byte_count());
+    DCHECK_LT(byteno, byte_count());
     XLS_CHECK(kEndianness == Endianness::kLittleEndian);
     absl::bit_cast<uint8_t*>(data_.data())[byteno] = value;
     // Ensure the data is appropriately masked in case this byte writes to that
@@ -201,7 +201,7 @@ class InlineBitmap {
 
   // Returns the byte at the given offset. Byte order is little-endian.
   uint8_t GetByte(int64_t byteno) const {
-    XLS_DCHECK_LT(byteno, byte_count());
+    DCHECK_LT(byteno, byte_count());
     XLS_CHECK(kEndianness == Endianness::kLittleEndian);
     return absl::bit_cast<uint8_t*>(data_.data())[byteno];
   }

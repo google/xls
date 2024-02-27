@@ -134,7 +134,7 @@ class Bits {
   // As above, but retrieves with index "0" starting at the MSb side of the bit
   // vector.
   bool GetFromMsb(int64_t index) const {
-    XLS_DCHECK_LT(index, bit_count());
+    DCHECK_LT(index, bit_count());
     return bitmap_.Get(bit_count() - index - 1);
   }
 

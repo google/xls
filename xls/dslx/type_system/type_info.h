@@ -376,7 +376,7 @@ inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
         absl::StrFormat("No type found for AST node: %s @ %s", key->ToString(),
                         SpanToString(key->GetSpan())));
   }
-  XLS_DCHECK(t.value() != nullptr);
+  DCHECK(t.value() != nullptr);
   auto* target = dynamic_cast<T*>(t.value());
   if (target == nullptr) {
     return absl::FailedPreconditionError(absl::StrFormat(
