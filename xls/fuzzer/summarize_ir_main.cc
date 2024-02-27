@@ -117,7 +117,7 @@ absl::Status RealMain(std::string_view unoptimized_path,
     SummarizePackage(package.get(), summary_proto->mutable_optimized_nodes());
   }
 
-  XLS_QCHECK(!absl::GetFlag(FLAGS_summary_file).empty())
+  QCHECK(!absl::GetFlag(FLAGS_summary_file).empty())
       << "Must specify --summary_file.";
   // Since SampleSummariesProto contains just a repeated field, appending a new
   // such proto to a file that could potentially contain a SampleSummariesProto

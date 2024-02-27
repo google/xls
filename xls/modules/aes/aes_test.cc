@@ -71,7 +71,7 @@ static Block ReferenceEncrypt(const Key& key, int key_bytes,
   memcpy(local_key, key.data(), key_bytes);
 
   AES_KEY aes_key;
-  XLS_QCHECK_EQ(AES_set_encrypt_key(local_key, key_bytes * 8, &aes_key), 0);
+  QCHECK_EQ(AES_set_encrypt_key(local_key, key_bytes * 8, &aes_key), 0);
   AES_encrypt(plaintext.data(), ciphertext.data(), &aes_key);
   return ciphertext;
 }

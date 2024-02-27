@@ -95,9 +95,9 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
-  XLS_QCHECK(!absl::GetFlag(FLAGS_options_file).empty())
+  QCHECK(!absl::GetFlag(FLAGS_options_file).empty())
       << "--options_file is required.";
-  XLS_QCHECK(!absl::GetFlag(FLAGS_input_file).empty())
+  QCHECK(!absl::GetFlag(FLAGS_input_file).empty())
       << "--input_file is required.";
 
   if (positional_arguments.size() > 1) {

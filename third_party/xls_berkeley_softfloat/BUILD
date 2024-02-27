@@ -60,6 +60,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fpdiv_2x32_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",

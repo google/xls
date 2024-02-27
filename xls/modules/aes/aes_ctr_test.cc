@@ -147,7 +147,7 @@ static absl::StatusOr<std::vector<Block>> XlsEncrypt(
   std::vector<Block> blocks;
   blocks.resize(num_blocks);
   for (int i = 0; i < num_blocks; i++) {
-    XLS_QCHECK(output_data_queue.ReadRaw(blocks[i].data()));
+    QCHECK(output_data_queue.ReadRaw(blocks[i].data()));
   }
 
   return blocks;
@@ -168,8 +168,8 @@ static std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
   }
 
   AES_KEY aes_key;
-  XLS_QCHECK_EQ(
-      AES_set_encrypt_key(local_key, sample_data.key_bytes * 8, &aes_key), 0);
+  QCHECK_EQ(AES_set_encrypt_key(local_key, sample_data.key_bytes * 8, &aes_key),
+            0);
 
   int num_blocks = sample_data.input_blocks.size();
   auto input_buffer = std::make_unique<uint8_t[]>(num_blocks * kBlockBytes);

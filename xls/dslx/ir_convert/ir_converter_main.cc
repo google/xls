@@ -102,12 +102,12 @@ absl::Status RealMain(absl::Span<const std::string_view> paths,
   // The following checks are performed inside ConvertFilesToPackage(), but we
   // reproduce them here to give nicer error messages.
   if (!package_name.has_value()) {
-    XLS_QCHECK_EQ(paths.size(), 1)
+    QCHECK_EQ(paths.size(), 1)
         << "-package_name *must* be given when multiple input paths are "
            "supplied";
   }
   if (paths.size() > 1) {
-    XLS_QCHECK(!top.has_value())
+    QCHECK(!top.has_value())
         << "-entry cannot be supplied with multiple input paths (need a single "
            "input path to know where to resolve the entry function)";
   }

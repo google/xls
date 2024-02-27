@@ -63,10 +63,10 @@ int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
   std::string cell_library_path = absl::GetFlag(FLAGS_cell_library);
-  XLS_QCHECK(!cell_library_path.empty()) << "--cell_library must be specified.";
+  QCHECK(!cell_library_path.empty()) << "--cell_library must be specified.";
 
   std::string output_path = absl::GetFlag(FLAGS_output_path);
-  XLS_QCHECK(!output_path.empty()) << "--output_path must be specified.";
+  QCHECK(!output_path.empty()) << "--output_path must be specified.";
 
   return xls::ExitStatus(xls::netlist::function::RealMain(
       cell_library_path, output_path, absl::GetFlag(FLAGS_output_textproto)));

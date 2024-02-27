@@ -78,6 +78,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fpexp_32_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -150,6 +151,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fp_sincos_32_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -214,6 +216,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fp_trig_reduce_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -275,6 +278,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fpsqrt_32_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",

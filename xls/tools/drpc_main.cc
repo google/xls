@@ -50,15 +50,15 @@ namespace {
 
 absl::Status RealMain(absl::Span<const std::string_view> args) {
   std::string target_device = absl::GetFlag(FLAGS_target_device);
-  XLS_QCHECK(!target_device.empty()) << "Must provide -target_device";
+  QCHECK(!target_device.empty()) << "Must provide -target_device";
 
   std::string function_type_string = absl::GetFlag(FLAGS_function_type);
-  XLS_QCHECK(!function_type_string.empty()) << "Must provide -function_type";
+  QCHECK(!function_type_string.empty()) << "Must provide -function_type";
 
   Package package("dummy_to_hold_types");
   auto function_type_status =
       Parser::ParseFunctionType(function_type_string, &package);
-  XLS_QCHECK_OK(function_type_status.status());
+  QCHECK_OK(function_type_status.status());
   FunctionType* function_type = function_type_status.value();
 
   std::vector<Value> arguments;
@@ -66,16 +66,16 @@ absl::Status RealMain(absl::Span<const std::string_view> args) {
     std::string_view s = args[i];
     absl::StatusOr<Value> argument =
         Parser::ParseValue(s, function_type->parameter_type(i));
-    XLS_QCHECK_OK(argument.status());
+    QCHECK_OK(argument.status());
     arguments.push_back(std::move(argument).value());
   }
 
   absl::StatusOr<std::unique_ptr<DeviceRpcStrategy>> drpc_status =
       DeviceRpcStrategyFactory::GetSingleton().Create(target_device);
-  XLS_QCHECK_OK(drpc_status.status());
+  QCHECK_OK(drpc_status.status());
 
   std::unique_ptr<DeviceRpcStrategy> drpc = std::move(drpc_status).value();
-  XLS_QCHECK_OK(drpc->Connect(absl::GetFlag(FLAGS_device_ordinal)));
+  QCHECK_OK(drpc->Connect(absl::GetFlag(FLAGS_device_ordinal)));
 
   absl::StatusOr<Value> rpc_status =
       drpc->CallUnnamed(*function_type, arguments);

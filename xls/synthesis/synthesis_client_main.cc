@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
   }
   std::string_view vpath = positional_arguments[0];
   absl::StatusOr<std::string> verilog_contents = xls::GetFileContents(vpath);
-  XLS_QCHECK_OK(verilog_contents.status());
+  QCHECK_OK(verilog_contents.status());
   request.set_module_text(verilog_contents.value());
 
   // Use the client to perform the RPC

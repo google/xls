@@ -342,9 +342,9 @@ cc_library(
     ],
     hdrs = ["sample_packages.h"],
     data = [
+        ":adler32.opt.ir",
         ":ir_example_file_list.txt",
         ":ir_examples",
-        "//xls/examples:adler32.opt.ir",
     ],
     deps = [
         "@com_google_absl//absl/memory",

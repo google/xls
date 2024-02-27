@@ -79,7 +79,7 @@ GetBenchmarks(absl::Span<const std::string> benchmark_names) {
 absl::Status RealMain(std::string_view input_path) {
   std::vector<std::pair<std::string, std::unique_ptr<Package>>> packages;
   if (absl::GetFlag(FLAGS_benchmarks).empty()) {
-    XLS_QCHECK(!input_path.empty());
+    QCHECK(!input_path.empty());
     std::string path;
     if (input_path == "-") {
       path = "/dev/stdin";

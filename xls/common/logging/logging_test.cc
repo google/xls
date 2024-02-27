@@ -117,7 +117,7 @@ TEST_F(LoggingTest, CheckPrintsStackTraceWhenConditionFails) {
 }
 
 TEST_F(LoggingTest, QcheckDoesNothingWhenConditionHolds) {
-  XLS_QCHECK(true);
+  QCHECK(true);
 
   EXPECT_EQ(entries_.size(), 0);
 }
@@ -126,7 +126,7 @@ TEST_F(LoggingTest, QcheckCrashesWhenConditionFails) {
   EXPECT_DEATH(
       {
         bool condition_variable = false;
-        XLS_QCHECK(condition_variable);
+        QCHECK(condition_variable);
       },
       HasSubstr("condition_variable"));
 }
@@ -201,63 +201,63 @@ TEST_F(LoggingTest, CheckGtCrashesWhenConditionFails) {
 }
 
 TEST_F(LoggingTest, QcheckEqDoesNothingWhenConditionHolds) {
-  XLS_QCHECK_EQ(1, 1);
+  QCHECK_EQ(1, 1);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, QcheckEqCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_QCHECK_EQ(1, 2); }, HasSubstr("1 == 2"));
+  EXPECT_DEATH({ QCHECK_EQ(1, 2); }, HasSubstr("1 == 2"));
 }
 
 TEST_F(LoggingTest, QcheckNeDoesNothingWhenConditionHolds) {
-  XLS_QCHECK_NE(1, 2);
+  QCHECK_NE(1, 2);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, QcheckNeCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_QCHECK_NE(1, 1); }, HasSubstr("1 != 1"));
+  EXPECT_DEATH({ QCHECK_NE(1, 1); }, HasSubstr("1 != 1"));
 }
 
 TEST_F(LoggingTest, QcheckLeDoesNothingWhenConditionHolds) {
-  XLS_QCHECK_LE(1, 1);
+  QCHECK_LE(1, 1);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, QcheckLeCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_QCHECK_LE(2, 1); }, HasSubstr("2 <= 1"));
+  EXPECT_DEATH({ QCHECK_LE(2, 1); }, HasSubstr("2 <= 1"));
 }
 
 TEST_F(LoggingTest, QcheckLtDoesNothingWhenConditionHolds) {
-  XLS_QCHECK_LT(1, 2);
+  QCHECK_LT(1, 2);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, QcheckLtCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_QCHECK_LT(1, 1); }, HasSubstr("1 < 1"));
+  EXPECT_DEATH({ QCHECK_LT(1, 1); }, HasSubstr("1 < 1"));
 }
 
 TEST_F(LoggingTest, QcheckGeDoesNothingWhenConditionHolds) {
-  XLS_QCHECK_GE(1, 1);
+  QCHECK_GE(1, 1);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, QcheckGeCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_QCHECK_GE(1, 2); }, HasSubstr("1 >= 2"));
+  EXPECT_DEATH({ QCHECK_GE(1, 2); }, HasSubstr("1 >= 2"));
 }
 
 TEST_F(LoggingTest, QcheckGtDoesNothingWhenConditionHolds) {
-  XLS_QCHECK_GT(2, 1);
+  QCHECK_GT(2, 1);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, QcheckGtCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_QCHECK_GT(1, 1); }, HasSubstr("1 > 1"));
+  EXPECT_DEATH({ QCHECK_GT(1, 1); }, HasSubstr("1 > 1"));
 }
 
 TEST_F(LoggingTest, CheckOkDoesNothingWithOkStatus) {
@@ -277,19 +277,20 @@ TEST_F(LoggingTest, CheckOkCrashesWithStackTrace) {
 }
 
 TEST_F(LoggingTest, QcheckOkDoesNothingWithOkStatus) {
-  XLS_QCHECK_OK(absl::OkStatus());
+  QCHECK_OK(absl::OkStatus());
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, QcheckOkCrashesWithNonOkStatus) {
-  EXPECT_DEATH({ XLS_QCHECK_OK(absl::UnknownError("error_msg")); },
-               HasSubstr("error_msg"));
+  EXPECT_DEATH(
+      { QCHECK_OK(absl::UnknownError("error_msg")); }, HasSubstr("error_msg"));
 }
 
 TEST_F(LoggingTest, QcheckOkCrashesWithoutStackTrace) {
-  EXPECT_DEATH({ XLS_QCHECK_OK(absl::UnknownError("error_msg")); },
-               Not(HasSubstr("CheckOkCrashesWithStackTrace")));
+  EXPECT_DEATH(
+      { QCHECK_OK(absl::UnknownError("error_msg")); },
+      Not(HasSubstr("CheckOkCrashesWithStackTrace")));
 }
 
 }  // namespace

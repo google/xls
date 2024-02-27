@@ -326,20 +326,19 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
   std::string input_ir_path = absl::GetFlag(FLAGS_input);
-  XLS_QCHECK(!input_ir_path.empty()) << "--input must be specified.";
+  QCHECK(!input_ir_path.empty()) << "--input must be specified.";
 
   std::string top = absl::GetFlag(FLAGS_top);
 
   std::string output_object_path = absl::GetFlag(FLAGS_output_object);
   std::string output_header_path = absl::GetFlag(FLAGS_output_header);
   std::string output_source_path = absl::GetFlag(FLAGS_output_source);
-  XLS_QCHECK(!output_object_path.empty() && !output_header_path.empty() &&
-             !output_source_path.empty())
+  QCHECK(!output_object_path.empty() && !output_header_path.empty() &&
+         !output_source_path.empty())
       << "All of --output_{object,header,source}_path must be specified.";
 
   std::string header_include_path = absl::GetFlag(FLAGS_header_include_path);
-  XLS_QCHECK(!header_include_path.empty())
-      << "Must specify --header_include_path.";
+  QCHECK(!header_include_path.empty()) << "Must specify --header_include_path.";
 
   std::vector<std::string> namespaces;
   std::string namespaces_string = absl::GetFlag(FLAGS_namespaces);

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <optional>
@@ -21,6 +20,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
@@ -29,6 +29,8 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
@@ -74,7 +76,7 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
   XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm_or->type_info));
   if (output_path.has_value()) {
     std::string output;
-    XLS_QCHECK(tip.SerializeToString(&output));
+    QCHECK(tip.SerializeToString(&output));
     return SetFileContents(output_path->c_str(), output);
   }
   XLS_ASSIGN_OR_RETURN(std::string humanized, ToHumanString(tip, import_data));

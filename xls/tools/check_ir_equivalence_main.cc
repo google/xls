@@ -174,7 +174,7 @@ static absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
 int main(int argc, char** argv) {
   std::vector<std::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
-  XLS_QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
+  QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
   return xls::ExitStatus(xls::RealMain(
       positional_args, absl::GetFlag(FLAGS_top), absl::GetFlag(FLAGS_timeout)));
 }

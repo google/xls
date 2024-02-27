@@ -102,14 +102,14 @@ static absl::Status RealMain(
 int main(int argc, char* argv[]) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
-  XLS_QCHECK_EQ(positional_arguments.size(), 1) << absl::StreamFormat(
+  QCHECK_EQ(positional_arguments.size(), 1) << absl::StreamFormat(
       "Expected invocation: %s <DSLX path> --input", argv[0]);
 
   std::string inputs = absl::GetFlag(FLAGS_input);
-  XLS_QCHECK(!inputs.empty());
+  QCHECK(!inputs.empty());
 
   std::string entry_fn_name = absl::GetFlag(FLAGS_entry);
-  XLS_QCHECK(!entry_fn_name.empty()) << "--entry must be specified.";
+  QCHECK(!entry_fn_name.empty()) << "--entry must be specified.";
 
   std::vector<std::string> pieces =
       absl::StrSplit(absl::GetFlag(FLAGS_dslx_paths), ',');

@@ -166,6 +166,6 @@ absl::Status RealMain() {
 
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK_OK(xls::RealMain());
+  QCHECK_OK(xls::RealMain());
   return 0;
 }

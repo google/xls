@@ -237,8 +237,8 @@ int main(int argc, char* argv[]) {
     absl::StatusOr<xls::FormatPreference> flag_preference =
         xls::FormatPreferenceFromString(absl::GetFlag(FLAGS_format_preference));
     // `default` is not a legal overriding format preference.
-    XLS_QCHECK(flag_preference.ok() &&
-               absl::GetFlag(FLAGS_format_preference) != "default")
+    QCHECK(flag_preference.ok() &&
+           absl::GetFlag(FLAGS_format_preference) != "default")
         << "-format_preference accepts binary|hex|decimal";
     preference = flag_preference.value();
   }

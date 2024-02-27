@@ -1660,8 +1660,7 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
     if (next_args_.size() == proc_->members().size() + 2) {
       next_args_[proc_->members().size() + 1] = result_value;
     } else {
-      XLS_QCHECK(result_value.IsTuple() &&
-                 result_value.GetLength().value() == 0);
+      QCHECK(result_value.IsTuple() && result_value.GetLength().value() == 0);
     }
 
     XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_,

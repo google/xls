@@ -69,7 +69,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildRrot8Fixed() {
      }
 })";
   Function* function = Parser::ParseFunction(input, p.get()).value();
-  XLS_QCHECK_OK(p->SetTop(function));
+  QCHECK_OK(p->SetTop(function));
   return {std::move(p), function};
 }
 

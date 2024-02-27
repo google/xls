@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -61,7 +62,7 @@ static absl::Status RealMain(std::string_view ir_path,
 int main(int argc, char** argv) {
   std::vector<std::string_view> positional_args =
       xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK(positional_args.size() == 1);
+  QCHECK_EQ(positional_args.size(), 1);
 
   std::optional<std::string> restrict_fn;
   if (!absl::GetFlag(FLAGS_top).empty()) {

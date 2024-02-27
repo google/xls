@@ -175,15 +175,15 @@ int main(int argc, char** argv) {
     std::string verilog_simulator_names = absl::StrJoin(
         xls::verilog::GetVerilogSimulatorManagerSingleton().simulator_names(),
         ", ");
-    XLS_QCHECK_OK(verilog_simulator_status.status())
+    QCHECK_OK(verilog_simulator_status.status())
         << "Available simulators: " << verilog_simulator_names;
     verilog_simulator = verilog_simulator_status.value();
   }
-  XLS_QCHECK_EQ(positional_arguments.size(), 1)
+  QCHECK_EQ(positional_arguments.size(), 1)
       << "Expected single Verilog file argument.";
   std::filesystem::path verilog_path(positional_arguments.at(0));
   absl::StatusOr<std::string> verilog_text = xls::GetFileContents(verilog_path);
-  XLS_QCHECK_OK(verilog_text.status());
+  QCHECK_OK(verilog_text.status());
 
   xls::verilog::FileType file_type;
   if (absl::GetFlag(FLAGS_file_type).empty()) {
@@ -211,11 +211,11 @@ int main(int argc, char** argv) {
   int64_t arg_count = absl::GetFlag(FLAGS_args).empty() ? 0 : 1;
   arg_count += absl::GetFlag(FLAGS_args_file).empty() ? 0 : 1;
   arg_count += absl::GetFlag(FLAGS_channel_values_file).empty() ? 0 : 1;
-  XLS_QCHECK_EQ(arg_count, 1)
+  QCHECK_EQ(arg_count, 1)
       << "Must specify one of: --args_file or --args or --channel_values_file.";
 
   if (absl::GetFlag(FLAGS_channel_values_file).empty()) {
-    XLS_QCHECK(absl::GetFlag(FLAGS_output_channel_counts).empty())
+    QCHECK(absl::GetFlag(FLAGS_output_channel_counts).empty())
         << "'--output_channel_counts' can only be specified with "
            "'--channel_values_file'.";
   }
@@ -227,27 +227,27 @@ int main(int argc, char** argv) {
   } else if (!absl::GetFlag(FLAGS_args_file).empty()) {
     absl::StatusOr<std::string> args_file_contents_or =
         xls::GetFileContents(absl::GetFlag(FLAGS_args_file));
-    XLS_QCHECK_OK(args_file_contents_or.status());
+    QCHECK_OK(args_file_contents_or.status());
     input = xls::FunctionInput{absl::StrSplit(args_file_contents_or.value(),
                                               '\n', absl::SkipWhitespace())};
   } else {
     absl::StatusOr<std::string> channel_values_file_contents =
         xls::GetFileContents(absl::GetFlag(FLAGS_channel_values_file));
-    XLS_QCHECK_OK(channel_values_file_contents.status());
+    QCHECK_OK(channel_values_file_contents.status());
     absl::StatusOr<absl::flat_hash_map<std::string, std::vector<xls::Value>>>
         channel_values_or =
             xls::ParseChannelValues(channel_values_file_contents.value());
-    XLS_QCHECK_OK(channel_values_or.status());
+    QCHECK_OK(channel_values_or.status());
     absl::flat_hash_map<std::string, int64_t> output_channel_counts;
     for (std::string_view output_channel_count :
          absl::GetFlag(FLAGS_output_channel_counts)) {
       std::vector<std::string> split =
           absl::StrSplit(output_channel_count, '=');
-      XLS_QCHECK_EQ(split.size(), 2) << "Format of 'output_channel_counts' "
-                                        "should be output_channel_name=count";
+      QCHECK_EQ(split.size(), 2) << "Format of 'output_channel_counts' "
+                                    "should be output_channel_name=count";
       int64_t count;
       bool successful = absl::SimpleAtoi(split[1], &count);
-      XLS_QCHECK(successful) << absl::StrFormat(
+      QCHECK(successful) << absl::StrFormat(
           "For entry '%s', '%s' is expected to be an integer value.",
           output_channel_count, split[1]);
       output_channel_counts[split[0]] = count;
@@ -255,14 +255,14 @@ int main(int argc, char** argv) {
     input = xls::ProcInput{channel_values_or.value(), output_channel_counts};
   }
 
-  XLS_QCHECK(!absl::GetFlag(FLAGS_signature_file).empty())
+  QCHECK(!absl::GetFlag(FLAGS_signature_file).empty())
       << "Must specify --signature_file";
   xls::verilog::ModuleSignatureProto signature_proto;
-  XLS_QCHECK_OK(xls::ParseTextProtoFile(absl::GetFlag(FLAGS_signature_file),
-                                        &signature_proto));
+  QCHECK_OK(xls::ParseTextProtoFile(absl::GetFlag(FLAGS_signature_file),
+                                    &signature_proto));
   auto signature_status =
       xls::verilog::ModuleSignature::FromProto(signature_proto);
-  XLS_QCHECK_OK(signature_status.status());
+  QCHECK_OK(signature_status.status());
 
   return xls::ExitStatus(xls::RealMain(verilog_text.value(), file_type,
                                        signature_status.value(), input,

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
@@ -161,18 +162,18 @@ int main(int argc, char* argv[]) {
 
   std::string cell_library_path = absl::GetFlag(FLAGS_cell_library);
   std::string cell_library_proto_path = absl::GetFlag(FLAGS_cell_library_proto);
-  XLS_QCHECK(!cell_library_path.empty() ^ !cell_library_proto_path.empty())
+  QCHECK(!cell_library_path.empty() ^ !cell_library_proto_path.empty())
       << "One (and only one) of --cell_library or --cell_library_proto "
          "must be specified.";
 
   std::string netlist_path = absl::GetFlag(FLAGS_netlist);
-  XLS_QCHECK(!netlist_path.empty()) << "--netlist must be specified.";
+  QCHECK(!netlist_path.empty()) << "--netlist must be specified.";
 
   std::string module_name = absl::GetFlag(FLAGS_module_name);
-  XLS_QCHECK(!module_name.empty()) << "--module_name must be specified.";
+  QCHECK(!module_name.empty()) << "--module_name must be specified.";
 
   std::string input = absl::GetFlag(FLAGS_input);
-  XLS_QCHECK(!input.empty()) << "--input must be specified.";
+  QCHECK(!input.empty()) << "--input must be specified.";
   std::vector<std::string> inputs = absl::StrSplit(input, ';');
 
   std::string dump_cells_str = absl::GetFlag(FLAGS_dump_cells);

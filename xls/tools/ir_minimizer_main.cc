@@ -248,27 +248,27 @@ absl::StatusOr<bool> StillFailsHelper(
     // Verify script exists and is executable.
     absl::Status exists_status =
         FileExists(absl::GetFlag(FLAGS_test_executable));
-    XLS_QCHECK(exists_status.ok() || absl::IsNotFound(exists_status))
+    QCHECK(exists_status.ok() || absl::IsNotFound(exists_status))
         << absl::StreamFormat("Unable to access test executable %s: %s",
                               absl::GetFlag(FLAGS_test_executable),
                               exists_status.message());
-    XLS_QCHECK(!absl::IsNotFound(exists_status)) << absl::StreamFormat(
+    QCHECK(!absl::IsNotFound(exists_status)) << absl::StreamFormat(
         "Test executable %s not found", absl::GetFlag(FLAGS_test_executable));
     XLS_ASSIGN_OR_RETURN(
         bool is_executable,
         FileIsExecutable(absl::GetFlag(FLAGS_test_executable)));
-    XLS_QCHECK(is_executable)
-        << absl::StreamFormat("Test executable %s is not executable",
-                              absl::GetFlag(FLAGS_test_executable));
+    QCHECK(is_executable) << absl::StreamFormat(
+        "Test executable %s is not executable",
+        absl::GetFlag(FLAGS_test_executable));
 
     // Test for bug using external executable.
     XLS_ASSIGN_OR_RETURN(TempFile temp_file,
                          TempFile::CreateWithContent(ir_text));
     std::string ir_path = temp_file.path().string();
 
-    XLS_QCHECK(!absl::GetFlag(FLAGS_test_llvm_jit))
+    QCHECK(!absl::GetFlag(FLAGS_test_llvm_jit))
         << "Cannot specify --test_llvm_jit with --test_executable";
-    XLS_QCHECK(absl::GetFlag(FLAGS_input).empty())
+    QCHECK(absl::GetFlag(FLAGS_input).empty())
         << "Cannot specify --input with --test_executable";
     std::vector<std::string> argv;
     argv.reserve(2 + absl::GetFlag(FLAGS_test_executable_args).size());
@@ -1162,7 +1162,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
   std::optional<std::vector<xls::Value>> inputs;
   if (!absl::GetFlag(FLAGS_input).empty()) {
     inputs = std::vector<xls::Value>();
-    XLS_QCHECK(absl::GetFlag(FLAGS_test_llvm_jit))
+    QCHECK(absl::GetFlag(FLAGS_test_llvm_jit))
         << "Can only specify --input with --test_llvm_jit";
     for (const std::string_view& value_string :
          absl::StrSplit(absl::GetFlag(FLAGS_input), ';')) {
@@ -1403,8 +1403,8 @@ int main(int argc, char** argv) {
                     << " <ir_path>";
   }
 
-  XLS_QCHECK(!absl::GetFlag(FLAGS_test_executable).empty() ^
-             absl::GetFlag(FLAGS_test_llvm_jit))
+  QCHECK(!absl::GetFlag(FLAGS_test_executable).empty() ^
+         absl::GetFlag(FLAGS_test_llvm_jit))
       << "Must specify either --test_executable or --test_llvm_jit";
 
   if (absl::GetFlag(FLAGS_can_extract_segments)) {
@@ -1425,7 +1425,7 @@ int main(int argc, char** argv) {
       failures.push_back("no '--preserve_channels'");
       failed = true;
     }
-    XLS_QCHECK(!failed)
+    QCHECK(!failed)
         << "--can_extract_segments is incompatible with current flags. It "
            "requires the following flags to be set/changed: "
         << absl::StrJoin(failures, " ");

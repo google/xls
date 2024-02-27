@@ -107,7 +107,7 @@ absl::Status RealMain(std::string_view ir_path) {
   }
 
   if (!absl::GetFlag(FLAGS_output_block_ir_path).empty()) {
-    XLS_QCHECK_GE(p->blocks().size(), 1)
+    QCHECK_GE(p->blocks().size(), 1)
         << "There should be at least one block in the package after generating "
            "module text.";
     XLS_RETURN_IF_ERROR(SetFileContents(

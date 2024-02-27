@@ -23,6 +23,7 @@
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
@@ -311,27 +312,27 @@ int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
   std::string ir_path = absl::GetFlag(FLAGS_ir_path);
-  XLS_QCHECK(!ir_path.empty()) << "--ir_path must be set.";
+  QCHECK(!ir_path.empty()) << "--ir_path must be set.";
 
   std::string netlist_path = absl::GetFlag(FLAGS_netlist_path);
-  XLS_QCHECK(!netlist_path.empty()) << "--netlist_path must be set.";
+  QCHECK(!netlist_path.empty()) << "--netlist_path must be set.";
 
   std::string cell_lib_path = absl::GetFlag(FLAGS_cell_lib_path);
   std::string cell_proto_path = absl::GetFlag(FLAGS_cell_proto_path);
-  XLS_QCHECK(cell_lib_path.empty() ^ cell_proto_path.empty())
+  QCHECK(cell_lib_path.empty() ^ cell_proto_path.empty())
       << "One (and only one) of --cell_lib_path and --cell_proto_path "
          "should be set.";
 
   std::string schedule_path = absl::GetFlag(FLAGS_schedule_path);
   int stage = absl::GetFlag(FLAGS_stage);
-  XLS_QCHECK(stage == -1 || !schedule_path.empty())
+  QCHECK(stage == -1 || !schedule_path.empty())
       << "--schedule_path must be specified with --stage.";
 
   bool auto_stage = absl::GetFlag(FLAGS_auto_stage);
-  XLS_QCHECK(!(auto_stage && stage != -1))
+  QCHECK(!(auto_stage && stage != -1))
       << "Only one of --stage or --auto_stage may be specified.";
 
-  XLS_QCHECK(!(auto_stage && schedule_path.empty()))
+  QCHECK(!(auto_stage && schedule_path.empty()))
       << "--schedule_path must be specified with --auto_stage.";
 
   return xls::ExitStatus(xls::RealMain(

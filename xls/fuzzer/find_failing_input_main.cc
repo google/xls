@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
                                           argv[0]);
   }
-  XLS_QCHECK(!absl::GetFlag(FLAGS_input_file).empty());
+  QCHECK(!absl::GetFlag(FLAGS_input_file).empty());
   return xls::ExitStatus(
       xls::RealMain(positional_arguments[0], absl::GetFlag(FLAGS_input_file)));
 }

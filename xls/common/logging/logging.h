@@ -38,7 +38,7 @@
 // Even seemingly unconditional statements like `XLS_LOG(INFO)` might be
 // disabled at compile-time to minimize binary size or for security reasons.
 //
-// * Except for the condition in a `XLS_CHECK` or `XLS_QCHECK` statement,
+// * Except for the condition in a `XLS_CHECK` or `QCHECK` statement,
 //   programs must not rely on evaluation of expressions anywhere in logging
 //   statements for correctness.  For example, this is ok:
 //
@@ -221,16 +221,7 @@
 #define XLS_CHECK_GE(val1, val2) CHECK_GE(val1, val2)
 #define XLS_CHECK_GT(val1, val2) CHECK_GT(val1, val2)
 
-#define XLS_QCHECK(condition) QCHECK(condition)
-#define XLS_QCHECK_EQ(val1, val2) QCHECK_EQ(val1, val2)
-#define XLS_QCHECK_NE(val1, val2) QCHECK_NE(val1, val2)
-#define XLS_QCHECK_LE(val1, val2) QCHECK_LE(val1, val2)
-#define XLS_QCHECK_LT(val1, val2) QCHECK_LT(val1, val2)
-#define XLS_QCHECK_GE(val1, val2) QCHECK_GE(val1, val2)
-#define XLS_QCHECK_GT(val1, val2) QCHECK_GT(val1, val2)
-
 #define XLS_CHECK_OK(val) CHECK_OK(val)
-#define XLS_QCHECK_OK(val) QCHECK_OK(val)
 
 
 #endif  // XLS_COMMON_LOGGING_LOGGING_H_

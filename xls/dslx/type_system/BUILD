@@ -616,6 +616,7 @@ cc_binary(
     deps = [
         ":type_info_to_proto",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -623,6 +624,8 @@ cc_binary(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",

@@ -102,10 +102,10 @@ int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
   std::string ir_path = absl::GetFlag(FLAGS_ir_path);
-  XLS_QCHECK(!ir_path.empty()) << "-ir_path must be specified!";
+  QCHECK(!ir_path.empty()) << "-ir_path must be specified!";
 
   std::string output_dir = absl::GetFlag(FLAGS_output_dir);
-  XLS_QCHECK(!output_dir.empty()) << "-output_dir must be specified!";
+  QCHECK(!output_dir.empty()) << "-output_dir must be specified!";
 
   return xls::ExitStatus(xls::RealMain(
       ir_path, output_dir, absl::GetFlag(FLAGS_genfiles_dir),

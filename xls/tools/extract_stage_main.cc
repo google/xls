@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
   std::string ir_path = absl::GetFlag(FLAGS_ir_path);
-  XLS_QCHECK(!ir_path.empty()) << "--ir_path can't be empty!";
+  QCHECK(!ir_path.empty()) << "--ir_path can't be empty!";
 
   std::optional<std::string> function_name;
   if (!absl::GetFlag(FLAGS_function).empty()) {
@@ -104,12 +104,12 @@ int main(int argc, char* argv[]) {
   }
 
   std::string schedule_path = absl::GetFlag(FLAGS_schedule_path);
-  XLS_QCHECK(!schedule_path.empty()) << "--schedule_path can't be empty!";
+  QCHECK(!schedule_path.empty()) << "--schedule_path can't be empty!";
 
   int stage = absl::GetFlag(FLAGS_stage);
 
   std::string output_path = absl::GetFlag(FLAGS_output_path);
-  XLS_QCHECK(!output_path.empty()) << "--output path can't be empty!";
+  QCHECK(!output_path.empty()) << "--output path can't be empty!";
   return xls::ExitStatus(
       xls::RealMain(ir_path, function_name, schedule_path, stage, output_path));
 }

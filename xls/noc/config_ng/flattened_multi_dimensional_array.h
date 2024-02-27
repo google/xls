@@ -230,7 +230,7 @@ class FlattenedMultiDimensionalArray {
           dimension_index_order_(dimension_index_order.size(), 0),
           data_(data),
           traversed_zero_dimension_(false) {
-      XLS_QCHECK_EQ(space.GetDimensionCount(), dimension_index_order.size())
+      QCHECK_EQ(space.GetDimensionCount(), dimension_index_order.size())
           << "The size of space and dimension_index_order must be equivalent.";
       int64_t total = 0;
       int64_t total_golden = 0;
@@ -240,7 +240,7 @@ class FlattenedMultiDimensionalArray {
         total = total ^ dimension_index_order[count];
         total_golden = total_golden ^ count;
       }
-      XLS_QCHECK_EQ(total, total_golden)
+      QCHECK_EQ(total, total_golden)
           << "The values of the dimension_index_order must be sequential "
              "starting from zero.";
       std::copy(dimension_index_order.begin(), dimension_index_order.end(),

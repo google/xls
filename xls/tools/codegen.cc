@@ -205,8 +205,8 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
 absl::StatusOr<PipelineScheduleOrGroup> Schedule(
     Package* p, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator, absl::Duration* scheduling_time) {
-  XLS_QCHECK(scheduling_options.pipeline_stages() != 0 ||
-             scheduling_options.clock_period_ps() != 0)
+  QCHECK(scheduling_options.pipeline_stages() != 0 ||
+         scheduling_options.clock_period_ps() != 0)
       << "Must specify --pipeline_stages or --clock_period_ps (or both).";
   std::optional<Stopwatch> stopwatch;
   if (scheduling_time != nullptr) {
@@ -312,8 +312,8 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
       SchedulingOptions scheduling_options,
       SetUpSchedulingOptions(scheduling_options_flags_proto, p));
 
-  XLS_QCHECK(scheduling_options.pipeline_stages() != 0 ||
-             scheduling_options.clock_period_ps() != 0)
+  QCHECK(scheduling_options.pipeline_stages() != 0 ||
+         scheduling_options.clock_period_ps() != 0)
       << "Must specify --pipeline_stages or --clock_period_ps (or both).";
 
   // Add IO constraints for RAMs.

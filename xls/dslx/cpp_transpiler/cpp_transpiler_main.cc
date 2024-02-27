@@ -88,10 +88,10 @@ int main(int argc, char* argv[]) {
   }
 
   std::string output_header_path = absl::GetFlag(FLAGS_output_header_path);
-  XLS_QCHECK(!output_header_path.empty())
+  QCHECK(!output_header_path.empty())
       << "--output_header_path must be specified.";
   std::string output_source_path = absl::GetFlag(FLAGS_output_source_path);
-  XLS_QCHECK(!output_source_path.empty())
+  QCHECK(!output_source_path.empty())
       << "--output_source_path must be specified.";
   return xls::ExitStatus(xls::dslx::RealMain(
       args[0], absl::GetFlag(FLAGS_dslx_stdlib_path), output_header_path,

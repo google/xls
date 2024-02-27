@@ -45,11 +45,10 @@ namespace {
 
 absl::Status RealMain() {
   std::string signature_proto_path = absl::GetFlag(FLAGS_signature_proto_path);
-  XLS_QCHECK_NE(signature_proto_path, "")
-      << "Must provide -signature_proto_path";
+  QCHECK_NE(signature_proto_path, "") << "Must provide -signature_proto_path";
 
   std::string target_device = absl::GetFlag(FLAGS_target_device);
-  XLS_QCHECK_NE(target_device, "") << "Must provide -target_device";
+  QCHECK_NE(target_device, "") << "Must provide -target_device";
 
   std::string instance_name = absl::GetFlag(FLAGS_instance_name);
   XLS_CHECK_NE(instance_name, "") << "Must provide -instance_name";
@@ -61,9 +60,9 @@ absl::Status RealMain() {
   XLS_CHECK_NE(include, "") << "Must provide -include";
 
   verilog::ModuleSignatureProto signature_proto;
-  XLS_QCHECK_OK(ParseTextProtoFile(signature_proto_path, &signature_proto));
+  QCHECK_OK(ParseTextProtoFile(signature_proto_path, &signature_proto));
   auto signature_status = verilog::ModuleSignature::FromProto(signature_proto);
-  XLS_QCHECK_OK(signature_status.status());
+  QCHECK_OK(signature_status.status());
   verilog::ModuleSignature signature = signature_status.value();
 
   verilog::VerilogFile f(verilog::FileType::kVerilog);
@@ -71,7 +70,7 @@ absl::Status RealMain() {
 
   absl::StatusOr<std::unique_ptr<verilog::IOStrategy>> io_strategy_status =
       verilog::IOStrategyFactory::CreateForDevice(target_device, &f);
-  XLS_QCHECK_OK(io_strategy_status.status());
+  QCHECK_OK(io_strategy_status.status());
   auto io_strategy = std::move(io_strategy_status).value();
   absl::StatusOr<verilog::Module*> module_status = verilog::WrapIO(
       wrapped_module_name, instance_name, signature, io_strategy.get(), &f);

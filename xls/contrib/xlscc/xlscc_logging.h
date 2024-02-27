@@ -17,8 +17,7 @@
 
 #define XLSCC_CHECK(condition, loc) \
   XLS_CHECK(condition) << ErrorMessage(loc, "")
-#define XLSCC_QCHECK(condition, loc) \
-  XLS_QCHECK(condition) << ErrorMessage(loc, "")
+#define XLSCC_QCHECK(condition, loc) QCHECK(condition) << ErrorMessage(loc, "")
 #define XLSCC_DCHECK(condition, loc) DCHECK(condition) << ErrorMessage(loc, "")
 
 #define XLSCC_CHECK_EQ(val1, val2, loc) \
@@ -34,17 +33,17 @@
 #define XLSCC_CHECK_GT(val1, val2, loc) \
   XLS_CHECK_GT(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_EQ(val1, val2, loc) \
-  XLS_QCHECK_EQ(val1, val2) << ErrorMessage(loc, "")
+  QCHECK_EQ(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_NE(val1, val2, loc) \
-  XLS_QCHECK_NE(val1, val2) << ErrorMessage(loc, "")
+  QCHECK_NE(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_LE(val1, val2, loc) \
-  XLS_QCHECK_LE(val1, val2) << ErrorMessage(loc, "")
+  QCHECK_LE(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_LT(val1, val2, loc) \
-  XLS_QCHECK_LT(val1, val2) << ErrorMessage(loc, "")
+  QCHECK_LT(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_GE(val1, val2, loc) \
-  XLS_QCHECK_GE(val1, val2) << ErrorMessage(loc, "")
+  QCHECK_GE(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_GT(val1, val2, loc) \
-  XLS_QCHECK_GT(val1, val2) << ErrorMessage(loc, "")
+  QCHECK_GT(val1, val2) << ErrorMessage(loc, "")
 
 #define XLSCC_DCHECK_EQ(val1, val2, loc) \
   XLSCC_CHECK_EQ(val1, val2) << ErrorMessage(loc, "")
@@ -60,7 +59,7 @@
   XLSCC_CHECK_GT(val1, val2) << ErrorMessage(loc, "")
 
 #define XLSCC_CHECK_OK(val, loc) XLS_CHECK_EQ(val) << ErrorMessage(loc, "")
-#define XLSCC_QCHECK_OK(val, loc) XLS_QCHECK_EQ(val) << ErrorMessage(loc, "")
+#define XLSCC_QCHECK_OK(val, loc) QCHECK_EQ(val) << ErrorMessage(loc, "")
 #define XLSCC_DCHECK_OK(val, loc) DCHECK_EQ(val) << ErrorMessage(loc), ""
 
 #endif  // XLSCC_COMMON_LOGGING_LOGGING_H_

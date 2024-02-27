@@ -682,12 +682,12 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   std::vector<ArgSet> arg_sets(arg_sets_in.begin(), arg_sets_in.end());
 
   if (absl::GetFlag(FLAGS_test_llvm_jit)) {
-    XLS_QCHECK(!absl::GetFlag(FLAGS_optimize_ir))
+    QCHECK(!absl::GetFlag(FLAGS_optimize_ir))
         << "Cannot specify both --test_llvm_jit and --optimize_ir";
     XLS_ASSIGN_OR_RETURN(std::vector<Value> interpreter_results,
                          Eval(f, arg_sets, /*use_jit=*/false));
     for (int64_t i = 0; i < arg_sets.size(); ++i) {
-      XLS_QCHECK(!arg_sets[i].expected.has_value())
+      QCHECK(!arg_sets[i].expected.has_value())
           << "Cannot specify expected values when using --test_llvm_jit";
       arg_sets[i].expected = interpreter_results[i];
     }
@@ -837,32 +837,32 @@ absl::Status RealMain(std::string_view input_path,
 
   std::vector<ArgSet> arg_sets;
   if (!absl::GetFlag(FLAGS_input).empty()) {
-    XLS_QCHECK_EQ(absl::GetFlag(FLAGS_random_inputs), 0)
+    QCHECK_EQ(absl::GetFlag(FLAGS_random_inputs), 0)
         << "Cannot specify both --input and --random_inputs";
-    XLS_QCHECK(absl::GetFlag(FLAGS_input_file).empty())
+    QCHECK(absl::GetFlag(FLAGS_input_file).empty())
         << "Cannot specify both --input and --input_file";
     absl::StatusOr<ArgSet> arg_set_status =
         ArgSetFromString(absl::GetFlag(FLAGS_input));
-    XLS_QCHECK_OK(arg_set_status.status())
+    QCHECK_OK(arg_set_status.status())
         << "Failed to parse input: " << absl::GetFlag(FLAGS_input);
 
     arg_sets.push_back(arg_set_status.value());
   } else if (!absl::GetFlag(FLAGS_input_file).empty()) {
-    XLS_QCHECK_EQ(absl::GetFlag(FLAGS_random_inputs), 0)
+    QCHECK_EQ(absl::GetFlag(FLAGS_random_inputs), 0)
         << "Cannot specify both --input_file and --random_inputs";
     absl::StatusOr<std::string> args_input_file =
         GetFileContents(absl::GetFlag(FLAGS_input_file));
-    XLS_QCHECK_OK(args_input_file.status());
+    QCHECK_OK(args_input_file.status());
     for (const auto& arg_line : absl::StrSplit(args_input_file.value(), '\n',
                                                absl::SkipWhitespace())) {
       absl::StatusOr<ArgSet> arg_set_status = ArgSetFromString(arg_line);
-      XLS_QCHECK_OK(arg_set_status.status())
+      QCHECK_OK(arg_set_status.status())
           << absl::StreamFormat("Invalid line in input file %s: %s",
                                 absl::GetFlag(FLAGS_input_file), arg_line);
       arg_sets.push_back(arg_set_status.value());
     }
   } else {
-    XLS_QCHECK_NE(absl::GetFlag(FLAGS_random_inputs), 0)
+    QCHECK_NE(absl::GetFlag(FLAGS_random_inputs), 0)
         << "Must specify --input, --input_file, or --random_inputs.";
     arg_sets.resize(absl::GetFlag(FLAGS_random_inputs));
     std::minstd_rand rng_engine;
@@ -891,11 +891,11 @@ absl::Status RealMain(std::string_view input_path,
   }
 
   if (!absl::GetFlag(FLAGS_expected).empty()) {
-    XLS_QCHECK(absl::GetFlag(FLAGS_expected_file).empty())
+    QCHECK(absl::GetFlag(FLAGS_expected_file).empty())
         << "Cannot specify both --expected_file and --expected";
     absl::StatusOr<Value> expected_status =
         Parser::ParseTypedValue(absl::GetFlag(FLAGS_expected));
-    XLS_QCHECK_OK(expected_status.status())
+    QCHECK_OK(expected_status.status())
         << "Failed to parse expected value: " << absl::GetFlag(FLAGS_expected);
     // Set the expected value of every sample to 'expected'.
     for (ArgSet& arg_set : arg_sets) {
@@ -904,18 +904,18 @@ absl::Status RealMain(std::string_view input_path,
   } else if (!absl::GetFlag(FLAGS_expected_file).empty()) {
     absl::StatusOr<std::string> expected_file =
         GetFileContents(absl::GetFlag(FLAGS_expected_file));
-    XLS_QCHECK_OK(expected_file.status());
+    QCHECK_OK(expected_file.status());
     std::vector<Value> expecteds;
     for (const auto& expected_line :
          absl::StrSplit(expected_file.value(), '\n', absl::SkipWhitespace())) {
       absl::StatusOr<Value> expected_status =
           Parser::ParseTypedValue(expected_line);
-      XLS_QCHECK_OK(expected_status.status())
+      QCHECK_OK(expected_status.status())
           << absl::StreamFormat("Failed to parse line in expected file %s: %s",
                                 expected_line, expected_line);
       expecteds.push_back(expected_status.value());
     }
-    XLS_QCHECK_EQ(expecteds.size(), arg_sets.size())
+    QCHECK_EQ(expecteds.size(), arg_sets.size())
         << "Number of values in expected file does not match the number of "
            "inputs.";
     for (int64_t i = 0; i < arg_sets.size(); ++i) {
@@ -936,8 +936,8 @@ int main(int argc, char** argv) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
                                           argv[0]);
   }
-  XLS_QCHECK(absl::GetFlag(FLAGS_input_validator_expr).empty() ||
-             absl::GetFlag(FLAGS_input_validator_path).empty())
+  QCHECK(absl::GetFlag(FLAGS_input_validator_expr).empty() ||
+         absl::GetFlag(FLAGS_input_validator_path).empty())
       << "At most one one of 'input_validator' or 'input_validator_path' may "
          "be specified.";
   std::string dslx_stdlib_path = absl::GetFlag(FLAGS_dslx_stdlib_path);

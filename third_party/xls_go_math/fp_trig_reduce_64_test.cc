@@ -8,6 +8,7 @@
 #include <cmath>
 #include <tuple>
 
+#include "absl/flags/flag.h"
 #include "absl/numeric/int128.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -205,8 +206,8 @@ absl::Status RealMain(bool use_opt_ir, uint64_t num_samples, int num_threads) {
 
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_use_opt_ir),
-                              absl::GetFlag(FLAGS_num_samples),
-                              absl::GetFlag(FLAGS_num_threads)));
+  QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_use_opt_ir),
+                          absl::GetFlag(FLAGS_num_samples),
+                          absl::GetFlag(FLAGS_num_threads)));
   return 0;
 }

@@ -75,12 +75,11 @@ void RealMain() {
   const bool synthesis_only = absl::GetFlag(FLAGS_synthesis_only);
 
   // Check flags -- common
-  XLS_QCHECK_OK(FileExists(yosys_path))
-      << "Valid --yosys_path must be provided";
-  XLS_QCHECK(synthesis_target.empty() || synthesis_libraries.empty())
+  QCHECK_OK(FileExists(yosys_path)) << "Valid --yosys_path must be provided";
+  QCHECK(synthesis_target.empty() || synthesis_libraries.empty())
       << "\nBoth --synthesis_target and --synthesis_libraries were provided. "
       << "Use one or the other.";
-  XLS_QCHECK(!(synthesis_target.empty() && synthesis_libraries.empty()))
+  QCHECK(!(synthesis_target.empty() && synthesis_libraries.empty()))
       << "\nMust specify either --synthesis_target or --synthesis_libraries.\n";
 
   // Check backend flags -- 'synthesis_target' determines mode
@@ -88,16 +87,16 @@ void RealMain() {
     if (!synthesis_target.empty()) {
       std::string msg =
           "\n--synthesis_target was provided, so using Nextpnr back end.\n";
-      XLS_QCHECK_OK(FileExists(nextpnr_path))
+      QCHECK_OK(FileExists(nextpnr_path))
           << msg << "Valid --nextpnr_path must be provided.";
     } else {
       std::string msg =
           "\n--synthesis_target not provided, so targeting OpenSTA.\n";
-      XLS_QCHECK(!synthesis_libraries.empty())
+      QCHECK(!synthesis_libraries.empty())
           << msg << "--synthesis_libraries must be provided";
-      XLS_QCHECK_OK(FileExists(sta_path))
+      QCHECK_OK(FileExists(sta_path))
           << msg << "Valid --sta_path must be provided.";
-      XLS_QCHECK(!sta_libraries.empty())
+      QCHECK(!sta_libraries.empty())
           << msg << "--sta_libraries must be provided";
     }
   }
