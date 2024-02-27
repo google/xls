@@ -26,8 +26,7 @@ namespace xls::dslx::test_xml {
 namespace {
 
 TEST(TestResultSerdesTest, OneTestCase) {
-  absl::TimeZone la;
-  ASSERT_TRUE(absl::LoadTimeZone("America/Los_Angeles", &la));
+  const absl::TimeZone la = absl::UTCTimeZone();
 
   // For some reason clang-format has trouble keeping this in 80 column lines.
   // clang-format off
@@ -90,10 +89,10 @@ TEST(TestResultSerdesTest, OneTestCase) {
   std::string got = XmlNodeToString(*node);
   EXPECT_EQ(
       got,
-      R"(<testsuites disabled="0" errors="0" failures="0" name="all tests" skipped="0" tests="1" time="0.042" timestamp="2024-01-01T00:00:00-08:00">
-    <testsuite disabled="0" errors="0" failures="0" name="MyTestSuite" skipped="0" tests="1" time="0.032" timestamp="2024-01-01T00:00:01-08:00">
-      <testcase file="/path/to/foo.x" line="64" name="MyTestCase" result="completed" status="run" time="0.024" timestamp="2024-01-01T00:00:02-08:00" />
-      <testcase file="/path/to/foo.x" line="128" name="MyFailingTestCase" result="completed" status="run" time="0.024" timestamp="2024-01-01T00:00:03-08:00">
+      R"(<testsuites disabled="0" errors="0" failures="0" name="all tests" skipped="0" tests="1" time="0.042" timestamp="2024-01-01T00:00:00+00:00">
+    <testsuite disabled="0" errors="0" failures="0" name="MyTestSuite" skipped="0" tests="1" time="0.032" timestamp="2024-01-01T00:00:01+00:00">
+      <testcase file="/path/to/foo.x" line="64" name="MyTestCase" result="completed" status="run" time="0.024" timestamp="2024-01-01T00:00:02+00:00" />
+      <testcase file="/path/to/foo.x" line="128" name="MyFailingTestCase" result="completed" status="run" time="0.024" timestamp="2024-01-01T00:00:03+00:00">
         <failure message="this is a one liner describing the failure with angle brackets in it for fun &lt;&gt; they should be escaped" />
     </testcase>
   </testsuite>
