@@ -40,6 +40,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
 #include "xls/solvers/z3_op_translator.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
@@ -874,6 +875,13 @@ absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
   if (update->start()->GetType()->GetFlatBitCount() > 130) {
     XLS_VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
                 << "slice update start index";
+    return IrTranslator::DefaultHandler(update);
+  }
+  if (update->to_update()->GetType()->GetFlatBitCount() > 1000) {
+    XLS_VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
+                << "slice update to_update value ("
+                << update->to_update()->GetType()->GetFlatBitCount()
+                << " bits)";
     return IrTranslator::DefaultHandler(update);
   }
   ScopedErrorHandler seh(ctx_);
