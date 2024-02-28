@@ -50,6 +50,10 @@ pub struct TtuBundle<NumBundles: u32> {
     register: u2,
 }
 
+pub struct TtuInstruction<NumTtus: u32> {
+    ttu: TtuBundle<2>[3],
+}
+
 pub struct TtuState<NumRegisters: u32> {
     regs: u32[NumRegisters],
     pc: u16,
@@ -79,24 +83,37 @@ pub struct Bundle {
 
 // Creating a proc that consumes a TTU bundle.
 proc ttu {
-   instruction : chan<TtuBundle<2>> in;
-   result: chan<u32> out;
+   instruction : chan<TtuInstruction<3>> in;
+   result: chan<u32>[3] out;
 
-   init { TtuState<1>{regs: u32[1]: [0], pc: u16: 0} }
+   init { TtuState<3>{regs: u32[3]: [0,...], pc: u16: 0} }
 
-   config(ins: chan<TtuBundle<2>> in, res: chan<u32> out) {
-    (ins, res)
+   config(instruction: chan<TtuInstruction<3>> in, result: chan<u32>[3] out) {
+    (instruction, result)
    }
 
-    next(tok: token, state: TtuState<1>) {
+    next(tok: token, state: TtuState<3>) {
+        // Just tying things up to compile.
+        let (tok, ins) = recv(tok, instruction);
+        let tok = send(tok, result[0], ins.ttu[0].loops[0].start);
         state
     }
 
 }
 
 
-#[test]
-fn ttu_test() {
-    let loop = LoopBundle {start:u32: 0, end: u32: 10, stride: u16:1};
-    assert_eq(loop.start, u32:0);
+#[test_proc]
+proc main {
+    terminator: chan<bool> out;
+
+    init {()}
+
+    config(terminator: chan<bool> out) {
+        let loop = LoopBundle {start:u32: 0, end: u32: 10, stride: u16:1};
+        assert_eq(loop.start, u32:0);
+        (terminator,)
+    }
+    next(tok: token, state: ()) {
+        ()
+    }
 }
