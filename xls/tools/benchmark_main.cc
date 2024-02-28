@@ -793,8 +793,12 @@ absl::Status RealMain(std::string_view path) {
                            '\n'))
             .size());
 
+    // Scheduling can change the nodes in f slightly so we need to recompute the
+    // bdd.
+    BddQueryEngine sched_qe(BddFunction::kDefaultPathLimit);
+    XLS_RETURN_IF_ERROR(sched_qe.Populate(f).status());
     XLS_RETURN_IF_ERROR(PrintScheduleInfo(
-        f, schedules, query_engine, delay_estimator,
+        f, schedules, sched_qe, delay_estimator,
         scheduling_options_flags_proto.has_clock_period_ps()
             ? std::make_optional(
                   scheduling_options_flags_proto.clock_period_ps())
