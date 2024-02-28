@@ -32,6 +32,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/optimization_pass.h"
@@ -118,6 +119,11 @@ class NodeSourceDataflowVisitor : public DataflowVisitor<NodeSource> {
   }
 };
 
+// Returns true if `type` has no non-zero-width bits components or tokens.
+bool IsEmptyType(Type* type) {
+  return type->GetFlatBitCount() == 0 && !TypeHasToken(type);
+}
+
 }  // namespace
 
 absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
@@ -135,9 +141,11 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
                                    source.ToString());
     auto [it, inserted] = source_map.insert({source, node});
     XLS_VLOG(3) << "Inserted: " << inserted;
-    // Skip empty tuples as these carry no data and are used as the nulltype.
-    if (!inserted && !(node->GetType()->IsTuple() &&
-                       (node->GetType()->AsTupleOrDie()->size() == 0))) {
+    // Skip empty tuples (and tuples of empty tuples, etc) as these carry no
+    // data and are trivially substitutable with other nodes of the same
+    // type. This can result in inflooping as, for example, parameters replace
+    // each others uses.
+    if (!inserted && !IsEmptyType(node->GetType())) {
       // An equivalent node exists in the graph. Repace this node with its
       // equivalent.
       XLS_VLOG(2) << absl::StrFormat("Replacing `%s` with equivalent `%s`",

@@ -2564,6 +2564,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
+        "//xls/ir:type",
         "//xls/ir:value",
     ],
 )

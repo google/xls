@@ -58,15 +58,17 @@ class DataflowSimplificationPassTest : public IrTestBase {
   }
 };
 
-TEST_F(DataflowSimplificationPassTest, EmptyTuplesNotReplaced) {
+TEST_F(DataflowSimplificationPassTest, EmptyTypesNotReplaced) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  BValue a = fb.Tuple({});
-  BValue b = fb.Tuple({});
-  BValue c = fb.Tuple({});
-  fb.Tuple({a, b, c});
+  BValue a = fb.Param("a", p->GetTupleType({}));
+  BValue b = fb.Param("b", p->GetTupleType({}));
+  BValue c = fb.Param("c", p->GetTupleType({p->GetTupleType({})}));
+  BValue d = fb.Tuple({});
+  BValue e = fb.Tuple({fb.Tuple({})});
+  fb.Tuple({a, b, c, d, e});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  // None of the empty tuples should be replaced by each other though they are
+  // None of the empty types should be replaced by each other though they are
   // equivalent.
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
