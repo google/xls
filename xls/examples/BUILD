@@ -422,14 +422,56 @@ cc_test(
     ],
 )
 
-xls_dslx_opt_ir(
+xls_dslx_library(
     name = "proc_iota",
     srcs = ["proc_iota.x"],
+)
+
+xls_dslx_ir(
+    name = "proc_iota_ir",
     dslx_top = "main",
     ir_file = "proc_iota.ir",
-    opt_ir_file = "proc_iota.opt.ir",
-    tags = ["optonly"],
+    library = ":proc_iota",
 )
+
+xls_ir_opt_ir(
+    name = "proc_iota_consumer_opt_ir",
+    src = "proc_iota.ir",
+    top = "__proc_iota__main__consumer_0__2_next",
+)
+
+xls_ir_opt_ir(
+    name = "proc_iota_producer_opt_ir",
+    src = "proc_iota.ir",
+    top = "__proc_iota__main__producer_0_next",
+)
+
+[
+    (
+        xls_ir_verilog(
+            name = "proc_iota_" + procmodule + "_sv",
+            src = ":proc_iota_" + procmodule + "_opt_ir.opt.ir",
+            codegen_args = {
+                "module_name": "proc_iota_" + procmodule,
+                "generator": "pipeline",
+                "delay_model": "asap7",
+                "pipeline_stages": "2",
+                "reset": "rst",
+                "reset_asynchronous": "true",
+                "flop_inputs": "false",
+                "streaming_channel_data_suffix": "_data",
+                "streaming_channel_ready_suffix": "_ready",
+                "streaming_channel_valid_suffix": "_valid",
+                "use_system_verilog": "true",
+            },
+            verilog_file = "proc_iota_" + procmodule + ".sv",
+        ),
+    )
+    for procmodule in [
+        "consumer",
+        "producer",
+    ]
+]
 
 # -- tiny_adder sample
 
