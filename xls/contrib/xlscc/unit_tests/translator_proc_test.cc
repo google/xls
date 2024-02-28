@@ -1299,8 +1299,6 @@ TEST_P(TranslatorProcTest, WhilePipelined) {
 
 TEST_P(TranslatorProcTest, DoWhilePipelined) {
   const std::string content = R"(
-    #include "/xls_builtin.h"
-
     #pragma hls_top
     void foo(__xls_channel<int>& ac,
              __xls_channel<int>& bc,
@@ -1354,17 +1352,15 @@ TEST_P(TranslatorProcTest, DoWhilePipelined) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 3);
   }
 
-  const int64_t loop_body_bits = 1 + 64 + 32 + 32;
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
                            GetStateBitsForProcNameContains("for"));
   EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
+            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 64 + 32 + 32));
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+            generate_fsms_for_pipelined_loops_ ? (1 + 64 + 32) : 0L);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedSerial) {
@@ -1598,17 +1594,15 @@ TEST_P(TranslatorProcTest, ForPipelinedMoreVars) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 10);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 64 + 64;
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
                            GetStateBitsForProcNameContains("for"));
   EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
+            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 32 + 64 + 64));
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits,
-            16 + (generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L));
+            16 + (generate_fsms_for_pipelined_loops_ ? (1 + 32 + 64) : 0L));
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
                            GetBitsForChannelNameContains("__for_1_ctx_out"));
@@ -1760,8 +1754,6 @@ TEST_P(TranslatorProcTest, ForPipelinedBlank) {
 
 TEST_P(TranslatorProcTest, ForPipelinedPreCondBreak) {
   const std::string content = R"(
-    #include "/xls_builtin.h"
-
     #pragma hls_top
     void foo(__xls_channel<int>& in,
              __xls_channel<int>& out) {
@@ -1804,18 +1796,16 @@ TEST_P(TranslatorProcTest, ForPipelinedPreCondBreak) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 4);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 32 + 64;
-
   // r shouldn't be in state
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
                            GetStateBitsForProcNameContains("for"));
   EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
+            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 32 + 32 + 64));
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+            generate_fsms_for_pipelined_loops_ ? (1 + 32 + 64) : 0L);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedInIf) {
@@ -2353,8 +2343,6 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticInBody) {
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticOuter) {
   const std::string content = R"(
-    #include "/xls_builtin.h"
-
     #pragma hls_top
     void foo(__xls_channel<int>& in,
              __xls_channel<int>& out) {
@@ -2397,17 +2385,15 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticOuter) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 16 + 64;
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
                            GetStateBitsForProcNameContains("for"));
   EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
+            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 32 + 16 + 64));
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits,
-            16 + (generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L));
+            16 + (generate_fsms_for_pipelined_loops_ ? (1 + 32 + 64) : 0L));
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticOuter2) {
@@ -2735,8 +2721,9 @@ TEST_P(TranslatorProcTest, ForPipelinedNested2) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 2 * loop_body_bits : 0);
+  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
+                                     ? (1 + 1 + 32 + 32 + 64 + 64)
+                                     : 0);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNestedInheritIIWithLabel) {

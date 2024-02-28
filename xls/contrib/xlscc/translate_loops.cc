@@ -987,19 +987,21 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
   std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
 
-  // All variables accessed or changed are saved in state, because a streaming
-  // channel is used for the context
   {
     absl::flat_hash_set<const clang::NamedDecl*> vars_to_save_between_iters_set;
 
-    // No way to test this yet, as all variables changed are also accessed, but
-    // just in case
+    // Save any variables which are changed
     for (const clang::NamedDecl* decl : vars_changed_in_body) {
       vars_to_save_between_iters_set.insert(decl);
     }
-    for (const std::pair<const clang::NamedDecl*, int64_t>& accessed :
-         vars_accessed_in_body) {
-      vars_to_save_between_iters_set.insert(accessed.first);
+
+    // In non-FSM mode, All variables accessed or changed are saved in state,
+    // because a streaming channel is used for the context
+    if (!generate_fsms_for_pipelined_loops_) {
+      for (const std::pair<const clang::NamedDecl*, int64_t>& accessed :
+           vars_accessed_in_body) {
+        vars_to_save_between_iters_set.insert(accessed.first);
+      }
     }
 
     for (const clang::NamedDecl* decl : vars_to_save_between_iters_set) {
