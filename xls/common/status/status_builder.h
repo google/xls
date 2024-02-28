@@ -28,6 +28,7 @@
 #include "absl/log/log_sink.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/source_location.h"
 
 // The xabsl namespace has types that are anticipated to become available in
@@ -418,6 +419,11 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   //
   // This is only for internal use by the StatusBuilder.
   static void AddSourceLocation(absl::Status& status, SourceLocation loc);
+  // Get the current source-location set for the given status.
+  //
+  // This is only for internal use by the StatusBuilder.
+  static absl::Span<const SourceLocation> GetSourceLocations(
+      const absl::Status& status);
 };
 
 // Implicitly converts `builder` to `Status` and write it to `os`.

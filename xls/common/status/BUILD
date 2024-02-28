@@ -93,6 +93,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
         "//xls/common:source_location",
         "//xls/common:symbolized_stacktrace",
         "//xls/common/logging",

@@ -289,6 +289,33 @@ TEST(AssignOrReturn, KeepsBackTrace) {
           "(.*xls/common/status/status_macros_test.cc:[0-9]+.*\n?){3}"));
 }
 
+namespace assign_or_return_with_message {
+absl::Status CallThree() { return absl::InternalError("Clap"); }
+absl::StatusOr<int> CallTwo() {
+  XLS_RETURN_IF_ERROR(CallThree()) << "Your";
+  return 1;
+}
+absl::Status CallOne() {
+  XLS_ASSIGN_OR_RETURN(auto abc, CallTwo(), _ << "Hands");
+  (void)abc;
+  return absl::OkStatus();
+}
+}  // namespace assign_or_return_with_message
+TEST(AssignOrReturn, KeepsBackTraceWithMessage) {
+#ifndef XLS_USE_ABSL_SOURCE_LOCATION
+  GTEST_SKIP() << "Back trace not recorded";
+#endif
+  auto result = assign_or_return_with_message::CallOne();
+  RecordProperty("result", testing::PrintToString(result));
+  EXPECT_THAT(result.message(), Eq("Clap; Your; Hands"));
+  // Expect 3 lines in the stack trace with status_macros_test.cc in them for
+  // the three deep call stack.
+  EXPECT_THAT(
+      result.ToString(absl::StatusToStringMode::kWithEverything),
+      ContainsRegex(
+          "(.*xls/common/status/status_macros_test.cc:[0-9]+.*\n?){3}"));
+}
+
 TEST(ReturnIfError, Works) {
   auto func = []() -> absl::Status {
     XLS_RETURN_IF_ERROR(ReturnOk());
@@ -372,6 +399,33 @@ TEST(ReturnIfError, KeepsBackTrace) {
   auto result = return_if_error::CallOne();
   RecordProperty("result", testing::PrintToString(result));
   EXPECT_THAT(result.message(), Eq("foobar"));
+  // Expect 3 lines in the stack trace with status_macros_test.cc in them for
+  // the three deep call stack.
+  EXPECT_THAT(
+      result.ToString(absl::StatusToStringMode::kWithEverything),
+      ContainsRegex(
+          "(.*xls/common/status/status_macros_test.cc:[0-9]+.*\n?){3}"));
+}
+
+namespace return_if_error_with_message {
+absl::Status CallThree() { return absl::InternalError("Clap"); }
+absl::Status CallTwo() {
+  XLS_RETURN_IF_ERROR(CallThree()) << "Your";
+  return absl::OkStatus();
+}
+absl::Status CallOne() {
+  XLS_RETURN_IF_ERROR(CallTwo()) << "Hands";
+  return absl::OkStatus();
+}
+}  // namespace return_if_error_with_message
+
+TEST(ReturnIfError, KeepsBackTraceWithMessage) {
+#ifndef XLS_USE_ABSL_SOURCE_LOCATION
+  GTEST_SKIP() << "Back trace not recorded";
+#endif
+  auto result = return_if_error_with_message::CallOne();
+  RecordProperty("result", testing::PrintToString(result));
+  EXPECT_THAT(result.message(), Eq("Clap; Your; Hands"));
   // Expect 3 lines in the stack trace with status_macros_test.cc in them for
   // the three deep call stack.
   EXPECT_THAT(

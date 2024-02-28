@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "xls/common/source_location.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_builder.h"
 
 namespace xabsl {
@@ -20,6 +21,11 @@ namespace xabsl {
 /* static */ void StatusBuilder::AddSourceLocation(absl::Status& status,
                                                  xabsl::SourceLocation loc) {
   // Not supported in OSS absl::Status at the moment.
+}
+/* static */ absl::Span<const SourceLocation> StatusBuilder::GetSourceLocations(
+    const absl::Status& status) {
+  // Not supported in OSS absl::Status at the moment.
+  return {};
 }
 
 }  // namespace xabsl

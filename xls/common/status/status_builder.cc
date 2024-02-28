@@ -15,6 +15,8 @@
 #include "xls/common/status/status_builder.h"
 
 #include <cstdio>
+#include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -187,7 +189,26 @@ void StatusBuilder::CopyPayloads(const absl::Status& src, absl::Status* dst) {
 
 absl::Status StatusBuilder::WithMessage(const absl::Status& status,
                                         std::string_view msg) {
+  // Unfortunately since we can't easily strip the source-location off of this
+  // new status the backtrace can end up with a lot of copies of this line at
+  // the beginning. We manually try to trim them out but we can't actually
+  // remove the first one.
   auto ret = absl::Status(status.code(), msg);
+  std::optional<SourceLocation> first =
+      StatusBuilder::GetSourceLocations(ret).empty()
+          ? std::nullopt
+          : std::make_optional<SourceLocation>(
+                StatusBuilder::GetSourceLocations(ret).front());
+  bool first_non_duplicate = false;
+  for (const SourceLocation& sl : StatusBuilder::GetSourceLocations(status)) {
+    if (!first_non_duplicate && first && first->line() == sl.line() &&
+        std::string_view(first->file_name()) ==
+            std::string_view(sl.file_name())) {
+      continue;
+    }
+    first_non_duplicate = true;
+    StatusBuilder::AddSourceLocation(ret, sl);
+  }
   CopyPayloads(status, &ret);
   return ret;
 }
@@ -213,6 +234,7 @@ absl::Status StatusBuilder::CreateStatusAndConditionallyLog() && {
   absl::Status result = JoinMessageToStatus(
       std::move(status_), rep_->stream.str(), rep_->message_join_style);
   ConditionallyLog(result);
+  StatusBuilder::AddSourceLocation(result, loc_);
 
   // We consumed the status above, we set it to some error just to prevent
   // people relying on it become OK or something.
