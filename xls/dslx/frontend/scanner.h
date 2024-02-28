@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -187,7 +188,7 @@ class Scanner {
 
   // Returns whether the input character stream has been exhausted.
   bool AtCharEof() const {
-    XLS_CHECK_LE(index_, text_.size());
+    CHECK_LE(index_, text_.size());
     return index_ == text_.size();
   }
 
@@ -196,7 +197,7 @@ class Scanner {
   // Precondition: have not hit the end of the character stream (i.e.
   // `!AtCharEof()`).
   char PeekChar() const {
-    XLS_CHECK_LT(index_, text_.size());
+    CHECK_LT(index_, text_.size());
     return text_[index_];
   }
 

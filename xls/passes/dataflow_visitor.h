@@ -22,9 +22,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -336,7 +336,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // or exceeds `bound`.
   bool IndexIsEqual(Node* index, int64_t concrete_index, int64_t bound,
                     bool index_clamped) const {
-    XLS_CHECK_LT(concrete_index, bound);
+    CHECK_LT(concrete_index, bound);
     if (!index->Is<Literal>()) {
       return false;
     }
@@ -351,7 +351,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // clamped when it equals or exceeds `bound`.
   bool IndexMightBeEqual(Node* index, int64_t concrete_index, int64_t bound,
                          bool index_clamped) const {
-    XLS_CHECK_LT(concrete_index, bound);
+    CHECK_LT(concrete_index, bound);
     if (!index->Is<Literal>()) {
       return true;
     }
@@ -368,7 +368,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
                            absl::Span<const int64_t> concrete_indices,
                            absl::Span<const int64_t> bounds,
                            bool indices_clamped) const {
-    XLS_CHECK_EQ(indices.size(), concrete_indices.size());
+    CHECK_EQ(indices.size(), concrete_indices.size());
     for (int64_t i = 0; i < indices.size(); ++i) {
       if (!IndexMightBeEqual(indices[i], concrete_indices[i], bounds[i],
                              indices_clamped)) {
@@ -385,7 +385,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
                        absl::Span<const int64_t> concrete_indices,
                        absl::Span<const int64_t> bounds,
                        bool indices_clamped) const {
-    XLS_CHECK_EQ(indices.size(), concrete_indices.size());
+    CHECK_EQ(indices.size(), concrete_indices.size());
     for (int64_t i = 0; i < indices.size(); ++i) {
       if (!IndexIsEqual(indices[i], concrete_indices[i], bounds[i],
                         indices_clamped)) {

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
@@ -72,7 +73,7 @@ InvocationData::InvocationData(
   }
 
   for (const auto& [env, _] : env_to_callee_data_) {
-    XLS_CHECK_OK(ValidateEnvForCaller(env));
+    CHECK_OK(ValidateEnvForCaller(env));
   }
 }
 
@@ -156,7 +157,7 @@ void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
 
 absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
     const AstNode* const_expr) const {
-  XLS_CHECK_EQ(const_expr->owner(), module_)
+  CHECK_EQ(const_expr->owner(), module_)
       << const_expr->owner()->name() << " vs " << module_->name()
       << " node: " << const_expr->ToString();
 
@@ -179,7 +180,7 @@ absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
 
 std::optional<InterpValue> TypeInfo::GetConstExprOption(
     const AstNode* const_expr) const {
-  XLS_CHECK_EQ(const_expr->owner(), module_)
+  CHECK_EQ(const_expr->owner(), module_)
       << const_expr->owner()->name() << " vs " << module_->name()
       << " node: " << const_expr->ToString();
 
@@ -222,7 +223,7 @@ bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) const {
 }
 
 bool TypeInfo::Contains(AstNode* key) const {
-  XLS_CHECK_EQ(key->owner(), module_);
+  CHECK_EQ(key->owner(), module_);
   return dict_.contains(key) || (parent_ != nullptr && parent_->Contains(key));
 }
 
@@ -236,11 +237,11 @@ std::string TypeInfo::GetImportsDebugString() const {
 
 std::string TypeInfo::GetTypeInfoTreeString() const {
   const TypeInfo* top = GetRoot();
-  XLS_CHECK(top != nullptr);
+  CHECK(top != nullptr);
   std::vector<std::string> pieces = {absl::StrFormat("root %p:", top)};
   for (const auto& [invocation, invocation_data] : top->invocations_) {
-    XLS_CHECK(invocation != nullptr);
-    XLS_CHECK_EQ(invocation, invocation_data.node());
+    CHECK(invocation != nullptr);
+    CHECK_EQ(invocation, invocation_data.node());
 
     pieces.push_back(
         absl::StrFormat("  `%s` @ %v", invocation_data.node()->ToString(),
@@ -257,7 +258,7 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
 }
 
 std::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
-  XLS_CHECK_EQ(key->owner(), module_)
+  CHECK_EQ(key->owner(), module_)
       << key->owner()->name() << " vs " << module_->name()
       << " key: " << key->ToString();
   auto it = dict_.find(key);
@@ -286,7 +287,7 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
                                              const ParametricEnv& caller_env,
                                              const ParametricEnv& callee_env,
                                              TypeInfo* derived_type_info) {
-  XLS_CHECK_EQ(invocation.owner(), module_);
+  CHECK_EQ(invocation.owner(), module_);
 
   // We keep all instantiation info on the top-level type info. The "context
   // stack" doesn't matter so it creates a more understandable tree to flatten
@@ -318,8 +319,8 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
 
 std::optional<bool> TypeInfo::GetRequiresImplicitToken(
     const Function& f) const {
-  XLS_CHECK_EQ(f.owner(), module_) << "function owner: " << f.owner()->name()
-                                   << " module: " << module_->name();
+  CHECK_EQ(f.owner(), module_) << "function owner: " << f.owner()->name()
+                               << " module: " << module_->name();
   const TypeInfo* root = GetRoot();
   const absl::flat_hash_map<const Function*, bool>& map =
       root->requires_implicit_token_;
@@ -344,7 +345,7 @@ void TypeInfo::NoteRequiresImplicitToken(const Function& f, bool is_required) {
 
 std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
     const Invocation* invocation, const ParametricEnv& caller) const {
-  XLS_CHECK_EQ(invocation->owner(), module_)
+  CHECK_EQ(invocation->owner(), module_)
       << invocation->owner()->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
 
@@ -402,7 +403,7 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetTopLevelProcTypeInfo(const Proc* p) {
 
 std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
     const Invocation* invocation, const ParametricEnv& caller) const {
-  XLS_CHECK_EQ(invocation->owner(), module_)
+  CHECK_EQ(invocation->owner(), module_)
       << "attempting to get callee bindings for invocation `"
       << invocation->ToString()
       << "` which is owned by module: " << invocation->owner()->name()
@@ -437,7 +438,7 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
 void TypeInfo::AddSliceStartAndWidth(Slice* node,
                                      const ParametricEnv& parametric_env,
                                      StartAndWidth start_width) {
-  XLS_CHECK_EQ(node->owner(), module_);
+  CHECK_EQ(node->owner(), module_);
   TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
@@ -450,7 +451,7 @@ void TypeInfo::AddSliceStartAndWidth(Slice* node,
 
 std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
     Slice* node, const ParametricEnv& parametric_env) const {
-  XLS_CHECK_EQ(node->owner(), module_);
+  CHECK_EQ(node->owner(), module_);
   const TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
@@ -465,13 +466,13 @@ std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
 }
 
 void TypeInfo::AddImport(Import* import, Module* module, TypeInfo* type_info) {
-  XLS_CHECK_EQ(import->owner(), module_);
+  CHECK_EQ(import->owner(), module_);
   GetRoot()->imports_[import] = ImportedInfo{module, type_info};
 }
 
 std::optional<const ImportedInfo*> TypeInfo::GetImported(
     Import* import) const {
-  XLS_CHECK_EQ(import->owner(), module_)
+  CHECK_EQ(import->owner(), module_)
       << "Import node from: " << import->owner()->name() << " vs TypeInfo for "
       << module_->name();
   auto* self = GetRoot();
@@ -518,12 +519,12 @@ TypeInfo::TypeInfo(Module* module, TypeInfo* parent)
 TypeInfo::~TypeInfo() {
   // Only the root type information contains certain data.
   if (!IsRoot()) {
-    XLS_CHECK(imports_.empty());
-    XLS_CHECK(invocations_.empty());
-    XLS_CHECK(slices_.empty());
-    XLS_CHECK(imports_.empty());
-    XLS_CHECK(requires_implicit_token_.empty());
-    XLS_CHECK(top_level_proc_type_info_.empty());
+    CHECK(imports_.empty());
+    CHECK(invocations_.empty());
+    CHECK(slices_.empty());
+    CHECK(imports_.empty());
+    CHECK(requires_implicit_token_.empty());
+    CHECK(top_level_proc_type_info_.empty());
   }
 }
 

@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -98,7 +99,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildShift0() {
   auto imm = imm_3 - imm_2 - imm_1;
   auto result = ((x >> imm) - imm_0);
   absl::StatusOr<Function*> f_or_status = b.BuildWithReturnValue(result);
-  XLS_CHECK_OK(f_or_status.status());
+  CHECK_OK(f_or_status.status());
   return {absl::move(m), *f_or_status};
 }
 

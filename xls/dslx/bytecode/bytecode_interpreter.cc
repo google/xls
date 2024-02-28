@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -1294,7 +1295,7 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
             /*humanize=*/true, std::get<FormatPreference>(trace_element)));
       }
       argno += 1;
-      XLS_CHECK_LE(argno, argc);
+      CHECK_LE(argno, argc);
     }
   }
 

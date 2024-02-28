@@ -29,6 +29,7 @@
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -133,7 +134,7 @@ class LlvmIrLoop {
   LlvmIrLoop(int64_t loop_count, llvm::IRBuilder<>& builder, int64_t stride = 1,
              llvm::BasicBlock* insert_before = nullptr,
              absl::Span<const LoopCarriedValue> loop_carried_values = {});
-  ~LlvmIrLoop() { XLS_CHECK(finalized_); }
+  ~LlvmIrLoop() { CHECK(finalized_); }
 
   // Index value ranging from 0 ... (N-1) * stride. Type is i64.
   llvm::Value* index() { return index_; }
@@ -170,13 +171,13 @@ class LlvmIrLoop {
       std::optional<llvm::IRBuilder<>*> final_body_block_builder = std::nullopt,
       const absl::flat_hash_map<std::string, llvm::Value*>&
           next_loop_carried_values = {}) {
-    XLS_CHECK(!finalized_);
+    CHECK(!finalized_);
 
     llvm::IRBuilder<>* b = final_body_block_builder.has_value()
                                ? final_body_block_builder.value()
                                : body_builder_.get();
     for (const LoopCarriedValue& loop_carried_value : loop_carried_values_) {
-      XLS_CHECK(next_loop_carried_values.contains(loop_carried_value.name))
+      CHECK(next_loop_carried_values.contains(loop_carried_value.name))
           << absl::StrFormat(
                  "No next value specified for loop-carried value `%s`",
                  loop_carried_value.name);
@@ -249,7 +250,7 @@ LlvmIrLoop::LlvmIrLoop(int64_t loop_count, llvm::IRBuilder<>& builder,
   index_->setName("index");
 
   for (const LoopCarriedValue& loop_carried_value : loop_carried_values_) {
-    XLS_CHECK_NE(loop_carried_value.name, kIndexName) << absl::StrFormat(
+    CHECK_NE(loop_carried_value.name, kIndexName) << absl::StrFormat(
         "Name `%s` is reserved for the loop index.", kIndexName);
     llvm::PHINode* phi = preheader_builder->CreatePHI(
         loop_carried_value.initial_value->getType(), 2);
@@ -370,7 +371,7 @@ llvm::Value* EmitShiftOp(Node* shift, llvm::Value* lhs, llvm::Value* rhs,
         high_bit_set, llvm::ConstantInt::getSigned(dest_type, -1), zero);
     inst = builder->CreateAShr(wide_lhs, safe_rhs);
   } else {
-    XLS_CHECK_EQ(op, Op::kShrl);
+    CHECK_EQ(op, Op::kShrl);
     inst = builder->CreateLShr(wide_lhs, safe_rhs);
   }
   llvm::Value* result =
@@ -856,27 +857,27 @@ class NodeIrContext {
   // Get one of the metadata arguments. CHECK fails the function was created
   // without metadata arguments.
   llvm::Value* GetInputPtrsArg() const {
-    XLS_CHECK(has_metadata_args_);
+    CHECK(has_metadata_args_);
     return llvm_function_->getArg(llvm_function_->arg_size() - 6);
   }
   llvm::Value* GetOutputPtrsArg() const {
-    XLS_CHECK(has_metadata_args_);
+    CHECK(has_metadata_args_);
     return llvm_function_->getArg(llvm_function_->arg_size() - 5);
   }
   llvm::Value* GetTempBufferArg() const {
-    XLS_CHECK(has_metadata_args_);
+    CHECK(has_metadata_args_);
     return llvm_function_->getArg(llvm_function_->arg_size() - 4);
   }
   llvm::Value* GetInterpreterEventsArg() const {
-    XLS_CHECK(has_metadata_args_);
+    CHECK(has_metadata_args_);
     return llvm_function_->getArg(llvm_function_->arg_size() - 3);
   }
   llvm::Value* GetInstanceContextArg() const {
-    XLS_CHECK(has_metadata_args_);
+    CHECK(has_metadata_args_);
     return llvm_function_->getArg(llvm_function_->arg_size() - 2);
   }
   llvm::Value* GetJitRuntimeArg() const {
-    XLS_CHECK(has_metadata_args_);
+    CHECK(has_metadata_args_);
     return llvm_function_->getArg(llvm_function_->arg_size() - 1);
   }
 
@@ -1025,7 +1026,7 @@ llvm::Value* NodeIrContext::LoadOperand(int64_t i, llvm::IRBuilder<>* builder) {
   if (ShouldMaterializeAtUse(operand)) {
     // If the operand is a bits constant, just return the constant as an
     // optimization.
-    XLS_CHECK(operand->Is<Literal>());
+    CHECK(operand->Is<Literal>());
     return type_converter()
         .ToLlvmConstant(operand->GetType(), operand->As<Literal>()->value())
         .value();
@@ -2706,7 +2707,7 @@ std::unique_ptr<llvm::IRBuilder<>> OrInPlace(
     return loop.ConsumeExitBuilder();
   }
   // Iterate through each tuple element (unrolled).
-  XLS_CHECK(xls_type->IsTuple());
+  CHECK(xls_type->IsTuple());
   TupleType* tuple_type = xls_type->AsTupleOrDie();
   for (int64_t i = 0; i < tuple_type->size(); ++i) {
     llvm::Value* element_src_buffer = builder->CreateGEP(
@@ -3459,8 +3460,8 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
 
 llvm::Value* LlvmMemcpy(llvm::Value* tgt, llvm::Value* src, int64_t size,
                         llvm::IRBuilder<>& builder) {
-  XLS_CHECK(tgt->getType()->isPointerTy());
-  XLS_CHECK(src->getType()->isPointerTy());
+  CHECK(tgt->getType()->isPointerTy());
+  CHECK(src->getType()->isPointerTy());
   return builder.CreateMemCpy(tgt, llvm::MaybeAlign(1), src,
                               llvm::MaybeAlign(1), size);
 }

@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -505,7 +506,7 @@ absl::StatusOr<std::vector<Value>> ModuleSimulator::RunBatched(
   }
   XLS_ASSIGN_OR_RETURN(std::vector<BitsMap> bits_outputs,
                        RunBatched(bits_inputs));
-  XLS_CHECK_EQ(signature_.data_outputs().size(), 1);
+  CHECK_EQ(signature_.data_outputs().size(), 1);
   std::vector<Value> outputs;
   for (const BitsMap& bits_output : bits_outputs) {
     XLS_RET_CHECK_EQ(bits_output.size(), 1);

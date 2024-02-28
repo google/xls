@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -137,8 +138,8 @@ class PathGraph {
   //
   // Precondition: the given edge is a valid edge.
   PathNodeId EdgeSource(PathEdgeId edge) const {
-    XLS_CHECK_GE(static_cast<int32_t>(edge), 0);
-    XLS_CHECK_LT(static_cast<int32_t>(edge), edge_weights_.size());
+    CHECK_GE(static_cast<int32_t>(edge), 0);
+    CHECK_LT(static_cast<int32_t>(edge), edge_weights_.size());
     return PathNodeId(static_cast<int32_t>(edge));
   }
 
@@ -146,15 +147,15 @@ class PathGraph {
   //
   // Precondition: the given edge is a valid edge.
   PathNodeId EdgeTarget(PathEdgeId edge) const {
-    XLS_CHECK_GE(static_cast<int32_t>(edge), 0);
-    XLS_CHECK_LT(static_cast<int32_t>(edge), edge_weights_.size());
+    CHECK_GE(static_cast<int32_t>(edge), 0);
+    CHECK_LT(static_cast<int32_t>(edge), edge_weights_.size());
     return PathNodeId(static_cast<int32_t>(edge) + 1);
   }
 
   // Returns the edge after the given node, if there is one.
   std::optional<PathEdgeId> NodeSuccessorEdge(PathNodeId node) const {
-    XLS_CHECK_GE(static_cast<int32_t>(node), 0);
-    XLS_CHECK_LT(static_cast<int32_t>(node), node_weights_.size());
+    CHECK_GE(static_cast<int32_t>(node), 0);
+    CHECK_LT(static_cast<int32_t>(node), node_weights_.size());
     if (static_cast<int32_t>(node) == node_weights_.size() - 1) {
       return std::nullopt;
     }
@@ -163,8 +164,8 @@ class PathGraph {
 
   // Returns the edge previous to the given node, if there is one.
   std::optional<PathEdgeId> NodePredecessorEdge(PathNodeId node) const {
-    XLS_CHECK_GE(static_cast<int32_t>(node), 0);
-    XLS_CHECK_LT(static_cast<int32_t>(node), node_weights_.size());
+    CHECK_GE(static_cast<int32_t>(node), 0);
+    CHECK_LT(static_cast<int32_t>(node), node_weights_.size());
     if (static_cast<int32_t>(node) <= 0) {
       return std::nullopt;
     }
@@ -230,7 +231,7 @@ class PathGraph {
               t.has_value()
                   ? node_weight_pdm_.difference(prefix_sums[k], prefix_sums[*t])
                   : prefix_sums[k];
-          XLS_CHECK(prefix_sum_diff_maybe.has_value())
+          CHECK(prefix_sum_diff_maybe.has_value())
               << "The given PartialDifferenceMonoid for node weights failed";
           NW prefix_sum_diff = *prefix_sum_diff_maybe;
           if (node_weight_total_order_.less_than_or_eq(prefix_sum_diff,
@@ -332,7 +333,7 @@ class PathGraph {
     for (PathNodeId n(1); static_cast<int32_t>(n) < NumNodes(); n++) {
       auto sum_maybe =
           node_weight_pdm_.sum(result[n - PathNodeId(1)], WeightOfNode(n));
-      XLS_CHECK(sum_maybe)
+      CHECK(sum_maybe)
           << "The given PartialDifferenceMonoid for node weights failed";
       result[n] = *sum_maybe;
     }

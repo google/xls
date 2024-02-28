@@ -20,6 +20,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/union_find_map.h"
 
@@ -125,7 +126,7 @@ class GraphContraction {
     // patch those out edges up so that they point to/from `rep`.
     auto patch_up_edges =
         [&](const V& vertex, UnionFindMap<V, absl::flat_hash_map<V, EW>>* map) {
-          XLS_CHECK(map->Find(vertex).has_value())
+          CHECK(map->Find(vertex).has_value())
               << "Inconsistency between in_edges_ and out_edges_ detected";
           absl::flat_hash_map<V, EW>& edges = map->Find(vertex)->second;
           if (edges.contains(x) && edges.contains(y)) {
@@ -142,7 +143,7 @@ class GraphContraction {
             edges.erase(y);
             edges.insert_or_assign(rep, weight);
           } else {
-            XLS_CHECK(false)
+            CHECK(false)
                 << "Inconsistency between in_edges_ and out_edges_ detected";
           }
         };

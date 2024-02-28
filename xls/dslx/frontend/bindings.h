@@ -27,6 +27,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -129,7 +130,7 @@ class Bindings {
   // The "Cronus" method. This adds a child's bindings to this object, i.e., it
   // "commits" changes made in a child Bindings to this parent object.
   void ConsumeChild(Bindings* child) {
-    XLS_CHECK_EQ(child->parent_, this);
+    CHECK_EQ(child->parent_, this);
     for (const auto& [k, v] : child->local_bindings_) {
       local_bindings_[k] = v;
     }

@@ -19,6 +19,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/ir/bits.h"
@@ -29,7 +30,7 @@ namespace verilog {
 
 SignalCapture SignalCaptureManager::Capture(std::string_view signal_name,
                                             Bits* bits) {
-  XLS_CHECK(metadata().HasPortNamed(signal_name));
+  CHECK(metadata().HasPortNamed(signal_name));
   int64_t instance = signal_captures_.size();
   signal_captures_.push_back(
       SignalCapture{.signal_name = std::string{signal_name},
@@ -41,7 +42,7 @@ SignalCapture SignalCaptureManager::Capture(std::string_view signal_name,
 
 SignalCapture SignalCaptureManager::CaptureMultiple(
     std::string_view signal_name, std::vector<Bits>* values) {
-  XLS_CHECK(metadata().HasPortNamed(signal_name));
+  CHECK(metadata().HasPortNamed(signal_name));
   int64_t instance = signal_captures_.size();
   signal_captures_.push_back(
       SignalCapture{.signal_name = std::string{signal_name},
@@ -53,7 +54,7 @@ SignalCapture SignalCaptureManager::CaptureMultiple(
 
 SignalCapture SignalCaptureManager::CaptureAndWriteToStream(
     std::string_view signal_name, const TestbenchStream* stream) {
-  XLS_CHECK(metadata().HasPortNamed(signal_name));
+  CHECK(metadata().HasPortNamed(signal_name));
   int64_t instance = signal_captures_.size();
   signal_captures_.push_back(
       SignalCapture{.signal_name = std::string{signal_name},
@@ -66,7 +67,7 @@ SignalCapture SignalCaptureManager::CaptureAndWriteToStream(
 SignalCapture SignalCaptureManager::ExpectEq(std::string_view signal_name,
                                              const Bits& bits,
                                              xabsl::SourceLocation loc) {
-  XLS_CHECK(metadata().HasPortNamed(signal_name));
+  CHECK(metadata().HasPortNamed(signal_name));
   int64_t instance = signal_captures_.size();
   signal_captures_.push_back(SignalCapture{
       .signal_name = std::string{signal_name},
@@ -85,7 +86,7 @@ SignalCapture SignalCaptureManager::ExpectEq(std::string_view signal_name,
 
 SignalCapture SignalCaptureManager::ExpectX(std::string_view signal_name,
                                             xabsl::SourceLocation loc) {
-  XLS_CHECK(metadata().HasPortNamed(signal_name));
+  CHECK(metadata().HasPortNamed(signal_name));
   int64_t instance = signal_captures_.size();
   signal_captures_.push_back(SignalCapture{
       .signal_name = std::string{signal_name},

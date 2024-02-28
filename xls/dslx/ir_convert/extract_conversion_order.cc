@@ -24,6 +24,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -86,7 +87,7 @@ Callee::Callee(Function* f, const Invocation* invocation, Module* m,
       type_info_(type_info),
       parametric_env_(std::move(parametric_env)),
       proc_id_(std::move(proc_id)) {
-  XLS_CHECK_EQ(type_info->module(), m)
+  CHECK_EQ(type_info->module(), m)
       << "type_info module: " << type_info->module()->name()
       << " vs module: " << m->name();
 }
@@ -164,7 +165,7 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
  public:
   CalleeCollectorVisitor(Module* module, TypeInfo* type_info)
       : module_(module), type_info_(type_info) {
-    XLS_CHECK_EQ(type_info_->module(), module_);
+    CHECK_EQ(type_info_->module(), module_);
   }
   absl::Status HandleInvocation(const Invocation* node) override {
     std::optional<CalleeInfo> callee_info;
@@ -292,7 +293,7 @@ class InvocationVisitor : public ExprVisitor {
         type_info_(type_info),
         bindings_(bindings),
         proc_id_(std::move(proc_id)) {
-    XLS_CHECK_EQ(type_info_->module(), module_);
+    CHECK_EQ(type_info_->module(), module_);
   }
 
   ~InvocationVisitor() override = default;
@@ -708,7 +709,7 @@ static absl::StatusOr<std::vector<Callee>> GetCallees(
     Expr* node, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
     std::optional<ProcId> proc_id) {
   XLS_VLOG(5) << "Getting callees of " << node->ToString();
-  XLS_CHECK_EQ(type_info->module(), m);
+  CHECK_EQ(type_info->module(), m);
   InvocationVisitor visitor(m, type_info, bindings, std::move(proc_id));
   XLS_RETURN_IF_ERROR(node->AcceptExpr(&visitor));
   return std::move(visitor.callees());
@@ -748,7 +749,7 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
                                std::vector<ConversionRecord>* ready,
                                const std::optional<ProcId>& proc_id,
                                bool is_top = false) {
-  XLS_CHECK_EQ(type_info->module(), m);
+  CHECK_EQ(type_info->module(), m);
   if (IsReady(f, m, bindings, ready)) {
     return absl::OkStatus();
   }
@@ -847,7 +848,7 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
 
 absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
                                                        TypeInfo* type_info) {
-  XLS_CHECK_EQ(type_info->module(), module);
+  CHECK_EQ(type_info->module(), module);
   std::vector<ConversionRecord> ready;
 
   for (ModuleMember member : module->top()) {

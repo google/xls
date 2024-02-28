@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -791,9 +792,9 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
       strictnesses.push_back(
           down_cast<StreamingChannel*>(base_channel)->GetStrictness());
     }
-    XLS_CHECK(!strictnesses.empty());
-    XLS_CHECK(std::equal(strictnesses.begin() + 1, strictnesses.end(),
-                         strictnesses.begin()));
+    CHECK(!strictnesses.empty());
+    CHECK(std::equal(strictnesses.begin() + 1, strictnesses.end(),
+                     strictnesses.begin()));
     ChannelStrictness strictness = strictnesses.front();
 
     XLS_ASSIGN_OR_RETURN(

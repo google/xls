@@ -24,6 +24,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -47,7 +48,7 @@ absl::Status ScanErrorStatus(const Span& span, std::string_view message) {
 }
 
 char Scanner::PopChar() {
-  XLS_CHECK(!AtEof()) << "Cannot pop character when at EOF.";
+  CHECK(!AtEof()) << "Cannot pop character when at EOF.";
   char c = PeekChar();
   index_ += 1;
   if (c == '\n') {
@@ -86,7 +87,7 @@ Token Scanner::PopComment(const Pos& start_pos) {
 }
 
 absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
-  XLS_CHECK(AtWhitespace());
+  CHECK(AtWhitespace());
   std::string chars;
   while (!AtCharEof() && AtWhitespace()) {
     chars.append(1, PopChar());
@@ -305,7 +306,7 @@ std::optional<CommentData> Scanner::TryPopComment() {
   if (!AtEof() && PeekChar() == '/' && PeekChar2OrNull() == '/') {
     DropChar(2);
     Token token = PopComment(start_pos);
-    XLS_CHECK(token.GetValue().has_value());
+    CHECK(token.GetValue().has_value());
     return CommentData{token.span(), token.GetValue().value()};
   }
   return std::nullopt;
@@ -374,7 +375,7 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
           Span(GetPos(), GetPos()),
           "Invalid radix for number, expect 0b or 0x because of leading 0.");
     }
-    XLS_CHECK(!s.empty())
+    CHECK(!s.empty())
         << "Must have seen numerical digits to attempt to scan a number.";
   }
   if (negative) {
@@ -425,7 +426,7 @@ void Scanner::DropCommentsAndLeadingWhitespace() {
 
 absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
   const char open_quote = PopChar();
-  XLS_CHECK_EQ(open_quote, '\'');
+  CHECK_EQ(open_quote, '\'');
   if (AtCharEof()) {
     return ScanErrorStatus(
         Span(GetPos(), GetPos()),
@@ -607,7 +608,7 @@ absl::StatusOr<Token> Scanner::Pop() {
       }
   }
 
-  XLS_CHECK(result.has_value());
+  CHECK(result.has_value());
   return std::move(result).value();
 }
 

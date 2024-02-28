@@ -30,6 +30,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -357,7 +358,7 @@ absl::StatusOr<TestResultData> ParseAndTest(
     std::string suffix;
     if (data_or.ok()) {
       const auto& data = data_or.value();
-      XLS_CHECK_OK(PrintPositionalError(
+      CHECK_OK(PrintPositionalError(
           data.span, data.GetMessageWithType(), std::cerr,
           /*get_file_contents=*/nullptr, PositionalErrorColor::kErrorColor));
       one_liner = data.GetMessageWithType();

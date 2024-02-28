@@ -19,6 +19,7 @@
 
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/log/check.h"
 #include "absl/log/initialize.h"
 #include "xls/common/logging/logging.h"
 
@@ -31,7 +32,7 @@ std::vector<std::string_view> InitXls(std::string_view usage, int argc,
   // Copy the argv array to ensure this method doesn't clobber argv.
   std::vector<char*> arguments(argv, argv + argc);
   std::vector<char*> remaining = absl::ParseCommandLine(argc, argv);
-  XLS_CHECK_GE(argc, 1);
+  CHECK_GE(argc, 1);
 
   internal::InitXlsPostAbslFlagParse();
 

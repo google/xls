@@ -21,6 +21,7 @@
 #include <string_view>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -100,7 +101,7 @@ namespace ternary_ops {
 
 TernaryVector FromKnownBits(const Bits& known_bits,
                             const Bits& known_bits_values) {
-  XLS_CHECK_EQ(known_bits.bit_count(), known_bits_values.bit_count());
+  CHECK_EQ(known_bits.bit_count(), known_bits_values.bit_count());
   TernaryVector result;
   result.reserve(known_bits.bit_count());
 
@@ -134,7 +135,7 @@ Bits ToKnownBitsValues(const TernaryVector& ternary_vector) {
 
 std::optional<TernaryVector> Difference(const TernaryVector& lhs,
                                         const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
+  CHECK_EQ(lhs.size(), rhs.size());
   const int64_t size = lhs.size();
 
   TernaryVector result;
@@ -158,7 +159,7 @@ std::optional<TernaryVector> Difference(const TernaryVector& lhs,
 
 absl::StatusOr<TernaryVector> Union(const TernaryVector& lhs,
                                     const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
+  CHECK_EQ(lhs.size(), rhs.size());
   const int64_t size = lhs.size();
 
   TernaryVector result;
@@ -181,7 +182,7 @@ absl::StatusOr<TernaryVector> Union(const TernaryVector& lhs,
 }
 
 absl::Status UpdateWithUnion(TernaryVector& lhs, const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
+  CHECK_EQ(lhs.size(), rhs.size());
 
   for (int64_t i = 0; i < lhs.size(); ++i) {
     if (rhs[i] == TernaryValue::kUnknown) {
@@ -201,7 +202,7 @@ absl::Status UpdateWithUnion(TernaryVector& lhs, const TernaryVector& rhs) {
 }
 
 TernaryVector Intersection(const TernaryVector& lhs, const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
+  CHECK_EQ(lhs.size(), rhs.size());
   const int64_t size = lhs.size();
 
   TernaryVector result;
@@ -218,7 +219,7 @@ TernaryVector Intersection(const TernaryVector& lhs, const TernaryVector& rhs) {
 }
 
 void UpdateWithIntersection(TernaryVector& lhs, const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
+  CHECK_EQ(lhs.size(), rhs.size());
 
   for (int64_t i = 0; i < lhs.size(); ++i) {
     if (lhs[i] != rhs[i]) {
@@ -227,7 +228,7 @@ void UpdateWithIntersection(TernaryVector& lhs, const TernaryVector& rhs) {
   }
 }
 void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.bit_count());
+  CHECK_EQ(lhs.size(), rhs.bit_count());
 
   for (int64_t i = 0; i < lhs.size(); ++i) {
     if (lhs[i] == TernaryValue::kUnknown) {

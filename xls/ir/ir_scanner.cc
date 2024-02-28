@@ -23,11 +23,12 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/number_parser.h"
@@ -201,7 +202,7 @@ class Tokenizer {
   // Advances the current index into the tokenized string by the given
   // amount. Updates column and line numbers.
   int64_t Advance(int64_t amount = 1) {
-    XLS_CHECK_LE(index_ + amount, str_.size());
+    CHECK_LE(index_ + amount, str_.size());
     for (int64_t i = 0; i < amount; ++i) {
       if (current() == '\t') {
         colno_ += 2;

@@ -25,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -190,7 +191,7 @@ class SampleRunnerTest : public ::testing::Test {
     if (test_info == nullptr) {
       return;
     }
-    XLS_CHECK(test_info->name() != nullptr);
+    CHECK(test_info->name() != nullptr);
 
     std::filesystem::path test_outputs_path =
         undeclared_outputs_dir / test_info->name();
@@ -200,7 +201,7 @@ class SampleRunnerTest : public ::testing::Test {
     if (test_info->value_param() != nullptr) {
       test_outputs_path /= test_info->value_param();
     }
-    XLS_CHECK(std::filesystem::create_directories(test_outputs_path));
+    CHECK(std::filesystem::create_directories(test_outputs_path));
     std::filesystem::copy(temp_dir.path(), test_outputs_path,
                           std::filesystem::copy_options::recursive);
   }

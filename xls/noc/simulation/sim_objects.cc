@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
@@ -819,7 +820,7 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
       absl::StatusOr<PortIndexAndVCIndex> output_status =
           GetDestinationPortIndexAndVcIndex(simulator, input,
                                             destination_index);
-      XLS_CHECK_OK(output_status.status());
+      CHECK_OK(output_status.status());
       PortIndexAndVCIndex output = output_status.value();
 
       // Now see if we have sufficient credits.

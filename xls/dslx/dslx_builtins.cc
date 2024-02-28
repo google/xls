@@ -27,6 +27,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -277,7 +278,7 @@ class Checker {
   Checker& CheckIsLen(const ArrayType& t, int64_t target,
                       const std::function<std::string()>& make_msg) {
     uint32_t target_u32 = static_cast<uint32_t>(target);
-    XLS_CHECK_EQ(target_u32, target);
+    CHECK_EQ(target_u32, target);
     if (!status_.ok()) {
       return *this;
     }
@@ -340,7 +341,7 @@ class Checker {
  private:
   const ConcreteType& GetArgType(int64_t argno) const {
     const ConcreteType* t = arg_types_.at(argno);
-    XLS_CHECK(t != nullptr);
+    CHECK(t != nullptr);
     return *t;
   }
 
@@ -1077,7 +1078,7 @@ absl::StatusOr<SignatureFn> GetParametricBuiltinSignature(
   XLS_VLOG(5) << builtin_name << " => " << signature;
   const auto& lambda_map = GetSignatureToLambdaMap();
   auto it2 = lambda_map.find(signature);
-  XLS_CHECK(it2 != lambda_map.end()) << signature;
+  CHECK(it2 != lambda_map.end()) << signature;
   return it2->second;
 }
 

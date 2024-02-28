@@ -19,6 +19,7 @@
 #include <functional>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -68,7 +69,7 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
   };
   switch (node->op()) {
     case Op::kBitSlice:
-      XLS_CHECK_EQ(operand_no, 0);
+      CHECK_EQ(operand_no, 0);
       return !operand_is_indexable();
     case Op::kDynamicBitSlice:
       return operand_no == 0 && !operand_is_indexable();
@@ -84,7 +85,7 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
           // The indices need to be indexable if and only if we might need to
           // truncate one to ensure we don't use too many bits for the array's
           // indexing operation.
-          XLS_CHECK_EQ(operand_no, 1);
+          CHECK_EQ(operand_no, 1);
           Node* operand = node->operand(operand_no);
           Type* array_type = node->As<ArrayIndex>()->array()->GetType();
           auto index_could_be_out_of_range = [&](Node* index) {
@@ -133,7 +134,7 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
       // TODO(meheff): It might be better to have a unified place to hold both
       // the Verilog expression and constraints for the Ops, a la
       // op_specification.py
-      XLS_CHECK_EQ(operand_no, 0);
+      CHECK_EQ(operand_no, 0);
       return node->operand(operand_no)->BitCountOrDie() > 1 &&
              !operand_is_indexable();
     case Op::kEncode:
@@ -345,7 +346,7 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
   } else if (shift->op() == Op::kShrl) {
     shifted_operand = file->Shrl(operand, shift_amount, shift->loc());
   } else {
-    XLS_CHECK_EQ(shift->op(), Op::kShll);
+    CHECK_EQ(shift->op(), Op::kShll);
     shifted_operand = file->Shll(operand, shift_amount, shift->loc());
   }
 

@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
@@ -692,7 +693,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
       *which_transform =
           absl::StrFormat("return operand %d of return value", which_operand);
     }
-    XLS_CHECK_NE(replacement, nullptr);
+    CHECK_NE(replacement, nullptr);
     return ReplaceImplicitUse(orig, replacement);
   }
 
@@ -971,8 +972,7 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
       }
       // Sends/after-all shouldn't be reached since only accessible through
       // token path, reg-write should not have any dependents.
-      XLS_CHECK(!op->Is<Send>() && !op->Is<AfterAll>() &&
-                !op->Is<RegisterWrite>())
+      CHECK(!op->Is<Send>() && !op->Is<AfterAll>() && !op->Is<RegisterWrite>())
           << op->ToString();
       if (marked.contains(op)) {
         continue;
@@ -1269,7 +1269,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     // candidate might have been removed by DFE at this point. Be careful.
     auto candidate_ir = [&]() -> std::string {
       if (simplification.in_place()) {
-        XLS_CHECK_EQ(package.get(), std::get<Package*>(simplification.ir_data));
+        CHECK_EQ(package.get(), std::get<Package*>(simplification.ir_data));
         auto functions = package->GetFunctionBases();
         if (absl::c_find(functions, candidate) != functions.end()) {
           return candidate->DumpIr();
@@ -1297,7 +1297,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
                     << failed_attempts_between_tests_limit;
       failed_attempts_between_tests = 0;
     } else {
-      XLS_CHECK(simplification.result == SimplificationResult::kDidChange);
+      CHECK(simplification.result == SimplificationResult::kDidChange);
       XLS_LOG(INFO) << "Trying " << which_transform << " on " << candidate_name;
       if (simplification.in_place()) {
         XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));

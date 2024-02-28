@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -340,12 +341,12 @@ absl::StatusOr<Sample> GenerateSample(
     const SampleOptions& sample_options, absl::BitGenRef bit_gen) {
   constexpr std::string_view top_name = "main";
   if (generator_options.generate_proc) {
-    XLS_CHECK_EQ(sample_options.calls_per_sample(), 0)
+    CHECK_EQ(sample_options.calls_per_sample(), 0)
         << "calls per sample must be zero when generating a proc sample.";
-    XLS_CHECK_GT(sample_options.proc_ticks(), 0)
+    CHECK_GT(sample_options.proc_ticks(), 0)
         << "proc ticks must have a value when generating a proc sample.";
   } else {
-    XLS_CHECK_EQ(sample_options.proc_ticks(), 0)
+    CHECK_EQ(sample_options.proc_ticks(), 0)
         << "proc ticks must not have a zero value when generating a "
            "function sample.";
   }
@@ -397,16 +398,16 @@ absl::StatusOr<Sample> GenerateSample(
 
   std::optional<ModuleMember*> module_member =
       tm->module->FindMemberWithName(top_name);
-  XLS_CHECK(module_member.has_value());
+  CHECK(module_member.has_value());
   ModuleMember* member = module_member.value();
 
   if (generator_options.generate_proc) {
-    XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
+    CHECK(std::holds_alternative<dslx::Proc*>(*member));
     sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
     return GenerateProcSample(std::get<dslx::Proc*>(*member), *tm,
                               sample_options_copy, bit_gen, dslx_text);
   }
-  XLS_CHECK(std::holds_alternative<dslx::Function*>(*member));
+  CHECK(std::holds_alternative<dslx::Function*>(*member));
   sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_FUNCTION);
   return GenerateFunctionSample(std::get<dslx::Function*>(*member), *tm,
                                 sample_options_copy, bit_gen, dslx_text);

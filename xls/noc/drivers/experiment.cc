@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -214,7 +215,7 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
        routing_table.GetSinkIndices().GetNetworkComponents()) {
     XLS_ASSIGN_OR_RETURN(NetworkComponentParam nc_param,
                          params.GetNetworkComponentParam(sink_id));
-    XLS_CHECK(std::holds_alternative<NetworkInterfaceSinkParam>(nc_param));
+    CHECK(std::holds_alternative<NetworkInterfaceSinkParam>(nc_param));
     std::string nc_name =
         std::string(std::get<NetworkInterfaceSinkParam>(nc_param).GetName());
 
@@ -309,8 +310,8 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
       // Get vc name
       XLS_ASSIGN_OR_RETURN(NetworkParam network_param,
                            params.GetNetworkParam(graph.GetNetworkIds()[0]));
-      XLS_CHECK(flit_destination.vc >= 0 &&
-                flit_destination.vc < network_param.VirtualChannelCount())
+      CHECK(flit_destination.vc >= 0 &&
+            flit_destination.vc < network_param.VirtualChannelCount())
           << "VC index is out of range.";
       VirtualChannelParam vc_param =
           network_param.GetVirtualChannels().at(flit_destination.vc);

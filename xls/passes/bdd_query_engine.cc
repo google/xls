@@ -17,6 +17,7 @@
 #include <optional>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -165,7 +166,7 @@ std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
 
   // Check if bdd_predicate_bit implies that node has a particular value for
   // all bits.
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   BitsRope bit_rope(node->BitCountOrDie());
   for (int node_idx = 0; node_idx < node->BitCountOrDie(); ++node_idx) {
     if (implied_true_or_false(node_idx, true)) {

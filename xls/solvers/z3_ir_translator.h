@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
@@ -332,7 +333,7 @@ class Predicate {
   // `Predicate::IsEqualTo(other)`, returns the node the predicate is comparing
   // to (`other` in this example).
   Node* node() const {
-    XLS_CHECK(node_.has_value());
+    CHECK(node_.has_value());
     return node_.value();
   }
 
@@ -343,7 +344,7 @@ class Predicate {
   // `Predicate::UnsignedGreaterOrEqual(my_bits)` returns the value of
   // `my_bits`.
   const Bits& value() const {
-    XLS_CHECK(value_.has_value());
+    CHECK(value_.has_value());
     return value_.value();
   }
 

@@ -18,6 +18,7 @@
 #include <optional>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -107,7 +108,7 @@ static std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
     next = select->get_case(0);
     value_node = select->get_case(1);
   } else {
-    XLS_CHECK_EQ(match->comparison_op, Op::kNe);
+    CHECK_EQ(match->comparison_op, Op::kNe);
     next = select->get_case(1);
     value_node = select->get_case(0);
   }

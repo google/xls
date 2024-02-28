@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/union_find_map.h"
 
@@ -42,7 +43,7 @@ class UnionFind {
 
   // Union together the equivalence classes of two elements.
   void Union(const T& x, const T& y) {
-    XLS_CHECK(union_find_map_.Union(x, y, Merge))
+    CHECK(union_find_map_.Union(x, y, Merge))
         << "Both elements passed to Union have not been added.";
   }
 
@@ -51,8 +52,7 @@ class UnionFind {
   T Find(const T& element) {
     std::optional<std::pair<T, std::monostate&>> result =
         union_find_map_.Find(element);
-    XLS_CHECK(result.has_value())
-        << "Element passed Find has not been inserted.";
+    CHECK(result.has_value()) << "Element passed Find has not been inserted.";
     return result->first;
   }
 

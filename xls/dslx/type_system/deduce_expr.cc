@@ -23,6 +23,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -370,7 +371,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
 
   if (number_value.has_value()) {
     const ConcreteTypeDim& lhs_size = lhs_bit_type->size();
-    XLS_CHECK(!lhs_size.IsParametric()) << "Shift amount type not inferred.";
+    CHECK(!lhs_size.IsParametric()) << "Shift amount type not inferred.";
     XLS_ASSIGN_OR_RETURN(int64_t lhs_bit_count, lhs_size.GetAsInt64());
     if (lhs_bit_count < number_value.value()) {
       return TypeInferenceErrorStatus(

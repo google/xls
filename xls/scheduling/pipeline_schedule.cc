@@ -24,6 +24,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -69,7 +70,7 @@ PipelineSchedule::PipelineSchedule(FunctionBase* function_base,
   // Build the mapping from cycle to the vector of nodes in that cycle.
   int64_t max_cycle = MaximumCycle(cycle_map_);
   if (length.has_value()) {
-    XLS_CHECK_GT(*length, max_cycle);
+    CHECK_GT(*length, max_cycle);
     max_cycle = *length - 1;
   }
   // max_cycle is the latest cycle in which any node is scheduled so add one to
@@ -97,7 +98,7 @@ PipelineSchedule::PipelineSchedule(FunctionBase* function_base,
 }
 
 void PipelineSchedule::RemoveNode(Node* node) {
-  XLS_CHECK(cycle_map_.contains(node))
+  CHECK(cycle_map_.contains(node))
       << "Tried to remove a node from a schedule that it doesn't contain";
   int64_t old_cycle = cycle_map_.at(node);
   std::vector<Node*>& ref = cycle_to_nodes_.at(old_cycle);
@@ -157,7 +158,7 @@ bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
     if (user->Is<Next>()) {
       Next* user_next = user->As<Next>();
       if (user_next->predicate() != node && user_next->value() != node) {
-        XLS_CHECK_EQ(user_next->param(), node);
+        CHECK_EQ(user_next->param(), node);
         // This Next node only uses this Param node to target the state register
         // it needs to write to; it doesn't actually need the value read out of
         // the Param node, so we don't need to keep the value in pipeline
@@ -565,7 +566,7 @@ int64_t PipelineSchedule::CountFinalInteriorPipelineRegisters() const {
   return reg_count;
 }
 
-/*static*/ absl::StatusOr<PackagePipelineSchedules>
+/* static */ absl::StatusOr<PackagePipelineSchedules>
 PackagePipelineSchedulesFromProto(Package* p,
                                   const PackagePipelineSchedulesProto& proto) {
   PackagePipelineSchedules schedules;

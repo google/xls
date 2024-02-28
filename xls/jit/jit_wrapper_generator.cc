@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_replace.h"
 
@@ -56,8 +57,7 @@ std::pair<absl::Span<Param* const>, Type*> GetSignature(
     *implicit_token_convention = has_implicit_token;
   }
   if (has_implicit_token) {
-    XLS_CHECK(return_type->IsTuple() &&
-              return_type->AsTupleOrDie()->size() == 2)
+    CHECK(return_type->IsTuple() && return_type->AsTupleOrDie()->size() == 2)
         << "'Implicit token' calling convention requires return type to be a "
            "tuple of the form `(token, real_retval)`; got: "
         << return_type->ToString();
@@ -154,7 +154,7 @@ std::string PackedTypeString(const Type& type) {
     return absl::StrFormat("xls::PackedArrayView<%s, %d>", element_type_str,
                            array_type->size());
   }  // Is tuple!
-  XLS_CHECK(type.IsTuple()) << type.ToString();
+  CHECK(type.IsTuple()) << type.ToString();
   const TupleType* tuple_type = type.AsTupleOrDie();
   std::vector<std::string> element_type_strs;
   for (const Type* element_type : tuple_type->element_types()) {
@@ -177,7 +177,7 @@ std::string UnpackedTypeString(const Type& type) {
     return absl::StrFormat("xls::ArrayView<%s, %d>", element_type_str,
                            array_type->size());
   }  // Is tuple!
-  XLS_CHECK(type.IsTuple()) << type.ToString();
+  CHECK(type.IsTuple()) << type.ToString();
   const TupleType* tuple_type = type.AsTupleOrDie();
   std::vector<std::string> element_type_strs;
   for (const Type* element_type : tuple_type->element_types()) {
@@ -200,7 +200,7 @@ std::string UnpackedMutableTypeString(const Type& type) {
     return absl::StrFormat("xls::MutableArrayView<%s, %d>", element_type_str,
                            array_type->size());
   }  // Is tuple!
-  XLS_CHECK(type.IsTuple()) << type.ToString();
+  CHECK(type.IsTuple()) << type.ToString();
   const TupleType* tuple_type = type.AsTupleOrDie();
   std::vector<std::string> element_type_strs;
   for (const Type* element_type : tuple_type->element_types()) {
@@ -213,7 +213,7 @@ std::string UnpackedMutableTypeString(const Type& type) {
 // Emits the code necessary to convert a u32/i32 value to its corresponding
 // packed view.
 std::string ConvertUint(std::string_view name, const Type& type) {
-  XLS_CHECK(type.IsBits());
+  CHECK(type.IsBits());
 
   return absl::StrFormat(
       "xls::PackedBitsView<%d> %s_view(absl::bit_cast<uint8_t*>(&%s), 0)",

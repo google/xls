@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/node.h"
@@ -430,8 +431,7 @@ class SchedulingOptions {
     } else if (value == "cone") {
       fdo_path_evaluate_strategy_ = PathEvaluateStrategy::CONE;
     } else {
-      XLS_CHECK_EQ(value, "window")
-          << "Unknown path evaluate strategy: " << value;
+      CHECK_EQ(value, "window") << "Unknown path evaluate strategy: " << value;
       fdo_path_evaluate_strategy_ = PathEvaluateStrategy::WINDOW;
     }
     return *this;

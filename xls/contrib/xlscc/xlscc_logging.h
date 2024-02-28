@@ -15,23 +15,24 @@
 #ifndef XLSCC_LOGGING_H_
 #define XLSCC_LOGGING_H_
 
-#define XLSCC_CHECK(condition, loc) \
-  XLS_CHECK(condition) << ErrorMessage(loc, "")
+#include "absl/log/check.h"
+
+#define XLSCC_CHECK(condition, loc) CHECK(condition) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK(condition, loc) QCHECK(condition) << ErrorMessage(loc, "")
 #define XLSCC_DCHECK(condition, loc) DCHECK(condition) << ErrorMessage(loc, "")
 
 #define XLSCC_CHECK_EQ(val1, val2, loc) \
-  XLS_CHECK_EQ(val1, val2) << ErrorMessage(loc, "")
+  CHECK_EQ(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_CHECK_NE(val1, val2, loc) \
-  XLS_CHECK_NE(val1, val2) << ErrorMessage(loc, "")
+  CHECK_NE(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_CHECK_LE(val1, val2, loc) \
-  XLS_CHECK_LE(val1, val2) << ErrorMessage(loc, "")
+  CHECK_LE(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_CHECK_LT(val1, val2, loc) \
-  XLS_CHECK_LT(val1, val2) << ErrorMessage(loc, "")
+  CHECK_LT(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_CHECK_GE(val1, val2, loc) \
-  XLS_CHECK_GE(val1, val2) << ErrorMessage(loc, "")
+  CHECK_GE(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_CHECK_GT(val1, val2, loc) \
-  XLS_CHECK_GT(val1, val2) << ErrorMessage(loc, "")
+  CHECK_GT(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_EQ(val1, val2, loc) \
   QCHECK_EQ(val1, val2) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_NE(val1, val2, loc) \
@@ -58,7 +59,7 @@
 #define XLSCC_DCHECK_GT(val1, val2, loc) \
   XLSCC_CHECK_GT(val1, val2) << ErrorMessage(loc, "")
 
-#define XLSCC_CHECK_OK(val, loc) XLS_CHECK_EQ(val) << ErrorMessage(loc, "")
+#define XLSCC_CHECK_OK(val, loc) CHECK_EQ(val) << ErrorMessage(loc, "")
 #define XLSCC_QCHECK_OK(val, loc) QCHECK_EQ(val) << ErrorMessage(loc, "")
 #define XLSCC_DCHECK_OK(val, loc) DCHECK_EQ(val) << ErrorMessage(loc), ""
 

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -166,7 +167,7 @@ JitChannelQueueManager::CreateThreadUnsafe(Elaboration&& elaboration) {
 
 JitChannelQueue& JitChannelQueueManager::GetJitQueue(Channel* channel) {
   JitChannelQueue* queue = dynamic_cast<JitChannelQueue*>(&GetQueue(channel));
-  XLS_CHECK_NE(queue, nullptr);
+  CHECK_NE(queue, nullptr);
   return *queue;
 }
 
@@ -174,7 +175,7 @@ JitChannelQueue& JitChannelQueueManager::GetJitQueue(
     ChannelInstance* channel_instance) {
   JitChannelQueue* queue =
       dynamic_cast<JitChannelQueue*>(&GetQueue(channel_instance));
-  XLS_CHECK_NE(queue, nullptr);
+  CHECK_NE(queue, nullptr);
   return *queue;
 }
 

@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <variant>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -71,24 +72,24 @@ class PredicateState {
 
   // The value which controls the select
   Node* selector() const {
-    XLS_CHECK(!IsBasePredicate());
+    CHECK(!IsBasePredicate());
     // All have selector as op(0)
     return node()->operand(0);
   }
 
   Node* value() const {
-    XLS_CHECK(!IsBasePredicate());
+    CHECK(!IsBasePredicate());
     return absl::visit(xls::Visitor{[&](Select* s) -> Node* {
                                       return IsDefaultArm()
                                                  ? s->default_value().value()
                                                  : s->get_case(arm_index());
                                     },
                                     [&](OneHotSelect* s) -> Node* {
-                                      XLS_CHECK(!IsDefaultArm());
+                                      CHECK(!IsDefaultArm());
                                       return s->get_case(arm_index());
                                     },
                                     [&](PrioritySelect* s) -> Node* {
-                                      XLS_CHECK(!IsDefaultArm());
+                                      CHECK(!IsDefaultArm());
                                       return s->get_case(arm_index());
                                     },
                                     [](std::nullptr_t) -> Node* {
@@ -101,7 +102,7 @@ class PredicateState {
   // The arm index this predicate protects
   ArmT arm() const { return index_; }
   int64_t arm_index() const {
-    XLS_CHECK(std::holds_alternative<int64_t>(index_));
+    CHECK(std::holds_alternative<int64_t>(index_));
     return std::get<int64_t>(index_);
   }
 

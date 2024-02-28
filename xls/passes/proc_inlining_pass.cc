@@ -26,6 +26,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -1126,8 +1127,7 @@ class ProcThread {
         XLS_RETURN_IF_ERROR(valid_state->SetNext(maybe_saved_valid));
         saved_receive_elements.push_back(maybe_saved_valid);
       }
-      XLS_CHECK_EQ(receive_out->operands().size(),
-                   saved_receive_elements.size());
+      CHECK_EQ(receive_out->operands().size(), saved_receive_elements.size());
       XLS_ASSIGN_OR_RETURN(
           Node * saved_receive_out,
           container_proc_->MakeNodeWithName<Tuple>(
@@ -1545,7 +1545,7 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
   std::vector<Node*> result_tuple{receive->token(), data};
   if (!receive->is_blocking()) {
     // Add the valid signal as the third entry in a non-blocking receive.
-    XLS_CHECK_NE(receive_valid, nullptr);
+    CHECK_NE(receive_valid, nullptr);
     result_tuple.push_back(receive_valid);
   }
 

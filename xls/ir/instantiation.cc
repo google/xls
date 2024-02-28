@@ -20,6 +20,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -186,7 +187,7 @@ FifoInstantiation::FifoInstantiation(
       data_type_(data_type),
       channel_name_(channel_name),
       package_(package) {
-  XLS_CHECK(package->IsOwnedType(data_type));
+  CHECK(package->IsOwnedType(data_type));
 }
 
 absl::StatusOr<InstantiationPort> FifoInstantiation::GetInputPort(

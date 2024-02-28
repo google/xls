@@ -30,6 +30,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -136,9 +137,9 @@ absl::StatusOr<std::vector<dslx::InterpValue>> InterpretDslxFunction(
 
   std::optional<dslx::ModuleMember*> module_member =
       tm.module->FindMemberWithName(top_name);
-  XLS_CHECK(module_member.has_value());
+  CHECK(module_member.has_value());
   dslx::ModuleMember* member = module_member.value();
-  XLS_CHECK(std::holds_alternative<dslx::Function*>(*member));
+  CHECK(std::holds_alternative<dslx::Function*>(*member));
   dslx::Function* f = std::get<dslx::Function*>(*member);
   XLS_RET_CHECK(f != nullptr);
 
@@ -170,7 +171,7 @@ absl::StatusOr<std::string> RunCommand(
     return std::get<SampleRunner::Commands::Callable>(command)(args, run_dir,
                                                                options);
   }
-  XLS_CHECK(std::holds_alternative<std::filesystem::path>(command));
+  CHECK(std::holds_alternative<std::filesystem::path>(command));
   std::filesystem::path executable = std::get<std::filesystem::path>(command);
   std::string basename = executable.filename();
 
@@ -530,7 +531,7 @@ ConvertChannelValues(
   }
 
   for (const std::vector<dslx::InterpValue>& values : input_channel_values) {
-    XLS_CHECK_EQ(in_chan_indexes.size(), values.size())
+    CHECK_EQ(in_chan_indexes.size(), values.size())
         << "The input channel count should match the args count.";
     for (int64_t index = 0; index < values.size(); ++index) {
       dslx::Param* param = proc->config().params().at(in_chan_indexes[index]);
@@ -590,7 +591,7 @@ RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
       &proc_instances));
 
   // Currently a single proc is supported.
-  XLS_CHECK_EQ(proc_instances.size(), 1);
+  CHECK_EQ(proc_instances.size(), 1);
   for (int i = 0; i < proc_ticks; i++) {
     XLS_RETURN_IF_ERROR(proc_instances[0].Run().status());
   }

@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -535,7 +536,7 @@ bool AbstractParser<EvalT>::TryDropToken(TokenKind target) {
     return false;
   }
   if (scanner_->Peek().value().kind == target) {
-    XLS_CHECK_OK(scanner_->Pop().status());
+    CHECK_OK(scanner_->Pop().status());
     return true;
   }
   return false;
@@ -548,7 +549,7 @@ bool AbstractParser<EvalT>::TryDropKeyword(std::string_view target) {
   }
   Token peek = scanner_->Peek().value();
   if (peek.kind == TokenKind::kName && peek.value == target) {
-    XLS_CHECK_OK(scanner_->Pop().status());
+    CHECK_OK(scanner_->Pop().status());
     return true;
   }
   return false;
@@ -644,7 +645,7 @@ absl::Status AbstractParser<EvalT>::ParseOneEntryOfAssignDecl(
     // the MSB.
     auto bitmap = InlineBitmap::FromWord(std::get<int64_t>(token),
                                          number_bit_width, /*fill=*/false);
-    XLS_CHECK(number_bit_width > 0);
+    CHECK_GT(number_bit_width, 0);
     for (; number_bit_width; number_bit_width--) {
       side.push_back(bitmap.Get(number_bit_width - 1) ? "1" : "0");
     }
@@ -664,7 +665,7 @@ absl::Status AbstractParser<EvalT>::ParseOneEntryOfAssignDecl(
     auto has_opt_range = module->GetPortRange(name, /*is_assignable=*/is_lhs);
     if (!has_opt_range.has_value()) {
       has_opt_range = module->GetWireRange(name);
-      XLS_CHECK(has_opt_range.has_value());
+      CHECK(has_opt_range.has_value());
     }
     // Get the optional range from the result. If the optional range exists,
     // then the wire is ranged, e.g. it was declared as "output [7:0] out".

@@ -25,6 +25,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -201,14 +202,14 @@ class Proc : public FunctionBase {
   // Return the ordered list of the channel references which form the interface
   // of the proc. Only can be called for new style procs.
   absl::Span<ChannelReference* const> interface() const {
-    XLS_CHECK(is_new_style_proc());
+    CHECK(is_new_style_proc());
     return interface_;
   }
 
   // Return the channels defined in this proc. Only can be called for new style
   // procs.
   absl::Span<Channel* const> channels() const {
-    XLS_CHECK(is_new_style_proc());
+    CHECK(is_new_style_proc());
     return channel_vec_;
   }
 

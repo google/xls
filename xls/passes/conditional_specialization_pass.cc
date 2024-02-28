@@ -26,6 +26,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -117,7 +118,7 @@ class ConditionSet {
                           std::inserter(conditions_, conditions_.begin()),
                           condition_cmp_);
     // Intersection should not increase set size.
-    XLS_CHECK_LE(conditions_.size(), kMaxConditions);
+    CHECK_LE(conditions_.size(), kMaxConditions);
   }
 
   // Adds a condition to the set.  Note: it is possible to add conflicting
@@ -129,7 +130,7 @@ class ConditionSet {
     XLS_VLOG(4) << absl::StreamFormat("ConditionSet for (%s, %d) : %s",
                                       condition.node->GetName(),
                                       condition.value, this->ToString());
-    XLS_CHECK(!condition.node->Is<Literal>());
+    CHECK(!condition.node->Is<Literal>());
     conditions_.insert(condition);
     // The conditions are ordering in topological sort order (based on
     // Condition.node) and transformation occurs in reverse topological sort
@@ -139,7 +140,7 @@ class ConditionSet {
     if (conditions_.size() > kMaxConditions) {
       conditions_.erase(std::next(conditions_.end(), -1));
     }
-    XLS_CHECK_LE(conditions_.size(), kMaxConditions);
+    CHECK_LE(conditions_.size(), kMaxConditions);
   }
 
   const ConditionBTree& conditions() const { return conditions_; }
@@ -205,7 +206,7 @@ class ConditionMap {
         node->operand(operand_no)->GetName(), node->GetName(), operand_no,
         condition_set.ToString());
     std::pair<Node*, int64_t> key = {node, operand_no};
-    XLS_CHECK(!edge_conditions_.contains(key));
+    CHECK(!edge_conditions_.contains(key));
     edge_conditions_.insert({key, std::move(condition_set)});
   }
 
@@ -230,7 +231,7 @@ class ConditionMap {
         operand_index = i;
       }
     }
-    XLS_CHECK(operand_index.has_value()) << absl::StreamFormat(
+    CHECK(operand_index.has_value()) << absl::StreamFormat(
         "%s is not a user of %s", user->GetName(), node->GetName());
     std::pair<Node*, int64_t> key = {user, operand_index.value()};
     if (!edge_conditions_.contains(key)) {
@@ -561,13 +562,13 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(cond_spec, {
-  XLS_CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
+  CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
       "cond_spec(true)", true));
-  XLS_CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
+  CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
       "cond_spec(Bdd)", true));
-  XLS_CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
+  CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
       "cond_spec(false)", false));
-  XLS_CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
+  CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
       "cond_spec(noBdd)", false));
 });
 

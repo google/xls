@@ -91,6 +91,7 @@ cc_library(
     deps = [
         ":common",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
@@ -251,6 +252,7 @@ cc_library(
         ":parameters",
         ":simulator_shims",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:ret_check",
@@ -369,6 +371,7 @@ cc_library(
         ":packetizer",
         ":random_number_interface",
         ":units",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",

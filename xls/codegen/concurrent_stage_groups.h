@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/inline_bitmap.h"
 
@@ -56,13 +57,13 @@ class ConcurrentStageGroups {
 
   // Record the fact that two stages may not be concurrently active.
   void MarkMutuallyExclusive(Stage a, Stage b) {
-    XLS_CHECK_NE(a, b);
+    CHECK_NE(a, b);
     concurrent_stages_[a].Set(b, false);
     concurrent_stages_[b].Set(a, false);
   }
 
   bool IsConcurrent(Stage a, Stage b) const {
-    XLS_CHECK_EQ(concurrent_stages_[a].Get(b), concurrent_stages_[b].Get(a))
+    CHECK_EQ(concurrent_stages_[a].Get(b), concurrent_stages_[b].Get(a))
         << "a=" << a << ", b=" << b << "\n"
         << *this;
     return concurrent_stages_[a].Get(b);

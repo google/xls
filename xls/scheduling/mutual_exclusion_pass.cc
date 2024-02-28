@@ -29,6 +29,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -348,10 +349,10 @@ absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
   }
 
   for (const absl::flat_hash_set<Node*>& color_class : coloring) {
-    XLS_CHECK(!color_class.empty());
+    CHECK(!color_class.empty());
     Op op = (*(color_class.cbegin()))->op();
     for (Node* node : color_class) {
-      XLS_CHECK_EQ(node->op(), op);
+      CHECK_EQ(node->op(), op);
     }
   }
 
@@ -429,7 +430,7 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
                                 absl::Span<Node* const> to_merge) {
   std::string_view channel_name = to_merge.front()->As<Send>()->channel_name();
   for (Node* send : to_merge) {
-    XLS_CHECK_EQ(channel_name, send->As<Send>()->channel_name());
+    CHECK_EQ(channel_name, send->As<Send>()->channel_name());
   }
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
@@ -477,8 +478,8 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
   bool is_blocking = to_merge.front()->As<Receive>()->is_blocking();
 
   for (Node* send : to_merge) {
-    XLS_CHECK_EQ(channel_name, send->As<Receive>()->channel_name());
-    XLS_CHECK_EQ(is_blocking, send->As<Receive>()->is_blocking());
+    CHECK_EQ(channel_name, send->As<Receive>()->channel_name());
+    CHECK_EQ(is_blocking, send->As<Receive>()->is_blocking());
   }
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
@@ -637,7 +638,7 @@ void Predicates::ReplaceNode(Node* original, Node* replacement) {
 }
 
 absl::StatusOr<Node*> AddPredicate(Predicates* p, Node* node, Node* pred) {
-  XLS_CHECK_EQ(node->function_base(), pred->function_base());
+  CHECK_EQ(node->function_base(), pred->function_base());
   FunctionBase* f = node->function_base();
 
   std::optional<Node*> existing_predicate_maybe = p->GetPredicate(node);
@@ -973,7 +974,7 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
       Op op = (*(merge_class.cbegin()))->op();
       std::vector<std::string> name_pred_pairs;
       for (Node* node : merge_class) {
-        XLS_CHECK_EQ(node->op(), op);
+        CHECK_EQ(node->op(), op);
         name_pred_pairs.push_back(
             absl::StrFormat("%s [%s]", node->GetName(),
                             p.GetPredicate(node).value()->GetName()));

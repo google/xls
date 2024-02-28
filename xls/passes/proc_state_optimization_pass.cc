@@ -26,6 +26,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -421,7 +422,7 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
 // arithmetic/logic operations, literals, and registers).
 absl::Status LiteralChainToStateMachine(Proc* proc,
                                         absl::Span<const int64_t> chain) {
-  XLS_CHECK(!chain.empty());
+  CHECK(!chain.empty());
 
   std::string state_machine_name = "state_machine";
   for (int64_t param_index : chain) {
@@ -481,21 +482,20 @@ absl::Status LiteralChainToStateMachine(Proc* proc,
   if (proc->next_values(proc->GetStateParam(chain.front())).empty()) {
     chain_literal = proc->GetNextStateElement(chain.front());
   } else {
-    XLS_CHECK_EQ(proc->next_values(proc->GetStateParam(chain.front())).size(),
-                 1);
+    CHECK_EQ(proc->next_values(proc->GetStateParam(chain.front())).size(), 1);
     Next* next_value =
         *proc->next_values(proc->GetStateParam(chain.front())).begin();
-    XLS_CHECK(next_value->predicate() == std::nullopt &&
-              next_value->value()->Is<Literal>());
+    CHECK(next_value->predicate() == std::nullopt &&
+          next_value->value()->Is<Literal>());
     chain_literal = next_value->value();
   }
-  XLS_CHECK(chain_literal != nullptr && chain_literal->Is<Literal>());
+  CHECK(chain_literal != nullptr && chain_literal->Is<Literal>());
 
   absl::btree_set<int64_t, std::greater<int64_t>> indices_to_remove;
   for (int64_t chain_index = 0; chain_index < chain.size(); ++chain_index) {
     int64_t param_index = chain.at(chain_index);
     std::vector<Node*> cases = initial_state_literals;
-    XLS_CHECK_GE(cases.size(), chain_index);
+    CHECK_GE(cases.size(), chain_index);
     cases.resize(chain_index + 1);
     std::reverse(cases.begin(), cases.end());
     absl::btree_set<Next*, Node::NodeIdLessThan> next_values =

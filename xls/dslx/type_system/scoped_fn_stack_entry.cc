@@ -16,6 +16,7 @@
 
 #include <cstdint>
 
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
@@ -48,10 +49,10 @@ ScopedFnStackEntry::ScopedFnStackEntry(Function& fn, DeduceCtx* ctx,
 // points.
 void ScopedFnStackEntry::Finish() {
   if (expect_popped_) {
-    XLS_CHECK_EQ(ctx_->fn_stack().size(), depth_before_);
+    CHECK_EQ(ctx_->fn_stack().size(), depth_before_);
   } else {
     int64_t depth_after_push = depth_before_ + 1;
-    XLS_CHECK_EQ(ctx_->fn_stack().size(), depth_after_push);
+    CHECK_EQ(ctx_->fn_stack().size(), depth_after_push);
     ctx_->PopFnStackEntry();
   }
 }

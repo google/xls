@@ -19,6 +19,7 @@
 #include <optional>
 
 #include "fuzztest/fuzztest.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -29,11 +30,11 @@ namespace xls {
 
 // GoogleFuzzTest "Arbitrary" domain for Intervals with known bit count.
 inline auto ArbitraryInterval(int64_t bit_count) {
-  XLS_CHECK_GE(bit_count, 0);
+  CHECK_GE(bit_count, 0);
   return fuzztest::ReversibleMap(
       [bit_count](const Bits& lb, const Bits& ub) {
-        XLS_CHECK_EQ(lb.bit_count(), bit_count);
-        XLS_CHECK_EQ(ub.bit_count(), bit_count);
+        CHECK_EQ(lb.bit_count(), bit_count);
+        CHECK_EQ(ub.bit_count(), bit_count);
         return Interval(lb, ub);
       },
       [bit_count](
@@ -55,11 +56,11 @@ inline auto ArbitraryInterval() {
 
 // GoogleFuzzTest domain for proper Intervals with known bit count.
 inline auto ProperInterval(int64_t bit_count) {
-  XLS_CHECK_GE(bit_count, 0);
+  CHECK_GE(bit_count, 0);
   return fuzztest::ReversibleMap(
       [bit_count](const Bits& a, const Bits& b) {
-        XLS_CHECK_EQ(a.bit_count(), bit_count);
-        XLS_CHECK_EQ(b.bit_count(), bit_count);
+        CHECK_EQ(a.bit_count(), bit_count);
+        CHECK_EQ(b.bit_count(), bit_count);
         if (bits_ops::UGreaterThan(a, b)) {
           return Interval(b, a);
         }

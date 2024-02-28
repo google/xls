@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -61,7 +62,7 @@ ConcreteType::~ConcreteType() = default;
   std::vector<std::unique_ptr<ConcreteType>> result;
   result.reserve(ts.size());
   for (const auto& t : ts) {
-    XLS_CHECK(t != nullptr);
+    CHECK(t != nullptr);
     XLS_VLOG(10) << "CloneSpan; cloning: " << t->ToString();
     result.push_back(t->CloneToUnique());
   }
@@ -312,13 +313,13 @@ bool ConcreteType::IsToken() const {
 
 const StructType& ConcreteType::AsStruct() const {
   auto* s = dynamic_cast<const StructType*>(this);
-  XLS_CHECK(s != nullptr) << "ConcreteType is not a struct: " << ToString();
+  CHECK(s != nullptr) << "ConcreteType is not a struct: " << ToString();
   return *s;
 }
 
 const ArrayType& ConcreteType::AsArray() const {
   auto* s = dynamic_cast<const ArrayType*>(this);
-  XLS_CHECK(s != nullptr) << "ConcreteType is not an array: " << ToString();
+  CHECK(s != nullptr) << "ConcreteType is not an array: " << ToString();
   return *s;
 }
 
@@ -356,9 +357,9 @@ std::unique_ptr<BitsType> BitsType::ToUBits() const {
 StructType::StructType(std::vector<std::unique_ptr<ConcreteType>> members,
                        const StructDef& struct_def)
     : members_(std::move(members)), struct_def_(struct_def) {
-  XLS_CHECK_EQ(members_.size(), struct_def_.members().size());
+  CHECK_EQ(members_.size(), struct_def_.members().size());
   for (const std::unique_ptr<ConcreteType>& member_type : members_) {
-    XLS_CHECK(!member_type->IsMeta()) << member_type->ToString();
+    CHECK(!member_type->IsMeta()) << member_type->ToString();
   }
 }
 
@@ -683,8 +684,8 @@ absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
 ChannelType::ChannelType(std::unique_ptr<ConcreteType> payload_type,
                          ChannelDirection direction)
     : payload_type_(std::move(payload_type)), direction_(direction) {
-  XLS_CHECK(payload_type_ != nullptr);
-  XLS_CHECK(!payload_type_->IsMeta());
+  CHECK(payload_type_ != nullptr);
+  CHECK(!payload_type_->IsMeta());
 }
 
 std::string ChannelType::ToString() const {

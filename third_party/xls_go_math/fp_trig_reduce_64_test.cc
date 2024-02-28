@@ -9,6 +9,7 @@
 #include <tuple>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/numeric/int128.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -178,7 +179,7 @@ ResultT ComputeActual(fp::FpTrigReduce* jit_wrapper, double x) {
   result.j = 0x0;
   result.fraction = 0.0;
   PackedU3Float64 packed_result(reinterpret_cast<uint8_t*>(&result), 0);
-  XLS_CHECK_OK(jit_wrapper->Run(packed_x, packed_result));
+  CHECK_OK(jit_wrapper->Run(packed_x, packed_result));
   result.j = result.j & 7;
   return result;
 }

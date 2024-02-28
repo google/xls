@@ -27,6 +27,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -530,7 +531,7 @@ ArrayType* Package::GetArrayType(int64_t size, Type* element_type) {
   if (array_types_.find(key) != array_types_.end()) {
     return &array_types_.at(key);
   }
-  XLS_CHECK(IsOwnedType(element_type))
+  CHECK(IsOwnedType(element_type))
       << "Type is not owned by package: " << *element_type;
   auto it = array_types_.emplace(key, ArrayType(size, element_type));
   ArrayType* new_type = &(it.first->second);
@@ -544,7 +545,7 @@ TupleType* Package::GetTupleType(absl::Span<Type* const> element_types) {
     return &tuple_types_.at(key);
   }
   for (const Type* element_type : element_types) {
-    XLS_CHECK(IsOwnedType(element_type))
+    CHECK(IsOwnedType(element_type))
         << "Type is not owned by package: " << *element_type;
   }
   auto it = tuple_types_.emplace(key, TupleType(element_types));
@@ -562,8 +563,8 @@ FunctionType* Package::GetFunctionType(absl::Span<Type* const> args_types,
     return &function_types_.at(key);
   }
   for (Type* t : args_types) {
-    XLS_CHECK(IsOwnedType(t))
-        << "Parameter type is not owned by package: " << t->ToString();
+    CHECK(IsOwnedType(t)) << "Parameter type is not owned by package: "
+                          << t->ToString();
   }
   auto it = function_types_.emplace(key, FunctionType(args_types, return_type));
   FunctionType* new_type = &(it.first->second);
@@ -641,7 +642,7 @@ Type* Package::GetTypeForValue(const Value& value) {
       // No element type can be inferred for 0-element arrays.
       // TODO(google/xls#917): Remove this check when empty arrays are
       // supported.
-      XLS_CHECK(!value.empty());
+      CHECK(!value.empty());
       return GetArrayType(value.size(), GetTypeForValue(value.elements()[0]));
     }
     case ValueKind::kToken:
@@ -781,7 +782,7 @@ std::string Package::DumpIr() const {
     append_ir_with_attributes(block.get());
   }
   // We don't include the trailing newline, drop it here.
-  XLS_CHECK(out.back() == '\n');
+  CHECK_EQ(out.back(), '\n');
   out.pop_back();
   return out;
 }

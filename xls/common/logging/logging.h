@@ -27,22 +27,22 @@
 //
 //   // This one is an assertion; if there's no more cheese the program logs
 //   // this message and terminates with a non-zero exit code.
-//   XLS_CHECK(!cheese.empty()) << "Out of Cheese";
+//   CHECK(!cheese.empty()) << "Out of Cheese";
 //
 // Except where noted, no interfaces in this header are async-signal-safe; their
 // use in signal handlers is unsupported and may deadlock your program or eat
 // your lunch.
 //
 // Many logging statements are inherently conditional.  For example,
-// `XLS_CHECK(foo)` and `XLS_LOG_IF(INFO, !foo)` do nothing if `foo` is true.
+// `CHECK(foo)` and `XLS_LOG_IF(INFO, !foo)` do nothing if `foo` is true.
 // Even seemingly unconditional statements like `XLS_LOG(INFO)` might be
 // disabled at compile-time to minimize binary size or for security reasons.
 //
-// * Except for the condition in a `XLS_CHECK` or `QCHECK` statement,
+// * Except for the condition in a `CHECK` or `QCHECK` statement,
 //   programs must not rely on evaluation of expressions anywhere in logging
 //   statements for correctness.  For example, this is ok:
 //
-//     XLS_CHECK((fp = fopen("config.ini", "r")) != nullptr);
+//     CHECK((fp = fopen("config.ini", "r")) != nullptr);
 //
 //   But this is probably not ok:
 //
@@ -106,7 +106,6 @@
 #define XLS_COMMON_LOGGING_LOGGING_H_
 
 // IWYU pragma: begin_exports
-#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/common/logging/log_flags.h"
@@ -191,37 +190,5 @@
 // There is no `VLOG_IF` because the order of evaluation of the arguments is
 // ambiguous and the alternate spelling with an `if`-statement is trivial.
 #define XLS_LOG_IF(severity, condition) LOG_IF(severity, condition)
-
-// -----------------------------------------------------------------------------
-// `XLS_CHECK` Macros
-// -----------------------------------------------------------------------------
-//
-// `XLS_CHECK` macros terminate the program with a fatal error if the specified
-// condition is not true.  Except for `DCHECK`, they are not controlled by
-// `NDEBUG` (cf. `assert`), so the check will be executed regardless of
-// compilation mode.  `XLS_CHECK` and friends are thus useful for confirming
-// invariants in situations where continuing to run would be worse than
-// crashing, e.g. due to risk of data corruption or security compromise.  It can
-// also be useful to deliberately terminate at a particular place with a useful
-// message and backtrace instead of relying on an expected segmentation fault.
-
-// `XLS_CHECK` terminates the program with a fatal error if condition is not
-// true. Example:
-//
-//   XLS_CHECK(!cheese.empty()) << "Out of Cheese";
-//
-// Might produce a message like:
-//
-//   Check failed: !cheese.empty() Out of Cheese
-#define XLS_CHECK(condition) CHECK(condition)
-#define XLS_CHECK_EQ(val1, val2) CHECK_EQ(val1, val2)
-#define XLS_CHECK_NE(val1, val2) CHECK_NE(val1, val2)
-#define XLS_CHECK_LE(val1, val2) CHECK_LE(val1, val2)
-#define XLS_CHECK_LT(val1, val2) CHECK_LT(val1, val2)
-#define XLS_CHECK_GE(val1, val2) CHECK_GE(val1, val2)
-#define XLS_CHECK_GT(val1, val2) CHECK_GT(val1, val2)
-
-#define XLS_CHECK_OK(val) CHECK_OK(val)
-
 
 #endif  // XLS_COMMON_LOGGING_LOGGING_H_

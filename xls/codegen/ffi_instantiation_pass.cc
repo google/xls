@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include "xls/codegen/ffi_instantiation_pass.h"
 
 #include <cstdint>
@@ -20,6 +19,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -68,7 +68,7 @@ static absl::Status InvocationParamsToInstInputs(
   // The IR expression nodes they are bound to.
   const absl::Span<Node* const> target_operands = invocation->operands();
 
-  XLS_CHECK_EQ(fun_params.size(), target_operands.size());
+  CHECK_EQ(fun_params.size(), target_operands.size());
 
   // Creating InstantiationInput and Output in block will also wire them up.
   for (int i = 0; i < fun_params.size(); ++i) {

@@ -16,6 +16,7 @@
 
 #include <vector>
 
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/noc/config_ng/network_component_port.h"
@@ -83,8 +84,7 @@ std::vector<const NetworkComponent*> GetComponentsConnectedTo(
   std::vector<const NetworkComponent*> components;
   if (port.IsOutput()) {
     for (const NetworkConnection* connection : port.GetConnections()) {
-      XLS_CHECK(connection != nullptr)
-          << "The port must have a valid connection.";
+      CHECK(connection != nullptr) << "The port must have a valid connection.";
       if (connection->GetSinkPort() != nullptr) {
         components.push_back(&connection->GetSinkPort()->GetComponent());
       }
@@ -92,8 +92,7 @@ std::vector<const NetworkComponent*> GetComponentsConnectedTo(
   }
   if (port.IsInput()) {
     for (const NetworkConnection* connection : port.GetConnections()) {
-      XLS_CHECK(connection != nullptr)
-          << "The port must have a valid connection.";
+      CHECK(connection != nullptr) << "The port must have a valid connection.";
       if (connection->GetSinkPort() != nullptr) {
         components.push_back(&connection->GetSourcePort()->GetComponent());
       }

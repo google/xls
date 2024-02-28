@@ -34,6 +34,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
@@ -278,7 +279,7 @@ absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
 
 AnnotatedParam AstGenerator::GenerateParam(AnnotatedType type) {
   std::string identifier = GenSym();
-  XLS_CHECK_NE(type.type, nullptr);
+  CHECK_NE(type.type, nullptr);
   NameDef* name_def = module_->Make<NameDef>(fake_span_, std::move(identifier),
                                              /*definer=*/nullptr);
   Param* param = module_->Make<Param>(name_def, type.type);
@@ -325,7 +326,7 @@ BuiltinTypeAnnotation* AstGenerator::MakeTokenType() {
 
 TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
                                                  int64_t width) {
-  XLS_CHECK_GE(width, 0);
+  CHECK_GE(width, 0);
   if (width > 0 && width <= 64) {
     BuiltinType type = GetBuiltinType(is_signed, width).value();
     return module_->Make<BuiltinTypeAnnotation>(
@@ -523,7 +524,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr token,
                        ChooseEnvValue(&ctx->env, MakeTokenType()));
   auto* token_name_ref = dynamic_cast<NameRef*>(token.expr);
-  XLS_CHECK(token_name_ref != nullptr);
+  CHECK(token_name_ref != nullptr);
 
   int64_t successor_min_stage = token.min_stage;
   if (token.last_delaying_op == LastDelayingOp::kSend &&
@@ -666,7 +667,7 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
     if (std::holds_alternative<EnumDef*>(type_def)) {
       return std::get<EnumDef*>(type_def)->Accept(this);
     }
-    XLS_CHECK(std::holds_alternative<ColonRef*>(type_def));
+    CHECK(std::holds_alternative<ColonRef*>(type_def));
     return std::get<ColonRef*>(type_def)->Accept(this);
   }
 
@@ -721,7 +722,7 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
   if (auto channel_type = dynamic_cast<const ChannelTypeAnnotation*>(type)) {
     return ContainsTypeRef(channel_type->payload());
   }
-  XLS_CHECK_NE(dynamic_cast<const BuiltinTypeAnnotation*>(type), nullptr);
+  CHECK_NE(dynamic_cast<const BuiltinTypeAnnotation*>(type), nullptr);
   return false;
 }
 
@@ -737,7 +738,7 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueTupleWithoutToken(
       return false;
     }
     absl::StatusOr<bool> contains_token_or = ContainsToken(tuple_type);
-    XLS_CHECK_OK(contains_token_or.status());
+    CHECK_OK(contains_token_or.status());
     return !contains_token_or.value();
   };
   return ChooseEnvValue(env, take);
@@ -747,7 +748,7 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueNotContainingToken(
     Env* env) {
   auto take = [&](const TypedExpr& e) -> bool {
     absl::StatusOr<bool> contains_token_or = ContainsToken(e.type);
-    XLS_CHECK_OK(contains_token_or.status());
+    CHECK_OK(contains_token_or.status());
     return !contains_token_or.value();
   };
   return ChooseEnvValue(env, take);
@@ -816,11 +817,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
   if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeRef* type_ref = type_ref_type->type_ref();
     const TypeDefinition& type_def = type_ref->type_definition();
-    XLS_CHECK(std::holds_alternative<TypeAlias*>(type_def));
+    CHECK(std::holds_alternative<TypeAlias*>(type_def));
     TypeAlias* alias = std::get<TypeAlias*>(type_def);
     return GenerateExprOfType(ctx, alias->type_annotation());
   }
-  XLS_CHECK(IsBits(type));
+  CHECK(IsBits(type));
   std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, type);
   // Twenty percent of the time, generate a reference if one exists.
   if (!candidates.empty() && RandomBool(0.20)) {
@@ -868,12 +869,12 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
   if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeRef* type_ref = type_ref_type->type_ref();
     const TypeDefinition& type_definition = type_ref->type_definition();
-    XLS_CHECK(std::holds_alternative<TypeAlias*>(type_definition));
+    CHECK(std::holds_alternative<TypeAlias*>(type_definition));
     TypeAlias* alias = std::get<TypeAlias*>(type_definition);
     return GenerateMatchArmPattern(ctx, alias->type_annotation());
   }
 
-  XLS_CHECK(IsBits(type));
+  CHECK(IsBits(type));
 
   // Five percent of the time, generate a wildcard pattern.
   if (RandomBool(0.05)) {
@@ -926,7 +927,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
   TypedExpr type_expr = GenerateNumberWithType(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
   Number* number = dynamic_cast<Number*>(type_expr.expr);
-  XLS_CHECK_NE(number, nullptr);
+  CHECK_NE(number, nullptr);
   return module_->Make<NameDefTree>(fake_span_, number);
 }
 
@@ -1060,8 +1061,8 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
 
   std::string op = is_signed ? "smulp" : "umulp";
 
-  XLS_CHECK(IsBits(lhs.type));
-  XLS_CHECK(IsBits(rhs.type));
+  CHECK(IsBits(lhs.type));
+  CHECK(IsBits(rhs.type));
 
   TypedExpr lhs_cast, rhs_cast;
   // Don't need a cast if lhs.type matches the sign of the op
@@ -1175,7 +1176,7 @@ Number* AstGenerator::MakeNumberFromBits(const Bits& value,
 }
 
 Number* AstGenerator::GenerateNumber(int64_t value, TypeAnnotation* type) {
-  XLS_CHECK_NE(type, nullptr);
+  CHECK_NE(type, nullptr);
   int64_t bit_count = BitsTypeGetBitCount(type).value();
   Bits value_bits;
   if (BitsTypeIsSigned(type).value()) {
@@ -1780,7 +1781,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
-  XLS_CHECK(ctx != nullptr);
+  CHECK(ctx != nullptr);
   if (RandomBool(0.5) && EnvContainsTuple(ctx->env)) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e,
                          ChooseEnvValueTuple(&ctx->env, /*min_size=*/1));
@@ -2068,8 +2069,8 @@ static std::pair<int64_t, int64_t> ResolveBitSliceIndices(
   }
   limit = std::min(std::max(*limit, int64_t{0}), bit_count);
   start = std::min(std::max(*start, int64_t{0}), *limit);
-  XLS_CHECK_GE(*start, 0);
-  XLS_CHECK_GE(*limit, *start);
+  CHECK_GE(*start, 0);
+  CHECK_GE(*limit, *start);
   return {*start, *limit - *start};
 }
 
@@ -2222,7 +2223,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
                        ChooseEnvValueArray(&ctx->env, is_not_zst));
 
   auto arg_type = dynamic_cast<ArrayTypeAnnotation*>(arg.type);
-  XLS_CHECK_NE(arg_type, nullptr)
+  CHECK_NE(arg_type, nullptr)
       << "Postcondition of ChooseEnvValueArray violated";
 
   XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(&ctx->env));
@@ -2892,7 +2893,7 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
       Function * config_function,
       GenerateProcConfigFunction("config", proc_properties_.config_params));
 
-  XLS_CHECK_EQ(proc_properties_.state_types.size(), 1);
+  CHECK_EQ(proc_properties_.state_types.size(), 1);
   XLS_ASSIGN_OR_RETURN(
       Function * init_fn,
       GenerateProcInitFunction(absl::StrCat(name, ".init"),

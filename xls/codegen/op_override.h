@@ -18,6 +18,7 @@
 #include <memory>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/node_representation.h"
@@ -42,16 +43,16 @@ class OpOverride {
     return typeid(*this) == typeid(OpCCT);
   }
 
-  // Returns a down_cast pointer of the given template argument type. XLS_CHECK
+  // Returns a down_cast pointer of the given template argument type. CHECK
   // fails if the object is not of the given type. For example: As<Param>().
   template <typename OpCCT>
   const OpCCT* As() const {
-    XLS_CHECK(Is<OpCCT>());
+    CHECK(Is<OpCCT>());
     return down_cast<const OpCCT*>(this);
   }
   template <typename OpCCT>
   OpCCT* As() {
-    XLS_CHECK(Is<OpCCT>());
+    CHECK(Is<OpCCT>());
     return down_cast<OpCCT*>(this);
   }
 };

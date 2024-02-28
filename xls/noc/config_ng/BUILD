@@ -520,6 +520,7 @@ cc_library(
     deps = [
         ":network_component_port",
         ":network_connection",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
@@ -623,6 +624,7 @@ cc_library(
     srcs = ["arbitrary_base_number.cc"],
     hdrs = ["arbitrary_base_number.h"],
     deps = [
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/ir:bits",
@@ -645,6 +647,7 @@ cc_library(
     srcs = ["dimension_bounds.cc"],
     hdrs = ["dimension_bounds.h"],
     deps = [
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
         "//xls/ir:bits",
     ],
@@ -666,6 +669,7 @@ cc_library(
     hdrs = ["coordinate.h"],
     deps = [
         ":dimension_bounds",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
@@ -694,6 +698,7 @@ cc_library(
         ":coordinate",
         ":dimension_bounds",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log:check",
         "//xls/common/logging",
     ],
 )

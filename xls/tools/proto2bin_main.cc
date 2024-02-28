@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/exit_status.h"
@@ -66,12 +67,12 @@ absl::Status RealMain(std::string_view textproto_path,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<google::protobuf::Message> proto,
                        MakeProtoForMessageType(message_type));
 
-  XLS_CHECK_OK(ParseTextProtoFile(textproto_path, proto.get()));
+  CHECK_OK(ParseTextProtoFile(textproto_path, proto.get()));
 
   XLS_VLOG(1) << "Proto contents:";
   XLS_VLOG_LINES(1, proto->DebugString());
 
-  XLS_CHECK_OK(SetProtobinFile(output_path, *proto));
+  CHECK_OK(SetProtobinFile(output_path, *proto));
 
   return absl::OkStatus();
 }

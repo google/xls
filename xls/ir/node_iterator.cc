@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -61,11 +62,11 @@ void NodeIterator::Initialize() {
     return absl::c_all_of(n->users(), is_scheduled);
   };
   auto bump_down_remaining_users = [&](Node* n) {
-    XLS_CHECK(!n->users().empty());
+    CHECK(!n->users().empty());
     auto result = pending_to_remaining_users.insert({n, n->users().size()});
     auto it = result.first;
     int64_t& remaining_users = it->second;
-    XLS_CHECK_GT(remaining_users, 0);
+    CHECK_GT(remaining_users, 0);
     remaining_users -= 1;
     XLS_VLOG(5) << "Bumped down remaining users for: " << n
                 << "; now: " << remaining_users;
@@ -94,7 +95,7 @@ void NodeIterator::Initialize() {
 
   auto seed_ready = [&](Node* n) {
     ready.push_front(n);
-    XLS_CHECK(pending_to_remaining_users.insert({n, -1}).second);
+    CHECK(pending_to_remaining_users.insert({n, -1}).second);
   };
 
   auto is_return_value = [&](Node* n) {
@@ -138,7 +139,7 @@ void NodeIterator::Initialize() {
       }
     };
     CycleChecker cycle_checker;
-    XLS_CHECK_OK(f_->Accept(&cycle_checker));
+    CHECK_OK(f_->Accept(&cycle_checker));
     XLS_LOG(FATAL) << "Expected to find cycle in function base.";
   }
 }

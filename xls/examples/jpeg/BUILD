@@ -204,6 +204,7 @@ cc_library(
     hdrs = ["streams.h"],
     deps = [
         ":constants",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

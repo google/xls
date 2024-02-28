@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -573,11 +574,11 @@ absl::StatusOr<const ConcreteType*> Bytecode::type_data() const {
 }
 
 void Bytecode::PatchJumpTarget(int64_t value) {
-  XLS_CHECK(op_ == Op::kJumpRelIf || op_ == Op::kJumpRel)
+  CHECK(op_ == Op::kJumpRelIf || op_ == Op::kJumpRel)
       << "Cannot patch non-jump op: " << OpToString(op_);
-  XLS_CHECK(data_.has_value());
+  CHECK(data_.has_value());
   JumpTarget jump_target = std::get<JumpTarget>(data_.value());
-  XLS_CHECK_EQ(jump_target, kPlaceholderJumpAmount);
+  CHECK_EQ(jump_target, kPlaceholderJumpAmount);
   data_ = JumpTarget(value);
 }
 
@@ -589,7 +590,7 @@ std::string Bytecode::ToString(bool source_locs) const {
   }
 
   if (op_ == Op::kJumpRel || op_ == Op::kJumpRelIf) {
-    XLS_CHECK(std::holds_alternative<JumpTarget>(data_.value()));
+    CHECK(std::holds_alternative<JumpTarget>(data_.value()));
     JumpTarget target = std::get<JumpTarget>(data_.value());
     return absl::StrFormat("%s %+d%s", OpToString(op_), target.value(),
                            loc_string);

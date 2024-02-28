@@ -32,11 +32,12 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include <cstdio>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <iostream>
 
 #include "absl/base/casts.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
@@ -112,7 +113,7 @@ absl::Status ReadInputData(const char* path, float data[]) {
   int64_t data_idx = 0;
   for (auto line : absl::StrSplit(data_text, '\n')) {
     if (!line.empty()) {
-      XLS_CHECK(absl::SimpleAtof(line, &data[data_idx]));
+      CHECK(absl::SimpleAtof(line, &data[data_idx]));
       data_idx++;
     }
   }

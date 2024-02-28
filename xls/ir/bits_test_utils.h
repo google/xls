@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "fuzztest/fuzztest.h"
-#include "xls/common/logging/logging.h"
+#include "absl/log/check.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 
@@ -88,14 +88,14 @@ inline auto ArbitraryBits() {
 inline auto NonemptyBits() {
   return fuzztest::ReversibleMap(
       [](const std::vector<uint8_t>& bytes, uint8_t excess_bits) -> Bits {
-        XLS_CHECK(!bytes.empty());
+        CHECK(!bytes.empty());
         const int64_t bit_count =
             static_cast<int64_t>(bytes.size()) * 8 - excess_bits;
         return Bits::FromBytes(bytes, bit_count);
       },
       [](const Bits& bits)
           -> std::optional<std::tuple<std::vector<uint8_t>, uint8_t>> {
-        XLS_CHECK_NE(bits.bit_count(), 0);
+        CHECK_NE(bits.bit_count(), 0);
         const uint8_t overflow_bits = bits.bit_count() % 8;
         return std::make_optional(std::make_tuple(
             bits.ToBytes(), overflow_bits == 0 ? 0 : (8 - overflow_bits)));

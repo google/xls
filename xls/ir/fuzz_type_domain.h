@@ -18,6 +18,7 @@
 #include <cstdint>
 
 #include "fuzztest/fuzztest.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/xls_type.pb.h"
 
@@ -79,7 +80,7 @@ inline constexpr int64_t kDefaultNestingLevel = 5;
 inline Domain<TypeProto> TypeDomain(
     int64_t max_bit_count, int64_t max_elements,
     int64_t nesting_level = internal::kDefaultNestingLevel) {
-  XLS_CHECK_GT(nesting_level, 0);
+  CHECK_GT(nesting_level, 0);
   if (nesting_level == 1) {
     return BitsTypeDomain(max_bit_count);
   }

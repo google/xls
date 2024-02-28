@@ -28,6 +28,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -529,7 +530,7 @@ class BlockGenerator {
         }
         case Op::kLiteral: {
           if (!node->GetType()->IsBits() && IsRepresentable(node->GetType())) {
-            XLS_CHECK_EQ(node->operands().size(), 0);
+            CHECK_EQ(node->operands().size(), 0);
             XLS_ASSIGN_OR_RETURN(
                 node_exprs_[node],
                 mb_.DeclareModuleConstant(node->GetName(),
@@ -539,7 +540,7 @@ class BlockGenerator {
           break;
         }
         case Op::kGate: {
-          XLS_CHECK_EQ(node->operands().size(), 2);
+          CHECK_EQ(node->operands().size(), 2);
           const NodeRepresentation& data =
               node_exprs_.at(node->operands().at(0));
           const NodeRepresentation& condition =

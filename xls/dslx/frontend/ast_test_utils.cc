@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
@@ -94,7 +95,7 @@ std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression() {
 
 std::pair<Module, XlsTuple*> MakeNElementTupleExpression(
     int64_t n, bool has_trailing_comma) {
-  XLS_CHECK(n != 1 || has_trailing_comma);  // n==1 -> has_trailing_comme
+  CHECK(n != 1 || has_trailing_comma);  // n==1 -> has_trailing_comme
   Module m("test", /*fs_path=*/std::nullopt);
   const Span fake_span;
   std::vector<Expr*> elements;

@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -78,7 +79,7 @@ class BValue {
   std::string ToString() const;
 
   bool valid() const {
-    XLS_CHECK_EQ(node_ == nullptr, builder_ == nullptr);
+    CHECK_EQ(node_ == nullptr, builder_ == nullptr);
     return node_ != nullptr;
   }
 

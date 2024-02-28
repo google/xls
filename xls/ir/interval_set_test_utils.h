@@ -20,8 +20,8 @@
 #include <vector>
 
 #include "fuzztest/fuzztest.h"
+#include "absl/log/check.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/interval_test_utils.h"
@@ -30,7 +30,7 @@ namespace xls {
 
 // GoogleFuzzTest "Arbitrary" domain for IntervalSets with known bit count.
 inline auto ArbitraryIntervalSet(int64_t bit_count) {
-  XLS_CHECK_GE(bit_count, 0);
+  CHECK_GE(bit_count, 0);
   return fuzztest::ReversibleMap(
       [bit_count](const std::vector<Interval>& intervals) {
         IntervalSet set(bit_count);
@@ -62,7 +62,7 @@ inline auto ArbitraryIntervalSet() {
 
 // GoogleFuzzTest domain for nonempty IntervalSets with known bit count.
 inline auto NonemptyIntervalSet(int64_t bit_count) {
-  XLS_CHECK_GE(bit_count, 0);
+  CHECK_GE(bit_count, 0);
   return fuzztest::ReversibleMap(
       [bit_count](const std::vector<Interval>& intervals) {
         IntervalSet set(bit_count);

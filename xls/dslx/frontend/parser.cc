@@ -30,6 +30,7 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -185,10 +186,10 @@ ExprRestrictions MakeRestrictions(
 bool IsExprRestrictionEnabled(ExprRestrictions restrictions,
                               ExprRestriction target) {
   uint64_t target_u64 = static_cast<uint64_t>(target);
-  XLS_CHECK_NE(target_u64, 0);
+  CHECK_NE(target_u64, 0);
 
   // All restriction values should be a pow2.
-  XLS_CHECK_EQ(target_u64 & (target_u64 - 1), 0);
+  CHECK_EQ(target_u64 & (target_u64 - 1), 0);
 
   return (static_cast<uint64_t>(restrictions) & target_u64) != 0;
 }
@@ -198,8 +199,8 @@ std::string ExprRestrictionsToString(ExprRestrictions restrictions) {
     return "none";
   }
   // Note: right now we only have one flag that can be in the set.
-  XLS_CHECK_EQ(static_cast<uint64_t>(restrictions),
-               static_cast<uint64_t>(ExprRestriction::kNoStructLiteral));
+  CHECK_EQ(static_cast<uint64_t>(restrictions),
+           static_cast<uint64_t>(ExprRestriction::kNoStructLiteral));
   return "{no-struct-literal}";
 }
 
@@ -1534,7 +1535,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhsParenthesized(
       lhs->set_in_parens(true);
     }
   }
-  XLS_CHECK(lhs != nullptr);
+  CHECK(lhs != nullptr);
   return lhs;
 }
 
@@ -1615,7 +1616,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
         absl::StrFormat("Expected start of an expression; got: %s",
                         peek->ToErrorString()));
   }
-  XLS_CHECK(lhs != nullptr);
+  CHECK(lhs != nullptr);
   return lhs;
 }
 

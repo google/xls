@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -264,17 +265,17 @@ OptimizationPassPipelineGenerator::GetAvailablePasses() const {
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(simp_pass, {
-  XLS_CHECK_OK(RegisterOptimizationPass<FixedPointSimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<FixedPointSimplificationPass>(
       "fixedpoint_simp", pass_config::kOptLevel));
-  XLS_CHECK_OK(RegisterOptimizationPass<FixedPointSimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<FixedPointSimplificationPass>(
       "fixedpoint_simp(2)", pass_config::CappedOptLevel{2}));
-  XLS_CHECK_OK(RegisterOptimizationPass<FixedPointSimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<FixedPointSimplificationPass>(
       "fixedpoint_simp(3)", pass_config::CappedOptLevel{3}));
-  XLS_CHECK_OK(RegisterOptimizationPass<SimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<SimplificationPass>(
       "simp", pass_config::kOptLevel));
-  XLS_CHECK_OK(RegisterOptimizationPass<SimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<SimplificationPass>(
       "simp(2)", pass_config::CappedOptLevel{2}));
-  XLS_CHECK_OK(RegisterOptimizationPass<SimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<SimplificationPass>(
       "simp(3)", pass_config::CappedOptLevel{3}));
 });
 

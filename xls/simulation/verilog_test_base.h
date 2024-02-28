@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -140,7 +141,7 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
   // TestBaseName returns "TestTheThing".
   std::string TestBaseName() {
     std::vector<std::string> parts = absl::StrSplit(TestName(), '/');
-    XLS_CHECK_EQ(parts.size(), 2);
+    CHECK_EQ(parts.size(), 2);
     return parts.front();
   }
 

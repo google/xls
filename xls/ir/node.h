@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/container/btree_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -138,16 +139,16 @@ class Node {
     return IsOpClass<OpT>(op());
   }
 
-  // Returns a down_cast pointer of the given template argument type. XLS_CHECK
+  // Returns a down_cast pointer of the given template argument type. CHECK
   // fails if the object is not of the given type. For example: As<Param>().
   template <typename OpT>
   const OpT* As() const {
-    XLS_CHECK(Is<OpT>());
+    CHECK(Is<OpT>());
     return down_cast<const OpT*>(this);
   }
   template <typename OpT>
   OpT* As() {
-    XLS_CHECK(Is<OpT>());
+    CHECK(Is<OpT>());
     return down_cast<OpT*>(this);
   }
 
@@ -214,7 +215,7 @@ class Node {
   bool OpIn(absl::Span<const Op> choices) const;
 
   Node* operand(int64_t i) const {
-    XLS_CHECK_LT(i, operands_.size());
+    CHECK_LT(i, operands_.size());
     return operands_[i];
   }
   int64_t operand_count() const { return operands_.size(); }

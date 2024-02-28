@@ -1,15 +1,16 @@
 #include "xls/ir/nodes.h"
 
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
-#include "absl/status/statusor.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/function.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 
 namespace xls {
 
@@ -45,7 +46,7 @@ Type* GetArrayConcatType(Package* package, absl::Span<Node* const> operands) {
     }
   }
 
-  XLS_CHECK(element_type);
+  CHECK(element_type);
   return package->GetArrayType(size, element_type);
 }
 
@@ -80,7 +81,7 @@ Type* GetReceiveType(FunctionBase* function_base, std::string_view channel_name,
    , {{ member.name }}({{ member.init }})
 {%- endfor -%}
 {
-  XLS_CHECK(IsOpClass<{{op_class.name}}>(op_))
+  CHECK(IsOpClass<{{op_class.name}}>(op_))
     << "Op `" << op_
     << "` is not a valid op for Node class `{{op_class.name}}`.";
 {%- for op in op_class.operands %}
@@ -115,7 +116,7 @@ bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
 {% endfor %}
 
 SliceData Concat::GetOperandSliceData(int64_t operandno) const {
-  XLS_CHECK_GE(operandno, 0);
+  CHECK_GE(operandno, 0);
   int64_t start = 0;
   for (int64_t i = operands().size()-1; i > operandno; --i) {
     Node* operand = this->operand(i);

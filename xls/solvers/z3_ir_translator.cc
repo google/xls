@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -186,8 +187,8 @@ Z3_ast IrTranslator::GetTranslation(const Node* source) {
 }
 
 Z3_ast IrTranslator::GetReturnNode() {
-  XLS_CHECK_NE(xls_function_, nullptr);
-  XLS_CHECK(xls_function_->IsFunction());
+  CHECK_NE(xls_function_, nullptr);
+  CHECK(xls_function_->IsFunction());
   return GetTranslation(xls_function_->AsFunctionOrDie()->return_value());
 }
 
@@ -772,13 +773,13 @@ absl::Status IrTranslator::HandleTupleIndex(TupleIndex* tuple_index) {
 // Handles the translation of unary node "op" by using the abstract node
 // evaluator.
 absl::Status IrTranslator::HandleUnaryViaAbstractEval(Node* op) {
-  XLS_CHECK_EQ(op->operand_count(), 1);
+  CHECK_EQ(op->operand_count(), 1);
   ScopedErrorHandler seh(ctx_);
   Z3AbstractEvaluator evaluator(ctx_);
 
   Z3_ast operand = GetBitVec(op->operand(0));
   Z3OpTranslator t(ctx_);
-  XLS_CHECK_EQ(op->operand(0)->BitCountOrDie(), t.GetBvBitCount(operand));
+  CHECK_EQ(op->operand(0)->BitCountOrDie(), t.GetBvBitCount(operand));
   std::vector<Z3_ast> input_bits = t.ExplodeBits(operand);
 
   XLS_ASSIGN_OR_RETURN(
@@ -789,7 +790,7 @@ absl::Status IrTranslator::HandleUnaryViaAbstractEval(Node* op) {
   // argument 0 in the MSb position, so we must reverse.
   std::reverse(output_bits.begin(), output_bits.end());
   Z3_ast result = t.ConcatN(output_bits);
-  XLS_CHECK_EQ(op->BitCountOrDie(), t.GetBvBitCount(result));
+  CHECK_EQ(op->BitCountOrDie(), t.GetBvBitCount(result));
   NoteTranslation(op, result);
   return seh.status();
 }
@@ -798,7 +799,7 @@ absl::Status IrTranslator::HandleUnaryViaAbstractEval(Node* op) {
 // by invoking `f`, the Z3 AST-node generator corresponding to the desired op.
 template <typename FnT>
 absl::Status IrTranslator::HandleUnary(Node* op, FnT f) {
-  XLS_CHECK_EQ(op->operand_count(), 1);
+  CHECK_EQ(op->operand_count(), 1);
   ScopedErrorHandler seh(ctx_);
   Z3_ast result = f(ctx_, GetBitVec(op->operand(0)));
   NoteTranslation(op, result);
@@ -1299,7 +1300,7 @@ absl::Status IrTranslator::DefaultHandler(Node* node) {
 }
 
 absl::Status IrTranslator::HandleInvoke(Invoke* invoke) {
-  XLS_CHECK_EQ(invoke->operands().size(), invoke->to_apply()->params().size());
+  CHECK_EQ(invoke->operands().size(), invoke->to_apply()->params().size());
 
   std::vector<Z3_ast> z3_params;
   for (const Node* param_node : invoke->operands()) {
@@ -1320,7 +1321,7 @@ absl::Status IrTranslator::HandleInvoke(Invoke* invoke) {
 
 Z3_ast IrTranslator::GetValue(const Node* node) {
   auto it = translations_.find(node);
-  XLS_CHECK(it != translations_.end()) << "Node not translated: " << node;
+  CHECK(it != translations_.end()) << "Node not translated: " << node;
   return it->second;
 }
 
@@ -1328,9 +1329,9 @@ Z3_ast IrTranslator::GetValue(const Node* node) {
 Z3_ast IrTranslator::GetBitVec(Node* node) {
   Z3_ast value = GetValue(node);
   Z3_sort value_sort = Z3_get_sort(ctx_, value);
-  XLS_CHECK_EQ(Z3_get_sort_kind(ctx_, value_sort), Z3_BV_SORT);
-  XLS_CHECK_EQ(node->GetType()->GetFlatBitCount(),
-               Z3_get_bv_sort_size(ctx_, value_sort));
+  CHECK_EQ(Z3_get_sort_kind(ctx_, value_sort), Z3_BV_SORT);
+  CHECK_EQ(node->GetType()->GetFlatBitCount(),
+           Z3_get_bv_sort_size(ctx_, value_sort));
   return value;
 }
 
@@ -1479,8 +1480,8 @@ absl::StatusOr<bool> TryProveCombination(
     }
   }
 
-  XLS_CHECK(objective.has_value());
-  XLS_CHECK(objective.value() != nullptr);
+  CHECK(objective.has_value());
+  CHECK(objective.value() != nullptr);
 
   Z3_context ctx = translator->ctx();
   XLS_VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx, objective.value());

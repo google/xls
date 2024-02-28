@@ -21,8 +21,8 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls {
 namespace verilog {
@@ -67,7 +67,7 @@ TestbenchMetadata::TestbenchMetadata(const ModuleSignature& signature) {
         add_output_port(valid.output_name(), 1);
       }
     } else {
-      XLS_CHECK(!signature.proto().pipeline().pipeline_control().has_manual())
+      CHECK(!signature.proto().pipeline().pipeline_control().has_manual())
           << "Manual register control not supported";
     }
   }

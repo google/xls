@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -34,7 +35,7 @@ namespace internal {
 // a result.
 template <typename T>
 T CheckGe(T lhs, T rhs) {
-  XLS_CHECK_GE(lhs, rhs);
+  CHECK_GE(lhs, rhs);
   return lhs;
 }
 
@@ -271,7 +272,7 @@ class BitsRope {
   void push_back(bool bit) { bitmap_.Set(index_++, bit); }
 
   Bits Build() {
-    XLS_CHECK_EQ(index_, bitmap_.bit_count());
+    CHECK_EQ(index_, bitmap_.bit_count());
     return Bits{std::move(bitmap_)};
   }
 

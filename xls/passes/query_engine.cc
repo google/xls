@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -41,7 +42,7 @@ namespace {
 
 // Converts the bits of the given node into a vector of BitLocations.
 std::vector<TreeBitLocation> ToTreeBitLocations(Node* node) {
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   std::vector<TreeBitLocation> locations;
   for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
     locations.emplace_back(TreeBitLocation(node, i));
@@ -54,8 +55,8 @@ std::vector<TreeBitLocation> ToTreeBitLocations(Node* node) {
 std::vector<TreeBitLocation> ToTreeBitLocations(absl::Span<Node* const> preds) {
   std::vector<TreeBitLocation> locations;
   for (Node* pred : preds) {
-    XLS_CHECK(pred->GetType()->IsBits());
-    XLS_CHECK_EQ(pred->BitCountOrDie(), 1);
+    CHECK(pred->GetType()->IsBits());
+    CHECK_EQ(pred->BitCountOrDie(), 1);
     locations.emplace_back(TreeBitLocation(pred, 0));
   }
   return locations;
@@ -88,7 +89,7 @@ bool QueryEngine::IsKnown(const TreeBitLocation& bit) const {
 }
 
 bool QueryEngine::IsMsbKnown(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   if (!IsTracked(node)) {
     return false;
   }
@@ -113,14 +114,14 @@ bool QueryEngine::IsZero(const TreeBitLocation& bit) const {
 }
 
 bool QueryEngine::GetKnownMsb(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
-  XLS_CHECK(IsMsbKnown(node));
+  CHECK(node->GetType()->IsBits());
+  CHECK(IsMsbKnown(node));
   TernaryVector ternary = GetTernary(node).Get({});
   return ternary_ops::ToKnownBitsValues(ternary).msb();
 }
 
 bool QueryEngine::IsAllZeros(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   if (!IsTracked(node)) {
     return false;
   }
@@ -134,7 +135,7 @@ bool QueryEngine::IsAllZeros(Node* node) const {
 }
 
 bool QueryEngine::IsAllOnes(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   if (!IsTracked(node)) {
     return false;
   }
@@ -148,7 +149,7 @@ bool QueryEngine::IsAllOnes(Node* node) const {
 }
 
 bool QueryEngine::AllBitsKnown(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   if (!IsTracked(node)) {
     return false;
   }
@@ -162,7 +163,7 @@ bool QueryEngine::AllBitsKnown(Node* node) const {
 }
 
 Bits QueryEngine::MaxUnsignedValue(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   absl::InlinedVector<bool, 1> bits(node->BitCountOrDie());
   for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
     bits[i] = IsZero(TreeBitLocation(node, i)) ? false : true;
@@ -171,7 +172,7 @@ Bits QueryEngine::MaxUnsignedValue(Node* node) const {
 }
 
 Bits QueryEngine::MinUnsignedValue(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   absl::InlinedVector<bool, 16> bits(node->BitCountOrDie());
   for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
     bits[i] = IsOne(TreeBitLocation(node, i));
@@ -180,8 +181,8 @@ Bits QueryEngine::MinUnsignedValue(Node* node) const {
 }
 
 bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
-  XLS_CHECK(a->GetType()->IsBits());
-  XLS_CHECK(b->GetType()->IsBits());
+  CHECK(a->GetType()->IsBits());
+  CHECK(b->GetType()->IsBits());
   int64_t max_width = std::max(a->BitCountOrDie(), b->BitCountOrDie());
   auto get_known_bit = [this](Node* n, int64_t index) {
     if (index >= n->BitCountOrDie()) {
@@ -209,8 +210,8 @@ bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
 }
 
 bool QueryEngine::NodesKnownUnsignedEquals(Node* a, Node* b) const {
-  XLS_CHECK(a->GetType()->IsBits());
-  XLS_CHECK(b->GetType()->IsBits());
+  CHECK(a->GetType()->IsBits());
+  CHECK(b->GetType()->IsBits());
   TernaryVector a_ternary = GetTernary(a).Get({});
   TernaryVector b_ternary = GetTernary(b).Get({});
   return a == b ||
@@ -220,8 +221,8 @@ bool QueryEngine::NodesKnownUnsignedEquals(Node* a, Node* b) const {
 }
 
 std::string QueryEngine::ToString(Node* node) const {
-  XLS_CHECK(node->GetType()->IsBits());
-  XLS_CHECK(IsTracked(node));
+  CHECK(node->GetType()->IsBits());
+  CHECK(IsTracked(node));
   return xls::ToString(GetTernary(node).Get({}));
 }
 

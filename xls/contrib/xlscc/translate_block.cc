@@ -24,6 +24,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -114,11 +115,11 @@ absl::Status Translator::GenerateExternalChannels(
     absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>*
         top_channel_injections,
     const xls::SourceInfo& loc) {
-  XLS_CHECK_NE(top_channel_injections, nullptr);
+  CHECK_NE(top_channel_injections, nullptr);
   for (ExternalChannelInfo& top_decl : top_decls) {
     const clang::NamedDecl* decl = top_decl.decl;
     std::shared_ptr<CChannelType> channel_type = top_decl.channel_type;
-    XLS_CHECK_NE(channel_type, nullptr);
+    CHECK_NE(channel_type, nullptr);
 
     XLS_ASSIGN_OR_RETURN(xls::Type * data_type,
                          TranslateTypeToXLS(channel_type->GetItemType(), loc));
@@ -140,7 +141,7 @@ absl::Status Translator::GenerateExternalChannels(
       unused_xls_channel_ops_.push_back(
           {new_channel.regular, /*is_send=*/!top_decl.is_input});
     } else if (top_decl.interface_type == InterfaceType::kDirect) {
-      XLS_CHECK(top_decl.is_input);
+      CHECK(top_decl.is_input);
       XLS_ASSIGN_OR_RETURN(new_channel.regular,
                            package_->CreateSingleValueChannel(
                                decl->getNameAsString(),
@@ -240,7 +241,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   const clang::FunctionDecl* top_function = nullptr;
 
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
 
   const clang::FunctionDecl* definition = nullptr;
@@ -262,9 +263,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     const HLSChannel& channel_spec =
         channels_by_name.at(param->getNameAsString());
 
-    XLS_CHECK(channel_spec.type() == ChannelType::DIRECT_IN ||
-              channel_spec.type() == ChannelType::FIFO ||
-              channel_spec.type() == ChannelType::MEMORY);
+    CHECK(channel_spec.type() == ChannelType::DIRECT_IN ||
+          channel_spec.type() == ChannelType::FIFO ||
+          channel_spec.type() == ChannelType::MEMORY);
 
     ExternalChannelInfo channel_info = {.decl = param};
     XLS_ASSIGN_OR_RETURN(channel_info.strictness,
@@ -299,8 +300,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
           GetChannelType(param->getType(), param->getASTContext(),
                          GetLoc(*param)));
 
-      XLS_CHECK_EQ(channel_spec.depth(),
-                   channel_info.channel_type->GetMemorySize());
+      CHECK_EQ(channel_spec.depth(),
+               channel_info.channel_type->GetMemorySize());
     } else {
       return absl::InvalidArgumentError(ErrorMessage(
           GetLoc(*param),
@@ -330,7 +331,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     std::list<ExternalChannelInfo>& top_decls, const xls::SourceInfo& body_loc,
     int top_level_init_interval, bool force_static,
     bool member_references_become_channels) {
-  XLS_CHECK_NE(package_, nullptr);
+  CHECK_NE(package_, nullptr);
 
   // Create external channels
   XLS_RETURN_IF_ERROR(
@@ -374,10 +375,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   XLS_RETURN_IF_ERROR(GenerateDefaultIOOps(prepared, pb, body_loc));
 
   // Create next state values
-  XLS_CHECK_GE(prepared.xls_func->return_value_count,
-               prepared.xls_func->static_values.size());
+  CHECK_GE(prepared.xls_func->return_value_count,
+           prepared.xls_func->static_values.size());
 
-  XLS_CHECK(context().fb == &pb);
+  CHECK(context().fb == &pb);
 
   std::vector<xls::BValue> next_state_values;
 
@@ -445,7 +446,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
   // Create external channels
   const clang::FunctionDecl* top_function = nullptr;
 
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
 
   if (!clang::isa<clang::CXXMethodDecl>(top_function)) {
@@ -457,7 +458,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
   auto method = clang::dyn_cast<clang::CXXMethodDecl>(top_function);
   const clang::QualType& this_type = method->getThisType()->getPointeeType();
 
-  XLS_CHECK(this_type->isRecordType());
+  CHECK(this_type->isRecordType());
 
   if (this_type.isConstQualified()) {
     return absl::UnimplementedError(
@@ -487,7 +488,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
                        ResolveTypeInstance(this_ctype));
 
   auto struct_type = std::dynamic_pointer_cast<CStructType>(struct_ctype);
-  XLS_CHECK_NE(struct_type, nullptr);
+  CHECK_NE(struct_type, nullptr);
 
   block_spec_out->set_name(record_decl->getNameAsString());
 
@@ -988,7 +989,7 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
   xls::BValue context_out = pb.TupleIndex(ret_io_value, /*idx=*/0, body_loc);
   xls::BValue enter_condition =
       pb.TupleIndex(ret_io_value, /*idx=*/1, body_loc);
-  XLS_CHECK_EQ(enter_condition.GetType()->GetFlatBitCount(), 1);
+  CHECK_EQ(enter_condition.GetType()->GetFlatBitCount(), 1);
 
   // Generate inner FSM
   XLS_ASSIGN_OR_RETURN(
@@ -1078,10 +1079,10 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
 
     unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/false});
 
-    XLS_CHECK_NE(xls_channel, nullptr);
+    CHECK_NE(xls_channel, nullptr);
 
     xls::BValue condition = ret_io_value;
-    XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+    CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
     xls::BValue receive;
     if (op.is_blocking) {
@@ -1104,19 +1105,19 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
 
     unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/true});
 
-    XLS_CHECK_NE(xls_channel, nullptr);
+    CHECK_NE(xls_channel, nullptr);
     xls::BValue val = pb.TupleIndex(ret_io_value, 0, op_loc);
     xls::BValue condition =
         pb.TupleIndex(ret_io_value, 1, op_loc,
                       absl::StrFormat("%s_pred", xls_channel->name()));
-    XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+    CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
     new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc);
   } else if (op.op == OpType::kRead) {
-    XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
-    XLS_CHECK_NE(bundle_ptr->read_request, nullptr);
-    XLS_CHECK_NE(bundle_ptr->read_response, nullptr);
+    CHECK_EQ(bundle_ptr->regular, nullptr);
+    CHECK_NE(bundle_ptr->read_request, nullptr);
+    CHECK_NE(bundle_ptr->read_response, nullptr);
 
     unused_xls_channel_ops_.remove(
         {bundle_ptr->read_request, /*is_send=*/true});
@@ -1125,7 +1126,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
 
     xls::BValue addr = pb.TupleIndex(ret_io_value, 0, op_loc);
     xls::BValue condition = pb.TupleIndex(ret_io_value, 1, op_loc);
-    XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+    CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
     // TODO(google/xls#861): supported masked memory operations.
@@ -1143,9 +1144,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
 
     arg_io_val = response;
   } else if (op.op == OpType::kWrite) {
-    XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
-    XLS_CHECK_NE(bundle_ptr->write_request, nullptr);
-    XLS_CHECK_NE(bundle_ptr->write_response, nullptr);
+    CHECK_EQ(bundle_ptr->regular, nullptr);
+    CHECK_NE(bundle_ptr->write_request, nullptr);
+    CHECK_NE(bundle_ptr->write_response, nullptr);
 
     unused_xls_channel_ops_.remove(
         {bundle_ptr->write_request, /*is_send=*/true});
@@ -1157,7 +1158,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     xls::BValue condition = pb.TupleIndex(
         ret_io_value, 1, op_loc,
         absl::StrFormat("%s_pred", bundle_ptr->write_request->name()));
-    XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+    CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
     // This has (addr, value, mask)
@@ -1177,12 +1178,12 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     XLS_ASSIGN_OR_RETURN(
         new_token, GenerateTrace(ret_io_value, before_token, op, pb, invoke));
   } else {
-    XLS_CHECK("Unknown IOOp type" == nullptr);
+    CHECK_EQ("Unknown IOOp type", nullptr);
   }
 
   if (prepared.arg_index_for_op.contains(&op)) {
     const int64_t arg_index = prepared.arg_index_for_op.at(&op);
-    XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
+    CHECK(arg_index >= 0 && arg_index < prepared.args.size());
     prepared.args[arg_index] = arg_io_val;
   }
 
@@ -1230,7 +1231,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithAfterOps(
         xls::BValue new_token,
         GenerateIOInvoke(invoke, before_token, prepared, last_ret_val, pb));
 
-    XLS_CHECK(!op_tokens.contains(&op));
+    CHECK(!op_tokens.contains(&op));
     op_tokens[&op] = new_token;
 
     fan_ins_tokens.push_back(new_token);
@@ -1249,10 +1250,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateInvokeWithIO(
     const std::list<InvokeToGenerate>& invokes_to_generate,
     absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
     xls::BValue first_ret_val) {
-  XLS_CHECK(&pb == context().fb);
+  CHECK(&pb == context().fb);
 
-  XLS_CHECK_GE(prepared.xls_func->return_value_count,
-               invokes_to_generate.size());
+  CHECK_GE(prepared.xls_func->return_value_count, invokes_to_generate.size());
 
   xls::BValue last_ret_val = first_ret_val;
 
@@ -1305,9 +1305,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateTrace(
       // Tuple is (condition, ... args ...)
       const uint64_t tuple_count =
           trace_out_value.GetType()->AsTupleOrDie()->size();
-      XLS_CHECK_GE(tuple_count, 1);
+      CHECK_GE(tuple_count, 1);
       xls::BValue condition = pb.TupleIndex(trace_out_value, 0, op.op_location);
-      XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
+      CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       condition = ConditionWithExtra(pb, condition, invoke, op.op_location);
       std::vector<xls::BValue> args;
       for (int tuple_idx = 1; tuple_idx < tuple_count; ++tuple_idx) {
@@ -1394,7 +1394,7 @@ absl::StatusOr<CValue> Translator::GenerateTopClassInitValue(
                        ResolveTypeInstance(this_type));
 
   auto struct_type = std::dynamic_pointer_cast<CStructType>(resolved_type);
-  XLS_CHECK_NE(struct_type, nullptr);
+  CHECK_NE(struct_type, nullptr);
 
   PushContextGuard temporary_this_context(*this, body_loc);
 
@@ -1443,7 +1443,7 @@ absl::StatusOr<CValue> Translator::GenerateTopClassInitValue(
       }
     }
 
-    XLS_CHECK(*field_val.type() == *field_type);
+    CHECK(*field_val.type() == *field_type);
 
     {
       UnmaskAndIgnoreSideEffectsGuard unmask_guard(*this);
@@ -1481,7 +1481,7 @@ Translator::GenerateIRBlockPrepare(
     XLS_ASSIGN_OR_RETURN(CValue this_cval, GenerateTopClassInitValue(
                                                this_type, this_decl, body_loc));
 
-    XLS_CHECK(this_cval.rvalue().valid());
+    CHECK(this_cval.rvalue().valid());
     XLS_ASSIGN_OR_RETURN(xls::Value this_init_val,
                          EvaluateBVal(this_cval.rvalue(), body_loc));
 

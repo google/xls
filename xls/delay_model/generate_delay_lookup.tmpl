@@ -1,10 +1,11 @@
 #include <cstdint>
 
-#include "absl/status/status.h"
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/module_initializer.h"
-#include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -49,7 +50,7 @@ class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
 };
 
 XLS_REGISTER_MODULE_INITIALIZER(model_{{name}}, {
-  XLS_CHECK_OK(
+  CHECK_OK(
         GetDelayEstimatorManagerSingleton().RegisterDelayEstimator(
           std::make_unique<DelayEstimatorModel{{camel_case_name}}>(),
           DelayEstimatorPrecedence::{{precedence}})

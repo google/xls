@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/strong_int.h"
 #include "xls/ir/function_base.h"
@@ -82,8 +83,8 @@ struct PredicateStackNode {
   bool IsRootPredicate() const {
     bool is_root = distance_to_root == 0;
     if (is_root) {
-      XLS_CHECK_EQ(previous, kRootPredicateId);
-      XLS_CHECK_EQ(selector, nullptr);
+      CHECK_EQ(previous, kRootPredicateId);
+      CHECK_EQ(selector, nullptr);
     }
     return is_root;
   }
@@ -100,8 +101,8 @@ class AnalysisHelper {
   explicit AnalysisHelper(FunctionBase* func) : function_(func) {}
 
   absl::flat_hash_map<Node*, PredicateState> Analyze() {
-    XLS_CHECK(node_states_.empty());
-    XLS_CHECK(predicate_stacks_.empty());
+    CHECK(node_states_.empty());
+    CHECK(predicate_stacks_.empty());
     node_states_.reserve(function_->node_count());
     predicate_stacks_.push_back(kRootPredicateStackNode);
     // Run in reverse topo sort order. Handle users before the values they use.
@@ -136,7 +137,7 @@ class AnalysisHelper {
       } else {
         head = HandleStandardNodeUse(head, node, user);
       }
-      XLS_CHECK(head.has_value());
+      CHECK(head.has_value());
       node_states_[node] = *head;
     }
   }
@@ -184,9 +185,8 @@ class AnalysisHelper {
     if (user->default_value().has_value()) {
       handle_arm(*user->default_value(), DefaultArm{});
     }
-    XLS_CHECK(head.has_value())
-        << user << " is marked as user of " << node
-        << " but no arms or conditions appear to use it?";
+    CHECK(head.has_value()) << user << " is marked as user of " << node
+                            << " but no arms or conditions appear to use it?";
     return *head;
   }
 
@@ -204,12 +204,12 @@ class AnalysisHelper {
   // number of nested ifs.
   PredicateStackId FindJoinPoint(std::optional<PredicateStackId> a,
                                  std::optional<PredicateStackId> b) {
-    XLS_CHECK(a.has_value() || b.has_value()) << "Both predicates unassigned!";
+    CHECK(a.has_value() || b.has_value()) << "Both predicates unassigned!";
     if (a.has_value()) {
-      XLS_CHECK_LT(a, NextId()) << "Invalid list head!";
+      CHECK_LT(a, NextId()) << "Invalid list head!";
     }
     if (b.has_value()) {
-      XLS_CHECK_LT(b, NextId()) << "Invalid list head!";
+      CHECK_LT(b, NextId()) << "Invalid list head!";
     }
     // a & b are each cons-lists
     if (a == kRootPredicateId || b == kRootPredicateId) {
@@ -240,21 +240,21 @@ class AnalysisHelper {
     // Get sublist of b that is same length as a
     for (size_t i = 0; i < len_diff; ++i) {
       // (tail b)
-      XLS_CHECK_LT(b_candidate, NextId()) << "Invalid list head!";
+      CHECK_LT(b_candidate, NextId()) << "Invalid list head!";
       b_candidate = predicate_stacks_[b_candidate.value()].previous;
     }
     // Walk down both lists until we find a join.
     while (a_candidate != b_candidate) {
-      XLS_CHECK_LT(a_candidate, NextId()) << "Invalid list head!";
-      XLS_CHECK_LT(b_candidate, NextId()) << "Invalid list head!";
-      XLS_CHECK_NE(a_candidate, kRootPredicateId)
+      CHECK_LT(a_candidate, NextId()) << "Invalid list head!";
+      CHECK_LT(b_candidate, NextId()) << "Invalid list head!";
+      CHECK_NE(a_candidate, kRootPredicateId)
           << "list element had invalid length!";
-      XLS_CHECK_NE(b_candidate, kRootPredicateId)
+      CHECK_NE(b_candidate, kRootPredicateId)
           << "list element had invalid length!";
       a_candidate = predicate_stacks_[a_candidate.value()].previous;
       b_candidate = predicate_stacks_[b_candidate.value()].previous;
     }
-    XLS_CHECK_LT(a_candidate, NextId()) << "Invalid list head!";
+    CHECK_LT(a_candidate, NextId()) << "Invalid list head!";
     return a_candidate;
   }
 

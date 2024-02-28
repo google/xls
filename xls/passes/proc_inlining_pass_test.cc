@@ -29,6 +29,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -2806,7 +2807,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
 
     auto join_tokens = [&](absl::Span<const BValue> tkns) {
       if (tkns.size() == 1) {
-        XLS_CHECK(tkns.front().node()->GetType()->IsToken())
+        CHECK(tkns.front().node()->GetType()->IsToken())
             << tkns.front().node()->GetName();
         return tkns.front();
       }
@@ -2827,7 +2828,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
         send_on_channel = true;
         channel = pair.send_channel;
       } else {
-        XLS_CHECK(!pair.received);
+        CHECK(!pair.received);
         pair.received = true;
         send_on_channel = false;
         channel = pair.receive_channel;

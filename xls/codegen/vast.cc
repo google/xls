@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -93,15 +94,15 @@ void LineInfo::Start(const VastNode* node) {
   if (!spans_.contains(node)) {
     spans_[node];
   }
-  XLS_CHECK(!spans_.at(node).hanging_start_line.has_value())
+  CHECK(!spans_.at(node).hanging_start_line.has_value())
       << "LineInfoStart can't be called twice in a row on the same node!";
   spans_.at(node).hanging_start_line = current_line_number_;
 }
 
 void LineInfo::End(const VastNode* node) {
-  XLS_CHECK(spans_.contains(node))
+  CHECK(spans_.contains(node))
       << "LineInfoEnd called without corresponding LineInfoStart!";
-  XLS_CHECK(spans_.at(node).hanging_start_line.has_value())
+  CHECK(spans_.at(node).hanging_start_line.has_value())
       << "LineInfoEnd can't be called twice in a row on the same node!";
   int64_t start_line = spans_.at(node).hanging_start_line.value();
   int64_t end_line = current_line_number_;
@@ -173,7 +174,7 @@ BitVectorType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
 
 DataType* VerilogFile::BitVectorType(int64_t bit_count, const SourceInfo& loc,
                                      bool is_signed) {
-  XLS_CHECK_GT(bit_count, 0);
+  CHECK_GT(bit_count, 0);
   if (bit_count == 1 && !is_signed) {
     return ScalarType(loc);
   }
@@ -184,7 +185,7 @@ PackedArrayType* VerilogFile::PackedArrayType(int64_t element_bit_count,
                                               absl::Span<const int64_t> dims,
                                               const SourceInfo& loc,
                                               bool is_signed) {
-  XLS_CHECK_GT(element_bit_count, 0);
+  CHECK_GT(element_bit_count, 0);
   std::vector<Expression*> dim_exprs;
   // For packed arrays we always use a bitvector (non-scalar) for the element
   // type when the element bit width is 1. For example, if element bit width is
@@ -201,7 +202,7 @@ PackedArrayType* VerilogFile::PackedArrayType(int64_t element_bit_count,
 UnpackedArrayType* VerilogFile::UnpackedArrayType(
     int64_t element_bit_count, absl::Span<const int64_t> dims,
     const SourceInfo& loc, bool is_signed) {
-  XLS_CHECK_GT(element_bit_count, 0);
+  CHECK_GT(element_bit_count, 0);
   std::vector<Expression*> dim_exprs;
   for (int64_t d : dims) {
     dim_exprs.push_back(PlainLiteral(static_cast<int32_t>(d), loc));
@@ -405,22 +406,22 @@ ParameterRef* Module::AddParameter(std::string_view name, Expression* rhs,
 }
 
 Literal* Expression::AsLiteralOrDie() {
-  XLS_CHECK(IsLiteral());
+  CHECK(IsLiteral());
   return static_cast<Literal*>(this);
 }
 
 IndexableExpression* Expression::AsIndexableExpressionOrDie() {
-  XLS_CHECK(IsIndexableExpression());
+  CHECK(IsIndexableExpression());
   return static_cast<IndexableExpression*>(this);
 }
 
 Unary* Expression::AsUnaryOrDie() {
-  XLS_CHECK(IsUnary());
+  CHECK(IsUnary());
   return static_cast<Unary*>(this);
 }
 
 LogicRef* Expression::AsLogicRefOrDie() {
-  XLS_CHECK(IsLogicRef());
+  CHECK(IsLogicRef());
   return static_cast<LogicRef*>(this);
 }
 
@@ -446,7 +447,7 @@ static void FourValueFormatter(std::string* out, FourValueBit value) {
       value_as_char = '?';
       break;
   }
-  XLS_CHECK_NE(value_as_char, '\0') << "Internal Error";
+  CHECK_NE(value_as_char, '\0') << "Internal Error";
   out->push_back(value_as_char);
 }
 
@@ -518,7 +519,7 @@ PackedArrayType::PackedArrayType(int64_t width,
     : DataType(file, loc),
       width_(file->PlainLiteral(static_cast<int32_t>(width), loc)),
       is_signed_(is_signed) {
-  XLS_CHECK(!packed_dims.empty());
+  CHECK(!packed_dims.empty());
   for (int64_t dim : packed_dims) {
     packed_dims_.push_back(file->PlainLiteral(static_cast<int32_t>(dim), loc));
   }
@@ -563,8 +564,8 @@ UnpackedArrayType::UnpackedArrayType(DataType* element_type,
                                      absl::Span<const int64_t> unpacked_dims,
                                      VerilogFile* file, const SourceInfo& loc)
     : DataType(file, loc), element_type_(element_type) {
-  XLS_CHECK(!unpacked_dims.empty());
-  XLS_CHECK(dynamic_cast<UnpackedArrayType*>(element_type) == nullptr);
+  CHECK(!unpacked_dims.empty());
+  CHECK(dynamic_cast<UnpackedArrayType*>(element_type) == nullptr);
   for (int64_t dim : unpacked_dims) {
     unpacked_dims_.push_back(
         file->PlainLiteral(static_cast<int32_t>(dim), loc));
@@ -856,7 +857,7 @@ std::string Literal::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   LineInfoEnd(line_info, this);
   if (format_ == FormatPreference::kDefault) {
-    XLS_CHECK_LE(bits_.bit_count(), 32);
+    CHECK_LE(bits_.bit_count(), 32);
     return absl::StrFormat(
         "%s", BitsToString(bits_, FormatPreference::kUnsignedDecimal));
   }
@@ -874,7 +875,7 @@ std::string Literal::Emit(LineInfo* line_info) const {
         "%d'b%s", bits_.bit_count(),
         BitsToRawDigits(bits_, format_, /*emit_leading_zeros=*/true));
   }
-  XLS_CHECK_EQ(format_, FormatPreference::kHex);
+  CHECK_EQ(format_, FormatPreference::kHex);
   return absl::StrFormat("%d'h%s", bits_.bit_count(),
                          BitsToRawDigits(bits_, FormatPreference::kHex,
                                          /*emit_leading_zeros=*/true));
@@ -912,8 +913,8 @@ std::string Slice::Emit(LineInfo* line_info) const {
     // as this is invalid Verilog. The only valid hi/lo values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
     // and perform the equivalent logic at a higher abstraction level than VAST.
-    XLS_CHECK(hi_->IsLiteralWithValue(0)) << hi_->Emit(nullptr);
-    XLS_CHECK(lo_->IsLiteralWithValue(0)) << lo_->Emit(nullptr);
+    CHECK(hi_->IsLiteralWithValue(0)) << hi_->Emit(nullptr);
+    CHECK(lo_->IsLiteralWithValue(0)) << lo_->Emit(nullptr);
     std::string result = subject_->Emit(line_info);
     LineInfoEnd(line_info, this);
     return result;
@@ -941,7 +942,7 @@ std::string Index::Emit(LineInfo* line_info) const {
     // as this is invalid Verilog. The only valid index values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
     // and perform the equivalent logic at a higher abstraction level than VAST.
-    XLS_CHECK(index_->IsLiteralWithValue(0)) << absl::StreamFormat(
+    CHECK(index_->IsLiteralWithValue(0)) << absl::StreamFormat(
         "%s[%s]", subject_->Emit(nullptr), index_->Emit(nullptr));
     std::string result = subject_->Emit(line_info);
     LineInfoEnd(line_info, this);
@@ -1140,7 +1141,7 @@ Conditional::Conditional(Expression* condition, VerilogFile* file,
 StatementBlock* Conditional::AddAlternate(Expression* condition) {
   // The conditional must not have been previously closed with an unconditional
   // alternate ("else").
-  XLS_CHECK(alternates_.empty() || alternates_.back().first != nullptr);
+  CHECK(alternates_.empty() || alternates_.back().first != nullptr);
   alternates_.push_back(
       {condition, file()->Make<StatementBlock>(SourceInfo())});
   return alternates_.back().second;
@@ -1339,7 +1340,7 @@ AlwaysFlop::AlwaysFlop(LogicRef* clk, VerilogFile* file, const SourceInfo& loc)
 void AlwaysFlop::AddRegister(LogicRef* reg, Expression* reg_next,
                              const SourceInfo& loc, Expression* reset_value) {
   if (reset_value != nullptr) {
-    XLS_CHECK(reset_block_ != nullptr);
+    CHECK(reset_block_ != nullptr);
     reset_block_->Add<NonblockingAssignment>(loc, reg, reset_value);
   }
   assignment_block_->Add<NonblockingAssignment>(loc, reg, reg_next);
@@ -1391,7 +1392,7 @@ std::string TemplateInstantiation::Emit(LineInfo* line_info) const {
   std::vector<std::string> replacements;
   absl::StatusOr<CodeTemplate> code_template =
       CodeTemplate::Create(template_text_);
-  XLS_CHECK(code_template.ok());  // Already verified earlier.
+  CHECK(code_template.ok());  // Already verified earlier.
   std::string result = code_template->Substitute([&](std::string_view tmpl) {
     if (tmpl == "fn") {
       return instance_name_;
@@ -1399,7 +1400,7 @@ std::string TemplateInstantiation::Emit(LineInfo* line_info) const {
     auto found =
         std::find_if(connections_.begin(), connections_.end(),
                      [&](const Connection& c) { return c.port_name == tmpl; });
-    XLS_CHECK(found != connections_.end())  // Should've been verified earlier
+    CHECK(found != connections_.end())  // Should've been verified earlier
         << "ExternInstantiation: can't map: template value '" << tmpl << "'";
     return found->expression->Emit(line_info);
   });

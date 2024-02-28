@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -42,7 +43,7 @@ FunctionType* Function::GetType() {
   for (Param* param : params()) {
     arg_types.push_back(param->GetType());
   }
-  XLS_CHECK(return_value() != nullptr);
+  CHECK(return_value() != nullptr);
   return package_->GetFunctionType(arg_types, return_value()->GetType());
 }
 

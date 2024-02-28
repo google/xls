@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -89,7 +90,7 @@ bool operator!=(const SaturatingBddNodeIndex& a,
 BddNodeVector ToBddNodeVector(const SaturatingBddNodeVector& input) {
   BddNodeVector result(input.size());
   for (int64_t i = 0; i < input.size(); ++i) {
-    XLS_CHECK(std::holds_alternative<BddNodeIndex>(input[i]));
+    CHECK(std::holds_alternative<BddNodeIndex>(input[i]));
     result[i] = std::get<BddNodeIndex>(input[i]);
   }
   return result;

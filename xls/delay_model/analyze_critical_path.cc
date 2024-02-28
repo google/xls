@@ -20,8 +20,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
@@ -80,7 +80,7 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
          (max_path_delay / clock_period_ps.value()))) {
       int64_t new_max_path_delay = RoundDownToNearest(
           max_path_delay + entry.node_delay, clock_period_ps.value());
-      XLS_CHECK_GT(new_max_path_delay, max_path_delay);
+      CHECK_GT(new_max_path_delay, max_path_delay);
       max_path_delay = new_max_path_delay;
       entry.delayed_by_cycle_boundary = true;
     }

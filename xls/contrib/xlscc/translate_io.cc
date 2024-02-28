@@ -21,6 +21,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -54,8 +55,8 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   const bool mask_other =
       context().mask_io_other_than_memory_writes && op.op != OpType::kWrite;
 
-  XLS_CHECK(op.op == OpType::kTrace || channel != nullptr);
-  XLS_CHECK_EQ(op.channel, nullptr);
+  CHECK(op.op == OpType::kTrace || channel != nullptr);
+  CHECK_EQ(op.channel, nullptr);
 
   if (mask || context().mask_side_effects || mask_write || mask_other) {
     IOOpReturn ret;
@@ -341,7 +342,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
   const IOOpReturn no_op_return = {.generate_expr = true};
 
   xls::BValue op_condition = context().full_condition_bval(loc);
-  XLS_CHECK(op_condition.valid());
+  CHECK(op_condition.valid());
 
   const clang::Expr* object = nullptr;
   std::string op_name;
@@ -510,7 +511,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       }
     } else if (op_name == "__memory_by_operator") {
       CValue addr_val = arg_vals.at(1);
-      XLS_CHECK(addr_val.valid());
+      CHECK(addr_val.valid());
 
       const bool is_write = assignment_value.valid();
 
@@ -524,7 +525,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
       if (is_write) {
         op.op = OpType::kWrite;
-        XLS_CHECK(assignment_value.rvalue().valid());
+        CHECK(assignment_value.rvalue().valid());
 
         auto addr_val_tup = context().fb->Tuple(
             {addr_val_converted, assignment_value.rvalue()}, loc);
@@ -639,8 +640,8 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
   auto lvalue = std::make_shared<LValue>(AddChannel(new_channel, loc));
 
   if (!new_channel.generated.has_value()) {
-    XLS_CHECK_NE(channel_name, nullptr);
-    XLS_CHECK(!context().sf->lvalues_by_param.contains(channel_name));
+    CHECK_NE(channel_name, nullptr);
+    CHECK(!context().sf->lvalues_by_param.contains(channel_name));
 
     if (channel_name != nullptr) {
       context().sf->lvalues_by_param[channel_name] = lvalue;

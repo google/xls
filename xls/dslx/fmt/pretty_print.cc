@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
@@ -290,7 +291,7 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                 stack.push_back(
                     entry.CloneWithDoc(&arena.Deref(flat_choice.on_flat)));
               } else {
-                XLS_CHECK_EQ(entry.mode(), Mode::kBreak);
+                CHECK_EQ(entry.mode(), Mode::kBreak);
                 XLS_VLOG(3) << "emitting FlatChoice as break mode: "
                             << entry.doc()->ToDebugString(arena);
                 stack.push_back(

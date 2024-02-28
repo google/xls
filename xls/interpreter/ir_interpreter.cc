@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
@@ -828,7 +829,7 @@ const Bits& IrInterpreter::ResolveAsBits(Node* node) {
 
 bool IrInterpreter::ResolveAsBool(Node* node) {
   const Bits& bits = NodeValuesMap().at(node).bits();
-  XLS_CHECK_EQ(bits.bit_count(), 1);
+  CHECK_EQ(bits.bit_count(), 1);
   return bits.IsAllOnes();
 }
 

@@ -19,11 +19,12 @@
 
 #include "gtest/gtest.h"
 #include "absl/base/casts.h"
+#include "absl/container/btree_set.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/examples/apfloat_add_parallel_jit_wrapper.h"
-#include "absl/container/btree_set.h"
 
 // Enable once our failure rate is expected to be zero, otherwise too noisy logs
 // (currently 0.03% wrong outputs)
@@ -44,7 +45,7 @@ class FloatBits {
   explicit FloatBits(float v) : FloatBits(absl::bit_cast<uint32_t>(v)) {}
   FloatBits(uint32_t sign, uint32_t exponent, uint32_t mantissa)
       : bits_((sign << 31) | (exponent << 23) | (mantissa & kMantissaMask)) {
-    XLS_CHECK(sign <= 1 && exponent <= 255);
+    CHECK(sign <= 1 && exponent <= 255);
   }
 
   // Ordering by integer interpretation of bits (_not_ the float values)

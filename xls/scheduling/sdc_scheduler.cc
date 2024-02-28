@@ -26,6 +26,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -440,7 +441,7 @@ absl::Status SDCSchedulingModel::AddRFSLConstraint(
 
 absl::Status SDCSchedulingModel::AddSendThenRecvConstraint(
     const SendThenRecvConstraint& constraint) {
-  XLS_CHECK_GE(constraint.MinimumLatency(), 0);
+  CHECK_GE(constraint.MinimumLatency(), 0);
   if (constraint.MinimumLatency() == 0) {
     return absl::OkStatus();
   }
@@ -811,10 +812,10 @@ math_opt::LinearConstraint SDCSchedulingModel::DiffEqualsConstraint(
 
 math_opt::Variable SDCSchedulingModel::AddUpperBoundSlack(
     math_opt::LinearConstraint c, std::optional<math_opt::Variable> slack) {
-  XLS_CHECK_LT(c.upper_bound(), kInfinity)
+  CHECK_LT(c.upper_bound(), kInfinity)
       << "The constraint " << c.name() << " has no upper bound.";
   if (slack.has_value()) {
-    XLS_CHECK_EQ(c.coefficient(*slack), 0.0)
+    CHECK_EQ(c.coefficient(*slack), 0.0)
         << "The slack variable " << slack->name()
         << " is already referenced in the constraint " << c.name() << ".";
   } else {
@@ -837,10 +838,10 @@ absl::Status SDCSchedulingModel::RemoveUpperBoundSlack(
 
 math_opt::Variable SDCSchedulingModel::AddLowerBoundSlack(
     math_opt::LinearConstraint c, std::optional<math_opt::Variable> slack) {
-  XLS_CHECK_GT(c.lower_bound(), -kInfinity)
+  CHECK_GT(c.lower_bound(), -kInfinity)
       << "The constraint " << c.name() << " has no lower bound.";
   if (slack.has_value()) {
-    XLS_CHECK_EQ(c.coefficient(*slack), 0.0)
+    CHECK_EQ(c.coefficient(*slack), 0.0)
         << "The slack variable " << slack->name()
         << " is already referenced in the constraint " << c.name() << ".";
   } else {
@@ -854,7 +855,7 @@ math_opt::Variable SDCSchedulingModel::AddLowerBoundSlack(
 std::pair<math_opt::Variable, math_opt::LinearConstraint>
 SDCSchedulingModel::AddUpperBoundSlack(
     math_opt::Variable v, std::optional<math_opt::Variable> slack) {
-  XLS_CHECK_LT(v.upper_bound(), kInfinity)
+  CHECK_LT(v.upper_bound(), kInfinity)
       << "The variable " << v.name() << " has no fixed upper bound.";
   if (!slack.has_value()) {
     slack = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
@@ -869,7 +870,7 @@ SDCSchedulingModel::AddUpperBoundSlack(
 std::pair<math_opt::Variable, math_opt::LinearConstraint>
 SDCSchedulingModel::AddLowerBoundSlack(
     math_opt::Variable v, std::optional<math_opt::Variable> slack) {
-  XLS_CHECK_GT(v.lower_bound(), -kInfinity)
+  CHECK_GT(v.lower_bound(), -kInfinity)
       << "The variable " << v.name() << " has no fixed lower bound.";
   if (!slack.has_value()) {
     slack = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
@@ -937,8 +938,7 @@ absl::Status SDCScheduler::AddConstraints(
 absl::Status SDCScheduler::BuildError(
     const math_opt::SolveResult& result,
     SchedulingFailureBehavior failure_behavior) {
-  XLS_CHECK_NE(result.termination.reason,
-               math_opt::TerminationReason::kOptimal);
+  CHECK_NE(result.termination.reason, math_opt::TerminationReason::kOptimal);
 
   if (failure_behavior.explain_infeasibility &&
       (result.termination.reason == math_opt::TerminationReason::kInfeasible ||

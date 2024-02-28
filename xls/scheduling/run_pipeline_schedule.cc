@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -292,7 +293,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     // A pipeline length is specified, but no target clock period. Determine
     // the minimum clock period for which the function can be scheduled in the
     // given pipeline length.
-    XLS_CHECK(sdc_scheduler != nullptr);
+    CHECK(sdc_scheduler != nullptr);
     XLS_ASSIGN_OR_RETURN(
         clock_period_ps,
         FindMinimumClockPeriod(f, options.pipeline_stages(), input_delay_added,

@@ -24,6 +24,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -285,8 +286,8 @@ std::vector<Node*> GreedyFAS(InterProcConnectivityGraph& graph) {
         predecessor_edges.begin(), predecessor_edges.end(),
         [&successor_edges](const auto& lhs, const auto& rhs) {
           // We should only see internal channel ops at this point.
-          XLS_CHECK(GetInternalChannelId(lhs.first).has_value());
-          XLS_CHECK(GetInternalChannelId(rhs.first).has_value());
+          CHECK(GetInternalChannelId(lhs.first).has_value());
+          CHECK(GetInternalChannelId(rhs.first).has_value());
 
           // outdegree is size of the successor set.
           int64_t lhs_outdegree = successor_edges.at(lhs.first).size();
@@ -301,7 +302,7 @@ std::vector<Node*> GreedyFAS(InterProcConnectivityGraph& graph) {
           return lhs_degree < rhs_degree;
         });
     if (max_itr != predecessor_edges.end()) {
-      XLS_CHECK(GetInternalChannelId(max_itr->first).has_value());
+      CHECK(GetInternalChannelId(max_itr->first).has_value());
       removed_nodes.insert(max_itr->first);
       s1.push_back(max_itr->first);
       successor_edges.erase(max_itr->first);

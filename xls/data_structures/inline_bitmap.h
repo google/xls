@@ -22,6 +22,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/endian.h"
@@ -64,7 +65,7 @@ class InlineBitmap {
                                 absl::Span<const uint8_t> bytes) {
     InlineBitmap result(bit_count, false);
     int64_t byte_count = CeilOfRatio(bit_count, int64_t{8});
-    XLS_CHECK_EQ(bytes.size(), byte_count) << "bit_count: " << bit_count;
+    CHECK_EQ(bytes.size(), byte_count) << "bit_count: " << bit_count;
     // memcpy() requires valid pointers even when the number of bytes copied is
     // zero, and an empty absl::Span's data() pointer may not be valid. Guard
     // the memcpy with a check that the span is not empty.
@@ -192,7 +193,7 @@ class InlineBitmap {
   // is mapped to the least significant bits of word 1, and so on.
   void SetByte(int64_t byteno, uint8_t value) {
     DCHECK_LT(byteno, byte_count());
-    XLS_CHECK(kEndianness == Endianness::kLittleEndian);
+    CHECK(kEndianness == Endianness::kLittleEndian);
     absl::bit_cast<uint8_t*>(data_.data())[byteno] = value;
     // Ensure the data is appropriately masked in case this byte writes to that
     // region of bits.
@@ -202,14 +203,14 @@ class InlineBitmap {
   // Returns the byte at the given offset. Byte order is little-endian.
   uint8_t GetByte(int64_t byteno) const {
     DCHECK_LT(byteno, byte_count());
-    XLS_CHECK(kEndianness == Endianness::kLittleEndian);
+    CHECK(kEndianness == Endianness::kLittleEndian);
     return absl::bit_cast<uint8_t*>(data_.data())[byteno];
   }
 
   // Writes the underlying bytes of the inline bit map to the given buffer. Byte
   // order is little-endian. Writes out Ceil(bit_count_ / 8) number of bytes.
   void WriteBytesToBuffer(absl::Span<uint8_t> bytes) const {
-    XLS_CHECK(kEndianness == Endianness::kLittleEndian);
+    CHECK(kEndianness == Endianness::kLittleEndian);
     // memcpy() requires valid pointers even when the number of bytes copied is
     // zero, and an empty absl::Span's data() pointer may not be valid. Guard
     // the memcpy with a check that the span is not empty.
@@ -257,7 +258,7 @@ class InlineBitmap {
 
   // Sets this bitmap to the union (bitwise 'or') of this bitmap and `other`.
   void Union(const InlineBitmap& other) {
-    XLS_CHECK_EQ(bit_count(), other.bit_count());
+    CHECK_EQ(bit_count(), other.bit_count());
     for (int64_t i = 0; i < data_.size(); ++i) {
       data_[i] |= other.data_[i];
     }
@@ -265,7 +266,7 @@ class InlineBitmap {
 
   // Sets this bitmap to the bitwise 'and' of this bitmap and `other`.
   void Intersect(const InlineBitmap& other) {
-    XLS_CHECK_EQ(bit_count(), other.bit_count());
+    CHECK_EQ(bit_count(), other.bit_count());
     for (int64_t i = 0; i < data_.size(); ++i) {
       data_[i] &= other.data_[i];
     }

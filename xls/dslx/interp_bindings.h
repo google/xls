@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/dslx/frontend/ast.h"
@@ -83,7 +84,7 @@ class InterpBindings {
     map_.insert_or_assign(std::move(identifier), Entry(std::move(value)));
   }
   void AddFn(std::string identifier, InterpValue value) {
-    XLS_CHECK(value.IsFunction());
+    CHECK(value.IsFunction());
     map_.insert_or_assign(std::move(identifier), Entry(std::move(value)));
   }
   void AddModule(std::string identifier, Module* value) {

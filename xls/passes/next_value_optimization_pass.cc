@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -45,7 +46,7 @@ namespace xls {
 namespace {
 
 absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
-  XLS_CHECK(proc->next_values().empty());
+  CHECK(proc->next_values().empty());
 
   for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
     Param* param = proc->GetStateParam(index);

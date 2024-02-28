@@ -25,6 +25,7 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -226,13 +227,13 @@ class ExperimentRunner {
           DistributedRoutingTableBuilderForTrees()) const;
 
   ExperimentRunner& SetSimulationCycleCount(int64_t count) {
-    XLS_CHECK_GE(count, 0);
+    CHECK_GE(count, 0);
     total_simulation_cycle_count_ = count;
     return *this;
   }
 
   ExperimentRunner& SetCycleTimeInPs(int64_t ps) {
-    XLS_CHECK_GT(ps, 0);
+    CHECK_GT(ps, 0);
     cycle_time_in_ps_ = ps;
     return *this;
   }

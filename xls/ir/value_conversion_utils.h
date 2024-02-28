@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -125,7 +126,7 @@ absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type, T value) {
 template <typename T>
 absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type,
                                              absl::Span<const T> values) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsArray()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Invalid type conversion for an absl::Span. An absl::Span can only be "
@@ -166,7 +167,7 @@ template <typename... ValuesType>
 absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   std::vector<Value>& xls_tuple,
                                   xls::Value value, ValuesType&... values) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (index >= xls_tuple.size()) {
     // When the user is using the ConvertToXlsValue(..., std::tuple...), the
     // following error should not occur.
@@ -189,7 +190,7 @@ template <typename ValueType, typename... ValuesType>
 absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   std::vector<Value>& xls_tuple,
                                   ValueType& value, ValuesType&... values) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (index >= xls_tuple.size()) {
     // When the user is using the ConvertToXlsValue(..., std::tuple...), the
     // following error should not occur.
@@ -208,7 +209,7 @@ template <typename... ValuesType, size_t... I>
 absl::Status UnpackTuple(const TupleType* type, std::vector<Value>& xls_tuple,
                          const std::tuple<ValuesType...>& tuple,
                          std::index_sequence<I...>) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   return ConvertTupleElements(type, 0, xls_tuple, std::get<I>(tuple)...);
 }
 
@@ -225,7 +226,7 @@ absl::Status UnpackTuple(const TupleType* type, std::vector<Value>& xls_tuple,
 template <typename... ValuesType>
 absl::StatusOr<xls::Value> ConvertToXlsValue(
     const Type* type, const std::tuple<ValuesType...>& tuple) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsTuple()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Invalid type conversion for a std::tuple. An std::tuple can only be "

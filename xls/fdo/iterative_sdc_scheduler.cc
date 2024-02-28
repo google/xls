@@ -25,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -182,10 +183,10 @@ absl::Status RefineDelayEstimations(
     if (options.path_evaluate_strategy == PathEvaluateStrategy::PATH) {
       absl::StatusOr<std::vector<Node *>> path_or =
           delay_manager.GetFullCriticalPath(source, target);
-      XLS_CHECK(path_or.ok());
+      CHECK(path_or.ok());
       return evaluated_cuts.contains(GetPathCut(path_or.value()));
     }
-    XLS_CHECK(cut_map.contains(target));
+    CHECK(cut_map.contains(target));
     return evaluated_cuts.contains(cut_map.at(target));
   };
 
@@ -269,8 +270,7 @@ absl::Status RefineDelayEstimations(
 absl::Status BuildError(IterativeSDCSchedulingModel &model,
                         const math_opt::SolveResult &result,
                         SchedulingFailureBehavior failure_behavior) {
-  XLS_CHECK_NE(result.termination.reason,
-               math_opt::TerminationReason::kOptimal);
+  CHECK_NE(result.termination.reason, math_opt::TerminationReason::kOptimal);
 
   if (failure_behavior.explain_infeasibility &&
       (result.termination.reason == math_opt::TerminationReason::kInfeasible ||

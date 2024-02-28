@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -112,7 +113,7 @@ absl::Status ByteStream::DropExpected(uint8_t want, std::string_view message) {
 
 absl::StatusOr<uint8_t> ByteStream::Pop() {
   XLS_ASSIGN_OR_RETURN(uint8_t b, Peek());
-  XLS_CHECK_OK(Drop());
+  CHECK_OK(Drop());
   return b;
 }
 

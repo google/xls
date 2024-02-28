@@ -29,6 +29,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -121,14 +122,12 @@ class Parser : public TokenParser {
           parent_bindings_(bindings),
           child_bindings_(bindings) {}
 
-    ~Transaction() {
-      XLS_CHECK(completed_) << "Uncompleted state transaction!";
-    }
+    ~Transaction() { CHECK(completed_) << "Uncompleted state transaction!"; }
 
     // Call on successful production: saves the changes from this
     // transaction to the parent bindings.
     void Commit() {
-      XLS_CHECK(!completed_) << "Doubly-completed transaction!";
+      CHECK(!completed_) << "Doubly-completed transaction!";
       if (parent_bindings_ != nullptr) {
         parent_bindings_->ConsumeChild(&child_bindings_);
       }
@@ -147,7 +146,7 @@ class Parser : public TokenParser {
 
     // Call on failed production: un-does changes to bindings and scanner state.
     void Rollback() {
-      XLS_CHECK(!completed_) << "Doubly-completed transaction!";
+      CHECK(!completed_) << "Doubly-completed transaction!";
       parser_->RestoreScannerCheckpoint(checkpoint_);
       child_bindings_ = Bindings(parent_bindings_);
       completed_ = true;

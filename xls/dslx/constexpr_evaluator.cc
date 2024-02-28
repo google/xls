@@ -25,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -660,7 +661,7 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const Expr* node,
     const ParametricEnv& parametric_env) {
-  XLS_CHECK_EQ(node->owner(), type_info->module())
+  CHECK_EQ(node->owner(), type_info->module())
       << "expr `" << node->ToString()
       << "` from module: " << node->owner()->name()
       << " vs type info module: " << type_info->module()->name();

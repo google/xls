@@ -25,6 +25,7 @@ cc_library(
         "@com_icarus_iverilog//:vvp",
     ],
     deps = [
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

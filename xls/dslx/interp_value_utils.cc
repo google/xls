@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -316,17 +317,17 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
         }
         if (v.kind() == ValueKind::kArray) {
           auto* array_type = dynamic_cast<const ArrayType*>(type);
-          XLS_CHECK(array_type != nullptr);
+          CHECK(array_type != nullptr);
           return &array_type->element_type();
         }
-        XLS_CHECK(v.kind() == ValueKind::kTuple);
+        CHECK(v.kind() == ValueKind::kTuple);
         // Tuple values can either come from tuples or structs. Check for
         // structs first.
         if (auto* struct_type = dynamic_cast<const StructType*>(type)) {
           return &struct_type->GetMemberType(i);
         }
         auto* tuple_type = dynamic_cast<const TupleType*>(type);
-        XLS_CHECK(tuple_type != nullptr);
+        CHECK(tuple_type != nullptr);
         return &tuple_type->GetMemberType(i);
       };
       std::vector<InterpValue> members;

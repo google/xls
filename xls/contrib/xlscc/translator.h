@@ -31,6 +31,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -87,7 +88,7 @@ class CType {
 
   template <typename Derived>
   const Derived* As() const {
-    XLS_CHECK(Is<Derived>());
+    CHECK(Is<Derived>());
     return dynamic_cast<const Derived*>(this);
   }
 
@@ -479,21 +480,21 @@ class LValue {
  public:
   LValue() : is_null_(true) {}
   explicit LValue(const clang::Expr* leaf) : leaf_(leaf) {
-    XLS_CHECK_NE(leaf_, nullptr);
+    CHECK_NE(leaf_, nullptr);
     // Should use select constructor
-    XLS_CHECK(clang::dyn_cast<clang::ConditionalOperator>(leaf_) == nullptr);
+    CHECK(clang::dyn_cast<clang::ConditionalOperator>(leaf_) == nullptr);
     // Should be removed by CreateReferenceValue()
-    XLS_CHECK(clang::dyn_cast<clang::ParenExpr>(leaf_) == nullptr);
+    CHECK(clang::dyn_cast<clang::ParenExpr>(leaf_) == nullptr);
   }
   explicit LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
   LValue(xls::BValue cond, std::shared_ptr<LValue> lvalue_true,
          std::shared_ptr<LValue> lvalue_false)
       : cond_(cond), lvalue_true_(lvalue_true), lvalue_false_(lvalue_false) {
-    XLS_CHECK(cond_.valid());
-    XLS_CHECK(cond_.GetType()->IsBits());
-    XLS_CHECK(cond_.BitCountOrDie() == 1);
-    XLS_CHECK_NE(lvalue_true_.get(), nullptr);
-    XLS_CHECK_NE(lvalue_false_.get(), nullptr);
+    CHECK(cond_.valid());
+    CHECK(cond_.GetType()->IsBits());
+    CHECK_EQ(cond_.BitCountOrDie(), 1);
+    CHECK_NE(lvalue_true_.get(), nullptr);
+    CHECK_NE(lvalue_false_.get(), nullptr);
   }
   explicit LValue(const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>&
                       compound_by_index)
@@ -577,23 +578,23 @@ class CValue {
          bool disable_type_check = false,
          std::shared_ptr<LValue> lvalue = nullptr)
       : rvalue_(rvalue), lvalue_(lvalue), type_(std::move(type)) {
-    XLS_CHECK_NE(type_.get(), nullptr);
+    CHECK_NE(type_.get(), nullptr);
     if (!disable_type_check) {
-      XLS_CHECK(!type_->StoredAsXLSBits() ||
-                rvalue.BitCountOrDie() == type_->GetBitWidth());
+      CHECK(!type_->StoredAsXLSBits() ||
+            rvalue.BitCountOrDie() == type_->GetBitWidth());
       // Structs (and their aliases) can have compound lvalues and also rvalues
-      XLS_CHECK(!(lvalue && !dynamic_cast<CReferenceType*>(type_.get()) &&
-                  !dynamic_cast<CPointerType*>(type_.get()) &&
-                  !dynamic_cast<CChannelType*>(type_.get()) &&
-                  !dynamic_cast<CStructType*>(type_.get()) &&
-                  !dynamic_cast<CInstantiableTypeAlias*>(type_.get())));
+      CHECK(!(lvalue && !dynamic_cast<CReferenceType*>(type_.get()) &&
+              !dynamic_cast<CPointerType*>(type_.get()) &&
+              !dynamic_cast<CChannelType*>(type_.get()) &&
+              !dynamic_cast<CStructType*>(type_.get()) &&
+              !dynamic_cast<CInstantiableTypeAlias*>(type_.get())));
       // Pointers are stored as empty tuples in structs
       const bool rvalue_empty =
           !rvalue.valid() || (rvalue.GetType()->IsTuple() &&
                               rvalue.GetType()->AsTupleOrDie()->size() == 0);
-      XLS_CHECK(!(lvalue && rvalue.valid()) ||
-                dynamic_cast<CStructType*>(type_.get()) ||
-                dynamic_cast<CInstantiableTypeAlias*>(type_.get()));
+      CHECK(!(lvalue && rvalue.valid()) ||
+            dynamic_cast<CStructType*>(type_.get()) ||
+            dynamic_cast<CInstantiableTypeAlias*>(type_.get()));
       // Only supporting lvalues of the form &... for pointers
       if (dynamic_cast<CPointerType*>(type_.get()) != nullptr ||
           dynamic_cast<CReferenceType*>(type_.get()) != nullptr ||
@@ -601,13 +602,13 @@ class CValue {
         // Always get rvalue from lvalue, otherwise changes to the original
         // won't
         //  be reflected when the pointer is dereferenced.
-        XLS_CHECK(rvalue_empty);
+        CHECK(rvalue_empty);
       } else if (dynamic_cast<CChannelType*>(type_.get()) != nullptr) {
-        XLS_CHECK(rvalue_empty && lvalue != nullptr);
+        CHECK(rvalue_empty && lvalue != nullptr);
       } else if (dynamic_cast<CVoidType*>(type_.get()) != nullptr) {
-        XLS_CHECK(rvalue_empty);
+        CHECK(rvalue_empty);
       } else {
-        XLS_CHECK(rvalue.valid());
+        CHECK(rvalue.valid());
       }
     }
   }
@@ -639,7 +640,7 @@ class CValue {
   bool operator!=(const CValue& o) const { return !(*this == o); }
   bool valid() const {
     const bool is_valid = rvalue_.valid() || (lvalue_ != nullptr);
-    XLS_CHECK(!is_valid || type_ != nullptr);
+    CHECK(!is_valid || type_ != nullptr);
     return is_valid;
   }
 
@@ -656,8 +657,8 @@ class ConstValue {
   ConstValue(xls::Value value, std::shared_ptr<CType> type,
              bool disable_type_check = false)
       : value_(value), type_(std::move(type)) {
-    XLS_CHECK(disable_type_check || !type_->StoredAsXLSBits() ||
-              value.GetFlatBitCount() == type_->GetBitWidth());
+    CHECK(disable_type_check || !type_->StoredAsXLSBits() ||
+          value.GetFlatBitCount() == type_->GetBitWidth());
   }
 
   friend bool operator==(const ConstValue& lhs, const ConstValue& rhs) {
@@ -1171,7 +1172,7 @@ class Translator {
   inline void SetIOTestMode() { io_test_mode_ = true; }
 
   absl::StatusOr<const clang::FunctionDecl*> GetTopFunction() const {
-    XLS_CHECK_NE(parser_, nullptr);
+    CHECK_NE(parser_, nullptr);
     return parser_->GetTopFunction();
   }
 

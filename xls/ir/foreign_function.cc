@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -65,7 +66,7 @@ FfiPartialValueSubstituteHelper::GetUpdatedFfiData() const {
   }
   absl::StatusOr<CodeTemplate> code_template =
       CodeTemplate::Create(ffi_->code_template());
-  XLS_CHECK(code_template.ok()) << "unexpected: invalid template";
+  CHECK(code_template.ok()) << "unexpected: invalid template";
   std::string modified_template = code_template->Substitute(
       [&](std::string_view name) {
         auto found = substitutions_.find(name);

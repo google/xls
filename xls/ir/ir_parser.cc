@@ -29,6 +29,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
@@ -234,7 +235,7 @@ class ArgParser {
     mandatory_keywords_.push_back(key);
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
-    XLS_CHECK(pair.second);
+    CHECK(pair.second);
     auto& keyword_value = std::get<KeywordValue<T>>(*pair.first->second);
     keyword_value.is_optional = false;
     // Return a pointer into the KeywordValue which will be filled in when Run
@@ -249,7 +250,7 @@ class ArgParser {
   std::optional<T>* AddOptionalKeywordArg(std::string_view key) {
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
-    XLS_CHECK(pair.second);
+    CHECK(pair.second);
     auto& keyword_value = std::get<KeywordValue<T>>(*keywords_.at(key));
     keyword_value.is_optional = true;
     // Return a pointer into the KeywordValue which will be filled in when Run
@@ -261,7 +262,7 @@ class ArgParser {
   T* AddOptionalKeywordArg(std::string_view key, T default_value) {
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
-    XLS_CHECK(pair.second);
+    CHECK(pair.second);
     auto& keyword_value = std::get<KeywordValue<T>>(*keywords_.at(key));
     keyword_value.optional_value = default_value;
     keyword_value.is_optional = true;

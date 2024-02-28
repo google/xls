@@ -26,6 +26,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -681,7 +682,7 @@ absl::StatusOr<ProcInstantiation*> Proc::AddProcInstantiation(
 
 bool Proc::HasChannelReference(std::string_view name,
                                Direction direction) const {
-  XLS_CHECK(is_new_style_proc());
+  CHECK(is_new_style_proc());
   for (const std::unique_ptr<ChannelReference>& channel_ref :
        channel_references_) {
     if (name == channel_ref->name() && direction == channel_ref->direction()) {

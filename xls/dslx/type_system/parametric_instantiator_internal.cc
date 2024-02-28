@@ -25,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
@@ -262,7 +263,7 @@ ParametricInstantiator::ParametricInstantiator(
 }
 
 ParametricInstantiator::~ParametricInstantiator() {
-  XLS_CHECK_OK(ctx_->PopDerivedTypeInfo(derived_type_info_));
+  CHECK_OK(ctx_->PopDerivedTypeInfo(derived_type_info_));
 }
 
 absl::Status ParametricInstantiator::InstantiateOneArg(

@@ -22,9 +22,9 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls::dslx {
 
@@ -49,7 +49,7 @@ class Pos {
   }
 
   bool operator<(const Pos& other) const {
-    XLS_CHECK_EQ(filename_, other.filename_);
+    CHECK_EQ(filename_, other.filename_);
     if (lineno_ < other.lineno_) {
       return true;
     }
@@ -62,7 +62,7 @@ class Pos {
     return false;
   }
   bool operator==(const Pos& other) const {
-    XLS_CHECK_EQ(filename_, other.filename_);
+    CHECK_EQ(filename_, other.filename_);
     return lineno_ == other.lineno_ && colno_ == other.colno_;
   }
   bool operator!=(const Pos& other) const { return !(*this == other); }
@@ -104,8 +104,8 @@ class Span {
 
   Span(Pos start, Pos limit)
       : start_(std::move(start)), limit_(std::move(limit)) {
-    XLS_CHECK_EQ(start_.filename(), limit_.filename());
-    XLS_CHECK_LE(start_, limit_);
+    CHECK_EQ(start_.filename(), limit_.filename());
+    CHECK_LE(start_, limit_);
   }
   Span() = default;
 

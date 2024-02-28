@@ -36,6 +36,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -451,7 +452,7 @@ class ArrayType : public ConcreteType {
   ArrayType(std::unique_ptr<ConcreteType> element_type,
             const ConcreteTypeDim& size)
       : element_type_(std::move(element_type)), size_(size) {
-    XLS_CHECK(!element_type_->IsMeta()) << element_type_->ToString();
+    CHECK(!element_type_->IsMeta()) << element_type_->ToString();
   }
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {
@@ -608,7 +609,7 @@ class FunctionType : public ConcreteType {
   FunctionType(std::vector<std::unique_ptr<ConcreteType>> params,
                std::unique_ptr<ConcreteType> return_type)
       : params_(std::move(params)), return_type_(std::move(return_type)) {
-    XLS_CHECK(!return_type_->IsMeta());
+    CHECK(!return_type_->IsMeta());
   }
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {

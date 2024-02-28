@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -404,7 +405,7 @@ bool IsPublic(const ModuleMember& member) {
 Pos GetPos(const ModuleMember& module_member) {
   const AstNode* n = ToAstNode(module_member);
   std::optional<Span> span = n->GetSpan();
-  XLS_CHECK(span.has_value());
+  CHECK(span.has_value());
   return span->start();
 }
 

@@ -29,6 +29,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -167,7 +168,7 @@ ExprOrType ToExprOrType(AstNode* n) {
     return e;
   }
   auto* type = down_cast<TypeAnnotation*>(n);
-  XLS_CHECK_NE(type, nullptr);
+  CHECK_NE(type, nullptr);
   return type;
 }
 
@@ -605,8 +606,8 @@ ParametricBinding::ParametricBinding(Module* owner, NameDef* name_def,
       name_def_(name_def),
       type_annotation_(type_annotation),
       expr_(expr) {
-  XLS_CHECK_EQ(name_def_->owner(), owner);
-  XLS_CHECK_EQ(type_annotation_->owner(), owner);
+  CHECK_EQ(name_def_->owner(), owner);
+  CHECK_EQ(type_annotation_->owner(), owner);
 }
 
 ParametricBinding::~ParametricBinding() = default;
@@ -735,7 +736,7 @@ ConstantArray::ConstantArray(Module* owner, Span span,
                              std::vector<Expr*> members, bool has_ellipsis)
     : Array(owner, std::move(span), std::move(members), has_ellipsis) {
   for (Expr* expr : this->members()) {
-    XLS_CHECK(IsConstant(expr))
+    CHECK(IsConstant(expr))
         << "non-constant in constant array: " << expr->ToString();
   }
 }
@@ -768,7 +769,7 @@ Import::Import(Module* owner, Span span, std::vector<std::string> subject,
       subject_(std::move(subject)),
       name_def_(name_def),
       alias_(std::move(alias)) {
-  XLS_CHECK(!subject_.empty());
+  CHECK(!subject_.empty());
 }
 
 Import::~Import() = default;
@@ -1477,7 +1478,7 @@ Block::Block(Module* owner, Span span, std::vector<Statement*> statements,
       statements_(std::move(statements)),
       trailing_semi_(trailing_semi) {
   if (statements_.empty()) {
-    XLS_CHECK(trailing_semi) << "empty block but trailing_semi is false";
+    CHECK(trailing_semi) << "empty block but trailing_semi is false";
   }
 }
 
@@ -1488,7 +1489,7 @@ std::string Block::ToInlineString() const {
   // trailing semi since an empty block gives unit type) we just give back
   // braces without any semicolon inside.
   if (statements_.empty()) {
-    XLS_CHECK(trailing_semi_);
+    CHECK(trailing_semi_);
     return "{}";
   }
 
@@ -1509,7 +1510,7 @@ std::string Block::ToStringInternal() const {
   // trailing semi since an empty block gives unit type) we just give back
   // braces without any semicolon inside.
   if (statements_.empty()) {
-    XLS_CHECK(trailing_semi_);
+    CHECK(trailing_semi_);
     return "{}";
   }
 
@@ -1571,7 +1572,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       tag_(tag),
       is_public_(is_public) {
   for (const ParametricBinding* pb : parametric_bindings_) {
-    XLS_CHECK(parametric_keys_.insert(pb->identifier()).second);
+    CHECK(parametric_keys_.insert(pb->identifier()).second);
   }
 }
 
@@ -1664,7 +1665,7 @@ MatchArm::MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
       span_(std::move(span)),
       patterns_(std::move(patterns)),
       expr_(expr) {
-  XLS_CHECK(!patterns_.empty());
+  CHECK(!patterns_.empty());
 }
 
 MatchArm::~MatchArm() = default;
@@ -1798,13 +1799,13 @@ Statement::NodeToWrapped(AstNode* n) {
 
 Statement::Statement(Module* owner, Statement::Wrapped wrapped)
     : AstNode(owner), wrapped_(wrapped) {
-  XLS_CHECK_NE(ToAstNode(wrapped_), this);
+  CHECK_NE(ToAstNode(wrapped_), this);
 }
 
 std::optional<Span> Statement::GetSpan() const {
   AstNode* wrapped = ToAstNode(wrapped_);
-  XLS_CHECK_NE(wrapped, nullptr);
-  XLS_CHECK_NE(wrapped, this);
+  CHECK_NE(wrapped, nullptr);
+  CHECK_NE(wrapped, this);
   return wrapped->GetSpan();
 }
 
@@ -2113,7 +2114,7 @@ std::vector<AstNode*> Array::GetChildren(bool want_types) const {
     results.push_back(type_annotation_);
   }
   for (Expr* member : members_) {
-    XLS_CHECK(member != nullptr);
+    CHECK(member != nullptr);
     results.push_back(member);
   }
   return results;

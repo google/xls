@@ -16,13 +16,14 @@
 
 #include <initializer_list>
 
+#include "absl/log/check.h"
 #include "xls/ir/bits.h"
 
 namespace xls::noc {
 
 DimensionBounds::DimensionBounds(std::initializer_list<int64_t> bounds) {
   for (int64_t bound : bounds) {
-    XLS_CHECK(bound >= 0);
+    CHECK_GE(bound, 0);
   }
   dimension_bounds_ = bounds;
 }
@@ -38,14 +39,14 @@ absl::Span<const int64_t> DimensionBounds::GetDimensionBounds() const {
 
 int64_t DimensionBounds::GetDimensionBound(
     const int64_t dimension_index) const {
-  XLS_CHECK(dimension_index >= 0 && dimension_index < GetDimensionCount());
+  CHECK(dimension_index >= 0 && dimension_index < GetDimensionCount());
   return dimension_bounds_[dimension_index];
 }
 
 void DimensionBounds::SetDimensionBound(const int64_t dimension_index,
                                         const int64_t value) {
-  XLS_CHECK(value >= 0);
-  XLS_CHECK(dimension_index >= 0 && dimension_index < GetDimensionCount());
+  CHECK_GE(value, 0);
+  CHECK(dimension_index >= 0 && dimension_index < GetDimensionCount());
   dimension_bounds_[dimension_index] = value;
 }
 

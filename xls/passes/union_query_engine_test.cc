@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -56,7 +57,7 @@ class FakeQueryEngine : public QueryEngine {
   bool IsTracked(Node* node) const override { return tracked_.contains(node); }
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
-    XLS_CHECK(node->GetType()->IsBits());
+    CHECK(node->GetType()->IsBits());
     TernaryVector ternary = ternary_ops::FromKnownBits(
         known_bits_.at(node), known_bit_values_.at(node));
     LeafTypeTree<TernaryVector> result(node->GetType());
@@ -140,12 +141,12 @@ class FakeQueryEngine : public QueryEngine {
   void AddKnownBit(const TreeBitLocation& location, bool value) {
     Node* node = location.node();
     AddTracked(node);
-    XLS_CHECK(node->GetType()->IsBits());
+    CHECK(node->GetType()->IsBits());
     int64_t index = location.bit_index();
     int64_t width = node->GetType()->GetFlatBitCount();
-    XLS_CHECK_LT(index, width);
-    XLS_CHECK_EQ(known_bits_[node].bit_count(), width);
-    XLS_CHECK_EQ(known_bit_values_[node].bit_count(), width);
+    CHECK_LT(index, width);
+    CHECK_EQ(known_bits_[node].bit_count(), width);
+    CHECK_EQ(known_bit_values_[node].bit_count(), width);
     known_bits_[node] = known_bits_[node].UpdateWithSet(index, true);
     known_bit_values_[node] =
         known_bit_values_[node].UpdateWithSet(index, value);

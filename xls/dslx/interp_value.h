@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -236,7 +237,7 @@ class InterpValue {
   }
 
   bool IsSigned() const {
-    XLS_CHECK(IsBits() || IsEnum());
+    CHECK(IsBits() || IsEnum());
     if (IsEnum()) {
       EnumData enum_data = std::get<EnumData>(payload_);
       return enum_data.is_signed;

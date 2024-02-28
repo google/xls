@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_replace.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/status_macros.h"
@@ -136,10 +137,10 @@ std::unique_ptr<OpOverride> OpOverrideAssertion::Clone() const {
 absl::StatusOr<NodeRepresentation> OpOverrideAssertion::Emit(
     Node* node, std::string_view name,
     absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
-  XLS_CHECK(node->Is<xls::Assert>());
+  CHECK(node->Is<xls::Assert>());
   xls::Assert* asrt = node->As<xls::Assert>();
-  XLS_CHECK_EQ(inputs.size(), 2);
-  XLS_CHECK(std::holds_alternative<Expression*>(inputs[1]));
+  CHECK_EQ(inputs.size(), 2);
+  CHECK(std::holds_alternative<Expression*>(inputs[1]));
 
   Expression* condition = std::get<Expression*>(inputs[1]);
 

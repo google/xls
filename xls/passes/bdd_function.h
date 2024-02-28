@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -76,7 +77,7 @@ class BddFunction {
 
   // Returns the node associated with the given bit.
   BddNodeIndex GetBddNode(Node* node, int64_t bit_index) const {
-    XLS_CHECK(node->GetType()->IsBits());
+    CHECK(node->GetType()->IsBits());
     return node_map_.at(node).at(bit_index);
   }
 

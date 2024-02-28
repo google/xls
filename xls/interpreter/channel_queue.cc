@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -84,7 +85,7 @@ void ChannelQueue::WriteInternal(const Value& value) {
     return;
   }
 
-  XLS_CHECK_EQ(channel()->kind(), ChannelKind::kStreaming);
+  CHECK_EQ(channel()->kind(), ChannelKind::kStreaming);
   queue_.push_back(value);
 }
 

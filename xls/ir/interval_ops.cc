@@ -17,10 +17,10 @@
 #include <cstdint>
 #include <optional>
 
-#include "xls/common/logging/logging.h"
+#include "absl/log/check.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/interval.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/interval.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 
@@ -34,9 +34,9 @@ TernaryVector ExtractTernaryVector(const IntervalSet& intervals,
 
 KnownBits ExtractKnownBits(const IntervalSet& intervals,
                            std::optional<Node*> source) {
-  XLS_CHECK(intervals.IsNormalized())
+  CHECK(intervals.IsNormalized())
       << (source.has_value() ? source.value()->ToString() : "");
-  XLS_CHECK(!intervals.Intervals().empty())
+  CHECK(!intervals.Intervals().empty())
       << (source.has_value() ? source.value()->ToString() : "");
   Bits lcp = bits_ops::LongestCommonPrefixMSB(
       {intervals.Intervals().front().LowerBound(),

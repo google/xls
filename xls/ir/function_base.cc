@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -49,7 +50,7 @@ std::vector<std::string> FunctionBase::AttributeIrStrings() const {
   std::vector<std::string> attribute_strings;
   if (ForeignFunctionData().has_value()) {
     std::string serialized;
-    XLS_CHECK(
+    CHECK(
         google::protobuf::TextFormat::PrintToString(*ForeignFunctionData(), &serialized));
     // Triple-quoted attribute strings allow for newlines.
     attribute_strings.push_back(
@@ -189,17 +190,17 @@ bool FunctionBase::IsBlock() const {
 }
 
 Function* FunctionBase::AsFunctionOrDie() {
-  XLS_CHECK(IsFunction());
+  CHECK(IsFunction());
   return down_cast<Function*>(this);
 }
 
 Proc* FunctionBase::AsProcOrDie() {
-  XLS_CHECK(IsProc());
+  CHECK(IsProc());
   return down_cast<Proc*>(this);
 }
 
 Block* FunctionBase::AsBlockOrDie() {
-  XLS_CHECK(IsBlock());
+  CHECK(IsBlock());
   return down_cast<Block*>(this);
 }
 

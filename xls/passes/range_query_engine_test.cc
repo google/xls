@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -53,7 +54,7 @@ class RangeQueryEngineTest : public IrTestBase {};
 
 IntervalSet CreateIntervalSet(
     int64_t bit_count, absl::Span<const std::pair<int64_t, int64_t>> bounds) {
-  XLS_CHECK(!bounds.empty());
+  CHECK(!bounds.empty());
   IntervalSet interval_set(bit_count);
   for (const auto& [lb, ub] : bounds) {
     interval_set.AddInterval(
@@ -65,7 +66,7 @@ IntervalSet CreateIntervalSet(
 
 LeafTypeTree<IntervalSet> BitsLTT(
     Node* node, absl::Span<const std::pair<int64_t, int64_t>> bounds) {
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   LeafTypeTree<IntervalSet> result(node->GetType());
   result.Set({}, CreateIntervalSet(node->BitCountOrDie(), bounds));
   return result;
@@ -73,15 +74,15 @@ LeafTypeTree<IntervalSet> BitsLTT(
 
 LeafTypeTree<IntervalSet> BitsLTT(Node* node,
                                   absl::Span<const Interval> intervals) {
-  XLS_CHECK(!intervals.empty());
+  CHECK(!intervals.empty());
   int64_t bit_count = intervals[0].BitCount();
   IntervalSet interval_set(bit_count);
   for (const Interval& interval : intervals) {
-    XLS_CHECK_EQ(interval.BitCount(), bit_count);
+    CHECK_EQ(interval.BitCount(), bit_count);
     interval_set.AddInterval(interval);
   }
   interval_set.Normalize();
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   LeafTypeTree<IntervalSet> result(node->GetType());
   result.Set({}, interval_set);
   return result;

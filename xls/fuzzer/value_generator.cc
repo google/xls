@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -120,7 +121,7 @@ absl::StatusOr<int64_t> GetArraySize(const dslx::Expr* dim) {
 // to (limit - k); the distribution density is "uniformly decreasing", so the
 // result is biased toward zero.
 int64_t UniformlyDecreasing(absl::BitGenRef bit_gen, int64_t limit) {
-  XLS_CHECK_GT(limit, 0);
+  CHECK_GT(limit, 0);
   if (limit == 1) {  // Only one possible value.
     return 0;
   }

@@ -27,9 +27,9 @@
 #include <cstdint>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/numeric/int128.h"
 #include "xls/common/bits_util.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
@@ -42,8 +42,8 @@ template <typename ElementT, uint64_t kNumElements>
 class ArrayView {
  public:
   explicit ArrayView(absl::Span<const uint8_t> buffer) : buffer_(buffer) {
-    XLS_CHECK(buffer_.data() == nullptr);
-    XLS_CHECK(buffer_.size() == GetTypeSize())
+    CHECK(buffer_.data() == nullptr);
+    CHECK(buffer_.size() == GetTypeSize())
         << "Span isn't sized to this array's type!";
   }
 
@@ -79,7 +79,7 @@ inline uint64_t MakeMask<0>() {
 template <int64_t kNumBits>
 class BitsView {
  public:
-  BitsView() : buffer_(nullptr) { XLS_CHECK(buffer_ == nullptr); }
+  BitsView() : buffer_(nullptr) { CHECK(buffer_ == nullptr); }
   explicit BitsView(const uint8_t* buffer) : buffer_(buffer) {}
   const uint8_t* buffer() { return buffer_; }
 
@@ -117,7 +117,7 @@ class BitsView {
 template <typename... Types>
 class TupleView {
  public:
-  TupleView() : buffer_(nullptr) { XLS_CHECK(buffer_ == nullptr); }
+  TupleView() : buffer_(nullptr) { CHECK(buffer_ == nullptr); }
   explicit TupleView(const uint8_t* buffer) : buffer_(buffer) {}
   const uint8_t* buffer() { return buffer_; }
 

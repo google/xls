@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
@@ -176,11 +177,11 @@ void XlsccTestBase::RunWithStatics(
   absl::flat_hash_map<const clang::NamedDecl*, xls::Value> static_state;
   for (const xlscc::SideEffectingParameter& param :
        pfunc->side_effecting_parameters) {
-    XLS_CHECK(param.type == xlscc::SideEffectingParameterType::kStatic);
+    CHECK(param.type == xlscc::SideEffectingParameterType::kStatic);
     const xls::Value& init_value =
         pfunc->static_values.at(param.static_value).rvalue();
     static_param_names[param.static_value] = param.param_name;
-    XLS_CHECK(!static_state.contains(param.static_value));
+    CHECK(!static_state.contains(param.static_value));
     static_state[param.static_value] = init_value;
   }
 
@@ -203,7 +204,7 @@ void XlsccTestBase::RunWithStatics(
       int i = 0;
       for (const clang::NamedDecl* decl :
            pfunc->GetDeterministicallyOrderedStaticValues()) {
-        XLS_CHECK(static_state.contains(decl));
+        CHECK(static_state.contains(decl));
         static_state[decl] = returns[i++];
       }
     }
@@ -552,7 +553,7 @@ void XlsccTestBase::ProcTest(
 
 absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
     std::string_view name_cont) {
-  XLS_CHECK_NE(nullptr, package_.get());
+  CHECK_NE(nullptr, package_.get());
   uint64_t ret = 0;
   xls::Proc* already_found = nullptr;
   for (std::unique_ptr<xls::Proc>& proc : package_->procs()) {
@@ -576,7 +577,7 @@ absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
 
 absl::StatusOr<uint64_t> XlsccTestBase::GetBitsForChannelNameContains(
     std::string_view name_cont) {
-  XLS_CHECK_NE(nullptr, package_.get());
+  CHECK_NE(nullptr, package_.get());
   uint64_t ret = 0;
 
   const xls::Channel* already_found = nullptr;
@@ -670,7 +671,7 @@ absl::StatusOr<bool> XlsccTestBase::NodeIsAfterTokenWise(xls::Proc* proc,
 absl::StatusOr<std::vector<xls::Node*>>
 XlsccTestBase::GetOpsForChannelNameContains(std::string_view channel) {
   std::vector<xls::Node*> ret;
-  XLS_CHECK_NE(package_.get(), nullptr);
+  CHECK_NE(package_.get(), nullptr);
   for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
     for (xls::Node* node : proc->nodes()) {
       if (node->Is<xls::Receive>() &&
@@ -735,7 +736,7 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
       if (op.op == xlscc::OpType::kRead) {
         expected_name += "__read";
       }
-      XLS_CHECK_EQ(expected_name, test_op.name);
+      CHECK_EQ(expected_name, test_op.name);
 
       const xls::Value& new_val = test_op.value;
 
@@ -744,7 +745,7 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
       } else if (args[arg_name].IsBits()) {
         args[arg_name] = xls::Value::Tuple({args[arg_name], new_val});
       } else {
-        XLS_CHECK(args[arg_name].IsTuple());
+        CHECK(args[arg_name].IsTuple());
         const xls::Value prev_val = args[arg_name];
         XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> values,
                                  prev_val.GetElements());
@@ -792,7 +793,7 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
       if (op.op == xlscc::OpType::kRead) {
         expected_name += "__read";
       }
-      XLS_CHECK_EQ(expected_name, test_op.name);
+      CHECK_EQ(expected_name, test_op.name);
 
       xls::Value cond_val;
 
@@ -829,7 +830,7 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
         expected_name += "__write";
       }
 
-      XLS_CHECK_EQ(expected_name, test_op.name);
+      CHECK_EQ(expected_name, test_op.name);
 
       ASSERT_TRUE(io_return.IsTuple());
       XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> elements,
@@ -847,7 +848,7 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
       const IOOpTest test_op = outputs.front();
       outputs.pop_front();
 
-      XLS_CHECK_EQ(ch_name, test_op.name);
+      CHECK_EQ(ch_name, test_op.name);
       EXPECT_EQ(test_op.message, op.trace_message_string);
       EXPECT_EQ(test_op.label, op.label_string);
       EXPECT_EQ(test_op.trace_type, op.trace_type);

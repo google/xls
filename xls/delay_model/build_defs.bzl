@@ -60,6 +60,7 @@ def delay_model(
         srcs = [":{}_source".format(name)],
         alwayslink = 1,
         deps = [
+            "@com_google_absl//absl/log:check",
             "@com_google_absl//absl/memory",
             "@com_google_absl//absl/status",
             "//xls/common:module_initializer",

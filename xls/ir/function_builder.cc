@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -186,7 +187,7 @@ BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
   }
   std::vector<Node*> cases_nodes;
   for (const BValue& bvalue : cases) {
-    XLS_CHECK_EQ(selector.builder(), bvalue.builder());
+    CHECK_EQ(selector.builder(), bvalue.builder());
     cases_nodes.push_back(bvalue.node());
   }
   std::optional<Node*> default_node = std::nullopt;
@@ -220,7 +221,7 @@ BValue BuilderBase::OneHotSelect(BValue selector,
   }
   std::vector<Node*> cases_nodes;
   for (const BValue& bvalue : cases) {
-    XLS_CHECK_EQ(selector.builder(), bvalue.builder());
+    CHECK_EQ(selector.builder(), bvalue.builder());
     cases_nodes.push_back(bvalue.node());
   }
   return AddNode<xls::OneHotSelect>(loc, selector.node(), cases_nodes, name);
@@ -235,7 +236,7 @@ BValue BuilderBase::PrioritySelect(BValue selector,
   }
   std::vector<Node*> cases_nodes;
   for (const BValue& bvalue : cases) {
-    XLS_CHECK_EQ(selector.builder(), bvalue.builder());
+    CHECK_EQ(selector.builder(), bvalue.builder());
     cases_nodes.push_back(bvalue.node());
   }
   return AddNode<xls::PrioritySelect>(loc, selector.node(), cases_nodes, name);
@@ -314,8 +315,8 @@ BValue BuilderBase::MatchTrue(absl::Span<const Case> cases,
   std::vector<BValue> selector_bits;
   std::vector<BValue> case_values;
   for (int64_t i = 0; i < cases.size(); ++i) {
-    XLS_CHECK_EQ(cases[i].clause.builder(), default_value.builder());
-    XLS_CHECK_EQ(cases[i].value.builder(), default_value.builder());
+    CHECK_EQ(cases[i].clause.builder(), default_value.builder());
+    CHECK_EQ(cases[i].value.builder(), default_value.builder());
     if (GetType(cases[i].clause) != package()->GetBitsType(1)) {
       return SetError(
           absl::StrFormat("Selector %d must be a single-bit Bits type, is: %s",
@@ -1245,7 +1246,7 @@ BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
   if (ErrorPending()) {
     return BValue();
   }
-  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
+  CHECK_EQ(lhs.builder(), rhs.builder());
   if (!lhs.GetType()->IsBits() || !rhs.GetType()->IsBits()) {
     return SetError(
         absl::StrFormat(
@@ -1277,7 +1278,7 @@ BValue BuilderBase::AddPartialProductOp(Op op, BValue lhs, BValue rhs,
   if (ErrorPending()) {
     return BValue();
   }
-  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
+  CHECK_EQ(lhs.builder(), rhs.builder());
   if (!lhs.GetType()->IsBits() || !rhs.GetType()->IsBits()) {
     return SetError(
         absl::StrFormat(
@@ -1308,7 +1309,7 @@ BValue BuilderBase::AddUnOp(Op op, BValue x, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  XLS_CHECK_EQ(this, x.builder());
+  CHECK_EQ(this, x.builder());
   if (!IsOpClass<UnOp>(op)) {
     return SetError(absl::StrFormat("Op %s is not a operation of class UnOp",
                                     OpToString(op)),
@@ -1322,7 +1323,7 @@ BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
   if (ErrorPending()) {
     return BValue();
   }
-  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
+  CHECK_EQ(lhs.builder(), rhs.builder());
   if (!IsOpClass<BinOp>(op)) {
     return SetError(absl::StrFormat("Op %s is not a operation of class BinOp",
                                     OpToString(op)),
@@ -1337,7 +1338,7 @@ BValue BuilderBase::AddCompareOp(Op op, BValue lhs, BValue rhs,
   if (ErrorPending()) {
     return BValue();
   }
-  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
+  CHECK_EQ(lhs.builder(), rhs.builder());
   if (!IsOpClass<CompareOp>(op)) {
     return SetError(
         absl::StrFormat("Op %s is not a operation of class CompareOp",
@@ -1370,7 +1371,7 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
   if (ErrorPending()) {
     return BValue();
   }
-  XLS_CHECK_EQ(this, arg.builder());
+  CHECK_EQ(this, arg.builder());
   return AddNode<BitwiseReductionOp>(loc, arg.node(), op, name);
 }
 
@@ -1503,19 +1504,19 @@ BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,
 
 std::string_view ProcBuilder::GetChannelName(SendChannelRef channel) const {
   if (std::holds_alternative<Channel*>(channel)) {
-    XLS_CHECK(!proc()->is_new_style_proc());
+    CHECK(!proc()->is_new_style_proc());
     return std::get<Channel*>(channel)->name();
   }
-  XLS_CHECK(proc()->is_new_style_proc());
+  CHECK(proc()->is_new_style_proc());
   return std::get<SendChannelReference*>(channel)->name();
 }
 
 std::string_view ProcBuilder::GetChannelName(ReceiveChannelRef channel) const {
   if (std::holds_alternative<Channel*>(channel)) {
-    XLS_CHECK(!proc()->is_new_style_proc());
+    CHECK(!proc()->is_new_style_proc());
     return std::get<Channel*>(channel)->name();
   }
-  XLS_CHECK(proc()->is_new_style_proc());
+  CHECK(proc()->is_new_style_proc());
   return std::get<ReceiveChannelReference*>(channel)->name();
 }
 

@@ -265,7 +265,7 @@ confusing in the code but is really just a performance optimization:
 ```c++
 absl::Span<Node* const> GetOperandsForCse(
     Node* node, std::vector<Node*>* span_backing_store) {
-  XLS_CHECK(span_backing_store->empty());
+  CHECK(span_backing_store->empty());
   if (!OpIsCommutative(node->op())) {
     return node->operands();
   }

@@ -20,6 +20,7 @@
 #include <tuple>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -68,7 +69,7 @@ BddNodeIndex BinaryDecisionDiagram::Restrict(BddNodeIndex expr, BddVariable var,
   }
 
   const BddNode& node = GetNode(expr);
-  XLS_CHECK_LE(var, node.variable);
+  CHECK_LE(var, node.variable);
   if (node.variable == var) {
     return value ? node.high : node.low;
   }

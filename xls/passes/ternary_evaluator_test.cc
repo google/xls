@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -65,10 +66,10 @@ class TernaryLogicTest : public ::testing::Test {
   // Otherwise it is TernaryValue::kUnknown. Example: { 0b1000, 0b1100, 0b1001 }
   // => 0b1X0X
   TernaryVector ReduceFromBits(absl::Span<const Bits> bits_vector) {
-    XLS_CHECK(!bits_vector.empty());
+    CHECK(!bits_vector.empty());
     TernaryVector result = evaluator_.BitsToVector(bits_vector.front());
     for (const Bits& bits : bits_vector.subspan(1)) {
-      XLS_CHECK_EQ(bits.bit_count(), result.size());
+      CHECK_EQ(bits.bit_count(), result.size());
       for (int64_t i = 0; i < result.size(); ++i) {
         bool same = ((bits.Get(i) && result[i] == TernaryValue::kKnownOne) ||
                      (!bits.Get(i) && result[i] == TernaryValue::kKnownZero));

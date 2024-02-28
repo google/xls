@@ -32,6 +32,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -117,7 +118,7 @@ class BlockConversionTest : public IrTestBase {
         output_port = node->As<OutputPort>();
       }
     }
-    XLS_CHECK(output_port != nullptr);
+    CHECK(output_port != nullptr);
     return output_port;
   }
 
@@ -220,9 +221,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
       int64_t first_cycle, int64_t last_cycle,
       const absl::flat_hash_map<std::string, uint64_t>& signals,
       std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
-    XLS_CHECK_GE(first_cycle, 0);
-    XLS_CHECK_GE(last_cycle, 0);
-    XLS_CHECK_LE(first_cycle, last_cycle);
+    CHECK_GE(first_cycle, 0);
+    CHECK_GE(last_cycle, 0);
+    CHECK_LE(first_cycle, last_cycle);
 
     if (io.size() <= last_cycle) {
       io.resize(last_cycle + 1);
@@ -245,9 +246,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
       int64_t first_cycle, int64_t last_cycle, std::string_view signal_name,
       uint64_t signal_val,
       std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
-    XLS_CHECK_GE(first_cycle, 0);
-    XLS_CHECK_GE(last_cycle, 0);
-    XLS_CHECK_LE(first_cycle, last_cycle);
+    CHECK_GE(first_cycle, 0);
+    CHECK_GE(last_cycle, 0);
+    CHECK_LE(first_cycle, last_cycle);
 
     if (io.size() <= last_cycle) {
       io.resize(last_cycle + 1);
@@ -267,9 +268,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
       int64_t first_cycle, int64_t last_cycle, std::string_view signal_name,
       uint64_t min_value, uint64_t max_value, absl::BitGenRef rng,
       std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
-    XLS_CHECK_GE(first_cycle, 0);
-    XLS_CHECK_GE(last_cycle, 0);
-    XLS_CHECK_LE(first_cycle, last_cycle);
+    CHECK_GE(first_cycle, 0);
+    CHECK_GE(last_cycle, 0);
+    CHECK_LE(first_cycle, last_cycle);
 
     if (io.size() <= last_cycle) {
       io.resize(last_cycle + 1);
@@ -293,7 +294,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> outputs)
       const {
-    XLS_CHECK_EQ(inputs.size(), outputs.size());
+    CHECK_EQ(inputs.size(), outputs.size());
 
     std::vector<CycleAndValue> sequence;
 
@@ -330,9 +331,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
       std::optional<
           absl::Span<const absl::flat_hash_map<std::string, uint64_t>>>
           expected_outputs = std::nullopt) const {
-    XLS_CHECK_EQ(inputs.size(), outputs.size());
+    CHECK_EQ(inputs.size(), outputs.size());
     if (expected_outputs.has_value()) {
-      XLS_CHECK_EQ(inputs.size(), expected_outputs->size());
+      CHECK_EQ(inputs.size(), expected_outputs->size());
     }
 
     std::string header;
@@ -357,9 +358,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
         std::string_view signal_name = col.signal_name;
         SignalType signal_type = col.signal_type;
 
-        XLS_CHECK(signal_type == SignalType::kInput ||
-                  signal_type == SignalType::kOutput ||
-                  signal_type == SignalType::kExpectedOutput);
+        CHECK(signal_type == SignalType::kInput ||
+              signal_type == SignalType::kOutput ||
+              signal_type == SignalType::kExpectedOutput);
 
         uint64_t signal_value = 0;
         if (signal_type == SignalType::kInput) {
@@ -367,7 +368,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
         } else if (signal_type == SignalType::kOutput) {
           signal_value = outputs.at(i).at(signal_name);
         } else {
-          XLS_CHECK(expected_outputs.has_value());
+          CHECK(expected_outputs.has_value());
           signal_value = expected_outputs->at(i).at(signal_name);
         }
 

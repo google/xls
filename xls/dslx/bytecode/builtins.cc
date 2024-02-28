@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -362,7 +363,7 @@ absl::Status RunBuiltinSMulp(const Bytecode& bytecode,
          const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
         XLS_ASSIGN_OR_RETURN(int64_t lhs_bitwidth, lhs.GetBitCount());
         XLS_ASSIGN_OR_RETURN(int64_t rhs_bitwidth, lhs.GetBitCount());
-        XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
+        CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
         int64_t product_bitwidth = lhs_bitwidth;
         std::vector<InterpValue> outputs;
         InterpValue offset = InterpValue::MakeUnsigned(
@@ -387,7 +388,7 @@ absl::Status RunBuiltinUMulp(const Bytecode& bytecode,
          const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
         XLS_ASSIGN_OR_RETURN(int64_t lhs_bitwidth, lhs.GetBitCount());
         XLS_ASSIGN_OR_RETURN(int64_t rhs_bitwidth, lhs.GetBitCount());
-        XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
+        CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
         int64_t product_bitwidth = lhs_bitwidth;
         std::vector<InterpValue> outputs;
         InterpValue offset = InterpValue::MakeUnsigned(

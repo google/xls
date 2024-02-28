@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -233,42 +234,42 @@ class FunctionType {
 // -- Inlines
 
 inline const BitsType* Type::AsBitsOrDie() const {
-  XLS_CHECK_EQ(kind(), TypeKind::kBits) << ToString();
+  CHECK_EQ(kind(), TypeKind::kBits) << ToString();
   return down_cast<const BitsType*>(this);
 }
 
 inline BitsType* Type::AsBitsOrDie() {
-  XLS_CHECK_EQ(kind(), TypeKind::kBits) << ToString();
+  CHECK_EQ(kind(), TypeKind::kBits) << ToString();
   return down_cast<BitsType*>(this);
 }
 
 inline const TupleType* Type::AsTupleOrDie() const {
-  XLS_CHECK_EQ(kind(), TypeKind::kTuple);
+  CHECK_EQ(kind(), TypeKind::kTuple);
   return down_cast<const TupleType*>(this);
 }
 
 inline TupleType* Type::AsTupleOrDie() {
-  XLS_CHECK_EQ(kind(), TypeKind::kTuple);
+  CHECK_EQ(kind(), TypeKind::kTuple);
   return down_cast<TupleType*>(this);
 }
 
 inline const ArrayType* Type::AsArrayOrDie() const {
-  XLS_CHECK_EQ(kind(), TypeKind::kArray);
+  CHECK_EQ(kind(), TypeKind::kArray);
   return down_cast<const ArrayType*>(this);
 }
 
 inline ArrayType* Type::AsArrayOrDie() {
-  XLS_CHECK_EQ(kind(), TypeKind::kArray);
+  CHECK_EQ(kind(), TypeKind::kArray);
   return down_cast<ArrayType*>(this);
 }
 
 inline const TokenType* Type::AsTokenOrDie() const {
-  XLS_CHECK_EQ(kind(), TypeKind::kToken);
+  CHECK_EQ(kind(), TypeKind::kToken);
   return down_cast<const TokenType*>(this);
 }
 
 inline TokenType* Type::AsTokenOrDie() {
-  XLS_CHECK_EQ(kind(), TypeKind::kToken);
+  CHECK_EQ(kind(), TypeKind::kToken);
   return down_cast<TokenType*>(this);
 }
 

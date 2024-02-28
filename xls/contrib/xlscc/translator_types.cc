@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -76,7 +77,7 @@ absl::Status CType::GetMetadataValue(Translator& translator,
 CVoidType::~CVoidType() = default;
 
 int CVoidType::GetBitWidth() const {
-  XLS_CHECK(false);
+  CHECK(false);
   return 0;
 }
 
@@ -197,10 +198,10 @@ absl::Status CIntType::GetMetadataValue(Translator& translator,
                                         const ConstValue const_value,
                                         xlscc_metadata::Value* output) const {
   auto value = const_value.rvalue();
-  XLS_CHECK(value.IsBits());
+  CHECK(value.IsBits());
   const xls::Bits& bits = value.bits();
   std::vector<uint8_t> bytes = bits.ToBytes();
-  XLS_CHECK_GT(bytes.size(), 0);
+  CHECK_GT(bytes.size(), 0);
   output->mutable_as_int()->set_big_endian_bytes(bytes.data(), bytes.size());
   return absl::OkStatus();
 }
@@ -249,13 +250,13 @@ absl::Status CFloatType::GetMetadataValue(Translator& translator,
                                           xlscc_metadata::Value* output) const {
   std::shared_ptr<CFloatType> float_type =
       std::dynamic_pointer_cast<CFloatType>(const_value.type());
-  XLS_CHECK_NE(float_type, nullptr);
+  CHECK_NE(float_type, nullptr);
   xls::Value value = const_value.rvalue();
-  XLS_CHECK(value.IsBits());
+  CHECK(value.IsBits());
   const xls::Bits& bits = value.bits();
   vector<uint8_t> bytes = bits.ToBytes();
   double double_value = 0.0;
-  XLS_CHECK_GE(bytes.size(), sizeof(double_value));
+  CHECK_GE(bytes.size(), sizeof(double_value));
   memcpy(&double_value, bytes.data(), sizeof(double_value));
   output->mutable_as_float()->set_value(double_value);
   return absl::OkStatus();
@@ -321,7 +322,7 @@ absl::Status CEnumType::GetMetadataValue(Translator& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
   auto value = const_value.rvalue();
-  XLS_CHECK(value.IsBits());
+  CHECK(value.IsBits());
   if (is_signed()) {
     XLS_ASSIGN_OR_RETURN(int64_t signed_value, value.bits().ToInt64());
     auto variant = variants_by_value_.find(signed_value);
@@ -357,7 +358,7 @@ absl::Status CBoolType::GetMetadataValue(Translator& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
   auto value = const_value.rvalue();
-  XLS_CHECK(value.IsBits());
+  CHECK(value.IsBits());
   XLS_ASSIGN_OR_RETURN(uint64_t bool_value, value.bits().ToUint64());
   output->set_as_bool(bool_value == 1);
   return absl::OkStatus();
@@ -450,18 +451,18 @@ absl::Status CInstantiableTypeAlias::GetMetadataValue(
   }
 
   auto found = translator.inst_types_.find(inst);
-  XLS_CHECK(found != translator.inst_types_.end());
+  CHECK(found != translator.inst_types_.end());
   auto struct_type =
       std::dynamic_pointer_cast<const CStructType>(found->second);
 
   // Handle __xls_bits
   if (struct_type == nullptr) {
-    XLS_CHECK_EQ(base_->getNameAsString(), "__xls_bits");
+    CHECK_EQ(base_->getNameAsString(), "__xls_bits");
     write_as_bits = true;
   }
 
   if (write_as_bits) {
-    XLS_CHECK(const_value.rvalue().IsBits());
+    CHECK(const_value.rvalue().IsBits());
     vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
     // Bits::ToBytes is little-endian, data is stored in the proto as
     // big-endian.
@@ -504,7 +505,7 @@ CStructType::CStructType(std::vector<std::shared_ptr<CField>> fields,
       synthetic_int_flag_(synthetic_int_flag),
       fields_(fields) {
   for (const std::shared_ptr<CField>& pf : fields) {
-    XLS_CHECK(!fields_by_name_.contains(pf->name()));
+    CHECK(!fields_by_name_.contains(pf->name()));
     fields_by_name_[pf->name()] = pf;
   }
 }
@@ -513,7 +514,7 @@ absl::Status CStructType::GetMetadata(
     Translator& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   // Synthetic int classes / structs should never be emitted
-  XLS_CHECK(!synthetic_int_flag_);
+  CHECK(!synthetic_int_flag_);
 
   output->mutable_as_struct()->set_no_tuple(no_tuple_flag_);
 
@@ -726,7 +727,7 @@ std::shared_ptr<CType> CField::type() const { return type_; }
 CArrayType::CArrayType(std::shared_ptr<CType> element, int size)
     : element_(element), size_(size) {
   // XLS doesn't support 0 sized arrays
-  XLS_CHECK(size_ > 0);
+  CHECK_GT(size_, 0);
 }
 
 bool CArrayType::operator==(const CType& o) const {
@@ -937,7 +938,7 @@ std::shared_ptr<CType> CChannelType::MemoryAddressType(int64_t memory_size) {
 }
 
 int64_t CChannelType::MemoryAddressWidth(int64_t memory_size) {
-  XLS_CHECK_GT(memory_size, 0);
+  CHECK_GT(memory_size, 0);
   return std::ceil(std::log2(memory_size));
 }
 

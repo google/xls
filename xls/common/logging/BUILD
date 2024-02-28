@@ -143,7 +143,6 @@ cc_library(
         ":log_flags",
         ":vlog_is_on",
         "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
     ],
 )
@@ -158,6 +157,7 @@ cc_test(
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",

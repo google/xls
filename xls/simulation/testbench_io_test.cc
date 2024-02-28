@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
@@ -131,7 +132,7 @@ TEST_P(TestbenchIoTest, SimpleInputOutput) {
     XLS_VLOG(1) << "Feeding input:";
     for (int32_t i = 0; i < kSampleCount; ++i) {
       XLS_VLOG(1) << absl::StreamFormat("  input: %x", i);
-      XLS_CHECK_OK(fw.WriteLine(absl::StrFormat("%x\n", i)));
+      CHECK_OK(fw.WriteLine(absl::StrFormat("%x\n", i)));
     }
   });
 
@@ -160,7 +161,7 @@ TEST_P(TestbenchIoTest, SimpleInputOutput) {
   std::vector<int32_t> results;
   Thread read_thread([&]() {
     absl::StatusOr<std::vector<int32_t>> values_or = read_lines_and_convert();
-    XLS_CHECK_OK(values_or.status());
+    CHECK_OK(values_or.status());
     results = std::move(values_or.value());
   });
 
@@ -193,7 +194,7 @@ TEST_P(TestbenchIoTest, BadInput) {
     XLS_VLOG(1) << "Opening input pipe for writing.";
     FileLineWriter fw = input_pipe.OpenForWriting().value();
     XLS_VLOG(1) << "Writing input.";
-    XLS_CHECK_OK(fw.WriteLine("thisisnotahexnumber"));
+    CHECK_OK(fw.WriteLine("thisisnotahexnumber"));
   });
 
   Thread read_thread([&]() {
@@ -236,7 +237,7 @@ TEST_P(TestbenchIoTest, InvalidOutputFile) {
 
   // We need to open the input pipe to unblock the $fopen in the testbench.
   Thread write_thread(
-      [&]() { XLS_CHECK_OK(input_pipe.OpenForWriting().status()); });
+      [&]() { CHECK_OK(input_pipe.OpenForWriting().status()); });
 
   std::pair<std::string, std::string> stdout_stderr;
   XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr, RunSimulator(verilog));

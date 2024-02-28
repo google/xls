@@ -22,10 +22,10 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
@@ -102,7 +102,7 @@ void IntervalSet::Normalize() {
 }
 
 std::optional<Interval> IntervalSet::ConvexHull() const {
-  XLS_CHECK_GE(bit_count_, 0);
+  CHECK_GE(bit_count_, 0);
   std::optional<Bits> lower = LowerBound();
   std::optional<Bits> upper = UpperBound();
   if (!lower.has_value() || !upper.has_value()) {
@@ -112,7 +112,7 @@ std::optional<Interval> IntervalSet::ConvexHull() const {
 }
 
 std::optional<Bits> IntervalSet::LowerBound() const {
-  XLS_CHECK_GE(bit_count_, 0);
+  CHECK_GE(bit_count_, 0);
   if (is_normalized_) {
     if (intervals_.empty()) {
       return std::nullopt;
@@ -134,7 +134,7 @@ std::optional<Bits> IntervalSet::LowerBound() const {
 }
 
 std::optional<Bits> IntervalSet::UpperBound() const {
-  XLS_CHECK_GE(bit_count_, 0);
+  CHECK_GE(bit_count_, 0);
   if (is_normalized_) {
     if (intervals_.empty()) {
       return std::nullopt;
@@ -156,7 +156,7 @@ std::optional<Bits> IntervalSet::UpperBound() const {
 }
 
 IntervalSet IntervalSet::ZeroExtend(int64_t bit_width) const {
-  XLS_CHECK_GE(bit_width, BitCount());
+  CHECK_GE(bit_width, BitCount());
   IntervalSet result(bit_width);
   for (const Interval& interval : Intervals()) {
     result.AddInterval(interval.ZeroExtend(bit_width));
@@ -167,7 +167,7 @@ IntervalSet IntervalSet::ZeroExtend(int64_t bit_width) const {
 
 bool IntervalSet::ForEachElement(
     const std::function<bool(const Bits&)>& callback) const {
-  XLS_CHECK(is_normalized_);
+  CHECK(is_normalized_);
   for (const Interval& interval : intervals_) {
     if (interval.ForEachElement(callback)) {
       return true;
@@ -178,7 +178,7 @@ bool IntervalSet::ForEachElement(
 
 IntervalSet IntervalSet::Combine(const IntervalSet& lhs,
                                  const IntervalSet& rhs) {
-  XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
+  CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   IntervalSet combined(lhs.BitCount());
   for (const Interval& interval : lhs.intervals_) {
     combined.AddInterval(interval);
@@ -192,9 +192,9 @@ IntervalSet IntervalSet::Combine(const IntervalSet& lhs,
 
 IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
                                    const IntervalSet& rhs) {
-  XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
-  XLS_CHECK(lhs.is_normalized_);
-  XLS_CHECK(rhs.is_normalized_);
+  CHECK_EQ(lhs.BitCount(), rhs.BitCount());
+  CHECK(lhs.is_normalized_);
+  CHECK(rhs.is_normalized_);
   IntervalSet result(lhs.BitCount());
   std::list<Interval> lhs_intervals(lhs.Intervals().begin(),
                                     lhs.Intervals().end());
@@ -264,7 +264,7 @@ IntervalSet IntervalSet::Complement(const IntervalSet& set) {
 }
 
 std::optional<int64_t> IntervalSet::Size() const {
-  XLS_CHECK(is_normalized_);
+  CHECK(is_normalized_);
   int64_t total_size = 0;
   for (const Interval& interval : intervals_) {
     if (auto size = interval.Size()) {
@@ -277,8 +277,8 @@ std::optional<int64_t> IntervalSet::Size() const {
 }
 
 std::optional<Bits> IntervalSet::Index(const Bits& index) const {
-  XLS_CHECK(is_normalized_);
-  XLS_CHECK_EQ(index.bit_count(), BitCount());
+  CHECK(is_normalized_);
+  CHECK_EQ(index.bit_count(), BitCount());
   Bits so_far = bits_ops::ZeroExtend(index, BitCount() + 1);
   std::optional<Interval> to_index;
   for (const Interval& interval : Intervals()) {
@@ -295,12 +295,12 @@ std::optional<Bits> IntervalSet::Index(const Bits& index) const {
   Bits result = bits_ops::Add(
       so_far,
       bits_ops::ZeroExtend(to_index.value().LowerBound(), BitCount() + 1));
-  XLS_CHECK(!result.msb());
+  CHECK(!result.msb());
   return result.Slice(0, BitCount());
 }
 
 bool IntervalSet::IsTrueWhenMaskWith(const Bits& value) const {
-  XLS_CHECK_EQ(value.bit_count(), BitCount());
+  CHECK_EQ(value.bit_count(), BitCount());
   for (const Interval& interval : intervals_) {
     if (interval.IsTrueWhenAndWith(value)) {
       return true;
@@ -310,7 +310,7 @@ bool IntervalSet::IsTrueWhenMaskWith(const Bits& value) const {
 }
 
 bool IntervalSet::Covers(const Bits& bits) const {
-  XLS_CHECK_EQ(bits.bit_count(), BitCount());
+  CHECK_EQ(bits.bit_count(), BitCount());
   for (const Interval& interval : intervals_) {
     if (interval.Covers(bits)) {
       return true;
@@ -320,7 +320,7 @@ bool IntervalSet::Covers(const Bits& bits) const {
 }
 
 bool IntervalSet::IsPrecise() const {
-  XLS_CHECK_GE(bit_count_, 0);
+  CHECK_GE(bit_count_, 0);
   std::optional<Interval> precisely;
   for (const Interval& interval : intervals_) {
     if (precisely.has_value() && !(precisely.value() == interval)) {
@@ -335,17 +335,17 @@ bool IntervalSet::IsPrecise() const {
 }
 
 std::optional<Bits> IntervalSet::GetPreciseValue() const {
-  XLS_CHECK(is_normalized_);
+  CHECK(is_normalized_);
   if (!IsPrecise()) {
     return std::nullopt;
   }
-  XLS_CHECK_EQ(intervals_.size(), 1);
+  CHECK_EQ(intervals_.size(), 1);
   return intervals_.front().GetPreciseValue();
 }
 
 bool IntervalSet::IsMaximal() const {
-  XLS_CHECK(is_normalized_);
-  XLS_CHECK_GE(bit_count_, 0);
+  CHECK(is_normalized_);
+  CHECK_GE(bit_count_, 0);
   for (const Interval& interval : intervals_) {
     if (interval.IsMaximal()) {
       return true;
@@ -357,12 +357,12 @@ bool IntervalSet::IsMaximal() const {
 bool IntervalSet::IsNormalized() const { return is_normalized_; }
 
 bool IntervalSet::IsEmpty() const {
-  XLS_CHECK(IsNormalized());
+  CHECK(IsNormalized());
   return intervals_.empty();
 }
 
 std::string IntervalSet::ToString() const {
-  XLS_CHECK_GE(bit_count_, 0);
+  CHECK_GE(bit_count_, 0);
   std::vector<std::string> strings;
   strings.reserve(intervals_.size());
   for (const auto& interval : intervals_) {

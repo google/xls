@@ -8,6 +8,7 @@
 #include <tuple>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -79,7 +80,7 @@ ResultT ComputeActual(fp::FpSincos32* jit_wrapper, float input) {
   PackedFloat32 packed_input(reinterpret_cast<uint8_t*>(&input), 0);
   ResultT result;
   PackedFloat2x32 packed_result(reinterpret_cast<uint8_t*>(&result), 0);
-  XLS_CHECK_OK(jit_wrapper->Run(packed_input, packed_result));
+  CHECK_OK(jit_wrapper->Run(packed_input, packed_result));
   return result;
 }
 

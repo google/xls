@@ -17,7 +17,7 @@
 
 #include <algorithm>
 
-#include "xls/common/logging/logging.h"
+#include "absl/log/check.h"
 
 namespace xls {
 

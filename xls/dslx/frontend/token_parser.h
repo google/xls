@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -169,7 +170,7 @@ class TokenParser {
   // Wraps PopToken() to signify popping a token without needing the value.
   absl::Status DropToken() { return PopToken().status(); }
 
-  void DropTokenOrDie() { XLS_CHECK_OK(DropToken()); }
+  void DropTokenOrDie() { CHECK_OK(DropToken()); }
 
   absl::StatusOr<bool> PeekTokenIs(TokenKind target);
   absl::StatusOr<bool> PeekTokenIs(Keyword target);

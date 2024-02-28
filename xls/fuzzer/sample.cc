@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
@@ -100,7 +101,7 @@ std::vector<std::string> ParseIrChannelNames(
 
 std::string SampleOptions::ToPbtxt() const {
   std::string pbtxt;
-  XLS_CHECK(google::protobuf::TextFormat::PrintToString(proto_, &pbtxt));
+  CHECK(google::protobuf::TextFormat::PrintToString(proto_, &pbtxt));
   return pbtxt;
 }
 
@@ -280,7 +281,7 @@ std::string Sample::Serialize(
       args_proto->add_args(InterpValueListToString(args));
     }
   } else {
-    XLS_CHECK(options().IsProcSample());
+    CHECK(options().IsProcSample());
     fuzzer::ChannelInputsProto* inputs_proto =
         config.mutable_inputs()->mutable_channel_inputs();
     for (int64_t i = 0; i < ir_channel_names_.size(); ++i) {

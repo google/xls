@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -55,7 +56,7 @@ absl::Status ParseAndTypecheck(std::string_view text,
 
   auto get_file_contents =
       [&](std::string_view path) -> absl::StatusOr<std::string> {
-    XLS_CHECK_EQ(path, filename);
+    CHECK_EQ(path, filename);
     return std::string(text);
   };
 

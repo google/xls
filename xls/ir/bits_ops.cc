@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -53,7 +54,7 @@ Bits TruncateOrSignExtend(const Bits& bits, int64_t bit_count) {
 }  // namespace
 
 Bits And(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
+  CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
     return UBits(lhs.ToUint64().value() & rhs.ToUint64().value(),
                  lhs.bit_count());
@@ -75,7 +76,7 @@ Bits NaryAnd(absl::Span<const Bits> operands) {
 }
 
 Bits Or(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
+  CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
     uint64_t lhs_int = lhs.ToUint64().value();
     uint64_t rhs_int = rhs.ToUint64().value();
@@ -99,7 +100,7 @@ Bits NaryOr(absl::Span<const Bits> operands) {
 }
 
 Bits Xor(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
+  CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
     uint64_t lhs_int = lhs.ToUint64().value();
     uint64_t rhs_int = rhs.ToUint64().value();
@@ -123,7 +124,7 @@ Bits NaryXor(absl::Span<const Bits> operands) {
 }
 
 Bits Nand(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
+  CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
     return UBits(~(lhs.ToUint64().value() & rhs.ToUint64().value()) &
                      Mask(lhs.bit_count()),
@@ -146,7 +147,7 @@ Bits NaryNand(absl::Span<const Bits> operands) {
 }
 
 Bits Nor(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
+  CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
     return UBits(~(lhs.ToUint64().value() | rhs.ToUint64().value()) &
                      Mask(lhs.bit_count()),
@@ -196,7 +197,7 @@ Bits XorReduce(const Bits& operand) {
 }
 
 Bits Add(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
+  CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
     uint64_t lhs_int = lhs.ToUint64().value();
     uint64_t rhs_int = rhs.ToUint64().value();
@@ -210,7 +211,7 @@ Bits Add(const Bits& lhs, const Bits& rhs) {
 }
 
 Bits Sub(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
+  CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
     uint64_t lhs_int = lhs.ToUint64().value();
     uint64_t rhs_int = rhs.ToUint64().value();
@@ -324,7 +325,7 @@ Bits SMod(const Bits& lhs, const Bits& rhs) {
 bool UEqual(const Bits& lhs, const Bits& rhs) { return UCmp(lhs, rhs) == 0; }
 
 bool UEqual(const Bits& lhs, int64_t rhs) {
-  XLS_CHECK_GE(rhs, 0);
+  CHECK_GE(rhs, 0);
   return UEqual(lhs, UBits(rhs, 64));
 }
 
@@ -355,22 +356,22 @@ const Bits& UMax(const Bits& lhs, const Bits& rhs) {
 }
 
 bool UGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
-  XLS_CHECK_GE(rhs, 0);
+  CHECK_GE(rhs, 0);
   return UGreaterThanOrEqual(lhs, UBits(rhs, 64));
 }
 
 bool UGreaterThan(const Bits& lhs, int64_t rhs) {
-  XLS_CHECK_GE(rhs, 0);
+  CHECK_GE(rhs, 0);
   return UGreaterThan(lhs, UBits(rhs, 64));
 }
 
 bool ULessThanOrEqual(const Bits& lhs, int64_t rhs) {
-  XLS_CHECK_GE(rhs, 0);
+  CHECK_GE(rhs, 0);
   return ULessThanOrEqual(lhs, UBits(rhs, 64));
 }
 
 bool ULessThan(const Bits& lhs, int64_t rhs) {
-  XLS_CHECK_GE(rhs, 0);
+  CHECK_GE(rhs, 0);
   return ULessThan(lhs, UBits(rhs, 64));
 }
 
@@ -418,14 +419,14 @@ bool SLessThan(const Bits& lhs, int64_t rhs) {
 }
 
 Bits ZeroExtend(const Bits& bits, int64_t new_bit_count) {
-  XLS_CHECK_GE(new_bit_count, 0);
-  XLS_CHECK_GE(new_bit_count, bits.bit_count());
+  CHECK_GE(new_bit_count, 0);
+  CHECK_GE(new_bit_count, bits.bit_count());
   return Concat({UBits(0, new_bit_count - bits.bit_count()), bits});
 }
 
 Bits SignExtend(const Bits& bits, int64_t new_bit_count) {
-  XLS_CHECK_GE(new_bit_count, 0);
-  XLS_CHECK_GE(new_bit_count, bits.bit_count());
+  CHECK_GE(new_bit_count, 0);
+  CHECK_GE(new_bit_count, bits.bit_count());
   const int64_t ext_width = new_bit_count - bits.bit_count();
   return Concat(
       {bits.msb() ? Bits::AllOnes(ext_width) : Bits(ext_width), bits});
@@ -459,21 +460,21 @@ Bits Abs(const Bits& bits) {
 }
 
 Bits ShiftLeftLogical(const Bits& bits, int64_t shift_amount) {
-  XLS_CHECK_GE(shift_amount, 0);
+  CHECK_GE(shift_amount, 0);
   shift_amount = std::min(shift_amount, bits.bit_count());
   return Concat(
       {bits.Slice(0, bits.bit_count() - shift_amount), UBits(0, shift_amount)});
 }
 
 Bits ShiftRightLogical(const Bits& bits, int64_t shift_amount) {
-  XLS_CHECK_GE(shift_amount, 0);
+  CHECK_GE(shift_amount, 0);
   shift_amount = std::min(shift_amount, bits.bit_count());
   return Concat({UBits(0, shift_amount),
                  bits.Slice(shift_amount, bits.bit_count() - shift_amount)});
 }
 
 Bits ShiftRightArith(const Bits& bits, int64_t shift_amount) {
-  XLS_CHECK_GE(shift_amount, 0);
+  CHECK_GE(shift_amount, 0);
   shift_amount = std::min(shift_amount, bits.bit_count());
   return Concat(
       {bits.msb() ? Bits::AllOnes(shift_amount) : UBits(0, shift_amount),
@@ -552,7 +553,7 @@ Bits LongestCommonPrefixLSB(absl::Span<const Bits> bits_span) {
 
   int64_t input_size = bits_span[0].bit_count();
   for (const Bits& bits : bits_span) {
-    XLS_CHECK_EQ(bits.bit_count(), input_size);
+    CHECK_EQ(bits.bit_count(), input_size);
   }
 
   absl::InlinedVector<bool, 1> result_vector;
@@ -595,7 +596,7 @@ Bits LogicalOpIdentity(Op op, int64_t width) {
 }
 
 Bits DoLogicalOp(Op op, absl::Span<const Bits> operands) {
-  XLS_CHECK_GT(operands.size(), 0);
+  CHECK_GT(operands.size(), 0);
   switch (op) {
     case Op::kAnd:
       return bits_ops::NaryAnd(operands);
@@ -638,11 +639,11 @@ Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size) {
 
 std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
                             bool emit_leading_zeros) {
-  XLS_CHECK_NE(preference, FormatPreference::kDefault);
+  CHECK_NE(preference, FormatPreference::kDefault);
   if (preference == FormatPreference::kSignedDecimal) {
     // Leading zeros don't make a lot of sense in decimal format as there is no
     // clean correspondence between decimal digits and binary digits.
-    XLS_CHECK(!emit_leading_zeros)
+    CHECK(!emit_leading_zeros)
         << "emit_leading_zeros not supported for decimal format.";
 
     return BigInt::MakeSigned(bits).ToDecimalString();
@@ -651,7 +652,7 @@ std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
   if (preference == FormatPreference::kUnsignedDecimal) {
     // Leading zeros don't make a lot of sense in decimal format as there is no
     // clean correspondence between decimal digits and binary digits.
-    XLS_CHECK(!emit_leading_zeros)
+    CHECK(!emit_leading_zeros)
         << "emit_leading_zeros not supported for decimal format.";
 
     return BigInt::MakeUnsigned(bits).ToDecimalString();
@@ -667,7 +668,7 @@ std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
   const bool plain_format = (preference == FormatPreference::kPlainBinary) ||
                             (preference == FormatPreference::kPlainHex);
 
-  XLS_CHECK(binary_format || hex_format);
+  CHECK(binary_format || hex_format);
 
   const int64_t digit_width = binary_format ? 1 : 4;
   const int64_t digit_count = CeilOfRatio(bits.bit_count(), digit_width);

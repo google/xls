@@ -18,11 +18,11 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -30,7 +30,7 @@ namespace internal {
 
 bool IncrementArrayIndex(absl::Span<const int64_t> bounds,
                          std::vector<int64_t>* array_index) {
-  XLS_CHECK_EQ(bounds.size(), array_index->size());
+  CHECK_EQ(bounds.size(), array_index->size());
   for (int64_t i = array_index->size() - 1; i >= 0; --i) {
     ++(*array_index)[i];
     if ((*array_index)[i] < bounds[i]) {

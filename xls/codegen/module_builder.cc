@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -1210,8 +1211,8 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
                              node->operand(0)->BitCountOrDie());
     case Op::kSDiv:
     case Op::kUDiv:
-      XLS_CHECK_EQ(node->BitCountOrDie(), node->operand(0)->BitCountOrDie());
-      XLS_CHECK_EQ(node->BitCountOrDie(), node->operand(1)->BitCountOrDie());
+      CHECK_EQ(node->BitCountOrDie(), node->operand(0)->BitCountOrDie());
+      CHECK_EQ(node->BitCountOrDie(), node->operand(1)->BitCountOrDie());
       return absl::StrFormat("%s_%db", OpToString(node->op()),
                              node->BitCountOrDie());
     default:
@@ -1358,7 +1359,7 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
 // Defines and returns a function which implements the given SMul node.
 VerilogFunction* DefineSmulFunction(Node* node, std::string_view function_name,
                                     ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kSMul);
+  CHECK_EQ(node->op(), Op::kSMul);
   VerilogFile* file = section->file();
 
   ScopedLintDisable lint_disable(section, {Lint::kSignedType, Lint::kMultiply});
@@ -1366,7 +1367,7 @@ VerilogFunction* DefineSmulFunction(Node* node, std::string_view function_name,
   VerilogFunction* func = section->Add<VerilogFunction>(
       node->loc(), function_name,
       file->BitVectorType(node->BitCountOrDie(), node->loc()));
-  XLS_CHECK_EQ(node->operand_count(), 2);
+  CHECK_EQ(node->operand_count(), 2);
   Expression* lhs = func->AddArgument(
       "lhs",
       file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
@@ -1411,7 +1412,7 @@ VerilogFunction* DefineSmulFunction(Node* node, std::string_view function_name,
 // Defines and returns a function which implements the given UMul node.
 VerilogFunction* DefineUmulFunction(Node* node, std::string_view function_name,
                                     ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kUMul);
+  CHECK_EQ(node->op(), Op::kUMul);
   VerilogFile* file = section->file();
 
   ScopedLintDisable lint_disable(section, {Lint::kMultiply});
@@ -1419,7 +1420,7 @@ VerilogFunction* DefineUmulFunction(Node* node, std::string_view function_name,
   VerilogFunction* func = section->Add<VerilogFunction>(
       node->loc(), function_name,
       file->BitVectorType(node->BitCountOrDie(), node->loc()));
-  XLS_CHECK_EQ(node->operand_count(), 2);
+  CHECK_EQ(node->operand_count(), 2);
   Expression* lhs = func->AddArgument(
       "lhs",
       file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
@@ -1437,8 +1438,8 @@ VerilogFunction* DefineUmulFunction(Node* node, std::string_view function_name,
 // Defines and returns a function which implements the given SMulp node.
 absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
     Node* node, std::string_view function_name, ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kSMulp);
-  XLS_CHECK_EQ(node->operand_count(), 2);
+  CHECK_EQ(node->op(), Op::kSMulp);
+  CHECK_EQ(node->operand_count(), 2);
   int64_t width = node->As<PartialProductOp>()->width();
 
   VerilogFile* file = section->file();
@@ -1502,8 +1503,8 @@ absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
 // Defines and returns a function which implements the given UMulp node.
 absl::StatusOr<VerilogFunction*> DefineUmulpFunction(
     Node* node, std::string_view function_name, ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kUMulp);
-  XLS_CHECK_EQ(node->operand_count(), 2);
+  CHECK_EQ(node->op(), Op::kUMulp);
+  CHECK_EQ(node->operand_count(), 2);
   int64_t width = node->As<PartialProductOp>()->width();
 
   VerilogFile* file = section->file();
@@ -1543,13 +1544,13 @@ absl::StatusOr<VerilogFunction*> DefineUmulpFunction(
 // Defines and returns a function which implements the given Udiv node.
 VerilogFunction* DefineUDivFunction(Node* node, std::string_view function_name,
                                     ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kUDiv);
+  CHECK_EQ(node->op(), Op::kUDiv);
   VerilogFile* file = section->file();
 
   VerilogFunction* func = section->Add<VerilogFunction>(
       node->loc(), function_name,
       file->BitVectorType(node->BitCountOrDie(), node->loc()));
-  XLS_CHECK_EQ(node->operand_count(), 2);
+  CHECK_EQ(node->operand_count(), 2);
   Expression* lhs = func->AddArgument(
       "lhs",
       file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
@@ -1574,13 +1575,13 @@ VerilogFunction* DefineUDivFunction(Node* node, std::string_view function_name,
 // Defines and returns a function which implements the given SDiv node.
 VerilogFunction* DefineSDivFunction(Node* node, std::string_view function_name,
                                     ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kSDiv);
+  CHECK_EQ(node->op(), Op::kSDiv);
   VerilogFile* file = section->file();
 
   VerilogFunction* func = section->Add<VerilogFunction>(
       node->loc(), function_name,
       file->BitVectorType(node->BitCountOrDie(), node->loc()));
-  XLS_CHECK_EQ(node->operand_count(), 2);
+  CHECK_EQ(node->operand_count(), 2);
   IndexableExpression* lhs = func->AddArgument(
       "lhs",
       file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
@@ -1657,7 +1658,7 @@ VerilogFunction* DefinePrioritySelectFunction(
         sel->loc()));
   }
 
-  XLS_CHECK(sel->selector()->GetType()->IsBits());
+  CHECK(sel->selector()->GetType()->IsBits());
   bool one_hot = false;
   bool never_zero = false;
   if (query_engine.has_value()) {
@@ -1694,7 +1695,7 @@ VerilogFunction* DefinePrioritySelectFunction(
     absl::StatusOr<Expression*> label_expression =
         file->Make<FourValueBinaryLiteral>(
             sel->loc(), ternary_span.subspan(i, cases.size()));
-    XLS_CHECK_OK(label_expression.status());
+    CHECK_OK(label_expression.status());
     StatementBlock* block =
         case_statement->AddCaseArm(label_expression.value());
     block->Add<BlockingAssignment>(sel->loc(), func->return_value_ref(),

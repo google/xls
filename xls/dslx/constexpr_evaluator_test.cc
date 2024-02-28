@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
@@ -46,7 +47,7 @@ namespace {
 
 Expr* GetSingleBodyExpr(Function* f) {
   Block* body = f->body();
-  XLS_CHECK_EQ(body->statements().size(), 1);
+  CHECK_EQ(body->statements().size(), 1);
   return std::get<Expr*>(body->statements().at(0)->wrapped());
 }
 

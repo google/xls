@@ -24,6 +24,7 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -115,15 +116,14 @@ class LeafTypeTree {
       : type_(type) {
     // Validate types of given values.
     if (type->IsArray()) {
-      XLS_CHECK_EQ(type->AsArrayOrDie()->size(), init_values.size());
+      CHECK_EQ(type->AsArrayOrDie()->size(), init_values.size());
       for (auto& init_value : init_values) {
-        XLS_CHECK_EQ(type->AsArrayOrDie()->element_type(), init_value.type());
+        CHECK_EQ(type->AsArrayOrDie()->element_type(), init_value.type());
       }
     } else if (type->IsTuple()) {
-      XLS_CHECK_EQ(type->AsTupleOrDie()->size(), init_values.size());
+      CHECK_EQ(type->AsTupleOrDie()->size(), init_values.size());
       for (int64_t i = 0; i < init_values.size(); ++i) {
-        XLS_CHECK_EQ(type->AsTupleOrDie()->element_type(i),
-                     init_values[i].type());
+        CHECK_EQ(type->AsTupleOrDie()->element_type(i), init_values[i].type());
       }
     } else {
       XLS_LOG(FATAL) << "Invalid constructor for bits types";
@@ -141,13 +141,13 @@ class LeafTypeTree {
   LeafTypeTree(Type* type, absl::Span<const T> elements)
       : type_(type), elements_(elements.begin(), elements.end()) {
     MakeLeafTypes(type_);
-    XLS_CHECK_EQ(leaf_types_.size(), elements_.size());
+    CHECK_EQ(leaf_types_.size(), elements_.size());
   }
 
   // Constructor which avoids copying by moving elements one-by-one.
   LeafTypeTree(Type* type, absl::Span<T> elements) : type_(type) {
     MakeLeafTypes(type_);
-    XLS_CHECK_EQ(leaf_types_.size(), elements.size());
+    CHECK_EQ(leaf_types_.size(), elements.size());
     elements_.reserve(elements.size());
     for (T& element : elements) {
       elements_.push_back(std::move(element));
@@ -166,7 +166,7 @@ class LeafTypeTree {
   T& Get(absl::Span<int64_t const> index) {
     std::pair<Type*, int64_t> type_offset = GetSubtypeAndOffset(type_, index);
     // The index must refer to a leaf node (bits or token type).
-    XLS_CHECK(IsLeafType(type_offset.first));
+    CHECK(IsLeafType(type_offset.first));
     return elements_[type_offset.second];
   }
   const T& Get(absl::Span<int64_t const> index) const {
@@ -177,7 +177,7 @@ class LeafTypeTree {
   void Set(absl::Span<int64_t const> index, const T& value) {
     std::pair<Type*, int64_t> type_offset = GetSubtypeAndOffset(type_, index);
     // The index must refer to a leaf node (bits or token type).
-    XLS_CHECK(IsLeafType(type_offset.first));
+    CHECK(IsLeafType(type_offset.first));
     elements_[type_offset.second] = value;
   }
 
@@ -240,8 +240,8 @@ class LeafTypeTree {
   static LeafTypeTree<T> Zip(std::function<T(const A&, const B&)> function,
                              const LeafTypeTree<A>& lhs,
                              const LeafTypeTree<B>& rhs) {
-    XLS_CHECK(lhs.type()->IsEqualTo(rhs.type()));
-    XLS_CHECK_EQ(lhs.size(), rhs.size());
+    CHECK(lhs.type()->IsEqualTo(rhs.type()));
+    CHECK_EQ(lhs.size(), rhs.size());
 
     absl::InlinedVector<T, 1> new_elements;
     new_elements.reserve(lhs.size());
@@ -258,8 +258,8 @@ class LeafTypeTree {
   template <typename U>
   void UpdateFrom(const LeafTypeTree<U>& other,
                   std::function<void(T&, const U&)> update) {
-    XLS_CHECK(type_->IsEqualTo(other.type()));
-    XLS_CHECK_EQ(elements_.size(), other.size());
+    CHECK(type_->IsEqualTo(other.type()));
+    CHECK_EQ(elements_.size(), other.size());
 
     for (int64_t i = 0; i < size(); ++i) {
       update(elements_[i], other.elements()[i]);
@@ -271,7 +271,7 @@ class LeafTypeTree {
     if (lhs.type_ != rhs.type_) {
       return false;
     }
-    XLS_CHECK_EQ(lhs.leaf_types_.size(), rhs.leaf_types_.size());
+    CHECK_EQ(lhs.leaf_types_.size(), rhs.leaf_types_.size());
     return lhs.elements_ == rhs.elements_;
   }
 
@@ -450,7 +450,7 @@ class LeafTypeTree {
       }
       return;
     }
-    XLS_CHECK(t->IsTuple());
+    CHECK(t->IsTuple());
     for (int64_t i = 0; i < t->AsTupleOrDie()->size(); ++i) {
       MakeLeafTypes(t->AsTupleOrDie()->element_type(i));
     }
@@ -465,16 +465,16 @@ class LeafTypeTree {
       return {t, offset};
     }
     if (t->IsArray()) {
-      XLS_CHECK(!index.empty());
-      XLS_CHECK_LT(index[0], t->AsArrayOrDie()->size());
+      CHECK(!index.empty());
+      CHECK_LT(index[0], t->AsArrayOrDie()->size());
       Type* element_type = t->AsArrayOrDie()->element_type();
       return GetSubtypeAndOffset(
           element_type, index.subspan(1),
           offset + index[0] * element_type->leaf_count());
     }
-    XLS_CHECK(t->IsTuple());
+    CHECK(t->IsTuple());
     TupleType* tuple_type = t->AsTupleOrDie();
-    XLS_CHECK_LT(index[0], tuple_type->size());
+    CHECK_LT(index[0], tuple_type->size());
     int64_t element_offset = 0;
     for (int64_t i = 0; i < index[0]; ++i) {
       element_offset += tuple_type->element_type(i)->leaf_count();

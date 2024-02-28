@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -159,8 +160,8 @@ absl::Status CCParser::ScanFile(
     std::string_view source_filename,
     absl::Span<std::string_view> command_line_args) {
   // This function may only be called once in the lifetime of a CCParser.
-  XLS_CHECK_EQ(libtool_thread_.get(), nullptr);
-  XLS_CHECK_EQ(libtool_wait_for_destruct_.get(), nullptr);
+  CHECK_EQ(libtool_thread_.get(), nullptr);
+  CHECK_EQ(libtool_wait_for_destruct_.get(), nullptr);
 
   // The AST is destroyed after ToolInvocation::run() returns
   //
@@ -560,7 +561,7 @@ absl::Status CCParser::VisitVarDecl(const clang::VarDecl* decl) {
   const std::string name = decl->getNameAsString();
 
   if (name == "__xlscc_on_reset") {
-    XLS_CHECK(xlscc_on_reset_ == nullptr || xlscc_on_reset_ == decl);
+    CHECK(xlscc_on_reset_ == nullptr || xlscc_on_reset_ == decl);
     xlscc_on_reset_ = decl;
   }
 

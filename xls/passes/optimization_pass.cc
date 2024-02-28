@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -51,7 +52,7 @@ std::string_view RamKindToString(RamKind kind) {
 }
 
 int64_t RamConfig::addr_width() const {
-  XLS_CHECK_GE(depth, 0);
+  CHECK_GE(depth, 0);
   return CeilOfLog2(static_cast<uint64_t>(depth));
 }
 
@@ -60,7 +61,7 @@ std::optional<int64_t> RamConfig::mask_width(int64_t data_width) const {
     return std::nullopt;
   }
 
-  XLS_CHECK_GT(word_partition_size.value(), 0);
+  CHECK_GT(word_partition_size.value(), 0);
   return (data_width + word_partition_size.value() - 1) /
          word_partition_size.value();
 }

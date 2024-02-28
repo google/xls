@@ -24,6 +24,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -122,7 +123,7 @@ Booleanifier::Vector Booleanifier::HandleLiteralArrayIndex(
     int64_t start_offset) {
   const int64_t element_size = array_type->element_type()->GetFlatBitCount();
 
-  XLS_CHECK(index.IsBits());
+  CHECK(index.IsBits());
   int64_t concrete_index =
       bits_ops::UGreaterThanOrEqual(index.bits(), array_type->size())
           ? array_type->size() - 1
@@ -216,7 +217,7 @@ Booleanifier::Vector Booleanifier::HandleArrayUpdate(
     } else {
       // If it's not a multi-dimensional array, then there must not be any
       // leftover indices in the array of indices.
-      XLS_CHECK(indices.size() == 1);
+      CHECK_EQ(indices.size(), 1);
       result.insert(result.end(), update_value.begin(), update_value.end());
     }
 
@@ -246,7 +247,7 @@ Booleanifier::Vector Booleanifier::HandleArrayUpdate(
       } else {
         // If it's not a milti-dimensional array, then there must not be any
         // leftover indices in the array of indices.
-        XLS_CHECK(indices.size() == 1);
+        CHECK_EQ(indices.size(), 1);
       }
       const Vector new_value = evaluator_->Select(
           Vector({equals_index}), {old_value, updated_subarray});

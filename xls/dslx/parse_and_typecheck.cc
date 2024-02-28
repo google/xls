@@ -22,10 +22,10 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/comment_data.h"
@@ -51,7 +51,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
       Span(Pos(std::string(path), 0, 0), Pos(std::string(path), 0, 0));
   XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(fake_import_span, path));
   absl::Cleanup cleanup = [&] {
-    XLS_CHECK_OK(import_data->PopFromImporterStack(fake_import_span));
+    CHECK_OK(import_data->PopFromImporterStack(fake_import_span));
   };
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,

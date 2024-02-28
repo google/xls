@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
@@ -171,12 +172,12 @@ absl::Status Bindings::AddFailLabel(const std::string& label,
   // unique at the function scope.
   Bindings* top = this;
   while (!top->function_scoped_) {
-    XLS_CHECK(top->parent_ != nullptr);
+    CHECK(top->parent_ != nullptr);
     top = top->parent_;
   }
 
-  XLS_CHECK(top->function_scoped_);
-  XLS_CHECK(top->fail_labels_.has_value());
+  CHECK(top->function_scoped_);
+  CHECK(top->fail_labels_.has_value());
   auto [it, inserted] = top->fail_labels_->insert(label);
   if (!inserted) {
     return ParseErrorStatus(span,

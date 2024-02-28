@@ -19,6 +19,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -161,11 +162,11 @@ bool Bits::HasSingleRunOfSetBits(int64_t* leading_zero_count,
                                  int64_t* set_bit_count,
                                  int64_t* trailing_zero_count) const {
   int64_t leading_zeros = CountLeadingZeros();
-  XLS_CHECK_GE(leading_zeros, 0);
+  CHECK_GE(leading_zeros, 0);
   int64_t trailing_zeros = CountTrailingZeros();
-  XLS_CHECK_GE(trailing_zeros, 0);
+  CHECK_GE(trailing_zeros, 0);
   if (bit_count() == trailing_zeros) {
-    XLS_CHECK_EQ(leading_zeros, bit_count());
+    CHECK_EQ(leading_zeros, bit_count());
     return false;
   }
   for (int64_t i = trailing_zeros; i < bit_count() - leading_zeros; ++i) {
@@ -176,7 +177,7 @@ bool Bits::HasSingleRunOfSetBits(int64_t* leading_zero_count,
   *leading_zero_count = leading_zeros;
   *trailing_zero_count = trailing_zeros;
   *set_bit_count = bit_count() - leading_zeros - trailing_zeros;
-  XLS_CHECK_GE(*set_bit_count, 0);
+  CHECK_GE(*set_bit_count, 0);
   return true;
 }
 
@@ -246,8 +247,8 @@ absl::StatusOr<int64_t> Bits::ToInt64() const {
 }
 
 Bits Bits::Slice(int64_t start, int64_t width) const {
-  XLS_CHECK_GE(width, 0);
-  XLS_CHECK_LE(start + width, bit_count())
+  CHECK_GE(width, 0);
+  CHECK_LE(start + width, bit_count())
       << "start: " << start << " width: " << width;
   Bits result(width);
   for (int64_t i = 0; i < width; ++i) {

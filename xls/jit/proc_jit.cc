@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -236,7 +237,7 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
 
 std::unique_ptr<ProcContinuation> ProcJit::NewContinuation(
     ProcInstance* proc_instance) const {
-  XLS_CHECK_EQ(proc_instance->proc(), proc());
+  CHECK_EQ(proc_instance->proc(), proc());
   return std::make_unique<ProcJitContinuation>(
       proc_instance, jit_runtime_, channel_queues_.at(proc_instance),
       jitted_function_base_);

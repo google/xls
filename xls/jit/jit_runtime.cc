@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
@@ -151,7 +152,7 @@ void JitRuntime::BlitValueToBufferInternal(const Value& value, const Type* type,
     const Bits& bits = value.bits();
     int64_t byte_count = CeilOfRatio(bits.bit_count(), kCharBit);
     // Underlying Bits object relies on little-endianness.
-    XLS_CHECK(data_layout_.isLittleEndian());
+    CHECK(data_layout_.isLittleEndian());
     bits.ToBytes(absl::MakeSpan(buffer.data(), byte_count));
 
     // Zero out any padding bits. Bits type are stored in the JIT as the next
@@ -257,8 +258,8 @@ int64_t XlsJitPackArgs(int arg_count, const char** input_args,
     types.push_back(package.GetTypeForValue(values.back()));
   }
 
-  XLS_CHECK_OK(runtime_or.value()->PackArgs(values, types,
-                                            absl::MakeSpan(buffer, arg_count)));
+  CHECK_OK(runtime_or.value()->PackArgs(values, types,
+                                        absl::MakeSpan(buffer, arg_count)));
   return 0;
 }
 

@@ -18,6 +18,7 @@
 #include <tuple>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -85,17 +86,17 @@ std::string Token::ToString() const {
 }
 
 char Scanner::PeekCharOrDie() const {
-  XLS_CHECK(!AtEofInternal());
+  CHECK(!AtEofInternal());
   return text_[index_];
 }
 
 char Scanner::PeekChar2OrDie() const {
-  XLS_CHECK_GT(text_.size(), index_ + 1);
+  CHECK_GT(text_.size(), index_ + 1);
   return text_[index_ + 1];
 }
 
 char Scanner::PopCharOrDie() {
-  XLS_CHECK(!AtEofInternal());
+  CHECK(!AtEofInternal());
   char c = text_[index_++];
   if (c == '\n') {
     lineno_++;

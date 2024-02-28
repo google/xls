@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -57,7 +58,7 @@ class BddQueryEngine : public QueryEngine {
   }
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
-    XLS_CHECK(node->GetType()->IsBits());
+    CHECK(node->GetType()->IsBits());
     TernaryVector ternary =
         ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));
     LeafTypeTree<TernaryVector> result(node->GetType());
@@ -89,8 +90,8 @@ class BddQueryEngine : public QueryEngine {
 
   // Returns the BDD node associated with the given bit.
   BddNodeIndex GetBddNode(const TreeBitLocation& location) const {
-    XLS_CHECK(location.tree_index().empty());
-    XLS_CHECK(location.node()->GetType()->IsBits());
+    CHECK(location.tree_index().empty());
+    CHECK(location.node()->GetType()->IsBits());
     return bdd_function_->GetBddNode(location.node(), location.bit_index());
   }
 

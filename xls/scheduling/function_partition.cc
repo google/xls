@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/data_structures/min_cut.h"
@@ -40,7 +41,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
 
   absl::flat_hash_set<Node*> partitionable_nodes_set(
       partitionable_nodes.begin(), partitionable_nodes.end());
-  XLS_CHECK_EQ(partitionable_nodes_set.size(), partitionable_nodes.size());
+  CHECK_EQ(partitionable_nodes_set.size(), partitionable_nodes.size());
 
   min_cut::Graph graph;
   auto source = graph.AddNode("source");
@@ -63,7 +64,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
   };
 
   auto add_node_to_mincut_graph = [&](Node* node) {
-    XLS_CHECK(!xls_to_mincut_node.contains(node));
+    CHECK(!xls_to_mincut_node.contains(node));
     min_cut::NodeId graph_node_id = graph.AddNode(node->GetName());
     xls_to_mincut_node[node] = graph_node_id;
     mincut_to_xls_node[graph_node_id] = node;

@@ -26,9 +26,9 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 
@@ -42,7 +42,7 @@ std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
     absl::Span<int64_t const> sizes, absl::Span<int64_t const> alignments) {
   static_assert(sizeof(int64_t) >= sizeof(intptr_t),
                 "More than 64 bit pointers");
-  XLS_CHECK_EQ(sizes.size(), alignments.size());
+  CHECK_EQ(sizes.size(), alignments.size());
   if (alignments.empty()) {
     return {AlignedPtr(), std::vector<uint8_t*>{}};
   }
@@ -62,8 +62,8 @@ std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
   std::vector<uint8_t*> ptrs;
   uint8_t* buffer =
       absl::bit_cast<uint8_t*>(AllocateAligned(max_align, total_size));
-  XLS_CHECK(buffer != nullptr)
-      << "Unable to allocate. align:" << max_align << " size: " << total_size;
+  CHECK(buffer != nullptr) << "Unable to allocate. align:" << max_align
+                           << " size: " << total_size;
   ptrs.reserve(offsets.size());
   absl::c_transform(offsets, std::back_inserter(ptrs),
                     [&](int64_t p) { return buffer + p; });
@@ -107,8 +107,8 @@ void* AllocateAligned(int64_t alignment, int64_t size) {
   // malloc returns fundamental alignment. Just use it if we can. This avoids
   // issue where some aligned_allocs return nullptr if given alignments smaller
   // than the fundamental alignment.
-  XLS_CHECK_GE(alignment, 0);
-  XLS_CHECK(IsPowerOfTwo(static_cast<uint64_t>(alignment)))
+  CHECK_GE(alignment, 0);
+  CHECK(IsPowerOfTwo(static_cast<uint64_t>(alignment)))
       << "Alignment must be power of 2";
   if (alignment <= std::alignment_of_v<std::max_align_t>) {
     return std::malloc(size);

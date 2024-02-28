@@ -23,6 +23,7 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -57,8 +58,8 @@ class AbstractInterpreter {
         num_available_threads_(0),
         threads_should_exit_(false) {
     for (int c = 0; c < num_threads; ++c) {
-      threads_.push_back(std::move(std::make_unique<xls::Thread>(
-          [this]() { XLS_CHECK_OK(ThreadBody()); })));
+      threads_.push_back(std::move(
+          std::make_unique<xls::Thread>([this]() { CHECK_OK(ThreadBody()); })));
     }
   }
 
@@ -274,7 +275,7 @@ AbstractInterpreter<EvalT>::InterpretModule(
   for (const auto& input : inputs) {
     rtl::AbstractNetRef<EvalT> wire = input.first;
     for (const auto cell : wire->connected_cells()) {
-      XLS_CHECK(processed_cells.contains(cell));
+      CHECK(processed_cells.contains(cell));
       processed_cells[cell]->inputs.insert({wire, std::move(input.second)});
     }
     if constexpr (std::is_convertible<EvalT, int>()) {
@@ -314,7 +315,7 @@ AbstractInterpreter<EvalT>::InterpretModule(
 
     for (const auto cell : wire->connected_input_cells()) {
       auto processed_cell_state = processed_cells[cell].get();
-      XLS_CHECK_GT(processed_cell_state->missing_wires, 0);
+      CHECK_GT(processed_cell_state->missing_wires, 0);
       processed_cell_state->missing_wires--;
       if (processed_cell_state->missing_wires == 0) {
         // TODO: Only fall back to this thread if no available threads and next

@@ -18,6 +18,7 @@
 #include <optional>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/Support/Alignment.h"
@@ -194,7 +195,7 @@ llvm::Value* LlvmTypeConverter::GetToken() const {
 llvm::Value* LlvmTypeConverter::AsSignedValue(
     llvm::Value* value, Type* xls_type, llvm::IRBuilder<>& builder,
     std::optional<llvm::Type*> dest_type) const {
-  XLS_CHECK(xls_type->IsBits());
+  CHECK(xls_type->IsBits());
   int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
   llvm::Value* signed_value;
   if (xls_bit_count <= 1) {
@@ -215,7 +216,7 @@ llvm::Value* LlvmTypeConverter::AsSignedValue(
 
 llvm::Value* LlvmTypeConverter::PaddingMask(Type* xls_type,
                                             llvm::IRBuilder<>& builder) const {
-  XLS_CHECK(xls_type->IsBits());
+  CHECK(xls_type->IsBits());
   int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
   int64_t llvm_bit_count = GetLlvmBitCount(xls_type->AsBitsOrDie());
   if (xls_bit_count == 0) {
@@ -272,7 +273,7 @@ void LlvmTypeConverter::ComputeElementLayouts(
     }
     return;
   }
-  XLS_CHECK(xls_type->IsTuple());
+  CHECK(xls_type->IsTuple());
   TupleType* tuple_type = xls_type->AsTupleOrDie();
   llvm::Type* llvm_type = ConvertToLlvmType(tuple_type);
   const llvm::StructLayout* layout =

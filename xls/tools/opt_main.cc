@@ -27,6 +27,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/globals.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
@@ -119,7 +120,7 @@ class FileStderrLogSink final : public absl::LogSink {
  public:
   explicit FileStderrLogSink(std::filesystem::path path)
       : path_(std::move(path)) {
-    XLS_CHECK_OK(SetFileContents(path_, ""));
+    CHECK_OK(SetFileContents(path_, ""));
   }
 
   ~FileStderrLogSink() override = default;
@@ -130,9 +131,9 @@ class FileStderrLogSink final : public absl::LogSink {
     }
 
     if (!entry.stacktrace().empty()) {
-      XLS_CHECK_OK(AppendStringToFile(path_, entry.stacktrace()));
+      CHECK_OK(AppendStringToFile(path_, entry.stacktrace()));
     } else {
-      XLS_CHECK_OK(AppendStringToFile(
+      CHECK_OK(AppendStringToFile(
           path_, entry.text_message_with_prefix_and_newline()));
     }
   }

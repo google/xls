@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -177,13 +178,13 @@ class ProcInstance {
   // Return the binding for the given channel reference. For new-style procs
   // only.
   ChannelBinding GetChannelBinding(ChannelReference* channel_reference) const {
-    XLS_CHECK(proc()->is_new_style_proc());
+    CHECK(proc()->is_new_style_proc());
     return channel_bindings_.at(channel_reference);
   }
 
   // Return the binding for the given channel. For old-style procs only.
   ChannelBinding GetChannelBinding(Channel* channel) const {
-    XLS_CHECK(!proc()->is_new_style_proc());
+    CHECK(!proc()->is_new_style_proc());
     return channel_bindings_.at(channel);
   }
 

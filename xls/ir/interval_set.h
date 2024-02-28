@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
@@ -57,20 +58,20 @@ class IntervalSet {
   // Get all the intervals contained within this interval set.
   // The set must be normalized prior to calling this.
   absl::Span<const Interval> Intervals() const {
-    XLS_CHECK(is_normalized_);
+    CHECK(is_normalized_);
     return intervals_;
   }
 
   // Returns the `BitCount()` of all intervals in the interval set.
   int64_t BitCount() const {
-    XLS_CHECK_GE(bit_count_, 0);
+    CHECK_GE(bit_count_, 0);
     return bit_count_;
   }
 
   // Add an interval to this interval set.
   void AddInterval(const Interval& interval) {
     is_normalized_ = false;
-    XLS_CHECK_EQ(BitCount(), interval.BitCount());
+    CHECK_EQ(BitCount(), interval.BitCount());
     intervals_.push_back(interval);
   }
 

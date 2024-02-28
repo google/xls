@@ -59,7 +59,7 @@ namespace {
 // TODO(https://github.com/google/xls/issues/1029): 2023-12-05 Ideally we'd have
 // proc references and avoid strange modifiers on identifiers.
 std::string StripAnyDotModifier(std::string_view s) {
-  XLS_CHECK_LE(std::count(s.begin(), s.end(), '.'), 1);
+  CHECK_LE(std::count(s.begin(), s.end(), '.'), 1);
   // Check for special identifier for proc config, which is ProcName.config
   // internally, but in spawns we just want to say ProcName.
   if (auto pos = s.rfind('.'); pos != std::string::npos) {
@@ -102,7 +102,7 @@ DocRef FmtParametricArg(const ExprOrType& n, const Comments& comments,
 
 static DocRef FmtExprPtr(const Expr* n, const Comments& comments,
                          DocArena& arena) {
-  XLS_CHECK(n != nullptr);
+  CHECK(n != nullptr);
   return Fmt(*n, comments, arena);
 }
 
@@ -226,7 +226,7 @@ DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,
 
 static DocRef FmtTypeAnnotationPtr(const TypeAnnotation* n,
                                    const Comments& comments, DocArena& arena) {
-  XLS_CHECK(n != nullptr);
+  CHECK(n != nullptr);
   return Fmt(*n, comments, arena);
 }
 
@@ -511,7 +511,7 @@ static std::optional<DocRef> EmitCommentsBetween(
   if (!start_pos.has_value()) {
     start_pos = Pos(limit_pos.filename(), 0, 0);
   }
-  XLS_CHECK_LE(start_pos.value(), limit_pos);
+  CHECK_LE(start_pos.value(), limit_pos);
   const Span span(start_pos.value(), limit_pos);
 
   XLS_VLOG(3) << "Looking for comments in span: " << span;
@@ -563,8 +563,8 @@ static std::optional<DocRef> EmitCommentsBetween(
 // just use an absurdly large number (int32_t max).
 static Pos AdjustCommentLimit(const Span& comment_span, DocArena& arena,
                               DocRef comment_doc) {
-  XLS_CHECK_EQ(comment_span.limit().colno(), 0);
-  XLS_CHECK_GT(comment_span.limit().lineno(), 0);
+  CHECK_EQ(comment_span.limit().colno(), 0);
+  CHECK_GT(comment_span.limit().lineno(), 0);
   return Pos(comment_span.start().filename(), comment_span.limit().lineno() - 1,
              std::numeric_limits<int32_t>::max());
 }
@@ -629,7 +629,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
 
     // Get the start position for the statement.
     std::optional<Span> stmt_span = stmt->GetSpan();
-    XLS_CHECK(stmt_span.has_value()) << stmt->ToString();
+    CHECK(stmt_span.has_value()) << stmt->ToString();
     const Pos& stmt_start = stmt_span->start();
     const Pos& stmt_limit = stmt_span->limit();
 
@@ -1222,7 +1222,7 @@ static DocRef FmtConditionalMultiline(const Conditional& n,
     pieces.push_back(arena.hard_line());
   }
 
-  XLS_CHECK(std::holds_alternative<Block*>(alternate));
+  CHECK(std::holds_alternative<Block*>(alternate));
 
   Block* else_block = std::get<Block*>(alternate);
   pieces.push_back(arena.ccurl());
@@ -1252,7 +1252,7 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
       arena.break1(),
   };
 
-  XLS_CHECK(std::holds_alternative<Block*>(n.alternate()));
+  CHECK(std::holds_alternative<Block*>(n.alternate()));
   const Block* else_block = std::get<Block*>(n.alternate());
   pieces.push_back(arena.ccurl());
   pieces.push_back(arena.space());
@@ -1403,7 +1403,7 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena) {
 DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
                bool suppress_parens) {
   FmtExprVisitor v(arena, comments);
-  XLS_CHECK_OK(n.AcceptExpr(&v));
+  CHECK_OK(n.AcceptExpr(&v));
   DocRef result = v.result();
   if (n.in_parens() && !suppress_parens) {
     return ConcatNGroup(arena, {arena.oparen(), result, arena.cparen()});
@@ -1586,7 +1586,7 @@ static DocRef Fmt(const ParametricBinding& n, const Comments& comments,
 static DocRef FmtParametricBindingPtr(const ParametricBinding* n,
                                       const Comments& comments,
                                       DocArena& arena) {
-  XLS_CHECK(n != nullptr);
+  CHECK(n != nullptr);
   return Fmt(*n, comments, arena);
 }
 
@@ -1974,7 +1974,7 @@ static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
     // If there are comment blocks between the last member position and the
     // member we're about the process, we need to emit them.
     std::optional<Span> member_span = node.GetSpan();
-    XLS_CHECK(member_span.has_value());
+    CHECK(member_span.has_value());
     Pos member_start = member_span->start();
 
     std::optional<Span> last_comment_span;
@@ -2139,13 +2139,13 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
     // If there are comment blocks between the last member position and the
     // member we're about the process, we need to emit them.
     std::optional<Span> member_span = node->GetSpan();
-    XLS_CHECK(member_span.has_value()) << node->GetNodeTypeName();
+    CHECK(member_span.has_value()) << node->GetNodeTypeName();
     const Pos& member_start = member_span->start();
     const Pos& member_limit = member_span->limit();
 
     // Check the start of this member is >= the last member limit.
     if (last_entity_pos.has_value()) {
-      XLS_CHECK_GE(member_start, last_entity_pos.value()) << node->ToString();
+      CHECK_GE(member_start, last_entity_pos.value()) << node->ToString();
     }
 
     std::optional<Span> last_comment_span;
@@ -2167,7 +2167,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
 
     // Check the last member position is monotonically increasing.
     if (last_entity_pos.has_value()) {
-      XLS_CHECK_GT(member_span->limit(), last_entity_pos.value());
+      CHECK_GT(member_span->limit(), last_entity_pos.value());
     }
 
     // Here we actually emit the formatted member.

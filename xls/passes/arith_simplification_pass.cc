@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -174,7 +175,7 @@ std::tuple<BigInt, int64_t, int64_t> ChooseMultiplier(int64_t N, BigInt divisor,
 
 UnsignedDivisionConstants ComputeUnsignedDivisionConstants(int64_t num_bits,
                                                            BigInt divisor) {
-  XLS_CHECK(!BigInt::IsPowerOfTwo(divisor))
+  CHECK(!BigInt::IsPowerOfTwo(divisor))
       << "divide by power of two isn't handled by UnsignedDivision; other code "
          "handles that case.";
 
@@ -205,7 +206,7 @@ UnsignedDivisionConstants ComputeUnsignedDivisionConstants(int64_t num_bits,
 // Assumes resize_to >= 0.
 absl::StatusOr<Node*> NarrowOrExtend(Node* n, bool n_is_signed,
                                      int64_t resize_to) {
-  XLS_CHECK_GE(resize_to, 0);
+  CHECK_GE(resize_to, 0);
 
   if (n->BitCountOrDie() < resize_to) {
     return n->function_base()->MakeNode<ExtendOp>(

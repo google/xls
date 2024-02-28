@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/interp_value.h"
@@ -42,7 +43,7 @@ Frame::Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
   // Note: bf->owner() can apparently be null for "helper" bytecode sequences we
   // generate, like for map() operations.
   if (bf != nullptr && bf->owner() != nullptr && type_info != nullptr) {
-    XLS_CHECK_EQ(bf->owner(), type_info->module());
+    CHECK_EQ(bf->owner(), type_info->module());
   }
 }
 

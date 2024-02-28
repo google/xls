@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -90,7 +91,7 @@ absl::Status Node::AddNodeToFunctionAndReplace(
 void Node::AddUser(Node* user) { users_.insert(user); }
 
 void Node::RemoveUser(Node* user) {
-  XLS_CHECK_EQ(users_.erase(user), 1) << GetName();
+  CHECK_EQ(users_.erase(user), 1) << GetName();
 }
 
 absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
@@ -364,7 +365,7 @@ absl::Status Node::Accept(DfsVisitor* visitor) {
           break;
         }
       }
-      XLS_CHECK(broke);
+      CHECK(broke);
       cycle_names.push_back(node->GetName());
     } while (node != this);
     return absl::InternalError(absl::StrFormat(
@@ -419,7 +420,7 @@ void Node::SetName(std::string_view name) {
 }
 
 void Node::ClearName() {
-  XLS_CHECK(!Is<Param>());
+  CHECK(!Is<Param>());
   name_ = "";
 }
 

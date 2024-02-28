@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -65,9 +66,9 @@ bool IsParametricFunction(const AstNode* n) {
 }
 
 bool ParentIsInvocationWithCallee(const NameRef* n) {
-  XLS_CHECK(n != nullptr);
+  CHECK(n != nullptr);
   const AstNode* parent = n->parent();
-  XLS_CHECK(parent != nullptr);
+  CHECK(parent != nullptr);
   const auto* invocation = dynamic_cast<const Invocation*>(parent);
   return invocation != nullptr && invocation->callee() == n;
 }
@@ -176,7 +177,7 @@ absl::Status VerifyParentage(const Module* module) {
 }
 
 absl::Status VerifyParentage(const AstNode* root) {
-  XLS_CHECK(root != nullptr);
+  CHECK(root != nullptr);
 
   if (const Module* module = dynamic_cast<const Module*>(root);
       module != nullptr) {
@@ -184,7 +185,7 @@ absl::Status VerifyParentage(const AstNode* root) {
   }
 
   for (const auto* child : root->GetChildren(/*want_types=*/true)) {
-    XLS_CHECK(child != nullptr);
+    CHECK(child != nullptr);
     XLS_RETURN_IF_ERROR(VerifyParentage(child));
 
     if (child->parent() == nullptr) {
@@ -272,7 +273,7 @@ int64_t DetermineIndentLevel(const AstNode& n) {
     case AstNodeKind::kModule:
       return 0;
     case AstNodeKind::kBlock: {
-      XLS_CHECK(n.parent() != nullptr);
+      CHECK(n.parent() != nullptr);
       return DetermineIndentLevel(*n.parent()) + 1;
     }
     case AstNodeKind::kFunction: {
@@ -288,7 +289,7 @@ int64_t DetermineIndentLevel(const AstNode& n) {
     }
     default: {
       AstNode* parent = n.parent();
-      XLS_CHECK(parent != nullptr);
+      CHECK(parent != nullptr);
       return DetermineIndentLevel(*parent);
     }
   }
@@ -448,15 +449,15 @@ bool ContainedWithinFunction(const Invocation& invocation,
       invocation.ToString(), invocation.span(), caller.identifier(),
       caller.span());
   const AstNode* parent = invocation.parent();
-  XLS_CHECK(parent != nullptr)
-      << absl::StreamFormat("invocation node had no parent set: `%s` @ %v",
-                            invocation.ToString(), invocation.span());
+  CHECK(parent != nullptr) << absl::StreamFormat(
+      "invocation node had no parent set: `%s` @ %v", invocation.ToString(),
+      invocation.span());
   XLS_VLOG(10) << absl::StreamFormat("node `%s` has parent: `%s`",
                                      invocation.ToString(), parent->ToString());
 
   while (parent->kind() != AstNodeKind::kFunction) {
     const AstNode* new_parent = parent->parent();
-    XLS_CHECK(new_parent != nullptr);
+    CHECK(new_parent != nullptr);
     XLS_VLOG(10) << absl::StreamFormat("transitive; node `%s` has parent: `%s`",
                                        parent->ToString(),
                                        new_parent->ToString());
@@ -470,7 +471,7 @@ bool ContainedWithinFunction(const Invocation& invocation,
 
   // Here we check that, if the parent links indicate the node is contained, it
   // is also lexically/positionally contained.
-  XLS_CHECK_EQ(contained, caller.span().Contains(invocation.span()));
+  CHECK_EQ(contained, caller.span().Contains(invocation.span()));
 
   return contained;
 }

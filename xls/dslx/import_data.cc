@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -95,8 +96,8 @@ InterpBindings& ImportData::GetOrCreateTopLevelBindings(Module* module) {
 void ImportData::SetTopLevelBindings(Module* module,
                                      std::unique_ptr<InterpBindings> tlb) {
   auto it = top_level_bindings_.emplace(module, std::move(tlb));
-  XLS_CHECK(it.second) << "Module already had top level bindings: "
-                       << module->name();
+  CHECK(it.second) << "Module already had top level bindings: "
+                   << module->name();
 }
 
 void ImportData::SetBytecodeCache(

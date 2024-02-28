@@ -128,9 +128,9 @@ cc_library(
     hdrs = ["analyze_critical_path.h"],
     deps = [
         ":delay_estimator",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -165,6 +165,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",

@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -354,11 +355,11 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(bdd_simp, {
-  XLS_CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
       "bdd_simp", pass_config::kOptLevel));
-  XLS_CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
       "bdd_simp(2)", pass_config::CappedOptLevel{2}));
-  XLS_CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
+  CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
       "bdd_simp(3)", pass_config::CappedOptLevel{3}));
 });
 

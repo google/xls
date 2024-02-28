@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -107,7 +108,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
 
     XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
 
-    XLS_CHECK_OK(SetUpIncludes(temp_dir, includes));
+    CHECK_OK(SetUpIncludes(temp_dir, includes));
     std::vector<std::string> args = {top_v_path, "-o", temp_out.path().string(),
                                      "-I", temp_dir.string()};
     AppendMacroDefinitionsToArgs(macro_definitions, args);
@@ -133,7 +134,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
 
     XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
 
-    XLS_CHECK_OK(SetUpIncludes(temp_dir, includes));
+    CHECK_OK(SetUpIncludes(temp_dir, includes));
 
     std::vector<std::string> args = {top_v_path, "-o", temp_out.path().string(),
                                      "-I", temp_dir.string()};
@@ -145,7 +146,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
 };
 
 XLS_REGISTER_MODULE_INITIALIZER(iverilog_simulator, {
-  XLS_CHECK_OK(GetVerilogSimulatorManagerSingleton().RegisterVerilogSimulator(
+  CHECK_OK(GetVerilogSimulatorManagerSingleton().RegisterVerilogSimulator(
       "iverilog", std::make_unique<IcarusVerilogSimulator>()));
 });
 

@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -50,7 +51,7 @@ class Interval {
   // The upper/lower bound are both considered inclusive.
   Interval(const Bits& lower_bound, const Bits& upper_bound)
       : is_valid_(true), lower_bound_(lower_bound), upper_bound_(upper_bound) {
-    XLS_CHECK_EQ(lower_bound_.bit_count(), upper_bound_.bit_count());
+    CHECK_EQ(lower_bound_.bit_count(), upper_bound_.bit_count());
   }
 
   // Returns the interval [lower_bound, upper_bound].
@@ -225,7 +226,7 @@ class Interval {
   }
 
  private:
-  void EnsureValid() const { XLS_CHECK(is_valid_); }
+  void EnsureValid() const { CHECK(is_valid_); }
 
   bool is_valid_;
   Bits lower_bound_;

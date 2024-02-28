@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -138,7 +139,7 @@ class JitTempBuffer {
       size_t align, size_t size) {
     std::unique_ptr<uint8_t[], DeleteAligned> result(
         absl::bit_cast<uint8_t*>(AllocateAligned(align, size)));
-    XLS_CHECK(result != nullptr) << "size: " << size << " align: " << align;
+    CHECK(result != nullptr) << "size: " << size << " align: " << align;
     return result;
   }
 

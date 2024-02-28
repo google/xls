@@ -152,6 +152,7 @@ cc_test(
     deps = [
         ":fp_sincos_32_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -217,6 +218,7 @@ cc_test(
     deps = [
         ":fp_trig_reduce_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",

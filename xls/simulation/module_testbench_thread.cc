@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -62,8 +63,8 @@ void WaitForClockPosEdge(LogicRef* clk, StatementBlock* statement_block) {
 // after the posedge of the clock.
 void WaitNCycles(LogicRef* clk, StatementBlock* statement_block,
                  int64_t n_cycles) {
-  XLS_CHECK_GT(n_cycles, 0);
-  XLS_CHECK_NE(statement_block, nullptr);
+  CHECK_GT(n_cycles, 0);
+  CHECK_NE(statement_block, nullptr);
   VerilogFile& file = *statement_block->file();
   Expression* posedge_clk = file.Make<PosEdge>(SourceInfo(), clk);
   if (n_cycles == 1) {
@@ -91,7 +92,7 @@ void EmitSignalCaptures(
     if (std::holds_alternative<const TestbenchStream*>(signal_capture.action)) {
       const TestbenchStream* stream =
           std::get<const TestbenchStream*>(signal_capture.action);
-      XLS_CHECK_GT(stream->width, 0);
+      CHECK_GT(stream->width, 0);
       stream_emitters.at(stream->name)
           .EmitWrite(statement_block,
                      signal_refs.at(signal_capture.signal_name));
@@ -203,7 +204,7 @@ void EmitAction(const Action& action, StatementBlock* statement_block,
                                SourceInfo()),
                 SourceInfo());
           } else {
-            XLS_CHECK(std::holds_alternative<IsNotX>(signal_value.value));
+            CHECK(std::holds_alternative<IsNotX>(signal_value.value));
             // To test whether all bits are not X do an XOR reduce of the
             // bits and test that it does not equal X.
             element = file.NotEqualsX(
@@ -265,7 +266,7 @@ SequentialBlock& SequentialBlock::AdvanceNCycles(int64_t n_cycles) {
 
 SequentialBlock& SequentialBlock::WaitForCycleAfter(
     std::string_view signal_name) {
-  XLS_CHECK_EQ(metadata().GetPortWidth(signal_name), 1);
+  CHECK_EQ(metadata().GetPortWidth(signal_name), 1);
   statements_.push_back(WaitForSignals{
       .any_or_all = AnyOrAll::kAll,
       .signal_values = {SignalValue{std::string(signal_name), UBits(1, 1)}},
@@ -276,7 +277,7 @@ SequentialBlock& SequentialBlock::WaitForCycleAfter(
 
 SequentialBlock& SequentialBlock::WaitForCycleAfterNot(
     std::string_view signal_name) {
-  XLS_CHECK_EQ(metadata().GetPortWidth(signal_name), 1);
+  CHECK_EQ(metadata().GetPortWidth(signal_name), 1);
   statements_.push_back(WaitForSignals{
       .any_or_all = AnyOrAll::kAll,
       .signal_values = {SignalValue{std::string(signal_name), UBits(0, 1)}},
@@ -387,7 +388,7 @@ EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenSignalsEq(
 
 EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhen(
     std::string_view signal_name) {
-  XLS_CHECK_EQ(metadata().GetPortWidth(signal_name), 1);
+  CHECK_EQ(metadata().GetPortWidth(signal_name), 1);
   return AtEndOfCycleWhenSignalsEq(
       AnyOrAll::kAll, {SignalValue{std::string(signal_name), UBits(1, 1)}},
       absl::StrFormat("Wait for `%s` to be asserted and capture output",
@@ -396,7 +397,7 @@ EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhen(
 
 EndOfCycleEvent& SequentialBlock::AtEndOfCycleWhenNot(
     std::string_view signal_name) {
-  XLS_CHECK_EQ(metadata().GetPortWidth(signal_name), 1);
+  CHECK_EQ(metadata().GetPortWidth(signal_name), 1);
   return AtEndOfCycleWhenSignalsEq(
       AnyOrAll::kAll, {SignalValue{std::string(signal_name), UBits(0, 1)}},
       absl::StrFormat("Wait for `%s` to be de-asserted and capture output",
@@ -606,8 +607,8 @@ void ModuleTestbenchThread::EmitInto(
 }
 
 void ModuleTestbenchThread::CheckCanDriveSignal(std::string_view signal_name) {
-  XLS_CHECK(std::find(drivable_signals_.begin(), drivable_signals_.end(),
-                      signal_name) != drivable_signals_.end())
+  CHECK(std::find(drivable_signals_.begin(), drivable_signals_.end(),
+                  signal_name) != drivable_signals_.end())
       << absl::StrFormat(
              "'%s' is not a signal that thread `%s is designated to drive.",
              signal_name, name());

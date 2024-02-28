@@ -30,6 +30,7 @@
 #include "gtest/gtest.h"
 #include "fuzztest/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -1034,7 +1035,7 @@ void CheckOutput(absl::Span<uint8_t const> expected_data,
                  std::initializer_list<
                      std::tuple<std::string_view, absl::Span<uint8_t const>>>
                      extra_data) {
-  XLS_CHECK_EQ(expected_data.size(), output_data.size());
+  CHECK_EQ(expected_data.size(), output_data.size());
   if (XLS_VLOG_IS_ON(3)) {
     auto print_byte_vec = [](absl::Span<uint8_t const> bytes,
                              std::string_view name) {
@@ -1171,7 +1172,7 @@ void TestPackedTupleWithType(const TypeProto& type_proto) {
     }
   }
   std::vector<uint8_t> expected = FlattenValue(Value::Tuple(expected_elements));
-  XLS_CHECK_EQ(expected.size(), output.size());
+  CHECK_EQ(expected.size(), output.size());
 
   // Run jit and check output.
   std::array<uint8_t*, 2> inputs = {lhs.data(), rhs.data()};

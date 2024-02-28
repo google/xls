@@ -19,6 +19,7 @@
 #include <string>
 #include <variant>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -169,7 +170,7 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
 }
 
 void UseImplicitToken(DeduceCtx* ctx) {
-  XLS_CHECK(!ctx->fn_stack().empty());
+  CHECK(!ctx->fn_stack().empty());
   Function* caller = ctx->fn_stack().back().f();
   // Note: caller could be nullptr; e.g. when we're calling a function that
   // can fail!() from the top level of a module; e.g. in a module-level const

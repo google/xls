@@ -20,6 +20,7 @@
 #include <queue>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -128,9 +129,9 @@ class AbstractEvaluator {
   }
 
   Vector BitSlice(const Vector& input, int64_t start, int64_t width) {
-    XLS_CHECK_GE(start, 0);
-    XLS_CHECK_LE(start + width, input.size());
-    XLS_CHECK_GE(width, 0);
+    CHECK_GE(start, 0);
+    CHECK_LE(start + width, input.size());
+    CHECK_GE(width, 0);
     Vector result(width);
     for (int64_t i = 0; i < width; ++i) {
       result[i] = input[start + i];
@@ -147,7 +148,7 @@ class AbstractEvaluator {
   }
 
   Element Equals(const Vector& a, const Vector& b) {
-    XLS_CHECK_EQ(a.size(), b.size());
+    CHECK_EQ(a.size(), b.size());
     Element result = One();
     for (int64_t i = 0; i < a.size(); ++i) {
       result = And(result, Or(And(a[i], b[i]), And(Not(a[i]), Not(b[i]))));
@@ -171,7 +172,7 @@ class AbstractEvaluator {
   }
 
   Element ULessThan(const Vector& a, const Vector& b) {
-    XLS_CHECK_EQ(a.size(), b.size());
+    CHECK_EQ(a.size(), b.size());
     Element result = Zero();
     Element upper_bits_lte = One();
     for (int64_t i = a.size() - 1; i >= 0; --i) {
@@ -316,13 +317,13 @@ class AbstractEvaluator {
   }
 
   Vector ZeroExtend(const Vector& input, int64_t new_width) {
-    XLS_CHECK_GE(new_width, input.size());
+    CHECK_GE(new_width, input.size());
     return Concat({Vector(new_width - input.size(), Zero()), input});
   }
 
   Vector SignExtend(const Vector& input, int64_t new_width) {
-    XLS_CHECK_GE(input.size(), 1);
-    XLS_CHECK_GE(new_width, input.size());
+    CHECK_GE(input.size(), 1);
+    CHECK_GE(new_width, input.size());
     return Concat({Vector(new_width - input.size(), input.back()), input});
   }
 
@@ -416,13 +417,13 @@ class AbstractEvaluator {
           continue;
         }
         // The last column should never need reduction.
-        XLS_CHECK_LT(col + 1, partial_products.size());
+        CHECK_LT(col + 1, partial_products.size());
 
         std::queue<Element>& next_column = partial_products[col + 1];
         while (column.size() > max_height + 1) {
           // By the while condition, the column should have at least 3 elements.
           // (Actually, it should have at least 4, but we only need 3.)
-          XLS_CHECK_GE(column.size(), 3);
+          CHECK_GE(column.size(), 3);
 
           // Use a full adder to combine the next 3 elements, outputting a sum
           // with a carry into the next column.
@@ -440,7 +441,7 @@ class AbstractEvaluator {
         if (column.size() > max_height) {
           // By this condition, the column should have at least 2 elements.
           // (Actually, it should have at least 3, but we only need 2.)
-          XLS_CHECK_GE(column.size(), 2);
+          CHECK_GE(column.size(), 2);
 
           // Use a half-adder to combine the next 2 elements, outputting a sum
           // with a carry into the next column.
@@ -463,7 +464,7 @@ class AbstractEvaluator {
 
       // All columns should start with height <= 2, and end up <= 3 if they
       // receive a carry.
-      XLS_CHECK_LE(column.size(), 3);
+      CHECK_LE(column.size(), 3);
 
       // Reduce this column to a single entry, pushing any carry forward.
       switch (column.size()) {
@@ -478,7 +479,7 @@ class AbstractEvaluator {
           column.pop();
           Element b = column.front();
           column.pop();
-          XLS_CHECK(column.empty());
+          CHECK(column.empty());
 
           AdderResult r = HalfAdder(a, b);
           column.push(r.sum);
@@ -493,7 +494,7 @@ class AbstractEvaluator {
           column.pop();
           Element c = column.front();
           column.pop();
-          XLS_CHECK(column.empty());
+          CHECK(column.empty());
 
           AdderResult r = FullAdder(a, b, c);
           column.push(r.sum);
@@ -502,7 +503,7 @@ class AbstractEvaluator {
         }
       }
 
-      XLS_CHECK_EQ(column.size(), 1);
+      CHECK_EQ(column.size(), 1);
       result[i] = column.front();
     }
     return result;
@@ -590,8 +591,8 @@ class AbstractEvaluator {
   Vector OneHotSelectInternal(absl::Span<const Element> selector,
                               absl::Span<const absl::Span<const Element>> cases,
                               bool selector_can_be_zero) {
-    XLS_CHECK_EQ(selector.size(), cases.size());
-    XLS_CHECK_GT(selector.size(), 0);
+    CHECK_EQ(selector.size(), cases.size());
+    CHECK_GT(selector.size(), 0);
     int64_t width = cases.front().size();
     Vector result(width, Zero());
     for (int64_t i = 0; i < selector.size(); ++i) {
@@ -622,8 +623,8 @@ class AbstractEvaluator {
   Vector PrioritySelectInternal(absl::Span<const Element> selector,
                               absl::Span<const absl::Span<const Element>> cases,
                               bool selector_can_be_zero) {
-    XLS_CHECK_EQ(selector.size(), cases.size());
-    XLS_CHECK_GT(selector.size(), 0);
+    CHECK_EQ(selector.size(), cases.size());
+    CHECK_GT(selector.size(), 0);
     int64_t width = cases.front().size();
     Vector result(width, Zero());
     for (int64_t i = selector.size() - 1; i >= 0; --i) {
@@ -653,7 +654,7 @@ class AbstractEvaluator {
   // defined by the given function.
   Vector NaryOp(absl::Span<const Vector> inputs,
                 absl::FunctionRef<Element(const Element&, const Element&)> f) {
-    XLS_CHECK_GT(inputs.size(), 0);
+    CHECK_GT(inputs.size(), 0);
     Vector result(inputs.front());
     for (int64_t i = 1; i < inputs.size(); ++i) {
       for (int64_t j = 0; j < result.size(); ++j) {

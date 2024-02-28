@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <iterator>
 
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "xls/common/logging/logging.h"
 
@@ -27,7 +28,7 @@ namespace xls {
 // bit generator.
 template <typename T>
 typename T::value_type RandomChoice(const T& choices, absl::BitGenRef bit_gen) {
-  XLS_CHECK(!choices.empty());
+  CHECK(!choices.empty());
   typename T::value_type result;
   std::sample(std::begin(choices), std::end(choices), &result, 1, bit_gen);
   return result;

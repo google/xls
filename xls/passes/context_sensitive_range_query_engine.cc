@@ -27,6 +27,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -208,7 +209,7 @@ class BackPropagate final : public BackPropagateBase {
 
   absl::Status UnifyExactMatch(CompareOp* eq) final {
     XLS_RET_CHECK(eq->GetType()->GetFlatBitCount() == 1);
-    XLS_CHECK(eq->op() == Op::kEq || eq->op() == Op::kNe) << eq;
+    CHECK(eq->op() == Op::kEq || eq->op() == Op::kNe) << eq;
     // Implies that ranges must be the same (since otherwise there would be
     // some numbers where condition is false)
     Node* a = eq->operand(0);
@@ -769,8 +770,7 @@ class Analysis {
     XLS_RET_CHECK(!s.IsBasePredicate())
         << "Can't back-propogate base predicate!";
     Node* selector = s.node()->As<Select>()->selector();
-    XLS_CHECK(selector->GetType()->IsBits())
-        << "Non-bits select: " << *selector;
+    CHECK(selector->GetType()->IsBits()) << "Non-bits select: " << *selector;
     BackPropagate prop(base_range_);
     XLS_ASSIGN_OR_RETURN(RangeData given, ExtractSelectorValue(s, selector));
     prop.AddGiven(selector, given);
@@ -933,7 +933,7 @@ ContextSensitiveRangeQueryEngine::SpecializeGivenPredicate(
   // elements since something that is true for A is also true for A && B. We
   // don't have any particular strategy for picking which one gets to be the
   // 'real' state just using 'begin'.
-  XLS_CHECK_LE(state.size(), 1);
+  CHECK_LE(state.size(), 1);
   if (state.empty() || !one_hot_ranges_.contains(*state.cbegin())) {
     return QueryEngine::SpecializeGivenPredicate(state);
   }

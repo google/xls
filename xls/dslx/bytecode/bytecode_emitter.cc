@@ -26,6 +26,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -872,7 +873,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   // Reload the current index and compare against the iterable size.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad,
                                Bytecode::SlotIndex(index_slot)));
-  XLS_CHECK_EQ(static_cast<uint32_t>(iterable_size), iterable_size);
+  CHECK_EQ(static_cast<uint32_t>(iterable_size), iterable_size);
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral,
                InterpValue::MakeU32(static_cast<uint32_t>(iterable_size))));
@@ -1590,8 +1591,8 @@ absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
   Add(Bytecode::MakeJumpDest(node->span()));
 
   // One extra for the fall-through failure case.
-  XLS_CHECK_EQ(node->arms().size() + 1, arm_offsets.size());
-  XLS_CHECK_EQ(node->arms().size(), jumps_to_next.size());
+  CHECK_EQ(node->arms().size() + 1, arm_offsets.size());
+  CHECK_EQ(node->arms().size(), jumps_to_next.size());
   for (size_t i = 0; i < jumps_to_next.size(); ++i) {
     size_t jump_offset = jumps_to_next[i];
     size_t next_offset = arm_offsets[i + 1];

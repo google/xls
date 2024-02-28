@@ -38,6 +38,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -303,7 +304,7 @@ void Translator::AddSourceInfoToPackage(xls::Package& package) {
 }
 
 TranslationContext& Translator::context() {
-  XLS_CHECK(!context_stack_.empty());
+  CHECK(!context_stack_.empty());
   return context_stack_.front();
 }
 
@@ -463,7 +464,7 @@ xls::Value Translator::MakeStructXLS(
     const std::vector<xls::Value>& vals_reverse, const CStructType& stype) {
   std::vector<xls::Value> vals = vals_reverse;
   std::reverse(vals.begin(), vals.end());
-  XLS_CHECK_EQ(vals.size(), stype.fields().size());
+  CHECK_EQ(vals.size(), stype.fields().size());
   xls::Value ret = stype.no_tuple_flag() ? vals[0] : xls::Value::Tuple(vals);
   return ret;
 }
@@ -479,7 +480,7 @@ xls::BValue Translator::GetStructFieldXLS(xls::BValue val, int64_t index,
 
 absl::StatusOr<xls::Value> Translator::GetStructFieldXLS(
     xls::Value val, int index, const CStructType& type) {
-  XLS_CHECK_LT(index, type.fields().size());
+  CHECK_LT(index, type.fields().size());
   if (type.no_tuple_flag()) {
     return val;
   }
@@ -517,7 +518,7 @@ xls::BValue Translator::GetFlexTupleField(xls::BValue val, int64_t index,
 
 xls::Type* Translator::GetFlexTupleType(
     const std::vector<xls::Type*>& members) {
-  XLS_CHECK(!members.empty());
+  CHECK(!members.empty());
   return (members.size() == 1) ? members[0] : package_->GetTupleType(members);
 }
 
@@ -623,7 +624,7 @@ absl::Status Translator::GenerateThisLValues(
       }
     }
 
-    XLS_CHECK_NE(lval.get(), nullptr);
+    CHECK_NE(lval.get(), nullptr);
 
     XLS_ASSIGN_OR_RETURN(CValue prev_this_cval, GetIdentifier(this_decl, loc));
 
@@ -1784,7 +1785,7 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
 
 int64_t Translator::ArrayBValueWidth(xls::BValue array_bval) {
   xls::Type* type = array_bval.node()->GetType();
-  XLS_CHECK(type->IsArray());
+  CHECK(type->IsArray());
   return type->AsArrayOrDie()->size();
 }
 
@@ -2578,7 +2579,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::ResolveTypeInstance(
       ScanStruct(clang::dyn_cast<const clang::RecordDecl>(inst->base())));
 
   auto found = inst_types_.find(inst);
-  XLS_CHECK(found != inst_types_.end());
+  CHECK(found != inst_types_.end());
 
   return found->second;
 }
@@ -2643,7 +2644,7 @@ absl::StatusOr<bool> Translator::FunctionIsInSyntheticInt(
     }
     XLSCC_CHECK(found != inst_types_.end(), GetLoc(*decl));
     auto struct_type = dynamic_cast<const CStructType*>(found->second.get());
-    XLS_CHECK_NE(struct_type, nullptr);
+    CHECK_NE(struct_type, nullptr);
     if (struct_type->synthetic_int_flag()) {
       return true;
     }
@@ -4507,7 +4508,7 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
       XLS_RETURN_IF_ERROR(DeclareVariable(this_decl, this_val, loc));
     }
 
-    XLS_CHECK_NE(init_list->getNumInits(), 0);
+    CHECK_NE(init_list->getNumInits(), 0);
 
     for (uint64_t i = 0; i < init_list->getNumInits(); ++i) {
       // This list always contains an init for each field, so the indices match
@@ -5282,13 +5283,13 @@ absl::StatusOr<Z3_lbool> Translator::CheckAssumptions(
 
   std::vector<Z3_ast> z3_nodes_asserted;
   for (xls::Node* node : positive_nodes) {
-    XLS_CHECK_EQ(node->BitCountOrDie(), 1);
+    CHECK_EQ(node->BitCountOrDie(), 1);
     Z3_ast z3_node = z3_translator.GetTranslation(node);
     z3_nodes_asserted.push_back(
         xls::solvers::z3::BitVectorToBoolean(ctx, z3_node));
   }
   for (xls::Node* node : negative_nodes) {
-    XLS_CHECK_EQ(node->BitCountOrDie(), 1);
+    CHECK_EQ(node->BitCountOrDie(), 1);
     Z3_ast z3_node = z3_translator.GetTranslation(node);
     Z3_ast z3_node_not = Z3_mk_bvnot(z3_translator.ctx(), z3_node);
     z3_nodes_asserted.push_back(
@@ -5762,18 +5763,18 @@ absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
 absl::Status Translator::ScanFile(
     std::string_view source_filename,
     absl::Span<std::string_view> command_line_args) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   return parser_->ScanFile(source_filename, command_line_args);
 }
 
 absl::StatusOr<std::string> Translator::GetEntryFunctionName() const {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   return parser_->GetEntryFunctionName();
 }
 
 absl::Status Translator::SelectTop(std::string_view top_function_name,
                                    std::string_view top_class_name) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   return parser_->SelectTop(top_function_name, top_class_name);
 }
 
@@ -5785,7 +5786,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
     int default_init_interval) {
   const clang::FunctionDecl* top_function = nullptr;
 
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
 
   package_ = package;
@@ -5972,7 +5973,7 @@ std::string Translator::LocString(const xls::SourceInfo& loc) {
 }
 
 xls::SourceInfo Translator::GetLoc(const clang::Stmt& stmt) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   if (context().sf != nullptr && context().sf->in_synthetic_int) {
     return xls::SourceInfo();
   }
@@ -5980,7 +5981,7 @@ xls::SourceInfo Translator::GetLoc(const clang::Stmt& stmt) {
 }
 
 xls::SourceInfo Translator::GetLoc(const clang::Decl& decl) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   if (context().sf != nullptr && context().sf->in_synthetic_int) {
     return xls::SourceInfo();
   }
@@ -5988,12 +5989,12 @@ xls::SourceInfo Translator::GetLoc(const clang::Decl& decl) {
 }
 
 clang::PresumedLoc Translator::GetPresumedLoc(const clang::Stmt& stmt) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   return parser_->GetPresumedLoc(stmt);
 }
 
 clang::PresumedLoc Translator::GetPresumedLoc(const clang::Decl& decl) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   return parser_->GetPresumedLoc(decl);
 }
 
@@ -6046,13 +6047,13 @@ absl::StatusOr<const clang::CallExpr*> Translator::FindIntrinsicCall(
 
 absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
     const clang::SourceLocation& loc, bool ignore_label) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   return parser_->FindPragmaForLoc(loc, ignore_label);
 }
 
 absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
     const clang::PresumedLoc& ploc, bool ignore_label) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   return parser_->FindPragmaForLoc(ploc, ignore_label);
 }
 

@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
@@ -110,10 +111,10 @@ class GeneratedTester : public XlsccTestBase {
 
   absl::StatusOr<xls::Value> RunSimulated(
       const absl::flat_hash_map<std::string, xls::Value>& args) {
-    XLS_CHECK_EQ(package_->functions().size(), 1);
+    CHECK_EQ(package_->functions().size(), 1);
     std::optional<xls::FunctionBase*> top = package_->GetTop();
-    XLS_CHECK(top.has_value());
-    XLS_CHECK(top.value()->IsFunction());
+    CHECK(top.has_value());
+    CHECK(top.value()->IsFunction());
 
     XLS_ASSIGN_OR_RETURN(
         xls::verilog::ModuleGeneratorResult result,

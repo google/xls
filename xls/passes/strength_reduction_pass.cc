@@ -24,6 +24,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -194,9 +195,9 @@ absl::StatusOr<bool> StrengthReduceNode(
   };
   if (NarrowingEnabled(opt_level) &&
       is_bitslice_and(&leading_zeros, &selected_bits, &trailing_zeros)) {
-    XLS_CHECK_GE(leading_zeros, 0);
-    XLS_CHECK_GE(selected_bits, 0);
-    XLS_CHECK_GE(trailing_zeros, 0);
+    CHECK_GE(leading_zeros, 0);
+    CHECK_GE(selected_bits, 0);
+    CHECK_GE(trailing_zeros, 0);
     FunctionBase* f = node->function_base();
     XLS_ASSIGN_OR_RETURN(Node * slice,
                          f->MakeNode<BitSlice>(node->loc(), node->operand(0),

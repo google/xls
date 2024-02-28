@@ -33,6 +33,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -419,7 +420,7 @@ InterpretBlockSignature(
 
     if (absl::EndsWith(port.name(), streaming_channel_data_suffix)) {
       std::string port_name = port.name().substr(0, port.name().size() - 5);
-      XLS_CHECK(!channel_info.contains(port_name));
+      CHECK(!channel_info.contains(port_name));
       channel_info[port_name].width = port.width();
       if (port.direction() == verilog::DIRECTION_INPUT) {
         channel_info[port_name].port_input = true;
@@ -452,39 +453,39 @@ InterpretBlockSignature(
       port_name = port.name().substr(
           0, port.name().size() - streaming_channel_ready_suffix.size());
       ready_valid = true;
-      XLS_CHECK(channel_info.contains(port_name));
-      XLS_CHECK(this_port_input != channel_info.at(port_name).port_input);
+      CHECK(channel_info.contains(port_name));
+      CHECK(this_port_input != channel_info.at(port_name).port_input);
     } else if (absl::EndsWith(port.name(), streaming_channel_valid_suffix)) {
       port_name = port.name().substr(
           0, port.name().size() - streaming_channel_valid_suffix.size());
       ready_valid = true;
-      XLS_CHECK(channel_info.contains(port_name));
-      XLS_CHECK(this_port_input == channel_info.at(port_name).port_input);
+      CHECK(channel_info.contains(port_name));
+      CHECK(this_port_input == channel_info.at(port_name).port_input);
     } else if (port.name() == idle_channel_name) {
       continue;
     } else {
       port_name = port.name();
       XLS_LOG(WARNING) << "Warning: Assuming port " << port_name
                        << " is single value, or direct, input";
-      XLS_CHECK(this_port_input);
+      CHECK(this_port_input);
       ready_valid = false;
       channel_info[port_name].port_input = true;
       channel_info[port_name].width = port.width();
     }
 
-    XLS_CHECK(channel_info.contains(port_name));
+    CHECK(channel_info.contains(port_name));
     if (ready_valid) {
       ++channel_info[port_name].ready_valid;
     }
   }
 
   for (auto& [name, info] : channel_info) {
-    XLS_CHECK(info.ready_valid == 0 || info.ready_valid == 2);
+    CHECK(info.ready_valid == 0 || info.ready_valid == 2);
 
     if (info.port_input) {
-      XLS_CHECK(inputs_for_channels.contains(name));
+      CHECK(inputs_for_channels.contains(name));
     } else {
-      XLS_CHECK(expected_outputs_for_channels.contains(name));
+      CHECK(expected_outputs_for_channels.contains(name));
     }
 
     info.channel_ready = name + std::string(streaming_channel_ready_suffix);
@@ -642,7 +643,7 @@ static absl::Status RunBlock(
   Block* block = package->blocks()[0].get();
 
   // TODO: Support multiple resets
-  XLS_CHECK_EQ(ticks.size(), 1);
+  CHECK_EQ(ticks.size(), 1);
 
   absl::flat_hash_map<std::string, ChannelInfo> channel_info;
   XLS_ASSIGN_OR_RETURN(
@@ -659,14 +660,14 @@ static absl::Status RunBlock(
   // Prepare values in queue format
   absl::flat_hash_map<std::string, std::queue<Value>> channel_value_queues;
   for (const auto& [name, values] : inputs_for_channels) {
-    XLS_CHECK(!channel_value_queues.contains(name));
+    CHECK(!channel_value_queues.contains(name));
     channel_value_queues[name] = std::queue<Value>();
     for (const Value& value : values) {
       channel_value_queues[name].push(value);
     }
   }
   for (const auto& [name, values] : expected_outputs_for_channels) {
-    XLS_CHECK(!channel_value_queues.contains(name));
+    CHECK(!channel_value_queues.contains(name));
     channel_value_queues[name] = std::queue<Value>();
     for (const Value& value : values) {
       channel_value_queues[name].push(value);
@@ -742,7 +743,7 @@ static absl::Status RunBlock(
         }
       } else {
         // Just take the first value for the single value channels
-        XLS_CHECK(!queue.empty());
+        CHECK(!queue.empty());
         input_set[name] = queue.front();
       }
     }
@@ -752,7 +753,7 @@ static absl::Status RunBlock(
     }
     for (const auto& [name, _] : expected_outputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
-      XLS_CHECK(info.ready_valid);
+      CHECK(info.ready_valid);
       input_set[info.channel_ready] = Value(xls::UBits(1, 1));
     }
     XLS_RETURN_IF_ERROR(continuation->RunOneCycle(input_set));
@@ -835,12 +836,12 @@ static absl::Status RunBlock(
         const std::string wr_en =
             name + std::string(memory_write_enable_suffix);
         const Value wr_en_val = outputs.at(wr_en);
-        XLS_CHECK(wr_en_val.IsBits());
+        CHECK(wr_en_val.IsBits());
         if (wr_en_val.IsAllOnes()) {
           const Value wr_addr_val = outputs.at(wr_addr);
           const Value wr_data_val = outputs.at(wr_data);
-          XLS_CHECK(wr_addr_val.IsBits());
-          XLS_CHECK(wr_data_val.IsBits());
+          CHECK(wr_addr_val.IsBits());
+          CHECK(wr_data_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, wr_addr_val.bits().ToUint64());
           XLS_RETURN_IF_ERROR(model->Write(addr, wr_data_val));
         }
@@ -851,10 +852,10 @@ static absl::Status RunBlock(
             name + std::string(memory_read_address_suffix);
         const std::string rd_en = name + std::string(memory_read_enable_suffix);
         const Value rd_en_val = outputs.at(rd_en);
-        XLS_CHECK(rd_en_val.IsBits());
+        CHECK(rd_en_val.IsBits());
         if (rd_en_val.IsAllOnes()) {
           const Value rd_addr_val = outputs.at(rd_addr);
-          XLS_CHECK(rd_addr_val.IsBits());
+          CHECK(rd_addr_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, rd_addr_val.bits().ToUint64());
           XLS_RETURN_IF_ERROR(model->Read(addr));
         }
@@ -1044,7 +1045,7 @@ static absl::Status RealMain(
   }
   if (backend == "block_jit") {
     verilog::ModuleSignatureProto proto;
-    XLS_CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
+    CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
     return RunBlock(kStreamingJitBlockEvaluator, package.get(), ticks, proto,
                     max_cycles_no_output, inputs_for_channels,
                     expected_outputs_for_channels, model_memories,
@@ -1058,7 +1059,7 @@ static absl::Status RealMain(
   }
   if (backend == "block_interpreter") {
     verilog::ModuleSignatureProto proto;
-    XLS_CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
+    CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
     return RunBlock(kInterpreterBlockEvaluator, package.get(), ticks, proto,
                     max_cycles_no_output, inputs_for_channels,
                     expected_outputs_for_channels, model_memories,

@@ -24,6 +24,7 @@ cc_library(
     hdrs = ["z3_op_translator.h"],
     deps = [
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "@z3//:api",
@@ -95,6 +96,7 @@ cc_library(
     hdrs = ["z3_ir_equivalence_testutils.h"],
     deps = [
         ":z3_ir_equivalence",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -117,6 +119,7 @@ cc_library(
         ":z3_utils",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
@@ -209,9 +212,10 @@ cc_library(
     srcs = ["z3_netlist_translator.cc"],
     hdrs = ["z3_netlist_translator.h"],
     deps = [
+        ":z3_utils",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -221,7 +225,6 @@ cc_library(
         "//xls/netlist",
         "//xls/netlist:cell_library",
         "//xls/netlist:function_parser",
-        "//xls/solvers:z3_utils",
         "@z3//:api",
     ],
 )
@@ -255,6 +258,7 @@ cc_library(
     srcs = ["z3_utils.cc"],
     hdrs = ["z3_utils.h"],
     deps = [
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

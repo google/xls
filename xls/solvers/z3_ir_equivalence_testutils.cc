@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -42,7 +43,7 @@ ScopedVerifyEquivalence::ScopedVerifyEquivalence(Function* f,
       absl::StrFormat("%s_original", f->package()->name()));
   absl::StatusOr<Function*> cloned =
       f_->Clone(absl::StrFormat("%s_original", f->name()), clone_p_.get());
-  XLS_CHECK_OK(cloned.status());
+  CHECK_OK(cloned.status());
   original_f_ = *std::move(cloned);
 }
 

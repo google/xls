@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -61,19 +62,19 @@ TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
     : xyz_present_(xyz_present),
       xyz_negated_(xyz_negated),
       logical_op_(logical_op) {
-  XLS_CHECK(!xyz_present.IsZero());
-  XLS_CHECK_EQ(3, xyz_present.bit_count());
-  XLS_CHECK_EQ(3, xyz_negated.bit_count());
+  CHECK(!xyz_present.IsZero());
+  CHECK_EQ(3, xyz_present.bit_count());
+  CHECK_EQ(3, xyz_negated.bit_count());
   if (!logical_op.has_value()) {
-    XLS_CHECK_EQ(1, xyz_present.PopCount());
-    XLS_CHECK_LE(xyz_negated.PopCount(), 1);
+    CHECK_EQ(1, xyz_present.PopCount());
+    CHECK_LE(xyz_negated.PopCount(), 1);
   }
   // Check for not-present bits that are negated.
-  XLS_CHECK(bits_ops::And(bits_ops::Not(xyz_present), xyz_negated).IsZero());
+  CHECK(bits_ops::And(bits_ops::Not(xyz_present), xyz_negated).IsZero());
 }
 
 /* static */ Bits TruthTable::GetInitialVector(int64_t i) {
-  XLS_CHECK_LT(i, kMaxFrontierNodes);
+  CHECK_LT(i, kMaxFrontierNodes);
   switch (i) {
     case 0:
       return UBits(0b00001111, /*bit_count=*/8);
@@ -117,7 +118,7 @@ Bits TruthTable::ComputeTruthTable() const {
   if (logical_op_.has_value()) {
     return RunNaryOp(logical_op_.value(), operands);
   }
-  XLS_CHECK_EQ(1, operands.size());
+  CHECK_EQ(1, operands.size());
   return operands[0];
 }
 
@@ -155,7 +156,7 @@ bool TruthTable::MatchesSymmetrical(
   }
   // When there is no logical function, only one of the "present" bits may be
   // set.
-  XLS_CHECK_EQ(1, xyz_present_.PopCount());
+  CHECK_EQ(1, xyz_present_.PopCount());
   for (int64_t i = 0; i < kMaxFrontierNodes; ++i) {
     if (!xyz_present_.GetFromMsb(i)) {
       continue;  // Don't care about this operand.
@@ -172,7 +173,7 @@ bool TruthTable::MatchesSymmetrical(
 absl::StatusOr<Node*> TruthTable::CreateReplacement(
     const SourceInfo& original_loc, absl::Span<Node* const> operands,
     FunctionBase* f) const {
-  XLS_CHECK_LE(operands.size(), kMaxFrontierNodes);
+  CHECK_LE(operands.size(), kMaxFrontierNodes);
   std::vector<Node*> this_operands;
   for (int64_t i = 0; i < kMaxFrontierNodes; ++i) {
     if (!xyz_present_.GetFromMsb(i)) {
@@ -186,7 +187,7 @@ absl::StatusOr<Node*> TruthTable::CreateReplacement(
     this_operands.push_back(operand);
   }
   if (!logical_op_.has_value()) {
-    XLS_CHECK_EQ(1, this_operands.size());
+    CHECK_EQ(1, this_operands.size());
     return this_operands[0];
   }
   return f->MakeNode<NaryOp>(original_loc, this_operands, logical_op_.value());

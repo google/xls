@@ -23,6 +23,7 @@
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -140,8 +141,8 @@ absl::Status Translator::GenerateIR_Loop(
   // Pipelined loops can inherit their initiation interval from enclosing
   // loops, so they can be allowed not to have a #pragma.
   if (init_interval < 0) {
-    XLS_CHECK(!context().in_pipelined_for_body ||
-              (context().outer_pipelined_loop_init_interval > 0));
+    CHECK(!context().in_pipelined_for_body ||
+          (context().outer_pipelined_loop_init_interval > 0));
     init_interval = context().outer_pipelined_loop_init_interval;
   }
   if (init_interval <= 0) {
@@ -225,7 +226,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
     if (!always_this_iter && cond_expr != nullptr) {
       XLS_ASSIGN_OR_RETURN(CValue cond_expr_cval,
                            GenerateIR_Expr(cond_expr, loc));
-      XLS_CHECK(cond_expr_cval.type()->Is<CBoolType>());
+      CHECK(cond_expr_cval.type()->Is<CBoolType>());
       context().or_condition_util(
           context().fb->Not(cond_expr_cval.rvalue(), loc),
           context().relative_break_condition, loc);
@@ -373,7 +374,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   // Condition must be checked at the start
   if (!always_first_iter && cond_expr != nullptr) {
     XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
-    XLS_CHECK(cond_cval.type()->Is<CBoolType>());
+    CHECK(cond_cval.type()->Is<CBoolType>());
 
     XLS_RETURN_IF_ERROR(and_condition(cond_cval.rvalue(), loc));
   }
@@ -396,7 +397,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
     // Create a deterministic field order
     for (const auto& [decl, _] : context().variables) {
-      XLS_CHECK(context().sf->declaration_order_by_name_.contains(decl));
+      CHECK(context().sf->declaration_order_by_name_.contains(decl));
       // Don't pass __xlscc_on_reset in/out
       if (decl == on_reset_var_decl) {
         continue;
@@ -641,7 +642,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopProc(sub_proc));
   }
 
-  XLS_CHECK_EQ(sub_proc.vars_changed_in_body.size(), lvalues_out.size());
+  CHECK_EQ(sub_proc.vars_changed_in_body.size(), lvalues_out.size());
 
   if (uses_on_reset) {
     XLS_ASSIGN_OR_RETURN(CValue on_reset_cval, GetOnReset(loc));
@@ -756,8 +757,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
   // Generate body function
   auto generated_func = std::make_unique<GeneratedFunction>();
-  XLS_CHECK_NE(context().sf, nullptr);
-  XLS_CHECK_NE(context().sf->clang_decl, nullptr);
+  CHECK_NE(context().sf, nullptr);
+  CHECK_NE(context().sf->clang_decl, nullptr);
   generated_func->clang_decl = context().sf->clang_decl;
   uint64_t extra_return_count = 0;
   {
@@ -880,9 +881,9 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       context().propagate_continue_up = false;
       context().in_for_body = true;
 
-      XLS_CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
+      CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
 
-      XLS_CHECK_NE(body, nullptr);
+      CHECK_NE(body, nullptr);
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
 
       // break_condition is the assignment condition
@@ -907,7 +908,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       PushContextGuard context_guard(*this, loc);
 
       XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
-      XLS_CHECK(cond_cval.type()->Is<CBoolType>());
+      CHECK(cond_cval.type()->Is<CBoolType>());
       xls::BValue break_on_cond_val = context().fb->Not(cond_cval.rvalue());
 
       do_break = context().fb->Or(do_break, break_on_cond_val, loc);
@@ -943,7 +944,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
     // IO returns
     for (IOOp& op : generated_func->io_ops) {
-      XLS_CHECK(op.ret_value.valid());
+      CHECK(op.ret_value.valid());
       return_bvals.push_back(op.ret_value);
     }
 
@@ -1207,7 +1208,7 @@ Translator::GenerateIR_PipelinedLoopContents(
         continue;
       }
       const uint64_t field_idx = context_field_indices.at(decl);
-      XLS_CHECK_LT(field_idx, context_values.size());
+      CHECK_LT(field_idx, context_values.size());
       xls::BValue context_val = context_values.at(field_idx);
       xls::BValue prev_state_val = state_elements_by_decl.at(decl);
 
@@ -1225,8 +1226,8 @@ Translator::GenerateIR_PipelinedLoopContents(
     if (op.channel->generated.has_value()) {
       continue;
     }
-    XLS_CHECK(io_test_mode_ ||
-              external_channels_by_internal_channel_.contains(op.channel));
+    CHECK(io_test_mode_ ||
+          external_channels_by_internal_channel_.contains(op.channel));
   }
 
   // Invoke loop over IOs
@@ -1363,7 +1364,7 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-    XLS_CHECK(context().fb == &pb);
+    CHECK(context().fb == &pb);
 
     xls::BValue ret_next =
         pb.TupleIndex(fsm_ret.return_value,

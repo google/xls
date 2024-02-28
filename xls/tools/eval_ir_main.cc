@@ -28,6 +28,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
@@ -266,7 +267,7 @@ class EvalIrJitObserver final : public JitObserver {
       llvm::raw_string_ostream ostream(buffer);
       module->print(ostream, nullptr);
       ostream.flush();
-      XLS_CHECK_OK(SetFileContents(*ir_, buffer));
+      CHECK_OK(SetFileContents(*ir_, buffer));
     }
   }
   void OptimizedModule(const llvm::Module* module) final {
@@ -275,14 +276,14 @@ class EvalIrJitObserver final : public JitObserver {
       module->print(ostream, nullptr);
       ostream.flush();
       if (opt_ir_) {
-        XLS_CHECK_OK(SetFileContents(*opt_ir_, saved_opt_ir_));
+        CHECK_OK(SetFileContents(*opt_ir_, saved_opt_ir_));
       }
     }
   }
   void AssemblyCodeString(const llvm::Module* module,
                           std::string_view asm_code) final {
     if (assembly_) {
-      XLS_CHECK_OK(SetFileContents(*assembly_, asm_code));
+      CHECK_OK(SetFileContents(*assembly_, asm_code));
     }
   }
 

@@ -28,6 +28,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -550,7 +551,7 @@ std::vector<BValue> NextState(const ActivationNetwork& activations) {
   std::vector<BValue> next_state_vector;
   next_state_vector.reserve(states.size());
   for (const ActivationState* state : states) {
-    XLS_CHECK_EQ(state->state_idx, next_state_vector.size());
+    CHECK_EQ(state->state_idx, next_state_vector.size());
     next_state_vector.push_back(state->next_state);
   }
   return next_state_vector;
@@ -645,13 +646,13 @@ void MakeMutualExclusionAssertions(
         mutually_exclusive_nodes.insert({node, all_nodes});
     // We iterate in topo-sorted order, so this should be the first time seeing
     // 'node' and this insertion should always succeed.
-    XLS_CHECK(node_inserted);
+    CHECK(node_inserted);
     itr->second.erase(node);
     for (Node* const predecessor : predecessors) {
       itr->second.erase(predecessor);
       auto predecessor_itr = mutually_exclusive_nodes.find(predecessor);
       // We have already inserted predecessors in previous iterations.
-      XLS_CHECK(predecessor_itr != mutually_exclusive_nodes.end());
+      CHECK(predecessor_itr != mutually_exclusive_nodes.end());
       predecessor_itr->second.erase(node);
     }
   }

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/noc/config_ng/coordinate.h"
 #include "xls/noc/config_ng/dimension_bounds.h"
@@ -74,19 +75,18 @@ class FlattenedMultiDimensionalArray {
   // valid.
   void SetValue(const Coordinate& coordinate, const T& element) {
     if (dimensions_.HasZeroDimensions()) {
-      XLS_CHECK(coordinate.HasZeroDimensions());
+      CHECK(coordinate.HasZeroDimensions());
       elements_[0] = element;
     }
     std::optional<int64_t> index = GetIndexOfCoordinate(coordinate);
-    XLS_CHECK(index.has_value())
-        << "The coordinate did not resolve to an index";
+    CHECK(index.has_value()) << "The coordinate did not resolve to an index";
     elements_[index.value()] = element;
   }
 
   // Set the entry at the index of the flattened array to the element. The index
   // must be valid.
   void SetValue(int64_t index, const T& element) {
-    XLS_CHECK(IsIndexValid(index));
+    CHECK(IsIndexValid(index));
     elements_[index] = element;
   }
 
@@ -152,16 +152,16 @@ class FlattenedMultiDimensionalArray {
     // dimensional bounds, otherwise the result is 1.
     int64_t DistanceFromEnd(std::optional<int64_t> dimension_index) const {
       if (coordinate_.HasZeroDimensions()) {
-        XLS_CHECK(dimension_index == std::nullopt)
+        CHECK(dimension_index == std::nullopt)
             << "For a zero-dimension, the dimension index must be nullopt.";
         return traversed_zero_dimension_ ? 0 : 1;
       }
-      XLS_CHECK(dimension_index.has_value())
+      CHECK(dimension_index.has_value())
           << "Dimension index must have a value.";
       int64_t dimension_index_value = dimension_index.value();
-      XLS_CHECK_GE(dimension_index_value, 0)
+      CHECK_GE(dimension_index_value, 0)
           << "Dimension index must be greater than zero.";
-      XLS_CHECK_LT(dimension_index_value, dimensions_.GetDimensionCount())
+      CHECK_LT(dimension_index_value, dimensions_.GetDimensionCount())
           << "Dimension index is out of range: received "
           << dimension_index_value << ", maximum value is "
           << dimensions_.GetDimensionCount() << ".";
@@ -294,16 +294,16 @@ class FlattenedMultiDimensionalArray {
  private:
   const T& GetValueByCoordinate(const Coordinate& coordinate) const {
     if (dimensions_.HasZeroDimensions()) {
-      XLS_CHECK(coordinate.HasZeroDimensions());
+      CHECK(coordinate.HasZeroDimensions());
       return elements_[0];
     }
     std::optional<int64_t> index = GetIndexOfCoordinate(coordinate);
-    XLS_CHECK(index.has_value());
+    CHECK(index.has_value());
     return elements_[index.value()];
   }
 
   const T& GetValueByIndex(int64_t index) const {
-    XLS_CHECK(IsIndexValid(index));
+    CHECK(IsIndexValid(index));
     return elements_[index];
   }
 

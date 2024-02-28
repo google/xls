@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/codegen/vast.h"
@@ -88,7 +89,7 @@ bool FsmBlockBase::HasAssignmentToOutput(const FsmOutput& output) const {
 
 ConditionalFsmBlock& ConditionalFsmBlock::ElseOnCondition(
     Expression* condition) {
-  XLS_CHECK(next_alternate_ == nullptr && final_alternate_ == nullptr);
+  CHECK(next_alternate_ == nullptr && final_alternate_ == nullptr);
   next_alternate_ = std::make_unique<ConditionalFsmBlock>(
       absl::StrFormat("%s else (%s)", debug_name_, condition->Emit(nullptr)),
       file_, condition);
@@ -96,7 +97,7 @@ ConditionalFsmBlock& ConditionalFsmBlock::ElseOnCondition(
 }
 
 UnconditionalFsmBlock& ConditionalFsmBlock::Else() {
-  XLS_CHECK(next_alternate_ == nullptr && final_alternate_ == nullptr);
+  CHECK(next_alternate_ == nullptr && final_alternate_ == nullptr);
   final_alternate_ = std::make_unique<UnconditionalFsmBlock>(
       absl::StrFormat("%s else", debug_name_), file_);
   return *final_alternate_;
@@ -184,7 +185,7 @@ FsmRegister* FsmBuilder::AddRegister(std::string_view name,
                                      DataType* data_type,
                                      Expression* reset_value) {
   // A reset value can only be specified if the FSM has a reset signal.
-  XLS_CHECK(reset_value == nullptr || reset_.has_value());
+  CHECK(reset_value == nullptr || reset_.has_value());
   LogicRef* logic_ref = AddRegDef(name, data_type, reset_value);
   LogicRef* logic_ref_next = AddRegDef(absl::StrCat(name, "_next"), data_type);
   registers_.push_back(FsmRegister{logic_ref, logic_ref_next, reset_value});
@@ -212,7 +213,7 @@ FsmState* FsmBuilder::AddState(std::string_view name) {
   if (state_local_param_ == nullptr) {
     state_local_param_ = file_->Make<LocalParam>(SourceInfo());
   }
-  XLS_CHECK(!absl::c_any_of(states_, [&](const FsmState& s) {
+  CHECK(!absl::c_any_of(states_, [&](const FsmState& s) {
     return s.name() == name;
   })) << absl::StrFormat("State with name \"%s\" already exists.", name);
   Expression* state_value = state_local_param_->AddItem(

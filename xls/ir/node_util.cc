@@ -27,6 +27,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -119,7 +120,7 @@ absl::StatusOr<Node*> AndReduceTrailing(
     return f->MakeNode<Literal>(loc, Value(UBits(1, 1)));
   }
   const int64_t width = node->BitCountOrDie();
-  XLS_CHECK_LE(bit_count, width);
+  CHECK_LE(bit_count, width);
   XLS_ASSIGN_OR_RETURN(
       Node * bit_slice,
       f->MakeNode<BitSlice>(loc, node, /*start=*/0, /*width=*/bit_count));
@@ -139,7 +140,7 @@ absl::StatusOr<Node*> NorReduceTrailing(
     return f->MakeNode<Literal>(loc, Value(UBits(1, 1)));
   }
   const int64_t width = node->BitCountOrDie();
-  XLS_CHECK_LE(bit_count, width);
+  CHECK_LE(bit_count, width);
   XLS_ASSIGN_OR_RETURN(Node * bit_slice,
                        f->MakeNode<BitSlice>(loc, node,
                                              /*start=*/0,
@@ -162,7 +163,7 @@ absl::StatusOr<Node*> OrReduceLeading(
     return f->MakeNode<Literal>(loc, Value(UBits(0, 1)));
   }
   const int64_t width = node->BitCountOrDie();
-  XLS_CHECK_LE(bit_count, width);
+  CHECK_LE(bit_count, width);
   XLS_ASSIGN_OR_RETURN(Node * bit_slice,
                        f->MakeNode<BitSlice>(loc, node,
                                              /*start=*/width - bit_count,
@@ -183,7 +184,7 @@ absl::StatusOr<Node*> NorReduceLeading(
     return f->MakeNode<Literal>(loc, Value(UBits(1, 1)));
   }
   const int64_t width = node->BitCountOrDie();
-  XLS_CHECK_LE(bit_count, width);
+  CHECK_LE(bit_count, width);
   XLS_ASSIGN_OR_RETURN(Node * bit_slice,
                        f->MakeNode<BitSlice>(loc, node,
                                              /*start=*/width - bit_count,

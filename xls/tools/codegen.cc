@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -304,7 +305,7 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
   }
 
   // Note: this should already be validated by CodegenFlagsFromAbslFlags().
-  XLS_CHECK_EQ(codegen_flags_proto.generator(), GENERATOR_KIND_PIPELINE)
+  CHECK_EQ(codegen_flags_proto.generator(), GENERATOR_KIND_PIPELINE)
       << "Invalid generator kind: "
       << static_cast<int>(codegen_flags_proto.generator());
 

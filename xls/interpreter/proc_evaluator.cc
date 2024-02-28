@@ -17,6 +17,7 @@
 #include <ostream>
 #include <string>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/node.h"
@@ -53,7 +54,7 @@ std::string ToString(TickExecutionState state) {
     case TickExecutionState::kSentOnChannel:
       return "kSentOnChannel";
   }
-  XLS_CHECK(false) << "Internal Error";
+  CHECK(false) << "Internal Error";
 }
 
 std::ostream& operator<<(std::ostream& os, TickExecutionState state) {

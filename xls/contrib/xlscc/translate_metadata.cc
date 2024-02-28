@@ -15,6 +15,7 @@
 #include <list>
 #include <memory>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/Basic/LLVM.h"
@@ -59,19 +60,18 @@ absl::StatusOr<xlscc_metadata::IntType> Translator::GenerateSyntheticInt(
                          ResolveTypeInstance(ctype));
     struct_type = dynamic_cast<const CStructType*>(resolved.get());
     if (struct_type != nullptr && struct_type->synthetic_int_flag()) {
-      XLS_CHECK(clang::isa<clang::ClassTemplateSpecializationDecl>(
+      CHECK(clang::isa<clang::ClassTemplateSpecializationDecl>(
           inst_type->base()));
       auto special = clang::cast<clang::ClassTemplateSpecializationDecl>(
           inst_type->base());
       const clang::TemplateArgumentList& arguments = special->getTemplateArgs();
-      XLS_CHECK_EQ(arguments.size(), 2);
+      CHECK_EQ(arguments.size(), 2);
 
       const clang::TemplateArgument& width_arg = arguments.get(0);
-      XLS_CHECK_EQ(width_arg.getKind(),
-                   clang::TemplateArgument::ArgKind::Integral);
+      CHECK_EQ(width_arg.getKind(), clang::TemplateArgument::ArgKind::Integral);
       const clang::TemplateArgument& signed_arg = arguments.get(1);
-      XLS_CHECK_EQ(signed_arg.getKind(),
-                   clang::TemplateArgument::ArgKind::Integral);
+      CHECK_EQ(signed_arg.getKind(),
+               clang::TemplateArgument::ArgKind::Integral);
 
       xlscc_metadata::IntType ret;
       ret.set_is_synthetic(true);
@@ -87,7 +87,7 @@ absl::Status Translator::GenerateFunctionMetadata(
     const clang::FunctionDecl* func, xlscc_metadata::FunctionPrototype* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) {
   output->mutable_name()->set_name(func->getNameAsString());
-  XLS_CHECK(xls_names_for_functions_generated_.contains(func));
+  CHECK(xls_names_for_functions_generated_.contains(func));
   output->mutable_name()->set_xls_name(
       xls_names_for_functions_generated_.at(func));
   output->mutable_name()->set_fully_qualified_name(
@@ -179,7 +179,7 @@ absl::Status Translator::GenerateFunctionMetadata(
 }
 
 absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
-  XLS_CHECK_NE(parser_.get(), nullptr);
+  CHECK_NE(parser_.get(), nullptr);
   XLS_ASSIGN_OR_RETURN(const clang::FunctionDecl* top_function,
                        parser_->GetTopFunction());
 
@@ -210,9 +210,9 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
       if (found == inst_types_.end()) {
         continue;
       }
-      XLS_CHECK(found != inst_types_.end());
+      CHECK(found != inst_types_.end());
       auto struct_type = dynamic_cast<const CStructType*>(found->second.get());
-      XLS_CHECK_NE(struct_type, nullptr);
+      CHECK_NE(struct_type, nullptr);
       if (struct_type->synthetic_int_flag()) {
         continue;
       }

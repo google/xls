@@ -21,6 +21,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls {
@@ -66,7 +67,7 @@ class NameUniquer {
         result = id;
       } else {
         // ID has been used before, find the next one
-        XLS_CHECK(used_.insert(next_).second);
+        CHECK(used_.insert(next_).second);
         result = next_;
       }
 

@@ -23,6 +23,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "google/protobuf/message.h"
@@ -39,10 +40,10 @@ namespace xls {
 // Example:
 //
 //    // Ensures `filename` exists.
-//    XLS_CHECK_OK(FileExists(filename));
+//    CHECK_OK(FileExists(filename));
 //
 //    // Ensures `filename` doesn't exist (and no other errors occurred).
-//    XLS_CHECK(absl::IsNotFound(FileExists(filename)));
+//    CHECK(absl::IsNotFound(FileExists(filename)));
 //
 //    // To handle the possibility of an error:
 //    absl::Status status = FileExists(filename);

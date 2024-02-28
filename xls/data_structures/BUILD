@@ -48,6 +48,7 @@ cc_library(
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
         "//xls/common/logging",
     ],
 )
@@ -71,6 +72,7 @@ cc_library(
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "@z3//:api",
@@ -145,6 +147,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
         "//xls/common:bits_util",
         "//xls/common:endian",
@@ -160,6 +163,7 @@ cc_library(
     hdrs = ["leaf_type_tree.h"],
     deps = [
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -186,6 +190,7 @@ cc_library(
     hdrs = ["binary_decision_diagram.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -203,6 +208,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
@@ -219,6 +225,7 @@ cc_library(
     hdrs = ["path_cut.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -258,6 +265,7 @@ cc_library(
     hdrs = ["submodular.h"],
     deps = [
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:distributions",
         "//xls/common/logging",
@@ -271,6 +279,7 @@ cc_library(
         ":union_find_map",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
         "//xls/common/logging",
     ],
 )
@@ -358,6 +367,7 @@ cc_test(
     srcs = ["path_cut_test.cc"],
     deps = [
         ":path_cut",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:strong_int",
         "//xls/common:xls_gunit",

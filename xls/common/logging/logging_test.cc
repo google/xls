@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -93,7 +94,7 @@ TEST_F(LoggingTest, VlogMacroLogsVerboseMessage) {
 }
 
 TEST_F(LoggingTest, CheckDoesNothingWhenConditionHolds) {
-  XLS_CHECK(true);
+  CHECK(true);
 
   EXPECT_EQ(entries_.size(), 0);
 }
@@ -102,7 +103,7 @@ TEST_F(LoggingTest, CheckCrashesWhenConditionFails) {
   EXPECT_DEATH(
       {
         bool condition_variable = false;
-        XLS_CHECK(condition_variable);
+        CHECK(condition_variable);
       },
       HasSubstr("condition_variable"));
 }
@@ -111,7 +112,7 @@ TEST_F(LoggingTest, CheckPrintsStackTraceWhenConditionFails) {
   EXPECT_DEATH(
       {
         bool condition_variable = false;
-        XLS_CHECK(condition_variable);
+        CHECK(condition_variable);
       },
       HasSubstr("CheckPrintsStackTraceWhenConditionFails"));
 }
@@ -135,69 +136,69 @@ TEST_F(LoggingTest, QcheckDoesNotPrintStackTraceWhenConditionFails) {
   EXPECT_DEATH(
       {
         bool condition_variable = false;
-        XLS_CHECK(condition_variable);
+        CHECK(condition_variable);
       },
       Not(HasSubstr("CheckPrintsStackTraceWhenConditionFails")));
 }
 
 TEST_F(LoggingTest, CheckEqDoesNothingWhenConditionHolds) {
-  XLS_CHECK_EQ(1, 1);
+  CHECK_EQ(1, 1);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, CheckEqCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_CHECK_EQ(1, 2); }, HasSubstr("1 == 2"));
+  EXPECT_DEATH({ CHECK_EQ(1, 2); }, HasSubstr("1 == 2"));
 }
 
 TEST_F(LoggingTest, CheckNeDoesNothingWhenConditionHolds) {
-  XLS_CHECK_NE(1, 2);
+  CHECK_NE(1, 2);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, CheckNeCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_CHECK_NE(1, 1); }, HasSubstr("1 != 1"));
+  EXPECT_DEATH({ CHECK_NE(1, 1); }, HasSubstr("1 != 1"));
 }
 
 TEST_F(LoggingTest, CheckLeDoesNothingWhenConditionHolds) {
-  XLS_CHECK_LE(1, 1);
+  CHECK_LE(1, 1);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, CheckLeCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_CHECK_LE(2, 1); }, HasSubstr("2 <= 1"));
+  EXPECT_DEATH({ CHECK_LE(2, 1); }, HasSubstr("2 <= 1"));
 }
 
 TEST_F(LoggingTest, CheckLtDoesNothingWhenConditionHolds) {
-  XLS_CHECK_LT(1, 2);
+  CHECK_LT(1, 2);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, CheckLtCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_CHECK_LT(1, 1); }, HasSubstr("1 < 1"));
+  EXPECT_DEATH({ CHECK_LT(1, 1); }, HasSubstr("1 < 1"));
 }
 
 TEST_F(LoggingTest, CheckGeDoesNothingWhenConditionHolds) {
-  XLS_CHECK_GE(1, 1);
+  CHECK_GE(1, 1);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, CheckGeCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_CHECK_GE(1, 2); }, HasSubstr("1 >= 2"));
+  EXPECT_DEATH({ CHECK_GE(1, 2); }, HasSubstr("1 >= 2"));
 }
 
 TEST_F(LoggingTest, CheckGtDoesNothingWhenConditionHolds) {
-  XLS_CHECK_GT(2, 1);
+  CHECK_GT(2, 1);
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, CheckGtCrashesWhenConditionFails) {
-  EXPECT_DEATH({ XLS_CHECK_GT(1, 1); }, HasSubstr("1 > 1"));
+  EXPECT_DEATH({ CHECK_GT(1, 1); }, HasSubstr("1 > 1"));
 }
 
 TEST_F(LoggingTest, QcheckEqDoesNothingWhenConditionHolds) {
@@ -261,19 +262,20 @@ TEST_F(LoggingTest, QcheckGtCrashesWhenConditionFails) {
 }
 
 TEST_F(LoggingTest, CheckOkDoesNothingWithOkStatus) {
-  XLS_CHECK_OK(absl::OkStatus());
+  CHECK_OK(absl::OkStatus());
 
   EXPECT_EQ(entries_.size(), 0);
 }
 
 TEST_F(LoggingTest, CheckOkCrashesWithNonOkStatus) {
-  EXPECT_DEATH({ XLS_CHECK_OK(absl::UnknownError("error_msg")); },
-               HasSubstr("error_msg"));
+  EXPECT_DEATH(
+      { CHECK_OK(absl::UnknownError("error_msg")); }, HasSubstr("error_msg"));
 }
 
 TEST_F(LoggingTest, CheckOkCrashesWithStackTrace) {
-  EXPECT_DEATH({ XLS_CHECK_OK(absl::UnknownError("error_msg")); },
-               HasSubstr("CheckOkCrashesWithStackTrace"));
+  EXPECT_DEATH(
+      { CHECK_OK(absl::UnknownError("error_msg")); },
+      HasSubstr("CheckOkCrashesWithStackTrace"));
 }
 
 TEST_F(LoggingTest, QcheckOkDoesNothingWithOkStatus) {

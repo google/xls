@@ -25,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -45,7 +46,7 @@ namespace verilog {
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithClock(
     std::string_view name) {
-  XLS_CHECK(!proto_.has_clock_name());
+  CHECK(!proto_.has_clock_name());
   proto_.set_clock_name(ToProtoString(name));
   return *this;
 }
@@ -53,7 +54,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithClock(
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithReset(std::string_view name,
                                                           bool asynchronous,
                                                           bool active_low) {
-  XLS_CHECK(!proto_.has_reset());
+  CHECK(!proto_.has_reset());
   ResetProto* reset = proto_.mutable_reset();
   reset->set_name(ToProtoString(name));
   reset->set_asynchronous(asynchronous);
@@ -63,23 +64,23 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithReset(std::string_view name,
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithFixedLatencyInterface(
     int64_t latency) {
-  XLS_CHECK_EQ(proto_.interface_oneof_case(),
-               ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
+  CHECK_EQ(proto_.interface_oneof_case(),
+           ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
   FixedLatencyInterface* interface = proto_.mutable_fixed_latency();
   interface->set_latency(latency);
   return *this;
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithCombinationalInterface() {
-  XLS_CHECK_EQ(proto_.interface_oneof_case(),
-               ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
+  CHECK_EQ(proto_.interface_oneof_case(),
+           ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
   proto_.mutable_combinational();
   return *this;
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithUnknownInterface() {
-  XLS_CHECK_EQ(proto_.interface_oneof_case(),
-               ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
+  CHECK_EQ(proto_.interface_oneof_case(),
+           ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
   proto_.mutable_unknown();
   return *this;
 }
@@ -87,8 +88,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithUnknownInterface() {
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithPipelineInterface(
     int64_t latency, int64_t initiation_interval,
     std::optional<PipelineControl> pipeline_control) {
-  XLS_CHECK_EQ(proto_.interface_oneof_case(),
-               ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
+  CHECK_EQ(proto_.interface_oneof_case(),
+           ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
   PipelineInterface* interface = proto_.mutable_pipeline();
   interface->set_latency(latency);
   interface->set_initiation_interval(initiation_interval);

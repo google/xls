@@ -30,6 +30,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -215,7 +216,7 @@ std::vector<Node*> Block::DumpOrder() const {
     place_node(node);
   }
 
-  XLS_CHECK_EQ(order.size(), node_count());
+  CHECK_EQ(order.size(), node_count());
   return order;
 }
 
@@ -467,11 +468,11 @@ static absl::Status AddToMapOfNodeVectors(
 Node* Block::AddNodeInternal(std::unique_ptr<Node> node) {
   Node* ptr = FunctionBase::AddNodeInternal(std::move(node));
   if (RegisterRead* reg_read = dynamic_cast<RegisterRead*>(ptr)) {
-    XLS_CHECK_OK(AddToMapOfNodeVectors(reg_read->GetRegister(), reg_read,
-                                       &register_reads_));
+    CHECK_OK(AddToMapOfNodeVectors(reg_read->GetRegister(), reg_read,
+                                   &register_reads_));
   } else if (RegisterWrite* reg_write = dynamic_cast<RegisterWrite*>(ptr)) {
-    XLS_CHECK_OK(AddToMapOfNodeVectors(reg_write->GetRegister(), reg_write,
-                                       &register_writes_));
+    CHECK_OK(AddToMapOfNodeVectors(reg_write->GetRegister(), reg_write,
+                                   &register_writes_));
   } else if (InstantiationInput* inst_input =
                  dynamic_cast<InstantiationInput*>(ptr)) {
     instantiation_inputs_[inst_input->instantiation()].push_back(inst_input);
@@ -662,7 +663,7 @@ absl::StatusOr<Instantiation*> Block::GetInstantiation(
 
 absl::Span<InstantiationInput* const> Block::GetInstantiationInputs(
     Instantiation* instantiation) const {
-  XLS_CHECK(IsOwned(instantiation))
+  CHECK(IsOwned(instantiation))
       << absl::StreamFormat("Block %s does not have instantiation %s (%p)",
                             name(), instantiation->name(), instantiation);
   return instantiation_inputs_.at(instantiation);
@@ -670,7 +671,7 @@ absl::Span<InstantiationInput* const> Block::GetInstantiationInputs(
 
 absl::Span<InstantiationOutput* const> Block::GetInstantiationOutputs(
     Instantiation* instantiation) const {
-  XLS_CHECK(IsOwned(instantiation))
+  CHECK(IsOwned(instantiation))
       << absl::StreamFormat("Block %s does not have instantiation %s (%p)",
                             name(), instantiation->name(), instantiation);
   return instantiation_outputs_.at(instantiation);
@@ -719,7 +720,7 @@ absl::StatusOr<Block*> Block::Clone(
   for (Instantiation* inst : GetInstantiations()) {
     if (inst->kind() == InstantiationKind::kBlock) {
       auto block_inst = dynamic_cast<BlockInstantiation*>(inst);
-      XLS_CHECK(block_inst != nullptr);
+      CHECK(block_inst != nullptr);
       XLS_ASSIGN_OR_RETURN(
           instantiation_map[inst],
           cloned_block->AddBlockInstantiation(

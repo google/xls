@@ -21,6 +21,7 @@
 #include <tuple>
 #include <variant>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/module_initializer.h"
@@ -128,9 +129,9 @@ absl::Status RegisterOptimizationPass() {
   return RegisterOptimizationPass<PassT>(PassT::kName);
 }
 
-#define REGISTER_OPT_PASS(ty, ...)                                        \
-  XLS_REGISTER_MODULE_INITIALIZER(initializer_##ty##_register, {          \
-    XLS_CHECK_OK(RegisterOptimizationPass<ty>(ty::kName, ##__VA_ARGS__)); \
+#define REGISTER_OPT_PASS(ty, ...)                                    \
+  XLS_REGISTER_MODULE_INITIALIZER(initializer_##ty##_register, {      \
+    CHECK_OK(RegisterOptimizationPass<ty>(ty::kName, ##__VA_ARGS__)); \
   })
 
 }  // namespace xls

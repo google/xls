@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -178,7 +179,7 @@ void TestbenchStreamThread::RunInputStream(
       XLS_VLOG(1) << absl::StrFormat(
           "Value produced for stream `%s` : %s", stream_.name,
           BitsToString(*bits, FormatPreference::kHex));
-      XLS_CHECK_EQ(bits->bit_count(), stream_.width);
+      CHECK_EQ(bits->bit_count(), stream_.width);
       absl::Status write_status =
           writer->WriteLine(BitsToString(*bits, FormatPreference::kPlainHex));
       if (!write_status.ok()) {
@@ -264,7 +265,7 @@ absl::Status TestbenchStreamThread::Join() {
 }
 
 void TestbenchStreamThread::MaybeSetError(const absl::Status& status) {
-  XLS_CHECK(!status.ok());
+  CHECK(!status.ok());
   if (status_.ok()) {
     status_ = status;
   }

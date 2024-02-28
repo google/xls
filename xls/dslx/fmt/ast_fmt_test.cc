@@ -23,6 +23,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
@@ -169,7 +170,7 @@ class FunctionFmtTest : public testing::Test {
       const absl::flat_hash_set<std::string>& builtin_name_defs = {},
       int64_t text_width = kDslxDefaultTextWidth,
       bool opportunistic_postcondition = true) {
-    XLS_CHECK(!scanner_.has_value());
+    CHECK(!scanner_.has_value());
     scanner_.emplace("fake.x", std::string{original});
     parser_.emplace("fake", &scanner_.value());
 

@@ -21,6 +21,7 @@
 #include <random>
 
 #include "absl/container/btree_set.h"
+#include "absl/log/check.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "xls/common/logging/logging.h"
@@ -95,7 +96,7 @@ class SubmodularFunction {
 
   // Approximate minimization of a submodular function.
   absl::btree_set<T, C> ApproxMinimize(const MinimizeOptions& options) {
-    XLS_CHECK_GT(options.rounds, 0);
+    CHECK_GT(options.rounds, 0);
     double best_cost = std::numeric_limits<double>::max();
     absl::btree_set<T, C> best;
 

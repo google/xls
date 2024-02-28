@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
@@ -425,7 +426,7 @@ NetlistTranslator::ValueCone NetlistTranslator::GetValueCone(
   value_cone.node = translated_[ref];
   value_cone.ref = ref;
   value_cone.parent_cell = parent_cell;
-  XLS_CHECK(parent_cell != nullptr) << ref->name() << " has no parent?!";
+  CHECK(parent_cell != nullptr) << ref->name() << " has no parent?!";
   for (const auto& input : parent_cell->inputs()) {
     // Ick
     if (input.netref->name() == "input_valid" ||

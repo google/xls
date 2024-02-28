@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -150,8 +151,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         analysis_(analysis),
         options_(options),
         splits_enabled_(splits_enabled) {
-    XLS_CHECK_NE(analysis_,
-                 NarrowingPass::AnalysisType::kRangeWithOptionalContext);
+    CHECK_NE(analysis_, NarrowingPass::AnalysisType::kRangeWithOptionalContext);
   }
 
   absl::Status MaybeReplacePreciseInputEdgeWithLiteral(Node* node) {
@@ -266,7 +266,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
   absl::StatusOr<bool> MaybeReplaceSelectArmWithPreciseValue(
       PredicateState state) {
-    XLS_CHECK(!state.IsBasePredicate());
+    CHECK(!state.IsBasePredicate());
     const QueryEngine& qe = specialized_query_engine_.ForSelect(state);
     Select* select = state.node()->As<Select>();
     Node* to_replace = state.IsDefaultArm()
@@ -664,7 +664,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(SlicedArray sliced_array,
                          NarrowLiteralArrayToSlices(literal));
 
-    XLS_CHECK_GE(sliced_array.slices.size(), 1);
+    CHECK_GE(sliced_array.slices.size(), 1);
     if (sliced_array.slices.size() == 1) {
       if (std::holds_alternative<NonconstantSlice>(sliced_array.slices[0])) {
         // This array can't be narrowed.
@@ -673,8 +673,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
 
       // All ArrayIndex accesses can be replaced with a single literal.
-      XLS_CHECK(std::holds_alternative<Literal*>(sliced_array.slices[0]));
-      XLS_CHECK_EQ(sliced_array.array_literal, nullptr);
+      CHECK(std::holds_alternative<Literal*>(sliced_array.slices[0]));
+      CHECK_EQ(sliced_array.array_literal, nullptr);
       Literal* constant_literal = std::get<Literal*>(sliced_array.slices[0]);
       for (Node* user : literal->users()) {
         if (!user->Is<ArrayIndex>()) {
@@ -694,7 +694,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     // We have more than one slice; at least one should be from the narrowed
     // array literal.
-    XLS_CHECK_NE(sliced_array.array_literal, nullptr);
+    CHECK_NE(sliced_array.array_literal, nullptr);
 
     for (Node* user : literal->users()) {
       if (!user->Is<ArrayIndex>()) {
@@ -729,7 +729,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
           nonconstant_bit_position += nonconstant_slice.width;
           bit_slices.push_back(value_slice);
         } else {
-          XLS_CHECK(std::holds_alternative<Literal*>(slice));
+          CHECK(std::holds_alternative<Literal*>(slice));
           Literal* constant_slice = std::get<Literal*>(slice);
           DCHECK(constant_slice->value().IsBits());
           bit_slices.push_back(constant_slice);
@@ -1285,8 +1285,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   // used as an argument to 'user'. If user is std::nullopt the context isn't
   // used.
   int64_t CountTrailingKnownZeros(Node* node, std::optional<Node*> user) const {
-    XLS_CHECK(node->GetType()->IsBits());
-    XLS_CHECK(user != nullptr);
+    CHECK(node->GetType()->IsBits());
+    CHECK(user != nullptr);
     int64_t trailing_zeros = 0;
     const QueryEngine& node_query_engine =
         specialized_query_engine_.ForNode(node);
@@ -1313,8 +1313,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   // used as an argument to 'user'. If user is std::nullopt the context isn't
   // used.
   int64_t CountLeadingKnownZeros(Node* node, std::optional<Node*> user) const {
-    XLS_CHECK(node->GetType()->IsBits());
-    XLS_CHECK(user != nullptr);
+    CHECK(node->GetType()->IsBits());
+    CHECK(user != nullptr);
     int64_t leading_zeros = 0;
     const QueryEngine& node_query_engine =
         specialized_query_engine_.ForNode(node);
@@ -1342,8 +1342,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   // the nodes value is used as an argument to 'user'. 'user' must not be
   // null.
   int64_t CountLeadingKnownOnes(Node* node, std::optional<Node*> user) const {
-    XLS_CHECK(node->GetType()->IsBits());
-    XLS_CHECK(user != nullptr);
+    CHECK(node->GetType()->IsBits());
+    CHECK(user != nullptr);
     int64_t leading_ones = 0;
     const QueryEngine& node_query_engine =
         specialized_query_engine_.ForNode(node);
@@ -1602,8 +1602,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         return std::nullopt;
       }
       int64_t index = node->As<TupleIndex>()->index();
-      XLS_CHECK_GE(index, 0);
-      XLS_CHECK_LT(index, 2);
+      CHECK_GE(index, 0);
+      CHECK_LT(index, 2);
       if (seen_index[index]) {
         return std::nullopt;
       }
@@ -1705,7 +1705,7 @@ static void RangeAnalysisLog(FunctionBase* f,
             range_query_engine.GetTernary(node).Get({});
         std::optional<TernaryVector> difference =
             ternary_ops::Difference(range_result, ternary_result);
-        XLS_CHECK(difference.has_value())
+        CHECK(difference.has_value())
             << "Inconsistency detected in node: " << node->GetName();
         bits_saved += ternary_ops::NumberOfKnownBits(difference.value());
       }
@@ -1815,17 +1815,17 @@ std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(narrowing_pass, {
-  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>("narrow"));
-  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
+  CHECK_OK(RegisterOptimizationPass<NarrowingPass>("narrow"));
+  CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
       "narrow(Ternary)", NarrowingPass::AnalysisType::kTernary,
       pass_config::kOptLevel));
-  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
+  CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
       "narrow(Range)", NarrowingPass::AnalysisType::kRange,
       pass_config::kOptLevel));
-  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
+  CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
       "narrow(Context)", NarrowingPass::AnalysisType::kRangeWithContext,
       pass_config::kOptLevel));
-  XLS_CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
+  CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
       "narrow(OptionalContext)",
       NarrowingPass::AnalysisType::kRangeWithOptionalContext,
       pass_config::kOptLevel));

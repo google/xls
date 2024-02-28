@@ -24,6 +24,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -155,7 +156,7 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
 
   XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(import_span, found_path));
   auto clenaup = absl::MakeCleanup(
-      [&] { XLS_CHECK_OK(import_data->PopFromImporterStack(import_span)); });
+      [&] { CHECK_OK(import_data->PopFromImporterStack(import_span)); });
 
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(found_path));
 

@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -297,7 +298,7 @@ class PackedArrayType : public DataType {
         width_(width),
         is_signed_(is_signed),
         packed_dims_(packed_dims.begin(), packed_dims.end()) {
-    XLS_CHECK(!packed_dims.empty());
+    CHECK(!packed_dims.empty());
   }
   PackedArrayType(int64_t width, absl::Span<const int64_t> packed_dims,
                   bool is_signed, VerilogFile* file, const SourceInfo& loc);
@@ -335,8 +336,8 @@ class UnpackedArrayType : public DataType {
       : DataType(file, loc),
         element_type_(element_type),
         unpacked_dims_(unpacked_dims.begin(), unpacked_dims.end()) {
-    XLS_CHECK(!unpacked_dims.empty());
-    XLS_CHECK(dynamic_cast<UnpackedArrayType*>(element_type) == nullptr);
+    CHECK(!unpacked_dims.empty());
+    CHECK(dynamic_cast<UnpackedArrayType*>(element_type) == nullptr);
   }
   UnpackedArrayType(DataType* element_type,
                     absl::Span<const int64_t> packed_dims, VerilogFile* file,
@@ -1179,7 +1180,7 @@ class Literal : public Expression {
         bits_(bits),
         format_(format),
         emit_bit_count_(emit_bit_count) {
-    XLS_CHECK(emit_bit_count_ || bits.bit_count() == 32);
+    CHECK(emit_bit_count_ || bits.bit_count() == 32);
   }
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1739,8 +1740,8 @@ class VerilogFile {
   }
   verilog::Slice* Slice(IndexableExpression* subject, int64_t hi, int64_t lo,
                         const SourceInfo& loc) {
-    XLS_CHECK_GE(hi, 0);
-    XLS_CHECK_GE(lo, 0);
+    CHECK_GE(hi, 0);
+    CHECK_GE(lo, 0);
     return Make<verilog::Slice>(loc, subject, MaybePlainLiteral(hi, loc),
                                 MaybePlainLiteral(lo, loc));
   }
@@ -1753,7 +1754,7 @@ class VerilogFile {
   verilog::PartSelect* PartSelect(IndexableExpression* subject,
                                   Expression* start, int64_t width,
                                   const SourceInfo& loc) {
-    XLS_CHECK_GT(width, 0);
+    CHECK_GT(width, 0);
     return Make<verilog::PartSelect>(loc, subject, start,
                                      MaybePlainLiteral(width, loc));
   }
@@ -1764,7 +1765,7 @@ class VerilogFile {
   }
   verilog::Index* Index(IndexableExpression* subject, int64_t index,
                         const SourceInfo& loc) {
-    XLS_CHECK_GE(index, 0);
+    CHECK_GE(index, 0);
     return Make<verilog::Index>(loc, subject, MaybePlainLiteral(index, loc));
   }
 
@@ -1910,7 +1911,7 @@ class VerilogFile {
   verilog::Literal* Literal1(int64_t value, const SourceInfo& loc) {
     // Avoid taking a bool argument as many types implicitly and undesirably
     // convert to bool
-    XLS_CHECK((value == 0) || (value == 1));
+    CHECK((value == 0) || (value == 1));
     return Make<verilog::Literal>(loc, UBits(value, 1), FormatPreference::kHex);
   }
 

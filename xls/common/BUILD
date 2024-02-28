@@ -26,7 +26,7 @@ cc_library(
     name = "bits_util",
     hdrs = ["bits_util.h"],
     deps = [
-        "//xls/common/logging",
+        "@com_google_absl//absl/log:check",
     ],
 )
 
@@ -34,6 +34,7 @@ cc_library(
     name = "random_util",
     hdrs = ["random_util.h"],
     deps = [
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random:bit_gen_ref",
         "//xls/common/logging",
     ],
@@ -142,6 +143,8 @@ cc_library(
     visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:usage",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:flags",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/strings",
@@ -165,7 +168,7 @@ cc_library(
     hdrs = ["math_util.h"],
     visibility = ["//xls:xls_utility_users"],
     deps = [
-        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
     ],
@@ -228,6 +231,7 @@ cc_library(
         ":strerror",
         ":thread",
         "@com_google_absl//absl/container:fixed_array",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -551,6 +555,7 @@ cc_library(
         ":source_location",
         ":update_golden_files_flag",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",

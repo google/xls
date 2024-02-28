@@ -27,6 +27,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -144,7 +145,7 @@ bool GetRequiresImplicitToken(dslx::Function& f, ImportData* import_data,
   std::optional<bool> requires_opt =
       import_data->GetRootTypeInfo(f.owner()).value()->GetRequiresImplicitToken(
           f);
-  XLS_CHECK(requires_opt.has_value());
+  CHECK(requires_opt.has_value());
   return requires_opt.value();
 }
 
@@ -152,7 +153,7 @@ struct ScopedTypeInfoSwap {
   ScopedTypeInfoSwap(FunctionConverter* converter, TypeInfo* new_type_info)
       : converter_(converter),
         original_type_info_(converter_->current_type_info_) {
-    XLS_CHECK(new_type_info != nullptr);
+    CHECK(new_type_info != nullptr);
     converter_->current_type_info_ = new_type_info;
   }
 
@@ -386,7 +387,7 @@ bool FunctionConverter::GetRequiresImplicitToken(dslx::Function* f) const {
 
 void FunctionConverter::SetFunctionBuilder(
     std::unique_ptr<BuilderBase> builder) {
-  XLS_CHECK(function_builder_ == nullptr);
+  CHECK(function_builder_ == nullptr);
   function_builder_ = std::move(builder);
 }
 
@@ -712,7 +713,7 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
         }
         BValue tuple = levels.back();
         xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
-        XLS_CHECK_LT(index, tuple_type->size())
+        CHECK_LT(index, tuple_type->size())
             << "index: " << index << " type: " << tuple_type->ToString();
         BValue tuple_index = function_builder_->TupleIndex(tuple, index, loc);
         return tuple_index;
@@ -838,8 +839,8 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> input_type,
                        ResolveType(node->args()[0]));
 
-  XLS_CHECK_NE(dynamic_cast<BitsType*>(input_type.get()), nullptr);
-  XLS_CHECK_NE(dynamic_cast<BitsType*>(output_type.get()), nullptr);
+  CHECK_NE(dynamic_cast<BitsType*>(input_type.get()), nullptr);
+  CHECK_NE(dynamic_cast<BitsType*>(output_type.get()), nullptr);
 
   XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
 
@@ -2747,7 +2748,7 @@ absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
     ScopedControlPredicate scp(
         this, [&](const PredicateFun& orig_control_predicate) {
           BValue activated = orig_control_predicate();
-          XLS_CHECK_EQ(activated.GetType()->AsBitsOrDie()->bit_count(), 1);
+          CHECK_EQ(activated.GetType()->AsBitsOrDie()->bit_count(), 1);
           return function_builder_->And(activated, arg0);
         });
     XLS_RETURN_IF_ERROR(Visit(node->consequent()));
@@ -2759,7 +2760,7 @@ absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
     ScopedControlPredicate scp(
         this, [&](const PredicateFun& orig_control_predicate) {
           BValue activated = orig_control_predicate();
-          XLS_CHECK_EQ(activated.GetType()->AsBitsOrDie()->bit_count(), 1);
+          CHECK_EQ(activated.GetType()->AsBitsOrDie()->bit_count(), 1);
           return function_builder_->And(orig_control_predicate(),
                                         function_builder_->Not(arg0));
         });

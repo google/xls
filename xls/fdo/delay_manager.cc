@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -57,7 +58,7 @@ DelayManager::DelayManager(FunctionBase *function,
     index_to_node_[index] = node;
     absl::StatusOr<int64_t> maybe_delay =
         delay_estimator.GetOperationDelayInPs(node);
-    XLS_CHECK_OK(maybe_delay.status());
+    CHECK_OK(maybe_delay.status());
     indices_to_delay_[index][index] = maybe_delay.value();
     index++;
   }

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -69,7 +70,7 @@ LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
       result.UpdateFrom<TernaryVector>(
           engine->GetTernary(node),
           [](TernaryVector& lhs, const TernaryVector& rhs) {
-            XLS_CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
+            CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
           });
     }
   }

@@ -18,13 +18,13 @@
 #include <utility>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/contrib/ice40/io_strategy.h"
 #include "xls/contrib/ice40/io_strategy_factory.h"
 #include "xls/contrib/ice40/wrap_io.h"
@@ -51,13 +51,13 @@ absl::Status RealMain() {
   QCHECK_NE(target_device, "") << "Must provide -target_device";
 
   std::string instance_name = absl::GetFlag(FLAGS_instance_name);
-  XLS_CHECK_NE(instance_name, "") << "Must provide -instance_name";
+  CHECK_NE(instance_name, "") << "Must provide -instance_name";
 
   std::string wrapped_module_name = absl::GetFlag(FLAGS_wrapped_module_name);
-  XLS_CHECK_NE(wrapped_module_name, "") << "Must provide -wrapped_module_name";
+  CHECK_NE(wrapped_module_name, "") << "Must provide -wrapped_module_name";
 
   std::string include = absl::GetFlag(FLAGS_include);
-  XLS_CHECK_NE(include, "") << "Must provide -include";
+  CHECK_NE(include, "") << "Must provide -include";
 
   verilog::ModuleSignatureProto signature_proto;
   QCHECK_OK(ParseTextProtoFile(signature_proto_path, &signature_proto));

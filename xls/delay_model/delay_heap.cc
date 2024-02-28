@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -40,7 +41,7 @@ DelayHeap::PathLength DelayHeap::MaxAmongPredecessors(Node* node) const {
 }
 
 absl::Status DelayHeap::Add(Node* node) {
-  XLS_CHECK(!contains(node));
+  CHECK(!contains(node));
   DCHECK(!std::any_of(successors(node).begin(), successors(node).end(),
                       [&](Node* n) { return contains(n); }));
   XLS_ASSIGN_OR_RETURN(int64_t node_delay,
@@ -68,7 +69,7 @@ DelayHeap::FrontierSet::iterator DelayHeap::Remove(Node* node) {
                       [&](Node* n) { return contains(n); }));
   // Node must be on the frontier to be erased.
   auto it = frontier_.find(node);
-  XLS_CHECK(it != frontier_.end())
+  CHECK(it != frontier_.end())
       << "Node " << node->GetName() << " is not on the frontier of the heap";
 
   // Removing nodes may have uncovered which are now at the frontier.
@@ -88,7 +89,7 @@ DelayHeap::FrontierSet::iterator DelayHeap::Remove(Node* node) {
 
 absl::StatusOr<int64_t> DelayHeap::CriticalPathDelayAfterAdding(
     Node* node) const {
-  XLS_CHECK(!contains(node));
+  CHECK(!contains(node));
   XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                        delay_estimator_.GetOperationDelayInPs(node));
   return std::max(CriticalPathDelay(),
@@ -96,7 +97,7 @@ absl::StatusOr<int64_t> DelayHeap::CriticalPathDelayAfterAdding(
 }
 
 int64_t DelayHeap::CriticalPathDelayAfterRemoving(Node* node) const {
-  XLS_CHECK(contains(node));
+  CHECK(contains(node));
   DCHECK_EQ(frontier_.count(node), 1);
   if (node != top()) {
     return CriticalPathDelay();

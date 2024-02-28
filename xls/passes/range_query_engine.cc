@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -458,7 +459,7 @@ void RangeQueryEngine::InitializeNode(Node* node) {
 absl::Status RangeQueryVisitor::HandleVariadicOp(
     std::function<std::optional<Bits>(absl::Span<const Bits>)> impl,
     absl::Span<const Tonicity> tonicities, Node* op) {
-  XLS_CHECK_EQ(op->operands().size(), tonicities.size());
+  CHECK_EQ(op->operands().size(), tonicities.size());
 
   std::vector<IntervalSet> operands;
   operands.reserve(op->operands().size());
@@ -553,7 +554,7 @@ absl::Status RangeQueryVisitor::HandleMonotoneUnaryOp(
     std::function<std::optional<Bits>(const Bits&)> impl, Node* op) {
   return HandleVariadicOp(
       [impl](absl::Span<const Bits> bits) -> std::optional<Bits> {
-        XLS_CHECK_EQ(bits.size(), 1);
+        CHECK_EQ(bits.size(), 1);
         return impl(bits[0]);
       },
       std::vector<Tonicity>(1, Tonicity::Monotone), op);
@@ -563,7 +564,7 @@ absl::Status RangeQueryVisitor::HandleAntitoneUnaryOp(
     std::function<std::optional<Bits>(const Bits&)> impl, Node* op) {
   return HandleVariadicOp(
       [impl](absl::Span<const Bits> bits) -> std::optional<Bits> {
-        XLS_CHECK_EQ(bits.size(), 1);
+        CHECK_EQ(bits.size(), 1);
         return impl(bits[0]);
       },
       std::vector<Tonicity>(1, Tonicity::Antitone), op);
@@ -574,7 +575,7 @@ absl::Status RangeQueryVisitor::HandleMonotoneMonotoneBinOp(
     Node* op) {
   return HandleVariadicOp(
       [impl](absl::Span<const Bits> bits) -> std::optional<Bits> {
-        XLS_CHECK_EQ(bits.size(), 2);
+        CHECK_EQ(bits.size(), 2);
         return impl(bits[0], bits[1]);
       },
       {Tonicity::Monotone, Tonicity::Monotone}, op);
@@ -585,7 +586,7 @@ absl::Status RangeQueryVisitor::HandleMonotoneAntitoneBinOp(
     Node* op) {
   return HandleVariadicOp(
       [impl](absl::Span<const Bits> bits) -> std::optional<Bits> {
-        XLS_CHECK_EQ(bits.size(), 2);
+        CHECK_EQ(bits.size(), 2);
         return impl(bits[0], bits[1]);
       },
       {Tonicity::Monotone, Tonicity::Antitone}, op);
@@ -593,8 +594,8 @@ absl::Status RangeQueryVisitor::HandleMonotoneAntitoneBinOp(
 
 std::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
                                                  const IntervalSet& rhs) {
-  XLS_CHECK(lhs.IsNormalized());
-  XLS_CHECK(rhs.IsNormalized());
+  CHECK(lhs.IsNormalized());
+  CHECK(rhs.IsNormalized());
 
   bool is_precise = lhs.IsPrecise() && rhs.IsPrecise();
 

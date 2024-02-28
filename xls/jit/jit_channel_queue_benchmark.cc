@@ -17,6 +17,7 @@
 #include <memory>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "include/benchmark/benchmark.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/channel.h"
@@ -51,7 +52,7 @@ static void BM_QueueWriteThenRead(benchmark::State& state) {
                jit_runtime.get());
 
   int64_t send_count = state.range(1);
-  XLS_CHECK(queue.IsEmpty());
+  CHECK(queue.IsEmpty());
   std::vector<uint8_t> send_buffer(element_size_bytes);
   std::vector<uint8_t> recv_buffer(element_size_bytes);
   std::fill(send_buffer.begin(), send_buffer.end(), 42);

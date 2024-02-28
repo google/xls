@@ -25,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -264,15 +265,15 @@ class SignedRangeComparisonContextSensitiveRangeQueryEngineTest
 
 LeafTypeTree<IntervalSet> BitsLTT(Node* node,
                                   absl::Span<const Interval> intervals) {
-  XLS_CHECK(!intervals.empty());
+  CHECK(!intervals.empty());
   int64_t bit_count = intervals[0].BitCount();
   IntervalSet interval_set(bit_count);
   for (const Interval& interval : intervals) {
-    XLS_CHECK_EQ(interval.BitCount(), bit_count);
+    CHECK_EQ(interval.BitCount(), bit_count);
     interval_set.AddInterval(interval);
   }
   interval_set.Normalize();
-  XLS_CHECK(node->GetType()->IsBits());
+  CHECK(node->GetType()->IsBits());
   LeafTypeTree<IntervalSet> result(node->GetType());
   result.Set({}, interval_set);
   return result;

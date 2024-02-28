@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
@@ -72,7 +73,7 @@ std::string TokenKindToString(TokenKind kind) {
 
 absl::StatusOr<Token> Scanner::ScanIdentifier() {
   const Pos start_pos = cs_->GetPos();
-  XLS_CHECK(IsIdentifierStart(cs_->PeekCharOrDie()));
+  CHECK(IsIdentifierStart(cs_->PeekCharOrDie()));
   absl::InlinedVector<char, 16> chars;
   while (!cs_->AtEof() && IsIdentifierRest(cs_->PeekCharOrDie())) {
     chars.push_back(cs_->PopCharOrDie());
@@ -84,7 +85,7 @@ absl::StatusOr<Token> Scanner::ScanIdentifier() {
 // Scans a number token.
 absl::StatusOr<Token> Scanner::ScanNumber() {
   const Pos start_pos = cs_->GetPos();
-  XLS_CHECK(std::isdigit(cs_->PeekCharOrDie()) != 0);
+  CHECK_NE(std::isdigit(cs_->PeekCharOrDie()), 0);
   absl::InlinedVector<char, 16> chars;
   while (!cs_->AtEof()) {
     if (IsNumberRest(cs_->PeekCharOrDie())) {
@@ -103,7 +104,7 @@ absl::StatusOr<Token> Scanner::ScanNumber() {
 // Scans a string token.
 absl::StatusOr<Token> Scanner::ScanQuotedString() {
   const Pos start_pos = cs_->GetPos();
-  XLS_CHECK(cs_->TryDropChar('"'));
+  CHECK(cs_->TryDropChar('"'));
   absl::InlinedVector<char, 16> chars;
   while (true) {
     if (cs_->AtEof()) {
@@ -240,7 +241,7 @@ absl::StatusOr<bool> Parser::TryDropToken(TokenKind target, Pos* pos) {
     if (pos != nullptr) {
       *pos = peek->pos();
     }
-    XLS_CHECK(scanner_->Pop().ok());
+    CHECK(scanner_->Pop().ok());
     return true;
   }
   return false;

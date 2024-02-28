@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/hash/hash.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -107,7 +108,7 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
   // bit of the node.
   auto hasher = absl::Hash<std::vector<int64_t>>();
   auto node_hash = [&](Node* n) {
-    XLS_CHECK(n->GetType()->IsBits());
+    CHECK(n->GetType()->IsBits());
     std::vector<int64_t> values_to_hash;
     for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
       values_to_hash.push_back(bdd_function->GetBddNode(n, i).value());

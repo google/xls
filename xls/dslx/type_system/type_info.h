@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -206,7 +207,7 @@ class TypeInfo {
 
   // Sets the type associated with the given AST node.
   void SetItem(const AstNode* key, const ConcreteType& value) {
-    XLS_CHECK_EQ(key->owner(), module_);
+    CHECK_EQ(key->owner(), module_);
     dict_[key] = value.CloneToUnique();
   }
 
@@ -311,7 +312,7 @@ class TypeInfo {
 
   const absl::flat_hash_map<const Invocation*, InvocationData>& invocations()
       const {
-    XLS_CHECK(IsRoot());
+    CHECK(IsRoot());
     return invocations_;
   }
 

@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -129,8 +130,8 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
             ch->name(), block->name(), ch->ToString()));
       }
 
-      XLS_CHECK(ch->kind() == ChannelKind::kStreaming ||
-                ch->kind() == ChannelKind::kSingleValue);
+      CHECK(ch->kind() == ChannelKind::kStreaming ||
+            ch->kind() == ChannelKind::kSingleValue);
 
       if (ch->kind() == ChannelKind::kStreaming) {
         b.AddStreamingChannel(

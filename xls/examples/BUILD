@@ -347,6 +347,7 @@ cc_library(
         ":ir_examples",
     ],
     deps = [
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -901,6 +902,7 @@ cc_test(
         ":apfloat_add_parallel_jit_wrapper",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

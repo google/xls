@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast.h"
@@ -111,7 +112,7 @@ class FsmBlockBase {
   // Adds the assignment of 'logic_ref' to 'value' to the block.
   void AddAssignment(LogicRef* logic_ref, Expression* value) {
     for (const auto& assignment : assignments_) {
-      XLS_CHECK_NE(logic_ref, assignment.lhs)
+      CHECK_NE(logic_ref, assignment.lhs)
           << logic_ref->GetName() << " already assigned.";
     }
     assignments_.push_back(Assignment{logic_ref, value});
@@ -178,7 +179,7 @@ class FsmBlock : public FsmBlockBase {
 
   // Sets the next state to transition to.
   T& NextState(FsmState* next_state) {
-    XLS_CHECK(next_state_ == nullptr);
+    CHECK(next_state_ == nullptr);
     next_state_ = next_state;
     return down_cast<T&>(*this);
   }

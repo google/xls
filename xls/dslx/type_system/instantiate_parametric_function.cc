@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -68,7 +69,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     // As a special case, flag recursion (that otherwise shows up as unresolved
     // parametrics), so the cause is more clear to the user (vs the symptom).
     Function* const current = &callee_fn;
-    XLS_CHECK(current != nullptr);
+    CHECK(current != nullptr);
     for (int64_t i = 0; i < ctx->fn_stack().size(); ++i) {
       Function* previous = (ctx->fn_stack().rbegin() + i)->f();
       if (current == previous) {

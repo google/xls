@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -162,7 +163,7 @@ std::string TupleType::ToString() const {
 
 BitsType::BitsType(int64_t bit_count)
     : Type(TypeKind::kBits), bit_count_(bit_count) {
-  XLS_CHECK_GE(bit_count_, 0);
+  CHECK_GE(bit_count_, 0);
 }
 
 std::string BitsType::ToString() const {

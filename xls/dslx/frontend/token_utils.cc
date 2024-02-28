@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -34,12 +35,12 @@ GetSizedTypeKeywordsMetadata() {
   static const auto* m = ([] {
     auto result =
         std::make_unique<absl::flat_hash_map<std::string, SizedTypeData>>();
-#define ADD_SIZED_TYPE_KEYWORD(__enum, __caps, __str)                       \
-  {                                                                         \
-    bool is_signed = absl::StartsWith(__str, "s");                          \
-    uint32_t width;                                                         \
-    XLS_CHECK(absl::SimpleAtoi(std::string_view(__str).substr(1), &width)); \
-    result->emplace(__str, SizedTypeData{is_signed, width});                \
+#define ADD_SIZED_TYPE_KEYWORD(__enum, __caps, __str)                   \
+  {                                                                     \
+    bool is_signed = absl::StartsWith(__str, "s");                      \
+    uint32_t width;                                                     \
+    CHECK(absl::SimpleAtoi(std::string_view(__str).substr(1), &width)); \
+    result->emplace(__str, SizedTypeData{is_signed, width});            \
   }
     XLS_DSLX_SIZED_TYPE_KEYWORDS(ADD_SIZED_TYPE_KEYWORD);
 #undef ADD_SIZED_TYPE_KEYWORD

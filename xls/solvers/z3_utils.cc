@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -48,7 +49,7 @@ ScopedErrorHandler::ScopedErrorHandler(Z3_context ctx,
 
 ScopedErrorHandler::~ScopedErrorHandler() {
   Z3_set_error_handler(ctx_, nullptr);
-  XLS_CHECK_EQ(g_handler, this);
+  CHECK_EQ(g_handler, this);
   g_handler = prev_handler_;
 }
 
@@ -163,7 +164,7 @@ std::string HexifyOutput(const std::string& input) {
 
     std::string new_text = BitsToString(rope.Build(), FormatPreference::kHex);
     new_text[0] = '#';
-    XLS_CHECK(RE2::Replace(&text, "#b[01]+", new_text));
+    CHECK(RE2::Replace(&text, "#b[01]+", new_text));
   }
 
   return text;

@@ -30,6 +30,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -237,7 +238,7 @@ class AbstractModule {
     // TODO(rspringer): Improve APIs so we don't have to match array indexes
     // between these types.
     constexpr const char kDummyName[] = "__dummy__net_decl__";
-    XLS_CHECK_OK(AddNetDecl(NetDeclKind::kWire, kDummyName));
+    CHECK_OK(AddNetDecl(NetDeclKind::kWire, kDummyName));
     dummy_ = ResolveNet(kDummyName).value();
   }
 
@@ -702,7 +703,7 @@ int64_t AbstractModule<EvalT>::GetInputPortOffset(
     std::string_view name) const {
   // The input is either a name, e.g. "a", or a name + subscript, e.g. "a[3]".
   std::vector<std::string> name_and_idx = absl::StrSplit(name, '[');
-  XLS_CHECK(name_and_idx.size() <= 2);
+  CHECK_LE(name_and_idx.size(), 2);
 
   int i;
   int off = 0;
@@ -715,12 +716,12 @@ int64_t AbstractModule<EvalT>::GetInputPortOffset(
       break;
     }
   }
-  XLS_CHECK(i < ports_.size());
+  CHECK(i < ports_.size());
 
   if (name_and_idx.size() == 2) {
     std::string_view idx = absl::StripSuffix(name_and_idx[1], "]");
     int64_t idx_out;
-    XLS_CHECK(absl::SimpleAtoi(idx, &idx_out));
+    CHECK(absl::SimpleAtoi(idx, &idx_out));
     off -= idx_out;
   }
 

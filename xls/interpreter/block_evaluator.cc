@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -253,8 +254,8 @@ absl::Status ChannelSource::SetBlockInputs(
       !IsResetAsserted(inputs, std::move(reset))) {
     if (is_valid_) {
       // Continue to output valid and data, while waiting for the ready signal.
-      XLS_CHECK_GE(current_index_, 0);
-      XLS_CHECK_LT(current_index_, data_sequence_.size());
+      CHECK_GE(current_index_, 0);
+      CHECK_LT(current_index_, data_sequence_.size());
 
       inputs[data_name_] = data_sequence_.at(current_index_);
       inputs[valid_name_] = Value(UBits(1, 1));
@@ -267,8 +268,8 @@ absl::Status ChannelSource::SetBlockInputs(
       if (send_next_data) {
         ++current_index_;
 
-        XLS_CHECK_GE(current_index_, 0);
-        XLS_CHECK_LT(current_index_, data_sequence_.size());
+        CHECK_GE(current_index_, 0);
+        CHECK_LT(current_index_, data_sequence_.size());
 
         inputs[data_name_] = data_sequence_.at(current_index_);
         inputs[valid_name_] = Value(UBits(1, 1));

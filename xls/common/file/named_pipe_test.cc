@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
@@ -49,7 +50,7 @@ TEST(NamedPipeTest, SingleReadAndWrite) {
   // pipe has been opened.
   Thread write_thread([&pipe]() {
     FileLineWriter fw = pipe.OpenForWriting().value();
-    XLS_CHECK_OK(fw.WriteLine("Hello world!"));
+    CHECK_OK(fw.WriteLine("Hello world!"));
   });
   XLS_ASSERT_OK_AND_ASSIGN(FileLineReader fr, pipe.OpenForReading());
   write_thread.Join();
@@ -65,7 +66,7 @@ TEST(NamedPipeTest, MultipleReadAndWrite) {
   Thread write_thread([&pipe]() {
     FileLineWriter fw = pipe.OpenForWriting().value();
     for (int64_t i = 0; i < 10; ++i) {
-      XLS_CHECK_OK(fw.WriteLine(absl::StrFormat("Line #%d", i)));
+      CHECK_OK(fw.WriteLine(absl::StrFormat("Line #%d", i)));
     }
   });
   XLS_ASSERT_OK_AND_ASSIGN(FileLineReader fr, pipe.OpenForReading());
@@ -100,7 +101,7 @@ TEST(NamedPipeTest, FullBuffer) {
   Thread write_thread([&pipe]() {
     FileLineWriter fw = pipe.OpenForWriting().value();
     for (int64_t i = 0; i < kCount; ++i) {
-      XLS_CHECK_OK(fw.WriteLine(absl::StrFormat("Line #%d", i)));
+      CHECK_OK(fw.WriteLine(absl::StrFormat("Line #%d", i)));
     }
   });
 
@@ -122,9 +123,9 @@ TEST(NamedPipeTest, EmptyLines) {
 
   Thread write_thread([&pipe]() {
     FileLineWriter fw = pipe.OpenForWriting().value();
-    XLS_CHECK_OK(fw.WriteLine(""));
-    XLS_CHECK_OK(fw.WriteLine(""));
-    XLS_CHECK_OK(fw.WriteLine(""));
+    CHECK_OK(fw.WriteLine(""));
+    CHECK_OK(fw.WriteLine(""));
+    CHECK_OK(fw.WriteLine(""));
   });
   XLS_ASSERT_OK_AND_ASSIGN(FileLineReader fr, pipe.OpenForReading());
   write_thread.Join();

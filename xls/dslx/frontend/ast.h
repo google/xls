@@ -29,6 +29,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -786,7 +787,7 @@ class Block : public Expr {
   // sometimes we discover we want to create some invariant of the AST at parse
   // time and want to add some statements to do that.
   void AddStatement(Statement* statement) {
-    XLS_CHECK(statement->parent() == nullptr) << statement->ToString();
+    CHECK(statement->parent() == nullptr) << statement->ToString();
     statements_.push_back(statement);
     SetParentage();
   }
@@ -796,7 +797,7 @@ class Block : public Expr {
   // invariant that a proc config function has a tuple as its trailing
   // expression by materializing it implicitly for the user.
   void DisableTrailingSemi() {
-    XLS_CHECK(trailing_semi_);
+    CHECK(trailing_semi_);
     trailing_semi_ = false;
   }
 
@@ -824,7 +825,7 @@ class NameRef : public Expr {
       : Expr(owner, std::move(span)),
         name_def_(name_def),
         identifier_(std::move(identifier)) {
-    XLS_CHECK_NE(identifier_, "_");
+    CHECK_NE(identifier_, "_");
   }
 
   ~NameRef() override;
@@ -2935,20 +2936,20 @@ class ConstRef : public NameRef {
   // Returns the constant definition that this ConstRef is referring to.
   ConstantDef* GetConstantDef() const {
     AstNode* definer = name_def()->definer();
-    XLS_CHECK(definer != nullptr);
+    CHECK(definer != nullptr);
     return down_cast<ConstantDef*>(definer);
   }
 
   Expr* GetValue() const {
     AstNode* definer = name_def()->definer();
-    XLS_CHECK(definer != nullptr);
+    CHECK(definer != nullptr);
     // Definer will only ever be a ConstantDef or a Let.
     if (ConstantDef* cd = dynamic_cast<ConstantDef*>(definer); cd != nullptr) {
       return cd->value();
     }
 
     Let* let = dynamic_cast<Let*>(definer);
-    XLS_CHECK_NE(let, nullptr);
+    CHECK_NE(let, nullptr);
     return let->rhs();
   }
 };

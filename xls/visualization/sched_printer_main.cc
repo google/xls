@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -71,7 +72,7 @@ void AllocateDigraphNodeId(
     const PipelineSchedule& sched,
     std::vector<absl::flat_hash_map<Node*, int64_t>>* output_registers_id,
     absl::flat_hash_map<Node*, int64_t>* xls_nodes_id) {
-  XLS_CHECK(output_registers_id->empty() && xls_nodes_id->empty());
+  CHECK(output_registers_id->empty() && xls_nodes_id->empty());
 
   output_registers_id->resize(sched.length() - 1);
 
@@ -395,6 +396,6 @@ int main(int argc, char** argv) {
     XLS_LOG(QFATAL) << "Expected path argument with IR: " << argv[0]
                     << " <ir_path>";
   }
-  XLS_CHECK_OK(xls::RealMain(positional_arguments[0]));
+  CHECK_OK(xls::RealMain(positional_arguments[0]));
   return EXIT_SUCCESS;
 }

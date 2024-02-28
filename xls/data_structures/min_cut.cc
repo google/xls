@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -146,7 +147,7 @@ class ResidualGraph {
   // Push flow along the given edge. The capacity of this edge is reduced and
   // the capacity of the dual edge is increased.
   void PushFlow(int64_t amount, ResidualEdge* residual_edge) {
-    XLS_CHECK_GE(residual_edge->capacity, amount);
+    CHECK_GE(residual_edge->capacity, amount);
     residual_edge->capacity -= amount;
     edge(residual_edge->dual_edge).capacity += amount;
   }
@@ -222,7 +223,7 @@ int64_t AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
         ResidualEdge& edge = residual_graph->edge(edge_id);
         XLS_VLOG(5) << absl::StreamFormat(
             "  Traversing %s->%s", graph.name(edge.from), graph.name(edge.to));
-        XLS_CHECK_GE(edge.capacity, 0);
+        CHECK_GE(edge.capacity, 0);
         if (edge.capacity > 0) {
           maybe_extend_frontier(&edge);
           if (edge.to == sink) {
@@ -230,12 +231,12 @@ int64_t AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
             // BFS search it is necessarily a shortest path. Walk back along
             // path and augment the flow.
             int64_t augmented_flow_amount = path_back.at(sink).second;
-            XLS_CHECK_GT(augmented_flow_amount, 0);
+            CHECK_GT(augmented_flow_amount, 0);
             NodeId n = sink;
             while (n != source) {
               ResidualEdge* e = path_back.at(n).first;
               residual_graph->PushFlow(augmented_flow_amount, e);
-              XLS_CHECK_GE(e->capacity, 0);
+              CHECK_GE(e->capacity, 0);
               n = e->from;
             }
             if (XLS_VLOG_IS_ON(4)) {
@@ -300,7 +301,7 @@ GraphCut MinCutBetweenNodes(const Graph& graph, NodeId source, NodeId sink) {
       }
     }
   }
-  XLS_CHECK(!reachable_from_source.contains(sink));
+  CHECK(!reachable_from_source.contains(sink));
 
   GraphCut min_cut;
   min_cut.weight = 0;

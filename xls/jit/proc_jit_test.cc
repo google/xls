@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
@@ -44,7 +45,7 @@ INSTANTIATE_TEST_SUITE_P(
             -> std::unique_ptr<ProcEvaluator> {
           JitChannelQueueManager* jit_queue_manager =
               dynamic_cast<JitChannelQueueManager*>(queue_manager);
-          XLS_CHECK(jit_queue_manager != nullptr);
+          CHECK(jit_queue_manager != nullptr);
           return ProcJit::Create(proc, GetJitRuntime(), jit_queue_manager)
               .value();
         },

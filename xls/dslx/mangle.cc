@@ -21,6 +21,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -46,7 +47,7 @@ std::string MangleInterpValue(const InterpValue& value) {
     return absl::StrReplaceAll(s, {{"-", "m"}});
   }
 
-  XLS_CHECK(value.IsArray() || value.IsTuple())
+  CHECK(value.IsArray() || value.IsTuple())
       << "Only bits, enums, arrays, or tuples can be name-mangled.";
   std::vector<std::string> members;
   for (const auto& member : value.GetValuesOrDie()) {

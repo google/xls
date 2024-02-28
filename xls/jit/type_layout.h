@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/package.h"
@@ -88,7 +89,7 @@ class TypeLayout {
   explicit TypeLayout(Type* type, int64_t size,
                       absl::Span<const ElementLayout> elements)
       : type_(type), size_(size), elements_(elements.begin(), elements.end()) {
-    XLS_CHECK_EQ(elements.size(), type->leaf_count());
+    CHECK_EQ(elements.size(), type->leaf_count());
   }
 
   // Converts TypeLayout objects to/from TypeLayoutProtos.

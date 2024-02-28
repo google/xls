@@ -29,6 +29,7 @@
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -122,7 +123,7 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
     llvm::FunctionType* function_type =
         llvm::FunctionType::get(return_type, param_types,
                                 /*isVarArg=*/false);
-    XLS_CHECK_EQ(jit_context.module()->getFunction(name), nullptr)
+    CHECK_EQ(jit_context.module()->getFunction(name), nullptr)
         << absl::StreamFormat(
                "Function named `%s` already exists in LLVM module", name);
     llvm::Function* fn = llvm::cast<llvm::Function>(
@@ -245,7 +246,7 @@ class LlvmFunctionWrapper final : public JitCompilationMetadata {
       : input_args_(input_args.begin(), input_args.end()),
         output_args_(output_args.begin(), output_args.end()) {
     for (int64_t i = 0; i < input_args.size(); ++i) {
-      XLS_CHECK(!input_indices_.contains(input_args[i]));
+      CHECK(!input_indices_.contains(input_args[i]));
       input_indices_[input_args[i]] = i;
     }
     for (int64_t i = 0; i < output_args.size(); ++i) {
@@ -288,7 +289,7 @@ class BufferAllocator {
       : type_converter_(type_converter) {}
 
   void SetAllocationKind(Node* node, AllocationKind kind) {
-    XLS_CHECK(!allocation_kinds_.contains(node));
+    CHECK(!allocation_kinds_.contains(node));
     allocation_kinds_[node] = kind;
     if (kind == AllocationKind::kTempBlock) {
       AllocateTempBuffer(node);
@@ -302,7 +303,7 @@ class BufferAllocator {
   // Returns the offset within the temp block for the buffer allocated for
   // `node`. Node must be assigned allocation kind kTempblock.
   int64_t GetOffset(Node* node) const {
-    XLS_CHECK(allocation_kinds_.at(node) == AllocationKind::kTempBlock);
+    CHECK(allocation_kinds_.at(node) == AllocationKind::kTempBlock);
     return temp_block_offsets_.at(node);
   }
 
@@ -312,9 +313,9 @@ class BufferAllocator {
 
  private:
   void AllocateTempBuffer(Node* node) {
-    XLS_CHECK(!node->Is<RegisterWrite>());
-    XLS_CHECK(!node->Is<OutputPort>());
-    XLS_CHECK(!temp_block_offsets_.contains(node));
+    CHECK(!node->Is<RegisterWrite>());
+    CHECK(!node->Is<OutputPort>());
+    CHECK(!temp_block_offsets_.contains(node));
     int64_t offset =
         type_converter_->AlignFor(node->GetType(), current_offset_);
     int64_t node_size = type_converter_->GetTypeByteSize(node->GetType());
@@ -376,7 +377,7 @@ bool IsEarlyExitPoint(Node* node) {
 // continue after `node` when execution resumes. If false, then execution
 // continues before `node`.
 bool ExecutionContinuesAfterNode(Node* node) {
-  XLS_CHECK(IsEarlyExitPoint(node));
+  CHECK(IsEarlyExitPoint(node));
   return node->Is<Send>();
 }
 
@@ -399,7 +400,7 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
   int64_t partition_size = 0;
   for (Node* node : TopoSort(f)) {
     if (IsEarlyExitPoint(node)) {
-      XLS_CHECK(f->IsProc())
+      CHECK(f->IsProc())
           << "Early exit points are only supported in procs in the JIT";
       // Nodes which are early exits are placed in their own partition.
       if (partition_size != 0) {
@@ -849,7 +850,7 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
           wrapper.function(),
           /*InsertBefore=*/nullptr);
       // The index in the resume block should correspond to the resume point id.
-      XLS_CHECK_EQ(resume_blocks.size(), partitions[i].resume_point->id);
+      CHECK_EQ(resume_blocks.size(), partitions[i].resume_point->id);
       resume_blocks.push_back(resume_block);
       builder->CreateBr(resume_block);
       builder = std::make_unique<llvm::IRBuilder<>>(resume_block);
@@ -1350,11 +1351,11 @@ int64_t JittedFunctionBase::RunJittedFunction(
     JitTempBuffer& temp_buffer, InterpreterEvents* events,
     InstanceContext* instance_context, JitRuntime* jit_runtime,
     int64_t continuation_point) const {
-  XLS_CHECK(inputs.is_inputs());
-  XLS_CHECK_EQ(inputs.source(), this);
-  XLS_CHECK(outputs.is_outputs());
-  XLS_CHECK_EQ(outputs.source(), this);
-  XLS_CHECK_EQ(temp_buffer.source(), this);
+  CHECK(inputs.is_inputs());
+  CHECK_EQ(inputs.source(), this);
+  CHECK(outputs.is_outputs());
+  CHECK_EQ(outputs.source(), this);
+  CHECK_EQ(temp_buffer.source(), this);
   return function_(inputs.get(), outputs.get(), temp_buffer.get(), events,
                    instance_context, jit_runtime, continuation_point);
 }

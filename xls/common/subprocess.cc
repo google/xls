@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "absl/container/fixed_array.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -213,7 +214,7 @@ absl::Status ReadFileDescriptors(absl::Span<FileDescriptor*> fds,
       }
 
       // This should "never" happen. If it does, someone has e.g. closed our fd.
-      XLS_CHECK(!(poll_list[i].revents & POLLNVAL));
+      CHECK(!(poll_list[i].revents & POLLNVAL));
 
       // If poll_list[i].revents & POLLHUP, the remote side closed its
       // connection, but there may be data waiting to be read. read() will

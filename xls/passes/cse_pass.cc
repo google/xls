@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "absl/hash/hash.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -44,7 +45,7 @@ namespace {
 // constructed in span_backing_store from which a span is constructed.
 absl::Span<Node* const> GetOperandsForCse(
     Node* node, std::vector<Node*>* span_backing_store) {
-  XLS_CHECK(span_backing_store->empty());
+  CHECK(span_backing_store->empty());
   if (!OpIsCommutative(node->op())) {
     return node->operands();
   }

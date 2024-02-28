@@ -30,6 +30,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -422,7 +423,7 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
                              clock_period_ps);
   }
 
-  XLS_CHECK(std::holds_alternative<PackagePipelineSchedules>(schedules));
+  CHECK(std::holds_alternative<PackagePipelineSchedules>(schedules));
   for (auto& [function_base, schedule] :
        std::get<PackagePipelineSchedules>(schedules)) {
     std::cout << "\n\nFunction: " << function_base->name() << "\n";
@@ -510,7 +511,7 @@ absl::StatusOr<JitArguments> ConvertToJitArguments(
                              ->AsAligned(absl::MakeSpan(buffers.back()),
                                          runtime->GetTypeAlignment(params[i]))
                              .data());
-      XLS_CHECK_NE(pointers.back(), nullptr);
+      CHECK_NE(pointers.back(), nullptr);
     }
     arg_buffers.push_back(std::move(buffers));
     arg_pointers.push_back(pointers);
@@ -559,8 +560,7 @@ absl::Status RunFunctionInterpreterAndJit(Function* function,
           [&]() -> absl::Status {
             for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
               for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
-                XLS_CHECK_OK(
-                    jit->RunWithViews(pointers, result_aligned, &events));
+                CHECK_OK(jit->RunWithViews(pointers, result_aligned, &events));
               }
             }
             return absl::OkStatus();
@@ -575,7 +575,7 @@ absl::Status RunFunctionInterpreterAndJit(Function* function,
       CountRate(
           [&]() -> absl::Status {
             for (const std::vector<Value>& args : arg_set) {
-              XLS_CHECK_OK(InterpretFunction(function, args).status());
+              CHECK_OK(InterpretFunction(function, args).status());
             }
             return absl::OkStatus();
           },
@@ -632,8 +632,8 @@ absl::Status RunBlockInterpreterAndJit(Block* block,
           [&]() -> absl::Status {
             for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
               for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
-                XLS_CHECK_OK(jit_continuation->SetInputPorts(pointers));
-                XLS_CHECK_OK(jit->RunOneCycle(*jit_continuation));
+                CHECK_OK(jit_continuation->SetInputPorts(pointers));
+                CHECK_OK(jit->RunOneCycle(*jit_continuation));
               }
             }
             return absl::OkStatus();
@@ -654,9 +654,9 @@ absl::Status RunBlockInterpreterAndJit(Block* block,
           [&]() -> absl::Status {
             for (const absl::flat_hash_map<std::string, Value>& ports :
                  port_set) {
-              XLS_CHECK_OK(kInterpreterBlockEvaluator
-                               .EvaluateBlock(ports, interpreter_regs, block)
-                               .status());
+              CHECK_OK(kInterpreterBlockEvaluator
+                           .EvaluateBlock(ports, interpreter_regs, block)
+                           .status());
             }
             return absl::OkStatus();
           },

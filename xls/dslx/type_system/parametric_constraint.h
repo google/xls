@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/concrete_type.h"
@@ -39,7 +40,7 @@ class InstantiateArg {
       : type_(std::move(type)), span_(std::move(span)) {
     // This should be the type of the expression argument so it should not be a
     // metatype.
-    XLS_CHECK(!type_->IsMeta());
+    CHECK(!type_->IsMeta());
   }
 
   std::unique_ptr<ConcreteType>& type() { return type_; }

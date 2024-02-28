@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/strong_int.h"
@@ -47,7 +48,7 @@ bool IncrementBitVector(std::vector<bool>* vec) {
 // equal to 0 represent uncut edges.
 PathCut CutFromBitVector(const PathGraph<int32_t, int32_t>& path,
                          const std::vector<bool>& vec) {
-  XLS_CHECK_EQ(vec.size(), path.NumEdges())
+  CHECK_EQ(vec.size(), path.NumEdges())
       << "Size of bitvector must be equal to number of edges";
   std::vector<PathEdgeId> cut_edges;
   for (int32_t i = 0; i < path.NumEdges(); i++) {
@@ -187,11 +188,11 @@ PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
           [](const ColoredNodeWeight& x,
              const ColoredNodeWeight& y) -> std::optional<ColoredNodeWeight> {
             if (!x.interval) {
-              XLS_CHECK_EQ(x.weight, 0);
+              CHECK_EQ(x.weight, 0);
               return {{y.interval, y.weight}};
             }
             if (!y.interval) {
-              XLS_CHECK_EQ(y.weight, 0);
+              CHECK_EQ(y.weight, 0);
               return {{x.interval, x.weight}};
             }
             if (static_cast<int32_t>(x.interval->second) + 1 !=
@@ -207,7 +208,7 @@ PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
               return std::nullopt;
             }
             if (!y.interval) {
-              XLS_CHECK_EQ(y.weight, 0);
+              CHECK_EQ(y.weight, 0);
               return x;
             }
             if (x.interval->first != y.interval->first) {

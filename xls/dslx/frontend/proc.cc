@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -53,9 +54,9 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
       parametric_bindings_(std::move(parametric_bindings)),
       body_(std::move(body)),
       is_public_(is_public) {
-  XLS_CHECK(body_.config != nullptr);
-  XLS_CHECK(body_.next != nullptr);
-  XLS_CHECK(body_.init != nullptr);
+  CHECK(body_.config != nullptr);
+  CHECK(body_.next != nullptr);
+  CHECK(body_.init != nullptr);
 }
 
 Proc::~Proc() = default;

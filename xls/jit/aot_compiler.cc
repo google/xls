@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -85,7 +86,7 @@ std::string ArgLayoutsSerialization(Function* f,
         type_converter.CreateTypeLayout(param->GetType()).ToProto();
   }
   std::string text;
-  XLS_CHECK(google::protobuf::TextFormat::PrintToString(layouts_proto, &text));
+  CHECK(google::protobuf::TextFormat::PrintToString(layouts_proto, &text));
   return text;
 }
 
@@ -96,7 +97,7 @@ std::string ResultLayoutSerialization(Function* f,
   TypeLayoutProto layout_proto =
       type_converter.CreateTypeLayout(f->return_value()->GetType()).ToProto();
   std::string text;
-  XLS_CHECK(google::protobuf::TextFormat::PrintToString(layout_proto, &text));
+  CHECK(google::protobuf::TextFormat::PrintToString(layout_proto, &text));
   return text;
 }
 

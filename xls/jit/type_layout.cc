@@ -44,7 +44,7 @@ static void LeafValueToNativeLayout(const Value& value,
                 element_layout.padded_size - element_layout.data_size);
     return;
   }
-  XLS_CHECK(value.IsToken());
+  CHECK(value.IsToken());
   std::memset(buffer, 0, element_layout.padded_size);
 }
 
@@ -94,7 +94,7 @@ void TypeLayout::ValueToNativeLayout(const Value& value,
       push_frame(value_element);
     }
   }
-  XLS_CHECK_EQ(leaf_index, elements_.size());
+  CHECK_EQ(leaf_index, elements_.size());
 }
 
 Value TypeLayout::NativeLayoutToValueInternal(Type* element_type,
@@ -123,7 +123,7 @@ Value TypeLayout::NativeLayoutToValueInternal(Type* element_type,
     return Value::TupleOwned(std::move(elements));
   }
 
-  XLS_CHECK(element_type->IsArray());
+  CHECK(element_type->IsArray());
   ArrayType* array_type = element_type->AsArrayOrDie();
   std::vector<Value> elements;
   for (int64_t i = 0; i < array_type->size(); ++i) {

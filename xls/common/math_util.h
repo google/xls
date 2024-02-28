@@ -19,6 +19,7 @@
 #include <limits>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 
@@ -121,8 +122,8 @@ inline bool IsEven(T x) {
 template <typename Int>
 static constexpr Int Exp2(int n) {
   static_assert(std::numeric_limits<Int>::is_integer, "integral types only");
-  XLS_CHECK_LT(n, std::numeric_limits<Int>::digits);
-  XLS_CHECK_GE(n, 0);
+  CHECK_LT(n, std::numeric_limits<Int>::digits);
+  CHECK_GE(n, 0);
 
   Int one = 1;
   return one << n;

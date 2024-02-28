@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -84,7 +85,7 @@ static absl::StatusOr<ModuleSignature> GenerateModuleSignature(
     if (port.direction == Direction::kInput) {
       b.AddDataInputAsBits(port.name(), width);
     } else {
-      XLS_CHECK_EQ(port.direction, Direction::kOutput);
+      CHECK_EQ(port.direction, Direction::kOutput);
       b.AddDataOutputAsBits(port.name(), width);
     }
   }
@@ -398,7 +399,7 @@ static absl::Status CheckCapturedSignalAgainstExpectation(
                               expected_bits, actual_bits));
         }
       } else {
-        XLS_CHECK(std::holds_alternative<IsX>(expectation.expected));
+        CHECK(std::holds_alternative<IsX>(expectation.expected));
         if (std::holds_alternative<Bits>(bits_or_x)) {
           return absl::FailedPreconditionError(absl::StrFormat(
               "%s: expected %s to have X value, has non X value: %v",

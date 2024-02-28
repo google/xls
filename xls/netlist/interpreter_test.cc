@@ -22,6 +22,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
@@ -527,7 +528,7 @@ struct EvalOpCallCounter {
   int sleep_ms = 0;
 #define IMPL1(cell, OP)                                                   \
   absl::StatusOr<ValueT> EvalOp_##cell(const std::vector<ValueT>& args) { \
-    XLS_CHECK(args.size() == 1);                                          \
+    CHECK_EQ(args.size(), 1);                                             \
     absl::SleepFor(absl::Milliseconds(sleep_ms));                         \
     ValueT result = OP(args[0]);                                          \
     num_eval_calls++;                                                     \
@@ -536,7 +537,7 @@ struct EvalOpCallCounter {
 
 #define IMPL2(cell, OP)                                                   \
   absl::StatusOr<ValueT> EvalOp_##cell(const std::vector<ValueT>& args) { \
-    XLS_CHECK(args.size() == 2);                                          \
+    CHECK_EQ(args.size(), 2);                                             \
     absl::SleepFor(absl::Milliseconds(sleep_ms));                         \
     ValueT result = OP(args[0], args[1]);                                 \
     num_eval_calls++;                                                     \

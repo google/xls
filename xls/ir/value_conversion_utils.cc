@@ -17,6 +17,7 @@
 #include <tuple>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -30,7 +31,7 @@ namespace xls {
 
 namespace internal {
 absl::StatusOr<xls::Value> ConvertInt64(const Type* type, int64_t value) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsBits()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Invalid type conversion for integral input value (%d). "
@@ -44,7 +45,7 @@ absl::StatusOr<xls::Value> ConvertInt64(const Type* type, int64_t value) {
 }
 
 absl::StatusOr<xls::Value> ConvertUint64(const Type* type, uint64_t value) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsBits()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Invalid type conversion for integral input value (%d). "
@@ -60,7 +61,7 @@ absl::StatusOr<xls::Value> ConvertUint64(const Type* type, uint64_t value) {
 
 absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type,
                                              const std::tuple<>& tuple) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsTuple()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Invalid type conversion for a std::tuple. An std::tuple can only be "
@@ -74,7 +75,7 @@ namespace internal {
 
 absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   std::vector<Value>& xls_tuple) {
-  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (index < xls_tuple.size()) {
     // When the user is using the ConvertToXlsValue(..., std::tuple...), the
     // following error should not occur.

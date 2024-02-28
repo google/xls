@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/interp_value.h"
 
@@ -49,7 +50,7 @@ class InterpreterStack {
   void Push(InterpValue value) { stack_.push_back(std::move(value)); }
 
   const InterpValue& PeekOrDie(int64_t from_top = 0) const {
-    XLS_CHECK_GE(stack_.size(), from_top + 1);
+    CHECK_GE(stack_.size(), from_top + 1);
     return stack_.at(stack_.size() - from_top - 1);
   }
 
