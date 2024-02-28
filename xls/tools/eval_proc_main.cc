@@ -23,6 +23,7 @@
 #include <optional>
 #include <queue>
 #include <random>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -163,6 +164,7 @@ ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
 ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
+ABSL_FLAG(int64_t, trace_per_ticks, 100, "Print a trace every N ticks.");
 ABSL_FLAG(std::string, output_stats_path, "", "File to output statistics to.");
 ABSL_FLAG(std::vector<std::string>, model_memories, {},
           "Comma separated list of memory=depth/element_type:initial_value "
@@ -210,7 +212,19 @@ static absl::Status EvaluateProcs(
     for (const Value& value : values) {
       XLS_RETURN_IF_ERROR(in_queue->Write(value));
     }
+    if (absl::GetFlag(FLAGS_show_trace)) {
+      XLS_LOG(INFO) << "Channel " << channel_name << " has " << values.size()
+                    << " inputs";
+    }
   }
+  if (absl::GetFlag(FLAGS_show_trace)) {
+    for (const auto& [channel_name, values] : expected_outputs_for_channels) {
+      XLS_LOG(INFO) << "Channel " << channel_name << " has " << values.size()
+                    << " outputs";
+    }
+  }
+
+  const int64_t trace_per_ticks = absl::GetFlag(FLAGS_trace_per_ticks);
 
   for (int64_t this_ticks : ticks) {
     if (absl::GetFlag(FLAGS_show_trace)) {
@@ -219,12 +233,46 @@ static absl::Status EvaluateProcs(
     runtime->ResetState();
 
     for (int i = 0; this_ticks < 0 || i < this_ticks; i++) {
-      if (absl::GetFlag(FLAGS_show_trace)) {
-        XLS_LOG(INFO) << "Tick " << i;
+      if (absl::GetFlag(FLAGS_show_trace) &&
+          (i < trace_per_ticks || i % trace_per_ticks == 0)) {
+        std::ostringstream ostr;
+        for (const auto& [channel_name, values] :
+             expected_outputs_for_channels) {
+          XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
+                               queue_manager.GetQueueByName(channel_name));
+          ostr << channel_name << "[" << out_queue->GetSize() << "] " << " ";
+        }
+        for (const auto& [channel_name, values] : inputs_for_channels) {
+          XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
+                               queue_manager.GetQueueByName(channel_name));
+          ostr << channel_name << "[" << in_queue->GetSize() << "] " << " ";
+        }
+        XLS_LOG(INFO) << "Tick " << i << ": " << ostr.str();
       }
       // Don't double print events (traces, assertions, etc)
       runtime->ClearInterpreterEvents();
-      XLS_RETURN_IF_ERROR(runtime->Tick());
+      absl::Status tick_ret = runtime->Tick();
+
+      if (!tick_ret.ok()) {
+        for (const auto& [channel_name, values] :
+             expected_outputs_for_channels) {
+          XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
+                               queue_manager.GetQueueByName(channel_name));
+
+          XLS_LOG(INFO) << absl::StreamFormat(
+              "out_queue[%s]: size %li, reference values %li", channel_name,
+              out_queue->GetSize(), values.size());
+        }
+        for (const auto& [channel_name, values] : inputs_for_channels) {
+          XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
+                               queue_manager.GetQueueByName(channel_name));
+
+          XLS_LOG(INFO) << absl::StreamFormat(
+              "in_queue[%s]: size %li, reference values %li", channel_name,
+              in_queue->GetSize(), values.size());
+        }
+        return tick_ret;
+      }
 
       // Sort the keys for stable print order.
       absl::flat_hash_map<Proc*, std::vector<Value>> states;
@@ -251,16 +299,16 @@ static absl::Status EvaluateProcs(
 
       // --ticks 0 stops when all outputs are verified
       if (this_ticks < 0) {
-        bool all_outputs_verified = true;
+        bool all_outputs_produced = true;
         for (const auto& [channel_name, values] :
              expected_outputs_for_channels) {
           XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
                                queue_manager.GetQueueByName(channel_name));
           if (out_queue->GetSize() < values.size()) {
-            all_outputs_verified = false;
+            all_outputs_produced = false;
           }
         }
-        if (all_outputs_verified) {
+        if (all_outputs_produced) {
           break;
         }
       }
@@ -283,6 +331,12 @@ static absl::Status EvaluateProcs(
         XLS_RET_CHECK_EQ(value, *out_val) << absl::StreamFormat(
             "Mismatched (channel=%s) after %d outputs (%s != %s)", channel_name,
             processed_count, value.ToString(), out_val->ToString());
+      } else {
+        if (absl::GetFlag(FLAGS_show_trace)) {
+          XLS_LOG(INFO) << absl::StreamFormat(
+              "Matched (channel=%s) after %d outputs", channel_name,
+              processed_count);
+        }
       }
       checked_any_output = true;
       ++processed_count;
