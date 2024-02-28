@@ -14,6 +14,8 @@
 
 import std;
 
+import xls.examples.ram;
+
 // TTU registers.
 const T0 = u2:0;
 const T1 = u2:1;
@@ -25,6 +27,9 @@ const LOAD = u8:0;
 const STORE = u8:1;
 const MUL = u8:2;
 const ADD = u8:3;
+const MOVHI = u8:4;
+const MOVLO = u8:5;
+const ZERO_INIT = u8:6;
 const END = u8:255;
 
 // Regular ALU registers.
@@ -46,7 +51,7 @@ pub struct TtuBundle<NumBundles: u32> {
 }
 
 pub struct TtuState<NumRegisters: u32> {
-    regs: u2[NumRegisters],
+    regs: u32[NumRegisters],
     pc: u16,
 }
 
@@ -59,11 +64,39 @@ pub struct Instruction {
     opcode: u8,
     src_reg0: Register<2>,
     src_reg1: Register<2>,
-    dst_reg: Register<2>,
+    dst_reg0: Register<2>,
+    dst_reg1: Register<2>,
 }
+
+pub struct Bundle {
+    load_store_slot: Instruction,
+    alu_slot: Instruction,
+    imm_slot: Instruction,
+    ttu_slot0: Instruction,
+    ttu_slot1: Instruction,
+    ttu_tick: u1,
+}
+
+// Creating a proc that consumes a TTU bundle.
+proc ttu {
+   instruction : chan<TtuBundle<2>> in;
+   result: chan<u32> out;
+
+   init { TtuState<1>{regs: u32[1]: [0], pc: u16: 0} }
+
+   config(ins: chan<TtuBundle<2>> in, res: chan<u32> out) {
+    (ins, res)
+   }
+
+    next(tok: token, state: TtuState<1>) {
+        state
+    }
+
+}
+
 
 #[test]
 fn ttu_test() {
     let loop = LoopBundle {start:u32: 0, end: u32: 10, stride: u16:1};
-    assert_eq(loop.start, u32:0)
+    assert_eq(loop.start, u32:0);
 }

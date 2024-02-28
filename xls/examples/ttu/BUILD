@@ -42,12 +42,10 @@ package(
 )
 
 
-xls_dslx_opt_ir(
+xls_dslx_library(
     name = "ttu",
     srcs = ["ttu.x"],
-    dslx_top = "main",
-    ir_file = "ttu.ir",
-    opt_ir_file = "ttu.opt.ir",
+    deps = ["//xls/examples:ram_dslx",],
 )
 
 xls_dslx_test(
