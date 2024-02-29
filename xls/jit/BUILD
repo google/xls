@@ -302,6 +302,7 @@ cc_library(
 
 cc_test(
     name = "function_jit_test",
+    timeout = "long",
     srcs = ["function_jit_test.cc"],
     # 2020-01-08 //xls/jit/function_jit_test \
     #               --gtest_list_tests 2>/dev/null | wc -l
