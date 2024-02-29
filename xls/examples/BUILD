@@ -95,6 +95,22 @@ cc_binary(
     ],
 )
 
+xls_dslx_library(
+    name = "lfsr_dslx",
+    srcs = ["lfsr.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "lfsr_fmt_test",
+    src = "lfsr.x",
+)
+
+xls_dslx_test(
+    name = "lfsr_dslx_test",
+    srcs = ["lfsr.x"],
+    deps = [":lfsr_dslx"],
+)
+
 xls_dslx_opt_ir(
     name = "capitalize",
     srcs = ["capitalize.x"],
