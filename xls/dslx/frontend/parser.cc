@@ -974,8 +974,16 @@ absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings& bindings) {
 
   auto parse_name_def_or_tree = [&bindings,
                                  this]() -> absl::StatusOr<NameDefTree*> {
-    XLS_ASSIGN_OR_RETURN(bool peek_is_oparen, PeekTokenIs(TokenKind::kOParen));
-    if (peek_is_oparen) {
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->kind() == TokenKind::kOParen) {
+      if (++approximate_expression_depth_ >= kApproximateExpressionDepthLimit) {
+        return ParseErrorStatus(
+            peek->span(),
+            "Name definition tree is too deeply nested, please break "
+            "into multiple statements");
+      }
+      auto bump_down =
+          absl::Cleanup([this] { approximate_expression_depth_--; });
       return ParseNameDefTree(bindings);
     }
     XLS_ASSIGN_OR_RETURN(auto name_def, ParseNameDefOrWildcard(bindings));
