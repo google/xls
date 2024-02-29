@@ -228,6 +228,8 @@ xls_dslx_verilog(
         "module_name": "FrameHeaderDecoder",
         "delay_model": "asap7",
         "pipeline_stages": "9",
+        "reset": "rst",
+        "reset_data_path": "false",
         "use_system_verilog": "false",
     },
     dslx_top = "parse_frame_header_128",
