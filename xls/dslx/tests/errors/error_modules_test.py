@@ -1011,6 +1011,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_warning_on_local_const_naming(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/warning_on_local_const_naming.x',
+    )
+    self.assertIn('Standard style is SCREAMING_SNAKE_CASE for constant', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

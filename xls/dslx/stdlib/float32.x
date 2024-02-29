@@ -334,22 +334,22 @@ pub fn fma(a: F32, b: F32, c: F32) -> F32 { apfloat::fma(a, b, c) }
 // Computes an approximation of 1.0 / sqrt(x). NUM_REFINEMENTS can be increased
 // to tradeoff more hardware resources for more accuracy.
 pub fn fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> F32 {
-    const zero_point_five = F32 { sign: u1:0, bexp: u8:0x7e, fraction: u23:0 };
-    const one_point_five = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u1:1 ++ u22:0 };
-    const magic_number = u32:0x5f3759df;
+    const ZERO_POINT_FIVE = F32 { sign: u1:0, bexp: u8:0x7e, fraction: u23:0 };
+    const ONE_POINT_FIVE = F32 { sign: u1:0, bexp: u8:0x7f, fraction: u1:1 ++ u22:0 };
+    const MAGIC_NUMBER = u32:0x5f3759df;
 
     // Flush subnormal input.
     let x = subnormals_to_zero(x);
 
-    let approx = unflatten(magic_number - (flatten(x) >> u32:1));
-    let half_x = mul(x, zero_point_five);
+    let approx = unflatten(MAGIC_NUMBER - (flatten(x) >> u32:1));
+    let half_x = mul(x, ZERO_POINT_FIVE);
 
     // Refine solution w/ Newton's method.
     let result = for (idx, approx): (u32, F32) in range(u32:0, NUM_REFINEMENTS) {
         let prod = mul(half_x, approx);
         let prod = mul(prod, approx);
         let nprod = F32 { sign: !prod.sign, bexp: prod.bexp, fraction: prod.fraction };
-        let diff = add(one_point_five, nprod);
+        let diff = add(ONE_POINT_FIVE, nprod);
         mul(approx, diff)
     }(approx);
 

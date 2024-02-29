@@ -745,8 +745,8 @@ pub fn ldexp<EXP_SZ: u32, FRACTION_SZ: u32>
     (fraction: APFloat<EXP_SZ, FRACTION_SZ>, exp: s32) -> APFloat<EXP_SZ, FRACTION_SZ> {
     type Float = APFloat<EXP_SZ, FRACTION_SZ>;
 
-    const max_exponent = max_normal_exp<EXP_SZ>() as s33;
-    const min_exponent = min_normal_exp<EXP_SZ>() as s33;
+    const MAX_EXPONENT = max_normal_exp<EXP_SZ>() as s33;
+    const MIN_EXPONENT = min_normal_exp<EXP_SZ>() as s33;
 
     // Flush subnormal input.
     let fraction = subnormals_to_zero(fraction);
@@ -761,19 +761,19 @@ pub fn ldexp<EXP_SZ: u32, FRACTION_SZ: u32>
     };
 
     // Handle overflow.
-    let result = if exp > max_exponent { inf<EXP_SZ, FRACTION_SZ>(fraction.sign) } else { result };
+    let result = if exp > MAX_EXPONENT { inf<EXP_SZ, FRACTION_SZ>(fraction.sign) } else { result };
 
     // Handle underflow, taking into account the case that underflow rounds back
     // up to a normal number. If this was not a DAZ module, we'd have to deal with
     // denormal 'result' here.
-    let underflow_result = if exp == (min_exponent - s33:1) &&
+    let underflow_result = if exp == (MIN_EXPONENT - s33:1) &&
     fraction.fraction == std::mask_bits<FRACTION_SZ>() {
         Float { sign: fraction.sign, bexp: uN[EXP_SZ]:1, fraction: uN[FRACTION_SZ]:0 }
     } else {
         zero<EXP_SZ, FRACTION_SZ>(fraction.sign)
     };
 
-    let result = if exp < min_exponent { underflow_result } else { result };
+    let result = if exp < MIN_EXPONENT { underflow_result } else { result };
     // Flush subnormal output.
     let result = subnormals_to_zero(result);
 

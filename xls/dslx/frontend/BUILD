@@ -210,6 +210,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "token_utils_test",
+    srcs = ["token_utils_test.cc"],
+    deps = [
+        ":token_utils",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+    ],
+)
+
 cc_library(
     name = "token",
     srcs = ["token.cc"],

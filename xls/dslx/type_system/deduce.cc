@@ -189,6 +189,24 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
   return std::move(param_type);
 }
 
+// It's common to accidentally use different constant naming conventions
+// coming from other environments -- warn folks if it's not following
+// https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
+static void WarnOnInappropriateConstantName(std::string_view identifier,
+                                            const Span& span,
+                                            const Module& module,
+                                            DeduceCtx* ctx) {
+  if (!IsScreamingSnakeCase(identifier) &&
+      !module.annotations().contains(
+          ModuleAnnotation::kAllowNonstandardConstantNaming)) {
+    ctx->warnings()->Add(
+        span, WarningKind::kConstantNaming,
+        absl::StrFormat("Standard style is SCREAMING_SNAKE_CASE for constant "
+                        "identifiers; got: `%s`",
+                        identifier));
+  }
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     const ConstantDef* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "Noting constant: " << node->ToString();
@@ -219,18 +237,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     }
   }
 
-  // It's common to accidentally use different constant naming conventions
-  // coming from other environments -- warn folks if it's not following
-  // https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
-  if (!IsScreamingSnakeCase(node->identifier()) &&
-      !node->owner()->annotations().contains(
-          ModuleAnnotation::kAllowNonstandardConstantNaming)) {
-    ctx->warnings()->Add(
-        node->name_def()->span(), WarningKind::kConstantNaming,
-        absl::StrFormat("Standard style is SCREAMING_SNAKE_CASE for constant "
-                        "identifiers; got: `%s`",
-                        node->identifier()));
-  }
+  WarnOnInappropriateConstantName(node->identifier(), node->span(),
+                                  *node->owner(), ctx);
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue constexpr_value,
@@ -362,8 +370,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
     // Reminder: we don't allow name destructuring in constant defs, so this
     // is expected to never fail.
     XLS_RET_CHECK_EQ(node->name_def_tree()->GetNameDefs().size(), 1);
-    ti->NoteConstExpr(node->name_def_tree()->GetNameDefs()[0],
-                      ti->GetConstExpr(node->rhs()).value());
+
+    NameDef* name_def = node->name_def_tree()->GetNameDefs()[0];
+    ti->NoteConstExpr(name_def, ti->GetConstExpr(node->rhs()).value());
+
+    WarnOnInappropriateConstantName(name_def->identifier(), node->span(),
+                                    *node->owner(), ctx);
   }
 
   return ConcreteType::MakeUnit();

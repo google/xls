@@ -56,8 +56,8 @@ std::string Escape(std::string_view original) {
 
 bool IsScreamingSnakeCase(std::string_view identifier) {
   for (char c : identifier) {
-    bool acceptable =
-        ('0' <= c && c <= '9') || ('A' <= c && c <= 'Z') || c == '_';
+    bool acceptable = ('0' <= c && c <= '9') || ('A' <= c && c <= 'Z') ||
+                      c == '_' || c == '\'' || c == '!';
     if (!acceptable) {
       return false;
     }
