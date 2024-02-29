@@ -58,10 +58,10 @@ static absl::StatusOr<std::string> GenerateFormatString(
       // Placeholder is not a supported string. Emit an error message with a
       // sorted list of all valid placeholders.
       std::vector<std::string> all_placeholders;
-      for (auto [name, value] : supported_placeholders) {
+      for (const auto& [name, value] : supported_placeholders) {
         all_placeholders.push_back(absl::StrCat("{", name, "}"));
       }
-      for (auto [name, value] : unsupported_placeholders) {
+      for (const auto& [name, value] : unsupported_placeholders) {
         all_placeholders.push_back(absl::StrCat("{", name, "}"));
       }
       std::sort(all_placeholders.begin(), all_placeholders.end());

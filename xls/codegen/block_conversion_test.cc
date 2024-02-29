@@ -229,7 +229,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       io.resize(last_cycle + 1);
     }
 
-    for (auto [name, value] : signals) {
+    for (const auto& [name, value] : signals) {
       for (int64_t i = first_cycle; i <= last_cycle; ++i) {
         io.at(i)[name] = value;
       }
