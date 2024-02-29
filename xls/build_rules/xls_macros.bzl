@@ -625,20 +625,7 @@ Examples:
     ir_tags = ir_tags if ir_tags != None else []
     synth_tags = synth_tags if synth_tags != None else []
 
-    # Some synthesis benchmarks require special permissions and amy not build so
-    # mark these as manual.
-    synth_tags.append("manual")
-
-    xls_benchmark_ir(
-        name = name,
-        src = src,
-        benchmark_ir_args = benchmark_ir_args,
-        tags = ir_tags + tags,
-        **kwargs
-    )
-    if not synthesize:
-        return
-
+    # Setup shared arguments
     SHARED_FLAGS = (
         "top",
     )
@@ -668,13 +655,6 @@ Examples:
     }
     full_opt_args.update(opt_ir_args)
 
-    opt_ir_target = name + ".default.opt_ir"
-    _xls_ir_opt_ir_macro(
-        name = opt_ir_target,
-        src = src,
-        opt_ir_args = full_opt_args,
-    )
-
     # Add default codegen args
     full_codegen_args = {
         "delay_model": DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL,
@@ -692,9 +672,35 @@ Examples:
     codegen_args = full_codegen_args
 
     delay_model = codegen_args["delay_model"]
+
+    full_benchmark_ir_args = dict(full_codegen_args)
+    full_benchmark_ir_args.update(benchmark_ir_args)
+
     if standard_cells == None:
         # Use default standard cells for the given delay model.
         standard_cells = delay_model_to_standard_cells(delay_model)
+
+    # Some synthesis benchmarks require special permissions and amy not build so
+    # mark these as manual.
+    synth_tags.append("manual")
+
+    # Create required targets.
+    xls_benchmark_ir(
+        name = name,
+        src = src,
+        benchmark_ir_args = full_benchmark_ir_args,
+        tags = ir_tags + tags,
+        **kwargs
+    )
+    if not synthesize:
+        return
+
+    opt_ir_target = name + ".default.opt_ir"
+    _xls_ir_opt_ir_macro(
+        name = opt_ir_target,
+        src = src,
+        opt_ir_args = full_opt_args,
+    )
 
     codegen_target = "{}.default_{}.codegen".format(name, delay_model)
     verilog_file = codegen_target + ".v"
