@@ -181,16 +181,46 @@ TEST_F(ProcStateLegalizationPassTest,
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
-TEST_F(ProcStateLegalizationPassTest, ProcWithNoExplicitDefaultNeeded) {
+TEST_F(ProcStateLegalizationPassTest,
+       ProcWithNoExplicitDefaultNeededAndZ3Enabled) {
   auto p = CreatePackage();
   ProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
-  pb.Next(x, x, pb.Eq(x, pb.Literal(UBits(5, 32))));
-  pb.Next(x, incremented, pb.Ne(x, pb.Literal(UBits(5, 32))));
+  BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
+  pb.Next(x, x, positive_predicate);
+  BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
+  pb.Next(x, incremented, negative_predicate);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
-  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
+  ASSERT_THAT(
+      Run(proc, {.scheduling_options =
+                     SchedulingOptions().default_next_value_z3_rlimit(5000)}),
+      IsOkAndHolds(false));
+}
+
+TEST_F(ProcStateLegalizationPassTest,
+       ProcWithNoExplicitDefaultNeededButZ3Disabled) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
+  BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
+  pb.Next(x, x, positive_predicate);
+  BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
+  pb.Next(x, incremented, negative_predicate);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::Next(x.node(), x.node(), positive_predicate.node()),
+          m::Next(x.node(), incremented.node(), negative_predicate.node()),
+          m::Next(
+              x.node(), x.node(),
+              m::Nor(positive_predicate.node(), negative_predicate.node()))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,

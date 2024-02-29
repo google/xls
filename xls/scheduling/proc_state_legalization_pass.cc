@@ -109,23 +109,28 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
     }
   }
 
-  // Try to prove that at least one of our predicates must be true at all times;
-  // if we can prove this, we don't need a default.
-  std::vector<solvers::z3::PredicateOfNode> z3_predicates;
-  for (Node* predicate : predicates) {
-    z3_predicates.push_back({
-        .subject = predicate,
-        .p = solvers::z3::Predicate::NotEqualToZero(),
-    });
-  }
+  if (std::optional<int64_t> default_next_value_z3_rlimit =
+          options.scheduling_options.default_next_value_z3_rlimit();
+      default_next_value_z3_rlimit.has_value()) {
+    XLS_RET_CHECK_GE(*default_next_value_z3_rlimit, 0);
 
-  absl::StatusOr<bool> no_default_needed = solvers::z3::TryProveDisjunction(
-      proc, z3_predicates,
-      /*rlimit=*/
-      options.scheduling_options.default_next_value_z3_rlimit().value_or(5000),
-      /*allow_unsupported=*/true);
-  if (no_default_needed.value_or(false)) {
-    return false;
+    // Try to prove that at least one of our predicates must be true at all
+    // times; if we can prove this, we don't need a default.
+    std::vector<solvers::z3::PredicateOfNode> z3_predicates;
+    for (Node* predicate : predicates) {
+      z3_predicates.push_back({
+          .subject = predicate,
+          .p = solvers::z3::Predicate::NotEqualToZero(),
+      });
+    }
+
+    absl::StatusOr<bool> no_default_needed = solvers::z3::TryProveDisjunction(
+        proc, z3_predicates,
+        /*rlimit=*/*default_next_value_z3_rlimit,
+        /*allow_unsupported=*/true);
+    if (no_default_needed.value_or(false)) {
+      return false;
+    }
   }
 
   // Explicitly mark the param as unchanged when no other `next_value` node is

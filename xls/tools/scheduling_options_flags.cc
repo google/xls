@@ -92,7 +92,9 @@ ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
           "Resource limit for solver in mutual exclusion pass.");
 ABSL_FLAG(int64_t, default_next_value_z3_rlimit, -1,
           "Resource limit for optimizer when attempting to prove a state param "
-          "doesn't need a default next_value.");
+          "doesn't need a default next_value; if not specified, will not "
+          "attempt this proof using Z3, but will still avoid adding a "
+          "redundant default next_value in specific circumstances.");
 ABSL_FLAG(std::string, scheduling_options_proto, "",
           "Path to a protobuf containing all scheduling options args.");
 ABSL_FLAG(bool, explain_infeasibility, true,
@@ -315,11 +317,13 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   if (proto.receives_first_sends_last()) {
     scheduling_options.add_constraint(RecvsFirstSendsLastConstraint());
   }
-  if (proto.mutual_exclusion_z3_rlimit() != -1) {
+  if (proto.has_mutual_exclusion_z3_rlimit() &&
+      proto.mutual_exclusion_z3_rlimit() >= 0) {
     scheduling_options.mutual_exclusion_z3_rlimit(
         proto.mutual_exclusion_z3_rlimit());
   }
-  if (proto.default_next_value_z3_rlimit() != -1) {
+  if (proto.has_default_next_value_z3_rlimit() &&
+      proto.default_next_value_z3_rlimit() >= 0) {
     scheduling_options.default_next_value_z3_rlimit(
         proto.default_next_value_z3_rlimit());
   }
