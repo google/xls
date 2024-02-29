@@ -711,6 +711,12 @@ xls_ir_opt_ir(
 xls_benchmark_ir(
     name = "delay_loopback_channel_benchmark_ir",
     src = ":delay_loopback_channel_opt_ir.opt.ir",
+    benchmark_ir_args = {
+        # TODO: With schedule generation this generates InstantiationOutput
+        # nodes which are not supported by the block-jit. For now just disable
+        # scheduling.
+        "pipeline_stages": "0",
+    },
     # TODO: Enable this once loopback channels work in synthesis.
     synthesize = False,
 )
