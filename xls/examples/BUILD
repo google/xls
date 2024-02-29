@@ -69,6 +69,12 @@ xls_dslx_test(
     srcs = ["adler32.x"],
 )
 
+xls_dslx_test(
+    name = "gcd_test",
+    srcs = ["gcd.x"],
+    size= "small",
+)
+
 # TODO(rspringer): OOMs. Add xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "adler32_eval_ir_test",
