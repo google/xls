@@ -202,7 +202,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   top->Add<ProcStateFlatteningPass>();
   top->Add<IdentityRemovalPass>();
   top->Add<DataflowSimplificationPass>();
-  top->Add<NextValueOptimizationPass>();
+  top->Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
   top->Add<ProcStateOptimizationPass>();
   top->Add<DeadCodeEliminationPass>();
 
@@ -218,7 +218,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
 
   top->Add<UselessAssertRemovalPass>();
   top->Add<UselessIORemovalPass>();
-  top->Add<NextValueOptimizationPass>();
+  top->Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
   top->Add<ProcStateOptimizationPass>();
   top->Add<DeadCodeEliminationPass>();
 

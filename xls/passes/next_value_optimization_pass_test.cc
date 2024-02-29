@@ -48,11 +48,16 @@ class NextValueOptimizationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(
       Package* p,
-      std::optional<int64_t> split_next_value_selects = std::nullopt) {
+      std::optional<int64_t> split_next_value_selects = std::nullopt,
+      std::optional<int64_t> split_depth_limit = std::nullopt) {
     PassResults results;
     OptimizationPassOptions options;
     options.split_next_value_selects = split_next_value_selects;
-    return NextValueOptimizationPass().Run(p, options, &results);
+    return NextValueOptimizationPass(
+               kMaxOptLevel,
+               split_depth_limit.value_or(
+                   NextValueOptimizationPass::kDefaultMaxSplitDepth))
+        .Run(p, options, &results);
   }
 };
 
@@ -255,18 +260,47 @@ TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
-                  m::Next(m::Param(), m::Literal(2),
+                  m::Next(m::Param("x"), m::Literal(2),
                           m::And(m::Eq(m::Param("a"), m::Literal(0)),
                                  m::Eq(m::Param("b"), m::Literal(0)))),
-                  m::Next(m::Param(), m::Literal(1),
+                  m::Next(m::Param("x"), m::Literal(1),
                           m::And(m::Eq(m::Param("a"), m::Literal(0)),
                                  m::Eq(m::Param("b"), m::Literal(1)))),
-                  m::Next(m::Param(), m::Literal(2),
+                  m::Next(m::Param("x"), m::Literal(2),
                           m::And(m::Eq(m::Param("a"), m::Literal(1)),
                                  m::Eq(m::Param("b"), m::Literal(0)))),
-                  m::Next(m::Param(), m::Literal(3),
+                  m::Next(m::Param("x"), m::Literal(3),
                           m::And(m::Eq(m::Param("a"), m::Literal(1)),
                                  m::Eq(m::Param("b"), m::Literal(1))))));
+}
+
+TEST_F(NextValueOptimizationPassTest,
+       DepthLimitedCascadingSmallSelectsNextValue) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 2)));
+  BValue a = pb.StateElement("a", Value(UBits(0, 1)));
+  BValue b = pb.StateElement("b", Value(UBits(0, 1)));
+  BValue select_b_1 = pb.Select(
+      b, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2))});
+  BValue select_b_2 = pb.Select(
+      b, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
+  BValue select_a = pb.Select(a, std::vector{select_b_1, select_b_2});
+  pb.Next(/*param=*/x, /*value=*/select_a);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+
+  EXPECT_THAT(
+      Run(p.get(), /*split_next_value_selects=*/2, /*split_depth_limit=*/1),
+      IsOkAndHolds(true));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::Next(m::Param("x"),
+                  m::Select(m::Param("b"), {m::Literal(2), m::Literal(1)}),
+                  m::Eq(m::Param("a"), m::Literal(0))),
+          m::Next(m::Param("x"),
+                  m::Select(m::Param("b"), {m::Literal(2), m::Literal(3)}),
+                  m::Eq(m::Param("a"), m::Literal(1)))));
 }
 
 }  // namespace

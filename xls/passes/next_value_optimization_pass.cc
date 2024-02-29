@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -67,14 +68,18 @@ absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
   return proc->GetStateElementCount() > 0;
 }
 
-absl::Status RemoveNextValue(Proc* proc, Next* next) {
+absl::Status RemoveNextValue(Proc* proc, Next* next,
+                             absl::flat_hash_map<Next*, int64_t>& split_depth) {
   XLS_RETURN_IF_ERROR(
       next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
+  if (auto it = split_depth.find(next); it != split_depth.end()) {
+    split_depth.erase(it);
+  }
   return proc->RemoveNode(next);
 }
 
 absl::StatusOr<std::optional<std::vector<Next*>>> RemoveLiteralPredicate(
-    Proc* proc, Next* next) {
+    Proc* proc, Next* next, absl::flat_hash_map<Next*, int64_t>& split_depth) {
   if (!next->predicate().has_value()) {
     return std::nullopt;
   }
@@ -87,7 +92,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> RemoveLiteralPredicate(
   if (literal_predicate->value().IsAllZeros()) {
     XLS_VLOG(2) << "Identified node as dead due to zero predicate; removing: "
                 << *next;
-    XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next));
+    XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next, split_depth));
     return std::vector<Next*>();
   }
   XLS_VLOG(2) << "Identified node as always live; removing predicate: "
@@ -100,12 +105,16 @@ absl::StatusOr<std::optional<std::vector<Next*>>> RemoveLiteralPredicate(
   if (next->HasAssignedName()) {
     new_next->SetName(next->GetName());
   }
-  XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next));
+  if (split_depth.contains(next)) {
+    split_depth[new_next] = split_depth[next];
+  }
+  XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next, split_depth));
   return std::vector<Next*>({new_next});
 }
 
 absl::StatusOr<std::optional<std::vector<Next*>>> SplitSmallSelect(
-    Proc* proc, Next* next, const OptimizationPassOptions& options) {
+    Proc* proc, Next* next, const OptimizationPassOptions& options,
+    absl::flat_hash_map<Next*, int64_t>& split_depth) {
   if (!options.split_next_value_selects.has_value()) {
     return std::nullopt;
   }
@@ -117,6 +126,11 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSmallSelect(
   Select* selected_value = next->value()->As<Select>();
   if (selected_value->cases().size() > *options.split_next_value_selects) {
     return std::nullopt;
+  }
+
+  int64_t depth = 1;
+  if (auto it = split_depth.find(next); it != split_depth.end()) {
+    depth = it->second + 1;
   }
 
   std::vector<Next*> new_next_values;
@@ -149,6 +163,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSmallSelect(
                                      /*value=*/selected_value->cases()[i],
                                      predicate, name));
     new_next_values.push_back(new_next);
+    split_depth[new_next] = depth;
   }
 
   if (selected_value->default_value().has_value()) {
@@ -181,18 +196,24 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSmallSelect(
                                      /*value=*/*selected_value->default_value(),
                                      predicate, name));
     new_next_values.push_back(new_next);
+    split_depth[new_next] = depth;
   }
 
-  XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next));
+  XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next, split_depth));
   return new_next_values;
 }
 
 absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
-    Proc* proc, Next* next) {
+    Proc* proc, Next* next, absl::flat_hash_map<Next*, int64_t>& split_depth) {
   if (!next->value()->Is<PrioritySelect>()) {
     return std::nullopt;
   }
   PrioritySelect* selected_value = next->value()->As<PrioritySelect>();
+
+  int64_t depth = 1;
+  if (auto it = split_depth.find(next); it != split_depth.end()) {
+    depth = it->second + 1;
+  }
 
   std::vector<Next*> new_next_values;
   for (int64_t i = 0; i < selected_value->cases().size(); ++i) {
@@ -224,6 +245,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
                                      /*value=*/selected_value->get_case(i),
                                      /*predicate=*/case_predicate, name));
     new_next_values.push_back(new_next);
+    split_depth[new_next] = depth;
   }
 
   // Default case; if all bits of the input are zero, `priority_sel` returns
@@ -259,13 +281,14 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
                                    /*value=*/default_value,
                                    /*predicate=*/default_predicate, name));
   new_next_values.push_back(new_next);
+  split_depth[new_next] = depth;
 
-  XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next));
+  XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next, split_depth));
   return new_next_values;
 }
 
 absl::StatusOr<std::optional<std::vector<Next*>>> SplitSafeOneHotSelect(
-    Proc* proc, Next* next) {
+    Proc* proc, Next* next, absl::flat_hash_map<Next*, int64_t>& split_depth) {
   if (!next->value()->Is<OneHotSelect>()) {
     return std::nullopt;
   }
@@ -274,6 +297,11 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSafeOneHotSelect(
     // Not safe to use for `next_value`; actual value could be the OR of
     // multiple cases.
     return std::nullopt;
+  }
+
+  int64_t depth = 1;
+  if (auto it = split_depth.find(next); it != split_depth.end()) {
+    depth = it->second + 1;
   }
 
   std::vector<Next*> new_next_values;
@@ -302,8 +330,9 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSafeOneHotSelect(
                                      /*value=*/selected_value->get_case(i),
                                      /*predicate=*/case_predicate, name));
     new_next_values.push_back(new_next);
+    split_depth[new_next] = depth;
   }
-  XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next));
+  XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next, split_depth));
   return new_next_values;
 }
 
@@ -321,13 +350,14 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
 
   std::deque<Next*> worklist(proc->next_values().begin(),
                              proc->next_values().end());
+  absl::flat_hash_map<Next*, int64_t> split_depth;
   while (!worklist.empty()) {
     Next* next = worklist.front();
     worklist.pop_front();
 
     XLS_ASSIGN_OR_RETURN(
         std::optional<std::vector<Next*>> literal_predicate_next_values,
-        RemoveLiteralPredicate(proc, next));
+        RemoveLiteralPredicate(proc, next, split_depth));
     if (literal_predicate_next_values.has_value()) {
       changed = true;
       worklist.insert(worklist.end(), literal_predicate_next_values->begin(),
@@ -335,35 +365,40 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
       continue;
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<std::vector<Next*>> split_select_next_values,
-        SplitSmallSelect(proc, next, options));
-    if (split_select_next_values.has_value()) {
-      changed = true;
-      worklist.insert(worklist.end(), split_select_next_values->begin(),
-                      split_select_next_values->end());
-      continue;
-    }
+    if (auto it = split_depth.find(next);
+        SplitsEnabled(opt_level_) && max_split_depth_ > 0 &&
+        (it == split_depth.end() || it->second < max_split_depth_)) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<std::vector<Next*>> split_select_next_values,
+          SplitSmallSelect(proc, next, options, split_depth));
+      if (split_select_next_values.has_value()) {
+        changed = true;
+        worklist.insert(worklist.end(), split_select_next_values->begin(),
+                        split_select_next_values->end());
+        continue;
+      }
 
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<std::vector<Next*>> split_priority_select_next_values,
-        SplitPrioritySelect(proc, next));
-    if (split_priority_select_next_values.has_value()) {
-      changed = true;
-      worklist.insert(worklist.end(),
-                      split_priority_select_next_values->begin(),
-                      split_priority_select_next_values->end());
-      continue;
-    }
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<std::vector<Next*>> split_priority_select_next_values,
+          SplitPrioritySelect(proc, next, split_depth));
+      if (split_priority_select_next_values.has_value()) {
+        changed = true;
+        worklist.insert(worklist.end(),
+                        split_priority_select_next_values->begin(),
+                        split_priority_select_next_values->end());
+        continue;
+      }
 
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<std::vector<Next*>> split_one_hot_select_next_values,
-        SplitSafeOneHotSelect(proc, next));
-    if (split_one_hot_select_next_values.has_value()) {
-      changed = true;
-      worklist.insert(worklist.end(), split_one_hot_select_next_values->begin(),
-                      split_one_hot_select_next_values->end());
-      continue;
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<std::vector<Next*>> split_one_hot_select_next_values,
+          SplitSafeOneHotSelect(proc, next, split_depth));
+      if (split_one_hot_select_next_values.has_value()) {
+        changed = true;
+        worklist.insert(worklist.end(),
+                        split_one_hot_select_next_values->begin(),
+                        split_one_hot_select_next_values->end());
+        continue;
+      }
     }
   }
 

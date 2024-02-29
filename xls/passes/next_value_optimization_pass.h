@@ -15,7 +15,9 @@
 #ifndef XLS_PASSES_NEXT_VALUE_OPTIMIZATION_PASS_H_
 #define XLS_PASSES_NEXT_VALUE_OPTIMIZATION_PASS_H_
 
+#include <cstdint>
 #include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/optimization_pass.h"
@@ -37,11 +39,19 @@ namespace xls {
 class NextValueOptimizationPass : public OptimizationProcPass {
  public:
   static constexpr std::string_view kName = "next_value_opt";
-  NextValueOptimizationPass()
-      : OptimizationProcPass(kName, "Next Value Optimization") {}
+
+  static constexpr int64_t kDefaultMaxSplitDepth = 10;
+  explicit NextValueOptimizationPass(
+      int64_t opt_level = kMaxOptLevel,
+      int64_t max_split_depth = kDefaultMaxSplitDepth)
+      : OptimizationProcPass(kName, "Next Value Optimization"),
+        opt_level_(opt_level),
+        max_split_depth_(max_split_depth) {}
   ~NextValueOptimizationPass() override = default;
 
  protected:
+  const int64_t opt_level_;
+  const int64_t max_split_depth_;
   absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
                                          const OptimizationPassOptions& options,
                                          PassResults* results) const override;
