@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -623,11 +624,6 @@ absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(
 absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice) {
   int64_t bit_count = bit_slice->to_slice()->BitCountOrDie();
   int64_t width = bit_slice->width();
-  // TODO(epastor): Remove this restriction by padding the last array element
-  // with zeros as needed.
-  if (bit_count % width != 0) {
-    return false;
-  }
   Node* start = bit_slice->start();
 
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> index,
@@ -637,14 +633,27 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice) {
   }
 
   std::vector<Node*> array_elements;
-  array_elements.reserve(bit_count / width);
+  array_elements.reserve((bit_count / width) +
+                         static_cast<int64_t>(bit_count % width != 0));
   for (int64_t element_start = 0; element_start < bit_count;
        element_start += width) {
-    XLS_ASSIGN_OR_RETURN(Node * array_element,
-                         bit_slice->function_base()->MakeNode<BitSlice>(
-                             bit_slice->loc(), bit_slice->to_slice(),
-                             /*start=*/element_start,
-                             /*width=*/width));
+    Node* array_element;
+    if (element_start + width <= bit_count) {
+      XLS_ASSIGN_OR_RETURN(array_element,
+                           bit_slice->function_base()->MakeNode<BitSlice>(
+                               bit_slice->loc(), bit_slice->to_slice(),
+                               /*start=*/element_start,
+                               /*width=*/width));
+    } else {
+      XLS_ASSIGN_OR_RETURN(Node * slice,
+                           bit_slice->function_base()->MakeNode<BitSlice>(
+                               bit_slice->loc(), bit_slice->to_slice(),
+                               /*start=*/element_start,
+                               /*width=*/bit_count - element_start));
+      XLS_ASSIGN_OR_RETURN(array_element,
+                           bit_slice->function_base()->MakeNode<ExtendOp>(
+                               SourceInfo(), slice, width, Op::kZeroExt));
+    }
     array_elements.push_back(array_element);
   }
 
@@ -697,11 +706,6 @@ absl::StatusOr<bool> SimplifyDynamicBitSlice(DynamicBitSlice* bit_slice) {
 absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update) {
   int64_t bit_count = update->to_update()->BitCountOrDie();
   int64_t width = update->update_value()->BitCountOrDie();
-  // TODO(epastor): Remove this restriction by padding the last array element
-  // with zeros as needed, then removing them from the result.
-  if (bit_count % width != 0) {
-    return false;
-  }
   Node* start = update->start();
 
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> index,
@@ -711,14 +715,27 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update) {
   }
 
   std::vector<Node*> array_elements;
-  array_elements.reserve(bit_count / width);
+  array_elements.reserve((bit_count / width) +
+                         static_cast<int64_t>(bit_count % width != 0));
   for (int64_t element_start = 0; element_start < bit_count;
        element_start += width) {
-    XLS_ASSIGN_OR_RETURN(Node * array_element,
-                         update->function_base()->MakeNode<BitSlice>(
-                             update->loc(), update->to_update(),
-                             /*start=*/element_start,
-                             /*width=*/width));
+    Node* array_element;
+    if (element_start + width <= bit_count) {
+      XLS_ASSIGN_OR_RETURN(array_element,
+                           update->function_base()->MakeNode<BitSlice>(
+                               update->loc(), update->to_update(),
+                               /*start=*/element_start,
+                               /*width=*/width));
+    } else {
+      XLS_ASSIGN_OR_RETURN(Node * slice,
+                           update->function_base()->MakeNode<BitSlice>(
+                               update->loc(), update->to_update(),
+                               /*start=*/element_start,
+                               /*width=*/bit_count - element_start));
+      XLS_ASSIGN_OR_RETURN(array_element,
+                           update->function_base()->MakeNode<ExtendOp>(
+                               SourceInfo(), slice, width, Op::kZeroExt));
+    }
     array_elements.push_back(array_element);
   }
   XLS_ASSIGN_OR_RETURN(Node * array, update->function_base()->MakeNode<Array>(
@@ -744,6 +761,15 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update) {
                          array_update->function_base()->MakeNode<ArrayIndex>(
                              array_update->loc(), array_update,
                              /*indices=*/std::vector<Node*>({element_index})));
+    if (bit_count - (i * width) < width) {
+      CHECK_EQ(i, array_elements.size() - 1);
+
+      // Disregard any bits past the end of the original bit vector.
+      XLS_ASSIGN_OR_RETURN(updated_array_element,
+                           array_update->function_base()->MakeNode<BitSlice>(
+                               SourceInfo(), updated_array_element, /*start=*/0,
+                               /*width=*/bit_count - (i * width)));
+    }
     updated_array_elements.push_back(updated_array_element);
   }
 

@@ -692,9 +692,9 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateOutOfBounds) {
 TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceWithScaledIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  Type* u30 = p->GetBitsType(30);
+  Type* u23 = p->GetBitsType(23);
   Type* u2 = p->GetBitsType(2);
-  BValue x = fb.Param("x", u30);
+  BValue x = fb.Param("x", u23);
   BValue z = fb.Param("z", u2);
   BValue index = fb.UMul(fb.ZeroExtend(z, 5), fb.Literal(UBits(10, 5)));
   fb.DynamicBitSlice(x, index, /*width=*/10);
@@ -705,11 +705,14 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceWithScaledIndex) {
 
   ASSERT_THAT(
       f->return_value(),
-      m::Select(m::ZeroExt(m::Param("z")),
-                {m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/10),
-                 m::BitSlice(m::Param("x"), /*start=*/10, /*width=*/10),
-                 m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/10)},
-                m::Literal(0)));
+      m::Select(
+          m::ZeroExt(m::Param("z")),
+          {
+              m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/10),
+              m::BitSlice(m::Param("x"), /*start=*/10, /*width=*/10),
+              m::ZeroExt(m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/3)),
+          },
+          m::Literal(0)));
 }
 
 TEST_F(BitSliceSimplificationPassTest,
@@ -731,14 +734,16 @@ TEST_F(BitSliceSimplificationPassTest,
       f->return_value(),
       m::Select(m::BitSlice(m::UMul(m::ZeroExt(m::Param("z")), m::Literal(4)),
                             /*start=*/2, /*width=*/3),
-                {m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/4, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/8, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/12, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/16, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/24, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/28, /*width=*/4)}));
+                {
+                    m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/4, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/8, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/12, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/16, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/24, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/28, /*width=*/4),
+                }));
 }
 
 TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceWithShiftedIndex) {
@@ -759,14 +764,16 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceWithShiftedIndex) {
       f->return_value(),
       m::Select(m::BitSlice(m::Shll(m::ZeroExt(m::Param("z")), m::Literal(2)),
                             /*start=*/2, /*width=*/3),
-                {m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/4, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/8, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/12, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/16, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/24, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/28, /*width=*/4)}));
+                {
+                    m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/4, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/8, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/12, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/16, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/24, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/28, /*width=*/4),
+                }));
 }
 
 TEST_F(BitSliceSimplificationPassTest,
@@ -787,23 +794,25 @@ TEST_F(BitSliceSimplificationPassTest,
   ASSERT_THAT(
       f->return_value(),
       m::Select(m::Concat(m::Param("z")),
-                {m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/4, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/8, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/12, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/16, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/24, /*width=*/4),
-                 m::BitSlice(m::Param("x"), /*start=*/28, /*width=*/4)}));
+                {
+                    m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/4, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/8, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/12, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/16, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/24, /*width=*/4),
+                    m::BitSlice(m::Param("x"), /*start=*/28, /*width=*/4),
+                }));
 }
 
 TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateWithScaledIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  Type* u30 = p->GetBitsType(30);
+  Type* u23 = p->GetBitsType(23);
   Type* u10 = p->GetBitsType(10);
   Type* u2 = p->GetBitsType(2);
-  BValue x = fb.Param("x", u30);
+  BValue x = fb.Param("x", u23);
   BValue y = fb.Param("y", u10);
   BValue z = fb.Param("z", u2);
   BValue index = fb.UMul(fb.ZeroExtend(z, 5), fb.Literal(UBits(10, 5)));
@@ -813,15 +822,18 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateWithScaledIndex) {
   solvers::z3::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
-  auto array = m::Array(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/10),
-                        m::BitSlice(m::Param("x"), /*start=*/10, /*width=*/10),
-                        m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/10));
+  auto array = m::Array(
+      m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/10),
+      m::BitSlice(m::Param("x"), /*start=*/10, /*width=*/10),
+      m::ZeroExt(m::BitSlice(m::Param("x"), /*start=*/20, /*width=*/3)));
   auto array_update =
       m::ArrayUpdate(array, m::Param("y"), {m::ZeroExt(m::Param("z"))});
-  ASSERT_THAT(f->return_value(),
-              m::Concat(m::ArrayIndex(array_update, {m::Literal(2)}),
-                        m::ArrayIndex(array_update, {m::Literal(1)}),
-                        m::ArrayIndex(array_update, {m::Literal(0)})));
+  ASSERT_THAT(
+      f->return_value(),
+      m::Concat(m::BitSlice(m::ArrayIndex(array_update, {m::Literal(2)}),
+                            /*start=*/0, /*width=*/3),
+                m::ArrayIndex(array_update, {m::Literal(1)}),
+                m::ArrayIndex(array_update, {m::Literal(0)})));
 }
 
 TEST_F(BitSliceSimplificationPassTest,
