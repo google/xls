@@ -670,7 +670,7 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
   absl::flat_hash_map<std::string, InterpValue> env;
   absl::flat_hash_map<std::string, InterpValue> values;
 
-  for (auto [id, value] : parametric_env.ToMap()) {
+  for (const auto& [id, value] : parametric_env.ToMap()) {
     env.insert({id, value});
   }
 
