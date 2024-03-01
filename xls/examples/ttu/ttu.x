@@ -44,19 +44,17 @@ pub struct LoopBundle {
     stride: u16,
 }
 
-pub struct TtuBundle<NumBundles: u32> {
-    loops: LoopBundle[NumBundles],
-    ttu_id: u2,
-    register: u2,
+pub struct TtuBundle<NumLoops: u32> {
+    loops: LoopBundle[NumLoops],
+    base: u32,
 }
 
 pub struct TtuInstruction<NumTtus: u32> {
-    ttu: TtuBundle<2>[3],
+    ttu: TtuBundle<2>[NumTtus],
 }
 
-pub struct TtuState<NumRegisters: u32> {
-    regs: u32[NumRegisters],
-    pc: u16,
+pub struct TtuState<NumTtus: u32, NumLoops: u32> {
+    loopnest_state: u32[NumLoops][NumTtus],
 }
 
 pub struct Register<Bits: u32> {
@@ -84,19 +82,35 @@ pub struct Bundle {
 // Creating a proc that consumes a TTU bundle.
 proc ttu {
    instruction : chan<TtuInstruction<3>> in;
-   result: chan<u32>[3] out;
+   tick: chan<bool> in;
+   result: chan<u32[3]> out;
 
-   init { TtuState<3>{regs: u32[3]: [0,...], pc: u16: 0} }
+   init { TtuState<3, 2>{loopnest_state: u32[2][3]: [[u32:0, u32:0], ...]} }
 
-   config(instruction: chan<TtuInstruction<3>> in, result: chan<u32>[3] out) {
-    (instruction, result)
+   config(instruction: chan<TtuInstruction<3>> in, tick: chan<bool> in, result: chan<u32[3]> out) {
+    (instruction, tick, result)
    }
 
-    next(tok: token, state: TtuState<3>) {
+    next(tok: token, state: TtuState<3, 2>) {
         // Just tying things up to compile.
         let (tok, ins) = recv(tok, instruction);
-        let tok = send(tok, result[0], ins.ttu[0].loops[0].start);
-        state
+        let (tok, one_tick) = recv(tok, tick);
+        let outer_ticks = ins.ttu[0].loops[0].end - ins.ttu[0].loops[0].start;
+        let inner_ticks = ins.ttu[0].loops[1].end - ins.ttu[0].loops[1].start;
+        let outer_stride = ins.ttu[0].loops[1].stride;
+        let inner_stride = ins.ttu[0].loops[0].stride;
+
+        for (i, os): (u32, TtuState<3, 2>) in range(u32:0, outer_ticks) {
+            for (j, is): (u32, TtuState<3, 2>) in range(u32:0, inner_ticks) {
+                let a = for (k, addresses): (u32, u32[3]) in range(u32:0, 3) {
+                    let base = ins.ttu[k].base;
+                    let outer_stride = ins.ttu[k].loops[1].stride;
+                    let inner_stride = ins.ttu[k].loops[0].stride;
+                    let address = i * outer_stride + j * inner_stride + base;
+                }([0,...]);
+                let tok = send(tok, result, a);
+            }(os)
+        }(state)
     }
 
 }
@@ -114,6 +128,6 @@ proc main {
         (terminator,)
     }
     next(tok: token, state: ()) {
-        ()
+        let tok = send(tok, terminator, true);
     }
 }
