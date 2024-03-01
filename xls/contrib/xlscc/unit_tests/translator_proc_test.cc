@@ -6995,6 +6995,65 @@ TEST_F(TranslatorProcTestWithoutFSMParam, OpDuplicationAcrossIO) {
   EXPECT_GT(multiply_op_count, 1);
 }
 
+TEST_P(TranslatorProcTest, ForPipelinedWithDirectIn) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(const long& dir,
+              __xls_channel<int>& in,
+              __xls_channel<int>& out) {
+
+      const int ctrl = in.read();
+
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<3;++i) {
+        out.write(ctrl*i + dir);
+      }
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* dir_in = block_spec.add_channels();
+    dir_in->set_name("dir");
+    dir_in->set_is_input(true);
+    dir_in->set_type(DIRECT_IN);
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["dir"] = {xls::Value(xls::SBits(100, 64))};
+  inputs["in"] = {xls::Value(xls::SBits(5, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(100 + 0 * 5, 32)),
+                      xls::Value(xls::SBits(100 + 1 * 5, 32)),
+                      xls::Value(xls::SBits(100 + 2 * 5, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for_1"));
+  EXPECT_EQ(body_proc_state_bits,
+            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 64 + 32 + 32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits,
+            generate_fsms_for_pipelined_loops_ ? (1 + 32) : 0);
+}
+
 }  // namespace
 
 }  // namespace xlscc

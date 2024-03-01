@@ -638,8 +638,20 @@ absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
 absl::StatusOr<Translator::GenerateFSMInvocationReturn>
 Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
                                   const xls::SourceInfo& body_loc) {
-  absl::flat_hash_map<const IOOp*, const State*> state_by_io_op;
+  // Create a deterministic ordering for the last state elements
+  // (These store the received inputs for IO operations)
+  std::vector<int64_t> arg_indices_ordered_by_state_elems;
 
+  for (const IOOp& op : prepared.xls_func->io_ops) {
+    if (!prepared.arg_index_for_op.contains(&op)) {
+      continue;
+    }
+    arg_indices_ordered_by_state_elems.push_back(
+        prepared.arg_index_for_op.at(&op));
+  }
+
+  // Lay out the states for this FSM
+  absl::flat_hash_map<const IOOp*, const State*> state_by_io_op;
   std::vector<std::unique_ptr<State>> states;
 
   for (const IOOp& op : prepared.xls_func->io_ops) {
@@ -721,9 +733,9 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     xls::Type* state_type = package_->GetBitsType(state_bits);
     initial_state_index = xls::ZeroOfType(state_type);
     std::vector<xls::Type*> args_types;
-    args_types.reserve(prepared.args.size());
-    for (const auto& arg : prepared.args) {
-      args_types.push_back(arg.GetType());
+    args_types.reserve(arg_indices_ordered_by_state_elems.size());
+    for (int64_t arg_idx : arg_indices_ordered_by_state_elems) {
+      args_types.push_back(prepared.args.at(arg_idx).GetType());
     }
     args_type = package_->GetTupleType(args_types);
     initial_args_val = xls::ZeroOfType(args_type);
@@ -784,9 +796,12 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
       if (state->index > 0) {
         // Get the arguments from the invoke for the last state
-        for (int64_t arg = 0; arg < prepared.args.size(); ++arg) {
-          prepared.args[arg] =
-              pb.TupleIndex(args_from_last_state, /*idx=*/arg, body_loc);
+        // Avoids SwRegisters in state implicitly?
+        int64_t state_elem_idx = 0;
+        for (int64_t arg_idx : arg_indices_ordered_by_state_elems) {
+          prepared.args[arg_idx] = pb.TupleIndex(
+              args_from_last_state, /*idx=*/state_elem_idx, body_loc);
+          ++state_elem_idx;
         }
       }
     } else {
@@ -843,7 +858,14 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     // Save return values for this state
     if (state_index.valid()) {
       XLSCC_CHECK(state->in_this_state.valid(), body_loc);
-      next_args_by_state.at(state->index) = pb.Tuple(prepared.args, body_loc);
+      std::vector<xls::BValue> next_args_by_state_elems;
+      next_args_by_state_elems.reserve(
+          arg_indices_ordered_by_state_elems.size());
+      for (int64_t arg_idx : arg_indices_ordered_by_state_elems) {
+        next_args_by_state_elems.push_back(prepared.args.at(arg_idx));
+      }
+      next_args_by_state.at(state->index) =
+          pb.Tuple(next_args_by_state_elems, body_loc);
     }
   }
 
