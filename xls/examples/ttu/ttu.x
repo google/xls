@@ -97,9 +97,6 @@ proc ttu {
         let (tok, one_tick) = recv(tok, tick);
         let outer_ticks = ins.ttu[0].loops[0].end - ins.ttu[0].loops[0].start;
         let inner_ticks = ins.ttu[0].loops[1].end - ins.ttu[0].loops[1].start;
-        let outer_stride = ins.ttu[0].loops[1].stride;
-        let inner_stride = ins.ttu[0].loops[0].stride;
-
         for (i, os): (u32, TtuState<3, 2>) in range(u32:0, outer_ticks) {
             for (j, is): (u32, TtuState<3, 2>) in range(u32:0, inner_ticks) {
                 let a = for (k, addresses): (u32, u32[3]) in range(u32:0, 3) {
