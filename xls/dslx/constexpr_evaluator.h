@@ -147,6 +147,10 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
 std::string EnvMapToString(
     const absl::flat_hash_map<std::string, InterpValue>& map);
 
+// Evaluates a Number AST node to an InterpValue.
+absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
+                                           const ConcreteType& type);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_CONSTEXPR_EVALUATOR_H_

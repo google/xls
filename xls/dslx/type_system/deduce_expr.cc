@@ -210,17 +210,29 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
                                                            DeduceCtx* ctx) {
   std::unique_ptr<ConcreteType> concrete_type;
+
+  auto note_constexpr_value = [&](const ConcreteType& type) -> absl::Status {
+    if (type.HasParametricDims()) {
+      return absl::OkStatus();
+    }
+    XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*node, type));
+    ctx->type_info()->NoteConstExpr(node, value);
+    return absl::OkStatus();
+  };
+
   ParametricEnv bindings = ctx->GetCurrentParametricEnv();
   if (node->type_annotation() == nullptr) {
     switch (node->number_kind()) {
       case NumberKind::kBool: {
         auto type = BitsType::MakeU1();
         ctx->type_info()->SetItem(node, *type);
+        XLS_RETURN_IF_ERROR(note_constexpr_value(*type));
         return type;
       }
       case NumberKind::kCharacter: {
         auto type = BitsType::MakeU8();
         ctx->type_info()->SetItem(node, *type);
+        XLS_RETURN_IF_ERROR(note_constexpr_value(*type));
         return type;
       }
       default:
@@ -253,6 +265,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
 
   XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *bits_type));
   ctx->type_info()->SetItem(node, *concrete_type);
+  XLS_RETURN_IF_ERROR(note_constexpr_value(*concrete_type));
   return concrete_type;
 }
 

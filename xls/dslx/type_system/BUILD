@@ -410,6 +410,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
+        "//xls/dslx:error_test_utils",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
     ],

@@ -986,7 +986,7 @@ TEST(TypecheckTest, Index) {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not an array")));
   EXPECT_THAT(Typecheck("fn f(x: u32[5], i: u8[5]) -> u32 { x[i] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("not (scalar) bits")));
+                       HasSubstr("not unsigned-bits type")));
 }
 
 TEST(TypecheckTest, OutOfRangeNumber) {

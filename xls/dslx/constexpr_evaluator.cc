@@ -33,6 +33,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -54,6 +55,7 @@
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
+#include "xls/ir/bits.h"
 
 namespace xls::dslx {
 namespace {
@@ -475,23 +477,31 @@ absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
   return absl::OkStatus();
 }
 
-// Evaluates a Number AST node to an InterpValue.
-static absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
-                                                  const ConcreteType* type) {
-  XLS_RET_CHECK(!type->IsMeta())
-      << "Got invalid type when evaluating number: " << type->ToString()
-      << " @ " << expr->span();
-  XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
-              << expr->span();
-  const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
+absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
+                                           const ConcreteType& type) {
+  XLS_RET_CHECK(!type.IsMeta())
+      << "Got invalid type when evaluating number: " << type.ToString() << " @ "
+      << expr.span();
+  XLS_VLOG(4) << "Evaluating number: " << expr.ToString() << " @ "
+              << expr.span();
+  const BitsType* bits_type = dynamic_cast<const BitsType*>(&type);
   XLS_RET_CHECK(bits_type != nullptr)
       << "Type for number should be 'bits' kind.";
   InterpValueTag tag =
       bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
-  XLS_ASSIGN_OR_RETURN(
-      int64_t bit_count,
-      std::get<InterpValue>(bits_type->size().value()).GetBitValueViaSign());
-  XLS_ASSIGN_OR_RETURN(Bits bits, expr->GetBits(bit_count));
+
+  const std::variant<InterpValue, ConcreteTypeDim::OwnedParametric>& value =
+      bits_type->size().value();
+  if (!std::holds_alternative<InterpValue>(value)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot evaluate number %s as type %s is parametric",
+                        expr.ToString(), type.ToString()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                       std::get<InterpValue>(value).GetBitValueViaSign());
+
+  XLS_ASSIGN_OR_RETURN(Bits bits, expr.GetBits(bit_count));
   return InterpValue::MakeBits(tag, std::move(bits));
 }
 
@@ -535,7 +545,8 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
     type_ptr = temp_type.get();
   }
 
-  XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(expr, type_ptr));
+  XLS_RET_CHECK(type_ptr != nullptr);
+  XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*expr, *type_ptr));
   type_info_->NoteConstExpr(expr, value);
 
   return absl::OkStatus();

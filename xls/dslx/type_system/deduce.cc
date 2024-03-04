@@ -1223,6 +1223,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(const Index* node,
       std::holds_alternative<WidthSlice*>(node->rhs())) {
     return DeduceSliceType(node, ctx, std::move(lhs_type));
   }
+  Expr* rhs = std::get<Expr*>(node->rhs());
 
   if (auto* tuple_type = dynamic_cast<TupleType*>(lhs_type.get())) {
     return TypeInferenceErrorStatus(
@@ -1239,14 +1240,43 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(const Index* node,
 
   ctx->set_in_typeless_number_ctx(true);
   absl::Cleanup cleanup = [ctx]() { ctx->set_in_typeless_number_ctx(false); };
+
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> index_type,
-                       ctx->Deduce(ToAstNode(node->rhs())));
+                       ctx->Deduce(ToAstNode(rhs)));
   XLS_RET_CHECK(index_type != nullptr);
+
   auto* index_bits = dynamic_cast<BitsType*>(index_type.get());
-  if (index_bits == nullptr) {
+  if (index_bits == nullptr || index_bits->is_signed()) {
     return TypeInferenceErrorStatus(node->span(), index_type.get(),
-                                    "Index is not (scalar) bits typed.");
+                                    "Index is not unsigned-bits typed.");
   }
+
+  XLS_VLOG(10) << absl::StreamFormat("Index RHS: `%s` constexpr? %d",
+                                     rhs->ToString(),
+                                     ctx->type_info()->IsKnownConstExpr(rhs));
+
+  // If we know the array size concretely and the index is a constexpr
+  // expression, we can check it is in bounds.
+  //
+  // TODO(leary): 2024-02-29 Check this in the various slice forms that are not
+  // expressions.
+  if (!array_type->size().IsParametric() &&
+      ctx->type_info()->IsKnownConstExpr(rhs)) {
+    XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
+                         ctx->type_info()->GetConstExpr(rhs));
+    XLS_VLOG(10) << "Index RHS is known constexpr value: " << constexpr_value;
+    XLS_ASSIGN_OR_RETURN(uint64_t constexpr_index,
+                         constexpr_value.GetBitValueUnsigned());
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
+    if (constexpr_index >= array_size) {
+      return TypeInferenceErrorStatus(
+          node->span(), array_type,
+          absl::StrFormat("Index has a compile-time constant value %d that is "
+                          "out of bounds of the array type.",
+                          constexpr_index));
+    }
+  }
+
   return array_type->element_type().CloneToUnique();
 }
 

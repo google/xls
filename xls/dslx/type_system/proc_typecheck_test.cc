@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 
 namespace xls::dslx {
@@ -296,6 +297,52 @@ proc MyTestProc {
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithArrayOfChannels) {
+  constexpr std::string_view kProgram = R"(
+proc p {
+  result: chan<u32>[2] out;
+
+  config(result: chan<u32>[2] out) { (result,) }
+  init { () }
+  next(tok: token, state: ()) { send(tok, result[0], u32:0); }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, ProcWithArrayOfChannelsIndexOob) {
+  constexpr std::string_view kProgram = R"(
+proc p {
+  result: chan<u32>[2] out;
+
+  config(result: chan<u32>[2] out) { (result,) }
+  init { () }
+  next(tok: token, state: ()) { send(tok, result[2], u32:0); }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram).status(),
+              IsPosError("TypeInferenceError",
+                         testing::HasSubstr(
+                             "Index has a compile-time constant value 2 that "
+                             "is out of bounds of the array type.")));
+}
+
+TEST(TypecheckErrorTest, ProcWithArrayOfChannelsSendWrongType) {
+  constexpr std::string_view kProgram = R"(
+proc p {
+  result: chan<u32>[2] out;
+
+  config(result: chan<u32>[2] out) { (result,) }
+  init { () }
+  next(tok: token, state: ()) { send(tok, result[1], u64:0); }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram).status(),
+              IsPosError("XlsTypeError",
+                         testing::HasSubstr(
+                             "Want argument 2 to 'send' to have type uN[32]")));
 }
 
 }  // namespace

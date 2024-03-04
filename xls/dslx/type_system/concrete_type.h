@@ -560,6 +560,7 @@ class BitsType : public ConcreteType {
       : BitsType(is_signed, ConcreteTypeDim(InterpValue::MakeU32(size))) {}
   BitsType(bool is_signed, ConcreteTypeDim size)
       : is_signed_(is_signed), size_(size) {}
+
   ~BitsType() override = default;
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {
