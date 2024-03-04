@@ -232,19 +232,19 @@ fn run_c_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
 #[test]
 fn run_c_test() {
   // MD=D+1
-  let (pc, rd, ra, rm, wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0011111, u3:0b011, u3:0b000), u16:1, u16:2, u16:3);
+  let (pc, rd, ra, rm, _wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0011111, u3:0b011, u3:0b000), u16:1, u16:2, u16:3);
   assert_eq(pc, u16:1);
   assert_eq(rd, u16:2);
   assert_eq(ra, u16:2);
   assert_eq(rm, u16:2);
   // D+1;JLE
-  let (pc, rd, ra, rm, wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0011111, u3:0b000, u3:0b110), s16:-1 as u16, u16:2, u16:3);
+  let (pc, rd, ra, rm, _wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0011111, u3:0b000, u3:0b110), s16:-1 as u16, u16:2, u16:3);
   assert_eq(pc, u16:2);
   assert_eq(rd, s16:-1 as u16);
   assert_eq(ra, u16:2);
   assert_eq(rm, u16:3);
   // 0;JMP
-  let (pc, rd, ra, rm, wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0101010, u3:0b000, u3:0b111), u16:1, u16:2, u16:3);
+  let (pc, rd, ra, rm, _wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0101010, u3:0b000, u3:0b111), u16:1, u16:2, u16:3);
   assert_eq(pc, u16:2);
   assert_eq(rd, u16:1);
   assert_eq(ra, u16:2);
@@ -258,7 +258,7 @@ fn cpu(pc: u16, rd: u16, ra: u16, ram: u16[32], rom: u16[32]) -> (u16, u16, u16,
   let (pc', rd', ra', rm', wm) = match ins[15+:u1] {
     u1:0 => run_a_instruction(pc, ins, rd, ra, rm),
     u1:1 => run_c_instruction(pc, ins, rd, ra, rm),
-    _ => fail!((pc, rd, ra, rm, u1:0)),
+    _ => fail!("exhaustive_boolean_match", (pc, rd, ra, rm, u1:0)),
   };
   (pc', rd', ra', if wm { update(ram, ra', rm') } else { ram })
 }
@@ -296,7 +296,7 @@ fn run_cpu() {
   let ra = u16:0;
   let rd = u16:0;
   let ram = u16[32]:[u16:4, 0, ...];
-  let (pc'', rd'', ra'', ram'') = for (i, (pc', rd', ra', ram')): (u32, (u16, u16, u16, u16[32])) in range(u32:0, u32:100) {
+  let (pc'', _rd, _ra, ram'') = for (_, (pc', rd', ra', ram')): (u32, (u16, u16, u16, u16[32])) in range(u32:0, u32:100) {
     cpu(pc', rd', ra', ram', rom)
   }((pc, rd, ra, ram));
   assert_eq(ram''[u16:1], u16:10);

@@ -111,6 +111,29 @@ xls_dslx_test(
     deps = [":lfsr_dslx"],
 )
 
+xls_dslx_library(
+    name = "lfsr_proc_dslx",
+    srcs = ["lfsr_proc.x"],
+    deps = [":lfsr_dslx"],
+)
+
+xls_dslx_test(
+    name = "lfsr_proc_dslx_test",
+    srcs = ["lfsr_proc.x"],
+    deps = [":lfsr_proc_dslx"],
+)
+
+xls_dslx_library(
+    name = "capitalize_dslx",
+    srcs = ["capitalize.x"],
+)
+
+xls_dslx_test(
+    name = "capitalize_dslx_test",
+    srcs = ["capitalize.x"],
+    deps = [":capitalize_dslx"],
+)
+
 xls_dslx_opt_ir(
     name = "capitalize",
     srcs = ["capitalize.x"],
@@ -120,6 +143,17 @@ xls_dslx_opt_ir(
 xls_dslx_opt_ir_test(
     name = "capitalize_test",
     dep = ":capitalize",
+)
+
+xls_dslx_library(
+    name = "crc32_dslx",
+    srcs = ["crc32.x"],
+)
+
+xls_dslx_test(
+    name = "crc32_dslx_test",
+    srcs = ["crc32.x"],
+    deps = [":crc32_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -325,8 +359,20 @@ xls_dslx_library(
 )
 
 xls_dslx_test(
+    name = "sobel_filter_dslx_test",
+    srcs = ["sobel_filter.x"],
+    deps = [":sobel_filter_dslx"],
+)
+
+xls_dslx_test(
     name = "sobel_filter_test",
     srcs = ["sobel_filter.x"],
+    deps = [":sobel_filter_dslx"],
+)
+
+xls_dslx_library(
+    name = "sobel_filter_benchmark_dslx",
+    srcs = ["sobel_filter_benchmark.x"],
     deps = [":sobel_filter_dslx"],
 )
 
@@ -577,6 +623,17 @@ synthesize_rtl(
     ],
 )
 
+xls_dslx_library(
+    name = "large_array_dslx",
+    srcs = ["large_array.x"],
+)
+
+xls_dslx_test(
+    name = "large_array_dslx_test",
+    srcs = ["large_array.x"],
+    deps = [":large_array"],
+)
+
 xls_dslx_opt_ir(
     name = "large_array",
     srcs = ["large_array.x"],
@@ -769,6 +826,12 @@ xls_dslx_library(
     srcs = ["constraint.x"],
 )
 
+xls_dslx_test(
+    name = "constraint_dslx_test",
+    srcs = ["constraint.x"],
+    deps = [":constraint_dslx"],
+)
+
 xls_dslx_ir(
     name = "constraint_ir",
     dslx_top = "main",
@@ -869,12 +932,34 @@ xls_dslx_test(
     library = ":fp32_fmac_dslx",
 )
 
+xls_dslx_library(
+    name = "overflow_detect_dslx",
+    srcs = ["overflow_detect.x"],
+)
+
+xls_dslx_test(
+    name = "overflow_detect_dslx_test",
+    srcs = ["overflow_detect.x"],
+    deps = [":overflow_detect_dslx"],
+)
+
 xls_dslx_opt_ir(
     name = "overflow_detect",
     srcs = ["overflow_detect.x"],
     dslx_top = "main",
     ir_file = "overflow_detect.ir",
     opt_ir_file = "overflow_detect.opt.ir",
+)
+
+xls_dslx_library(
+    name = "nested_sel_dslx",
+    srcs = ["nested_sel.x"],
+)
+
+xls_dslx_test(
+    name = "nested_sel_dslx_test",
+    srcs = ["nested_sel.x"],
+    deps = [":nested_sel_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -931,6 +1016,39 @@ cc_test(
         "//xls/common/logging",
         "//xls/common/status:matchers",
     ],
+)
+
+xls_dslx_library(
+    name = "cubic_bezier_dslx",
+    srcs = ["cubic_bezier.x"],
+)
+
+xls_dslx_test(
+    name = "cubic_bezier_dslx_test",
+    srcs = ["cubic_bezier.x"],
+    deps = [":cubic_bezier_dslx"],
+)
+
+xls_dslx_library(
+    name = "bitonic_sort_dslx",
+    srcs = ["bitonic_sort.x"],
+)
+
+xls_dslx_test(
+    name = "bitonic_sort_dslx_test",
+    srcs = ["bitonic_sort.x"],
+    deps = [":bitonic_sort_dslx"],
+)
+
+xls_dslx_library(
+    name = "hack_cpu_dslx",
+    srcs = ["hack_cpu.x"],
+)
+
+xls_dslx_test(
+    name = "hack_cpu_dslx_test",
+    srcs = ["hack_cpu.x"],
+    deps = [":hack_cpu_dslx"],
 )
 
 filegroup(

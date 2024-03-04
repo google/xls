@@ -21,7 +21,7 @@
 // 2. getting the next value from the LFSR counter
 ////////////////////////////////////////////////////////////////////////////////
 
-import xls.examples.lfsr
+import xls.examples.lfsr;
 
 proc user_module<BIT_WIDTH: u32> {
   output_s: chan<uN[BIT_WIDTH]> out;
