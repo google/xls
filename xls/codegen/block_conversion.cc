@@ -502,7 +502,7 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
 
     // If datapath registers are reset, then adding reset to the
     // load enable is redundant.
-    if (options.reset()->reset_data_path()) {
+    if (options.reset().has_value() && options.reset()->reset_data_path()) {
       result.data_load_enable.at(stage) = data_enable;
     } else {
       XLS_ASSIGN_OR_RETURN(
@@ -1885,7 +1885,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
   XLS_VLOG(3) << "After State Updated";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  if (options.reset()->reset_data_path()) {
+  if (options.reset().has_value() && options.reset()->reset_data_path()) {
     XLS_RETURN_IF_ERROR(UpdateDatapathRegistersWithReset(
         reset_behavior, absl::MakeSpan(streaming_io.pipeline_registers),
         block));
