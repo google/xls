@@ -143,6 +143,7 @@ ABSL_FLAG(std::optional<std::string>, codegen_options_used_textproto_file,
           "used (including those set on the cmd line).");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
+//   //xls/build_rules/xls_build_defs.bzl,
 //   //docs_src/codegen_options.md
 // )
 

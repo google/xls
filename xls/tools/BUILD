@@ -874,6 +874,27 @@ cc_proto_library(
     deps = [":scheduling_options_flags_proto"],
 )
 
+cc_binary(
+    name = "generate_options_protos_main",
+    srcs = ["generate_options_protos_main.cc"],
+    # Only for the genrule and xls-stuff to generate protos.
+    visibility = ["//xls:xls_internal"],
+    deps = [
+        ":codegen",
+        ":codegen_flags",
+        ":codegen_flags_cc_proto",
+        ":scheduling_options_flags",
+        ":scheduling_options_flags_cc_proto",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+    ],
+)
+
 cc_library(
     name = "scheduling_options_flags",
     srcs = ["scheduling_options_flags.cc"],

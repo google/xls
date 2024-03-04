@@ -17,12 +17,19 @@
 #ifndef XLS_TOOLS_SCHEDULING_OPTIONS_FLAGS_H_
 #define XLS_TOOLS_SCHEDULING_OPTIONS_FLAGS_H_
 
+#include <optional>
+#include <string>
+
+#include "absl/flags/declare.h"
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/node.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+
+ABSL_DECLARE_FLAG(std::optional<std::string>,
+                  scheduling_options_used_textproto_file);
 
 namespace xls {
 

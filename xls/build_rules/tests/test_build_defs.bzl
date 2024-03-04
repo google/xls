@@ -27,21 +27,22 @@ def _scheduling_args_proto(ctx):
     Returns:
       A file with the text protobuf representation of the scheduling arguments provided.
     """
-    ctx.actions.run_shell(
+    ctx.actions.run(
         outputs = [ctx.outputs.scheduling_options_proto],
+        executable = ctx.executable._generate_protos,
         arguments = [
-            ctx.attr.delay_model,
-            str(ctx.attr.pipeline_stages),
-            ctx.outputs.scheduling_options_proto.path,
+            "--delay_model={}".format(ctx.attr.delay_model),
+            "--pipeline_stages={}".format(ctx.attr.pipeline_stages),
+            "--worst_case_throughput=6",
+            "--mutual_exclusion_z3_rlimit=-1",
+            "--use_fdo=false",
+            "--fdo_iteration_number=2",
+            "--fdo_refinement_stochastic_ratio=1.0",
+            "--fdo_path_evaluate_strategy=window",
+            "--scheduling_options_used_textproto_file={}".format(
+                ctx.outputs.scheduling_options_proto.path,
+            ),
         ],
-        command = '''echo "delay_model: \\"$1\\"
-pipeline_stages: $2
-worst_case_throughput: 6
-mutual_exclusion_z3_rlimit: -1
-use_fdo: false
-fdo_iteration_number: 2
-fdo_refinement_stochastic_ratio: 1.0
-fdo_path_evaluate_strategy: \\"window\\"" > $3;''',
     )
     return [
         DefaultInfo(files = depset(direct = [ctx.outputs.scheduling_options_proto])),
@@ -66,6 +67,11 @@ Example:
         "scheduling_options_proto": attr.output(),
         "delay_model": attr.string(),
         "pipeline_stages": attr.int(),
+        "_generate_protos": attr.label(
+            default = Label("//xls/tools:generate_options_protos_main"),
+            executable = True,
+            cfg = "exec",
+        ),
     },
 )
 
@@ -83,36 +89,35 @@ def _codegen_args_proto(ctx):
         generator = "GENERATOR_KIND_PIPELINE"
     else:
         generator = "GENERATOR_KIND_COMBINATIONAL"
-    ctx.actions.run_shell(
+    ctx.actions.run(
         outputs = [ctx.outputs.codegen_options_proto],
+        executable = ctx.executable._generate_protos,
         arguments = [
-            ctx.attr.top,
-            generator,
-            ctx.attr.module_name,
-            str(ctx.attr.reset_data_path).lower(),
-            ctx.outputs.codegen_options_proto.path,
+            "--generator={}".format("pipeline" if ctx.attr.is_pipelined else "combinational"),
+            "--top={}".format(ctx.attr.top),
+            "--module_name={}".format(ctx.attr.module_name),
+            "--reset_data_path={}".format(str(ctx.attr.reset_data_path).lower()),
+            "--input_valid_signal=input_valid",
+            "--output_valid_signal=output_valid",
+            "--flop_inputs",
+            "--flop_inputs_kind=flop",
+            "--flop_outputs",
+            "--flop_outputs_kind=skid",
+            "--flop_single_value_channels",
+            "--add_idle_output",
+            "--reset=rst_n",
+            "--reset_active_low",
+            "--reset_asynchronous=false",
+            "--use_system_verilog=false",
+            "--gate_recvs",
+            "--array_index_bounds_checking",
+            "--streaming_channel_data_suffix=_data",
+            "--streaming_channel_valid_suffix=_vld",
+            "--streaming_channel_ready_suffix=_rdy",
+            "--codegen_options_used_textproto_file={}".format(
+                ctx.outputs.codegen_options_proto.path,
+            ),
         ],
-        command = '''echo "top: \\"$1\\"
-generator: $2
-input_valid_signal: \\"input_valid\\"
-output_valid_signal: \\"output_valid\\"
-flop_inputs: true
-flop_outputs: true
-flop_outputs_kind: IO_KIND_SKID_BUFFER
-flop_inputs_kind: IO_KIND_FLOP
-flop_single_value_channels: true
-add_idle_output: true
-module_name: \\"$3\\"
-reset: \\"rst_n\\"
-reset_active_low: true
-reset_asynchronous: false
-reset_data_path: $4
-use_system_verilog: false
-gate_recvs: true
-array_index_bounds_checking: true
-streaming_channel_data_suffix: \\"_data\\"
-streaming_channel_valid_suffix: \\"_vld\\"
-streaming_channel_ready_suffix: \\"_rdy\\"" > $5''',
     )
     return [
         DefaultInfo(files = depset(direct = [ctx.outputs.codegen_options_proto])),
@@ -141,5 +146,10 @@ Example:
         "module_name": attr.string(),
         "reset_data_path": attr.bool(),
         "is_pipelined": attr.bool(),
+        "_generate_protos": attr.label(
+            default = Label("//xls/tools:generate_options_protos_main"),
+            executable = True,
+            cfg = "exec",
+        ),
     },
 )
