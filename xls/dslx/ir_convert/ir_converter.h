@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_IR_CONVERT_IR_CONVERTER_H_
 #define XLS_DSLX_IR_CONVERT_IR_CONVERTER_H_
 
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,6 +23,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
