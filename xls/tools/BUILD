@@ -861,17 +861,35 @@ cc_proto_library(
 proto_library(
     name = "scheduling_options_flags_proto",
     srcs = ["scheduling_options_flags.proto"],
+    visibility = ["//xls:xls_users"],
     deps = ["@com_google_googleapis//google/api:field_behavior_proto"],
 )
 
 py_proto_library(
     name = "scheduling_options_flags_py_pb2",
+    visibility = ["//xls:xls_users"],
     deps = [":scheduling_options_flags_proto"],
 )
 
 cc_proto_library(
     name = "scheduling_options_flags_cc_proto",
+    visibility = ["//xls:xls_users"],
     deps = [":scheduling_options_flags_proto"],
+)
+
+genrule(
+    name = "default_codegen_and_scheduling_options",
+    outs = [
+        "default_codegen_options.textproto",
+        "default_scheduling_options.textproto",
+    ],
+    cmd = """
+    $(location :generate_options_protos_main) \\
+          --codegen_options_used_textproto_file=$(location :default_codegen_options.textproto) \\
+          --scheduling_options_used_textproto_file=$(location :default_scheduling_options.textproto)
+    """,
+    tools = [":generate_options_protos_main"],
+    visibility = ["//xls:xls_users"],
 )
 
 cc_binary(
@@ -921,15 +939,18 @@ cc_library(
 proto_library(
     name = "codegen_flags_proto",
     srcs = ["codegen_flags.proto"],
+    visibility = ["//xls:xls_users"],
 )
 
 py_proto_library(
     name = "codegen_flags_py_pb2",
+    visibility = ["//xls:xls_users"],
     deps = [":codegen_flags_proto"],
 )
 
 cc_proto_library(
     name = "codegen_flags_cc_proto",
+    visibility = ["//xls:xls_users"],
     deps = [":codegen_flags_proto"],
 )
 
