@@ -1029,6 +1029,7 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/scheduling:pipeline_schedule_cc_proto",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],

@@ -247,6 +247,15 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options,
     const synthesis::Synthesizer* synthesizer) {
+  if (!options.pipeline_stages().has_value() &&
+      !options.clock_period_ps().has_value()) {
+    return absl::InvalidArgumentError(
+        "Pipeline scheduling requires either --pipeline_stages or "
+        "--clock_period_ps to be specified; see "
+        "https://google.github.io/xls/codegen_options/"
+        "#pipelining-and-scheduling-options for details.");
+  }
+
   int64_t input_delay = options.additional_input_delay_ps().has_value()
                             ? options.additional_input_delay_ps().value()
                             : 0;
