@@ -17,7 +17,9 @@
 
 #include <deque>
 #include <list>
+#include <vector>
 
+#include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
@@ -110,7 +112,14 @@ class RegisterChains {
   // possible.
   void InsertAndReduce(const RegisterData& data);
 
-  // The current chains.
+  // Get the mutex chains which exist within the mutually-exclusive groups
+  // marked by 'groups'.
+  absl::StatusOr<std::vector<std::vector<RegisterData>>>
+  SplitBetweenMutexRegions(const ConcurrentStageGroups& groups,
+                           const CodegenPassOptions& options) const;
+
+  // The current in-progress chains. Use SplitBetweenMutexRegions to get the
+  // final mutex-chains.
   const std::list<std::deque<RegisterData>>& chains() const { return chains_; }
 
  private:

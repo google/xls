@@ -578,9 +578,17 @@ cc_library(
     hdrs = ["register_chaining_analysis.h"],
     deps = [
         ":codegen_pass",
+        ":concurrent_stage_groups",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
         "//xls/ir",
         "//xls/ir:register",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -588,10 +596,14 @@ cc_test(
     name = "register_chaining_analysis_test",
     srcs = ["register_chaining_analysis_test.cc"],
     deps = [
+        ":codegen_pass",
+        ":concurrent_stage_groups",
         ":register_chaining_analysis",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
@@ -599,6 +611,8 @@ cc_test(
         "//xls/ir:register",
         "//xls/ir:source_location",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
