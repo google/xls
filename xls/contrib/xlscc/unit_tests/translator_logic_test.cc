@@ -1571,6 +1571,29 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuitClass) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
+TEST_F(TranslatorLogicTest, ForUnrollShortCircuitClass2) {
+  const std::string content = R"(
+       struct TestInt {
+         TestInt(int v) : x(v) { }
+         operator int()const {
+           return x;
+         }
+         int x;
+       };
+       long long my_package(long long a, long long b) {
+         TestInt bounds[2] = {3,4};
+
+         int x = 0;
+
+         #pragma hls_unroll yes
+         for(int i=0;i<bounds[a];++i) {
+           x += b;
+         }
+         return x;
+       })";
+  Run({{"a", 1}, {"b", 20}}, 4L * 20L, content);
+}
+
 TEST_F(TranslatorLogicTest, ForUnrollMultiCondBreak) {
   std::string_view content = R"(
       long long my_package(long long a, long long b) {
