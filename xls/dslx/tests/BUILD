@@ -793,8 +793,12 @@ dslx_lang_test(
     name = "test_f_calls_parametric_f",
 )
 
+dslx_lang_test(name = "array_concat")
+
 dslx_lang_test(
-    name = "array_concat",
+    name = "quickcheck_fn_with_fail",
+    # Primarily a #[quickcheck] function.
+    convert_to_ir = False,
 )
 
 dslx_lang_test(name = "for_up_to_const")

@@ -15,17 +15,17 @@
 #ifndef XLS_DSLX_MANGLE_H_
 #define XLS_DSLX_MANGLE_H_
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
 #include "absl/container/btree_set.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 
-enum class CallingConvention {
+enum class CallingConvention : uint8_t {
   // The IR converted parameters are identical to the DSL parameters in their
   // type, number, and name.
   kTypical,

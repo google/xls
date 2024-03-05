@@ -231,7 +231,16 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(
     XLS_ASSIGN_OR_RETURN(xls::Value result,
                          DropInterpreterEvents(run_comparator->RunIrFunction(
                              ir_name, xls_function, results.arg_sets.back())));
+
+    // In the case of an implicit token signature we get (token, bool) as the
+    // result of the quickcheck'd function, so we unbox the boolean here.
+    if (result.IsTuple()) {
+      result = result.elements()[1];
+      XLS_RET_CHECK(result.IsBits());
+    }
+
     results.results.push_back(result);
+
     if (result.IsAllZeros()) {
       // We were able to falsify the xls_function (predicate), bail out early
       // and present this evidence.
@@ -242,20 +251,51 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(
   return results;
 }
 
-static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
-                                  Package* ir_package, QuickCheck* quickcheck,
-                                  TypeInfo* type_info, int64_t seed) {
-  Function* fn = quickcheck->f();
+struct QuickcheckIrFn {
+  std::string ir_name;
+  xls::Function* ir_function;
+};
+
+static absl::StatusOr<QuickcheckIrFn> FindQuickcheckIrFn(Function* fn,
+                                                         Package* ir_package) {
+  // First we try to get the version of the function that doesn't need a token.
   XLS_ASSIGN_OR_RETURN(std::string ir_name,
                        MangleDslxName(fn->owner()->name(), fn->identifier(),
                                       CallingConvention::kTypical,
                                       fn->GetFreeParametricKeySet()));
-  XLS_ASSIGN_OR_RETURN(xls::Function * ir_function,
-                       ir_package->GetFunction(ir_name));
+  std::optional<xls::Function*> maybe_ir_function =
+      ir_package->TryGetFunction(ir_name);
+  if (maybe_ir_function.has_value()) {
+    return QuickcheckIrFn{ir_name, maybe_ir_function.value()};
+  }
+
+  XLS_ASSIGN_OR_RETURN(ir_name,
+                       MangleDslxName(fn->owner()->name(), fn->identifier(),
+                                      CallingConvention::kImplicitToken,
+                                      fn->GetFreeParametricKeySet()));
+  maybe_ir_function = ir_package->TryGetFunction(ir_name);
+  if (maybe_ir_function.has_value()) {
+    return QuickcheckIrFn{ir_name, maybe_ir_function.value()};
+  }
+  return absl::InternalError(
+      absl::StrFormat("Could not find DSLX quickcheck function `%s` in IR "
+                      "package `%s`; available IR functions: [%s]",
+                      fn->identifier(), ir_package->name(),
+                      absl::StrJoin(ir_package->GetFunctionNames(), ", ")));
+}
+
+static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
+                                  Package* ir_package, QuickCheck* quickcheck,
+                                  TypeInfo* type_info, int64_t seed) {
+  // Note: DSLX function.
+  Function* fn = quickcheck->f();
+
+  XLS_ASSIGN_OR_RETURN(QuickcheckIrFn qc_fn,
+                       FindQuickcheckIrFn(fn, ir_package));
 
   XLS_ASSIGN_OR_RETURN(
       QuickCheckResults qc_results,
-      DoQuickCheck(ir_function, std::move(ir_name), run_comparator, seed,
+      DoQuickCheck(qc_fn.ir_function, qc_fn.ir_name, run_comparator, seed,
                    quickcheck->GetTestCountOrDefault()));
   const auto& [arg_sets, results] = qc_results;
   XLS_ASSIGN_OR_RETURN(Bits last_result, results.back().GetBitsWithStatus());

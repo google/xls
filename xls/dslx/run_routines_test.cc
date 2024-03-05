@@ -130,6 +130,24 @@ fn trivial(x: u5) -> bool { id(true) }
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
 }
 
+TEST(RunRoutinesTest, FallibleFunctionQuickChecks) {
+  constexpr const char* kProgram = R"(
+fn do_fail(x: bool) -> bool { fail!("oh_no", x) }
+
+#[quickcheck]
+fn qc(x: bool) -> bool { do_fail(x) }
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
+}
+
 TEST(RunRoutinesTest, FailingQuickCheck) {
   constexpr const char* kProgram = R"(
 #[quickcheck(test_count=2)]
