@@ -79,10 +79,10 @@ namespace {
 constexpr WarningCollector* kNoWarningCollector = nullptr;
 
 // Returns a status that indicates an error in the IR conversion process.
-absl::Status ConversionErrorStatus(const std::optional<Span>& span,
-                                   std::string_view message) {
+absl::Status IrConversionErrorStatus(const std::optional<Span>& span,
+                                     std::string_view message) {
   return absl::InternalError(
-      absl::StrFormat("ConversionError: %s %s",
+      absl::StrFormat("IrConversionError: %s %s",
                       span ? span->ToString() : "<no span>", message));
 }
 
@@ -805,10 +805,12 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
 
   if (dynamic_cast<ArrayType*>(output_type.get()) != nullptr ||
       dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
-    return absl::UnimplementedError(
-        absl::StrFormat("ConversionError: CheckedCast to and from arrays (%s) "
-                        "is not currently supported for IR conversion.",
-                        node->span().ToString()));
+    return IrConversionErrorStatus(
+        node->span(),
+        absl::StrFormat("CheckedCast to and from array "
+                        "is not currently supported for IR conversion; "
+                        "attempted checked cast from: %s to: %s",
+                        input_type->ToString(), output_type->ToString()));
   }
 
   // TODO(tedhong): 2023-05-22 Add verilog assertion that cast has not
@@ -864,7 +866,7 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
 absl::Status FunctionConverter::HandleMatch(const Match* node) {
   if (node->arms().empty() ||
       !node->arms().back()->patterns()[0]->IsIrrefutable()) {
-    return ConversionErrorStatus(
+    return IrConversionErrorStatus(
         node->span(),
         "Only matches with trailing irrefutable patterns (i.e. `_ => ...`) "
         "are currently supported for IR conversion.");
@@ -945,10 +947,10 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
       });
   MatchArm* default_arm = node->arms().back();
   if (default_arm->patterns().size() != 1) {
-    return absl::UnimplementedError(
-        absl::StrFormat("ConversionError: %s Multiple patterns in default arm "
-                        "is not currently supported for IR conversion.",
-                        node->span().ToString()));
+    return IrConversionErrorStatus(
+        node->span(),
+        "Multiple patterns in default arm "
+        "is not currently supported for IR conversion.");
   }
   XLS_RETURN_IF_ERROR(
       HandleMatcher(default_arm->patterns()[0],
@@ -986,11 +988,12 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
 absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
     const Expr* iterable) {
   auto error = [&] {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("ConversionError: %s iterable (%s) "
+    return IrConversionErrorStatus(
+        iterable->span(),
+        absl::StrFormat("iterable `%s` "
                         "must be bits-typed, constexpr, and its start must be "
                         "less than or equal to its limit.",
-                        iterable->span().ToString(), iterable->ToString()));
+                        iterable->ToString()));
   };
 
   // Easy case first: using the `..` range operator.
@@ -1825,10 +1828,11 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
       };
   auto it = map.find(called_name);
   if (it == map.end()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("ConversionError: %s Could not find name for "
-                        "invocation: %s; available: [%s]",
-                        node->span().ToString(), called_name,
+    return IrConversionErrorStatus(
+        node->span(),
+        absl::StrFormat("Could not find name for "
+                        "invocation: `%s`; available: [%s]",
+                        called_name,
                         absl::StrJoin(module_->GetFunctionNames(), ", ")));
   }
   XLS_RETURN_IF_ERROR(accept_args().status());
@@ -3174,7 +3178,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
   XLS_RET_CHECK(current_type_info_ != nullptr);
   std::optional<const ConcreteType*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
-    return ConversionErrorStatus(
+    return IrConversionErrorStatus(
         node->GetSpan(),
         absl::StrFormat("Failed to convert IR because type was missing for AST "
                         "node: %s (kind: %s)",
