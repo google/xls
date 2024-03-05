@@ -1553,6 +1553,14 @@ absl::StatusOr<Expr*> Parser::ParseTermLhsParenthesized(
 absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
                                            ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+
+  if (++approximate_expression_depth_ >= kApproximateExpressionDepthLimit) {
+    return ParseErrorStatus(peek->span(),
+                            "Expression is too deeply nested, please break "
+                            "into multiple statements");
+  }
+  auto bump_down = absl::Cleanup([this] { approximate_expression_depth_--; });
+
   const Pos start_pos = peek->span().start();
   XLS_VLOG(5) << "ParseTerm @ " << start_pos << " peek: `" << peek->ToString()
               << "` restrictions: " << ExprRestrictionsToString(restrictions);
