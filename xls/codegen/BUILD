@@ -629,6 +629,28 @@ cc_library(
 )
 
 cc_library(
+    name = "register_combining_pass",
+    srcs = ["register_combining_pass.cc"],
+    hdrs = ["register_combining_pass.h"],
+    deps = [
+        ":codegen_pass",
+        ":register_chaining_analysis",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:register",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "register_legalization_pass",
     srcs = ["register_legalization_pass.cc"],
     hdrs = ["register_legalization_pass.h"],
@@ -941,6 +963,35 @@ cc_test(
         "//xls/tools:verilog_include",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "register_combining_pass_test",
+    srcs = ["register_combining_pass_test.cc"],
+    deps = [
+        ":block_conversion",
+        ":codegen_options",
+        ":codegen_pass",
+        ":module_signature_cc_proto",
+        ":register_combining_pass",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/ir:register",
+        "//xls/ir:source_location",
+        "//xls/passes:pass_base",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/tools:codegen_flags_cc_proto",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
