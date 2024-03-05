@@ -1802,5 +1802,30 @@ proc csr_8_32_14 {
 )");
 }
 
+TEST_F(ModuleFmtTest, GithubIssue1329) {
+  Run(R"(struct StructA { data: u64[8] }
+struct StructB { a: StructA }
+struct StructC { b: StructB }
+
+#[test]
+fn struct_c_test() {
+    assert_eq(
+        zero!<StructA>(),
+        StructC {
+            b:
+            StructB {
+                a:
+                StructA {
+                    data:
+                    u64[8]:[
+                        0x002698ad4b48ead0, 0x1bfb1e0316f2d5de, 0x173a623c9725b477, 0x0, ...
+                    ]
+                }
+            }
+        });
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

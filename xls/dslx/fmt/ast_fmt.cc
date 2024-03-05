@@ -370,12 +370,13 @@ static DocRef FmtFlat(const Array& n, const Comments& comments,
   flat_pieces.push_back(FmtJoin<const Expr*>(n.members(), Joiner::kCommaSpace,
                                              FmtExprPtr, comments, arena));
   if (n.has_ellipsis()) {
-    // Note: zero members with ellipsis is invalid at type checking, we may
-    // choose not to flag it as a parse-time error, in which case we could have
-    // it in the AST.
+    // Note: while zero members with ellipsis is invalid at type checking, we
+    // may choose not to flag it as a parse-time error, in which case we could
+    // have it in the AST.
     if (!n.members().empty()) {
       flat_pieces.push_back(arena.comma());
     }
+
     flat_pieces.push_back(arena.space());
     flat_pieces.push_back(arena.MakeText("..."));
   }
@@ -401,11 +402,6 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
       comments, arena));
 
   if (n.has_ellipsis()) {
-    // Subtle implementation note: The Joiner::CommaBreak1AsGroup puts a
-    // trailing comma when we're in break mode, so we only insert the comma for
-    // ellipsis when we're in flat mode.
-    member_pieces.push_back(arena.MakeFlatChoice(arena.comma(), arena.empty()));
-
     member_pieces.push_back(
         ConcatNGroup(arena, {arena.break1(), arena.MakeText("...")}));
   }
