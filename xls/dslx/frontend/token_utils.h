@@ -40,8 +40,15 @@ GetSizedTypeKeywordsMetadata();
 // character '\0' over the hex one that CHexEscape uses.
 std::string Escape(std::string_view original);
 
-// Returns whether the given identifier is in SCREAMING_SNAKE_CASE style.
+// Returns whether the given identifier is in `SCREAMING_SNAKE_CASE` style.
 bool IsScreamingSnakeCase(std::string_view identifier);
+
+// Returns whether the given identifier is in `snake_case` style.
+//
+// Note that we make an exception for when a number is followed by "B" for
+// bytes. This is a very specific exception, we may want to think about how to
+// generalize it properly.
+bool IsAcceptablySnakeCase(std::string_view identifier);
 
 }  // namespace xls::dslx
 

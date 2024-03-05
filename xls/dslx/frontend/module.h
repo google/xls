@@ -56,6 +56,8 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 enum class ModuleAnnotation : uint8_t {
   // Suppresses the "constant naming" warning.
   kAllowNonstandardConstantNaming,
+
+  kAllowNonstandardMemberNaming,
 };
 
 // Represents a syntactic module in the AST.

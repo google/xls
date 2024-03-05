@@ -65,6 +65,7 @@
 #include "xls/dslx/type_system/deduce_enum_def.h"
 #include "xls/dslx/type_system/deduce_expr.h"
 #include "xls/dslx/type_system/deduce_invocation.h"
+#include "xls/dslx/type_system/deduce_struct_def.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -546,46 +547,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstAssert(
   }
 
   return type;
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(
-    const StructDef* node, DeduceCtx* ctx) {
-  for (const ParametricBinding* parametric : node->parametric_bindings()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
-                         ctx->Deduce(parametric->type_annotation()));
-    XLS_ASSIGN_OR_RETURN(parametric_binding_type,
-                         UnwrapMetaType(std::move(parametric_binding_type),
-                                        parametric->type_annotation()->span(),
-                                        "parametric binding type annotation"));
-    if (parametric->expr() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
-                           ctx->Deduce(parametric->expr()));
-      if (*expr_type != *parametric_binding_type) {
-        return ctx->TypeMismatchError(
-            node->span(), parametric->expr(), *expr_type,
-            parametric->type_annotation(), *parametric_binding_type,
-            "Annotated type of "
-            "parametric value did not match inferred type.");
-      }
-    }
-    ctx->type_info()->SetItem(parametric->name_def(), *parametric_binding_type);
-  }
-
-  std::vector<std::unique_ptr<ConcreteType>> members;
-  for (const auto& [_, name_def, type] : node->members()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete,
-                         DeduceAndResolve(type, ctx));
-    XLS_ASSIGN_OR_RETURN(concrete,
-                         UnwrapMetaType(std::move(concrete), type->span(),
-                                        "struct member type"));
-    members.push_back(std::move(concrete));
-  }
-  auto wrapped = std::make_unique<StructType>(std::move(members), *node);
-  auto result = std::make_unique<MetaType>(std::move(wrapped));
-  ctx->type_info()->SetItem(node->name_def(), *result);
-  XLS_VLOG(5) << absl::StreamFormat("Deduced type for struct %s => %s",
-                                    node->ToString(), result->ToString());
-  return result;
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(const Attr* node,

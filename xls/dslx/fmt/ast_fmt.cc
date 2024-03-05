@@ -2115,6 +2115,12 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
           pieces.push_back(
               arena.MakeText("#![allow(nonstandard_constant_naming)]"));
           pieces.push_back(arena.hard_line());
+          break;
+        case ModuleAnnotation::kAllowNonstandardMemberNaming:
+          pieces.push_back(
+              arena.MakeText("#![allow(nonstandard_member_naming)]"));
+          pieces.push_back(arena.hard_line());
+          break;
       }
     }
     pieces.push_back(arena.hard_line());

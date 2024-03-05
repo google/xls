@@ -40,8 +40,9 @@ enum class WarningKind : WarningKindInt {
   kUselessExpressionStatement = 1 << 7,
   kTrailingTupleAfterSemi = 1 << 8,
   kConstantNaming = 1 << 9,
+  kMemberNaming = 1 << 10,
 };
-constexpr WarningKindInt kWarningKindCount = 10;
+constexpr WarningKindInt kWarningKindCount = 11;
 
 inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
@@ -54,6 +55,7 @@ inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kUselessExpressionStatement,
     WarningKind::kTrailingTupleAfterSemi,
     WarningKind::kConstantNaming,
+    WarningKind::kMemberNaming,
 };
 
 // Flag set datatype.

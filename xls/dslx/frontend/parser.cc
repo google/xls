@@ -245,6 +245,9 @@ absl::Status Parser::ParseModuleAttribute() {
   if (to_allow == "nonstandard_constant_naming") {
     module_->AddAnnotation(ModuleAnnotation::kAllowNonstandardConstantNaming);
   }
+  if (to_allow == "nonstandard_member_naming") {
+    module_->AddAnnotation(ModuleAnnotation::kAllowNonstandardMemberNaming);
+  }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
   return absl::OkStatus();

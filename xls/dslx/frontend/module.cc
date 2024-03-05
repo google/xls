@@ -76,6 +76,9 @@ std::string Module::ToString() const {
             case ModuleAnnotation::kAllowNonstandardConstantNaming:
               absl::StrAppend(out, "#![allow(nonstandard_constant_naming)]");
               break;
+            case ModuleAnnotation::kAllowNonstandardMemberNaming:
+              absl::StrAppend(out, "#![allow(nonstandard_member_naming)]");
+              break;
           }
         });
     return absl::StrCat(header, "\n\n", body);

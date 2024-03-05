@@ -14,6 +14,8 @@
 
 #include "xls/dslx/frontend/token_utils.h"
 
+#include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -25,7 +27,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_replace.h"
-#include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/scanner_keywords.inc"
 
 namespace xls::dslx {
@@ -59,6 +60,34 @@ bool IsScreamingSnakeCase(std::string_view identifier) {
     bool acceptable = ('0' <= c && c <= '9') || ('A' <= c && c <= 'Z') ||
                       c == '_' || c == '\'' || c == '!';
     if (!acceptable) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool IsAcceptablySnakeCase(std::string_view identifier) {
+  // Implementation note: this is not filtering to say "these are actually
+  // reasonable identifiers", it is just a hard filter for "does it conform to
+  // the snake case predicate". `__!!'!'9B__` is accepted by this, but it's a
+  // horrible identifier (and has no lowercase chars). This is just trying to
+  // flag where people type things in a clearly-different style; e.g. CamelCase
+  // for purposes of providing a helpful warning. We don't want to clamp down on
+  // style to the extent somebody would do in a review in automated warnings,
+  // just provide rough guidance.
+
+  for (size_t i = 0; i < identifier.size(); ++i) {
+    char c = identifier[i];
+    bool acceptable = ('0' <= c && c <= '9') || ('a' <= c && c <= 'z') ||
+                      c == '_' || c == '\'' || c == '!';
+    if (!acceptable) {
+      // We make an exception for "B" following a number as an indicator of
+      // bytes. We don't want to encourage people to change it to 'b' as that
+      // would indicate bits.
+      if (c == 'B' && i > 0 && std::isdigit(identifier[i - 1])) {
+        continue;
+      }
+
       return false;
     }
   }

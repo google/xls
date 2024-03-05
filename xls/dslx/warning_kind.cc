@@ -48,6 +48,8 @@ absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind) {
       return "trailing_tuple_after_semi";
     case WarningKind::kConstantNaming:
       return "constant_naming";
+    case WarningKind::kMemberNaming:
+      return "member_naming";
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Invalid warning kind: ", static_cast<int>(kind)));
