@@ -38,16 +38,29 @@ bool IsChainable(const RegisterData& first, const RegisterData& next) {
   return true;
 }
 
+// Would a write at the end of the chain happen after the start of the chain is
+// already updated?
+bool IsClobbered(const RegisterData& chain_start,
+                 const RegisterData& chain_end) {
+  if (chain_start.read_stage <= chain_start.write_stage) {
+    // The chain starts with a loopback (write is in a later stage then read).
+    return chain_end.write_stage >= chain_start.write_stage;
+  }
+  // Chain does not start with a loopback so no way to clobber the register
+  // value.
+  return false;
+}
+
 // Insert the register into a chain, return the chain that was inserted into
 std::list<std::deque<RegisterData>>::iterator InsertIntoChain(
     std::list<std::deque<RegisterData>>& chains, const RegisterData& reg) {
   for (auto it = chains.begin(); it != chains.end(); ++it) {
-    if (IsChainable(reg, it->front())) {
+    if (IsChainable(reg, it->front()) && !IsClobbered(reg, it->back())) {
       // Can put it at the front of this.
       it->push_front(reg);
       return it;
     }
-    if (IsChainable(it->back(), reg)) {
+    if (IsChainable(it->back(), reg) && !IsClobbered(it->front(), reg)) {
       // Can put it at the back of this chain.
       it->push_back(reg);
       return it;
@@ -71,14 +84,16 @@ void ReduceChains(std::list<std::deque<RegisterData>>& chains,
     }
     if (is_front_modified) {
       // Want to perform `(merge it modified_entry)`
-      if (IsChainable(it->back(), modified_entry->front())) {
+      if (IsChainable(it->back(), modified_entry->front()) &&
+          !IsClobbered(it->front(), modified_entry->back())) {
         absl::c_copy(*modified_entry, std::back_inserter(*it));
         chains.erase(modified_entry);
         return;
       }
     } else {
       // Want to perform `(merge modified_entry it)`
-      if (IsChainable(modified_entry->back(), it->front())) {
+      if (IsChainable(modified_entry->back(), it->front()) &&
+          !IsClobbered(modified_entry->front(), it->back())) {
         absl::c_copy(*it, std::back_inserter(*modified_entry));
         chains.erase(it);
         return;

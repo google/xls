@@ -597,6 +597,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:register",
+        "//xls/ir:source_location",
         "@com_google_absl//absl/algorithm:container",
     ],
 )
