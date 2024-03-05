@@ -1594,6 +1594,54 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuitClass2) {
   Run({{"a", 1}, {"b", 20}}, 4L * 20L, content);
 }
 
+TEST_F(TranslatorLogicTest, ForPipelinedConstantPropagation) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+
+      const short max_iters = 5;
+
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=4;++i) {
+        #pragma hls_unroll yes
+        for(int j=0;j<max_iters;++j) {
+          a += i;
+        }
+      }
+
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 5 * 10, 32)),
+                      xls::Value(xls::SBits(100 + 5 * 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
+  }
+}
+
 TEST_F(TranslatorLogicTest, ForUnrollMultiCondBreak) {
   std::string_view content = R"(
       long long my_package(long long a, long long b) {
