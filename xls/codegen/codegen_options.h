@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_CODEGEN_OPTIONS_H_
 #define XLS_CODEGEN_CODEGEN_OPTIONS_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/ram_configuration.h"
@@ -42,7 +44,7 @@ class CodegenOptions {
   ~CodegenOptions() = default;
 
   // Enum to describe how IO should be registered.
-  enum class IOKind { kFlop = 0, kSkidBuffer, kZeroLatencyBuffer };
+  enum class IOKind : uint8_t { kFlop = 0, kSkidBuffer, kZeroLatencyBuffer };
 
   // Convert IOKind enum to a string.
   static std::string_view IOKindToString(IOKind kind);
@@ -71,7 +73,7 @@ class CodegenOptions {
   // Name to use for the generated module. If not given, the name of the XLS
   // function/proc is used.
   CodegenOptions& module_name(std::string_view name);
-  const std::optional<std::string_view> module_name() const {
+  std::optional<std::string_view> module_name() const {
     return module_name_;
   }
 
@@ -113,12 +115,12 @@ class CodegenOptions {
   bool separate_lines() const { return separate_lines_; }
 
   // Whether to flop inputs into a register at the beginning of the pipeline. If
-  // true, adds a single cycle to the latency of the pipline.
+  // true, adds a single cycle to the latency of the pipeline.
   CodegenOptions& flop_inputs(bool value);
   bool flop_inputs() const { return flop_inputs_; }
 
   // Whether to flop outputs into a register at the end of the pipeline. If
-  // true, adds a single cycle to the latency of the pipline.
+  // true, adds a single cycle to the latency of the pipeline.
   CodegenOptions& flop_outputs(bool value);
   bool flop_outputs() const { return flop_outputs_; }
 

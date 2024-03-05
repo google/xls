@@ -435,6 +435,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:register",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
