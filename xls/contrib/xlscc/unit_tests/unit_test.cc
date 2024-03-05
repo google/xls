@@ -446,7 +446,7 @@ void XlsccTestBase::ProcTest(
   xls::ChannelQueueManager& queue_manager = interpreter->queue_manager();
 
   // Write all inputs.
-  for (auto [ch_name, values] : inputs_by_channel) {
+  for (const auto& [ch_name, values] : inputs_by_channel) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::ChannelQueue * queue,
                              queue_manager.GetQueueByName(ch_name));
 
@@ -519,7 +519,7 @@ void XlsccTestBase::ProcTest(
     }
   }
 
-  for (auto [ch_name, values] : inputs_by_channel) {
+  for (const auto& [ch_name, values] : inputs_by_channel) {
     if (direct_in_channels_by_name.contains(ch_name)) {
       continue;
     }
@@ -528,7 +528,7 @@ void XlsccTestBase::ProcTest(
     EXPECT_EQ(queue->GetSize(), 0);
   }
 
-  for (auto [ch_name, values] : mutable_outputs_by_channel) {
+  for (const auto& [ch_name, values] : mutable_outputs_by_channel) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * ch_out,
                              package_->GetChannel(ch_name));
     xls::ChannelQueue& ch_out_queue = queue_manager.GetQueue(ch_out);
