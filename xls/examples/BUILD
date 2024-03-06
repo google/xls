@@ -46,13 +46,13 @@ exports_files(["sha256.x"])
 filegroup(
     name = "ir_examples",
     srcs = [
-        ":matmul_4x4.ir",
         ":sha256.ir",
         ":sha256.opt.ir",
         "//xls/examples/adler32:adler32.ir",
         "//xls/examples/adler32:adler32.opt.ir",
         "//xls/examples/crc32:crc32.ir",
         "//xls/examples/crc32:crc32.opt.ir",
+        "//xls/examples/matmul_4x4:matmul_4x4.ir",
     ],
 )
 
@@ -164,13 +164,6 @@ xls_dslx_test(
     name = "fir_filter_dslx_test",
     srcs = ["fir_filter.x"],
     deps = [":fir_filter_dslx"],
-)
-
-xls_dslx_test(
-    name = "matmul_4x4_dslx_test",
-    srcs = ["matmul_4x4.x"],
-    # TODO(rspringer): 2022-05-24: Does not successfully lower to IR.
-    # Needs support for arrays of channels.
 )
 
 xls_dslx_opt_ir(
@@ -351,27 +344,6 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:value_utils",
-    ],
-)
-
-cc_test(
-    name = "matmul_4x4_test",
-    srcs = ["matmul_4x4_test.cc"],
-    data = ["matmul_4x4.ir"],
-    deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/interpreter:channel_queue",
-        "//xls/interpreter:interpreter_proc_runtime",
-        "//xls/interpreter:serial_proc_runtime",
-        "//xls/ir:bits",
-        "//xls/ir:ir_parser",
-        "//xls/ir:value",
     ],
 )
 

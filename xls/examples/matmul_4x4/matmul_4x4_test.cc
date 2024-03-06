@@ -15,8 +15,6 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -26,10 +24,11 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
+
 namespace xls {
 namespace {
 
-constexpr const char kIrPath[] = "xls/examples/matmul_4x4.ir";
+constexpr const char kIrPath[] = "xls/examples/matmul_4x4/matmul_4x4.ir";
 
 using testing::Optional;
 
