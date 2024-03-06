@@ -22,9 +22,8 @@
 #include "absl/container/btree_set.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
-#include "xls/examples/apfloat_add_parallel_jit_wrapper.h"
+#include "xls/examples/apfloat_add_parallel/apfloat_add_parallel_jit_wrapper.h"
 
 // Enable once our failure rate is expected to be zero, otherwise too noisy logs
 // (currently 0.03% wrong outputs)
