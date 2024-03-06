@@ -78,7 +78,7 @@ cc_library(
 cc_test(
     name = "booleanifier_test",
     srcs = ["booleanifier_test.cc"],
-    data = ["//xls/examples:crc32.opt.ir"],
+    data = ["//xls/examples/crc32:crc32.opt.ir"],
     # 2021-01-29: //xls/tools/booleanifier_test --gtest_list_tests
     # shows 4
     shard_count = 4,
@@ -90,7 +90,10 @@ cc_test(
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/interpreter:ir_interpreter",
+        "//xls/ir:bits",
+        "//xls/ir:events",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "//xls/jit:function_jit",
     ],
 )

@@ -125,7 +125,7 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
   // to get this into a .inc file.
   // clang-format off
   std::vector<std::string> benchmarks = {
-    "examples/crc32", "examples/sha256"}; // NOLINT
+    "examples/crc32/crc32", "examples/sha256"}; // NOLINT
   // clang-format on
   for (std::string& benchmark : benchmarks) {
     XLS_ASSERT_OK_AND_ASSIGN(

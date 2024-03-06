@@ -14,6 +14,7 @@
 #include "xls/tools/booleanifier.h"
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -25,7 +26,10 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
 
 namespace xls {
@@ -60,7 +64,7 @@ class BooleanifierTest : public IrTestBase {
 // This test verifies that the CRC32 example can be correctly boolified, as a
 // decently-broad example.
 TEST_F(BooleanifierTest, Crc32) {
-  const std::string kIrPath = "xls/examples/crc32.opt.ir";
+  const std::string kIrPath = "xls/examples/crc32/crc32.opt.ir";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd,
                            GetFunctionDataFromFile(kIrPath, "__crc32__main"));
   // CRC32 main takes an 8b message.
@@ -77,7 +81,7 @@ TEST_F(BooleanifierTest, Crc32) {
 }
 
 TEST_F(BooleanifierTest, Crc32_Jit) {
-  const std::string kIrPath = "xls/examples/crc32.opt.ir";
+  const std::string kIrPath = "xls/examples/crc32/crc32.opt.ir";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd,
                            GetFunctionDataFromFile(kIrPath, "__crc32__main"));
   // CRC32 main takes an 8b message.

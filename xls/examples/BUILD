@@ -46,13 +46,13 @@ exports_files(["sha256.x"])
 filegroup(
     name = "ir_examples",
     srcs = [
-        ":crc32.ir",
-        ":crc32.opt.ir",
         ":matmul_4x4.ir",
         ":sha256.ir",
         ":sha256.opt.ir",
         "//xls/examples/adler32:adler32.ir",
         "//xls/examples/adler32:adler32.opt.ir",
+        "//xls/examples/crc32:crc32.ir",
+        "//xls/examples/crc32:crc32.opt.ir",
     ],
 )
 
@@ -104,57 +104,6 @@ xls_dslx_opt_ir(
 xls_dslx_opt_ir_test(
     name = "capitalize_test",
     dep = ":capitalize",
-)
-
-xls_dslx_library(
-    name = "crc32_dslx",
-    srcs = ["crc32.x"],
-)
-
-xls_dslx_test(
-    name = "crc32_dslx_test",
-    srcs = ["crc32.x"],
-    deps = [":crc32_dslx"],
-)
-
-xls_dslx_opt_ir(
-    name = "crc32",
-    srcs = ["crc32.x"],
-    dslx_top = "main",
-    ir_file = "crc32.ir",
-    opt_ir_file = "crc32.opt.ir",
-)
-
-xls_benchmark_ir(
-    name = "crc32_benchmark_ir",
-    src = ":crc32.ir",
-    tags = ["optonly"],
-)
-
-xls_dslx_opt_ir_test(
-    name = "crc32_test",
-    dep = ":crc32",
-)
-
-cc_xls_ir_jit_wrapper(
-    name = "crc32_jit_wrapper",
-    src = ":crc32.opt.ir",
-    jit_wrapper_args = {
-        "class_name": "crc32",
-        "namespace": "xls::examples",
-    },
-)
-
-cc_binary(
-    name = "crc32_reference",
-    srcs = ["crc32_reference.cc"],
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/types:span",
-        "//xls/common:init_xls",
-        "//xls/common/logging",
-    ],
 )
 
 xls_dslx_opt_ir(
