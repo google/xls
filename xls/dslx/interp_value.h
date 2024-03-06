@@ -63,6 +63,7 @@ namespace xls::dslx {
   X("priority_sel", kPriorityhSel)        \
   X("range", kRange)                      \
   X("rev", kRev)                          \
+  X("zip", kZip)                          \
   X("widening_cast", kWideningCast)       \
   X("select", kSelect)                    \
   X("signex", kSignex)                    \
@@ -85,7 +86,7 @@ namespace xls::dslx {
 //
 // Functions can be held in values, either as user defined ones or builtin ones
 // (represented via this enumerated value).
-enum class Builtin {
+enum class Builtin : uint8_t {
 #define ENUMIFY(__str, __enum, ...) __enum,
   XLS_DSLX_BUILTIN_EACH(ENUMIFY)
 #undef ENUMIFY
@@ -95,7 +96,7 @@ absl::StatusOr<Builtin> BuiltinFromString(std::string_view name);
 
 std::string BuiltinToString(Builtin builtin);
 
-static const Builtin kAllBuiltins[] = {
+inline constexpr Builtin kAllBuiltins[] = {
 #define ELEMIFY(__str, __enum, ...) Builtin::__enum,
     XLS_DSLX_BUILTIN_EACH(ELEMIFY)
 #undef ELEMIFY

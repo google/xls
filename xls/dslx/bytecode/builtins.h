@@ -74,6 +74,7 @@ absl::Status RunBuiltinOrReduce(const Bytecode& bytecode,
                                 InterpreterStack& stack);
 absl::Status RunBuiltinRange(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinRev(const Bytecode& bytecode, InterpreterStack& stack);
+absl::Status RunBuiltinZip(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinArrayRev(const Bytecode& bytecode,
                                 InterpreterStack& stack);
 absl::Status RunBuiltinArraySize(const Bytecode& bytecode,

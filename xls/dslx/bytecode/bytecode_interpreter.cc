@@ -1389,6 +1389,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinGate(bytecode, stack_);
     case Builtin::kMap:
       return RunBuiltinMap(bytecode);
+    case Builtin::kZip:
+      return RunBuiltinZip(bytecode, stack_);
     case Builtin::kEncode:
       return RunBuiltinEncode(bytecode, stack_);
     case Builtin::kOneHot:

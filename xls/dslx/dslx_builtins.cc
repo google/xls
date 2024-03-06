@@ -530,6 +530,65 @@ static void AddBinaryArbitrarySignToUnitSignature(
   };
 }
 
+static void AddByteArrayAndTProducesTSignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
+  map["(u8[N], T) -> T"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    const ArrayType* array_type;
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                       .Len(2)
+                       .IsArray(0, &array_type);
+    // Need to ensure we didn't get an error before we use the array type.
+    XLS_RETURN_IF_ERROR(checker.status());
+    checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
+      return absl::StrFormat("Element type of argument 0 %s should be a u8.",
+                             array_type->ToString());
+    });
+    XLS_RETURN_IF_ERROR(checker.status());
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
+  };
+}
+
+static void AddZipLikeSignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
+  map["(T[N], U[N]) -> (T, U)[N]"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    const ArrayType* t_array;
+    const ArrayType* u_array;
+    Checker checker(data.arg_types, data.name, data.span, *ctx);
+    XLS_RETURN_IF_ERROR(
+        checker.Len(2).IsArray(0, &t_array).IsArray(1, &u_array).status());
+    const ConcreteType& t = t_array->element_type();
+    const ConcreteType& u = u_array->element_type();
+
+    XLS_ASSIGN_OR_RETURN(
+        int64_t size,
+        std::get<InterpValue>(t_array->size().value()).GetBitValueViaSign());
+    XLS_RETURN_IF_ERROR(
+        checker
+            .CheckIsLen(
+                *u_array, size,
+                [&] {
+                  return absl::StrFormat(
+                      "Array size of %s must match array size of %s (%d)",
+                      t_array->ToString(), u_array->ToString(), size);
+                })
+            .status());
+
+    std::vector<std::unique_ptr<ConcreteType>> element_types;
+    element_types.push_back(t.CloneToUnique());
+    element_types.push_back(u.CloneToUnique());
+    auto e = std::make_unique<TupleType>(std::move(element_types));
+    auto return_type =
+        std::make_unique<ArrayType>(std::move(e), t_array->size());
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), std::move(return_type))};
+  };
+}
+
 static absl::flat_hash_map<std::string, SignatureFn>
 PopulateSignatureToLambdaMap() {
   absl::flat_hash_map<std::string, SignatureFn> map;
@@ -541,6 +600,8 @@ PopulateSignatureToLambdaMap() {
   AddBinaryArbitrarySignToUnitSignature(map);
   AddUnaryArbitraryTypeIdentitySignature(map);
   AddBinaryArbitraryTypeSignature(map);
+  AddByteArrayAndTProducesTSignature(map);
+  AddZipLikeSignature(map);
 
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
       [](const SignatureData& data,
@@ -947,23 +1008,6 @@ PopulateSignatureToLambdaMap() {
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
-  };
-  map["(u8[N], T) -> T"] =
-      [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
-    const ArrayType* array_type;
-    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
-                       .Len(2)
-                       .IsArray(0, &array_type);
-    // Need to ensure we didn't get an error before we use the array type.
-    XLS_RETURN_IF_ERROR(checker.status());
-    checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
-      return absl::StrFormat("Element type of argument 0 %s should be a u8.",
-                             array_type->ToString());
-    });
-    XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndParametricEnv{std::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(uN[N], uN[N]) -> (uN[N], uN[N])"] =
       [](const SignatureData& data,

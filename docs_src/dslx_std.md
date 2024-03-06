@@ -105,6 +105,27 @@ name of the function must be referred to directly.
 Note: Novel higher order functions (e.g. if a user wanted to write their own
 `map`) cannot currently be written in user-level DSL code.
 
+### `zip`
+
+`zip` places elements of two same-sized arrays together in an array of 2-tuples.
+
+Its signature is: `zip(lhs: T[N], rhs: U[N]) -> (T, U)[N]`.
+
+```dslx
+#[test]
+fn test_zip_array_size_1() {
+    const LHS = u8[1]:[42];
+    const RHS = u16[1]:[64];
+    const WANT = (u8, u16)[1]:[(42, 64)]
+    assert_eq(zip(LHS, RHS), WANT);
+}
+
+#[test]
+fn test_zip_array_size_2() {
+    assert_eq(zip(u32[2]:[1, 2], u64[2]:[10, 11]), (u32, u64)[2]:[(1, 10), (2, 11)]);
+}
+```
+
 ### `array_rev`
 
 `array_rev` reverses the elements of an array.

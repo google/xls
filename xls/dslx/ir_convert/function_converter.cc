@@ -15,6 +15,7 @@
 #include "xls/dslx/ir_convert/function_converter.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -77,6 +78,15 @@ namespace xls::dslx {
 namespace {
 
 constexpr WarningCollector* kNoWarningCollector = nullptr;
+
+// For values that are generic sizes (e.g. indexing into an array) we prefer to
+// use this bitwidth, which should suffice for all programs we can compile in
+// effect.
+//
+// This corresponds to what we think of as our "usize" type, though we don't
+// actually have that type yet, tracked in
+// https://github.com/google/xls/issues/450
+constexpr size_t kUsizeBits = 32;
 
 // Returns a status that indicates an error in the IR conversion process.
 absl::Status IrConversionErrorStatus(const std::optional<Span>& span,
@@ -1817,6 +1827,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"bit_slice", &FunctionConverter::HandleBuiltinBitSlice},
           {"bit_slice_update", &FunctionConverter::HandleBuiltinBitSliceUpdate},
           {"rev", &FunctionConverter::HandleBuiltinRev},
+          {"zip", &FunctionConverter::HandleBuiltinZip},
           {"and_reduce", &FunctionConverter::HandleBuiltinAndReduce},
           {"or_reduce", &FunctionConverter::HandleBuiltinOrReduce},
           {"xor_reduce", &FunctionConverter::HandleBuiltinXorReduce},
@@ -2814,6 +2825,32 @@ absl::Status FunctionConverter::HandleBuiltinArrayRev(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleBuiltinZip(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->args()[1]));
+
+  XLS_ASSIGN_OR_RETURN(xls::Type * result_type_base, ResolveTypeToIr(node));
+  // Should never fail, because type inference should ensure this is a array
+  // type.
+  xls::ArrayType* result_type = down_cast<xls::ArrayType*>(result_type_base);
+
+  Def(node, [&](const SourceInfo& loc) {
+    std::vector<BValue> elems;
+    int64_t result_size = result_type->size();
+    for (int64_t i = 0; i < result_size; ++i) {
+      BValue index = function_builder_->Literal(UBits(i, kUsizeBits));
+
+      BValue lhs_element = function_builder_->ArrayIndex(lhs, {index}, loc);
+      BValue rhs_element = function_builder_->ArrayIndex(rhs, {index}, loc);
+      elems.push_back(
+          function_builder_->Tuple({lhs_element, rhs_element}, loc));
+    }
+    return function_builder_->Array(elems, result_type->element_type(), loc);
+  });
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleBuiltinArraySlice(
     const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
@@ -2957,7 +2994,7 @@ absl::Status FunctionConverter::HandleBuiltinOneHotSel(const Invocation* node) {
 
   Def(node, [&](const SourceInfo& loc) {
     for (int64_t i = 0; i < cases_arg_type->size(); ++i) {
-      BValue index = function_builder_->Literal(UBits(i, 32), loc);
+      BValue index = function_builder_->Literal(UBits(i, kUsizeBits), loc);
       BValue bvalue_case =
           function_builder_->ArrayIndex(bvalue_cases_arg, {index}, loc);
       cases.push_back(bvalue_case);
@@ -2984,7 +3021,7 @@ absl::Status FunctionConverter::HandleBuiltinPrioritySel(
 
   Def(node, [&](const SourceInfo& loc) {
     for (int64_t i = 0; i < cases_arg_type->size(); ++i) {
-      BValue index = function_builder_->Literal(UBits(i, 32), loc);
+      BValue index = function_builder_->Literal(UBits(i, kUsizeBits), loc);
       BValue bvalue_case =
           function_builder_->ArrayIndex(bvalue_cases_arg, {index}, loc);
       cases.push_back(bvalue_case);
@@ -3116,7 +3153,7 @@ absl::Status FunctionConverter::CastFromArray(const Cast* node,
   const int64_t array_size = array_type->size();
   std::vector<BValue> pieces;
   for (int64_t i = 0; i < array_size; ++i) {
-    BValue index = function_builder_->Literal(UBits(i, 32));
+    BValue index = function_builder_->Literal(UBits(i, kUsizeBits));
     pieces.push_back(function_builder_->ArrayIndex(array, {index}));
   }
   Def(node, [this, &pieces](const SourceInfo& loc) {
@@ -3219,7 +3256,8 @@ absl::Status FunctionConverter::HandleConstantArray(const ConstantArray* node) {
   return HandleArray(node);
 }
 
-absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(AstNode* node) {
+absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(
+    const AstNode* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
                        ResolveType(node));
   return TypeToIr(package_data_.package, *concrete_type,

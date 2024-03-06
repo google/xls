@@ -84,6 +84,9 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           // should really be replaced with known-statically-sized iota syntax.
           {"range", {"(const uN[N], const uN[N]) -> uN[N][R]", false}},
 
+          {"zip",
+           {.signature = "(T[N], U[N]) -> (T, U)[N]", .is_ast_node = false}},
+
           // send/recv (communication) builtins that can only be used within
           // proc scope.
           {"send",

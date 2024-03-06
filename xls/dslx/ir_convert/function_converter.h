@@ -230,7 +230,7 @@ class FunctionConverter {
       const AstNode* node);
 
   // Helper that composes ResolveType() and TypeToIr().
-  absl::StatusOr<xls::Type*> ResolveTypeToIr(AstNode* node);
+  absl::StatusOr<xls::Type*> ResolveTypeToIr(const AstNode* node);
 
   // -- Accessors
 
@@ -377,6 +377,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinPrioritySel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
   absl::Status HandleBuiltinRev(const Invocation* node);
+  absl::Status HandleBuiltinZip(const Invocation* node);
   absl::Status HandleBuiltinSignex(const Invocation* node);
   absl::Status HandleBuiltinSMulp(const Invocation* node);
   absl::Status HandleBuiltinUpdate(const Invocation* node);

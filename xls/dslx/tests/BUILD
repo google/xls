@@ -70,6 +70,8 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
+dslx_lang_test(name = "builtin_zip")
+
 dslx_lang_test(
     name = "simple_mod",
     # Some delay models do not characterize mod.

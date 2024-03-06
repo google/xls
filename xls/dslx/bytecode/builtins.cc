@@ -623,6 +623,31 @@ absl::Status RunBuiltinRev(const Bytecode& bytecode, InterpreterStack& stack) {
   return absl::OkStatus();
 }
 
+absl::Status RunBuiltinZip(const Bytecode& bytecode, InterpreterStack& stack) {
+  return RunBinaryBuiltin(
+      [](const InterpValue& lhs,
+         const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+        // Should have been checked by type inference.
+        XLS_RET_CHECK(lhs.IsArray() && rhs.IsArray());
+
+        XLS_ASSIGN_OR_RETURN(size_t lhs_length, lhs.GetLength());
+        XLS_ASSIGN_OR_RETURN(size_t rhs_length, rhs.GetLength());
+
+        // Should have been checked by type inference.
+        XLS_RET_CHECK_EQ(rhs_length, rhs_length);
+
+        std::vector<InterpValue> zipped;
+        zipped.reserve(lhs_length);
+        for (size_t i = 0; i < lhs_length; ++i) {
+          zipped.push_back(InterpValue::MakeTuple(
+              {lhs.GetValuesOrDie()[i], rhs.GetValuesOrDie()[i]}));
+        }
+
+        return InterpValue::MakeArray(std::move(zipped));
+      },
+      stack);
+}
+
 absl::Status RunBuiltinXorReduce(const Bytecode& bytecode,
                                  InterpreterStack& stack) {
   XLS_VLOG(3) << "Executing builtin XorReduce.";
