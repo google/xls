@@ -46,52 +46,13 @@ exports_files(["sha256.x"])
 filegroup(
     name = "ir_examples",
     srcs = [
-        ":adler32.ir",
-        ":adler32.opt.ir",
         ":crc32.ir",
         ":crc32.opt.ir",
         ":matmul_4x4.ir",
         ":sha256.ir",
         ":sha256.opt.ir",
-    ],
-)
-
-xls_dslx_opt_ir(
-    name = "adler32",
-    srcs = ["adler32.x"],
-    dslx_top = "main",
-    ir_file = "adler32.ir",
-    opt_ir_file = "adler32.opt.ir",
-)
-
-xls_dslx_test(
-    name = "adler32_dslx_test",
-    srcs = ["adler32.x"],
-)
-
-# TODO(rspringer): OOMs. Add xls_ir_equivalence_test.
-xls_eval_ir_test(
-    name = "adler32_eval_ir_test",
-    src = ":adler32.ir",
-)
-
-xls_benchmark_ir(
-    name = "adler32_benchmark_ir",
-    src = ":adler32.ir",
-    benchmark_ir_args = {
-        "delay_model": "sky130",
-    },
-)
-
-cc_binary(
-    name = "adler32_reference",
-    srcs = ["adler32_reference.cc"],
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/types:span",
-        "//xls/common:init_xls",
-        "//xls/common/logging",
+        "//xls/examples/adler32:adler32.ir",
+        "//xls/examples/adler32:adler32.opt.ir",
     ],
 )
 
@@ -404,9 +365,9 @@ cc_library(
     ],
     hdrs = ["sample_packages.h"],
     data = [
-        ":adler32.opt.ir",
         ":ir_example_file_list.txt",
         ":ir_examples",
+        "//xls/examples/adler32:adler32.opt.ir",
     ],
     deps = [
         "@com_google_absl//absl/log:check",

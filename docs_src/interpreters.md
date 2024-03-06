@@ -11,11 +11,11 @@ The DSLX interpreter (`//xls/dslx:interpreter_main`) operates on
 DSLX `.x` files that contain both the design and unit tests to execute (present
 as `#[test]` annotated functions).
 
-The [adler32](https://github.com/google/xls/tree/main/xls/examples/adler32.x) example
-demonstrates this: the design is encapsulated in the `main`, `adler32_seq`, and
-`mod` functions, and the samples are present in the test `adler32_one_char`
-(note that unit-style tests/interpretations of `adler32_seq` and `mod` could
-also be present).
+The [adler32](https://github.com/google/xls/tree/main/xls/examples/adler32/adler32.x)
+example demonstrates this: the design is encapsulated in the `main`,
+`adler32_seq`, and `mod` functions, and the samples are present in the test
+`adler32_one_char` (note that unit-style tests/interpretations of `adler32_seq`
+and `mod` could also be present).
 
 Interpreter targets are automatically generated for `dslx_test()` targets, so no
 special declarations are necessary to wrap DSLX code.
@@ -23,8 +23,8 @@ special declarations are necessary to wrap DSLX code.
 To invoke these samples, execute the following:
 
 ```
-bazel build -c opt //xls/examples:adler32_dslx_test
-./bazel-bin/xls/examples/adler32_dslx_test
+bazel build -c opt //xls/examples/adler32:adler32_dslx_test
+./bazel-bin/xls/examples/adler32/adler32_dslx_test
 ```
 
 To execute directly via the interpreter, you can instead run:
@@ -32,7 +32,7 @@ To execute directly via the interpreter, you can instead run:
 ```
 $ bazel build -c opt //xls/dslx/interpreter_main
 $ ./bazel-bin/xls/dslx/interpreter_main \
-    ./xls/examples/adler32.x
+    ./xls/examples/adler32/adler32.x
 ```
 
 These two methods are equivalent.
@@ -49,11 +49,11 @@ execution, or not perform IR comparison at all.
 
 ```console
 $ ./bazel-bin/xls/dslx/interpreter_main \
-    ./xls/examples/adler32.x --compare=jit
+    ./xls/examples/adler32/adler32.x --compare=jit
 $ ./bazel-bin/xls/dslx/interpreter_main \
-    ./xls/examples/adler32.x --compare=interpreter
+    ./xls/examples/adler32/adler32.x --compare=interpreter
 $ ./bazel-bin/xls/dslx/interpreter_main \
-    ./xls/examples/adler32.x --compare=none
+    ./xls/examples/adler32/adler32.x --compare=none
 ```
 
 ## IR
