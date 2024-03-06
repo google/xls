@@ -14,6 +14,7 @@
 
 #include "xls/ir/value_utils.h"
 
+#include <cstdint>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -23,7 +24,9 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -54,7 +57,8 @@ Value ValueOfType(Type* type,
   XLS_LOG(FATAL) << "Invalid kind: " << type->kind();
 }
 
-void ValueLeafNodes(const Value& value, std::vector<Value>& leaves) {
+void ValueLeafNodes(const Value& value,
+                    LeafTypeTree<Value>::DataContainerT& leaves) {
   if (value.IsBits() || value.IsToken()) {
     leaves.push_back(value);
     return;
@@ -109,13 +113,12 @@ absl::StatusOr<float> TupleToF32(const Value& v) {
   return absl::bit_cast<float>(x);
 }
 
-absl::StatusOr<Value> LeafTypeTreeToValue(const LeafTypeTree<Value>& tree) {
+absl::StatusOr<Value> LeafTypeTreeToValue(LeafTypeTreeView<Value> tree) {
   Type* type = tree.type();
   if (type->IsTuple()) {
     std::vector<Value> values;
     for (int64_t i = 0; i < type->AsTupleOrDie()->size(); ++i) {
-      XLS_ASSIGN_OR_RETURN(Value value,
-                           LeafTypeTreeToValue(tree.CopySubtree({i})));
+      XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(tree.AsView({i})));
       values.push_back(value);
     }
     return Value::TupleOwned(std::move(values));
@@ -123,8 +126,7 @@ absl::StatusOr<Value> LeafTypeTreeToValue(const LeafTypeTree<Value>& tree) {
   if (type->IsArray()) {
     std::vector<Value> values;
     for (int64_t i = 0; i < type->AsArrayOrDie()->size(); ++i) {
-      XLS_ASSIGN_OR_RETURN(Value value,
-                           LeafTypeTreeToValue(tree.CopySubtree({i})));
+      XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(tree.AsView({i})));
       values.push_back(value);
     }
     return Value::ArrayOrDie(values);
@@ -135,9 +137,11 @@ absl::StatusOr<Value> LeafTypeTreeToValue(const LeafTypeTree<Value>& tree) {
 absl::StatusOr<LeafTypeTree<Value>> ValueToLeafTypeTree(const Value& value,
                                                         Type* type) {
   XLS_RET_CHECK(ValueConformsToType(value, type));
-  std::vector<Value> leaf_nodes;
+  // Values can be expensive to copy so build a vector of the type LeafTypeTree
+  // needs and move in during construction.
+  LeafTypeTree<Value>::DataContainerT leaf_nodes;
   ValueLeafNodes(value, leaf_nodes);
-  return LeafTypeTree<Value>(type, leaf_nodes);
+  return LeafTypeTree<Value>::CreateFromVector(type, std::move(leaf_nodes));
 }
 
 }  // namespace xls

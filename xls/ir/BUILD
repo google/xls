@@ -1525,7 +1525,7 @@ cc_test(
     name = "value_utils_test",
     srcs = ["value_utils_test.cc"],
     deps = [
-        ":bits_ops",
+        ":bits",
         ":ir",
         ":ir_parser",
         ":value",
@@ -1533,6 +1533,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
     ],
 )
 

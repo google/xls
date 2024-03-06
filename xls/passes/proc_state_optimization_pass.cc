@@ -98,12 +98,11 @@ absl::StatusOr<std::optional<Value>> GetKnownValue(Node* node,
     // Value not fully known.
     return std::nullopt;
   }
-  XLS_ASSIGN_OR_RETURN(
-      Value value,
-      LeafTypeTreeToValue(value_tree.Map<Value>(
-          [](const TernaryVector& ternary_vector) -> Value {
-            return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
-          })));
+  LeafTypeTree<Value> value_ltt = leaf_type_tree::Map<Value, TernaryVector>(
+      value_tree.AsView(), [](const TernaryVector& ternary_vector) -> Value {
+        return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
+      });
+  XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_ltt.AsView()));
   return value;
 }
 

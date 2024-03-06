@@ -110,16 +110,18 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     std::vector<int64_t> bounds =
         GetArrayBounds(array_index->array()->GetType());
     std::optional<LeafTypeTree<LeafT>> result;
-    XLS_RETURN_IF_ERROR(array_value.ForEachSubArray(
-        array_index->indices().size(),
-        [&](Type* subtype, absl::Span<const LeafT> elements,
+    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
+        array_value.AsView(), array_index->indices().size(),
+        [&](LeafTypeTreeView<LeafT> element_view,
             absl::Span<const int64_t> index) {
           if (IndicesMightBeEqual(array_index->indices(), index, bounds,
                                   /*indices_clamped=*/true)) {
             if (result.has_value()) {
-              JoinLeafDataElementsWithValue(elements, array_index, *result);
+              JoinLeafDataElementsWithValue(element_view.elements(),
+                                            array_index, *result);
             } else {
-              result = LeafTypeTree<LeafT>(array_index->GetType(), elements);
+              result = LeafTypeTree<LeafT>(array_index->GetType(),
+                                           element_view.elements());
             }
           }
           return absl::OkStatus();
@@ -142,14 +144,14 @@ class DataflowVisitor : public DfsVisitorWithDefault {
         GetArrayBounds(array_update->array_to_update()->GetType());
     const LeafTypeTree<LeafT>& update_value =
         GetValue(array_update->update_value());
-    XLS_RETURN_IF_ERROR(result.ForEachSubArray(
-        array_update->indices().size(),
-        [&](Type* subtype, absl::Span<LeafT> elements,
+    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
+        result.AsMutableView(), array_update->indices().size(),
+        [&](MutableLeafTypeTreeView<LeafT> element_view,
             absl::Span<const int64_t> index) {
           if (IndicesAreEqual(array_update->indices(), index, bounds,
                               /*indices_clamped=*/false)) {
-            for (int64_t i = 0; i < elements.size(); ++i) {
-              elements[i] = update_value.elements()[i];
+            for (int64_t i = 0; i < element_view.size(); ++i) {
+              element_view.elements()[i] = update_value.elements()[i];
             }
           } else if (IndicesMightBeEqual(array_update->indices(), index, bounds,
                                          /*indices_clamped=*/false)) {
@@ -218,9 +220,10 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   }
 
   absl::Status HandleTupleIndex(TupleIndex* tuple_index) override {
-    return SetValue(tuple_index,
-                    map_.at(tuple_index->operand(0))
-                        .CopySubtree(/*index=*/{tuple_index->index()}));
+    return SetValue(
+        tuple_index,
+        leaf_type_tree::Clone(
+            map_.at(tuple_index->operand(0)).AsView({tuple_index->index()})));
   }
 
   // Returns the leaf type tree value associated with `node`.
@@ -283,10 +286,12 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // Inplace data join of the LeafTypeTree value `data_value` with `value`.
   absl::Status JoinDataValue(const LeafTypeTree<LeafT>& data_value, Node* node,
                              LeafTypeTree<LeafT>& value) {
-    return value.ForEach([&](Type* t, LeafT& element,
-                             absl::Span<const int64_t> index) {
-      return AccumulateDataElement(data_value.Get(index), node, index, element);
-    });
+    return leaf_type_tree::ForEach(
+        value.AsMutableView(),
+        [&](Type* t, LeafT& element, absl::Span<const int64_t> index) {
+          return AccumulateDataElement(data_value.Get(index), node, index,
+                                       element);
+        });
   }
 
   // Inplace control join of the LeafTypeTree value `control_value` with
@@ -296,10 +301,12 @@ class DataflowVisitor : public DfsVisitorWithDefault {
                                 Node* node, LeafTypeTree<LeafT>& value) {
     XLS_RET_CHECK(control_value.type()->IsBits());
     const LeafT control_element = control_value.elements().front();
-    return value.ForEach([&](Type* t, LeafT& element,
-                             absl::Span<const int64_t> index) {
-      return AccumulateControlElement(control_element, node, index, element);
-    });
+    return leaf_type_tree::ForEach(
+        value.AsMutableView(),
+        [&](Type* t, LeafT& element, absl::Span<const int64_t> index) {
+          return AccumulateControlElement(control_element, node, index,
+                                          element);
+        });
   }
 
   // Inplace data join of the LeafTypeTree using a span of
@@ -309,7 +316,8 @@ class DataflowVisitor : public DfsVisitorWithDefault {
       absl::Span<const LeafT> elements, Node* node, LeafTypeTree<LeafT>& value,
       absl::Span<const int64_t> index_prefix = {}) {
     int64_t linear_index = 0;
-    return value.ForEach(
+    return leaf_type_tree::ForEach(
+        value.AsMutableView(index_prefix),
         [&](Type* t, LeafT& element, absl::Span<const int64_t> index) {
           AccumulateDataElement(elements[linear_index], node, index, element);
           ++linear_index;

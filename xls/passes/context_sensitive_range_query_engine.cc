@@ -222,8 +222,10 @@ class BackPropagate final : public BackPropagateBase {
                                                               : UBits(0, 1))) {
       // Case: (L == R) == TRUE
       // Case: (L != R) == FALSE
-      IntervalSetTree unified = IntervalSetTree::Zip<IntervalSet, IntervalSet>(
-          IntervalSet::Intersect, a_intervals, b_intervals);
+      IntervalSetTree unified =
+          leaf_type_tree::Zip<IntervalSet, IntervalSet, IntervalSet>(
+              a_intervals.AsView(), b_intervals.AsView(),
+              IntervalSet::Intersect);
 
       if (absl::c_any_of(unified.elements(), [](const IntervalSet& set) {
             return set.NumberOfIntervals() == 0;
@@ -271,11 +273,13 @@ class BackPropagate final : public BackPropagateBase {
             RangeData{.ternary = ternary,
                       .interval_set = base_.GetIntervalSetTree(precise)};
         IntervalSetTree imprecise_complement_interval =
-            base_.GetIntervalSetTree(imprecise).Map<IntervalSet>(
+            leaf_type_tree::Map<IntervalSet, IntervalSet>(
+                base_.GetIntervalSetTree(imprecise).AsView(),
                 &IntervalSet::Complement);
         // Remove the single known precise value from the imprecise values
         // range.
-        XLS_RETURN_IF_ERROR(imprecise_complement_interval.ForEach(
+        XLS_RETURN_IF_ERROR(leaf_type_tree::ForEach(
+            imprecise_complement_interval.AsMutableView(),
             [&](Type* type, IntervalSet& imprecise,
                 absl::Span<const int64_t> location) -> absl::Status {
               XLS_RET_CHECK(precise_intervals.Get(location).IsPrecise());
@@ -285,7 +289,8 @@ class BackPropagate final : public BackPropagateBase {
               return absl::OkStatus();
             }));
         IntervalSetTree imprecise_interval =
-            imprecise_complement_interval.Map<IntervalSet>(
+            leaf_type_tree::Map<IntervalSet, IntervalSet>(
+                imprecise_complement_interval.AsView(),
                 &IntervalSet::Complement);
         if (absl::c_any_of(imprecise_interval.elements(),
                            [](const IntervalSet& set) {

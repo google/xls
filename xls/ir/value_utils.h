@@ -97,7 +97,7 @@ Value F32ToTuple(float value);
 absl::StatusOr<float> TupleToF32(const Value& v);
 
 // Converts a `LeafTypeTree<Value>` to a `Value`.
-absl::StatusOr<Value> LeafTypeTreeToValue(const LeafTypeTree<Value>& tree);
+absl::StatusOr<Value> LeafTypeTreeToValue(LeafTypeTreeView<Value> tree);
 
 // Converts a `Value` to a `LeafTypeTree<Value>`.
 // The given `Type*` must be the type of the given `Value`.

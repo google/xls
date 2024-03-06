@@ -14,6 +14,7 @@
 
 #include "xls/passes/union_query_engine.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -23,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
@@ -67,8 +69,8 @@ LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
   });
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
-      result.UpdateFrom<TernaryVector>(
-          engine->GetTernary(node),
+      leaf_type_tree::UpdateFrom<TernaryVector, TernaryVector>(
+          result.AsMutableView(), engine->GetTernary(node).AsView(),
           [](TernaryVector& lhs, const TernaryVector& rhs) {
             CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
           });
@@ -95,8 +97,8 @@ LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervals(Node* node) const {
   }
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
-      result.UpdateFrom<IntervalSet>(
-          engine->GetIntervals(node),
+      leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+          result.AsMutableView(), engine->GetIntervals(node).AsView(),
           [](IntervalSet& lhs, const IntervalSet& rhs) {
             lhs = IntervalSet::Intersect(lhs, rhs);
           });

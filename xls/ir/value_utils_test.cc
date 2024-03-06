@@ -14,12 +14,12 @@
 
 #include "xls/ir/value_utils.h"
 
-#include <random>
+#include <variant>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/ir/bits_ops.h"
+#include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
@@ -100,17 +100,19 @@ TEST(ValueHelperTest, ValueToLeafTypeTree) {
     XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTree<Value> ltt,
                              ValueToLeafTypeTree(ZeroOfType(type), type));
     EXPECT_TRUE(ltt.type()->IsEqualTo(type));
-    LeafTypeTree<absl::monostate> shape(type);
-    LeafTypeTree<absl::monostate>::Zip<Type*, Value>(
-        [](Type* type, const Value& value) -> absl::monostate {
+    LeafTypeTree<std::monostate> shape(type);
+    LeafTypeTree<Type*> type_tree(type, shape.leaf_types());
+    leaf_type_tree::Zip<std::monostate, Type*, Value>(
+        type_tree.AsView(), ltt.AsView(),
+        [](Type* type, const Value& value) -> std::monostate {
           EXPECT_EQ(type->GetFlatBitCount(), value.GetFlatBitCount());
           EXPECT_EQ(type->IsBits(), value.IsBits());
           EXPECT_EQ(type->IsToken(), value.IsToken());
           EXPECT_TRUE(value.IsBits() || value.IsToken());
-          return absl::monostate();
-        },
-        LeafTypeTree<Type*>(type, shape.leaf_types()), ltt);
-    XLS_ASSERT_OK_AND_ASSIGN(Value roundtrip, LeafTypeTreeToValue(ltt));
+          return std::monostate();
+        });
+    XLS_ASSERT_OK_AND_ASSIGN(Value roundtrip,
+                             LeafTypeTreeToValue(ltt.AsView()));
     EXPECT_EQ(roundtrip, ZeroOfType(type));
   };
   run_test(p.GetBitsType(10));

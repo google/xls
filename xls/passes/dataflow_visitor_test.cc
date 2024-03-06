@@ -47,7 +47,8 @@ class DataflowVisitorTest : public IrTestBase {};
 // element is: x[1].0.
 absl::StatusOr<LeafTypeTree<std::string>> VisitorDefaultHandler(Node* node) {
   LeafTypeTree<std::string> result(node->GetType());
-  XLS_RETURN_IF_ERROR(result.ForEach(
+  XLS_RETURN_IF_ERROR(leaf_type_tree::ForEach(
+      result.AsMutableView(),
       [&](Type* type, std::string& s, absl::Span<const int64_t> index) {
         s = node->GetName();
         Type* subtype = node->GetType();

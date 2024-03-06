@@ -90,9 +90,9 @@ class NodeSourceDataflowVisitor : public DataflowVisitor<NodeSource> {
  public:
   absl::Status DefaultHandler(Node* node) override {
     LeafTypeTree<NodeSource> result(node->GetType());
-    XLS_RETURN_IF_ERROR(
-        result.ForEach([&](Type* element_type, NodeSource& element,
-                           absl::Span<const int64_t> index) {
+    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEach(
+        result.AsMutableView(), [&](Type* element_type, NodeSource& element,
+                                    absl::Span<const int64_t> index) {
           element = NodeSource(node, std::vector(index.begin(), index.end()));
           return absl::OkStatus();
         }));

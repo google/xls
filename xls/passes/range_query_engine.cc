@@ -15,9 +15,9 @@
 #include "xls/passes/range_query_engine.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <optional>
 #include <ostream>
 #include <sstream>
@@ -25,23 +25,21 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
-#include "xls/ir/abstract_node_evaluator.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
@@ -436,10 +434,11 @@ IntervalSetTree RangeQueryEngine::GetIntervalSetTree(Node* node) const {
 void RangeQueryEngine::SetIntervalSetTree(
     Node* node, const IntervalSetTree& interval_sets) {
   IntervalSetTree ist = GetIntervalSetTree(node);
-  ist.UpdateFrom<IntervalSet>(interval_sets,
-                              [](IntervalSet& lhs, const IntervalSet& rhs) {
-                                lhs = IntervalSet::Intersect(lhs, rhs);
-                              });
+  leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+      ist.AsMutableView(), interval_sets.AsView(),
+      [](IntervalSet& lhs, const IntervalSet& rhs) {
+        lhs = IntervalSet::Intersect(lhs, rhs);
+      });
   if (node->GetType()->IsBits()) {
     interval_ops::KnownBits bits =
         interval_ops::ExtractKnownBits(ist.Get({}), /*source=*/node);
@@ -728,26 +727,50 @@ absl::Status RangeQueryVisitor::HandleAndReduce(
 absl::Status RangeQueryVisitor::HandleArray(Array* array) {
   INITIALIZE_OR_SKIP(array);
   std::vector<LeafTypeTree<IntervalSet>> children;
+  children.reserve(array->operand_count());
   for (Node* element : array->operands()) {
     children.push_back(GetIntervalSetTree(element));
   }
-  SetIntervalSetTree(array,
-                     LeafTypeTree<IntervalSet>(array->GetType(), children));
+  // TODO(https://github.com/google/xls/issues/1334): Replace range query API to
+  // take/return LeafTypeTree views rather than copying these objects all the
+  // time.
+  std::vector<LeafTypeTreeView<IntervalSet>> children_views;
+  children_views.reserve(children.size());
+  for (const LeafTypeTree<IntervalSet>& child : children) {
+    children_views.push_back(child.AsView());
+  }
+
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<IntervalSet> result,
+                       leaf_type_tree::CreateArray<IntervalSet>(
+                           array->GetType()->AsArrayOrDie(), children_views));
+  SetIntervalSetTree(array, result);
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleArrayConcat(ArrayConcat* array_concat) {
   INITIALIZE_OR_SKIP(array_concat);
-  std::vector<LeafTypeTree<IntervalSet>> elements;
+  std::vector<LeafTypeTree<IntervalSet>> children;
   for (Node* element : array_concat->operands()) {
     LeafTypeTree<IntervalSet> concatee = GetIntervalSetTree(element);
     const int64_t arr_size = element->GetType()->AsArrayOrDie()->size();
     for (int32_t i = 0; i < arr_size; ++i) {
-      elements.push_back(concatee.CopySubtree({i}));
+      children.push_back(leaf_type_tree::Clone(concatee.AsView({i})));
     }
   }
-  SetIntervalSetTree(array_concat, LeafTypeTree<IntervalSet>(
-                                       array_concat->GetType(), elements));
+  // TODO(https://github.com/google/xls/issues/1334): Replace range query API to
+  // take/return LeafTypeTree views rather than copying these objects all the
+  // time.
+  std::vector<LeafTypeTreeView<IntervalSet>> children_views;
+  children_views.reserve(children.size());
+  for (const LeafTypeTree<IntervalSet>& child : children) {
+    children_views.push_back(child.AsView());
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTree<IntervalSet> result,
+      leaf_type_tree::CreateArray<IntervalSet>(
+          array_concat->GetType()->AsArrayOrDie(), children_views));
+  SetIntervalSetTree(array_concat, result);
   return absl::OkStatus();
 }
 
@@ -889,16 +912,18 @@ absl::Status RangeQueryVisitor::HandleLiteral(Literal* literal) {
   XLS_ASSIGN_OR_RETURN(
       LeafTypeTree<Value> v_ltt,
       ValueToLeafTypeTree(literal->value(), literal->GetType()));
-  SetIntervalSetTree(literal, v_ltt.Map<IntervalSet>([](const Value& value) {
-    IntervalSet interval_set(value.GetFlatBitCount());
-    if (value.IsBits()) {
-      return IntervalSet::Precise(value.bits());
-    }
-    if (value.IsToken()) {
-      return IntervalSet::Precise(Bits(0));
-    }
-    XLS_LOG(FATAL) << "Invalid value kind in HandleLiteral";
-  }));
+  SetIntervalSetTree(
+      literal, leaf_type_tree::Map<IntervalSet, Value>(
+                   v_ltt.AsView(), [](const Value& value) {
+                     IntervalSet interval_set(value.GetFlatBitCount());
+                     if (value.IsBits()) {
+                       return IntervalSet::Precise(value.bits());
+                     }
+                     if (value.IsToken()) {
+                       return IntervalSet::Precise(Bits(0));
+                     }
+                     XLS_LOG(FATAL) << "Invalid value kind in HandleLiteral";
+                   }));
   return absl::OkStatus();
 }
 
@@ -972,8 +997,8 @@ absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
         return false;
       }
     }
-    result.UpdateFrom<IntervalSet>(
-        array_interval_set_tree.CopySubtree(indexes),
+    leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+        result.AsMutableView(), array_interval_set_tree.AsView(indexes),
         [](IntervalSet& lhs, const IntervalSet& rhs) {
           lhs = IntervalSet::Combine(lhs, rhs);
         });
@@ -1080,8 +1105,9 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
       all_zero_default.elements()[i] = IntervalSet::Precise(
           UBits(0, all_zero_default.leaf_types()[i]->GetFlatBitCount()));
     }
-    result.UpdateFrom<IntervalSet>(
-        all_zero_default, [](IntervalSet& lhs, const IntervalSet& rhs) {
+    leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+        result.AsMutableView(), all_zero_default.AsView(),
+        [](IntervalSet& lhs, const IntervalSet& rhs) {
           lhs = IntervalSet::Combine(lhs, rhs);
         });
   }
@@ -1090,8 +1116,8 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
     // ranges of interest.
     if (selector_intervals.IsTrueWhenMaskWith(
             bits_ops::ShiftLeftLogical(UBits(1, sel->cases().size()), i))) {
-      result.UpdateFrom<IntervalSet>(
-          GetIntervalSetTree(sel->cases()[i]),
+      leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+          result.AsMutableView(), GetIntervalSetTree(sel->cases()[i]).AsView(),
           [](IntervalSet& lhs, const IntervalSet& rhs) {
             lhs = IntervalSet::Combine(lhs, rhs);
           });
@@ -1241,16 +1267,17 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
 
   for (int64_t i = 0; i < sel->cases().size(); ++i) {
     if (selector_values.contains(i)) {
-      result.UpdateFrom<IntervalSet>(
-          GetIntervalSetTree(sel->cases()[i]),
+      leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+          result.AsMutableView(), GetIntervalSetTree(sel->cases()[i]).AsView(),
           [](IntervalSet& lhs, const IntervalSet& rhs) {
             lhs = IntervalSet::Combine(lhs, rhs);
           });
     }
   }
   if (default_possible && sel->default_value().has_value()) {
-    result.UpdateFrom<IntervalSet>(
-        GetIntervalSetTree(sel->default_value().value()),
+    leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+        result.AsMutableView(),
+        GetIntervalSetTree(sel->default_value().value()).AsView(),
         [](IntervalSet& lhs, const IntervalSet& rhs) {
           lhs = IntervalSet::Combine(lhs, rhs);
         });
@@ -1315,15 +1342,25 @@ absl::Status RangeQueryVisitor::HandleTuple(Tuple* tuple) {
   for (Node* element : tuple->operands()) {
     children.push_back(GetIntervalSetTree(element));
   }
-  SetIntervalSetTree(tuple,
-                     LeafTypeTree<IntervalSet>(tuple->GetType(), children));
+  // TODO(meheff): Replace range query API to take/return LeafTypeTree views
+  // rather than copying these objects all the time.
+  std::vector<LeafTypeTreeView<IntervalSet>> children_views;
+  children_views.reserve(children.size());
+  for (const LeafTypeTree<IntervalSet>& child : children) {
+    children_views.push_back(child.AsView());
+  }
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<IntervalSet> result,
+                       leaf_type_tree::CreateTuple<IntervalSet>(
+                           tuple->GetType()->AsTupleOrDie(), children_views));
+  SetIntervalSetTree(tuple, result);
   return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleTupleIndex(TupleIndex* index) {
   INITIALIZE_OR_SKIP(index);
   LeafTypeTree<IntervalSet> arg = GetIntervalSetTree(index->operand(0));
-  SetIntervalSetTree(index, arg.CopySubtree({index->index()}));
+  SetIntervalSetTree(index,
+                     leaf_type_tree::Clone(arg.AsView({index->index()})));
   return absl::OkStatus();
 }
 
