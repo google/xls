@@ -7,16 +7,22 @@
 # NETLIST = synthesized netlist (Verilog)
 # TOP = top module in NETLIST
 # LIBERTY = liberty file for the target technology library
+# ADDITIONAL_LIBERTIES = all lib files required for the design, e.g. multi Vt.
 # LOGFILE = file for analysis output
 
 set sta_log $::env(LOGFILE)
 set netlist $::env(NETLIST)
 set liberty $::env(LIBERTY)
 set top $::env(TOP)
+set all_liberties [split $::env(ADDITIONAL_LIBERTIES) ","]
+lappend all_liberties $liberty
 
 sta::redirect_file_begin $sta_log
 
-read_liberty $liberty
+foreach lib $all_liberties {
+    puts "reading lib file: $lib"
+    read_liberty $lib
+}
 
 #
 # Force ps for time units regardless of Liberty default
