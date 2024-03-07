@@ -257,7 +257,7 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
   return absl::StrJoin(pieces, "\n");
 }
 
-std::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
+std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
   CHECK_EQ(key->owner(), module_)
       << key->owner()->name() << " vs " << module_->name()
       << " key: " << key->ToString();
@@ -271,8 +271,7 @@ std::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
   return std::nullopt;
 }
 
-absl::StatusOr<ConcreteType*> TypeInfo::GetItemOrError(
-    const AstNode* key) const {
+absl::StatusOr<Type*> TypeInfo::GetItemOrError(const AstNode* key) const {
   auto maybe_type = GetItem(key);
   if (maybe_type.has_value()) {
     return *maybe_type;

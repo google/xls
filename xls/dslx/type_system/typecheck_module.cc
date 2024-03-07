@@ -119,17 +119,17 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
     // Evaluate the init() fn's return type matches the expected state param.
     XLS_RETURN_IF_ERROR(TypecheckFunction(proc->init(), ctx));
     XLS_RET_CHECK_EQ(proc->next().params().size(), 2);
-    XLS_ASSIGN_OR_RETURN(ConcreteType * state_type,
+    XLS_ASSIGN_OR_RETURN(Type * state_type,
                          type_info->GetItemOrError(next_params[1]));
     XLS_RET_CHECK(!state_type->IsMeta());
 
     // TestProcs can't be parameterized, so we don't need to worry about any
     // TypeInfo children, etc.
-    XLS_ASSIGN_OR_RETURN(ConcreteType * init_metatype,
+    XLS_ASSIGN_OR_RETURN(Type * init_metatype,
                          type_info->GetItemOrError(proc->init().return_type()));
     XLS_RET_CHECK(init_metatype->IsMeta());
     XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<ConcreteType> init_type,
+        std::unique_ptr<Type> init_type,
         UnwrapMetaType(init_metatype->CloneToUnique(),
                        proc->init().return_type()->span(), "init return type"));
 
@@ -183,7 +183,7 @@ static absl::Status TypecheckQuickcheck(QuickCheck* qc, DeduceCtx* ctx) {
   XLS_RETURN_IF_ERROR(TypecheckFunction(quickcheck_f, ctx));
   scoped.Finish();
 
-  std::optional<const ConcreteType*> quickcheck_f_body_type =
+  std::optional<const Type*> quickcheck_f_body_type =
       ctx->type_info()->GetItem(quickcheck_f.body());
   XLS_RET_CHECK(quickcheck_f_body_type.has_value());
   auto u1 = BitsType::MakeU1();

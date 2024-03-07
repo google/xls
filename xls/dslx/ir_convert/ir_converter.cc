@@ -179,8 +179,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
     if (!proc_data->id_to_initial_value.contains(record.proc_id().value())) {
       Proc* p = f->proc().value();
       XLS_ASSIGN_OR_RETURN(
-          ConcreteType * foo,
-          record.type_info()->GetItemOrError(p->init().body()));
+          Type * foo, record.type_info()->GetItemOrError(p->init().body()));
 
       // If there's no value in the map, then this should be a top-level proc.
       // Verify that there are no parametric bindings.
@@ -215,9 +214,9 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
         type != nullptr) {
       auto maybe_type = type_info->GetItem(channel_type->payload());
       XLS_RET_CHECK(maybe_type.has_value());
-      ConcreteType* ct = maybe_type.value();
-      XLS_ASSIGN_OR_RETURN(
-          Type * ir_type, TypeToIr(package_data.package, *ct, ParametricEnv()));
+      Type* ct = maybe_type.value();
+      XLS_ASSIGN_OR_RETURN(xls::Type * ir_type, TypeToIr(package_data.package,
+                                                         *ct, ParametricEnv()));
       ChannelOps op = channel_type->direction() == ChannelDirection::kIn
                           ? ChannelOps::kReceiveOnly
                           : ChannelOps::kSendOnly;

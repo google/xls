@@ -33,10 +33,10 @@ namespace xls::dslx {
 // Smoke test of ResolveDim.
 TEST(IrConversionUtilsTest, ResolveDimSmoke) {
   constexpr int64_t kDimValue = 64;
-  ConcreteTypeDim dim(InterpValue::MakeUBits(/*bit_count=*/64, kDimValue));
+  TypeDim dim(InterpValue::MakeUBits(/*bit_count=*/64, kDimValue));
   absl::flat_hash_map<std::string, InterpValue> items;
   ParametricEnv bindings(items);
-  XLS_ASSERT_OK_AND_ASSIGN(ConcreteTypeDim resolved, ResolveDim(dim, bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeDim resolved, ResolveDim(dim, bindings));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t resolved_value, resolved.GetAsInt64());
   EXPECT_EQ(resolved_value, kDimValue);
 }
@@ -46,12 +46,12 @@ TEST(IrConversionUtilsTest, ResolveSymbolicDim) {
   const std::string kSymbolName = "my_symbol";
 
   auto symbol = std::make_unique<ParametricSymbol>(kSymbolName, Span::Fake());
-  ConcreteTypeDim dim(std::move(symbol));
+  TypeDim dim(std::move(symbol));
   absl::flat_hash_map<std::string, InterpValue> items;
   items.insert(
       {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kDimValue)});
   ParametricEnv bindings(items);
-  XLS_ASSERT_OK_AND_ASSIGN(ConcreteTypeDim resolved, ResolveDim(dim, bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeDim resolved, ResolveDim(dim, bindings));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t resolved_value, resolved.GetAsInt64());
   EXPECT_EQ(resolved_value, kDimValue);
 }
@@ -61,7 +61,7 @@ TEST(IrConversionUtilsTest, ResolveSymbolicDimToInt) {
   const std::string kSymbolName = "my_symbol";
 
   auto symbol = std::make_unique<ParametricSymbol>(kSymbolName, Span::Fake());
-  ConcreteTypeDim dim(std::move(symbol));
+  TypeDim dim(std::move(symbol));
   absl::flat_hash_map<std::string, InterpValue> items;
   items.insert(
       {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kDimValue)});
@@ -83,10 +83,10 @@ TEST(IrConversionUtilsTest, TypeToIr) {
       {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kArraySize)});
   ParametricEnv bindings(items);
 
-  std::vector<std::unique_ptr<ConcreteType>> elements;
+  std::vector<std::unique_ptr<Type>> elements;
   elements.push_back(BitsType::MakeU32());
   elements.push_back(std::make_unique<ArrayType>(
-      BitsType::MakeU8(), ConcreteTypeDim::CreateU32(kArraySize)));
+      BitsType::MakeU8(), TypeDim::CreateU32(kArraySize)));
   auto dslx_tuple_type = std::make_unique<TupleType>(std::move(elements));
   XLS_ASSERT_OK_AND_ASSIGN(xls::Type * type,
                            TypeToIr(&package, *dslx_tuple_type, bindings));

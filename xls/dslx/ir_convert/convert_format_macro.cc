@@ -14,12 +14,28 @@
 
 #include "xls/dslx/ir_convert/convert_format_macro.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <variant>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/make_value_format_descriptor.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/value_format_descriptor.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
+#include "xls/ir/function_builder.h"
 
 namespace xls::dslx {
 namespace {
@@ -158,10 +174,9 @@ absl::StatusOr<BValue> ConvertFormatMacro(const FormatMacro& node,
       const BValue& arg_val = arg_vals.at(next_argno);
       const Expr* arg_expr = node.args().at(next_argno);
 
-      std::optional<ConcreteType*> maybe_type =
-          current_type_info.GetItem(arg_expr);
+      std::optional<Type*> maybe_type = current_type_info.GetItem(arg_expr);
       XLS_RET_CHECK(maybe_type.has_value());
-      ConcreteType* type = maybe_type.value();
+      Type* type = maybe_type.value();
       XLS_ASSIGN_OR_RETURN(auto value_format_descriptor,
                            MakeValueFormatDescriptor(*type, preference));
       XLS_RETURN_IF_ERROR(Flatten(*value_format_descriptor, arg_val, ctx));

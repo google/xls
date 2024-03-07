@@ -37,7 +37,7 @@ using ::testing::MatchesRegex;
 
 TEST(ValueGeneratorTest, GenerateEmptyValues) {
   std::mt19937_64 rng;
-  std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  std::vector<const dslx::Type*> param_type_ptrs;
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<dslx::InterpValue> values,
                            GenerateInterpValues(rng, param_type_ptrs));
   ASSERT_TRUE(values.empty());
@@ -45,12 +45,12 @@ TEST(ValueGeneratorTest, GenerateEmptyValues) {
 
 TEST(ValueGeneratorTest, GenerateSingleBitsArgument) {
   std::mt19937_64 rng;
-  std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
+  std::vector<std::unique_ptr<dslx::Type>> param_types;
   param_types.push_back(std::make_unique<dslx::BitsType>(
       /*signed=*/false,
-      /*size=*/dslx::ConcreteTypeDim::CreateU32(42)));
+      /*size=*/dslx::TypeDim::CreateU32(42)));
 
-  std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  std::vector<const dslx::Type*> param_type_ptrs;
   param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
@@ -64,14 +64,14 @@ TEST(ValueGeneratorTest, GenerateSingleBitsArgument) {
 
 TEST(ValueGeneratorTest, GenerateMixedBitsArguments) {
   std::mt19937_64 rng;
-  std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
+  std::vector<std::unique_ptr<dslx::Type>> param_types;
   param_types.push_back(std::make_unique<dslx::BitsType>(
       /*signed=*/false,
-      /*size=*/dslx::ConcreteTypeDim::CreateU32(123)));
+      /*size=*/dslx::TypeDim::CreateU32(123)));
   param_types.push_back(std::make_unique<dslx::BitsType>(
       /*signed=*/true,
-      /*size=*/dslx::ConcreteTypeDim::CreateU32(22)));
-  std::vector<const dslx::ConcreteType*> param_type_ptrs;
+      /*size=*/dslx::TypeDim::CreateU32(22)));
+  std::vector<const dslx::Type*> param_type_ptrs;
   param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
@@ -87,8 +87,8 @@ TEST(ValueGeneratorTest, GenerateMixedBitsArguments) {
 
 TEST(ValueGeneratorTest, GenerateTupleArgument) {
   std::mt19937_64 rng;
-  std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
-  std::vector<std::unique_ptr<dslx::ConcreteType>> tuple_members;
+  std::vector<std::unique_ptr<dslx::Type>> param_types;
+  std::vector<std::unique_ptr<dslx::Type>> tuple_members;
   tuple_members.push_back(
       std::make_unique<dslx::BitsType>(/*signed=*/false, /*size=*/123));
   tuple_members.push_back(
@@ -96,7 +96,7 @@ TEST(ValueGeneratorTest, GenerateTupleArgument) {
   param_types.push_back(
       std::make_unique<dslx::TupleType>(std::move(tuple_members)));
 
-  std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  std::vector<const dslx::Type*> param_type_ptrs;
   param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
@@ -112,14 +112,14 @@ TEST(ValueGeneratorTest, GenerateTupleArgument) {
 
 TEST(ValueGeneratorTest, GenerateArrayArgument) {
   std::mt19937_64 rng;
-  std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
+  std::vector<std::unique_ptr<dslx::Type>> param_types;
   param_types.push_back(std::make_unique<dslx::ArrayType>(
       std::make_unique<dslx::BitsType>(
           /*signed=*/true,
-          /*size=*/dslx::ConcreteTypeDim::CreateU32(4)),
-      dslx::ConcreteTypeDim::CreateU32(24)));
+          /*size=*/dslx::TypeDim::CreateU32(4)),
+      dslx::TypeDim::CreateU32(24)));
 
-  std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  std::vector<const dslx::Type*> param_type_ptrs;
   param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());

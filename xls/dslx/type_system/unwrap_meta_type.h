@@ -31,11 +31,11 @@ namespace xls::dslx {
 //
 // Returns a TypeInferenceError if t is not a metatype, and the error message
 // will say: "Expected a type in ${context}".
-absl::StatusOr<std::unique_ptr<ConcreteType>> UnwrapMetaType(
-    std::unique_ptr<ConcreteType> t, const Span& span,
-    std::string_view context);
+absl::StatusOr<std::unique_ptr<Type>> UnwrapMetaType(std::unique_ptr<Type> t,
+                                                     const Span& span,
+                                                     std::string_view context);
 
-absl::StatusOr<const ConcreteType*> UnwrapMetaType(const ConcreteType& t);
+absl::StatusOr<const Type*> UnwrapMetaType(const Type& t);
 
 }  // namespace xls::dslx
 

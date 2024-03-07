@@ -18,14 +18,18 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/str_format.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/type_system/concrete_type.h"
+
 namespace xls::dslx {
 
 ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,
-                                           std::unique_ptr<ConcreteType> type)
+                                           std::unique_ptr<Type> type)
     : ParametricConstraint(binding, std::move(type), binding.expr()) {}
 
 ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,
-                                           std::unique_ptr<ConcreteType> type,
+                                           std::unique_ptr<Type> type,
                                            Expr* expr)
     : binding_(&binding), type_(std::move(type)), expr_(expr) {}
 

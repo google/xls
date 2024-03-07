@@ -33,8 +33,8 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
-    const Invocation* node, DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
+                                                       DeduceCtx* ctx);
 
 // Helper that deduces the concrete types of the arguments to a parametric
 // function or proc and returns them to the caller.
@@ -52,11 +52,11 @@ absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
                               InterpValue>& constexpr_env);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
-    const FormatMacro* node, DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
+                                                        DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
-    const ZeroMacro* node, DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceZeroMacro(const ZeroMacro* node,
+                                                      DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

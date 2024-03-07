@@ -55,7 +55,7 @@ namespace xls::dslx {
 //
 // TODO(cdleary): 2024-01-16 We can break this circular resolution with a
 // virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
     const AstNode* node, DeduceCtx* ctx);
 
 // Creates a function invocation on the first element of the given array.
@@ -94,7 +94,7 @@ static Invocation* CreateElementInvocation(Module* module, const Span& span,
   return result;
 }
 
-static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
+static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
     const Invocation* node, DeduceCtx* ctx) {
   const absl::Span<Expr* const>& args = node->args();
   if (args.size() != 2) {
@@ -106,7 +106,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
   }
 
   // First, get the input element type.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> arg0_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> arg0_type,
                        DeduceAndResolve(args[0], ctx));
 
   // Then get the type and bindings for the mapping fn.
@@ -182,7 +182,7 @@ absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
 
   // If it's non-parametric, then we assume it's been already checked at module
   // top.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> callee_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> callee_type,
                        ctx->Deduce(invocation->callee()));
   FunctionType* callee_fn_type = dynamic_cast<FunctionType*>(callee_type.get());
 
@@ -202,7 +202,7 @@ absl::Status InstantiateParametricArgs(
     const Instantiation* inst, const Expr* callee, absl::Span<Expr* const> args,
     DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args) {
   for (Expr* arg : args) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          DeduceAndResolve(arg, ctx));
     XLS_VLOG(5) << absl::StreamFormat(
         "InstantiateParametricArgs; arg: `%s` deduced: `%s` @ %s",
@@ -215,8 +215,8 @@ absl::Status InstantiateParametricArgs(
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
-    const Invocation* node, DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
+                                                       DeduceCtx* ctx) {
   XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString();
 
   // Detect direct recursion. Indirect recursion is currently not syntactically
@@ -276,7 +276,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
       TypeAndParametricEnv tab,
       DeduceInstantiation(ctx, node, args, resolve_fn, /*constexpr_env=*/{}));
 
-  ConcreteType* ct = ctx->type_info()->GetItem(node->callee()).value();
+  Type* ct = ctx->type_info()->GetItem(node->callee()).value();
   FunctionType* ft = dynamic_cast<FunctionType*>(ct);
   if (args.size() != ft->params().size()) {
     return ArgCountMismatchErrorStatus(
@@ -319,8 +319,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
   return std::move(tab.type);
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
-    const FormatMacro* node, DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
+                                                        DeduceCtx* ctx) {
   int64_t arg_count = OperandsExpectedByFormat(node->format());
 
   if (arg_count != node->args().size()) {
@@ -342,15 +342,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
   return std::make_unique<TokenType>();
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
-    const ZeroMacro* node, DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceZeroMacro(const ZeroMacro* node,
+                                                      DeduceCtx* ctx) {
   XLS_VLOG(5) << "DeduceZeroMacro; node: `" << node->ToString() << "`";
   // Note: since it's a macro the parser checks arg count and parametric count.
   //
   // This says the type of the parametric type arg is the type of the result.
   // However, we have to check that all of the transitive type within the
   // parametric argument type are "zero capable".
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_type,
                        DeduceAndResolve(ToAstNode(node->type()), ctx));
   XLS_ASSIGN_OR_RETURN(parametric_type,
                        UnwrapMetaType(std::move(parametric_type), node->span(),

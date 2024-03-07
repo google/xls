@@ -50,7 +50,7 @@ std::string ToTypesString(absl::Span<const InstantiateArg> ts) {
   });
 }
 
-std::string ToString(absl::Span<std::unique_ptr<ConcreteType> const> ts) {
+std::string ToString(absl::Span<std::unique_ptr<Type> const> ts) {
   if (ts.empty()) {
     return "none";
   }
@@ -104,8 +104,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
 absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
-    absl::Span<std::unique_ptr<ConcreteType> const> member_types,
-    DeduceCtx* ctx,
+    absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
     absl::Span<const ParametricConstraint> parametric_constraints) {
   XLS_VLOG(5) << "Struct instantiation @ " << span
               << " type: " << struct_type.ToString();

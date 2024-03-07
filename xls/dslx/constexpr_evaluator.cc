@@ -86,11 +86,11 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 /* static */ absl::Status ConstexprEvaluator::Evaluate(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const ParametricEnv& bindings,
-    const Expr* expr, const ConcreteType* concrete_type) {
+    const Expr* expr, const Type* type) {
   XLS_VLOG(5) << "ConstexprEvaluator::Evaluate; expr: " << expr->ToString()
               << " @ " << expr->span();
-  if (concrete_type != nullptr) {
-    XLS_RET_CHECK(!concrete_type->IsMeta());
+  if (type != nullptr) {
+    XLS_RET_CHECK(!type->IsMeta());
   }
 
   if (type_info->IsKnownConstExpr(expr) ||
@@ -98,14 +98,14 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
     return absl::OkStatus();
   }
   ConstexprEvaluator evaluator(import_data, type_info, warning_collector,
-                               bindings, concrete_type);
+                               bindings, type);
   return expr->AcceptExpr(&evaluator);
 }
 
 /* static */ absl::StatusOr<InterpValue> ConstexprEvaluator::EvaluateToValue(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const ParametricEnv& bindings,
-    const Expr* expr, const ConcreteType* concrete_type) {
+    const Expr* expr, const Type* type) {
   XLS_RETURN_IF_ERROR(
       Evaluate(import_data, type_info, warning_collector, bindings, expr));
   if (type_info->IsKnownConstExpr(expr)) {
@@ -121,7 +121,7 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 #define EVAL_AS_CONSTEXPR_OR_RETURN(EXPR)                                     \
   if (!type_info_->IsKnownConstExpr(EXPR) &&                                  \
       !type_info_->IsKnownNonConstExpr(EXPR)) {                               \
-    ConcreteType* sub_type = nullptr;                                         \
+    Type* sub_type = nullptr;                                                 \
     if (type_info_->GetItem(EXPR).has_value()) {                              \
       sub_type = type_info_->GetItem(EXPR).value();                           \
     }                                                                         \
@@ -146,7 +146,7 @@ absl::Status ConstexprEvaluator::HandleAttr(const Attr* expr) {
 
 absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
   ExprOrType type_reference = expr->type();
-  std::optional<ConcreteType*> maybe_type =
+  std::optional<Type*> maybe_type =
       type_info_->GetItem(ToAstNode(type_reference));
   if (!maybe_type.has_value()) {
     std::optional<Span> span = ToAstNode(type_reference)->GetSpan();
@@ -156,15 +156,14 @@ absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
                         ToAstNode(type_reference)->ToString(), span_str));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                        UnwrapMetaType(maybe_type.value()->CloneToUnique(),
                                       expr->span(), "zero macro input type"));
 
   // At this point type inference should have checked that this type was
   // zero-able.
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue value,
-      MakeZeroValue(*concrete_type, *import_data_, expr->span()));
+  XLS_ASSIGN_OR_RETURN(InterpValue value,
+                       MakeZeroValue(*type, *import_data_, expr->span()));
   type_info_->NoteConstExpr(expr, value);
   return absl::OkStatus();
 }
@@ -177,15 +176,14 @@ absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
     values.push_back(value);
   }
 
-  if (concrete_type_ != nullptr) {
-    auto* array_type = dynamic_cast<const ArrayType*>(concrete_type_);
+  if (type_ != nullptr) {
+    auto* array_type = dynamic_cast<const ArrayType*>(type_);
     if (array_type == nullptr) {
-      return absl::InternalError(
-          absl::StrCat(expr->span().ToString(), " : ",
-                       "Array ConcreteType was not an ArrayType!"));
+      return absl::InternalError(absl::StrCat(
+          expr->span().ToString(), " : ", "Array Type was not an ArrayType!"));
     }
 
-    ConcreteTypeDim size = array_type->size();
+    TypeDim size = array_type->size();
     absl::StatusOr<int64_t> int_size_or = size.GetAsInt64();
     if (!int_size_or.ok()) {
       return absl::InternalError(absl::StrCat(expr->span().ToString(), " : ",
@@ -255,8 +253,8 @@ absl::Status ConstexprEvaluator::HandleCast(const Cast* expr) {
 
 // Creates an InterpValue for the described channel or array of channels.
 absl::StatusOr<InterpValue> ConstexprEvaluator::CreateChannelValue(
-    const ConcreteType* concrete_type) {
-  if (auto* array_type = dynamic_cast<const ArrayType*>(concrete_type)) {
+    const Type* type) {
+  if (auto* array_type = dynamic_cast<const ArrayType*>(type)) {
     XLS_ASSIGN_OR_RETURN(int dim_int, array_type->size().GetAsInt64());
     std::vector<InterpValue> elements;
     elements.reserve(dim_int);
@@ -269,7 +267,7 @@ absl::StatusOr<InterpValue> ConstexprEvaluator::CreateChannelValue(
   }
 
   // There can't be tuples or structs of channels, only arrays.
-  const ChannelType* ct = dynamic_cast<const ChannelType*>(concrete_type);
+  const ChannelType* ct = dynamic_cast<const ChannelType*>(type);
   XLS_RET_CHECK_NE(ct, nullptr);
   return InterpValue::MakeChannel();
 }
@@ -279,7 +277,7 @@ absl::StatusOr<InterpValue> ConstexprEvaluator::CreateChannelValue(
 absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
   // Keep in mind that channels come in tuples, so peel out the first element.
-  std::optional<ConcreteType*> maybe_decl_type = type_info_->GetItem(expr);
+  std::optional<Type*> maybe_decl_type = type_info_->GetItem(expr);
   if (!maybe_decl_type.has_value()) {
     return absl::InternalError(
         absl::StrFormat("Could not find type for expr \"%s\" @ %s",
@@ -478,7 +476,7 @@ absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
 }
 
 absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
-                                           const ConcreteType& type) {
+                                           const Type& type) {
   XLS_RET_CHECK(!type.IsMeta())
       << "Got invalid type when evaluating number: " << type.ToString() << " @ "
       << expr.span();
@@ -490,7 +488,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
   InterpValueTag tag =
       bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
 
-  const std::variant<InterpValue, ConcreteTypeDim::OwnedParametric>& value =
+  const std::variant<InterpValue, TypeDim::OwnedParametric>& value =
       bits_type->size().value();
   if (!std::holds_alternative<InterpValue>(value)) {
     return absl::InvalidArgumentError(
@@ -513,7 +511,7 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
                             bindings_));
 
   std::unique_ptr<BitsType> temp_type;
-  const ConcreteType* type_ptr;
+  const Type* type_ptr;
   if (expr->type_annotation() != nullptr) {
     // If the number is annotated with a type, then extract it to pass to
     // EvaluateNumber (for consistency checking). It might be that the type is
@@ -530,8 +528,8 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
       XLS_ASSIGN_OR_RETURN(temp_type, InstantiateParametricNumberType(env, bt));
       type_ptr = temp_type.get();
     }
-  } else if (concrete_type_ != nullptr) {
-    type_ptr = concrete_type_;
+  } else if (type_ != nullptr) {
+    type_ptr = type_;
   } else if (expr->number_kind() == NumberKind::kBool) {
     temp_type = std::make_unique<BitsType>(false, 1);
     type_ptr = temp_type.get();

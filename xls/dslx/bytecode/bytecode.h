@@ -351,27 +351,27 @@ class Bytecode {
     ChannelData& operator=(ChannelData&& other) = default;
 
     ChannelData(std::string_view channel_name,
-                std::unique_ptr<ConcreteType> payload_type,
+                std::unique_ptr<Type> payload_type,
                 std::unique_ptr<ValueFormatDescriptor> value_fmt_desc)
         : channel_name_(channel_name),
           payload_type_(std::move(payload_type)),
           value_fmt_desc_(std::move(value_fmt_desc)) {}
 
     std::string_view channel_name() const { return channel_name_; }
-    const ConcreteType& payload_type() const { return *payload_type_; }
+    const Type& payload_type() const { return *payload_type_; }
     const ValueFormatDescriptor* value_fmt_desc() const {
       return value_fmt_desc_.get();
     }
 
    private:
     std::string channel_name_;
-    std::unique_ptr<ConcreteType> payload_type_;
+    std::unique_ptr<Type> payload_type_;
     std::unique_ptr<ValueFormatDescriptor> value_fmt_desc_;
   };
 
   using Data = std::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
-                            std::unique_ptr<ConcreteType>, InvocationData,
-                            MatchArmItem, SpawnData, TraceData, ChannelData>;
+                            std::unique_ptr<Type>, InvocationData, MatchArmItem,
+                            SpawnData, TraceData, ChannelData>;
 
   static Bytecode MakeDup(Span span);
   static Bytecode MakeIndex(Span span);
@@ -423,7 +423,7 @@ class Bytecode {
   absl::StatusOr<const SpawnData*> spawn_data() const;
   absl::StatusOr<const TraceData*> trace_data() const;
   absl::StatusOr<const ChannelData*> channel_data() const;
-  absl::StatusOr<const ConcreteType*> type_data() const;
+  absl::StatusOr<const Type*> type_data() const;
   absl::StatusOr<InterpValue> value_data() const;
 
   std::string ToString(bool source_locs = true) const;

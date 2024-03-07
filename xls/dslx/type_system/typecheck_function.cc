@@ -85,12 +85,12 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ConcreteType>> param_types,
+  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Type>> param_types,
                        TypecheckFunctionParams(f, ctx));
 
   // Second, typecheck the return type of the function.
   // Note: if there is no annotated return type, we assume nil.
-  std::unique_ptr<ConcreteType> return_type;
+  std::unique_ptr<Type> return_type;
   if (f.return_type() == nullptr) {
     return_type = TupleType::MakeUnit();
   } else {
@@ -111,7 +111,7 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
   }
 
   // Assert type consistency between the body and deduced return types.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> body_type,
                        DeduceAndResolve(f.body(), ctx));
   XLS_VLOG(3) << absl::StrFormat("Resolved return type: %s => %s",
                                  return_type->ToString(),
@@ -166,8 +166,7 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
     // DeduceSpawn() handles this.
     Proc* p = f.proc().value();
     const Function& init = p->init();
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                         ctx->Deduce(init.body()));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, ctx->Deduce(init.body()));
     // No need for ParametricEnv; top-level procs can't be parameterized.
     XLS_ASSIGN_OR_RETURN(InterpValue init_value,
                          ConstexprEvaluator::EvaluateToValue(

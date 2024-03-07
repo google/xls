@@ -102,7 +102,7 @@ message BitsValueProto {
   optional bytes data = 3;
 }
 
-// Constexpr-evaluated values can be held in ConcreteTypeDims (i.e. the
+// Constexpr-evaluated values can be held in TypeDims (i.e. the
 // "dimension" slots within types). This represents an interpreter value a la
 // xls::dslx::InterpValue.
 message InterpValueProto {
@@ -132,12 +132,12 @@ message ParametricAddProto {
   optional ParametricExpressionProto rhs = 2;
 }
 
-// Parametric expressions can be held in ConcreteTypeDims (i.e. the "dimension"
+// Parametric expressions can be held in TypeDims (i.e. the "dimension"
 // slots within types). This represents a parametric expression a la
 // xls::dslx::ParametricExpression.
 message ParametricExpressionProto {
   // TODO(leary): 2021-09-24 Add support for converting parametric
-  // ConcreteTypeDims to protobuf form.
+  // TypeDims to protobuf form.
   oneof expr_oneof {
     ParametricSymbolProto symbol = 1;
     ParametricMulProto mul = 2;
@@ -146,7 +146,7 @@ message ParametricExpressionProto {
   }
 }
 
-message ConcreteTypeDimProto {
+message TypeDimProto {
   oneof dim_oneof {
     InterpValueProto interp_value = 1;
     ParametricExpressionProto parametric = 2;
@@ -155,21 +155,21 @@ message ConcreteTypeDimProto {
 
 message BitsTypeProto {
   optional bool is_signed = 1;
-  optional ConcreteTypeDimProto dim = 2;
+  optional TypeDimProto dim = 2;
 }
 
 message FunctionTypeProto {
-  repeated ConcreteTypeProto params = 1;
-  optional ConcreteTypeProto return_type = 2;
+  repeated TypeProto params = 1;
+  optional TypeProto return_type = 2;
 }
 
 message TupleTypeProto {
-  repeated ConcreteTypeProto members = 1;
+  repeated TypeProto members = 1;
 }
 
 message ArrayTypeProto {
-  optional ConcreteTypeProto element_type = 1;
-  optional ConcreteTypeDimProto size = 2;
+  optional TypeProto element_type = 1;
+  optional TypeDimProto size = 2;
 }
 
 // Serialized data for a struct definition referenced in a struct type -- see
@@ -184,7 +184,7 @@ message StructDefProto {
 // Struct type (that has a nominal struct definition associated with it) -- see
 // `xls::dslx::StructType`.
 message StructTypeProto {
-  repeated ConcreteTypeProto members = 1;
+  repeated TypeProto members = 1;
   optional StructDefProto struct_def = 2;
 }
 
@@ -198,14 +198,14 @@ message EnumDefProto {
 }
 
 message EnumTypeProto {
-  optional ConcreteTypeDimProto size = 1;
+  optional TypeDimProto size = 1;
   optional EnumDefProto enum_def = 2;
   optional bool is_signed = 3;
   repeated InterpValueProto members = 4;
 }
 
 message MetaTypeProto {
-  optional ConcreteTypeProto wrapped = 1;
+  optional TypeProto wrapped = 1;
 }
 
 enum ChannelDirectionProto {
@@ -215,7 +215,7 @@ enum ChannelDirectionProto {
 }
 
 message ChannelTypeProto {
-  optional ConcreteTypeProto payload = 1;
+  optional TypeProto payload = 1;
   ChannelDirectionProto direction = 2;
 }
 
@@ -223,8 +223,8 @@ message TokenTypeProto {
   // Empty.
 }
 
-message ConcreteTypeProto {
-  oneof concrete_type_oneof {
+message TypeProto {
+  oneof type_oneof {
     BitsTypeProto bits_type = 1;
     FunctionTypeProto fn_type = 2;
     TupleTypeProto tuple_type = 3;
@@ -240,7 +240,7 @@ message ConcreteTypeProto {
 message AstNodeTypeInfoProto {
   optional AstNodeKindProto kind = 1;
   optional SpanProto span = 2;
-  optional ConcreteTypeProto type = 3;
+  optional TypeProto type = 3;
 }
 
 message TypeInfoProto {

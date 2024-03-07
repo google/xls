@@ -514,11 +514,11 @@ ConvertChannelValues(
     in_chan_indexes.push_back(index);
   }
 
-  std::vector<std::unique_ptr<dslx::ConcreteType>> channel_payload_types(
+  std::vector<std::unique_ptr<dslx::Type>> channel_payload_types(
       in_chan_indexes.size());
   for (int64_t index = 0; index < in_chan_indexes.size(); ++index) {
     XLS_ASSIGN_OR_RETURN(
-        dslx::ConcreteType * type,
+        dslx::Type * type,
         proc_type_info->GetItemOrError(
             proc->config().params().at(in_chan_indexes[index])));
     dslx::ChannelType* channel_type = dynamic_cast<dslx::ChannelType*>(type);

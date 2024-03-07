@@ -67,8 +67,8 @@ class Checker {
  public:
   // TODO(cdleary): 2023-06-02 Get the spans of all the individual argument
   // expressions for more precise error pinpointing in the resulting messages.
-  Checker(absl::Span<const ConcreteType* const> arg_types,
-          std::string_view name, const Span& span, DeduceCtx& deduce_ctx)
+  Checker(absl::Span<const Type* const> arg_types, std::string_view name,
+          const Span& span, DeduceCtx& deduce_ctx)
       : arg_types_(arg_types),
         name_(name),
         span_(span),
@@ -85,7 +85,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& Eq(const ConcreteType& lhs, const ConcreteType& rhs,
+  Checker& Eq(const Type& lhs, const Type& rhs,
               const std::function<std::string()>& make_message) {
     if (!status_.ok()) {
       return *this;
@@ -101,7 +101,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (auto* f = dynamic_cast<const FunctionType*>(&t)) {
       if (f->GetParamCount() == argc) {
         if (out != nullptr) {
@@ -126,7 +126,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (auto* tok = dynamic_cast<const TokenType*>(&t); tok != nullptr) {
       return *this;
     }
@@ -140,7 +140,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (auto* c = dynamic_cast<const ChannelType*>(&t); c != nullptr) {
       if (c->direction() != ChannelDirection::kIn) {
         status_ = TypeInferenceErrorStatus(
@@ -166,7 +166,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (auto* c = dynamic_cast<const ChannelType*>(&t)) {
       if (c->direction() != ChannelDirection::kOut) {
         status_ = TypeInferenceErrorStatus(
@@ -191,7 +191,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (auto* a = dynamic_cast<const ArrayType*>(&t)) {
       if (out != nullptr) {
         *out = a;
@@ -208,7 +208,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (auto* a = dynamic_cast<const BitsType*>(&t)) {
       if (out != nullptr) {
         *out = a;
@@ -225,7 +225,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (auto* a = dynamic_cast<const BitsType*>(&t);
         a == nullptr || a->is_signed()) {
       status_ = TypeInferenceErrorStatus(
@@ -239,7 +239,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     auto* a = dynamic_cast<const BitsType*>(&t);
     if (a == nullptr || !a->is_signed()) {
       status_ = TypeInferenceErrorStatus(
@@ -256,7 +256,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (t != *BitsType::MakeU1()) {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
@@ -265,7 +265,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& CheckIsBits(const ConcreteType& t,
+  Checker& CheckIsBits(const Type& t,
                        const std::function<std::string()>& make_msg) {
     if (!status_.ok()) {
       return *this;
@@ -282,7 +282,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    if (t.size() != ConcreteTypeDim::CreateU32(target_u32)) {
+    if (t.size() != TypeDim::CreateU32(target_u32)) {
       status_ = TypeInferenceErrorStatus(span_, &t, make_msg());
     }
     return *this;
@@ -291,9 +291,9 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = GetArgType(argno);
+    const Type& t = GetArgType(argno);
     if (auto* bits = dynamic_cast<const BitsType*>(&t);
-        bits == nullptr || bits->size() != ConcreteTypeDim::CreateU32(1)) {
+        bits == nullptr || bits->size() != TypeDim::CreateU32(1)) {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
           absl::StrFormat("Expected argument %d to '%s' to be a u1; got %s",
@@ -301,7 +301,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& TypesAreSame(const ConcreteType& t, const ConcreteType& u,
+  Checker& TypesAreSame(const Type& t, const Type& u,
                         const std::function<std::string()>& make_msg) {
     if (!status_.ok()) {
       return *this;
@@ -312,11 +312,11 @@ class Checker {
     }
     return *this;
   }
-  Checker& ArgSameType(int64_t argno, const ConcreteType& want) {
+  Checker& ArgSameType(int64_t argno, const Type& want) {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& got = GetArgType(argno);
+    const Type& got = GetArgType(argno);
     return TypesAreSame(got, want, [&] {
       return absl::StrFormat("Want argument %d to '%s' to have type %s; got %s",
                              argno, name_, want.ToString(), got.ToString());
@@ -326,8 +326,8 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& lhs = GetArgType(argno0);
-    const ConcreteType& rhs = GetArgType(argno1);
+    const Type& lhs = GetArgType(argno0);
+    const Type& rhs = GetArgType(argno1);
     return TypesAreSame(lhs, rhs, [&] {
       return absl::StrFormat(
           "Want arguments %d and %d to '%s' to be of the same type; got %s vs "
@@ -339,13 +339,13 @@ class Checker {
   const absl::Status& status() const { return status_; }
 
  private:
-  const ConcreteType& GetArgType(int64_t argno) const {
-    const ConcreteType* t = arg_types_.at(argno);
+  const Type& GetArgType(int64_t argno) const {
+    const Type* t = arg_types_.at(argno);
     CHECK(t != nullptr);
     return *t;
   }
 
-  absl::Span<const ConcreteType* const> arg_types_;
+  absl::Span<const Type* const> arg_types_;
   std::string_view name_;
   const Span& span_;
   absl::Status status_;
@@ -526,7 +526,7 @@ static void AddBinaryArbitrarySignToUnitSignature(
                        .ArgsSameType(0, 1);
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
+        CloneToUnique(data.arg_types), Type::MakeUnit())};
   };
 }
 
@@ -561,8 +561,8 @@ static void AddZipLikeSignature(
     Checker checker(data.arg_types, data.name, data.span, *ctx);
     XLS_RETURN_IF_ERROR(
         checker.Len(2).IsArray(0, &t_array).IsArray(1, &u_array).status());
-    const ConcreteType& t = t_array->element_type();
-    const ConcreteType& u = u_array->element_type();
+    const Type& t = t_array->element_type();
+    const Type& u = u_array->element_type();
 
     XLS_ASSIGN_OR_RETURN(
         int64_t size,
@@ -578,7 +578,7 @@ static void AddZipLikeSignature(
                 })
             .status());
 
-    std::vector<std::unique_ptr<ConcreteType>> element_types;
+    std::vector<std::unique_ptr<Type>> element_types;
     element_types.push_back(t.CloneToUnique());
     element_types.push_back(u.CloneToUnique());
     auto e = std::make_unique<TupleType>(std::move(element_types));
@@ -611,7 +611,7 @@ PopulateSignatureToLambdaMap() {
                             .IsUN(0)
                             .ArgsSameType(0, 1)
                             .status());
-    std::vector<std::unique_ptr<ConcreteType>> elements;
+    std::vector<std::unique_ptr<Type>> elements;
     elements.push_back(BitsType::MakeU1());
     elements.push_back(data.arg_types[0]->CloneToUnique());
     auto return_type = std::make_unique<TupleType>(std::move(elements));
@@ -649,7 +649,7 @@ PopulateSignatureToLambdaMap() {
                        .IsBits(0, &b)
                        .IsArray(1, &a);
     XLS_RETURN_IF_ERROR(checker.status());
-    const ConcreteType& return_type = a->element_type();
+    const Type& return_type = a->element_type();
     checker.CheckIsBits(return_type, [&] {
       return absl::StrFormat("Want arg 1 element type to be bits; got %s",
                              return_type.ToString());
@@ -673,7 +673,7 @@ PopulateSignatureToLambdaMap() {
                             .ArgsSameType(0, 1)
                             .status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
+        CloneToUnique(data.arg_types), Type::MakeUnit())};
   };
   map["<U>(T) -> U"] =
       [](const SignatureData& data,
@@ -690,7 +690,7 @@ PopulateSignatureToLambdaMap() {
     }
 
     ExprOrType param_type = data.arg_explicit_parametrics.at(0);
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> return_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
                          DeduceAndResolve(ToAstNode(param_type), ctx));
     XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
                                                      data.span, data.name));
@@ -718,8 +718,10 @@ PopulateSignatureToLambdaMap() {
                           "start: %s, limit: %s",
                           data.name, start.ToString(), limit.ToString()));
     }
+    XLS_RET_CHECK_EQ(static_cast<uint32_t>(length), length);
     auto return_type = std::make_unique<ArrayType>(
-        data.arg_types[0]->CloneToUnique(), ConcreteTypeDim::CreateU32(length));
+        data.arg_types[0]->CloneToUnique(),
+        TypeDim::CreateU32(static_cast<uint32_t>(length)));
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
@@ -770,7 +772,7 @@ PopulateSignatureToLambdaMap() {
                             .IsUN(1)
                             .status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
+        CloneToUnique(data.arg_types), Type::MakeUnit())};
   };
   map["(uN[M], uN[N]) -> uN[M+N]"] =
       [](const SignatureData& data,
@@ -780,11 +782,9 @@ PopulateSignatureToLambdaMap() {
                             .IsUN(0)
                             .IsUN(1)
                             .status());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim m,
-                         data.arg_types[0]->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
-                         data.arg_types[1]->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim sum, m.Add(n));
+    XLS_ASSIGN_OR_RETURN(TypeDim m, data.arg_types[0]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(TypeDim n, data.arg_types[1]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(TypeDim sum, m.Add(n));
     auto return_type =
         std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/sum);
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
@@ -881,7 +881,7 @@ PopulateSignatureToLambdaMap() {
                           data.name, data.arg_explicit_parametrics.size()));
     }
     AstNode* param_type = ToAstNode(data.arg_explicit_parametrics.at(0));
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> return_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
                          DeduceAndResolve(param_type, ctx));
     XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
                                                      data.span, data.name));
@@ -903,9 +903,8 @@ PopulateSignatureToLambdaMap() {
                             .Len(1)
                             .IsUN(0)
                             .status());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
-                         data.arg_types[0]->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim log2_n, n.CeilOfLog2());
+    XLS_ASSIGN_OR_RETURN(TypeDim n, data.arg_types[0]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(TypeDim log2_n, n.CeilOfLog2());
     auto return_type =
         std::make_unique<BitsType>(/*signed=*/false, /*size=*/log2_n);
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
@@ -919,10 +918,8 @@ PopulateSignatureToLambdaMap() {
                             .IsUN(0)
                             .IsU1(1)
                             .status());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
-                         data.arg_types[0]->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim np1,
-                         n.Add(ConcreteTypeDim::CreateU32(1)));
+    XLS_ASSIGN_OR_RETURN(TypeDim n, data.arg_types[0]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(TypeDim np1, n.Add(TypeDim::CreateU32(1)));
     auto return_type =
         std::make_unique<BitsType>(/*signed=*/false, /*size=*/np1);
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
@@ -936,8 +933,8 @@ PopulateSignatureToLambdaMap() {
                             .Len(1)
                             .IsArray(0, &a)
                             .status());
-    const ConcreteType& t = a->element_type();
-    std::vector<std::unique_ptr<ConcreteType>> element_types;
+    const Type& t = a->element_type();
+    std::vector<std::unique_ptr<Type>> element_types;
     element_types.push_back(BitsType::MakeU32());
     element_types.push_back(t.CloneToUnique());
     auto e = std::make_unique<TupleType>(std::move(element_types));
@@ -958,7 +955,7 @@ PopulateSignatureToLambdaMap() {
                             .IsFn(1, /*argc=*/1, &f_type)
                             .status());
 
-    const ConcreteType& t = a->element_type();
+    const Type& t = a->element_type();
     std::vector<InstantiateArg> mapped_fn_args;
     mapped_fn_args.push_back(
         InstantiateArg{t.CloneToUnique(), data.arg_spans[0]});
@@ -1007,7 +1004,7 @@ PopulateSignatureToLambdaMap() {
     });
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
+        CloneToUnique(data.arg_types), Type::MakeUnit())};
   };
   map["(uN[N], uN[N]) -> (uN[N], uN[N])"] =
       [](const SignatureData& data,
@@ -1025,10 +1022,9 @@ PopulateSignatureToLambdaMap() {
                           data.arg_types[0]->ToString(), " and ",
                           data.arg_types[1]->ToString());
     });
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
-                         data.arg_types[0]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(TypeDim n, data.arg_types[0]->GetTotalBitCount());
 
-    std::vector<std::unique_ptr<ConcreteType>> return_type_elems(2);
+    std::vector<std::unique_ptr<Type>> return_type_elems(2);
     return_type_elems[0] =
         std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/n);
     return_type_elems[1] =
@@ -1055,10 +1051,9 @@ PopulateSignatureToLambdaMap() {
                           data.arg_types[0]->ToString(), " and ",
                           data.arg_types[1]->ToString());
     });
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
-                         data.arg_types[0]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(TypeDim n, data.arg_types[0]->GetTotalBitCount());
 
-    std::vector<std::unique_ptr<ConcreteType>> return_type_elems(2);
+    std::vector<std::unique_ptr<Type>> return_type_elems(2);
     return_type_elems[0] =
         std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/n);
     return_type_elems[1] =

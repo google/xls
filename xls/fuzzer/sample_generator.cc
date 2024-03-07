@@ -62,13 +62,13 @@ using dslx::AstGenerator;
 using dslx::AstGeneratorOptions;
 using dslx::AstNode;
 using dslx::AstNodeVisitorWithDefault;
-using dslx::ConcreteType;
 using dslx::FunctionType;
 using dslx::ImportData;
 using dslx::InterpValue;
 using dslx::Module;
 using dslx::ModuleMember;
 using dslx::ParseModule;
+using dslx::Type;
 using dslx::TypecheckedModule;
 
 class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
@@ -226,12 +226,12 @@ static absl::StatusOr<std::pair<std::string, int64_t>> Generate(
   return std::make_pair(module.module->ToString(), module.min_stages);
 }
 
-// The function translates a list of ConcreteType unique_ptrs to a list of
-// pointers to ConcreteType. The latter is used as a parameter to the
+// The function translates a list of Type unique_ptrs to a list of
+// pointers to Type. The latter is used as a parameter to the
 // GenerateArguments.
-static std::vector<const ConcreteType*> TranslateConcreteTypeList(
-    absl::Span<const std::unique_ptr<ConcreteType>> list) {
-  std::vector<const ConcreteType*> translation(list.size());
+static std::vector<const dslx::Type*> TranslateTypeList(
+    absl::Span<const std::unique_ptr<dslx::Type>> list) {
+  std::vector<const dslx::Type*> translation(list.size());
   auto translation_iter = translation.begin();
   for (const auto& element : list) {
     *translation_iter = element.get();
@@ -241,9 +241,9 @@ static std::vector<const ConcreteType*> TranslateConcreteTypeList(
 }
 
 // Returns the parameter types of a Function.
-static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
+static absl::StatusOr<std::vector<std::unique_ptr<dslx::Type>>>
 GetParamTypesOfFunction(dslx::Function* function, const TypecheckedModule& tm) {
-  std::vector<std::unique_ptr<ConcreteType>> params;
+  std::vector<std::unique_ptr<dslx::Type>> params;
   XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
                        tm.type_info->GetItemAs<FunctionType>(function));
   for (const auto& param : fn_type->params()) {
@@ -253,10 +253,10 @@ GetParamTypesOfFunction(dslx::Function* function, const TypecheckedModule& tm) {
 }
 
 // Returns the input channel payload types of a Proc.
-static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
+static absl::StatusOr<std::vector<std::unique_ptr<dslx::Type>>>
 GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
                                   const TypecheckedModule& tm) {
-  std::vector<std::unique_ptr<ConcreteType>> input_channel_payload_types;
+  std::vector<std::unique_ptr<dslx::Type>> input_channel_payload_types;
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
   for (dslx::ProcMember* member : proc->members()) {
@@ -269,10 +269,10 @@ GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
       continue;
     }
     dslx::TypeAnnotation* payload_type_annotation = channel_type->payload();
-    std::optional<const ConcreteType*> maybe_payload_type =
+    std::optional<const dslx::Type*> maybe_payload_type =
         proc_type_info->GetItem(payload_type_annotation);
     XLS_RET_CHECK(maybe_payload_type.has_value());
-    XLS_ASSIGN_OR_RETURN(const ConcreteType* payload_type,
+    XLS_ASSIGN_OR_RETURN(const dslx::Type* payload_type,
                          UnwrapMetaType(*maybe_payload_type.value()));
     input_channel_payload_types.push_back(payload_type->CloneToUnique());
   }
@@ -300,10 +300,9 @@ static absl::StatusOr<Sample> GenerateFunctionSample(
     dslx::Function* function, const TypecheckedModule& tm,
     const SampleOptions& sample_options, absl::BitGenRef bit_gen,
     const std::string& dslx_text) {
-  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ConcreteType>> top_params,
+  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<dslx::Type>> top_params,
                        GetParamTypesOfFunction(function, tm));
-  std::vector<const ConcreteType*> params =
-      TranslateConcreteTypeList(top_params);
+  std::vector<const dslx::Type*> params = TranslateTypeList(top_params);
 
   std::vector<std::vector<InterpValue>> args_batch;
   for (int64_t i = 0; i < sample_options.calls_per_sample(); ++i) {
@@ -320,10 +319,10 @@ static absl::StatusOr<Sample> GenerateProcSample(
     const SampleOptions& sample_options, absl::BitGenRef bit_gen,
     const std::string& dslx_text) {
   XLS_ASSIGN_OR_RETURN(
-      std::vector<std::unique_ptr<ConcreteType>> input_channel_payload_types,
+      std::vector<std::unique_ptr<dslx::Type>> input_channel_payload_types,
       GetInputChannelPayloadTypesOfProc(proc, tm));
-  std::vector<const ConcreteType*> input_channel_payload_types_ptr =
-      TranslateConcreteTypeList(input_channel_payload_types);
+  std::vector<const dslx::Type*> input_channel_payload_types_ptr =
+      TranslateTypeList(input_channel_payload_types);
 
   std::vector<std::vector<InterpValue>> channel_values_batch;
   for (int64_t i = 0; i < sample_options.proc_ticks(); ++i) {

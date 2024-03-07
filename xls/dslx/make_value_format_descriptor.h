@@ -23,8 +23,7 @@
 namespace xls::dslx {
 
 absl::StatusOr<std::unique_ptr<ValueFormatDescriptor>>
-MakeValueFormatDescriptor(const ConcreteType& type,
-                          FormatPreference field_preference);
+MakeValueFormatDescriptor(const Type& type, FormatPreference field_preference);
 
 }  // namespace xls::dslx
 

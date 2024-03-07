@@ -24,6 +24,9 @@
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_record.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 
@@ -46,8 +49,7 @@ absl::Status InvalidIdentifierErrorStatus(const Span& span,
       "InvalidIdentifierError: %s %s", span.ToString(), message));
 }
 
-absl::Status TypeInferenceErrorStatus(const Span& span,
-                                      const ConcreteType* type,
+absl::Status TypeInferenceErrorStatus(const Span& span, const Type* type,
                                       std::string_view message) {
   std::string type_str;
   if (type != nullptr) {
@@ -95,7 +97,7 @@ absl::Status RecursiveImportErrorStatus(const Span& nested_import,
 
 absl::Status CheckedCastErrorStatus(const Span& span,
                                     const InterpValue& from_value,
-                                    const ConcreteType* to_type) {
+                                    const Type* to_type) {
   return absl::InvalidArgumentError(absl::StrFormat(
       "CheckedCastError: %s unable to cast value %s to type %s without "
       "truncation.",

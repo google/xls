@@ -454,8 +454,7 @@ absl::Status CommandType(std::string_view ident) {
     std::cout << "Could not find identifier: " << ident << "\n";
     return absl::OkStatus();
   }
-  std::optional<dslx::ConcreteType*> type_or =
-      type_info->GetItem(function_map[ident]);
+  std::optional<dslx::Type*> type_or = type_info->GetItem(function_map[ident]);
   if (!type_or.has_value()) {
     std::cout << "Could not find type for identifier: " << ident << "\n";
     return absl::OkStatus();

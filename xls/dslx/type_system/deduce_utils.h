@@ -44,7 +44,7 @@ void UseImplicitToken(DeduceCtx* ctx);
 bool IsNameRefTo(const Expr* e, const NameDef* name_def);
 
 // Checks that "number" can legitmately conform to type "type".
-absl::Status ValidateNumber(const Number& number, const ConcreteType& type);
+absl::Status ValidateNumber(const Number& number, const Type& type);
 
 // Returns the basis of the given ColonRef.
 //

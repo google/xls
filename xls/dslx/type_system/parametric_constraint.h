@@ -36,23 +36,23 @@ namespace xls::dslx {
 // the formal types may be parametric.
 class InstantiateArg {
  public:
-  InstantiateArg(std::unique_ptr<ConcreteType> type, Span span)
+  InstantiateArg(std::unique_ptr<Type> type, Span span)
       : type_(std::move(type)), span_(std::move(span)) {
     // This should be the type of the expression argument so it should not be a
     // metatype.
     CHECK(!type_->IsMeta());
   }
 
-  std::unique_ptr<ConcreteType>& type() { return type_; }
-  const std::unique_ptr<ConcreteType>& type() const { return type_; }
+  std::unique_ptr<Type>& type() { return type_; }
+  const std::unique_ptr<Type>& type() const { return type_; }
   const Span& span() const { return span_; }
 
  private:
-  std::unique_ptr<ConcreteType> type_;
+  std::unique_ptr<Type> type_;
   const Span span_;
 };
 
-// Decorates a parametric binding with its (deduced) ConcreteType.
+// Decorates a parametric binding with its (deduced) Type.
 //
 // These are provided as inputs to parametric instantiation functions in
 // `xls/dslx/type_system/parametric_instantiator.h`.
@@ -60,22 +60,22 @@ class ParametricConstraint {
  public:
   // Decorates the given "binding" with the provided type information.
   ParametricConstraint(const ParametricBinding& binding,
-                       std::unique_ptr<ConcreteType> type);
+                       std::unique_ptr<Type> type);
 
   // Decorates the given "binding" with the type information as above, but
   // exposes the (replacement) expression "expr".
   ParametricConstraint(const ParametricBinding& binding,
-                       std::unique_ptr<ConcreteType> type, Expr* expr);
+                       std::unique_ptr<Type> type, Expr* expr);
 
   const std::string& identifier() const { return binding_->identifier(); }
-  const ConcreteType& type() const { return *type_; }
+  const Type& type() const { return *type_; }
   Expr* expr() const { return expr_; }
 
   std::string ToString() const;
 
  private:
   const ParametricBinding* binding_;
-  std::unique_ptr<ConcreteType> type_;
+  std::unique_ptr<Type> type_;
 
   // Expression that the parametric value should take on (e.g. when there are
   // "derived parametrics" that are computed from other parametric values). Note

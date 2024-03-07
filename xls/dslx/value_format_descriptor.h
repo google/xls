@@ -52,7 +52,7 @@ class ValueFormatVisitor {
 // inference process so they can be used after IR conversion or in bytecode
 // interpretation, where the types are fully concrete and we only need limited
 // metadata in order to print them out properly. This type hierarchy effectively
-// corresponds to that of `ConcreteType`.
+// corresponds to that of `Type`.
 class ValueFormatDescriptor {
  public:
   virtual ~ValueFormatDescriptor() = default;

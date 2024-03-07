@@ -34,17 +34,16 @@ absl::Status ParametricBindDims(const T& param_type, const T& arg_type,
                                 ParametricBindContext& ctx) {
   // Create bindings for symbolic parameter dimensions based on argument values
   // passed.
-  const ConcreteTypeDim& param_dim = param_type.size();
-  const ConcreteTypeDim& arg_dim = arg_type.size();
-  return ParametricBindConcreteTypeDim(param_type, param_dim, arg_type, arg_dim,
-                                       ctx);
+  const TypeDim& param_dim = param_type.size();
+  const TypeDim& arg_dim = arg_type.size();
+  return ParametricBindTypeDim(param_type, param_dim, arg_type, arg_dim, ctx);
 }
 
 absl::Status ParametricBindBits(const BitsType& param_bits,
                                 const BitsType& arg_bits,
                                 ParametricBindContext& ctx) {
-  return ParametricBindConcreteTypeDim(param_bits, param_bits.size(), arg_bits,
-                                       arg_bits.size(), ctx);
+  return ParametricBindTypeDim(param_bits, param_bits.size(), arg_bits,
+                               arg_bits.size(), ctx);
 }
 
 absl::Status ParametricBindTuple(const TupleType& param_type,
@@ -52,8 +51,8 @@ absl::Status ParametricBindTuple(const TupleType& param_type,
                                  ParametricBindContext& ctx) {
   XLS_RET_CHECK_EQ(param_type.size(), arg_type.size());
   for (int64_t i = 0; i < param_type.size(); ++i) {
-    const ConcreteType& param_member = param_type.GetMemberType(i);
-    const ConcreteType& arg_member = arg_type.GetMemberType(i);
+    const Type& param_member = param_type.GetMemberType(i);
+    const Type& arg_member = arg_type.GetMemberType(i);
     XLS_RETURN_IF_ERROR(ParametricBind(param_member, arg_member, ctx));
   }
   return absl::OkStatus();
@@ -64,8 +63,8 @@ absl::Status ParametricBindStruct(const StructType& param_type,
                                   ParametricBindContext& ctx) {
   XLS_RET_CHECK_EQ(param_type.size(), arg_type.size());
   for (int64_t i = 0; i < param_type.size(); ++i) {
-    const ConcreteType& param_member = param_type.GetMemberType(i);
-    const ConcreteType& arg_member = arg_type.GetMemberType(i);
+    const Type& param_member = param_type.GetMemberType(i);
+    const Type& arg_member = arg_type.GetMemberType(i);
     XLS_RETURN_IF_ERROR(ParametricBind(param_member, arg_member, ctx));
   }
   return absl::OkStatus();
@@ -81,14 +80,13 @@ absl::Status ParametricBindArray(const ArrayType& param_type,
 
 }  // namespace
 
-absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
-                                           const ConcreteTypeDim& param_dim,
-                                           const ConcreteType& arg_type,
-                                           const ConcreteTypeDim& arg_dim,
-                                           ParametricBindContext& ctx) {
-  XLS_VLOG(5) << "ParametricBindConcreteTypeDim;"
-              << " param_type: " << param_type << " param_dim: " << param_dim
-              << " arg_type: " << arg_type << " arg_dim: " << arg_dim;
+absl::Status ParametricBindTypeDim(const Type& param_type,
+                                   const TypeDim& param_dim,
+                                   const Type& arg_type, const TypeDim& arg_dim,
+                                   ParametricBindContext& ctx) {
+  XLS_VLOG(5) << "ParametricBindTypeDim;" << " param_type: " << param_type
+              << " param_dim: " << param_dim << " arg_type: " << arg_type
+              << " arg_dim: " << arg_dim;
 
   XLS_RET_CHECK(!arg_dim.IsParametric()) << arg_dim.ToString();
 
@@ -107,8 +105,8 @@ absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
     XLS_RET_CHECK(ctx.parametric_binding_types.contains(pdim_name))
         << "Cannot bind " << pdim_name << " : it has no associated type.";
     XLS_VLOG(5) << "Binding " << pdim_name << " to " << arg_dim_i64;
-    const ConcreteType& type = *ctx.parametric_binding_types.at(pdim_name);
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count, type.GetTotalBitCount());
+    const Type& type = *ctx.parametric_binding_types.at(pdim_name);
+    XLS_ASSIGN_OR_RETURN(TypeDim bit_count, type.GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(int64_t width, bit_count.GetAsInt64());
     ctx.parametric_env.emplace(
         pdim_name,
@@ -146,8 +144,7 @@ absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
                                           nullptr, arg_type, message);
 }
 
-absl::Status ParametricBind(const ConcreteType& param_type,
-                            const ConcreteType& arg_type,
+absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
                             ParametricBindContext& ctx) {
   auto wrong_kind = [&]() {
     std::string message = absl::StrFormat(

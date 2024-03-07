@@ -40,7 +40,7 @@ namespace xls::dslx {
 //
 // TODO(cdleary): 2024-01-16 We can break this circular resolution with a
 // virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
     const AstNode* node, DeduceCtx* ctx);
 
 // Warn folks if it's not following
@@ -60,17 +60,17 @@ static void WarnOnInappropriateMemberName(std::string_view member_name,
   }
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(
-    const StructDef* node, DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceStructDef(const StructDef* node,
+                                                      DeduceCtx* ctx) {
   for (const ParametricBinding* parametric : node->parametric_bindings()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
     XLS_ASSIGN_OR_RETURN(parametric_binding_type,
                          UnwrapMetaType(std::move(parametric_binding_type),
                                         parametric->type_annotation()->span(),
                                         "parametric binding type annotation"));
     if (parametric->expr() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> expr_type,
                            ctx->Deduce(parametric->expr()));
       if (*expr_type != *parametric_binding_type) {
         return ctx->TypeMismatchError(
@@ -83,11 +83,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(
     ctx->type_info()->SetItem(parametric->name_def(), *parametric_binding_type);
   }
 
-  std::vector<std::unique_ptr<ConcreteType>> members;
+  std::vector<std::unique_ptr<Type>> members;
   for (const auto& [name_span, name, type] : node->members()) {
     WarnOnInappropriateMemberName(name, name_span, *node->owner(), ctx);
 
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete,
                          DeduceAndResolve(type, ctx));
     XLS_ASSIGN_OR_RETURN(concrete,
                          UnwrapMetaType(std::move(concrete), type->span(),

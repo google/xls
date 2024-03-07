@@ -153,17 +153,18 @@ class FunctionConverter {
   friend class ScopedControlPredicate;
 
   // Wraps up a type so it is (token, u1, type).
-  static Type* WrapIrForImplicitTokenType(Type* type, Package* package) {
-    Type* token_type = package->GetTokenType();
-    Type* u1_type = package->GetBitsType(1);
+  static xls::Type* WrapIrForImplicitTokenType(xls::Type* type,
+                                               Package* package) {
+    xls::Type* token_type = package->GetTokenType();
+    xls::Type* u1_type = package->GetBitsType(1);
     return package->GetTupleType({token_type, u1_type, type});
   }
 
   // Helper function used for adding a parameter type wrapped up in a
   // token/activation boolean.
-  BValue AddTokenWrappedParam(Type* type) {
+  BValue AddTokenWrappedParam(xls::Type* type) {
     BuilderBase* fb = function_builder_.get();
-    Type* wrapped_type = WrapIrForImplicitTokenType(type, package());
+    xls::Type* wrapped_type = WrapIrForImplicitTokenType(type, package());
     BValue param = fb->Param("__token_wrapped", wrapped_type);
     BValue entry_token = fb->TupleIndex(param, 0);
     BValue activated = fb->TupleIndex(param, 1);
@@ -226,8 +227,7 @@ class FunctionConverter {
   absl::StatusOr<Bits> GetConstBits(const AstNode* node) const;
 
   // Resolves node's type and resolves all of its dimensions via `ResolveDim()`.
-  absl::StatusOr<std::unique_ptr<ConcreteType>> ResolveType(
-      const AstNode* node);
+  absl::StatusOr<std::unique_ptr<Type>> ResolveType(const AstNode* node);
 
   // Helper that composes ResolveType() and TypeToIr().
   absl::StatusOr<xls::Type*> ResolveTypeToIr(const AstNode* node);
@@ -335,7 +335,7 @@ class FunctionConverter {
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
                                        absl::Span<const int64_t> index,
                                        const BValue& matched_value,
-                                       const ConcreteType& matched_type);
+                                       const Type& matched_type);
 
   // Makes the specified builtin available to the package.
   absl::StatusOr<BValue> DefMapWithBuiltin(const Invocation* parent_node,
@@ -408,7 +408,7 @@ class FunctionConverter {
   }
 
   absl::Status CastToArray(const Cast* node, const ArrayType& output_type);
-  absl::Status CastFromArray(const Cast* node, const ConcreteType& output_type);
+  absl::Status CastFromArray(const Cast* node, const Type& output_type);
 
   // Returns the fully resolved (mangled) name for the callee of the given node,
   // with parametric values mangled in appropriately.

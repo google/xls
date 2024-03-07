@@ -40,8 +40,8 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 // Typechecks the function's parametrics' and parameters' types.
 //
 // Returns the deduced types for all of the parameters of "f".
-absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
-TypecheckFunctionParams(Function& f, DeduceCtx* ctx);
+absl::StatusOr<std::vector<std::unique_ptr<Type>>> TypecheckFunctionParams(
+    Function& f, DeduceCtx* ctx);
 
 // Interprets an expression we're forced to evaluate at typechecking-time.
 absl::StatusOr<InterpValue> InterpretExpr(

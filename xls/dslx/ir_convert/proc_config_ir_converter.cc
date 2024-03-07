@@ -114,10 +114,10 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
                                     {"/", "_"},
                                     {"\\", "_"},
                                     {">", "_"}});
-  auto concrete_type = type_info_->GetItem(node->type());
-  XLS_RET_CHECK(concrete_type.has_value());
+  auto maybe_type = type_info_->GetItem(node->type());
+  XLS_RET_CHECK(maybe_type.has_value());
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
-                       TypeToIr(package_, *concrete_type.value(), bindings_));
+                       TypeToIr(package_, *maybe_type.value(), bindings_));
 
   std::optional<int64_t> fifo_depth;
   if (node->fifo_depth().has_value()) {

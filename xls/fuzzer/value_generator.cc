@@ -46,17 +46,12 @@
 namespace xls {
 
 // keep-sorted start
-using dslx::ArrayType;
-using dslx::BitsType;
-using dslx::ChannelType;
-using dslx::ConcreteType;
 using dslx::ConstantDef;
 using dslx::Expr;
 using dslx::InterpValue;
 using dslx::InterpValueTag;
 using dslx::Module;
 using dslx::Number;
-using dslx::TupleType;
 using dslx::TypeAnnotation;
 // keep-sorted end
 
@@ -75,7 +70,7 @@ absl::StatusOr<InterpValue> GenerateBitValue(absl::BitGenRef bit_gen,
 }
 
 absl::StatusOr<InterpValue> GenerateBitValue(absl::BitGenRef bit_gen,
-                                             const BitsType& bits_type) {
+                                             const dslx::BitsType& bits_type) {
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type.size().GetAsInt64());
   return GenerateBitValue(bit_gen, bit_count, bits_type.is_signed());
 }
@@ -292,25 +287,25 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
 }
 
 absl::StatusOr<InterpValue> GenerateInterpValue(
-    absl::BitGenRef bit_gen, const ConcreteType& arg_type,
+    absl::BitGenRef bit_gen, const dslx::Type& arg_type,
     absl::Span<const InterpValue> prior) {
   XLS_RET_CHECK(!arg_type.IsMeta()) << arg_type.ToString();
-  if (auto* channel_type = dynamic_cast<const ChannelType*>(&arg_type)) {
+  if (auto* channel_type = dynamic_cast<const dslx::ChannelType*>(&arg_type)) {
     // For channels, the argument must be of its payload type.
     return GenerateInterpValue(bit_gen, channel_type->payload_type(), prior);
   }
-  if (auto* tuple_type = dynamic_cast<const TupleType*>(&arg_type)) {
+  if (auto* tuple_type = dynamic_cast<const dslx::TupleType*>(&arg_type)) {
     std::vector<InterpValue> members;
-    for (const std::unique_ptr<ConcreteType>& t : tuple_type->members()) {
+    for (const std::unique_ptr<dslx::Type>& t : tuple_type->members()) {
       XLS_ASSIGN_OR_RETURN(InterpValue member,
                            GenerateInterpValue(bit_gen, *t, prior));
       members.push_back(member);
     }
     return InterpValue::MakeTuple(members);
   }
-  if (auto* array_type = dynamic_cast<const ArrayType*>(&arg_type)) {
+  if (auto* array_type = dynamic_cast<const dslx::ArrayType*>(&arg_type)) {
     std::vector<InterpValue> elements;
-    const ConcreteType& element_type = array_type->element_type();
+    const dslx::Type& element_type = array_type->element_type();
     XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
     for (int64_t i = 0; i < array_size; ++i) {
       XLS_ASSIGN_OR_RETURN(InterpValue element,
@@ -319,7 +314,7 @@ absl::StatusOr<InterpValue> GenerateInterpValue(
     }
     return InterpValue::MakeArray(std::move(elements));
   }
-  auto* bits_type = dynamic_cast<const BitsType*>(&arg_type);
+  auto* bits_type = dynamic_cast<const dslx::BitsType*>(&arg_type);
   XLS_RET_CHECK(bits_type != nullptr);
   if (prior.empty() || absl::Bernoulli(bit_gen, 0.5)) {
     return GenerateBitValue(bit_gen, *bits_type);
@@ -362,9 +357,9 @@ absl::StatusOr<InterpValue> GenerateInterpValue(
 }
 
 absl::StatusOr<std::vector<InterpValue>> GenerateInterpValues(
-    absl::BitGenRef bit_gen, absl::Span<const ConcreteType* const> arg_types) {
+    absl::BitGenRef bit_gen, absl::Span<const dslx::Type* const> arg_types) {
   std::vector<InterpValue> args;
-  for (const ConcreteType* arg_type : arg_types) {
+  for (const dslx::Type* arg_type : arg_types) {
     XLS_RET_CHECK(arg_type != nullptr);
     XLS_RET_CHECK(!arg_type->IsMeta());
     XLS_ASSIGN_OR_RETURN(InterpValue arg,

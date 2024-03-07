@@ -63,9 +63,9 @@ namespace xls::dslx {
 namespace {
 
 // Find concrete type of channel's payload.
-absl::StatusOr<std::unique_ptr<ConcreteType>> GetChannelPayloadType(
+absl::StatusOr<std::unique_ptr<Type>> GetChannelPayloadType(
     const TypeInfo* type_info, const Expr* channel) {
-  std::optional<ConcreteType*> type = type_info->GetItem(channel);
+  std::optional<Type*> type = type_info->GetItem(channel);
 
   if (!type.has_value()) {
     return absl::InternalError(absl::StrFormat(
@@ -85,7 +85,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> GetChannelPayloadType(
 absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
     const Expr* channel, const TypeInfo* type_info,
     FormatPreference format_preference) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> channel_payload_type,
                        GetChannelPayloadType(type_info, channel));
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ValueFormatDescriptor> struct_fmt_desc,
@@ -109,7 +109,7 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
 absl::StatusOr<std::unique_ptr<ValueFormatDescriptor>>
 ExprToValueFormatDescriptor(const Expr* expr, const TypeInfo* type_info,
                             FormatPreference field_preference) {
-  std::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
+  std::optional<Type*> maybe_type = type_info->GetItem(expr);
   XLS_RET_CHECK(maybe_type.has_value());
   XLS_RET_CHECK(maybe_type.value() != nullptr);
   return MakeValueFormatDescriptor(*maybe_type.value(), field_preference);
@@ -222,7 +222,7 @@ absl::Status BytecodeEmitter::HandleArray(const Array* node) {
     XLS_RET_CHECK(!node->members().empty());
     XLS_ASSIGN_OR_RETURN(ArrayType * array_type,
                          type_info_->GetItemAs<ArrayType>(node));
-    const ConcreteTypeDim& dim = array_type->size();
+    const TypeDim& dim = array_type->size();
     XLS_ASSIGN_OR_RETURN(num_members, dim.GetAsInt64());
     int64_t remaining_members = num_members - node->members().size();
     for (int i = 0; i < remaining_members; i++) {
@@ -257,7 +257,7 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
 absl::StatusOr<bool> BytecodeEmitter::IsBitsTypeNodeSigned(
     const AstNode* node) const {
   XLS_RET_CHECK(type_info_ != nullptr);
-  std::optional<const ConcreteType*> maybe_type = type_info_->GetItem(node);
+  std::optional<const Type*> maybe_type = type_info_->GetItem(node);
   XLS_RET_CHECK(maybe_type.has_value()) << "node: " << node->ToString();
   return IsSigned(*maybe_type.value());
 }
@@ -387,9 +387,9 @@ absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
   return absl::OkStatus();
 }
 
-static absl::StatusOr<ConcreteType*> GetTypeOfNode(const AstNode* node,
-                                                   const TypeInfo* type_info) {
-  std::optional<ConcreteType*> maybe_type = type_info->GetItem(node);
+static absl::StatusOr<Type*> GetTypeOfNode(const AstNode* node,
+                                           const TypeInfo* type_info) {
+  std::optional<Type*> maybe_type = type_info->GetItem(node);
 
   if (!maybe_type.has_value()) {
     return absl::InternalError(
@@ -401,7 +401,7 @@ static absl::StatusOr<ConcreteType*> GetTypeOfNode(const AstNode* node,
 
 static absl::StatusOr<BitsType*> GetTypeOfNodeAsBits(
     const AstNode* node, const TypeInfo* type_info) {
-  std::optional<ConcreteType*> maybe_type = type_info->GetItem(node);
+  std::optional<Type*> maybe_type = type_info->GetItem(node);
 
   if (!maybe_type.has_value()) {
     return absl::InternalError(
@@ -421,8 +421,8 @@ static absl::StatusOr<BitsType*> GetTypeOfNodeAsBits(
 }
 
 static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
-                                              const ConcreteType* from,
-                                              const ConcreteType* to) {
+                                              const Type* from,
+                                              const Type* to) {
   const ArrayType* from_array = dynamic_cast<const ArrayType*>(from);
   const BitsType* to_bits = dynamic_cast<const BitsType*>(to);
 
@@ -441,8 +441,7 @@ static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
         "Only casts to/from one-dimensional arrays are supported.");
   }
 
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count_dim,
-                       from_array->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(TypeDim bit_count_dim, from_array->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t array_bit_count, bit_count_dim.GetAsInt64());
 
   XLS_ASSIGN_OR_RETURN(bit_count_dim, to_bits->GetTotalBitCount());
@@ -459,8 +458,7 @@ static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
 }
 
 static absl::Status MaybeCheckEnumToBitsCast(const AstNode* node,
-                                             const ConcreteType* from,
-                                             const ConcreteType* to) {
+                                             const Type* from, const Type* to) {
   const EnumType* from_enum = dynamic_cast<const EnumType*>(from);
   const BitsType* to_bits = dynamic_cast<const BitsType*>(to);
 
@@ -473,8 +471,8 @@ static absl::Status MaybeCheckEnumToBitsCast(const AstNode* node,
 }
 
 static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
-                                              const ConcreteType* from,
-                                              const ConcreteType* to) {
+                                              const Type* from,
+                                              const Type* to) {
   const BitsType* from_bits = dynamic_cast<const BitsType*>(from);
   const ArrayType* to_array = dynamic_cast<const ArrayType*>(to);
 
@@ -493,8 +491,7 @@ static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
         "Only casts to/from one-dimensional arrays are supported.");
   }
 
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count_dim,
-                       from_bits->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(TypeDim bit_count_dim, from_bits->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
 
   XLS_ASSIGN_OR_RETURN(bit_count_dim, to_array->GetTotalBitCount());
@@ -511,8 +508,7 @@ static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
 }
 
 static absl::Status MaybeCheckBitsToEnumCast(const AstNode* node,
-                                             const ConcreteType* from,
-                                             const ConcreteType* to) {
+                                             const Type* from, const Type* to) {
   const BitsType* from_bits = dynamic_cast<const BitsType*>(from);
   const EnumType* to_enum = dynamic_cast<const EnumType*>(to);
 
@@ -525,7 +521,7 @@ static absl::Status MaybeCheckBitsToEnumCast(const AstNode* node,
 }
 
 static absl::Status CheckSupportedCastTypes(const AstNode* node,
-                                            const ConcreteType* type) {
+                                            const Type* type) {
   const BitsType* as_bits_type = dynamic_cast<const BitsType*>(type);
   const ArrayType* as_array_type = dynamic_cast<const ArrayType*>(type);
   const EnumType* as_enum_type = dynamic_cast<const EnumType*>(type);
@@ -547,9 +543,8 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   const Expr* from_expr = node->expr();
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
 
-  XLS_ASSIGN_OR_RETURN(ConcreteType * from,
-                       GetTypeOfNode(from_expr, type_info_));
-  XLS_ASSIGN_OR_RETURN(ConcreteType * to, GetTypeOfNode(node, type_info_));
+  XLS_ASSIGN_OR_RETURN(Type * from, GetTypeOfNode(from_expr, type_info_));
+  XLS_ASSIGN_OR_RETURN(Type * to, GetTypeOfNode(node, type_info_));
 
   XLS_RETURN_IF_ERROR(CheckSupportedCastTypes(node, from));
   XLS_RETURN_IF_ERROR(CheckSupportedCastTypes(node, to));
@@ -833,7 +828,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   //  - end:
 
   // First, get the size of the iterable array.
-  std::optional<ConcreteType*> maybe_iterable_type =
+  std::optional<Type*> maybe_iterable_type =
       type_info_->GetItem(node->iterable());
   if (!maybe_iterable_type.has_value()) {
     return absl::InternalError(
@@ -847,7 +842,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
                                             node->iterable()->ToString()));
   }
 
-  ConcreteTypeDim iterable_size_dim = array_type->size();
+  TypeDim iterable_size_dim = array_type->size();
   XLS_ASSIGN_OR_RETURN(int64_t iterable_size, iterable_size_dim.GetAsInt64());
 
   size_t iterable_slot = next_slotno_++;
@@ -965,7 +960,7 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
 
 static absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info,
                                              Expr* expr) {
-  std::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
+  std::optional<Type*> maybe_type = type_info->GetItem(expr);
   if (!maybe_type.has_value()) {
     return absl::InternalError(
         "Could not find concrete type for slice component.");
@@ -996,14 +991,13 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
     }
 
     if (slice->limit() == nullptr) {
-      std::optional<ConcreteType*> maybe_type =
-          type_info_->GetItem(node->lhs());
+      std::optional<Type*> maybe_type = type_info_->GetItem(node->lhs());
       if (!maybe_type.has_value()) {
         return absl::InternalError("Could not find concrete type for slice.");
       }
-      ConcreteType* type = maybe_type.value();
+      Type* type = maybe_type.value();
       // These will never fail.
-      absl::StatusOr<ConcreteTypeDim> dim_or = type->GetTotalBitCount();
+      absl::StatusOr<TypeDim> dim_or = type->GetTotalBitCount();
       absl::StatusOr<int64_t> width_or = dim_or.value().GetAsInt64();
 
       int64_t limit_width;
@@ -1030,8 +1024,7 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
     WidthSlice* width_slice = std::get<WidthSlice*>(node->rhs());
     XLS_RETURN_IF_ERROR(width_slice->start()->AcceptExpr(this));
 
-    std::optional<ConcreteType*> maybe_type =
-        type_info_->GetItem(width_slice->width());
+    std::optional<Type*> maybe_type = type_info_->GetItem(width_slice->width());
     if (!maybe_type.has_value()) {
       return absl::InternalError(absl::StrCat(
           "Could not find concrete type for slice width parameter \"",
@@ -1277,13 +1270,13 @@ absl::Status BytecodeEmitter::HandleNumber(const Number* node) {
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
     const Number* node) {
-  std::optional<ConcreteType*> type_or = type_info_->GetItem(node);
+  std::optional<Type*> type_or = type_info_->GetItem(node);
   if (!type_or.has_value()) {
     return absl::InternalError(
         absl::StrCat("Could not find type for number: ", node->ToString()));
   }
 
-  const ConcreteTypeDim* dim = nullptr;
+  const TypeDim* dim = nullptr;
   bool is_signed = false;
   if (auto* bits_type = dynamic_cast<BitsType*>(type_or.value());
       bits_type != nullptr) {

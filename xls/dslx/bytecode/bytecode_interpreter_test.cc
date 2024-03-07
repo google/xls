@@ -1122,7 +1122,7 @@ fn cast_bits_to_enum() -> MyEnum {
       BytecodeInterpreter::Interpret(&import_data, bf.get(), {});
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Cast op requires ConcreteType data.")));
+                       HasSubstr("Cast op requires Type data.")));
 }
 
 TEST(BytecodeInterpreterTest, Params) {

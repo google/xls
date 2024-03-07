@@ -14,14 +14,24 @@
 
 #include "xls/dslx/make_value_format_descriptor.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/value_format_descriptor.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 namespace {
@@ -31,7 +41,7 @@ MakeStructFormatDescriptor(const StructType& struct_type,
                            FormatPreference field_preference) {
   std::vector<StructFormatDescriptor::Element> elements;
   for (size_t i = 0; i < struct_type.size(); ++i) {
-    const ConcreteType& member_type = struct_type.GetMemberType(i);
+    const Type& member_type = struct_type.GetMemberType(i);
     std::string_view name = struct_type.GetMemberName(i);
     XLS_ASSIGN_OR_RETURN(
         auto desc, MakeValueFormatDescriptor(member_type, field_preference));
@@ -47,7 +57,7 @@ MakeTupleFormatDescriptor(const TupleType& tuple_type,
                           FormatPreference field_preference) {
   std::vector<std::unique_ptr<ValueFormatDescriptor>> elements;
   for (size_t i = 0; i < tuple_type.size(); ++i) {
-    const ConcreteType& member_type = tuple_type.GetMemberType(i);
+    const Type& member_type = tuple_type.GetMemberType(i);
     XLS_ASSIGN_OR_RETURN(
         auto vfd, MakeValueFormatDescriptor(member_type, field_preference));
     elements.push_back(std::move(vfd));
@@ -83,9 +93,8 @@ absl::StatusOr<std::unique_ptr<EnumFormatDescriptor>> MakeEnumFormatDescriptor(
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<ValueFormatDescriptor>>
-MakeValueFormatDescriptor(const ConcreteType& type,
-                          FormatPreference field_preference) {
-  class Visitor : public ConcreteTypeVisitor {
+MakeValueFormatDescriptor(const Type& type, FormatPreference field_preference) {
+  class Visitor : public TypeVisitor {
    public:
     explicit Visitor(FormatPreference field_preference)
         : field_preference_(field_preference) {}

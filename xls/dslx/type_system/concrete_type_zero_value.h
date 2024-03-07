@@ -26,7 +26,7 @@ namespace xls::dslx {
 // This is not always possible, e.g. when there is an enum that does not have a
 // defined zero value, in which cases an error is returned. In this case, span
 // is used to cite the source of the error in the program text.
-absl::StatusOr<InterpValue> MakeZeroValue(const ConcreteType& type,
+absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,
                                           const Span& span);
 

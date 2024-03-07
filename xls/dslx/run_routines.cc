@@ -307,11 +307,11 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
   const std::vector<Value>& last_argset = arg_sets.back();
   XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
                        type_info->GetItemAs<FunctionType>(fn));
-  const std::vector<std::unique_ptr<ConcreteType>>& params = fn_type->params();
+  const std::vector<std::unique_ptr<Type>>& params = fn_type->params();
 
   std::vector<InterpValue> dslx_argset;
   for (int64_t i = 0; i < params.size(); ++i) {
-    const ConcreteType& arg_type = *params[i];
+    const Type& arg_type = *params[i];
     const Value& value = last_argset[i];
     XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
                          ValueToInterpValue(value, &arg_type));

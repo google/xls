@@ -37,7 +37,7 @@ namespace xls::dslx {
 //  deduce_ctx: Made available for error reporting.
 struct ParametricBindContext {
   const Span& span;
-  const absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>&
+  const absl::flat_hash_map<std::string, std::unique_ptr<Type>>&
       parametric_binding_types;
   const absl::flat_hash_map<std::string, Expr*>& parametric_default_exprs;
   absl::flat_hash_map<std::string, InterpValue>& parametric_env;
@@ -68,16 +68,14 @@ struct ParametricBindContext {
 //  arg_dim: The dimension held by arg_type.
 //  ctx: The parametric binding context.
 //  deduce_ctx: Used for reporting errors.
-absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
-                                           const ConcreteTypeDim& param_dim,
-                                           const ConcreteType& arg_type,
-                                           const ConcreteTypeDim& arg_dim,
-                                           ParametricBindContext& ctx);
+absl::Status ParametricBindTypeDim(const Type& param_type,
+                                   const TypeDim& param_dim,
+                                   const Type& arg_type, const TypeDim& arg_dim,
+                                   ParametricBindContext& ctx);
 
-// As described above in ParametricBindConcreteTypeDim, but handles arbitrary
+// As described above in ParametricBindTypeDim, but handles arbitrary
 // parameter types / argument type bindings.
-absl::Status ParametricBind(const ConcreteType& param_type,
-                            const ConcreteType& arg_type,
+absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
                             ParametricBindContext& ctx);
 
 }  // namespace xls::dslx

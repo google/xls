@@ -37,6 +37,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
         "//xls/dslx:interp_value",
@@ -162,6 +163,7 @@ cc_library(
     deps = [
         ":concrete_type",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
     ],
@@ -244,9 +246,15 @@ cc_library(
     srcs = ["maybe_explain_error.cc"],
     hdrs = ["maybe_explain_error.h"],
     deps = [
+        ":concrete_type",
         ":type_mismatch_error_data",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
         "//xls/dslx:errors",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -449,11 +457,16 @@ cc_library(
     hdrs = ["concrete_type_zero_value.h"],
     deps = [
         ":concrete_type",
-        "//xls/common:symbolized_stacktrace",
+        ":type_info",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -486,6 +499,8 @@ cc_library(
     srcs = ["type_info_to_proto.cc"],
     hdrs = ["type_info_to_proto.h"],
     deps = [
+        ":concrete_type",
+        ":parametric_expression",
         ":type_info",
         ":type_info_cc_proto",
         "@com_google_absl//absl/status",
@@ -494,8 +509,12 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:proto_adaptor_utils",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -596,11 +615,17 @@ cc_test(
     name = "parametric_bind_test",
     srcs = ["parametric_bind_test.cc"],
     deps = [
+        ":concrete_type",
+        ":deduce_ctx",
         ":parametric_bind",
-        "@com_google_absl//absl/status:statusor",
+        ":parametric_expression",
+        "@com_google_absl//absl/container:flat_hash_map",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -611,8 +636,10 @@ cc_library(
     deps = [
         ":concrete_type",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "//xls/common/status:ret_check",
         "//xls/dslx:errors",
+        "//xls/dslx/frontend:pos",
     ],
 )
 

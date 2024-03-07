@@ -129,7 +129,7 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
                         number.ToString()));
   }
 
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(TypeDim bits_dim, type.GetTotalBitCount());
   if (!std::holds_alternative<InterpValue>(bits_dim.value())) {
     // We have to wait for the dimension to be fully resolved before we can
     // check that the number is compliant.
@@ -191,7 +191,7 @@ bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
   return false;
 }
 
-absl::Status ValidateNumber(const Number& number, const ConcreteType& type) {
+absl::Status ValidateNumber(const Number& number, const Type& type) {
   XLS_VLOG(5) << "Validating " << number.ToString() << " vs " << type;
   const BitsType* bits_type = dynamic_cast<const BitsType*>(&type);
   if (bits_type == nullptr) {

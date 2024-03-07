@@ -18,15 +18,22 @@
 #include <string_view>
 #include <variant>
 
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type_mismatch_error_data.h"
 
 namespace xls::dslx {
 namespace {
 
 // To be raised when a type mismatch is encountered.
-absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
-                                const ConcreteType& rhs,
-                                std::string_view message) {
+absl::Status XlsTypeErrorStatus(const Span& span, const Type& lhs,
+                                const Type& rhs, std::string_view message) {
   return absl::InvalidArgumentError(
       absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
                       lhs.ToErrorString(), rhs.ToErrorString(), message));

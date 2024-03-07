@@ -94,8 +94,8 @@ static absl::Status TypecheckIsAcceptableWideningCast(DeduceCtx* ctx,
   TypeInfo* type_info = ctx->type_info();
   const Expr* from_expr = node->args().at(0);
 
-  std::optional<ConcreteType*> maybe_from_type = type_info->GetItem(from_expr);
-  std::optional<ConcreteType*> maybe_to_type = type_info->GetItem(node);
+  std::optional<Type*> maybe_from_type = type_info->GetItem(from_expr);
+  std::optional<Type*> maybe_to_type = type_info->GetItem(node);
 
   XLS_RET_CHECK(maybe_from_type.has_value());
   XLS_RET_CHECK(maybe_to_type.has_value());
@@ -208,11 +208,11 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
         ValidateWithinProc(callee_name, invocation->span(), ctx));
   }
 
-  std::vector<std::unique_ptr<ConcreteType>> arg_types;
+  std::vector<std::unique_ptr<Type>> arg_types;
   std::vector<Span> arg_spans;
   for (Expr* arg : invocation->args()) {
     XLS_ASSIGN_OR_RETURN(auto arg_type, ctx->Deduce(arg));
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved,
                          Resolve(*arg_type, ctx));
     arg_types.push_back(std::move(resolved));
     arg_spans.push_back(arg->span());
@@ -251,10 +251,10 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     return value;
   };
 
-  std::vector<const ConcreteType*> arg_type_ptrs;
+  std::vector<const Type*> arg_type_ptrs;
   arg_type_ptrs.reserve(arg_types.size());
   for (int64_t i = 0; i < arg_types.size(); ++i) {
-    const std::unique_ptr<ConcreteType>& arg_type = arg_types.at(i);
+    const std::unique_ptr<Type>& arg_type = arg_types.at(i);
     if (arg_type->IsMeta()) {
       return TypeInferenceErrorStatus(
           invocation->args().at(i)->span(), arg_type.get(),
@@ -352,21 +352,21 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 
   const absl::Span<Expr* const> args = invocation->args();
   std::vector<InstantiateArg> instantiate_args;
-  std::vector<std::unique_ptr<ConcreteType>> arg_types;
+  std::vector<std::unique_ptr<Type>> arg_types;
   instantiate_args.reserve(args.size() + 1);
   if (callee_fn.tag() == FunctionTag::kProcNext) {
     arg_types.push_back(std::make_unique<TokenType>());
     instantiate_args.push_back(
         {std::make_unique<TokenType>(), invocation->span()});
     XLS_RET_CHECK_EQ(invocation->args().size(), 1);
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          DeduceAndResolve(invocation->args()[0], ctx));
     arg_types.push_back(type->CloneToUnique());
     instantiate_args.push_back(
         InstantiateArg{std::move(type), invocation->span()});
   } else {
     for (Expr* arg : args) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                            DeduceAndResolve(arg, ctx));
       arg_types.push_back(type->CloneToUnique());
       instantiate_args.push_back(InstantiateArg{std::move(type), arg->span()});
@@ -389,10 +389,10 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     ctx = imported_ctx_holder.get();
   }
 
-  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ConcreteType>> param_types,
+  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Type>> param_types,
                        TypecheckFunctionParams(callee_fn, ctx));
 
-  std::unique_ptr<ConcreteType> return_type;
+  std::unique_ptr<Type> return_type;
   if (callee_fn.return_type() == nullptr) {
     return_type = TupleType::MakeUnit();
   } else {
@@ -473,7 +473,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   // Add the new parametric bindings to the constexpr set.
   const auto& bindings_map = callee_tab.parametric_env.ToMap();
   for (ParametricBinding* parametric : callee_fn.parametric_bindings()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
     XLS_ASSIGN_OR_RETURN(parametric_binding_type,
                          UnwrapMetaType(std::move(parametric_binding_type),
@@ -486,22 +486,21 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   }
 
   for (auto* param : callee_fn.params()) {
-    std::optional<const ConcreteType*> param_type =
-        ctx->type_info()->GetItem(param);
+    std::optional<const Type*> param_type = ctx->type_info()->GetItem(param);
     XLS_RET_CHECK(param_type.has_value());
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_type,
                          Resolve(*param_type.value(), ctx));
     ctx->type_info()->SetItem(param, *resolved_type);
     ctx->type_info()->SetItem(param->name_def(), *resolved_type);
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> body_type,
                        ctx->Deduce(callee_fn.body()));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_body_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_body_type,
                        Resolve(*body_type, ctx));
   XLS_RET_CHECK(!resolved_body_type->IsMeta());
 
-  const ConcreteType& annotated_return_type = *callee_tab.type;
+  const Type& annotated_return_type = *callee_tab.type;
 
   // Assert type consistency between the body and deduced return types.
   if (annotated_return_type != *resolved_body_type) {
@@ -546,15 +545,14 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   return callee_tab;
 }
 
-absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
-TypecheckFunctionParams(Function& f, DeduceCtx* ctx) {
+absl::StatusOr<std::vector<std::unique_ptr<Type>>> TypecheckFunctionParams(
+    Function& f, DeduceCtx* ctx) {
   {
     ScopedFnStackEntry parametric_env_expr_scope(f, ctx, WithinProc::kNo);
 
     for (ParametricBinding* parametric : f.parametric_bindings()) {
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<ConcreteType> parametric_binding_type,
-          ctx->Deduce(parametric->type_annotation()));
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_binding_type,
+                           ctx->Deduce(parametric->type_annotation()));
       XLS_ASSIGN_OR_RETURN(parametric_binding_type,
                            UnwrapMetaType(std::move(parametric_binding_type),
                                           parametric->type_annotation()->span(),
@@ -563,7 +561,7 @@ TypecheckFunctionParams(Function& f, DeduceCtx* ctx) {
       if (parametric->expr() != nullptr) {
         // TODO(leary): 2020-07-06 Fully document the behavior of parametric
         // function calls in parametric expressions.
-        XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> expr_type,
                              ctx->Deduce(parametric->expr()));
         if (*expr_type != *parametric_binding_type) {
           return ctx->TypeMismatchError(
@@ -580,10 +578,9 @@ TypecheckFunctionParams(Function& f, DeduceCtx* ctx) {
     parametric_env_expr_scope.Finish();
   }
 
-  std::vector<std::unique_ptr<ConcreteType>> param_types;
+  std::vector<std::unique_ptr<Type>> param_types;
   for (Param* param : f.params()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> param_type,
-                         ctx->Deduce(param));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> param_type, ctx->Deduce(param));
     ctx->type_info()->SetItem(param->name_def(), *param_type);
     param_types.push_back(std::move(param_type));
   }

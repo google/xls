@@ -52,7 +52,7 @@ absl::StatusOr<InterpValue> InterpValueFromString(std::string_view s) {
 
 absl::StatusOr<InterpValue> CastBitsToArray(const InterpValue& bits_value,
                                             const ArrayType& array_type) {
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim element_bit_count,
+  XLS_ASSIGN_OR_RETURN(TypeDim element_bit_count,
                        array_type.element_type().GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bits_per_element,
                        element_bit_count.GetAsInt64());
@@ -95,9 +95,8 @@ absl::StatusOr<InterpValue> CastBitsToEnum(const InterpValue& bits_value,
                                &enum_def);
 }
 
-absl::StatusOr<InterpValue> CreateZeroValueFromType(
-    const ConcreteType& concrete_type) {
-  if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
+absl::StatusOr<InterpValue> CreateZeroValueFromType(const Type& type) {
+  if (auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
     XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type->size().GetAsInt64());
 
     if (bits_type->is_signed()) {
@@ -107,7 +106,7 @@ absl::StatusOr<InterpValue> CreateZeroValueFromType(
     return InterpValue::MakeUBits(bit_count, /*value=*/0);
   }
 
-  if (auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type)) {
+  if (auto* tuple_type = dynamic_cast<const TupleType*>(&type)) {
     const int64_t tuple_size = tuple_type->size();
 
     std::vector<InterpValue> zero_elements;
@@ -123,7 +122,7 @@ absl::StatusOr<InterpValue> CreateZeroValueFromType(
     return InterpValue::MakeTuple(zero_elements);
   }
 
-  if (auto* struct_type = dynamic_cast<const StructType*>(&concrete_type)) {
+  if (auto* struct_type = dynamic_cast<const StructType*>(&type)) {
     const int64_t struct_size = struct_type->size();
 
     std::vector<InterpValue> zero_elements;
@@ -139,7 +138,7 @@ absl::StatusOr<InterpValue> CreateZeroValueFromType(
     return InterpValue::MakeTuple(zero_elements);
   }
 
-  if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&type)) {
     XLS_ASSIGN_OR_RETURN(const int64_t array_size,
                          array_type->size().GetAsInt64());
 
@@ -153,14 +152,14 @@ absl::StatusOr<InterpValue> CreateZeroValueFromType(
     return InterpValue::MakeArray(zero_elements);
   }
 
-  if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
     if (!enum_type->members().empty()) {
       return enum_type->members().at(0);
     }
   }
 
   return absl::UnimplementedError("Cannot create zero value for type type: " +
-                                  concrete_type.ToString());
+                                  type.ToString());
 }
 
 absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value) {
@@ -236,23 +235,23 @@ absl::StatusOr<std::optional<int64_t>> FindFirstDifferingIndex(
   return std::nullopt;
 }
 
-absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
+absl::StatusOr<InterpValue> SignConvertValue(const Type& type,
                                              const InterpValue& value) {
-  if (auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type)) {
+  if (auto* tuple_type = dynamic_cast<const TupleType*>(&type)) {
     XLS_RET_CHECK(value.IsTuple()) << value.ToString();
     const int64_t tuple_size = value.GetValuesOrDie().size();
     std::vector<InterpValue> results;
     for (int64_t i = 0; i < tuple_size; ++i) {
       const InterpValue& e = value.GetValuesOrDie()[i];
-      const ConcreteType& t = tuple_type->GetMemberType(i);
+      const Type& t = tuple_type->GetMemberType(i);
       XLS_ASSIGN_OR_RETURN(InterpValue converted, SignConvertValue(t, e));
       results.push_back(converted);
     }
     return InterpValue::MakeTuple(std::move(results));
   }
-  if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&type)) {
     XLS_RET_CHECK(value.IsArray()) << value.ToString();
-    const ConcreteType& t = array_type->element_type();
+    const Type& t = array_type->element_type();
     int64_t array_size = value.GetValuesOrDie().size();
     std::vector<InterpValue> results;
     for (int64_t i = 0; i < array_size; ++i) {
@@ -262,7 +261,7 @@ absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
     }
     return InterpValue::MakeArray(std::move(results));
   }
-  if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
+  if (auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
     XLS_RET_CHECK(value.IsBits()) << value.ToString();
     if (bits_type->is_signed()) {
       return InterpValue::MakeBits(InterpValueTag::kSBits,
@@ -270,7 +269,7 @@ absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
     }
     return value;
   }
-  if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
     XLS_RET_CHECK(value.IsBits()) << value.ToString();
     if (enum_type->is_signed()) {
       return InterpValue::MakeBits(InterpValueTag::kSBits,
@@ -279,12 +278,12 @@ absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
     return value;
   }
   return absl::UnimplementedError("Cannot sign convert type: " +
-                                  concrete_type.ToString());
+                                  type.ToString());
 }
 
 absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
     const FunctionType& fn_type, absl::Span<const InterpValue> args) {
-  absl::Span<const std::unique_ptr<ConcreteType>> params = fn_type.params();
+  absl::Span<const std::unique_ptr<Type>> params = fn_type.params();
   XLS_RET_CHECK_EQ(params.size(), args.size());
   std::vector<InterpValue> converted;
   converted.reserve(args.size());
@@ -297,7 +296,7 @@ absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
 }
 
 absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
-                                               const ConcreteType* type) {
+                                               const Type* type) {
   switch (v.kind()) {
     case ValueKind::kBits: {
       InterpValueTag tag = InterpValueTag::kUBits;
@@ -311,7 +310,7 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
     }
     case ValueKind::kArray:
     case ValueKind::kTuple: {
-      auto get_type = [&](int64_t i) -> const ConcreteType* {
+      auto get_type = [&](int64_t i) -> const Type* {
         if (type == nullptr) {
           return nullptr;
         }

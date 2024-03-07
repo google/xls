@@ -206,14 +206,14 @@ class TypeInfo {
   absl::StatusOr<TypeInfo*> GetTopLevelProcTypeInfo(const Proc* p);
 
   // Sets the type associated with the given AST node.
-  void SetItem(const AstNode* key, const ConcreteType& value) {
+  void SetItem(const AstNode* key, const Type& value) {
     CHECK_EQ(key->owner(), module_);
     dict_[key] = value.CloneToUnique();
   }
 
   // Attempts to resolve AST node 'key' in the node-to-type dictionary.
-  std::optional<ConcreteType*> GetItem(const AstNode* key) const;
-  absl::StatusOr<ConcreteType*> GetItemOrError(const AstNode* key) const;
+  std::optional<Type*> GetItem(const AstNode* key) const;
+  absl::StatusOr<Type*> GetItemOrError(const AstNode* key) const;
 
   // Attempts to resolve AST node 'key' to a type with subtype T; e.g.:
   //
@@ -302,8 +302,8 @@ class TypeInfo {
 
   // Returns a reference to the underlying mapping that associates an AST node
   // with its deduced type.
-  const absl::flat_hash_map<const AstNode*, std::unique_ptr<ConcreteType>>&
-  dict() const {
+  const absl::flat_hash_map<const AstNode*, std::unique_ptr<Type>>& dict()
+      const {
     return dict_;
   }
 
@@ -348,7 +348,7 @@ class TypeInfo {
   // Node to type mapping -- this is present on "derived" type info (i.e. for
   // instantiated parametric type info) as well as the root type information for
   // a module.
-  absl::flat_hash_map<const AstNode*, std::unique_ptr<ConcreteType>> dict_;
+  absl::flat_hash_map<const AstNode*, std::unique_ptr<Type>> dict_;
 
   // Node to constexpr-value mapping -- this is also present on "derived" type
   // info as constexprs take on different values in different parametric
@@ -371,7 +371,7 @@ class TypeInfo {
 
 template <typename T>
 inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
-  std::optional<ConcreteType*> t = GetItem(key);
+  std::optional<Type*> t = GetItem(key);
   if (!t.has_value()) {
     return absl::NotFoundError(
         absl::StrFormat("No type found for AST node: %s @ %s", key->ToString(),
@@ -381,7 +381,7 @@ inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
   auto* target = dynamic_cast<T*>(t.value());
   if (target == nullptr) {
     return absl::FailedPreconditionError(absl::StrFormat(
-        "AST node (%s) @ %s did not have expected ConcreteType subtype.",
+        "AST node (%s) @ %s did not have expected Type subtype.",
         key->GetNodeTypeName(), SpanToString(key->GetSpan())));
   }
   return target;

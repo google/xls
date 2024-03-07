@@ -15,7 +15,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -23,26 +22,32 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/parametric_expression.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
 namespace xls::dslx {
 
-absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim,
-                                           const ParametricEnv& bindings) {
-  while (
-      std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
+absl::StatusOr<TypeDim> ResolveDim(TypeDim dim, const ParametricEnv& bindings) {
+  while (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
     ParametricExpression& original =
-        *std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+        *std::get<TypeDim::OwnedParametric>(dim.value());
     ParametricExpression::Evaluated evaluated =
         original.Evaluate(ToParametricEnv(bindings));
-    dim = ConcreteTypeDim(std::move(evaluated));
+    dim = TypeDim(std::move(evaluated));
   }
   return dim;
 }
 
-absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim,
+absl::StatusOr<int64_t> ResolveDimToInt(const TypeDim& dim,
                                         const ParametricEnv& bindings) {
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim resolved, ResolveDim(dim, bindings));
+  XLS_ASSIGN_OR_RETURN(TypeDim resolved, ResolveDim(dim, bindings));
   if (std::holds_alternative<InterpValue>(resolved.value())) {
     return std::get<InterpValue>(resolved.value()).GetBitValueViaSign();
   }
@@ -51,12 +56,11 @@ absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim,
       dim.ToString(), resolved.ToString()));
 }
 
-absl::StatusOr<xls::Type*> TypeToIr(Package* package,
-                                    const ConcreteType& concrete_type,
+absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
                                     const ParametricEnv& bindings) {
-  XLS_VLOG(5) << "Converting concrete type to IR: " << concrete_type;
+  XLS_VLOG(5) << "Converting concrete type to IR: " << type;
 
-  struct Visitor : public ConcreteTypeVisitor {
+  struct Visitor : public TypeVisitor {
    public:
     Visitor(const ParametricEnv& bindings, Package* package)
         : bindings_(bindings), package_(package) {}
@@ -91,7 +95,7 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
     absl::Status HandleStruct(const StructType& t) override {
       std::vector<xls::Type*> members;
       members.reserve(t.members().size());
-      for (const std::unique_ptr<ConcreteType>& m : t.members()) {
+      for (const std::unique_ptr<Type>& m : t.members()) {
         XLS_ASSIGN_OR_RETURN(xls::Type * type,
                              TypeToIr(package_, *m, bindings_));
         members.push_back(type);
@@ -102,7 +106,7 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
     absl::Status HandleTuple(const TupleType& t) override {
       std::vector<xls::Type*> members;
       members.reserve(t.members().size());
-      for (const std::unique_ptr<ConcreteType>& m : t.members()) {
+      for (const std::unique_ptr<Type>& m : t.members()) {
         XLS_ASSIGN_OR_RETURN(xls::Type * type,
                              TypeToIr(package_, *m, bindings_));
         members.push_back(type);
@@ -135,7 +139,7 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
   };
 
   Visitor v(bindings, package);
-  XLS_RETURN_IF_ERROR(concrete_type.Accept(v));
+  XLS_RETURN_IF_ERROR(type.Accept(v));
   return v.retval();
 }
 

@@ -94,7 +94,7 @@ absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx) {
       //  let (one, _two, three) = ...;  // _two can go unused
       continue;
     }
-    std::optional<const ConcreteType*> type = ctx->type_info()->GetItem(n);
+    std::optional<const Type*> type = ctx->type_info()->GetItem(n);
     XLS_RET_CHECK(type.has_value()) << absl::StreamFormat(
         "NameDef `%s` %p @ %s parent kind `%v` had no associated type "
         "information in type info %p",

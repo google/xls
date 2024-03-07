@@ -42,8 +42,7 @@ absl::Status InvalidIdentifierErrorStatus(const Span& span,
                                           std::string_view message);
 
 // To be raised when an error occurs during type inference.
-absl::Status TypeInferenceErrorStatus(const Span& span,
-                                      const ConcreteType* type,
+absl::Status TypeInferenceErrorStatus(const Span& span, const Type* type,
                                       std::string_view message);
 
 // Creates a TypeMissingError status value referencing the given node (which has
@@ -58,7 +57,7 @@ absl::Status RecursiveImportErrorStatus(const Span& nested_import,
 // To be raised when a checked_cast is unable to cast without truncation.
 absl::Status CheckedCastErrorStatus(const Span& span,
                                     const InterpValue& from_value,
-                                    const ConcreteType* to_type);
+                                    const Type* to_type);
 
 }  // namespace xls::dslx
 

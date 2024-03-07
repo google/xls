@@ -44,7 +44,7 @@ const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames();
 // deduction and handling for parametric builtin function instantiation.
 struct SignatureData {
   // Argument types for the parametric builtin.
-  const std::vector<const ConcreteType*>& arg_types;
+  const std::vector<const Type*>& arg_types;
   const std::vector<dslx::Span>& arg_spans;
   const std::vector<ExprOrType>& arg_explicit_parametrics;
   // Name of the builtin.

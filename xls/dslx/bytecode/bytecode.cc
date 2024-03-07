@@ -566,11 +566,10 @@ absl::StatusOr<InterpValue> Bytecode::value_data() const {
   return std::get<InterpValue>(data_.value());
 }
 
-absl::StatusOr<const ConcreteType*> Bytecode::type_data() const {
+absl::StatusOr<const Type*> Bytecode::type_data() const {
   XLS_RET_CHECK(data_.has_value());
-  XLS_RET_CHECK(
-      std::holds_alternative<std::unique_ptr<ConcreteType>>(data_.value()));
-  return std::get<std::unique_ptr<ConcreteType>>(data_.value()).get();
+  XLS_RET_CHECK(std::holds_alternative<std::unique_ptr<Type>>(data_.value()));
+  return std::get<std::unique_ptr<Type>>(data_.value()).get();
 }
 
 void Bytecode::PatchJumpTarget(int64_t value) {
@@ -598,7 +597,7 @@ std::string Bytecode::ToString(bool source_locs) const {
 
   if (data_.has_value()) {
     struct DataVisitor {
-      std::string operator()(const std::unique_ptr<ConcreteType>& v) {
+      std::string operator()(const std::unique_ptr<Type>& v) {
         return v->ToString();
       }
 
@@ -762,8 +761,8 @@ std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
             Bytecode(bc.source_span(), bc.op(),
                      std::get<InterpValue>(bc.data().value())));
       } else {
-        const std::unique_ptr<ConcreteType>& type =
-            std::get<std::unique_ptr<ConcreteType>>(bc.data().value());
+        const std::unique_ptr<Type>& type =
+            std::get<std::unique_ptr<Type>>(bc.data().value());
         bytecodes.emplace_back(
             Bytecode(bc.source_span(), bc.op(), type->CloneToUnique()));
       }

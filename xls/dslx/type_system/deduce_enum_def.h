@@ -24,8 +24,8 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
-                                                            DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
+                                                    DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

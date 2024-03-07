@@ -53,15 +53,15 @@ class BitsType;
 class TupleType;
 class StructType;
 
-// Represents a parametric binding in a ConcreteType, which is either a) a
+// Represents a parametric binding in a Type, which is either a) a
 // parametric expression or b) evaluated to an InterpValue. When type
 // annotations from the AST are evaluated in type inference, some of the
 // "concrete types" that result from deduction may still be parametric. When the
 // parametric code is instantiated, the concrete types then have concrete
 // `InterpValues` as their dimensions.
 //
-// See comment on `ConcreteType` below for more details.
-class ConcreteTypeDim {
+// See comment on `Type` below for more details.
+class TypeDim {
  public:
   using OwnedParametric = std::unique_ptr<ParametricExpression>;
 
@@ -69,37 +69,35 @@ class ConcreteTypeDim {
   static absl::StatusOr<int64_t> GetAs64Bits(
       const std::variant<InterpValue, OwnedParametric>& variant);
 
-  // Creates a u32 `InterpValue`-based ConcreteTypeDim with the given "value".
-  static ConcreteTypeDim CreateU32(uint32_t value) {
-    return ConcreteTypeDim(InterpValue::MakeU32(value));
+  // Creates a u32 `InterpValue`-based TypeDim with the given "value".
+  static TypeDim CreateU32(uint32_t value) {
+    return TypeDim(InterpValue::MakeU32(value));
   }
 
-  explicit ConcreteTypeDim(std::variant<InterpValue, OwnedParametric> value)
+  explicit TypeDim(std::variant<InterpValue, OwnedParametric> value)
       : value_(std::move(value)) {}
 
-  ConcreteTypeDim(const ConcreteTypeDim& other);
-  ConcreteTypeDim& operator=(ConcreteTypeDim&& other) {
+  TypeDim(const TypeDim& other);
+  TypeDim& operator=(TypeDim&& other) {
     value_ = std::move(other.value_);
     return *this;
   }
 
-  ConcreteTypeDim Clone() const;
+  TypeDim Clone() const;
 
   // Arithmetic operators used in e.g. calculating total bit counts.
-  absl::StatusOr<ConcreteTypeDim> Mul(const ConcreteTypeDim& rhs) const;
-  absl::StatusOr<ConcreteTypeDim> Add(const ConcreteTypeDim& rhs) const;
-  absl::StatusOr<ConcreteTypeDim> CeilOfLog2() const;
+  absl::StatusOr<TypeDim> Mul(const TypeDim& rhs) const;
+  absl::StatusOr<TypeDim> Add(const TypeDim& rhs) const;
+  absl::StatusOr<TypeDim> CeilOfLog2() const;
 
   // Returns a string representation of this dimension, which is either the
   // integral string or the parametric expression string conversion.
   std::string ToString() const;
 
-  bool operator==(const ConcreteTypeDim& other) const;
+  bool operator==(const TypeDim& other) const;
   bool operator==(const std::variant<int64_t, InterpValue,
                                      const ParametricExpression*>& other) const;
-  bool operator!=(const ConcreteTypeDim& other) const {
-    return !(*this == other);
-  }
+  bool operator!=(const TypeDim& other) const { return !(*this == other); }
 
   const std::variant<InterpValue, OwnedParametric>& value() const {
     return value_;
@@ -121,7 +119,7 @@ class ConcreteTypeDim {
   std::variant<InterpValue, OwnedParametric> value_;
 };
 
-inline std::ostream& operator<<(std::ostream& os, const ConcreteTypeDim& ctd) {
+inline std::ostream& operator<<(std::ostream& os, const TypeDim& ctd) {
   os << ctd.ToString();
   return os;
 }
@@ -136,10 +134,10 @@ class TupleType;
 class ArrayType;
 class MetaType;
 
-// Abstract base class for a ConcreteType visitor.
-class ConcreteTypeVisitor {
+// Abstract base class for a Type visitor.
+class TypeVisitor {
  public:
-  virtual ~ConcreteTypeVisitor() = default;
+  virtual ~TypeVisitor() = default;
 
   virtual absl::Status HandleEnum(const EnumType& t) = 0;
   virtual absl::Status HandleBits(const BitsType& t) = 0;
@@ -164,24 +162,24 @@ class ConcreteTypeVisitor {
 // Note: During typechecking the dimension members may be either symbols (like
 // the 'N' in `bits[N][3]`) or integers. Once parametric symbols are
 // instantiated the symbols (such as 'N') will have resolved into ints, and we
-// will only be dealing with ConcreteTypeDims that hold ints.
-class ConcreteType {
+// will only be dealing with TypeDims that hold ints.
+class Type {
  public:
-  using MapFn = std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>;
+  using MapFn = std::function<absl::StatusOr<TypeDim>(TypeDim)>;
 
   // Creates a "unit" tuple type (a tuple type with no members).
-  static std::unique_ptr<ConcreteType> MakeUnit();
+  static std::unique_ptr<Type> MakeUnit();
 
   // Creates a concrete type matching that of the given InterpValue.
-  static absl::StatusOr<std::unique_ptr<ConcreteType>> FromInterpValue(
+  static absl::StatusOr<std::unique_ptr<Type>> FromInterpValue(
       const InterpValue& value);
 
-  virtual ~ConcreteType();
+  virtual ~Type();
 
-  virtual absl::Status Accept(ConcreteTypeVisitor& v) const = 0;
+  virtual absl::Status Accept(TypeVisitor& v) const = 0;
 
-  virtual bool operator==(const ConcreteType& other) const = 0;
-  bool operator!=(const ConcreteType& other) const { return !(*this == other); }
+  virtual bool operator==(const Type& other) const = 0;
+  bool operator!=(const Type& other) const { return !(*this == other); }
 
   virtual std::string ToString() const = 0;
 
@@ -193,34 +191,33 @@ class ConcreteType {
 
   // Returns a flat sequence of all dimensions contained (transitively) within
   // this type.
-  virtual std::vector<ConcreteTypeDim> GetAllDims() const = 0;
+  virtual std::vector<TypeDim> GetAllDims() const = 0;
 
   bool HasParametricDims() const {
-    std::vector<ConcreteTypeDim> all_dims = GetAllDims();
-    return std::any_of(
-        all_dims.begin(), all_dims.end(),
-        [](const ConcreteTypeDim& d) { return d.IsParametric(); });
+    std::vector<TypeDim> all_dims = GetAllDims();
+    return std::any_of(all_dims.begin(), all_dims.end(),
+                       [](const TypeDim& d) { return d.IsParametric(); });
   }
 
-  virtual absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const = 0;
+  virtual absl::StatusOr<TypeDim> GetTotalBitCount() const = 0;
 
   // Returns a "type name" suitable for debugging; e.g. "array", "bits", "enum",
   // etc.
   virtual std::string GetDebugTypeName() const = 0;
 
-  // Creates a new unique clone of this ConcreteType.
+  // Creates a new unique clone of this Type.
   //
   // Postcondition: *retval == *this.
-  virtual std::unique_ptr<ConcreteType> CloneToUnique() const = 0;
+  virtual std::unique_ptr<Type> CloneToUnique() const = 0;
 
-  // Maps all the dimensions contained (transitively) within this ConcreteType
+  // Maps all the dimensions contained (transitively) within this Type
   // (and any concrete types held herein) with "f" and returns the new
-  // (resulting) ConcreteType.
-  virtual absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+  // (resulting) Type.
+  virtual absl::StatusOr<std::unique_ptr<Type>> MapSize(
       const MapFn& f) const = 0;
 
   // Type equality, but ignores tuple member naming discrepancies.
-  bool CompatibleWith(const ConcreteType& other) const;
+  bool CompatibleWith(const Type& other) const;
 
   bool IsUnit() const;
   bool IsToken() const;
@@ -232,31 +229,31 @@ class ConcreteType {
   const ArrayType& AsArray() const;
 
  protected:
-  static std::vector<std::unique_ptr<ConcreteType>> CloneSpan(
-      absl::Span<const std::unique_ptr<ConcreteType>> ts);
+  static std::vector<std::unique_ptr<Type>> CloneSpan(
+      absl::Span<const std::unique_ptr<Type>> ts);
 
-  static bool Equal(absl::Span<const std::unique_ptr<ConcreteType>> a,
-                    absl::Span<const std::unique_ptr<ConcreteType>> b);
+  static bool Equal(absl::Span<const std::unique_ptr<Type>> a,
+                    absl::Span<const std::unique_ptr<Type>> b);
 };
 
-inline std::ostream& operator<<(std::ostream& os, const ConcreteType& t) {
+inline std::ostream& operator<<(std::ostream& os, const Type& t) {
   os << t.ToString();
   return os;
 }
 
 // Indicates that the deduced entity is a type expression -- as opposed to "an
 // expression having type T" this indicates "it was type T itself".
-class MetaType : public ConcreteType {
+class MetaType : public Type {
  public:
-  explicit MetaType(std::unique_ptr<ConcreteType> wrapped)
+  explicit MetaType(std::unique_ptr<Type> wrapped)
       : wrapped_(std::move(wrapped)) {}
 
   ~MetaType() override;
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleMeta(*this);
   }
-  bool operator==(const ConcreteType& other) const override {
+  bool operator==(const Type& other) const override {
     if (const auto* o = dynamic_cast<const MetaType*>(&other)) {
       return *wrapped() == *o->wrapped();
     }
@@ -268,24 +265,23 @@ class MetaType : public ConcreteType {
   }
 
   bool HasEnum() const override { return wrapped_->HasEnum(); }
-  std::vector<ConcreteTypeDim> GetAllDims() const override {
+  std::vector<TypeDim> GetAllDims() const override {
     return wrapped_->GetAllDims();
   }
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override {
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override {
     XLS_ASSIGN_OR_RETURN(auto wrapped, wrapped_->MapSize(f));
     return std::make_unique<MetaType>(std::move(wrapped));
   }
-  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+  std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<MetaType>(wrapped_->CloneToUnique());
   }
 
-  const std::unique_ptr<ConcreteType>& wrapped() const { return wrapped_; }
-  std::unique_ptr<ConcreteType>& wrapped() { return wrapped_; }
+  const std::unique_ptr<Type>& wrapped() const { return wrapped_; }
+  std::unique_ptr<Type>& wrapped() { return wrapped_; }
 
  private:
-  std::unique_ptr<ConcreteType> wrapped_;
+  std::unique_ptr<Type> wrapped_;
 };
 
 // Represents the type of a token value.
@@ -296,31 +292,28 @@ class MetaType : public ConcreteType {
 // Currently the token type is effectively a singleton-behaving value like nil,
 // it cannot be distinguished or parameterized in any way from other token type
 // instances (unless you compare by pointer, of course, which is an
-// implementation detail and not part of the ConcreteType API).
-class TokenType : public ConcreteType {
+// implementation detail and not part of the Type API).
+class TokenType : public Type {
  public:
   ~TokenType() override;
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleToken(*this);
   }
-  bool operator==(const ConcreteType& other) const override {
-    return other.IsToken();
-  }
+  bool operator==(const Type& other) const override { return other.IsToken(); }
   std::string ToString() const override { return "token"; }
-  std::vector<ConcreteTypeDim> GetAllDims() const override { return {}; }
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override {
-    return ConcreteTypeDim(InterpValue::MakeU32(0));
+  std::vector<TypeDim> GetAllDims() const override { return {}; }
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override {
+    return TypeDim(InterpValue::MakeU32(0));
   }
   std::string GetDebugTypeName() const override { return "token"; }
 
   bool HasEnum() const override { return false; }
 
-  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+  std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<TokenType>();
   }
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override {
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override {
     return std::make_unique<TokenType>();
   }
 };
@@ -328,28 +321,27 @@ class TokenType : public ConcreteType {
 // Represents a struct type -- these are similar in spirit to "tuples with named
 // fields", but they also identify the nominal struct that they correspond to --
 // things like type comparisons
-class StructType : public ConcreteType {
+class StructType : public Type {
  public:
   // Note: members must correspond to struct_def's members (same length and
   // order).
-  StructType(std::vector<std::unique_ptr<ConcreteType>> members,
+  StructType(std::vector<std::unique_ptr<Type>> members,
              const StructDef& struct_def);
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleStruct(*this);
   }
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  bool operator==(const ConcreteType& other) const override;
+  bool operator==(const Type& other) const override;
   std::string ToString() const override;
-  std::vector<ConcreteTypeDim> GetAllDims() const override;
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
+  std::vector<TypeDim> GetAllDims() const override;
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "struct"; }
 
   bool HasEnum() const override;
 
-  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+  std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<StructType>(CloneSpan(members_), struct_def_);
   }
 
@@ -365,7 +357,7 @@ class StructType : public ConcreteType {
     return struct_def_.GetMemberName(i);
   }
 
-  const ConcreteType& GetMemberType(int64_t i) const { return *members_.at(i); }
+  const Type& GetMemberType(int64_t i) const { return *members_.at(i); }
 
   // Returns the index of the member with name "name" -- returns a NotFound
   // error if the member is not found (i.e. it is generally expected that the
@@ -373,8 +365,7 @@ class StructType : public ConcreteType {
   // this TupleType does not have named members.
   absl::StatusOr<int64_t> GetMemberIndex(std::string_view name) const;
 
-  std::optional<const ConcreteType*> GetMemberTypeByName(
-      std::string_view target) const;
+  std::optional<const Type*> GetMemberTypeByName(std::string_view target) const;
 
   const StructDef& nominal_type() const { return struct_def_; }
 
@@ -382,153 +373,145 @@ class StructType : public ConcreteType {
 
   int64_t size() const { return members_.size(); }
 
-  const std::vector<std::unique_ptr<ConcreteType>>& members() const {
-    return members_;
-  }
+  const std::vector<std::unique_ptr<Type>>& members() const { return members_; }
 
  private:
-  std::vector<std::unique_ptr<ConcreteType>> members_;
+  std::vector<std::unique_ptr<Type>> members_;
   const StructDef& struct_def_;
 };
 
 // Represents a tuple type. Tuples have unnamed members.
-class TupleType : public ConcreteType {
+class TupleType : public Type {
  public:
-  static std::unique_ptr<TupleType> Create2(std::unique_ptr<ConcreteType> t0,
-                                            std::unique_ptr<ConcreteType> t1) {
-    std::vector<std::unique_ptr<ConcreteType>> members;
+  static std::unique_ptr<TupleType> Create2(std::unique_ptr<Type> t0,
+                                            std::unique_ptr<Type> t1) {
+    std::vector<std::unique_ptr<Type>> members;
     members.push_back(std::move(t0));
     members.push_back(std::move(t1));
     return std::make_unique<TupleType>(std::move(members));
   }
-  static std::unique_ptr<TupleType> Create3(std::unique_ptr<ConcreteType> t0,
-                                            std::unique_ptr<ConcreteType> t1,
-                                            std::unique_ptr<ConcreteType> t2) {
-    std::vector<std::unique_ptr<ConcreteType>> members;
+  static std::unique_ptr<TupleType> Create3(std::unique_ptr<Type> t0,
+                                            std::unique_ptr<Type> t1,
+                                            std::unique_ptr<Type> t2) {
+    std::vector<std::unique_ptr<Type>> members;
     members.push_back(std::move(t0));
     members.push_back(std::move(t1));
     members.push_back(std::move(t2));
     return std::make_unique<TupleType>(std::move(members));
   }
 
-  explicit TupleType(std::vector<std::unique_ptr<ConcreteType>> members);
+  explicit TupleType(std::vector<std::unique_ptr<Type>> members);
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleTuple(*this);
   }
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  bool operator==(const ConcreteType& other) const override;
+  bool operator==(const Type& other) const override;
   std::string ToString() const override;
-  std::vector<ConcreteTypeDim> GetAllDims() const override;
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
+  std::vector<TypeDim> GetAllDims() const override;
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "tuple"; }
 
   bool HasEnum() const override;
 
-  std::unique_ptr<ConcreteType> CloneToUnique() const override;
+  std::unique_ptr<Type> CloneToUnique() const override;
 
   bool empty() const;
   int64_t size() const;
 
   bool CompatibleWith(const TupleType& other) const;
 
-  ConcreteType& GetMemberType(int64_t i) { return *members_.at(i); }
-  const ConcreteType& GetMemberType(int64_t i) const { return *members_.at(i); }
-  const std::vector<std::unique_ptr<ConcreteType>>& members() const {
-    return members_;
-  }
+  Type& GetMemberType(int64_t i) { return *members_.at(i); }
+  const Type& GetMemberType(int64_t i) const { return *members_.at(i); }
+  const std::vector<std::unique_ptr<Type>>& members() const { return members_; }
 
  private:
-  std::vector<std::unique_ptr<ConcreteType>> members_;
+  std::vector<std::unique_ptr<Type>> members_;
 };
 
 // Represents an array type, with an element type and size.
 //
 // These will nest in the case of multidimensional arrays.
-class ArrayType : public ConcreteType {
+class ArrayType : public Type {
  public:
-  ArrayType(std::unique_ptr<ConcreteType> element_type,
-            const ConcreteTypeDim& size)
+  ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size)
       : element_type_(std::move(element_type)), size_(size) {
     CHECK(!element_type_->IsMeta()) << element_type_->ToString();
   }
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleArray(*this);
   }
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   std::string ToString() const override;
-  std::vector<ConcreteTypeDim> GetAllDims() const override;
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
+  std::vector<TypeDim> GetAllDims() const override;
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   bool HasEnum() const override { return element_type_->HasEnum(); }
-  bool operator==(const ConcreteType& other) const override {
+  bool operator==(const Type& other) const override {
     if (auto* o = dynamic_cast<const ArrayType*>(&other)) {
       return size_ == o->size_ && *element_type_ == *o->element_type_;
     }
     return false;
   }
   std::string GetDebugTypeName() const override { return "array"; }
-  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+  std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<ArrayType>(element_type_->CloneToUnique(),
                                        size_.Clone());
   }
 
-  const ConcreteType& element_type() const { return *element_type_; }
-  const ConcreteTypeDim& size() const { return size_; }
+  const Type& element_type() const { return *element_type_; }
+  const TypeDim& size() const { return size_; }
 
  private:
-  std::unique_ptr<ConcreteType> element_type_;
-  ConcreteTypeDim size_;
+  std::unique_ptr<Type> element_type_;
+  TypeDim size_;
 };
 
 // Represents an enum type.
-class EnumType : public ConcreteType {
+class EnumType : public Type {
  public:
-  EnumType(const EnumDef& enum_def, ConcreteTypeDim bit_count, bool is_signed,
+  EnumType(const EnumDef& enum_def, TypeDim bit_count, bool is_signed,
            const std::vector<InterpValue>& members)
       : enum_def_(enum_def),
         size_(std::move(bit_count)),
         is_signed_(is_signed),
         members_(members) {}
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleEnum(*this);
   }
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   std::string ToString() const override;
-  std::vector<ConcreteTypeDim> GetAllDims() const override;
+  std::vector<TypeDim> GetAllDims() const override;
   bool HasEnum() const override { return true; }
   std::string GetDebugTypeName() const override { return "enum"; }
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override {
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override {
     return size_.Clone();
   }
-  bool operator==(const ConcreteType& other) const override {
+  bool operator==(const Type& other) const override {
     if (auto* o = dynamic_cast<const EnumType*>(&other)) {
       return &enum_def_ == &o->enum_def_ && size_ == o->size_ &&
              is_signed_ == o->is_signed_;
     }
     return false;
   }
-  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+  std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<EnumType>(enum_def_, size_.Clone(), is_signed_,
                                       members_);
   }
 
   const EnumDef& nominal_type() const { return enum_def_; }
-  const ConcreteTypeDim& size() const { return size_; }
+  const TypeDim& size() const { return size_; }
   const std::vector<InterpValue>& members() const { return members_; }
 
   bool is_signed() const { return is_signed_; }
 
  private:
   const EnumDef& enum_def_;  // Definition AST node.
-  ConcreteTypeDim size_;     // Underlying size in bits.
+  TypeDim size_;             // Underlying size in bits.
   bool is_signed_;           // Signedness of the underlying bits type.
   std::vector<InterpValue> members_;  // Member values of the enum.
 };
@@ -536,9 +519,9 @@ class EnumType : public ConcreteType {
 // Represents a bits type (either signed or unsigned).
 //
 // Note that there are related helpers IsUBits() and IsSBits() for concisely
-// testing whether a `ConcreteType` is an unsigned or signed BitsType,
+// testing whether a `Type` is an unsigned or signed BitsType,
 // respectively.
-class BitsType : public ConcreteType {
+class BitsType : public Type {
  public:
   static std::unique_ptr<BitsType> MakeU64() {
     return std::make_unique<BitsType>(false, 64);
@@ -557,19 +540,17 @@ class BitsType : public ConcreteType {
   }
 
   BitsType(bool is_signed, int64_t size)
-      : BitsType(is_signed, ConcreteTypeDim(InterpValue::MakeU32(size))) {}
-  BitsType(bool is_signed, ConcreteTypeDim size)
-      : is_signed_(is_signed), size_(size) {}
+      : BitsType(is_signed, TypeDim(InterpValue::MakeU32(size))) {}
+  BitsType(bool is_signed, TypeDim size) : is_signed_(is_signed), size_(size) {}
 
   ~BitsType() override = default;
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleBits(*this);
   }
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  bool operator==(const ConcreteType& other) const override {
+  bool operator==(const Type& other) const override {
     if (auto* t = dynamic_cast<const BitsType*>(&other)) {
       return t->is_signed_ == is_signed_ && t->size_ == size_;
     }
@@ -585,55 +566,52 @@ class BitsType : public ConcreteType {
   bool is_signed() const { return is_signed_; }
 
   // Returns the dize (dimension) for this bits type.
-  const ConcreteTypeDim& size() const { return size_; }
+  const TypeDim& size() const { return size_; }
 
-  std::vector<ConcreteTypeDim> GetAllDims() const override {
-    std::vector<ConcreteTypeDim> result;
+  std::vector<TypeDim> GetAllDims() const override {
+    std::vector<TypeDim> result;
     result.push_back(size_.Clone());
     return result;
   }
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override {
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override {
     return size_.Clone();
   }
-  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+  std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<BitsType>(is_signed_, size_.Clone());
   }
 
  private:
   bool is_signed_;
-  ConcreteTypeDim size_;
+  TypeDim size_;
 };
 
 // Represents a function type with params and a return type.
-class FunctionType : public ConcreteType {
+class FunctionType : public Type {
  public:
-  FunctionType(std::vector<std::unique_ptr<ConcreteType>> params,
-               std::unique_ptr<ConcreteType> return_type)
+  FunctionType(std::vector<std::unique_ptr<Type>> params,
+               std::unique_ptr<Type> return_type)
       : params_(std::move(params)), return_type_(std::move(return_type)) {
     CHECK(!return_type_->IsMeta());
   }
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleFunction(*this);
   }
   std::string ToString() const override;
   std::string GetDebugTypeName() const override { return "function"; }
-  std::vector<ConcreteTypeDim> GetAllDims() const override;
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
+  std::vector<TypeDim> GetAllDims() const override;
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override;
 
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  bool operator==(const ConcreteType& other) const override;
+  bool operator==(const Type& other) const override;
 
   // Accessor for owned parameter (formal argument) type vector.
-  const std::vector<std::unique_ptr<ConcreteType>>& params() const {
-    return params_;
-  }
+  const std::vector<std::unique_ptr<Type>>& params() const { return params_; }
 
   // Returns a (new value) vector of pointers to parameter types owned by this
   // FunctionType.
-  std::vector<const ConcreteType*> GetParams() const;
+  std::vector<const Type*> GetParams() const;
 
   // Number of parameters (formal arguments) to this function.
   int64_t GetParamCount() const { return params_.size(); }
@@ -645,10 +623,10 @@ class FunctionType : public ConcreteType {
   }
 
   // Return type of the function.
-  const ConcreteType& return_type() const { return *return_type_; }
+  const Type& return_type() const { return *return_type_; }
 
-  std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    std::vector<std::unique_ptr<ConcreteType>> params;
+  std::unique_ptr<Type> CloneToUnique() const override {
+    std::vector<std::unique_ptr<Type>> params;
     params.reserve(params_.size());
     for (const auto& item : params_) {
       params.push_back(item->CloneToUnique());
@@ -658,8 +636,8 @@ class FunctionType : public ConcreteType {
   }
 
  private:
-  std::vector<std::unique_ptr<ConcreteType>> params_;
-  std::unique_ptr<ConcreteType> return_type_;
+  std::vector<std::unique_ptr<Type>> params_;
+  std::unique_ptr<Type> return_type_;
 };
 
 // Represents the type of a channel (half-duplex), which effectively just wraps
@@ -668,41 +646,39 @@ class FunctionType : public ConcreteType {
 // Attrs:
 //  payload_type: The type of the values that flow through the channel. Note
 //    that this cannot be a metatype (checked on construction).
-class ChannelType : public ConcreteType {
+class ChannelType : public Type {
  public:
-  ChannelType(std::unique_ptr<ConcreteType> payload_type,
-              ChannelDirection direction);
+  ChannelType(std::unique_ptr<Type> payload_type, ChannelDirection direction);
 
-  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+  absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleChannel(*this);
   }
   std::string ToString() const override;
   std::string GetDebugTypeName() const override { return "channel"; }
-  std::vector<ConcreteTypeDim> GetAllDims() const override;
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
-  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const MapFn& f) const override;
-  bool operator==(const ConcreteType& other) const override;
+  std::vector<TypeDim> GetAllDims() const override;
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
+  bool operator==(const Type& other) const override;
   bool HasEnum() const override;
-  std::unique_ptr<ConcreteType> CloneToUnique() const override;
+  std::unique_ptr<Type> CloneToUnique() const override;
 
-  const ConcreteType& payload_type() const { return *payload_type_; }
+  const Type& payload_type() const { return *payload_type_; }
   ChannelDirection direction() const { return direction_; }
 
  private:
-  std::unique_ptr<ConcreteType> payload_type_;
+  std::unique_ptr<Type> payload_type_;
   ChannelDirection direction_;
 };
 
-// Helper for the case where we have a derived (i.e. non-abstract) ConcreteType,
+// Helper for the case where we have a derived (i.e. non-abstract) Type,
 // and want the clone to also be a unique_ptr of the derived type.
 //
 // Note: we explicitly instantiate it so we get better type error messages than
 // exposing the parametric version directly to callers.
 template <typename T>
 inline std::unique_ptr<T> CloneToUniqueInternal(const T& type) {
-  static_assert(std::is_base_of_v<ConcreteType, T>);
-  std::unique_ptr<ConcreteType> cloned = type.CloneToUnique();
+  static_assert(std::is_base_of_v<Type, T>);
+  std::unique_ptr<Type> cloned = type.CloneToUnique();
   return absl::WrapUnique<T>(dynamic_cast<T*>(cloned.release()));
 }
 inline std::unique_ptr<BitsType> CloneToUnique(const BitsType& type) {
@@ -718,20 +694,20 @@ inline std::unique_ptr<FunctionType> CloneToUnique(const FunctionType& type) {
   return CloneToUniqueInternal(type);
 }
 
-// As above, but works on a vector of ConcreteType unique pointers.
-inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
-    absl::Span<const std::unique_ptr<ConcreteType>> types) {
-  std::vector<std::unique_ptr<ConcreteType>> result;
+// As above, but works on a vector of Type unique pointers.
+inline std::vector<std::unique_ptr<Type>> CloneToUnique(
+    absl::Span<const std::unique_ptr<Type>> types) {
+  std::vector<std::unique_ptr<Type>> result;
   for (const auto& item : types) {
     result.push_back(item->CloneToUnique());
   }
   return result;
 }
 
-// As above, but works on a vector of ConcreteType unique pointers.
-inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
-    absl::Span<const ConcreteType* const> types) {
-  std::vector<std::unique_ptr<ConcreteType>> result;
+// As above, but works on a vector of Type unique pointers.
+inline std::vector<std::unique_ptr<Type>> CloneToUnique(
+    absl::Span<const Type* const> types) {
+  std::vector<std::unique_ptr<Type>> result;
   for (const auto* item : types) {
     result.push_back(item->CloneToUnique());
   }
@@ -739,32 +715,32 @@ inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
 }
 
 // TODO(https://github.com/google/xls/issues/480) replace these dynamic casts
-// with uses of a ConcreteTypeVisitor.
+// with uses of a TypeVisitor.
 // Returns whether the given concrete type is a unsigned/signed BitsType (for
 // IsUBits/IsSBits respectively).
-inline bool IsUBits(const ConcreteType& c) {
+inline bool IsUBits(const Type& c) {
   if (auto* b = dynamic_cast<const BitsType*>(&c); b != nullptr) {
     return !b->is_signed();
   }
   return false;
 }
-inline bool IsSBits(const ConcreteType& c) {
+inline bool IsSBits(const Type& c) {
   if (auto* b = dynamic_cast<const BitsType*>(&c); b != nullptr) {
     return b->is_signed();
   }
   return false;
 }
-inline bool IsBits(const ConcreteType& c) {
+inline bool IsBits(const Type& c) {
   return dynamic_cast<const BitsType*>(&c) != nullptr;
 }
 
 // Returns whether the given type, which should be either a bits or an enum
 // type, is signed.
-absl::StatusOr<bool> IsSigned(const ConcreteType& c);
+absl::StatusOr<bool> IsSigned(const Type& c);
 
 // Attempts to get a ParametricSymbol contained in the given dimension, or
 // nullptr if there is none.
-const ParametricSymbol* TryGetParametricSymbol(const ConcreteTypeDim& dim);
+const ParametricSymbol* TryGetParametricSymbol(const TypeDim& dim);
 
 }  // namespace xls::dslx
 

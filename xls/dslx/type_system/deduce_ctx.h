@@ -117,7 +117,7 @@ class FnStackEntry {
 class DeduceCtx;  // Forward decl.
 
 // Callback signature for the "top level" of the node type-deduction process.
-using DeduceFn = std::function<absl::StatusOr<std::unique_ptr<ConcreteType>>(
+using DeduceFn = std::function<absl::StatusOr<std::unique_ptr<Type>>(
     const AstNode*, DeduceCtx*)>;
 
 // Signature used for typechecking a single function within a module (this is
@@ -150,7 +150,7 @@ class DeduceCtx {
 
   // Helper that calls back to the top-level deduce procedure for the given
   // node.
-  absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node);
+  absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node);
 
   // To report structured information on typechecking mismatches we record
   // metadata on the DeduceCtx object.
@@ -168,9 +168,8 @@ class DeduceCtx {
   //    represents -- note this may end up supplemented by diagnostic
   //    information for display.
   absl::Status TypeMismatchError(Span mismatch_span, const AstNode* lhs_node,
-                                 const ConcreteType& lhs,
-                                 const AstNode* rhs_node,
-                                 const ConcreteType& rhs, std::string message);
+                                 const Type& lhs, const AstNode* rhs_node,
+                                 const Type& rhs, std::string message);
 
   bool WithinProc() const {
     return fn_stack().back().within_proc() == WithinProc::kYes;

@@ -139,6 +139,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:concrete_type",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -723,10 +724,17 @@ cc_library(
     srcs = ["make_value_format_descriptor.cc"],
     hdrs = ["make_value_format_descriptor.h"],
     deps = [
+        ":interp_value",
         ":value_format_descriptor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:concrete_type",
+        "//xls/ir:bits",
+        "//xls/ir:format_preference",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 

@@ -67,8 +67,8 @@ DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
       parent_(parent) {}
 
 absl::Status DeduceCtx::TypeMismatchError(
-    Span mismatch_span, const AstNode* lhs_node, const ConcreteType& lhs,
-    const AstNode* rhs_node, const ConcreteType& rhs, std::string message) {
+    Span mismatch_span, const AstNode* lhs_node, const Type& lhs,
+    const AstNode* rhs_node, const Type& rhs, std::string message) {
   XLS_RET_CHECK(!type_mismatch_error_data_.has_value())
       << "internal error: nested type mismatch error";
   DeduceCtx* top = this;
@@ -100,14 +100,13 @@ std::unique_ptr<DeduceCtx> DeduceCtx::MakeCtx(TypeInfo* new_type_info,
                                      import_data_, warnings_, /*parent=*/this);
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCtx::Deduce(
-    const AstNode* node) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::Deduce(const AstNode* node) {
   XLS_RET_CHECK(deduce_function_ != nullptr);
   XLS_RET_CHECK_EQ(node->owner(), type_info()->module())
       << "node: `" << node->ToString() << "` from module "
       << node->owner()->name()
       << " vs type info module: " << type_info()->module()->name();
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> result,
                        deduce_function_(node, this));
 
   if (dynamic_cast<const TypeAnnotation*>(node) != nullptr) {

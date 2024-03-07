@@ -54,13 +54,13 @@ namespace xls::dslx {
 namespace {
 
 absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
-                                             const ConcreteType* type,
+                                             const Type* type,
                                              FormatPreference format_preference,
                                              int64_t indent = 0) {
   std::string indent_str(static_cast<size_t>(indent * 4), ' ');
   if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
       array_type != nullptr) {
-    const ConcreteType* element_type = &array_type->element_type();
+    const Type* element_type = &array_type->element_type();
     std::vector<std::string> elements;
     for (const auto& element_value : value.GetValuesOrDie()) {
       XLS_ASSIGN_OR_RETURN(std::string element,
@@ -93,7 +93,7 @@ absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
     members.reserve(struct_type->size());
     for (int64_t i = 0; i < struct_type->size(); i++) {
       std::string sub_indent_str(static_cast<size_t>(indent + 1) * 4, ' ');
-      const ConcreteType& member_type = struct_type->GetMemberType(i);
+      const Type& member_type = struct_type->GetMemberType(i);
       XLS_ASSIGN_OR_RETURN(
           std::string member_value,
           PrettyPrintValue(value.GetValuesOrDie()[i], &member_type,
@@ -440,10 +440,10 @@ absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
     XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
                          bytecode.invocation_data());
     XLS_ASSIGN_OR_RETURN(
-        ConcreteType * lhs_type,
+        Type * lhs_type,
         type_info->GetItemOrError(invocation_data.invocation()->args()[0]));
     XLS_ASSIGN_OR_RETURN(
-        ConcreteType * rhs_type,
+        Type * rhs_type,
         type_info->GetItemOrError(invocation_data.invocation()->args()[1]));
     XLS_ASSIGN_OR_RETURN(
         std::string pretty_lhs,
@@ -491,10 +491,10 @@ absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
     XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
                          bytecode.invocation_data());
     XLS_ASSIGN_OR_RETURN(
-        ConcreteType * lhs_type,
+        Type * lhs_type,
         type_info->GetItemOrError(invocation_data.invocation()->args()[0]));
     XLS_ASSIGN_OR_RETURN(
-        ConcreteType * rhs_type,
+        Type * rhs_type,
         type_info->GetItemOrError(invocation_data.invocation()->args()[1]));
     XLS_ASSIGN_OR_RETURN(
         std::string pretty_lhs,

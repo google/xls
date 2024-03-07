@@ -43,7 +43,7 @@ using ::testing::HasSubstr;
 TEST(InterpValueHelpersTest, CastBitsToArray) {
   InterpValue input(InterpValue::MakeU32(0xa5a5a5a5));
 
-  ArrayType array_type(BitsType::MakeU8(), ConcreteTypeDim::CreateU32(4));
+  ArrayType array_type(BitsType::MakeU8(), TypeDim::CreateU32(4));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue converted,
                            CastBitsToArray(input, array_type));
   ASSERT_TRUE(converted.IsArray());
@@ -82,7 +82,7 @@ TEST(InterpValueHelpersTest, CastBitsToEnumAndCreatZeroValue) {
   EnumDef* enum_def = module.Make<EnumDef>(Span::Fake(), name_def, element_type,
                                            members, /*is_public=*/true);
 
-  EnumType enum_type(*enum_def, ConcreteTypeDim::CreateU32(kBitCount),
+  EnumType enum_type(*enum_def, TypeDim::CreateU32(kBitCount),
                      /*is_signed=*/false, member_values);
 
   InterpValue bits_value(InterpValue::MakeUBits(kBitCount, 11));
@@ -116,7 +116,7 @@ TEST(InterpValueHelpersTest, CreateZeroBitsAndArrayValues) {
   EXPECT_TRUE(s32_zero.IsSigned());
 
   // Create a zero tuple.
-  std::vector<std::unique_ptr<ConcreteType>> tuple_members;
+  std::vector<std::unique_ptr<Type>> tuple_members;
   tuple_members.push_back(u8->CloneToUnique());
   tuple_members.push_back(s32->CloneToUnique());
   TupleType tuple(std::move(tuple_members));
@@ -126,7 +126,7 @@ TEST(InterpValueHelpersTest, CreateZeroBitsAndArrayValues) {
   EXPECT_TRUE(InterpValue::MakeTuple({u8_zero, s32_zero}).Eq(tuple_zero));
 
   // Create a zero array of tuples.
-  ArrayType array_type(tuple.CloneToUnique(), ConcreteTypeDim::CreateU32(2));
+  ArrayType array_type(tuple.CloneToUnique(), TypeDim::CreateU32(2));
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue array_zero,
                            CreateZeroValueFromType(array_type));
@@ -155,7 +155,7 @@ TEST(InterpValueHelpersTest, CreateZeroStructValue) {
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
       std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);
-  std::vector<std::unique_ptr<ConcreteType>> members;
+  std::vector<std::unique_ptr<Type>> members;
   members.push_back(BitsType::MakeU8());
   members.push_back(BitsType::MakeU1());
   StructType s(std::move(members), *struct_def);
@@ -214,7 +214,7 @@ TEST(InterpValueHelpersTest, ValueToInterpValue) {
                                                  InterpValue::MakeU32(5),
                                              })
                           .value())));
-  ArrayType array_type(BitsType::MakeU32(), ConcreteTypeDim::CreateU32(3));
+  ArrayType array_type(BitsType::MakeU32(), TypeDim::CreateU32(3));
   EXPECT_THAT(
       ValueToInterpValue(Value::UBitsArray({3, 4, 5}, 32).value(), &array_type),
       IsOkAndHolds(Eq(InterpValue::MakeArray({
@@ -248,7 +248,7 @@ TEST(InterpValueHelpersTest, ValueToInterpValue) {
                        std::vector<StructMember>{{Span::Fake(), "", nullptr},
                                                  {Span::Fake(), "", nullptr}},
                        /*is_public=*/false);
-  std::vector<std::unique_ptr<ConcreteType>> members;
+  std::vector<std::unique_ptr<Type>> members;
   members.push_back(BitsType::MakeU8());
   members.push_back(BitsType::MakeU1());
   StructType struct_type(std::move(members), struct_def);

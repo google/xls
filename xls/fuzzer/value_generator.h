@@ -40,13 +40,12 @@ absl::StatusOr<dslx::Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
 
 // Returns a single value of the given type.
 absl::StatusOr<dslx::InterpValue> GenerateInterpValue(
-    absl::BitGenRef bit_gen, const dslx::ConcreteType& arg_type,
+    absl::BitGenRef bit_gen, const dslx::Type& arg_type,
     absl::Span<const dslx::InterpValue> prior);
 
 // Returns randomly generated values of the given types.
 absl::StatusOr<std::vector<dslx::InterpValue>> GenerateInterpValues(
-    absl::BitGenRef bit_gen,
-    absl::Span<const dslx::ConcreteType* const> arg_types);
+    absl::BitGenRef bit_gen, absl::Span<const dslx::Type* const> arg_types);
 
 }  // namespace xls
 

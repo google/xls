@@ -76,8 +76,8 @@ class ParametricInstantiator {
 
  protected:
   // Binds param_type via arg_type, updating 'parametric_env_map_'.
-  absl::Status InstantiateOneArg(int64_t i, const ConcreteType& param_type,
-                                 const ConcreteType& arg_type);
+  absl::Status InstantiateOneArg(int64_t i, const Type& param_type,
+                                 const Type& arg_type);
 
   const absl::flat_hash_map<std::string, InterpValue>& parametric_env_map()
       const {
@@ -126,7 +126,7 @@ class ParametricInstantiator {
   // "default" expression and must be provided by the user).
   absl::flat_hash_map<std::string, Expr*> parametric_default_exprs_;
 
-  absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>
+  absl::flat_hash_map<std::string, std::unique_ptr<Type>>
       parametric_binding_types_;
   absl::flat_hash_map<std::string, InterpValue> parametric_env_map_;
 };
@@ -164,7 +164,7 @@ class FunctionInstantiator : public ParametricInstantiator {
 
   Function& callee_fn_;
   std::unique_ptr<FunctionType> function_type_;
-  absl::Span<std::unique_ptr<ConcreteType> const> param_types_;
+  absl::Span<std::unique_ptr<Type> const> param_types_;
 };
 
 // Instantiates a parametric struct.
@@ -173,8 +173,7 @@ class StructInstantiator : public ParametricInstantiator {
   static absl::StatusOr<std::unique_ptr<StructInstantiator>> Make(
       Span span, const StructType& struct_type,
       absl::Span<const InstantiateArg> args,
-      absl::Span<std::unique_ptr<ConcreteType> const> member_types,
-      DeduceCtx* ctx,
+      absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
       absl::Span<const ParametricConstraint> parametric_bindings);
 
   absl::StatusOr<TypeAndParametricEnv> Instantiate() override;
@@ -182,20 +181,19 @@ class StructInstantiator : public ParametricInstantiator {
   std::string_view GetKindName() override { return "struct"; }
 
  private:
-  StructInstantiator(
-      Span span, const StructType& struct_type,
-      absl::Span<const InstantiateArg> args,
-      absl::Span<std::unique_ptr<ConcreteType> const> member_types,
-      DeduceCtx* ctx,
-      absl::Span<const ParametricConstraint> parametric_bindings)
+  StructInstantiator(Span span, const StructType& struct_type,
+                     absl::Span<const InstantiateArg> args,
+                     absl::Span<std::unique_ptr<Type> const> member_types,
+                     DeduceCtx* ctx,
+                     absl::Span<const ParametricConstraint> parametric_bindings)
       : ParametricInstantiator(std::move(span), args, ctx,
                                /*parametric_constraints=*/parametric_bindings,
                                /*explicit_parametrics=*/{}),
         struct_type_(CloneToUnique(struct_type)),
         member_types_(member_types) {}
 
-  std::unique_ptr<ConcreteType> struct_type_;
-  absl::Span<std::unique_ptr<ConcreteType> const> member_types_;
+  std::unique_ptr<Type> struct_type_;
+  absl::Span<std::unique_ptr<Type> const> member_types_;
 };
 
 }  // namespace internal

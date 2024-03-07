@@ -29,9 +29,9 @@ namespace xls::dslx {
 struct TypeMismatchErrorData {
   Span error_span;
   const AstNode* lhs_node;
-  std::unique_ptr<ConcreteType> lhs;
+  std::unique_ptr<Type> lhs;
   const AstNode* rhs_node;
-  std::unique_ptr<ConcreteType> rhs;
+  std::unique_ptr<Type> rhs;
   std::string message;
 };
 

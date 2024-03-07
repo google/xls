@@ -42,32 +42,30 @@ namespace xls::dslx {
 //
 // TODO(cdleary): 2024-01-16 We can break this circular resolution with a
 // virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
     const AstNode* node, DeduceCtx* ctx);
 
 // When enums have no type annotation explicitly placed on them we infer the
 // width of the enum from the values contained inside of its definition.
-static absl::StatusOr<std::unique_ptr<ConcreteType>>
-DeduceEnumSansUnderlyingType(const EnumDef* node, DeduceCtx* ctx) {
+static absl::StatusOr<std::unique_ptr<Type>> DeduceEnumSansUnderlyingType(
+    const EnumDef* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "Deducing enum without underlying type: " << node->ToString();
-  std::vector<std::pair<const EnumMember*, std::unique_ptr<ConcreteType>>>
-      deduced;
+  std::vector<std::pair<const EnumMember*, std::unique_ptr<Type>>> deduced;
   for (const EnumMember& member : node->values()) {
     bool is_boolean = false;
     if (IsBareNumber(member.value, &is_boolean) != nullptr && !is_boolean) {
       continue;  // We'll validate these below.
     }
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
-                         ctx->Deduce(member.value));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> t, ctx->Deduce(member.value));
     deduced.emplace_back(&member, std::move(t));
   }
   if (deduced.empty()) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr, "Could not deduce underlying type for enum.");
   }
-  const ConcreteType& target = *deduced.front().second;
+  const Type& target = *deduced.front().second;
   for (int64_t i = 1; i < deduced.size(); ++i) {
-    const ConcreteType& got = *deduced.at(i).second;
+    const Type& got = *deduced.at(i).second;
     if (target != got) {
       return ctx->TypeMismatchError(
           deduced.at(i).first->GetSpan(), nullptr, target, nullptr, got,
@@ -89,9 +87,9 @@ DeduceEnumSansUnderlyingType(const EnumDef* node, DeduceCtx* ctx) {
   return std::move(deduced.front().second);
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
-                                                            DeduceCtx* ctx) {
-  std::unique_ptr<ConcreteType> type;
+absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
+                                                    DeduceCtx* ctx) {
+  std::unique_ptr<Type> type;
   if (node->type_annotation() == nullptr) {
     XLS_ASSIGN_OR_RETURN(type, DeduceEnumSansUnderlyingType(node, ctx));
   } else {
@@ -109,7 +107,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
   }
 
   // Grab the bit count of the Enum's underlying type.
-  const ConcreteTypeDim& bit_count = bits_type->size();
+  const TypeDim& bit_count = bits_type->size();
 
   std::vector<InterpValue> members;
   members.reserve(node->values().size());
@@ -122,8 +120,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
           ctx->import_data(), ctx->type_info(), ctx->warnings(),
           ctx->GetCurrentParametricEnv(), number, type.get()));
     } else {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
-                           ctx->Deduce(member.value));
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> t, ctx->Deduce(member.value));
       if (*t != *bits_type) {
         return ctx->TypeMismatchError(
             member.value->span(), nullptr, *t, nullptr, *bits_type,

@@ -51,18 +51,18 @@ namespace xls::dslx {
 //
 // TODO(cdleary): 2024-01-16 We can break this circular resolution with a
 // virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
     const AstNode* node, DeduceCtx* ctx);
-extern absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(
-    const ConcreteType& type, DeduceCtx* ctx);
+extern absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type,
+                                                     DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
-                                                          DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
+                                                  DeduceCtx* ctx) {
   XLS_VLOG(5) << "DeduceArray; node: " << node->ToString();
 
-  std::vector<std::unique_ptr<ConcreteType>> member_types;
+  std::vector<std::unique_ptr<Type>> member_types;
   for (Expr* member : node->members()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> member_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> member_type,
                          DeduceAndResolve(member, ctx));
     member_types.push_back(std::move(member_type));
   }
@@ -83,7 +83,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
   }
 
   auto member_types_dim =
-      ConcreteTypeDim::CreateU32(static_cast<uint32_t>(member_types.size()));
+      TypeDim::CreateU32(static_cast<uint32_t>(member_types.size()));
 
   // Try to infer the array type from the first member.
   std::unique_ptr<ArrayType> inferred;
@@ -101,7 +101,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
         node->span(), nullptr, "Cannot deduce the type of an empty array.");
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> annotated,
                        ctx->Deduce(node->type_annotation()));
   XLS_ASSIGN_OR_RETURN(annotated,
                        UnwrapMetaType(std::move(annotated), node->span(),
@@ -142,7 +142,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
     return annotated;
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_element_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_element_type,
                        Resolve(array_type->element_type(), ctx));
   if (*resolved_element_type != *member_types[0]) {
     return ctx->TypeMismatchError(
@@ -164,13 +164,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
   return inferred;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
+absl::StatusOr<std::unique_ptr<Type>> DeduceConstantArray(
     const ConstantArray* node, DeduceCtx* ctx) {
   if (node->type_annotation() == nullptr) {
     return DeduceArray(node, ctx);
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                        ctx->Deduce(node->type_annotation()));
   XLS_ASSIGN_OR_RETURN(
       type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
@@ -186,7 +186,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
                         node->type_annotation()->ToString()));
   }
 
-  const ConcreteType& element_type = array_type->element_type();
+  const Type& element_type = array_type->element_type();
   for (Expr* member : node->members()) {
     XLS_RET_CHECK(IsConstant(member));
     if (Number* number = dynamic_cast<Number*>(member);
@@ -207,11 +207,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
   return type;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
-                                                           DeduceCtx* ctx) {
-  std::unique_ptr<ConcreteType> concrete_type;
+absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
+                                                   DeduceCtx* ctx) {
+  std::unique_ptr<Type> type;
 
-  auto note_constexpr_value = [&](const ConcreteType& type) -> absl::Status {
+  auto note_constexpr_value = [&](const Type& type) -> absl::Status {
     if (type.HasParametricDims()) {
       return absl::OkStatus();
     }
@@ -240,45 +240,43 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
     }
 
     if (ctx->in_typeless_number_ctx()) {
-      concrete_type = BitsType::MakeU32();
+      type = BitsType::MakeU32();
     } else {
       return TypeInferenceErrorStatus(node->span(), nullptr,
                                       "Could not infer a type for "
                                       "this number, please annotate a type.");
     }
   } else {
-    XLS_ASSIGN_OR_RETURN(concrete_type, ctx->Deduce(node->type_annotation()));
-    XLS_ASSIGN_OR_RETURN(concrete_type,
-                         UnwrapMetaType(std::move(concrete_type),
-                                        node->type_annotation()->span(),
-                                        "numeric literal type-prefix"));
+    XLS_ASSIGN_OR_RETURN(type, ctx->Deduce(node->type_annotation()));
+    XLS_ASSIGN_OR_RETURN(
+        type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
+                             "numeric literal type-prefix"));
   }
 
-  XLS_ASSIGN_OR_RETURN(concrete_type, Resolve(*concrete_type, ctx));
-  XLS_RET_CHECK(!concrete_type->IsMeta());
-  BitsType* bits_type = dynamic_cast<BitsType*>(concrete_type.get());
+  XLS_ASSIGN_OR_RETURN(type, Resolve(*type, ctx));
+  XLS_RET_CHECK(!type->IsMeta());
+  BitsType* bits_type = dynamic_cast<BitsType*>(type.get());
   if (bits_type == nullptr) {
     return TypeInferenceErrorStatus(
-        node->span(), concrete_type.get(),
+        node->span(), type.get(),
         "Non-bits type used to define a numeric literal.");
   }
 
   XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *bits_type));
-  ctx->type_info()->SetItem(node, *concrete_type);
-  XLS_RETURN_IF_ERROR(note_constexpr_value(*concrete_type));
-  return concrete_type;
+  ctx->type_info()->SetItem(node, *type);
+  XLS_RETURN_IF_ERROR(note_constexpr_value(*type));
+  return type;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceString(const String* string,
-                                                           DeduceCtx* ctx) {
-  auto dim =
-      ConcreteTypeDim::CreateU32(static_cast<uint32_t>(string->text().size()));
+absl::StatusOr<std::unique_ptr<Type>> DeduceString(const String* string,
+                                                   DeduceCtx* ctx) {
+  auto dim = TypeDim::CreateU32(static_cast<uint32_t>(string->text().size()));
   return std::make_unique<ArrayType>(BitsType::MakeU8(), std::move(dim));
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConditional(
-    const Conditional* node, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> test_type,
+absl::StatusOr<std::unique_ptr<Type>> DeduceConditional(const Conditional* node,
+                                                        DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> test_type,
                        ctx->Deduce(node->test()));
   XLS_ASSIGN_OR_RETURN(test_type, Resolve(*test_type, ctx));
   auto test_want = BitsType::MakeU1();
@@ -289,10 +287,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConditional(
                                   "\"bool\"");
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> consequent_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> consequent_type,
                        ctx->Deduce(node->consequent()));
   XLS_ASSIGN_OR_RETURN(consequent_type, Resolve(*consequent_type, ctx));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> alternate_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> alternate_type,
                        ctx->Deduce(ToAstNode(node->alternate())));
   XLS_ASSIGN_OR_RETURN(alternate_type, Resolve(*alternate_type, ctx));
 
@@ -306,9 +304,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConditional(
   return consequent_type;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
-                                                         DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> operand_type,
+absl::StatusOr<std::unique_ptr<Type>> DeduceUnop(const Unop* node,
+                                                 DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> operand_type,
                        ctx->Deduce(node->operand()));
 
   if (dynamic_cast<BitsType*>(operand_type.get()) == nullptr) {
@@ -336,9 +334,9 @@ static const absl::flat_hash_set<BinopKind>& GetEnumOkKinds() {
 
 // Shift operations are binary operations that require bits types as their
 // operands.
-static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
-    const Binop* node, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+static absl::StatusOr<std::unique_ptr<Type>> DeduceShift(const Binop* node,
+                                                         DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> lhs,
                        DeduceAndResolve(node->lhs(), ctx));
 
   std::optional<uint64_t> number_value;
@@ -360,7 +358,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
                          Bits::MinBitCountUnsigned(number_value.value())));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> rhs,
                        DeduceAndResolve(node->rhs(), ctx));
 
   // Validate bits type for lhs and rhs.
@@ -383,7 +381,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
   }
 
   if (number_value.has_value()) {
-    const ConcreteTypeDim& lhs_size = lhs_bit_type->size();
+    const TypeDim& lhs_size = lhs_bit_type->size();
     CHECK(!lhs_size.IsParametric()) << "Shift amount type not inferred.";
     XLS_ASSIGN_OR_RETURN(int64_t lhs_bit_count, lhs_size.GetAsInt64());
     if (lhs_bit_count < number_value.value()) {
@@ -398,11 +396,11 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
   return lhs;
 }
 
-static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
-    const Binop* node, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+static absl::StatusOr<std::unique_ptr<Type>> DeduceConcat(const Binop* node,
+                                                          DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> lhs,
                        DeduceAndResolve(node->lhs(), ctx));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> rhs,
                        DeduceAndResolve(node->rhs(), ctx));
 
   auto* lhs_array = dynamic_cast<ArrayType*>(lhs.get());
@@ -424,7 +422,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
   }
 
   if (lhs_is_array) {
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
+    XLS_ASSIGN_OR_RETURN(TypeDim new_size,
                          lhs_array->size().Add(rhs_array->size()));
     return std::make_unique<ArrayType>(
         lhs_array->element_type().CloneToUnique(), new_size);
@@ -450,13 +448,13 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
 
   XLS_RET_CHECK(lhs_bits != nullptr);
   XLS_RET_CHECK(rhs_bits != nullptr);
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
+  XLS_ASSIGN_OR_RETURN(TypeDim new_size,
                        lhs_bits->size().Add(rhs_bits->size()));
   return std::make_unique<BitsType>(/*signed=*/false, /*size=*/new_size);
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
-                                                          DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceBinop(const Binop* node,
+                                                  DeduceCtx* ctx) {
   if (node->binop_kind() == BinopKind::kConcat) {
     return DeduceConcat(node, ctx);
   }
@@ -465,9 +463,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
     return DeduceShift(node, ctx);
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> lhs,
                        DeduceAndResolve(node->lhs(), ctx));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> rhs,
                        DeduceAndResolve(node->rhs(), ctx));
 
   if (*lhs != *rhs) {
@@ -500,9 +498,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
   return lhs;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
-    const TupleIndex* node, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs_type,
+absl::StatusOr<std::unique_ptr<Type>> DeduceTupleIndex(const TupleIndex* node,
+                                                       DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> lhs_type,
                        ctx->Deduce(node->lhs()));
   TupleType* tuple_type = dynamic_cast<TupleType*>(lhs_type.get());
   if (tuple_type == nullptr) {
@@ -514,7 +512,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
 
   ctx->set_in_typeless_number_ctx(true);
   absl::Cleanup cleanup = [ctx]() { ctx->set_in_typeless_number_ctx(false); };
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> index_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> index_type,
                        ctx->Deduce(node->index()));
   std::move(cleanup).Cancel();
 
@@ -535,8 +533,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
   return tuple_type->GetMemberType(index).CloneToUnique();
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
-    const XlsTuple* node, DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceXlsTuple(const XlsTuple* node,
+                                                     DeduceCtx* ctx) {
   // Give a warning if the tuple is on a single line, is more than one element,
   // but has a trailing comma.
   //
@@ -552,9 +550,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
         node->span(), WarningKind::kSingleLineTupleTrailingComma, placeholder);
   }
 
-  std::vector<std::unique_ptr<ConcreteType>> members;
+  std::vector<std::unique_ptr<Type>> members;
   for (Expr* e : node->members()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> m, ctx->Deduce(e));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> m, ctx->Deduce(e));
     members.push_back(std::move(m));
   }
   return std::make_unique<TupleType>(std::move(members));

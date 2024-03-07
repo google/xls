@@ -28,7 +28,7 @@
 namespace xls::dslx {
 
 // Deduces the type for a ParametricBinding (via its type annotation).
-absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricBindingToType(
+absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
     ParametricBinding* binding, DeduceCtx* ctx);
 
 // Sets up parametric args (based on actual args) and explicit bindings (based

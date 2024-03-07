@@ -44,14 +44,14 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricBindingToType(
+absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
     ParametricBinding* binding, DeduceCtx* ctx) {
   Module* binding_module = binding->owner();
   ImportData* import_data = ctx->import_data();
   XLS_ASSIGN_OR_RETURN(TypeInfo * binding_type_info,
                        import_data->GetRootTypeInfo(binding_module));
   auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> metatype,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> metatype,
                        binding_ctx->Deduce(binding->type_annotation()));
   return UnwrapMetaType(std::move(metatype), binding->type_annotation()->span(),
                         "parametric binding type");
@@ -120,9 +120,9 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
                 << "` via invocation expression: "
                 << parametric_expr->ToString();
 
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
                          ParametricBindingToType(binding, ctx));
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_expr_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_expr_type,
                          parent_ctx->Deduce(parametric_expr));
 
     if (*binding_type != *parametric_expr_type) {
@@ -143,7 +143,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
         parent_ctx->warnings(),
         /*bindings=*/parent_ctx->fn_stack().back().parametric_env(),
         /*expr=*/parametric_expr,
-        /*concrete_type=*/parametric_expr_type.get()));
+        /*type=*/parametric_expr_type.get()));
 
     // The value we're instantiating the function with must be constexpr -- we
     // can't instantiate with values determined at runtime, of course.
@@ -174,7 +174,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
           .subspan(invocation->explicit_parametrics().size());
   std::vector<ParametricConstraint> parametric_constraints;
   for (ParametricBinding* remaining_binding : non_explicit) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
                          ParametricBindingToType(remaining_binding, ctx));
     parametric_constraints.push_back(
         ParametricConstraint(*remaining_binding, std::move(binding_type)));

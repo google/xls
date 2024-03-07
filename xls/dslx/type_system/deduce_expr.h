@@ -28,32 +28,32 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
-                                                          DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
+                                                  DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
+absl::StatusOr<std::unique_ptr<Type>> DeduceConstantArray(
     const ConstantArray* node, DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
-                                                           DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
+                                                   DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceString(const String* string,
-                                                           DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceString(const String* string,
+                                                   DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConditional(
-    const Conditional* node, DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceConditional(const Conditional* node,
+                                                        DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
-                                                         DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceUnop(const Unop* node,
+                                                 DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
-                                                          DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceBinop(const Binop* node,
+                                                  DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
-    const TupleIndex* node, DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceTupleIndex(const TupleIndex* node,
+                                                       DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
-    const XlsTuple* node, DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceXlsTuple(const XlsTuple* node,
+                                                     DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

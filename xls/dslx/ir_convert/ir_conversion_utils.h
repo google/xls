@@ -29,20 +29,18 @@ namespace xls::dslx {
 
 // Resolves "dim" (from a possible parametric) against the given symbolic
 // bindings.
-absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim,
-                                           const ParametricEnv& bindings);
+absl::StatusOr<TypeDim> ResolveDim(TypeDim dim, const ParametricEnv& bindings);
 
 // As above, does ResolveDim() but then accesses the dimension value as an
 // expected int64_t.
-absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim,
+absl::StatusOr<int64_t> ResolveDimToInt(const TypeDim& dim,
                                         const ParametricEnv& bindings);
 
 // Converts a concrete type to its corresponding IR representation.
 // TODO(rspringer): Only a fully-concretized type can be converted to IR,
 // meaning that ParametricEnv shouldn't be necessary here. Verify that's the
 // case, and if so, remove the argument.
-absl::StatusOr<xls::Type*> TypeToIr(Package* package,
-                                    const ConcreteType& concrete_type,
+absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
                                     const ParametricEnv& bindings);
 
 }  // namespace xls::dslx

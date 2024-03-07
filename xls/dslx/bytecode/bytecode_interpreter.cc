@@ -159,10 +159,9 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
     // actually have a hook.
     const Function* source_fn = frame->bf()->source_fn();
     if (source_fn != nullptr) {
-      std::optional<ConcreteType*> fn_return =
-          frame->type_info()->GetItem(source_fn);
+      std::optional<Type*> fn_return = frame->type_info()->GetItem(source_fn);
       if (fn_return.has_value()) {
-        bool fn_returns_value = *fn_return.value() != *ConcreteType::MakeUnit();
+        bool fn_returns_value = *fn_return.value() != *Type::MakeUnit();
         if (options_.post_fn_eval_hook() != nullptr && fn_returns_value) {
           ParametricEnv holder;
           const ParametricEnv* bindings = &holder;
@@ -541,9 +540,8 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
 absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
                                            bool is_checked) {
   if (!bytecode.data().has_value() ||
-      !std::holds_alternative<std::unique_ptr<ConcreteType>>(
-          bytecode.data().value())) {
-    return absl::InternalError("Cast op requires ConcreteType data.");
+      !std::holds_alternative<std::unique_ptr<Type>>(bytecode.data().value())) {
+    return absl::InternalError("Cast op requires Type data.");
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue from, Pop());
@@ -552,8 +550,7 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
     return absl::InternalError("Cast op is missing its data element!");
   }
 
-  ConcreteType* to =
-      std::get<std::unique_ptr<ConcreteType>>(bytecode.data().value()).get();
+  Type* to = std::get<std::unique_ptr<Type>>(bytecode.data().value()).get();
   if (from.IsArray()) {
     // From array to bits.
     BitsType* to_bits = dynamic_cast<BitsType*>(to);
@@ -701,9 +698,8 @@ absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalDecode(const Bytecode& bytecode) {
   if (!bytecode.data().has_value() ||
-      !std::holds_alternative<std::unique_ptr<ConcreteType>>(
-          bytecode.data().value())) {
-    return absl::InternalError("Decode op requires ConcreteType data.");
+      !std::holds_alternative<std::unique_ptr<Type>>(bytecode.data().value())) {
+    return absl::InternalError("Decode op requires Type data.");
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue from, Pop());
@@ -712,8 +708,7 @@ absl::Status BytecodeInterpreter::EvalDecode(const Bytecode& bytecode) {
         "Decode op requires UBits-type input, was: ", from.ToString()));
   }
 
-  ConcreteType* to =
-      std::get<std::unique_ptr<ConcreteType>>(bytecode.data().value()).get();
+  Type* to = std::get<std::unique_ptr<Type>>(bytecode.data().value()).get();
   if (!IsUBits(*to)) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Decode op requires UBits-type output, was: ", to->ToString()));
@@ -1315,7 +1310,7 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(const ConcreteType* type, bytecode.type_data());
+  XLS_ASSIGN_OR_RETURN(const Type* type, bytecode.type_data());
   const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
   XLS_RET_CHECK_NE(bits_type, nullptr);
   XLS_ASSIGN_OR_RETURN(int64_t width_value, bits_type->size().GetAsInt64());

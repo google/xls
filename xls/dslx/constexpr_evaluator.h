@@ -46,14 +46,14 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   static absl::Status Evaluate(ImportData* import_data, TypeInfo* type_info,
                                WarningCollector* warning_collector,
                                const ParametricEnv& bindings, const Expr* expr,
-                               const ConcreteType* concrete_type = nullptr);
+                               const Type* type = nullptr);
 
   // Performs the same action as `Evaluate`, but returns the resulting constexpr
   // value. Returns an error status if `expr` is non-constexpr.
   static absl::StatusOr<InterpValue> EvaluateToValue(
       ImportData* import_data, TypeInfo* type_info,
       WarningCollector* warning_collector, const ParametricEnv& bindings,
-      const Expr* expr, const ConcreteType* concrete_type = nullptr);
+      const Expr* expr, const Type* type = nullptr);
 
   // A concrete type is only necessary when:
   //  - Deducing a Number that is undecorated and whose type is specified by
@@ -62,7 +62,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   //  - Deducing a constant array whose declaration terminates in an ellipsis:
   //    `u32[4]:[0, 1, ...]`. The type is needed to determine the number of
   //    elements to fill in.
-  // In all other cases, `concrete_type` can be nullptr.
+  // In all other cases, `type` can be nullptr.
   ~ConstexprEvaluator() override = default;
 
   absl::Status HandleArray(const Array* expr) override;
@@ -100,18 +100,17 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleUnrollFor(const UnrollFor* expr) override;
   absl::Status HandleXlsTuple(const XlsTuple* expr) override;
 
-  static absl::StatusOr<InterpValue> CreateChannelValue(
-      const ConcreteType* concrete_type);
+  static absl::StatusOr<InterpValue> CreateChannelValue(const Type* type);
 
  private:
   ConstexprEvaluator(ImportData* import_data, TypeInfo* type_info,
                      WarningCollector* warning_collector,
-                     ParametricEnv bindings, const ConcreteType* concrete_type)
+                     ParametricEnv bindings, const Type* type)
       : import_data_(import_data),
         type_info_(type_info),
         warning_collector_(warning_collector),
         bindings_(std::move(bindings)),
-        concrete_type_(concrete_type) {}
+        type_(type) {}
 
   bool IsConstExpr(const Expr* expr);
 
@@ -123,7 +122,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   TypeInfo* const type_info_;
   WarningCollector* const warning_collector_;
   const ParametricEnv bindings_;
-  const ConcreteType* const concrete_type_;
+  const Type* const type_;
 };
 
 // Creates a map of symbol name to value for all known symbols in the current
@@ -149,7 +148,7 @@ std::string EnvMapToString(
 
 // Evaluates a Number AST node to an InterpValue.
 absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
-                                           const ConcreteType& type);
+                                           const Type& type);
 
 }  // namespace xls::dslx
 

@@ -34,6 +34,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_expression.h"
@@ -41,11 +42,10 @@
 
 namespace xls::dslx {
 
-ConcreteType::~ConcreteType() = default;
+Type::~Type() = default;
 
-/* static */ bool ConcreteType::Equal(
-    absl::Span<const std::unique_ptr<ConcreteType>> a,
-    absl::Span<const std::unique_ptr<ConcreteType>> b) {
+/* static */ bool Type::Equal(absl::Span<const std::unique_ptr<Type>> a,
+                              absl::Span<const std::unique_ptr<Type>> b) {
   if (a.size() != b.size()) {
     return false;
   }
@@ -57,9 +57,9 @@ ConcreteType::~ConcreteType() = default;
   return true;
 }
 
-/* static */ std::vector<std::unique_ptr<ConcreteType>> ConcreteType::CloneSpan(
-    absl::Span<const std::unique_ptr<ConcreteType>> ts) {
-  std::vector<std::unique_ptr<ConcreteType>> result;
+/* static */ std::vector<std::unique_ptr<Type>> Type::CloneSpan(
+    absl::Span<const std::unique_ptr<Type>> ts) {
+  std::vector<std::unique_ptr<Type>> result;
   result.reserve(ts.size());
   for (const auto& t : ts) {
     CHECK(t != nullptr);
@@ -69,12 +69,11 @@ ConcreteType::~ConcreteType() = default;
   return result;
 }
 
-std::unique_ptr<ConcreteType> ConcreteType::MakeUnit() {
-  return std::make_unique<TupleType>(
-      std::vector<std::unique_ptr<ConcreteType>>{});
+std::unique_ptr<Type> Type::MakeUnit() {
+  return std::make_unique<TupleType>(std::vector<std::unique_ptr<Type>>{});
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
+absl::StatusOr<std::unique_ptr<Type>> Type::FromInterpValue(
     const InterpValue& value) {
   if (value.tag() == InterpValueTag::kUBits ||
       value.tag() == InterpValueTag::kSBits) {
@@ -88,18 +87,19 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
                          value.GetValues());
     if (elements->empty()) {
       return absl::InvalidArgumentError(
-          "Cannot get the ConcreteType of a 0-element array.");
+          "Cannot get the Type of a 0-element array.");
     }
     XLS_ASSIGN_OR_RETURN(auto element_type, FromInterpValue(elements->at(0)));
     XLS_ASSIGN_OR_RETURN(int64_t size, value.GetLength());
-    auto dim = ConcreteTypeDim::CreateU32(size);
+    XLS_RET_CHECK_EQ(static_cast<uint32_t>(size), size);
+    auto dim = TypeDim::CreateU32(static_cast<uint32_t>(size));
     return std::make_unique<ArrayType>(std::move(element_type), dim);
   }
 
   if (value.tag() == InterpValueTag::kTuple) {
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                          value.GetValues());
-    std::vector<std::unique_ptr<ConcreteType>> members;
+    std::vector<std::unique_ptr<Type>> members;
     members.reserve(elements->size());
     for (const auto& element : *elements) {
       XLS_ASSIGN_OR_RETURN(auto member, FromInterpValue(element));
@@ -113,9 +113,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
       "Only bits, array, and tuple types can be converted into concrete.");
 }
 
-// -- class ConcreteTypeDim
+// -- class TypeDim
 
-/* static */ absl::StatusOr<int64_t> ConcreteTypeDim::GetAs64Bits(
+/* static */ absl::StatusOr<int64_t> TypeDim::GetAs64Bits(
     const std::variant<InterpValue, OwnedParametric>& variant) {
   if (std::holds_alternative<InterpValue>(variant)) {
     return std::get<InterpValue>(variant).GetBitValueViaSign();
@@ -125,21 +125,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
       "Can't evaluate a ParametricExpression to an integer.");
 }
 
-ConcreteTypeDim::ConcreteTypeDim(const ConcreteTypeDim& other)
+TypeDim::TypeDim(const TypeDim& other)
     : value_(std::move(other.Clone().value_)) {}
 
-ConcreteTypeDim ConcreteTypeDim::Clone() const {
+TypeDim TypeDim::Clone() const {
   if (std::holds_alternative<InterpValue>(value_)) {
-    return ConcreteTypeDim(std::get<InterpValue>(value_));
+    return TypeDim(std::get<InterpValue>(value_));
   }
   if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
-    return ConcreteTypeDim(
+    return TypeDim(
         std::get<std::unique_ptr<ParametricExpression>>(value_)->Clone());
   }
-  XLS_LOG(FATAL) << "Impossible ConcreteTypeDim value variant.";
+  XLS_LOG(FATAL) << "Impossible TypeDim value variant.";
 }
 
-std::string ConcreteTypeDim::ToString() const {
+std::string TypeDim::ToString() const {
   if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
     return std::get<std::unique_ptr<ParametricExpression>>(value_)->ToString();
   }
@@ -156,7 +156,7 @@ std::string ConcreteTypeDim::ToString() const {
   return BitsToString(std::get<InterpValue>(value_).GetBitsOrDie());
 }
 
-bool ConcreteTypeDim::operator==(
+bool TypeDim::operator==(
     const std::variant<int64_t, InterpValue, const ParametricExpression*>&
         other) const {
   if (std::holds_alternative<InterpValue>(other)) {
@@ -175,7 +175,7 @@ bool ConcreteTypeDim::operator==(
   return false;
 }
 
-bool ConcreteTypeDim::operator==(const ConcreteTypeDim& other) const {
+bool TypeDim::operator==(const TypeDim& other) const {
   if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_) &&
       std::holds_alternative<std::unique_ptr<ParametricExpression>>(
           other.value_)) {
@@ -185,55 +185,52 @@ bool ConcreteTypeDim::operator==(const ConcreteTypeDim& other) const {
   return value_ == other.value_;
 }
 
-absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Mul(
-    const ConcreteTypeDim& rhs) const {
+absl::StatusOr<TypeDim> TypeDim::Mul(const TypeDim& rhs) const {
   if (std::holds_alternative<InterpValue>(value_) &&
       std::holds_alternative<InterpValue>(rhs.value_)) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue result,
         std::get<InterpValue>(value_).Mul(std::get<InterpValue>(rhs.value_)));
-    return ConcreteTypeDim(std::move(result));
+    return TypeDim(std::move(result));
   }
   if (IsParametric() && rhs.IsParametric()) {
-    return ConcreteTypeDim(std::make_unique<ParametricMul>(
-        parametric().Clone(), rhs.parametric().Clone()));
+    return TypeDim(std::make_unique<ParametricMul>(parametric().Clone(),
+                                                   rhs.parametric().Clone()));
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Cannot multiply dimensions: %s * %s", ToString(), rhs.ToString()));
 }
 
-absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Add(
-    const ConcreteTypeDim& rhs) const {
+absl::StatusOr<TypeDim> TypeDim::Add(const TypeDim& rhs) const {
   if (std::holds_alternative<InterpValue>(value_) &&
       std::holds_alternative<InterpValue>(rhs.value_)) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue result,
         std::get<InterpValue>(value_).Add(std::get<InterpValue>(rhs.value_)));
-    return ConcreteTypeDim(result);
+    return TypeDim(result);
   }
   if (IsParametric() && rhs.IsParametric()) {
-    return ConcreteTypeDim(std::make_unique<ParametricAdd>(
-        parametric().Clone(), rhs.parametric().Clone()));
+    return TypeDim(std::make_unique<ParametricAdd>(parametric().Clone(),
+                                                   rhs.parametric().Clone()));
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Cannot add dimensions: %s + %s", ToString(), rhs.ToString()));
 }
 
-absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::CeilOfLog2() const {
+absl::StatusOr<TypeDim> TypeDim::CeilOfLog2() const {
   if (std::holds_alternative<InterpValue>(value_)) {
     XLS_ASSIGN_OR_RETURN(InterpValue result,
                          std::get<InterpValue>(value_).CeilOfLog2());
-    return ConcreteTypeDim(result);
+    return TypeDim(result);
   }
   if (IsParametric()) {
-    return ConcreteTypeDim(
-        std::make_unique<ParametricWidth>(parametric().Clone()));
+    return TypeDim(std::make_unique<ParametricWidth>(parametric().Clone()));
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Cannot find the bit width of dimension: %s", ToString()));
 }
 
-absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
+absl::StatusOr<int64_t> TypeDim::GetAsInt64() const {
   if (std::holds_alternative<InterpValue>(value_)) {
     InterpValue value = std::get<InterpValue>(value_);
     if (!value.IsBits()) {
@@ -263,9 +260,9 @@ absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
                    std::get<OwnedParametric>(value_)->ToString()));
 }
 
-// -- ConcreteType
+// -- Type
 
-bool ConcreteType::CompatibleWith(const ConcreteType& other) const {
+bool Type::CompatibleWith(const Type& other) const {
   if (*this == other) {
     return true;  // Equality implies compatibility.
   }
@@ -288,38 +285,38 @@ bool ConcreteType::CompatibleWith(const ConcreteType& other) const {
   return false;
 }
 
-bool ConcreteType::IsUnit() const {
+bool Type::IsUnit() const {
   if (auto* t = dynamic_cast<const TupleType*>(this)) {
     return t->empty();
   }
   return false;
 }
 
-bool ConcreteType::IsStruct() const {
+bool Type::IsStruct() const {
   return dynamic_cast<const StructType*>(this) != nullptr;
 }
 
-bool ConcreteType::IsArray() const {
+bool Type::IsArray() const {
   return dynamic_cast<const ArrayType*>(this) != nullptr;
 }
 
-bool ConcreteType::IsMeta() const {
+bool Type::IsMeta() const {
   return dynamic_cast<const MetaType*>(this) != nullptr;
 }
 
-bool ConcreteType::IsToken() const {
+bool Type::IsToken() const {
   return dynamic_cast<const TokenType*>(this) != nullptr;
 }
 
-const StructType& ConcreteType::AsStruct() const {
+const StructType& Type::AsStruct() const {
   auto* s = dynamic_cast<const StructType*>(this);
-  CHECK(s != nullptr) << "ConcreteType is not a struct: " << ToString();
+  CHECK(s != nullptr) << "Type is not a struct: " << ToString();
   return *s;
 }
 
-const ArrayType& ConcreteType::AsArray() const {
+const ArrayType& Type::AsArray() const {
   auto* s = dynamic_cast<const ArrayType*>(this);
-  CHECK(s != nullptr) << "ConcreteType is not an array: " << ToString();
+  CHECK(s != nullptr) << "Type is not an array: " << ToString();
   return *s;
 }
 
@@ -333,10 +330,9 @@ MetaType::~MetaType() = default;
 
 // -- BitsType
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> BitsType::MapSize(
-    const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-    const {
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size, f(size_));
+absl::StatusOr<std::unique_ptr<Type>> BitsType::MapSize(
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
+  XLS_ASSIGN_OR_RETURN(TypeDim new_size, f(size_));
   return std::make_unique<BitsType>(is_signed_, new_size);
 }
 
@@ -354,17 +350,17 @@ std::unique_ptr<BitsType> BitsType::ToUBits() const {
 
 // -- StructType
 
-StructType::StructType(std::vector<std::unique_ptr<ConcreteType>> members,
+StructType::StructType(std::vector<std::unique_ptr<Type>> members,
                        const StructDef& struct_def)
     : members_(std::move(members)), struct_def_(struct_def) {
   CHECK_EQ(members_.size(), struct_def_.members().size());
-  for (const std::unique_ptr<ConcreteType>& member_type : members_) {
+  for (const std::unique_ptr<Type>& member_type : members_) {
     CHECK(!member_type->IsMeta()) << member_type->ToString();
   }
 }
 
 bool StructType::HasEnum() const {
-  for (const std::unique_ptr<ConcreteType>& type : members_) {
+  for (const std::unique_ptr<Type>& type : members_) {
     if (type->HasEnum()) {
       return true;
     }
@@ -412,7 +408,7 @@ absl::StatusOr<int64_t> StructType::GetMemberIndex(
   return std::distance(names.begin(), it);
 }
 
-std::optional<const ConcreteType*> StructType::GetMemberTypeByName(
+std::optional<const Type*> StructType::GetMemberTypeByName(
     std::string_view target) const {
   for (int64_t i = 0; i < members().size(); ++i) {
     if (GetMemberName(i) == target) {
@@ -422,10 +418,10 @@ std::optional<const ConcreteType*> StructType::GetMemberTypeByName(
   return std::nullopt;
 }
 
-std::vector<ConcreteTypeDim> StructType::GetAllDims() const {
-  std::vector<ConcreteTypeDim> results;
-  for (const std::unique_ptr<ConcreteType>& type : members_) {
-    std::vector<ConcreteTypeDim> t_dims = type->GetAllDims();
+std::vector<TypeDim> StructType::GetAllDims() const {
+  std::vector<TypeDim> results;
+  for (const std::unique_ptr<Type>& type : members_) {
+    std::vector<TypeDim> t_dims = type->GetAllDims();
     for (auto& dim : t_dims) {
       results.push_back(std::move(dim));
     }
@@ -433,23 +429,21 @@ std::vector<ConcreteTypeDim> StructType::GetAllDims() const {
   return results;
 }
 
-absl::StatusOr<ConcreteTypeDim> StructType::GetTotalBitCount() const {
-  auto sum = ConcreteTypeDim::CreateU32(0);
-  for (const std::unique_ptr<ConcreteType>& t : members_) {
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim elem_bit_count, t->GetTotalBitCount());
+absl::StatusOr<TypeDim> StructType::GetTotalBitCount() const {
+  auto sum = TypeDim::CreateU32(0);
+  for (const std::unique_ptr<Type>& t : members_) {
+    XLS_ASSIGN_OR_RETURN(TypeDim elem_bit_count, t->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(elem_bit_count));
   }
 
   return sum;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> StructType::MapSize(
-    const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-    const {
-  std::vector<std::unique_ptr<ConcreteType>> new_members;
-  for (const std::unique_ptr<ConcreteType>& member : members_) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> mapped,
-                         member->MapSize(f));
+absl::StatusOr<std::unique_ptr<Type>> StructType::MapSize(
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
+  std::vector<std::unique_ptr<Type>> new_members;
+  for (const std::unique_ptr<Type>& member : members_) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> mapped, member->MapSize(f));
     new_members.push_back(std::move(mapped));
   }
   return std::make_unique<StructType>(std::move(new_members), struct_def_);
@@ -464,7 +458,7 @@ bool StructType::HasNamedMember(std::string_view target) const {
   return false;
 }
 
-bool StructType::operator==(const ConcreteType& other) const {
+bool StructType::operator==(const Type& other) const {
   if (auto* t = dynamic_cast<const StructType*>(&other)) {
     return Equal(members_, t->members_) && &struct_def_ == &t->struct_def_;
   }
@@ -473,7 +467,7 @@ bool StructType::operator==(const ConcreteType& other) const {
 
 // -- TupleType
 
-TupleType::TupleType(std::vector<std::unique_ptr<ConcreteType>> members)
+TupleType::TupleType(std::vector<std::unique_ptr<Type>> members)
     : members_(std::move(members)) {
 #ifndef NDEBUG
   for (const auto& member : members_) {
@@ -482,7 +476,7 @@ TupleType::TupleType(std::vector<std::unique_ptr<ConcreteType>> members)
 #endif
 }
 
-bool TupleType::operator==(const ConcreteType& other) const {
+bool TupleType::operator==(const Type& other) const {
   if (auto* t = dynamic_cast<const TupleType*>(&other)) {
     return Equal(members_, t->members_);
   }
@@ -490,7 +484,7 @@ bool TupleType::operator==(const ConcreteType& other) const {
 }
 
 bool TupleType::HasEnum() const {
-  for (const std::unique_ptr<ConcreteType>& t : members_) {
+  for (const std::unique_ptr<Type>& t : members_) {
     if (t->HasEnum()) {
       return true;
     }
@@ -515,35 +509,32 @@ bool TupleType::CompatibleWith(const TupleType& other) const {
   return true;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> TupleType::MapSize(
-    const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-    const {
-  std::vector<std::unique_ptr<ConcreteType>> new_members;
+absl::StatusOr<std::unique_ptr<Type>> TupleType::MapSize(
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
+  std::vector<std::unique_ptr<Type>> new_members;
   for (const auto& member_type : members_) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> mapped,
-                         member_type->MapSize(f));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> mapped, member_type->MapSize(f));
     new_members.push_back(std::move(mapped));
   }
   return std::make_unique<TupleType>(std::move(new_members));
 }
 
-std::unique_ptr<ConcreteType> TupleType::CloneToUnique() const {
+std::unique_ptr<Type> TupleType::CloneToUnique() const {
   return std::make_unique<TupleType>(CloneSpan(members_));
 }
 
 std::string TupleType::ToString() const {
   std::string guts = absl::StrJoin(
-      members_, ", ",
-      [](std::string* out, const std::unique_ptr<ConcreteType>& m) {
+      members_, ", ", [](std::string* out, const std::unique_ptr<Type>& m) {
         absl::StrAppend(out, m->ToString());
       });
   return absl::StrCat("(", guts, ")");
 }
 
-std::vector<ConcreteTypeDim> TupleType::GetAllDims() const {
-  std::vector<ConcreteTypeDim> results;
-  for (const std::unique_ptr<ConcreteType>& t : members_) {
-    std::vector<ConcreteTypeDim> t_dims = t->GetAllDims();
+std::vector<TypeDim> TupleType::GetAllDims() const {
+  std::vector<TypeDim> results;
+  for (const std::unique_ptr<Type>& t : members_) {
+    std::vector<TypeDim> t_dims = t->GetAllDims();
     for (auto& dim : t_dims) {
       results.push_back(std::move(dim));
     }
@@ -551,10 +542,10 @@ std::vector<ConcreteTypeDim> TupleType::GetAllDims() const {
   return results;
 }
 
-absl::StatusOr<ConcreteTypeDim> TupleType::GetTotalBitCount() const {
-  auto sum = ConcreteTypeDim::CreateU32(0);
-  for (const std::unique_ptr<ConcreteType>& t : members_) {
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim elem_bit_count, t->GetTotalBitCount());
+absl::StatusOr<TypeDim> TupleType::GetTotalBitCount() const {
+  auto sum = TypeDim::CreateU32(0);
+  for (const std::unique_ptr<Type>& t : members_) {
+    XLS_ASSIGN_OR_RETURN(TypeDim elem_bit_count, t->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(elem_bit_count));
   }
 
@@ -563,12 +554,11 @@ absl::StatusOr<ConcreteTypeDim> TupleType::GetTotalBitCount() const {
 
 // -- ArrayType
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> ArrayType::MapSize(
-    const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-    const {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> new_element_type,
+absl::StatusOr<std::unique_ptr<Type>> ArrayType::MapSize(
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> new_element_type,
                        element_type_->MapSize(f));
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size, f(size_));
+  XLS_ASSIGN_OR_RETURN(TypeDim new_size, f(size_));
   return std::make_unique<ArrayType>(std::move(new_element_type),
                                      std::move(new_size));
 }
@@ -577,58 +567,54 @@ std::string ArrayType::ToString() const {
   return absl::StrFormat("%s[%s]", element_type_->ToString(), size_.ToString());
 }
 
-std::vector<ConcreteTypeDim> ArrayType::GetAllDims() const {
-  std::vector<ConcreteTypeDim> results;
+std::vector<TypeDim> ArrayType::GetAllDims() const {
+  std::vector<TypeDim> results;
   results.push_back(size_.Clone());
-  std::vector<ConcreteTypeDim> element_dims = element_type_->GetAllDims();
+  std::vector<TypeDim> element_dims = element_type_->GetAllDims();
   for (auto& dim : element_dims) {
     results.push_back(std::move(dim));
   }
   return results;
 }
 
-absl::StatusOr<ConcreteTypeDim> ArrayType::GetTotalBitCount() const {
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim elem_bits,
-                       element_type_->GetTotalBitCount());
+absl::StatusOr<TypeDim> ArrayType::GetTotalBitCount() const {
+  XLS_ASSIGN_OR_RETURN(TypeDim elem_bits, element_type_->GetTotalBitCount());
   return elem_bits.Mul(size_);
 }
 
 // -- EnumType
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> EnumType::MapSize(
-    const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-    const {
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size, f(size_));
+absl::StatusOr<std::unique_ptr<Type>> EnumType::MapSize(
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
+  XLS_ASSIGN_OR_RETURN(TypeDim new_size, f(size_));
   return std::make_unique<EnumType>(enum_def_, std::move(new_size), is_signed_,
                                     members_);
 }
 
 std::string EnumType::ToString() const { return enum_def_.identifier(); }
 
-std::vector<ConcreteTypeDim> EnumType::GetAllDims() const {
-  std::vector<ConcreteTypeDim> result;
+std::vector<TypeDim> EnumType::GetAllDims() const {
+  std::vector<TypeDim> result;
   result.push_back(size_.Clone());
   return result;
 }
 
 // -- FunctionType
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionType::MapSize(
-    const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-    const {
-  std::vector<std::unique_ptr<ConcreteType>> new_params;
+absl::StatusOr<std::unique_ptr<Type>> FunctionType::MapSize(
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
+  std::vector<std::unique_ptr<Type>> new_params;
   for (const auto& param : params_) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> new_param,
-                         param->MapSize(f));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> new_param, param->MapSize(f));
     new_params.push_back(std::move(new_param));
   }
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> new_return_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> new_return_type,
                        return_type_->MapSize(f));
   return std::make_unique<FunctionType>(std::move(new_params),
                                         std::move(new_return_type));
 }
 
-bool FunctionType::operator==(const ConcreteType& other) const {
+bool FunctionType::operator==(const Type& other) const {
   if (auto* o = dynamic_cast<const FunctionType*>(&other)) {
     if (params_.size() != o->params_.size()) {
       return false;
@@ -643,8 +629,8 @@ bool FunctionType::operator==(const ConcreteType& other) const {
   return false;
 }
 
-std::vector<const ConcreteType*> FunctionType::GetParams() const {
-  std::vector<const ConcreteType*> results;
+std::vector<const Type*> FunctionType::GetParams() const {
+  std::vector<const Type*> results;
   results.reserve(params_.size());
   for (const auto& param : params_) {
     results.push_back(param.get());
@@ -654,17 +640,16 @@ std::vector<const ConcreteType*> FunctionType::GetParams() const {
 
 std::string FunctionType::ToString() const {
   std::string params_str = absl::StrJoin(
-      params_, ", ",
-      [](std::string* out, const std::unique_ptr<ConcreteType>& t) {
+      params_, ", ", [](std::string* out, const std::unique_ptr<Type>& t) {
         absl::StrAppend(out, t->ToString());
       });
   return absl::StrFormat("(%s) -> %s", params_str, return_type_->ToString());
 }
 
-std::vector<ConcreteTypeDim> FunctionType::GetAllDims() const {
-  std::vector<ConcreteTypeDim> results;
+std::vector<TypeDim> FunctionType::GetAllDims() const {
+  std::vector<TypeDim> results;
   for (const auto& param : params_) {
-    std::vector<ConcreteTypeDim> param_dims = param->GetAllDims();
+    std::vector<TypeDim> param_dims = param->GetAllDims();
     for (auto& dim : param_dims) {
       results.push_back(std::move(dim));
     }
@@ -672,16 +657,16 @@ std::vector<ConcreteTypeDim> FunctionType::GetAllDims() const {
   return results;
 }
 
-absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
-  auto sum = ConcreteTypeDim::CreateU32(0);
+absl::StatusOr<TypeDim> FunctionType::GetTotalBitCount() const {
+  auto sum = TypeDim::CreateU32(0);
   for (const auto& param : params_) {
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim param_bits, param->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(TypeDim param_bits, param->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(param_bits));
   }
   return sum;
 }
 
-ChannelType::ChannelType(std::unique_ptr<ConcreteType> payload_type,
+ChannelType::ChannelType(std::unique_ptr<Type> payload_type,
                          ChannelDirection direction)
     : payload_type_(std::move(payload_type)), direction_(direction) {
   CHECK(payload_type_ != nullptr);
@@ -693,21 +678,21 @@ std::string ChannelType::ToString() const {
                          direction_ == ChannelDirection::kIn ? "in" : "out");
 }
 
-std::vector<ConcreteTypeDim> ChannelType::GetAllDims() const {
+std::vector<TypeDim> ChannelType::GetAllDims() const {
   return payload_type_->GetAllDims();
 }
 
-absl::StatusOr<ConcreteTypeDim> ChannelType::GetTotalBitCount() const {
+absl::StatusOr<TypeDim> ChannelType::GetTotalBitCount() const {
   return payload_type_->GetTotalBitCount();
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> ChannelType::MapSize(
+absl::StatusOr<std::unique_ptr<Type>> ChannelType::MapSize(
     const MapFn& f) const {
   XLS_ASSIGN_OR_RETURN(auto new_payload, payload_type_->MapSize(f));
   return std::make_unique<ChannelType>(std::move(new_payload), direction_);
 }
 
-bool ChannelType::operator==(const ConcreteType& other) const {
+bool ChannelType::operator==(const Type& other) const {
   if (auto* o = dynamic_cast<const ChannelType*>(&other)) {
     return *payload_type_ == *o->payload_type_ && direction_ == o->direction_;
   }
@@ -716,12 +701,12 @@ bool ChannelType::operator==(const ConcreteType& other) const {
 
 bool ChannelType::HasEnum() const { return payload_type_->HasEnum(); }
 
-std::unique_ptr<ConcreteType> ChannelType::CloneToUnique() const {
+std::unique_ptr<Type> ChannelType::CloneToUnique() const {
   return std::make_unique<ChannelType>(payload_type_->CloneToUnique(),
                                        direction_);
 }
 
-absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
+absl::StatusOr<bool> IsSigned(const Type& c) {
   if (auto* bits = dynamic_cast<const BitsType*>(&c)) {
     return bits->is_signed();
   }
@@ -738,16 +723,16 @@ absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
       c.ToString());
 }
 
-const ParametricSymbol* TryGetParametricSymbol(const ConcreteTypeDim& dim) {
-  if (!std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
+const ParametricSymbol* TryGetParametricSymbol(const TypeDim& dim) {
+  if (!std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
     return nullptr;
   }
   const ParametricExpression* parametric =
-      std::get<ConcreteTypeDim::OwnedParametric>(dim.value()).get();
+      std::get<TypeDim::OwnedParametric>(dim.value()).get();
   return dynamic_cast<const ParametricSymbol*>(parametric);
 }
 
-absl::StatusOr<ConcreteTypeDim> MetaType::GetTotalBitCount() const {
+absl::StatusOr<TypeDim> MetaType::GetTotalBitCount() const {
   return absl::InvalidArgumentError(
       "Cannot get total bit count of a meta-type, as these are not "
       "realizable as values; meta-type: " +

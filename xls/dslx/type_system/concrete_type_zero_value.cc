@@ -18,8 +18,17 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 namespace {
@@ -41,7 +50,7 @@ absl::StatusOr<bool> HasKnownZeroValue(const EnumType& t,
   return false;
 }
 
-class MakeZeroVisitor : public ConcreteTypeVisitor {
+class MakeZeroVisitor : public TypeVisitor {
  public:
   MakeZeroVisitor(const ImportData& import_data, const Span& span)
       : import_data_(import_data), span_(span) {}
@@ -125,7 +134,7 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
 
 }  // namespace
 
-absl::StatusOr<InterpValue> MakeZeroValue(const ConcreteType& type,
+absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,
                                           const Span& span) {
   XLS_VLOG(5) << "MakeZeroValue; type: " << type << " @ " << span;

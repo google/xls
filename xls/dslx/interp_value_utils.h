@@ -40,9 +40,8 @@ absl::StatusOr<InterpValue> CastBitsToEnum(const InterpValue& bits_value,
 // Creates a zero-valued InterpValue with the same structure as the input.
 absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value);
 
-// Creates a zero-valued InterpValue from the given ConcreteType.
-absl::StatusOr<InterpValue> CreateZeroValueFromType(
-    const ConcreteType& concrete_type);
+// Creates a zero-valued InterpValue from the given Type.
+absl::StatusOr<InterpValue> CreateZeroValueFromType(const Type& type);
 
 // Places a "flat" representation of the input value (if it's a tuple) in
 // `result`. Converts, e.g., (a, (b, c), d) into {a, b, c, d}.
@@ -57,7 +56,7 @@ absl::StatusOr<std::optional<int64_t>> FindFirstDifferingIndex(
 // Converts the values to matched the signedness of the concrete type.
 //
 // Converts bits-typed Values contained within the given Value to match the
-// signedness of the ConcreteType. Examples:
+// signedness of the Type. Examples:
 //
 // invocation: sign_convert_value(s8, u8:64)
 // returns: s8:64
@@ -73,12 +72,12 @@ absl::StatusOr<std::optional<int64_t>> FindFirstDifferingIndex(
 // always unsigned.
 //
 // Args:
-//   concrete_type: ConcreteType to match.
+//   type: Type to match.
 //   value: Input value.
 //
 // Returns:
 //   Sign-converted value.
-absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
+absl::StatusOr<InterpValue> SignConvertValue(const Type& type,
                                              const InterpValue& value);
 
 // As above, but a handy vectorized form for application on parameters of a
@@ -87,8 +86,8 @@ absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
     const FunctionType& fn_type, absl::Span<const InterpValue> args);
 
 // Converts an (IR) value to an interpreter value.
-absl::StatusOr<InterpValue> ValueToInterpValue(
-    const Value& v, const ConcreteType* type = nullptr);
+absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
+                                               const Type* type = nullptr);
 
 // Parses a semicolon-delimited list of values.
 //

@@ -36,8 +36,8 @@ namespace xls::dslx {
 // Note: due to transitivity, as a side effect the type_info mapping is filled
 // with all the deductions that were necessary to determine (deduce) the
 // resulting type of `node`.
-absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
-                                                     DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node,
+                                             DeduceCtx* ctx);
 
 // Resolves "type_" via provided symbolic bindings.
 //
@@ -50,12 +50,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
 //
 // Returns:
 //  "type" with dimensions resolved according to bindings in "ctx".
-absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
-                                                      DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type, DeduceCtx* ctx);
 
 // Helpers that sequences Deduce, then Resolve.
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
-    const AstNode* node, DeduceCtx* ctx);
+absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
+                                                       DeduceCtx* ctx);
 
 // Decorates parametric binding AST nodes with their deduced types.
 //
