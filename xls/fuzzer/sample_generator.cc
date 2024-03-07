@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -170,9 +171,17 @@ static std::vector<std::string> GenerateCodegenArgs(
     if (has_nb_recv) {
       args.push_back("--pipeline_stages=1");
     } else {
-      args.push_back(absl::StrCat(
-          "--pipeline_stages=",
-          absl::Uniform<int64_t>(bit_gen, min_stages, min_stages + 10)));
+      int64_t stage_cnt =
+          absl::Uniform<int64_t>(bit_gen, min_stages, min_stages + 10);
+      args.push_back(absl::StrCat("--pipeline_stages=", stage_cnt));
+      if (stage_cnt > 1) {
+        int64_t worst_case_throughput =
+            absl::Uniform<int64_t>(bit_gen, 0, stage_cnt);
+        if (worst_case_throughput > 0) {
+          args.push_back(absl::StrFormat("--worst_case_throughput=%d",
+                                         worst_case_throughput));
+        }
+      }
     }
   } else {
     args.push_back("--generator=combinational");
