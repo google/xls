@@ -126,6 +126,12 @@ ABSL_FLAG(xls::ChannelStrictness, default_channel_strictness,
 ABSL_FLAG(std::string, io_op_token_ordering, "none",
           "none (default), channel_wise, lexical");
 
+ABSL_FLAG(bool, debug_ir_trace_loop_context, false,
+          "Generate IR traces for pipelined loop context variables.");
+
+ABSL_FLAG(bool, debug_ir_trace_loop_control, false,
+          "Generate IR traces for pipelined loop control.");
+
 namespace xlscc {
 
 static absl::Status Run(std::string_view cpp_path) {
@@ -150,10 +156,21 @@ static absl::Status Run(std::string_view cpp_path) {
       .strictness_map = absl::GetFlag(FLAGS_channel_strictness).map,
   };
 
+  DebugIrTraceFlags ir_trace_flags = DebugIrTraceFlags_None;
+
+  if (absl::GetFlag(FLAGS_debug_ir_trace_loop_context)) {
+    ir_trace_flags = static_cast<DebugIrTraceFlags>(
+        ir_trace_flags | DebugIrTraceFlags_LoopContext);
+  }
+  if (absl::GetFlag(FLAGS_debug_ir_trace_loop_control)) {
+    ir_trace_flags = static_cast<DebugIrTraceFlags>(
+        ir_trace_flags | DebugIrTraceFlags_LoopControl);
+  }
+
   xlscc::Translator translator(
       absl::GetFlag(FLAGS_error_on_init_interval),
       absl::GetFlag(FLAGS_error_on_uninitialized),
-      absl::GetFlag(FLAGS_generate_fsms_for_pipelined_loops),
+      absl::GetFlag(FLAGS_generate_fsms_for_pipelined_loops), ir_trace_flags,
       absl::GetFlag(FLAGS_max_unroll_iters),
       absl::GetFlag(FLAGS_warn_unroll_iters), absl::GetFlag(FLAGS_z3_rlimit),
       io_op_token_ordering);

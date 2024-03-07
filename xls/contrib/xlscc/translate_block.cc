@@ -643,7 +643,13 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
   std::vector<int64_t> arg_indices_ordered_by_state_elems;
 
   for (const IOOp& op : prepared.xls_func->io_ops) {
+    // Don't copy direct-ins, statics, etc into FSM state
     if (!prepared.arg_index_for_op.contains(&op)) {
+      continue;
+    }
+    // Don't copy context in/out for pipelined loops into the FSM state
+    if (prepared.xls_func->pipeline_loops_by_internal_channel.contains(
+            op.channel)) {
       continue;
     }
     arg_indices_ordered_by_state_elems.push_back(
@@ -1493,9 +1499,6 @@ Translator::GenerateIRBlockPrepare(
   context() = TranslationContext();
   context().propagate_up = false;
   context().sf = temp_sf.get();
-  //  context().sf = &temp_sf;
-  // Temp test
-  //  context().sf = const_cast<GeneratedFunction*>(prepared.xls_func);
   context().fb = dynamic_cast<xls::BuilderBase*>(&pb);
 
   // This state and argument

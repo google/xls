@@ -151,6 +151,7 @@ bool Translator::IOChannelInCurrentFunction(IOChannel* to_find,
 
 Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
                        bool generate_fsms_for_pipelined_loops,
+      DebugIrTraceFlags debug_ir_trace_flags,
                        int64_t max_unroll_iters, int64_t warn_unroll_iters,
                        int64_t z3_rlimit, IOOpOrdering op_ordering,
                        std::unique_ptr<CCParser> existing_parser)
@@ -160,6 +161,7 @@ Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
       error_on_init_interval_(error_on_init_interval),
       error_on_uninitialized_(error_on_uninitialized),
       generate_fsms_for_pipelined_loops_(generate_fsms_for_pipelined_loops),
+      debug_ir_trace_flags_(debug_ir_trace_flags),
       op_ordering_(op_ordering) {
   context_stack_.push_front(TranslationContext());
   if (existing_parser != nullptr) {

@@ -241,6 +241,7 @@ absl::Status XlsccTestBase::ScanFile(
       error_on_init_interval,
       /*error_on_uninitialized=*/error_on_uninitialized,
       /*generate_fsms_for_pipelined_loops=*/generate_fsms_for_pipelined_loops_,
+      /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_None,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
       /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser)));
@@ -479,14 +480,6 @@ void XlsccTestBase::ProcTest(
     interpreter->ClearInterpreterEvents();
     ASSERT_EQ(interpreter->Tick(), expected_tick_status);
 
-    XLS_LOG(INFO) << "State after tick " << tick;
-    for (const auto& proc : package_->procs()) {
-      XLS_LOG(INFO) << absl::StrFormat(
-          "[%s]: %s", proc->name(),
-          absl::StrFormat(
-              "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
-                                    xls::ValueFormatter)));
-    }
     for (const auto& proc : package_->procs()) {
       const xls::InterpreterEvents& events =
           interpreter->GetInterpreterEvents(proc.get());
@@ -497,6 +490,15 @@ void XlsccTestBase::ProcTest(
       for (const auto& msg : events.assert_msgs) {
         got_events_for_proc[proc->name()].assert_msgs.push_back(msg);
       }
+    }
+
+    XLS_LOG(INFO) << "State after tick " << tick;
+    for (const auto& proc : package_->procs()) {
+      XLS_LOG(INFO) << absl::StrFormat(
+          "[%s]: %s", proc->name(),
+          absl::StrFormat(
+              "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
+                                    xls::ValueFormatter)));
     }
 
     // Check as we go
@@ -679,9 +681,8 @@ XlsccTestBase::GetOpsForChannelNameContains(std::string_view channel) {
               std::string_view::npos) {
         ret.push_back(node);
       }
-      if (node->Is<xls::Send>() &&
-          node->As<xls::Send>()->channel_name().find(channel) !=
-              std::string_view::npos) {
+      if (node->Is<xls::Send>() && node->As<xls::Send>()->channel_name().find(
+                                       channel) != std::string_view::npos) {
         ret.push_back(node);
       }
     }

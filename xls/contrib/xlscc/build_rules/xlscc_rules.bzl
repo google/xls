@@ -195,6 +195,8 @@ def _xls_cc_ir_impl(ctx):
         "generate_fsms_for_pipelined_loops",
         "channel_strictness",
         "default_channel_strictness",
+        "debug_ir_trace_loop_context",
+        "debug_ir_trace_loop_control",
     )
 
     xlscc_args = append_default_to_args(

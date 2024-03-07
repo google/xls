@@ -1097,6 +1097,12 @@ struct ChannelOptions {
   absl::flat_hash_map<std::string, xls::ChannelStrictness> strictness_map;
 };
 
+enum DebugIrTraceFlags {
+  DebugIrTraceFlags_None = 0,
+  DebugIrTraceFlags_LoopContext = 1,
+  DebugIrTraceFlags_LoopControl = 2
+};
+
 class Translator {
   void debug_prints(const TranslationContext& context);
 
@@ -1105,6 +1111,7 @@ class Translator {
   explicit Translator(
       bool error_on_init_interval = false, bool error_on_uninitialized = false,
       bool generate_fsms_for_pipelined_loops = false,
+      DebugIrTraceFlags debug_ir_trace_flags = DebugIrTraceFlags_None,
       int64_t max_unroll_iters = 1000, int64_t warn_unroll_iters = 100,
       int64_t z3_rlimit = -1, IOOpOrdering op_ordering = IOOpOrdering::kNone,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
@@ -1393,6 +1400,9 @@ class Translator {
 
   // Generates an FSM to implement pipelined loops.
   const bool generate_fsms_for_pipelined_loops_;
+
+  // Bitfield indicating which debug traces to insert into the IR.
+  const DebugIrTraceFlags debug_ir_trace_flags_;
 
   // How to generate the token dependencies for IO Ops
   const IOOpOrdering op_ordering_;
