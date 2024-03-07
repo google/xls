@@ -39,15 +39,16 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOk;
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
-using testing::ElementsAre;
-using testing::HasSubstr;
-using testing::IsEmpty;
-using testing::Not;
-using testing::Pair;
-using testing::UnorderedElementsAre;
+using ::testing::ElementsAre;
+using ::testing::FieldsAre;
+using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::Not;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
+using ::xls::status_testing::IsOk;
+using ::xls::status_testing::IsOkAndHolds;
+using ::xls::status_testing::StatusIs;
 
 TEST_P(BlockEvaluatorTest, PackagesAreIndependent) {
   auto p1 = CreatePackage();
@@ -694,8 +695,11 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
   BValue tkn = b.Literal(Value::Token());
   BValue assertion =
       b.Assert(tkn, b.UGt(x, b.Literal(Value(UBits(5, 32)))), "foo");
-  b.Trace(assertion, b.Literal(Value(UBits(1, 1))), {x},
+  BValue first_trace = b.Trace(assertion, b.Literal(Value(UBits(1, 1))), {x},
           {"x is ", FormatPreference::kDefault});
+  b.Trace(first_trace, b.Literal(Value(UBits(1, 1))), {x},
+          {"I'm emphasizing that x is ", FormatPreference::kDefault},
+          /*verbosity=*/3);
 
   b.OutputPort("y", x);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
@@ -704,14 +708,18 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
       BlockRunResult result,
       evaluator().EvaluateBlock({{"x", Value(UBits(10, 32))}}, {}, block));
 
-  EXPECT_THAT(result.interpreter_events.trace_msgs, ElementsAre("x is 10"));
+  EXPECT_THAT(result.interpreter_events.trace_msgs,
+              ElementsAre(FieldsAre("x is 10", 0),
+                          FieldsAre("I'm emphasizing that x is 10", 3)));
   EXPECT_THAT(result.interpreter_events.assert_msgs, IsEmpty());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       result,
       evaluator().EvaluateBlock({{"x", Value(UBits(3, 32))}}, {}, block));
 
-  EXPECT_THAT(result.interpreter_events.trace_msgs, ElementsAre("x is 3"));
+  EXPECT_THAT(result.interpreter_events.trace_msgs,
+              ElementsAre(FieldsAre("x is 3", 0),
+                          FieldsAre("I'm emphasizing that x is 3", 3)));
   EXPECT_THAT(result.interpreter_events.assert_msgs, ElementsAre("foo"));
 }
 

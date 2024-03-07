@@ -166,7 +166,7 @@ block test_block(clk: clock, in_ch_data: bits[64], in_ch_2_data: bits[64], out_c
 
   in_pred: bits[1] = literal(value=1, id=576)
   after_all.563: token = after_all(id=563)
-  trace.581: token = trace(after_all.563, in_pred, format="rst_n {:x}", data_operands=[rst_n], id=581)
+  trace.581: token = trace(after_all.563, in_pred, format="rst_n {:x}", data_operands=[rst_n], verbosity=2, id=581)
 
 }
 """
@@ -504,7 +504,7 @@ class EvalProcTest(parameterized.TestCase):
     self.assertIn("Proc test_proc", output.stderr)
 
   @parameterized_block_backends
-  def test_block(self, backends):
+  def test_block_filtered_traces(self, backends):
     ir_file = self.create_tempfile(content=BLOCK_IR)
     signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
     input_file = self.create_tempfile(content=textwrap.dedent("""
@@ -530,6 +530,53 @@ class EvalProcTest(parameterized.TestCase):
         "--ticks",
         "2",
         "--show_trace",
+        "--logtostderr",
+        "--block_signature_proto",
+        signature_file.full_path,
+        "--inputs_for_channels",
+        "in_ch={infile1},in_ch_2={infile2}".format(
+            infile1=input_file.full_path, infile2=input_file_2.full_path
+        ),
+        "--expected_outputs_for_channels",
+        "out_ch={outfile},out_ch_2={outfile2}".format(
+            outfile=output_file.full_path, outfile2=output_file_2.full_path
+        ),
+    ] + backends
+
+    output = run_command(shared_args)
+    self.assertIn("Cycle[6]: resetting? false", output.stderr)
+
+    self.assertNotIn("trace: rst_n 0", output.stderr)
+    self.assertNotIn("trace: rst_n 1", output.stderr)
+
+  @parameterized_block_backends
+  def test_block_traces_not_filtered(self, backends):
+    ir_file = self.create_tempfile(content=BLOCK_IR)
+    signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
+    input_file = self.create_tempfile(content=textwrap.dedent("""
+          bits[64]:42
+          bits[64]:101
+        """))
+    input_file_2 = self.create_tempfile(content=textwrap.dedent("""
+          bits[64]:10
+          bits[64]:6
+        """))
+    output_file = self.create_tempfile(content=textwrap.dedent("""
+          bits[64]:62
+          bits[64]:127
+        """))
+    output_file_2 = self.create_tempfile(content=textwrap.dedent("""
+          bits[64]:55
+          bits[64]:55
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        ir_file.full_path,
+        "--ticks",
+        "2",
+        "--show_trace",
+        "--max_trace_verbosity=2",
         "--logtostderr",
         "--block_signature_proto",
         signature_file.full_path,

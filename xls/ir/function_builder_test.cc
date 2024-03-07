@@ -975,6 +975,20 @@ TEST(FunctionBuilderTest, Trace) {
   EXPECT_EQ(f->return_value()->As<Trace>()->format(), format);
 }
 
+TEST(FunctionBuilderTest, TraceWithVerbosity) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+
+  auto x = b.Param("x", p.GetBitsType(17));
+
+  b.Trace(b.Param("tkn", p.GetTokenType()), b.Param("cond", p.GetBitsType(1)),
+          {x}, "x is {}", /*verbosity=*/1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_EQ(f->return_value()->As<Trace>()->verbosity(), 1);
+}
+
+
 TEST(FunctionBuilderTest, TraceWrongTypeOperand0) {
   Package p("p");
   FunctionBuilder b("f", &p);
@@ -1033,6 +1047,20 @@ TEST(FunctionBuilderTest, TraceWrongNumberOfArgs) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr(
                    "Trace node expects 1 data operands, but 2 were supplied")));
+}
+
+TEST(FunctionBuilderTest, TraceNegativeVerbosity) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+
+  auto x = b.Param("x", p.GetBitsType(17));
+
+  b.Trace(b.Param("tkn", p.GetTokenType()), b.Param("cond", p.GetBitsType(1)),
+          {x}, "x is {}", /*verbosity=*/-1);
+
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Trace verbosity must be >= 0, got -1")));
 }
 
 TEST(FunctionBuilderTest, NaryBitwiseXor) {

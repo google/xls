@@ -165,6 +165,9 @@ ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
 ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
+ABSL_FLAG(int64_t, max_trace_verbosity, 0,
+          "Maximum verbosity for traces. Traces with higher verbosity are "
+          "stripped from codegen output. 0 by default.");
 ABSL_FLAG(int64_t, trace_per_ticks, 100, "Print a trace every N ticks.");
 ABSL_FLAG(std::string, output_stats_path, "", "File to output statistics to.");
 ABSL_FLAG(std::vector<std::string>, model_memories, {},
@@ -178,10 +181,12 @@ static absl::Status LogInterpreterEvents(std::string_view entity_name,
                                          const InterpreterEvents& events) {
   if (absl::GetFlag(FLAGS_show_trace)) {
     for (const auto& msg : events.trace_msgs) {
-      std::string unescaped_msg;
-      XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
-      std::cerr << "Proc " << entity_name << " trace: " << unescaped_msg
-                << "\n";
+      if (msg.verbosity <= absl::GetFlag(FLAGS_max_trace_verbosity)) {
+        std::string unescaped_msg;
+        XLS_RET_CHECK(absl::CUnescape(msg.message, &unescaped_msg));
+        std::cerr << "Proc " << entity_name << " trace: " << unescaped_msg
+                  << "\n";
+      }
     }
     for (const auto& msg : events.assert_msgs) {
       std::string unescaped_msg;

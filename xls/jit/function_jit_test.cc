@@ -99,9 +99,13 @@ absl::StatusOr<Value> RunJitNoEvents(FunctionJit* jit,
   XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result, jit->Run(args));
 
   if (!result.events.trace_msgs.empty()) {
+    std::vector<std::string_view> trace_msgs;
+    for (const TraceMessage& trace : result.events.trace_msgs) {
+      trace_msgs.push_back(trace.message);
+    }
     return absl::FailedPreconditionError(absl::StrFormat(
         "Unexpected traces generated during RunJitNoEvents:\n%s",
-        absl::StrJoin(result.events.trace_msgs, "\n")));
+        absl::StrJoin(trace_msgs, "\n")));
   }
 
   return InterpreterResultToStatusOrValue(result);
@@ -121,7 +125,7 @@ TEST(FunctionJitTest, TraceFmtNoArgsTest) {
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 1);
-  EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced");
+  EXPECT_EQ(result.events.trace_msgs.at(0).message, "hi I traced");
 }
 
 TEST(FunctionJitTest, TraceFmtOneArgTest) {
@@ -138,7 +142,7 @@ TEST(FunctionJitTest, TraceFmtOneArgTest) {
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 1);
-  EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced: 1");
+  EXPECT_EQ(result.events.trace_msgs.at(0).message, "hi I traced: 1");
 }
 
 TEST(FunctionJitTest, TraceFmtSignedTest) {
@@ -158,9 +162,9 @@ TEST(FunctionJitTest, TraceFmtSignedTest) {
   std::vector<Value> args = {Value::Token(), Value(UBits(0xff, 8))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 3);
-  EXPECT_EQ(result.events.trace_msgs.at(0), "signed: -1");
-  EXPECT_EQ(result.events.trace_msgs.at(1), "unsigned: 255");
-  EXPECT_EQ(result.events.trace_msgs.at(2), "default: 255");
+  EXPECT_EQ(result.events.trace_msgs.at(0).message, "signed: -1");
+  EXPECT_EQ(result.events.trace_msgs.at(1).message, "unsigned: 255");
+  EXPECT_EQ(result.events.trace_msgs.at(2).message, "default: 255");
 }
 
 TEST(FunctionJitTest, TraceFmtTwoArgTest) {
@@ -178,7 +182,7 @@ TEST(FunctionJitTest, TraceFmtTwoArgTest) {
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 1);
-  EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced: 1 also: 2a");
+  EXPECT_EQ(result.events.trace_msgs.at(0).message, "hi I traced: 1 also: 2a");
 }
 
 TEST(FunctionJitTest, TraceFmtBigArgTest) {
@@ -198,7 +202,7 @@ TEST(FunctionJitTest, TraceFmtBigArgTest) {
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 1);
-  EXPECT_EQ(result.events.trace_msgs.at(0),
+  EXPECT_EQ(result.events.trace_msgs.at(0).message,
             "hi I traced: "
             "800000000000000000000000000000000000000000000000000000000000000000"
             "00000000000000000000000000000000000000000000000000000000000000");

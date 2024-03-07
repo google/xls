@@ -31,12 +31,13 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
-using testing::ElementsAre;
-using testing::ElementsAreArray;
-using testing::HasSubstr;
-using testing::UnorderedElementsAre;
+using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
+using ::testing::FieldsAre;
+using ::testing::HasSubstr;
+using ::testing::UnorderedElementsAre;
+using ::xls::status_testing::IsOkAndHolds;
+using ::xls::status_testing::StatusIs;
 
 INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,
@@ -140,8 +141,9 @@ fn accum_dynamic(trips: bits[8]) -> bits[32] {
                            InterpretFunction(accum_fixed, {}));
 
   Value accum_5_value = Value(UBits(10, 32));
-  std::vector<std::string> accum_5_traces = {
-      "accum is 0", "accum is 0", "accum is 1", "accum is 3", "accum is 6"};
+  auto accum_5_traces = {FieldsAre("accum is 0", 0), FieldsAre("accum is 0", 0),
+                         FieldsAre("accum is 1", 0), FieldsAre("accum is 3", 0),
+                         FieldsAre("accum is 6", 0)};
   EXPECT_EQ(accum_fixed_result.value, accum_5_value);
   EXPECT_THAT(accum_fixed_result.events.trace_msgs,
               ElementsAreArray(accum_5_traces));
@@ -165,7 +167,8 @@ fn accum_dynamic(trips: bits[8]) -> bits[32] {
       InterpreterResult<Value> accum_dynamic_1,
       InterpretFunction(accum_dynamic, {Value(UBits(1, 8))}));
   EXPECT_EQ(accum_dynamic_1.value, Value(UBits(0, 32)));
-  EXPECT_THAT(accum_dynamic_1.events.trace_msgs, ElementsAre("accum is 0"));
+  EXPECT_THAT(accum_dynamic_1.events.trace_msgs,
+              ElementsAre(FieldsAre("accum is 0", 0)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpreterResult<Value> accum_dynamic_7,
@@ -173,8 +176,10 @@ fn accum_dynamic(trips: bits[8]) -> bits[32] {
   EXPECT_EQ(accum_dynamic_7.value, Value(UBits(21, 32)));
   EXPECT_THAT(
       accum_dynamic_7.events.trace_msgs,
-      ElementsAre("accum is 0", "accum is 0", "accum is 1", "accum is 3",
-                  "accum is 6", "accum is 10", "accum is 15"));
+      ElementsAre(FieldsAre("accum is 0", 0), FieldsAre("accum is 0", 0),
+                  FieldsAre("accum is 1", 0), FieldsAre("accum is 3", 0),
+                  FieldsAre("accum is 6", 0), FieldsAre("accum is 10", 0),
+                  FieldsAre("accum is 15", 0)));
 }
 
 // Test collecting traces across a map.
@@ -209,8 +214,10 @@ fn map_trace() -> bits[32][5]{
   XLS_ASSERT_OK_AND_ASSIGN(Value map_trace_expected,
                            Value::UBitsArray({121, 144, 169, 196, 225}, 32));
   EXPECT_EQ(map_trace_result.value, map_trace_expected);
-  EXPECT_THAT(map_trace_result.events.trace_msgs,
-              UnorderedElementsAre("f is odd", "d is odd", "b is odd"));
+  EXPECT_THAT(
+      map_trace_result.events.trace_msgs,
+      UnorderedElementsAre(FieldsAre("f is odd", 0), FieldsAre("d is odd", 0),
+                           FieldsAre("b is odd", 0)));
 }
 
 }  // namespace

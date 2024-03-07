@@ -1227,6 +1227,16 @@ fn bar(tkn: token, cond: bits[1], x: bits[3]) -> token {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseTraceWithVerbosity) {
+  const std::string input = R"(package foobar
+
+fn bar(tkn: token, cond: bits[1], x: bits[3]) -> token {
+  ret trace.1: token = trace(tkn, cond, format="x is {}", data_operands=[x], verbosity=1, id=1)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseTraceWrongOperands) {
   const std::string input = R"(package foobar
 
@@ -1239,6 +1249,18 @@ fn bar(tkn: token, cond: bits[1], x: bits[3], y: bits[7]) -> token {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr(
                    "Trace node expects 1 data operands, but 2 were supplied")));
+}
+
+TEST(IrParserTest, ParseTraceNegativeVerbosity) {
+  const std::string input = R"(package foobar
+
+fn bar(tkn: token, cond: bits[1], x: bits[3], y: bits[7]) -> token {
+  ret trace.1: token = trace(tkn, cond, format="x is {}", data_operands=[x], verbosity=-1, id=1)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Verbosity must be >= 0: got -1")));
 }
 
 TEST(IrParserTest, ParseCover) {

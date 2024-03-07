@@ -1344,7 +1344,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateTrace(
         args.push_back(arg);
       }
       return pb.Trace(before_token, /*condition=*/condition, args,
-                      /*message=*/op.trace_message_string, op.op_location);
+                      /*message=*/op.trace_message_string, /*verbosity=*/0,
+                      op.op_location);
     }
     case TraceType::kAssert: {
       xls::BValue condition = pb.Not(trace_out_value, op.op_location);

@@ -79,7 +79,7 @@ static void PrintTraceMessages(const InterpreterEvents& events) {
   if (absl::GetFlag(FLAGS_print_traces) && !events.trace_msgs.empty()) {
     std::cout << "Trace messages:" << '\n';
     for (const auto& tm : events.trace_msgs) {
-      std::cout << " - " << tm << '\n';
+      std::cout << " - " << tm.message << '\n';
     }
   }
 }

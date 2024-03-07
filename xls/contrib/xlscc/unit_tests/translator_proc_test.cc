@@ -44,6 +44,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/events.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -6235,7 +6236,8 @@ TEST_P(TranslatorProcTest, DebugTrace) {
   }
   {
     xls::InterpreterEvents expected_events;
-    expected_events.trace_msgs.push_back("Value is 9");
+    expected_events.trace_msgs.push_back(
+        xls::TraceMessage{.message = "Value is 9", .verbosity = 0});
 
     absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
     inputs["in"] = {xls::Value(xls::SBits(9, 32))};
@@ -6274,10 +6276,14 @@ TEST_P(TranslatorProcTest, DebugTraceInPipelinedLoop) {
 
   {
     xls::InterpreterEvents expected_events;
-    expected_events.trace_msgs.push_back("Value is 0");
-    expected_events.trace_msgs.push_back("Value is 1");
-    expected_events.trace_msgs.push_back("Value is 2");
-    expected_events.trace_msgs.push_back("Value is 4");
+    expected_events.trace_msgs.push_back(
+        xls::TraceMessage{.message = "Value is 0", .verbosity = 0});
+    expected_events.trace_msgs.push_back(
+        xls::TraceMessage{.message = "Value is 1", .verbosity = 0});
+    expected_events.trace_msgs.push_back(
+        xls::TraceMessage{.message = "Value is 2", .verbosity = 0});
+    expected_events.trace_msgs.push_back(
+        xls::TraceMessage{.message = "Value is 4", .verbosity = 0});
 
     absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
     inputs["in"] = {xls::Value(xls::SBits(4, 32))};

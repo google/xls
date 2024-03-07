@@ -237,6 +237,7 @@ absl::StatusOr<Node*> Trace::CloneInNewFunction(
                                       new_operands[1],
                                       new_operands.subspan(2),
                                       format(),
+                                      verbosity(),
                                       name_);
 }
 

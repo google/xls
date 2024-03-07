@@ -33,6 +33,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
@@ -83,7 +84,7 @@ absl::StatusOr<Value> InterpretNode(Node* node,
 
 absl::Status IrInterpreter::AddInterpreterEvents(
     const InterpreterEvents& events) {
-  for (const std::string& trace_msg : events.trace_msgs) {
+  for (const TraceMessage& trace_msg : events.trace_msgs) {
     GetInterpreterEvents().trace_msgs.push_back(trace_msg);
   }
 
@@ -539,7 +540,10 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
 
     XLS_VLOG(3) << "Trace output: " << trace_output;
 
-    GetInterpreterEvents().trace_msgs.push_back(trace_output);
+    GetInterpreterEvents().trace_msgs.push_back(TraceMessage{
+        .message = trace_output,
+        .verbosity = trace_op->verbosity(),
+    });
   }
   return SetValueResult(trace_op, Value::Token());
 }

@@ -55,10 +55,11 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
 using ::testing::ElementsAre;
+using ::testing::FieldsAre;
 using ::testing::HasSubstr;
+using ::xls::status_testing::IsOkAndHolds;
+using ::xls::status_testing::StatusIs;
 
 using ArgMap = absl::flat_hash_map<std::string, Value>;
 
@@ -1498,7 +1499,6 @@ absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
   }
   )";
 
-  std::string bytes_str = "0x";
   std::vector<uint8_t> bytes;
 
   const Value& a = kwargs.at("a");
@@ -4043,7 +4043,12 @@ fn ba (in_token:token, a_cond: bits[1], b_cond: bits[1]) -> bits[8] {
   auto run_for_traces = [this](Function* f, absl::Span<const Value> args)
       -> absl::StatusOr<std::vector<std::string>> {
     XLS_ASSIGN_OR_RETURN(auto result, RunWithEvents(f, args));
-    return result.events.trace_msgs;
+    std::vector<std::string> trace_msgs;
+    trace_msgs.reserve(result.events.trace_msgs.size());
+    for (const auto& msg : result.events.trace_msgs) {
+      trace_msgs.push_back(msg.message);
+    }
+    return trace_msgs;
   };
 
   std::vector<std::string> no_traces = {};
@@ -4096,7 +4101,8 @@ TEST_P(IrEvaluatorTestBase, EmptyTraceTest) {
                            RunWithEvents(f, print_trace_args));
   EXPECT_EQ(print_trace_result.value, Value::Token());
   EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
-  EXPECT_THAT(print_trace_result.events.trace_msgs, ElementsAre(""));
+  EXPECT_THAT(print_trace_result.events.trace_msgs,
+              ElementsAre(FieldsAre("", 0)));
 }
 
 TEST_P(IrEvaluatorTestBase, ThreeStringTraceTest) {
@@ -4121,7 +4127,32 @@ TEST_P(IrEvaluatorTestBase, ThreeStringTraceTest) {
   EXPECT_EQ(print_trace_result.value, Value::Token());
   EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
   EXPECT_THAT(print_trace_result.events.trace_msgs,
-              ElementsAre("hello world!"));
+              ElementsAre(FieldsAre("hello world!", 0)));
+}
+
+TEST_P(IrEvaluatorTestBase, TraceVerbosityTest) {
+  Package p("empty_trace_test");
+
+  FunctionBuilder b("fun", &p);
+
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  auto p1 = b.Param("cnd", p.GetBitsType(1));
+  std::vector<BValue> args = {};
+  std::vector<FormatStep> format = {"hello", " ", "world!"};
+  b.Trace(p0, p1, args, format, /*verbosity=*/3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  std::vector<Value> no_trace_args = {Value::Token(), Value(UBits(0, 1))};
+  EXPECT_THAT(RunWithNoEvents(f, no_trace_args), IsOkAndHolds(Value::Token()));
+
+  std::vector<Value> print_trace_args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
+                           RunWithEvents(f, print_trace_args));
+  EXPECT_EQ(print_trace_result.value, Value::Token());
+  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
+  EXPECT_THAT(print_trace_result.events.trace_msgs,
+              ElementsAre(FieldsAre("hello world!", 3)));
 }
 
 TEST_P(IrEvaluatorTestBase, ConcatWithZeroWidth) {

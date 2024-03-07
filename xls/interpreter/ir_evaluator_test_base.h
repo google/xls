@@ -107,9 +107,13 @@ class IrEvaluatorTestBase
                          GetParam().evaluator(f, args));
 
     if (!result.events.trace_msgs.empty()) {
+      std::vector<std::string_view> trace_messages;
+      for (const TraceMessage& trace : result.events.trace_msgs) {
+        trace_messages.push_back(trace.message);
+      }
       return absl::FailedPreconditionError(
           absl::StrFormat("Unexpected traces during RunWithNoEvents:\n%s",
-                          absl::StrJoin(result.events.trace_msgs, "\n")));
+                          absl::StrJoin(trace_messages, "\n")));
     }
 
     return InterpreterResultToStatusOrValue(result);

@@ -668,7 +668,8 @@ OpClass.kinds['TRACE'] = OpClass(
                    Method(name='args',
                           return_cpp_type='absl::Span<Node* const>',
                           expression='operands().subspan(2)')],
-    attributes=[FormatStepsAttribute('format')],
+    attributes=[FormatStepsAttribute('format'),
+                Int64Attribute('verbosity')],
     custom_clone_method=True,
 )
 

@@ -15,6 +15,8 @@
 #ifndef XLS_IR_EVENTS_H_
 #define XLS_IR_EVENTS_H_
 
+#include <compare>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -23,10 +25,28 @@
 
 namespace xls {
 
+// A trace message is a string and a verbosity associated with the message.
+struct TraceMessage {
+  std::string message;
+  int64_t verbosity;
+
+  bool operator==(const TraceMessage& other) const {
+    return message == other.message && verbosity == other.verbosity;
+  }
+  bool operator!=(const TraceMessage& other) const { return !(*this == other); }
+  std::strong_ordering operator<=>(const TraceMessage& other) const {
+    auto verbosity_cmp = verbosity <=> other.verbosity;
+    if (verbosity_cmp != std::strong_ordering::equal) {
+      return verbosity_cmp;
+    }
+    return message <=> other.message;
+  }
+};
+
 // Common structure capturing events that can be produced by any XLS interpreter
 // (DSLX, IR, JIT, etc.)
 struct InterpreterEvents {
-  std::vector<std::string> trace_msgs;
+  std::vector<TraceMessage> trace_msgs;
   std::vector<std::string> assert_msgs;
 
   void Clear() {

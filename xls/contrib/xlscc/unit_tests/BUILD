@@ -152,6 +152,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:events",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:value",

@@ -637,25 +637,32 @@ absl::Status InvokeFormatStepCallback(llvm::IRBuilder<>* builder,
 }
 
 // This a shim to let JIT code record a completed trace as an interpreter event.
-void RecordTrace(std::string* buffer, xls::InterpreterEvents* events) {
-  events->trace_msgs.push_back(*buffer);
+void RecordTrace(std::string* buffer, int64_t verbosity,
+                 xls::InterpreterEvents* events) {
+  events->trace_msgs.push_back(
+      TraceMessage{.message = *buffer, .verbosity = verbosity});
   delete buffer;
 }
 
 // Build the LLVM IR to invoke the callback that records traces.
 absl::Status InvokeRecordTraceCallback(llvm::IRBuilder<>* builder,
+                                       int64_t verbosity,
                                        llvm::Value* buffer_ptr,
                                        llvm::Value* interpreter_events_ptr) {
+  llvm::Type* int64_type = llvm::Type::getInt64Ty(builder->getContext());
   llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
 
-  std::vector<llvm::Type*> params = {buffer_ptr->getType(), ptr_type};
+  std::vector<llvm::Type*> params = {buffer_ptr->getType(), int64_type,
+                                     ptr_type};
 
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
 
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
-  std::vector<llvm::Value*> args = {buffer_ptr, interpreter_events_ptr};
+  llvm::Value* verbosity_value = builder->getInt64(verbosity);
+  std::vector<llvm::Value*> args = {buffer_ptr, verbosity_value,
+                                    interpreter_events_ptr};
 
   llvm::ConstantInt* fn_addr =
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(builder->getContext()),
@@ -1586,8 +1593,8 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
     }
   }
 
-  XLS_RETURN_IF_ERROR(
-      InvokeRecordTraceCallback(&print_builder, buffer_ptr, events_ptr));
+  XLS_RETURN_IF_ERROR(InvokeRecordTraceCallback(
+      &print_builder, trace_op->verbosity(), buffer_ptr, events_ptr));
 
   print_builder.CreateBr(after_block);
 

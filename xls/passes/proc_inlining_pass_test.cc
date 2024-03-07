@@ -63,11 +63,12 @@ namespace m = xls::op_matchers;
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
 using ::testing::ElementsAreArray;
+using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
+using ::xls::status_testing::IsOkAndHolds;
+using ::xls::status_testing::StatusIs;
 
 class ProcInliningPassTest : public IrTestBase {
  protected:
@@ -3912,9 +3913,11 @@ TEST_F(ProcInliningPassTest, ProcWithTrace) {
   EXPECT_THAT(
       interpreter->GetInterpreterEvents(p->GetProc("trace_not_zero").value())
           .trace_msgs,
-      ElementsAre(HasSubstr("data: 100"), HasSubstr("data: 200"),
-                  HasSubstr("data: 300"), HasSubstr("data: 400"),
-                  HasSubstr("data: 500")));
+      ElementsAre(FieldsAre(HasSubstr("data: 100"), 0),
+                  FieldsAre(HasSubstr("data: 200"), 0),
+                  FieldsAre(HasSubstr("data: 300"), 0),
+                  FieldsAre(HasSubstr("data: 400"), 0),
+                  FieldsAre(HasSubstr("data: 500"), 0)));
 
   ASSERT_THAT(Run(p.get(), /*top=*/"trace_not_zero"), IsOkAndHolds(true));
 
@@ -3927,9 +3930,11 @@ TEST_F(ProcInliningPassTest, ProcWithTrace) {
   EXPECT_THAT(
       interpreter->GetInterpreterEvents(p->GetProc("trace_not_zero").value())
           .trace_msgs,
-      ElementsAre(HasSubstr("data: 100"), HasSubstr("data: 200"),
-                  HasSubstr("data: 300"), HasSubstr("data: 400"),
-                  HasSubstr("data: 500")));
+      ElementsAre(FieldsAre(HasSubstr("data: 100"), 0),
+                  FieldsAre(HasSubstr("data: 200"), 0),
+                  FieldsAre(HasSubstr("data: 300"), 0),
+                  FieldsAre(HasSubstr("data: 400"), 0),
+                  FieldsAre(HasSubstr("data: 500"), 0)));
 }
 
 TEST_F(ProcInliningPassTest, ProcWithNonblockingReceivesWithPassthrough) {

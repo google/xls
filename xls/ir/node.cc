@@ -600,6 +600,9 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
           absl::CEscape(StepsToXlsFormatString(trace->format()))));
       args.push_back(absl::StrFormat("data_operands=[%s]",
                                      absl::StrJoin(trace->args(), ", ")));
+      if (trace->verbosity() > 0) {
+        args.push_back(absl::StrFormat("verbosity=%d", trace->verbosity()));
+      }
       break;
     }
     case Op::kCover:

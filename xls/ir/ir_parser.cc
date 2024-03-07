@@ -1122,11 +1122,17 @@ absl::StatusOr<BValue> Parser::ParseNode(
           arg_parser.AddKeywordArg<QuotedString>("format");
       std::vector<BValue>* data_operands =
           arg_parser.AddKeywordArg<std::vector<BValue>>("data_operands");
+      std::optional<int64_t>* verbosity =
+          arg_parser.AddOptionalKeywordArg<int64_t>("verbosity");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       XLS_ASSIGN_OR_RETURN(std::vector<FormatStep> format,
                            ParseFormatString(format_string->value));
-      bvalue = fb->Trace(operands[0], operands[1], *data_operands, format, *loc,
-                         node_name);
+      if (verbosity->has_value() && verbosity->value() < 0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Verbosity must be >= 0: got %d", verbosity->value()));
+      }
+      bvalue = fb->Trace(operands[0], operands[1], *data_operands, format,
+                         verbosity->value_or(0), *loc, node_name);
       break;
     }
     case Op::kCover: {

@@ -1237,7 +1237,7 @@ Translator::GenerateIR_PipelinedLoopContents(
                          /*args=*/{selected_val},
                          absl::StrFormat("%s selected_val[%s]: {:u}",
                                          name_prefix, decl->getNameAsString()),
-                         loc);
+                         /*verbosity=*/0, loc);
       }
     }
     selected_context =
@@ -1349,7 +1349,7 @@ Translator::GenerateIR_PipelinedLoopContents(
                         "update_elems {:u} do_break {:u} use_context_in {:u} "
                         "last_iter_broke_in {:u}",
                         name_prefix),
-        loc);
+        /*verbosity=*/0, loc);
   }
 
   std::vector<xls::BValue> out_tuple_values;

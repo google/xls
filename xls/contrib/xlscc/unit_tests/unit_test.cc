@@ -347,9 +347,9 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
 
 static absl::Status LogInterpreterEvents(std::string_view entity_name,
                                          const xls::InterpreterEvents& events) {
-  for (const auto& msg : events.trace_msgs) {
+  for (const xls::TraceMessage& msg : events.trace_msgs) {
     std::string unescaped_msg;
-    XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
+    XLS_RET_CHECK(absl::CUnescape(msg.message, &unescaped_msg));
     XLS_LOG(INFO) << "Proc " << entity_name << " trace: " << unescaped_msg;
   }
   for (const auto& msg : events.assert_msgs) {

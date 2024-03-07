@@ -151,8 +151,8 @@ class SideEffectConditionPassTest
       XLS_ASSIGN_OR_RETURN(BlockRunResult result,
                            BlockRun(input_set, reg_state, block));
       XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(result.interpreter_events));
-      for (std::string& trace : result.interpreter_events.trace_msgs) {
-        traces.push_back(std::move(trace));
+      for (TraceMessage& trace : result.interpreter_events.trace_msgs) {
+        traces.push_back(std::move(trace.message));
       }
       reg_state = std::move(result.reg_state);
     }

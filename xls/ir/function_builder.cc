@@ -1403,7 +1403,8 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
 BValue BuilderBase::Trace(BValue token, BValue condition,
                           absl::Span<const BValue> args,
                           absl::Span<const FormatStep> format,
-                          const SourceInfo& loc, std::string_view name) {
+                          int64_t verbosity, const SourceInfo& loc,
+                          std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1442,13 +1443,19 @@ BValue BuilderBase::Trace(BValue token, BValue condition,
     arg_nodes.push_back(arg.node());
   }
 
+  if (verbosity < 0) {
+    return SetError(
+        absl::StrFormat("Trace verbosity must be >= 0, got %d", verbosity),
+        loc);
+  }
+
   return AddNode<xls::Trace>(loc, token.node(), condition.node(), arg_nodes,
-                             format, name);
+                             format, verbosity, name);
 }
 
 BValue BuilderBase::Trace(BValue token, BValue condition,
                           absl::Span<const BValue> args,
-                          std::string_view format_string,
+                          std::string_view format_string, int64_t verbosity,
                           const SourceInfo& loc, std::string_view name) {
   auto parse_status = ParseFormatString(format_string);
 
@@ -1456,7 +1463,8 @@ BValue BuilderBase::Trace(BValue token, BValue condition,
     return SetError(parse_status.status().message(), loc);
   }
 
-  return Trace(token, condition, args, parse_status.value(), loc, name);
+  return Trace(token, condition, args, parse_status.value(), verbosity, loc,
+               name);
 }
 
 BValue BuilderBase::Cover(BValue token, BValue condition,
