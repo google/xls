@@ -54,13 +54,15 @@ absl::StatusOr<bool> TraceVerbosityPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
   bool changed = false;
-  // for (const auto& [block, metadata] : unit->metadata) {
   XLS_ASSIGN_OR_RETURN(
       bool block_changed,
       FilterVerboseTraces(unit->block,
                           options.codegen_options.max_trace_verbosity()));
   changed = changed || block_changed;
-  // }
+
+  if (changed) {
+    unit->GcMetadata();
+  }
 
   return changed;
 }

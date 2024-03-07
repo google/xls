@@ -36,7 +36,7 @@ using TraceVerbosityPassTest = IrTestBase;
 using ::testing::Contains;
 using ::testing::Eq;
 using ::testing::Gt;
-using ::testing::status::IsOkAndHolds;
+using ::xls::status_testing::IsOkAndHolds;
 
 namespace m = ::xls::op_matchers;
 
