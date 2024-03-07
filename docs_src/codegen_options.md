@@ -178,6 +178,8 @@ Some names can be set at codegen via the following flags:
 -   `--separate_lines` causes every subexpression to be emitted on a separate
     line. False by default.
 -   `--multi_proc` causes every proc to be codegen'd.
+-   `max_trace_verbosity` is the maximum verbosity allowed for traces. Traces
+    with higher verbosity are stripped from codegen output. 0 by default.
 
 ## Format Strings
 

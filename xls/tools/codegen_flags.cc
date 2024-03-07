@@ -135,6 +135,9 @@ ABSL_FLAG(bool, gate_recvs, true,
 ABSL_FLAG(bool, array_index_bounds_checking, true,
           "If true, emit bounds checking on array-index operations in Verilog. "
           "Otherwise, the bounds checking is not evaluated.");
+ABSL_FLAG(int64_t, max_trace_verbosity, 0,
+          "Maximum verbosity for traces. Traces with higher verbosity are "
+          "stripped from codegen output. 0 by default.");
 ABSL_FLAG(std::string, codegen_options_proto, "",
           "Path to a protobuf containing all codegen args.");
 ABSL_FLAG(std::optional<std::string>, codegen_options_used_textproto_file,
@@ -142,8 +145,7 @@ ABSL_FLAG(std::optional<std::string>, codegen_options_used_textproto_file,
           "If present, path to write a protobuf recording all codegen args "
           "used (including those set on the cmd line).");
 // LINT.ThenChange(
-//   //xls/build_rules/xls_codegen_rules.bzl,
-//   //xls/build_rules/xls_build_defs.bzl,
+//   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
 // )
 

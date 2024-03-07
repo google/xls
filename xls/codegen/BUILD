@@ -471,6 +471,7 @@ cc_library(
         ":register_legalization_pass",
         ":side_effect_condition_pass",
         ":signature_generation_pass",
+        ":trace_verbosity_pass",
         "//xls/ir",
         "//xls/passes:dce_pass",
         "//xls/passes:identity_removal_pass",
@@ -1398,6 +1399,38 @@ cc_library(
         ":codegen_pass",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "trace_verbosity_pass",
+    srcs = ["trace_verbosity_pass.cc"],
+    hdrs = ["trace_verbosity_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "trace_verbosity_pass_test",
+    srcs = ["trace_verbosity_pass_test.cc"],
+    deps = [
+        ":codegen_pass",
+        ":trace_verbosity_pass",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
     ],
 )

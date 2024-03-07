@@ -234,6 +234,12 @@ class CodegenOptions {
     return ram_configurations_;
   }
 
+  int64_t max_trace_verbosity() const { return max_trace_verbosity_; }
+  CodegenOptions& set_max_trace_verbosity(int64_t value) {
+    max_trace_verbosity_ = value;
+    return *this;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -257,6 +263,7 @@ class CodegenOptions {
   bool array_index_bounds_checking_ = true;
   bool gate_recvs_ = true;
   std::vector<std::unique_ptr<RamConfiguration>> ram_configurations_;
+  int64_t max_trace_verbosity_ = 0;
 };
 
 }  // namespace xls::verilog

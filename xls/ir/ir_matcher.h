@@ -237,6 +237,7 @@ NODE_MATCHER(Shra);
 NODE_MATCHER(Shrl);
 NODE_MATCHER(SignExt);
 NODE_MATCHER(Sub);
+NODE_MATCHER(Trace);
 NODE_MATCHER(Tuple);
 NODE_MATCHER(UDiv);
 NODE_MATCHER(UGe);
@@ -903,6 +904,31 @@ inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate(
 
 inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate() {
   return ::xls::op_matchers::NodeMatcher(Op::kArrayUpdate, {});
+}
+
+// Trace matcher. Supported forms:
+//
+// EXPECT_THAT(foo, m::Trace());
+// EXPECT_THAT(foo, m::Trace({tok, condition, args}));
+// EXPECT_THAT(foo, m::Trace(verbosity))
+//
+class TraceVerbosityMatcher : public NodeMatcher {
+ public:
+  explicit TraceVerbosityMatcher(::testing::Matcher<int64_t> verbosity)
+      : NodeMatcher(Op::kTrace, /*operands=*/{}),
+        verbosity_(std::move(verbosity)) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(::std::ostream* os) const override;
+
+ private:
+  ::testing::Matcher<int64_t> verbosity_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> TraceWithVerbosity(
+    ::testing::Matcher<int64_t> verbosity) {
+  return ::xls::op_matchers::TraceVerbosityMatcher(std::move(verbosity));
 }
 
 // InputPort matcher. Supported forms:

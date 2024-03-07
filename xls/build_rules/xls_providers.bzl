@@ -102,6 +102,9 @@ CODEGEN_FIELDS = {
                   "receive operation in Verilog.",
     "array_index_bounds_checking": "If true, emit bounds checking on " +
                                    "array-index operations in Verilog.",
+    "max_trace_verbosity": "Maximum verbosity for traces. Traces with higher " +
+                           "verbosity are stripped from codegen output. 0 by " +
+                           "default.",
 }
 
 SCHEDULING_FIELDS = {

@@ -423,6 +423,27 @@ void ChannelNodeMatcher::DescribeTo(::std::ostream* os) const {
   NodeMatcher::DescribeToHelper(os, fields);
 }
 
+bool TraceVerbosityMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (!verbosity_.MatchAndExplain(node->As<::xls::Trace>()->verbosity(),
+                                  listener)) {
+    return false;
+  }
+  return true;
+}
+
+void TraceVerbosityMatcher::DescribeTo(::std::ostream* os) const {
+  std::stringstream ss;
+  ss << "trace_verbosity=\"";
+  verbosity_.DescribeTo(&ss);
+  ss << '"';
+  std::array<std::string, 1> additional_fields = {ss.str()};
+  DescribeToHelper(os, additional_fields);
+}
+
 bool InputPortMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!NodeMatcher::MatchAndExplain(node, listener)) {

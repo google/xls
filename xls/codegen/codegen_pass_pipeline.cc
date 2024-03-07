@@ -32,6 +32,7 @@
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/side_effect_condition_pass.h"
 #include "xls/codegen/signature_generation_pass.h"
+#include "xls/codegen/trace_verbosity_pass.h"
 #include "xls/ir/block.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/identity_removal_pass.h"
@@ -77,6 +78,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Create instantiations from ffi invocations.
   top->Add<FfiInstantiationPass>();
+
+  // Filter out traces filtered by verbosity config.
+  top->Add<TraceVerbosityPass>();
 
   // Update assert conditions to be guarded by pipeline_valid signals.
   top->Add<SideEffectConditionPass>();

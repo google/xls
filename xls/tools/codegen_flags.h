@@ -15,6 +15,8 @@
 #ifndef XLS_TOOLS_CODEGEN_FLAGS_H_
 #define XLS_TOOLS_CODEGEN_FLAGS_H_
 
+#include <cstdint>
+#include <optional>
 #include <string>
 
 #include "absl/flags/declare.h"
@@ -30,6 +32,7 @@ ABSL_DECLARE_FLAG(std::string, output_verilog_line_map_path);
 ABSL_DECLARE_FLAG(std::string, top);
 ABSL_DECLARE_FLAG(std::optional<std::string>,
                   codegen_options_used_textproto_file);
+ABSL_DECLARE_FLAG(int64_t, max_trace_verbosity);
 
 namespace xls {
 
