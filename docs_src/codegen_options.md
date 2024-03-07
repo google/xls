@@ -70,13 +70,19 @@ control the scheduler.
 -   `--worst_case_throughput=...` sets the worst-case throughput bound to use
     when `--generator=pipeline`. If set, allows scheduling a pipeline with
     worst-case throughput no slower than once per N cycles (assuming no stalling
-    `recv`s).
+    `recv`s). If not set, defaults to 1.
+
+    NOTE: If set to 0 or a negative value, no throughput minimum will be
+    enforced.
+
 -   `--additional_input_delay_ps=...` adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
     RTL.
+
 -   `--ffi_fallback_delay_ps=...` Delay of foreign function calls if not
     otherwise specified. If there is no measurement or configuration for the
     delay of an invoked modules, this is the value used in the scheduler.
+
 -   `--io_constraints=...` adds constraints to the scheduler. The flag takes a
     comma-separated list of constraints of the form `foo:send:bar:recv:3:5`
     which means that sends on channel `foo` must occur between 3 and 5 cycles
@@ -89,9 +95,11 @@ control the scheduler.
     example of the use of this, see
     [this example](https://github.com/google/xls/tree/main/xls/examples/constraint.x) and
     the associated BUILD rule.
+
 -   `explain_infeasibility` configures what to do if scheduling fails. If set,
     the scheduling problem is reformulated with extra slack variables in an
     attempt to explain why scheduling failed.
+
 -   `infeasible_per_state_backedge_slack_pool` If specified, the specified value
     must be > 0. Setting this configures how the scheduling problem is
     reformulated in the case that scheduling fails. If specified, this value
@@ -102,9 +110,9 @@ control the scheduler.
     slack variable is preferred. Increasing this value should give more specific
     information about how much slack each failing backedge needs at the cost of
     less actionable and harder to understand output.
+
 -   `--scheduling_options_used_textproto_file` is the path to write a textproto
     containing the actual configuration used for scheduling.
-
 
 # Feedback-driven Optimization (FDO) Options
 

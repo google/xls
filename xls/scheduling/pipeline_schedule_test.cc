@@ -1071,6 +1071,38 @@ TEST_F(PipelineScheduleTest, SuggestReducedThroughputWhenFullThroughputFails) {
                              Not(HasSubstr("--pipeline_stages")))));
 }
 
+TEST_F(PipelineScheduleTest, UnboundedThroughputWorks) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue delay = pb.MinDelay(send, /*delay=*/2);
+  BValue rcv = pb.Receive(ch_in, /*token=*/delay);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          proc, *delay_estimator,
+          SchedulingOptions().pipeline_stages(5).worst_case_throughput(0)));
+  EXPECT_EQ(schedule.length(), 5);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 2);
+}
+
 TEST_F(PipelineScheduleTest,
        SuggestReducedThroughputWhenFullThroughputFailsWithClockGiven) {
   Package package = Package(TestName());

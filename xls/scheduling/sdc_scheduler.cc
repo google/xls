@@ -291,6 +291,10 @@ absl::Status SDCSchedulingModel::AddBackedgeConstraints(
     return absl::OkStatus();
   }
   const int64_t II = proc->GetInitiationInterval().value_or(1);
+  if (II <= 0) {
+    // Worst-case throughput constraint is disabled.
+    return absl::OkStatus();
+  }
 
   using StateIndex = int64_t;
   for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {

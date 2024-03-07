@@ -68,7 +68,9 @@ ABSL_FLAG(int64_t, worst_case_throughput, 1,
           "Allow scheduling a pipeline with worst-case throughput no slower "
           "than once per N cycles. If unspecified, enforce throughput 1. Note: "
           "a higher value for --worst_case_throughput *decreases* the "
-          "worst-case throughput, since this controls inverse throughput.");
+          "worst-case throughput, since this controls inverse throughput.\n"
+          "\n"
+          "If zero or negative, no throughput bound will be enforced.");
 ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each receive node.");
 ABSL_FLAG(int64_t, ffi_fallback_delay_ps, 0,

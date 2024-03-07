@@ -226,24 +226,24 @@ absl::Status PipelineSchedule::Verify() const {
   }
   if (function_base()->IsProc()) {
     Proc* proc = function_base()->AsProcOrDie();
-    for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-      Node* param = proc->GetStateParam(index);
-      Node* next_state = proc->GetNextStateElement(index);
-      // Verify that we determine the new state within II cycles of accessing
-      // the current param.
-      XLS_RET_CHECK_LT(
-          cycle(next_state),
-          cycle(param) + proc->GetInitiationInterval().value_or(1));
-    }
-    for (Next* next : proc->next_values()) {
-      Node* param = next->param();
-      // Verify that no write happens before the corresponding read.
-      XLS_RET_CHECK_LE(cycle(param), cycle(next));
-      // Verify that we determine the new state within II cycles of accessing
-      // the current param.
-      XLS_RET_CHECK_LT(
-          cycle(next),
-          cycle(param) + proc->GetInitiationInterval().value_or(1));
+    int64_t worst_case_throughput = proc->GetInitiationInterval().value_or(1);
+    if (worst_case_throughput >= 1) {
+      for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
+        Node* param = proc->GetStateParam(index);
+        Node* next_state = proc->GetNextStateElement(index);
+        // Verify that we determine the new state within II cycles of accessing
+        // the current param.
+        XLS_RET_CHECK_LT(cycle(next_state),
+                         cycle(param) + worst_case_throughput);
+      }
+      for (Next* next : proc->next_values()) {
+        Node* param = next->param();
+        // Verify that no write happens before the corresponding read.
+        XLS_RET_CHECK_LE(cycle(param), cycle(next));
+        // Verify that we determine the new state within II cycles of accessing
+        // the current param.
+        XLS_RET_CHECK_LT(cycle(next), cycle(param) + worst_case_throughput);
+      }
     }
   }
   // Verify initial nodes in cycle 0. Final nodes in final cycle.
@@ -452,6 +452,10 @@ absl::Status PipelineSchedule::VerifyConstraints(
         continue;
       }
       const int64_t max_backedge = worst_case_throughput.value_or(1) - 1;
+      if (max_backedge < 0) {
+        // Worst-case throughput constraint is disabled.
+        continue;
+      }
       Proc* proc = function_base_->AsProcOrDie();
       for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
         Param* param = proc->GetStateParam(index);
