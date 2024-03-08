@@ -803,6 +803,12 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
+dslx_lang_test(
+    name = "quickcheck_value_is_one_hot",
+    # Primarily a #[quickcheck] function.
+    convert_to_ir = False,
+)
+
 dslx_lang_test(name = "for_up_to_const")
 
 dslx_lang_test(name = "for_up_to_const_local")
