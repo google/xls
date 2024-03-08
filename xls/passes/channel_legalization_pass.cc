@@ -716,8 +716,8 @@ void MakeDebugTrace(BValue condition,
     pred_recv_tokens.push_back(activation.pred_recv_token);
     absl::StrAppend(&format_string, node->GetName(), ":\t{}\t{}\t{}\n");
   }
-  BValue trace_tkn =
-      pb.Trace(pb.AfterAll(pred_recv_tokens), condition, args, format_string);
+  BValue trace_tkn = pb.Trace(pb.AfterAll(pred_recv_tokens), condition, args,
+                              format_string, /*verbosity=*/3);
   for (const auto& [node, _] : token_dag) {
     activations.at(node).pred_recv_token = trace_tkn;
   }
