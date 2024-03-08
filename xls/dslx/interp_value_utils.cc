@@ -34,7 +34,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"

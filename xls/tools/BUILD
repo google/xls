@@ -1363,7 +1363,7 @@ cc_binary(
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/ir_convert:ir_converter",
-        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck_module",
         "//xls/ir",

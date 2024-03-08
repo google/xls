@@ -306,7 +306,7 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
-        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
@@ -742,7 +742,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",
-        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:unwrap_meta_type",
         "@com_google_absl//absl/log:check",
@@ -806,7 +806,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:channel_direction",
         "//xls/dslx:interp_value",
-        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type",
     ],
 )
 
@@ -876,7 +876,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:number_parser",
@@ -902,7 +902,7 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type",
     ],
 )
 

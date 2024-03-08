@@ -51,7 +51,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
-#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/warning_collector.h"

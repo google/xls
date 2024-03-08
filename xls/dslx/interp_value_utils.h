@@ -24,7 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
 

@@ -20,7 +20,7 @@
 
 #include "absl/strings/str_format.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
 

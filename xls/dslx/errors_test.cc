@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
 namespace {

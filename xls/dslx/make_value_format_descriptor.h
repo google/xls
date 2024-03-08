@@ -17,7 +17,7 @@
 
 #include <memory>
 
-#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/value_format_descriptor.h"
 
 namespace xls::dslx {

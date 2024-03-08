@@ -19,8 +19,8 @@
 #include <string>
 
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
 

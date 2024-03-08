@@ -20,8 +20,8 @@
 #include <cstdint>
 
 #include "absl/status/statusor.h"
-#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 

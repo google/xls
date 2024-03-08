@@ -17,8 +17,8 @@
 
 #include <memory>
 
-#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
 

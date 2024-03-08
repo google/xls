@@ -24,9 +24,9 @@ package(
 )
 
 cc_library(
-    name = "concrete_type",
-    srcs = ["concrete_type.cc"],
-    hdrs = ["concrete_type.h"],
+    name = "type",
+    srcs = ["type.cc"],
+    hdrs = ["type.h"],
     deps = [
         ":parametric_expression",
         "@com_google_absl//absl/log:check",
@@ -47,11 +47,11 @@ cc_library(
 )
 
 cc_test(
-    name = "concrete_type_test",
-    srcs = ["concrete_type_test.cc"],
+    name = "type_test",
+    srcs = ["type_test.cc"],
     deps = [
-        ":concrete_type",
         ":parametric_expression",
+        ":type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
@@ -70,9 +70,9 @@ cc_library(
     srcs = ["deduce_ctx.cc"],
     hdrs = ["deduce_ctx.h"],
     deps = [
-        ":concrete_type",
         ":parametric_env",
         ":parametric_expression",
+        ":type",
         ":type_and_parametric_env",
         ":type_info",
         ":type_mismatch_error_data",
@@ -107,16 +107,16 @@ cc_library(
     ],
     hdrs = ["deduce.h"],
     deps = [
-        ":concrete_type",
-        ":concrete_type_zero_value",
         ":deduce_ctx",
         ":deduce_utils",
         ":parametric_constraint",
         ":parametric_env",
         ":parametric_expression",
         ":parametric_instantiator",
+        ":type",
         ":type_and_parametric_env",
         ":type_info",
+        ":type_zero_value",
         ":unwrap_meta_type",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",
@@ -161,7 +161,7 @@ cc_library(
     srcs = ["parametric_constraint.cc"],
     hdrs = ["parametric_constraint.h"],
     deps = [
-        ":concrete_type",
+        ":type",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "//xls/dslx/frontend:ast",
@@ -174,13 +174,13 @@ cc_library(
     srcs = ["parametric_instantiator_internal.cc"],
     hdrs = ["parametric_instantiator_internal.h"],
     deps = [
-        ":concrete_type",
         ":deduce_ctx",
         ":parametric_bind",
         ":parametric_constraint",
         ":parametric_env",
         ":parametric_expression",
         ":scoped_fn_stack_entry",
+        ":type",
         ":type_and_parametric_env",
         ":type_info",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -214,10 +214,10 @@ cc_library(
     srcs = ["parametric_instantiator.cc"],
     hdrs = ["parametric_instantiator.h"],
     deps = [
-        ":concrete_type",
         ":deduce_ctx",
         ":parametric_constraint",
         ":parametric_instantiator_internal",
+        ":type",
         ":type_and_parametric_env",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
@@ -235,7 +235,7 @@ cc_library(
     name = "type_mismatch_error_data",
     hdrs = ["type_mismatch_error_data.h"],
     deps = [
-        ":concrete_type",
+        ":type",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
     ],
@@ -246,7 +246,7 @@ cc_library(
     srcs = ["maybe_explain_error.cc"],
     hdrs = ["maybe_explain_error.h"],
     deps = [
-        ":concrete_type",
+        ":type",
         ":type_mismatch_error_data",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
@@ -263,10 +263,10 @@ cc_library(
     srcs = ["instantiate_parametric_function.cc"],
     hdrs = ["instantiate_parametric_function.h"],
     deps = [
-        ":concrete_type",
         ":deduce_ctx",
         ":parametric_constraint",
         ":parametric_instantiator",
+        ":type",
         ":type_and_parametric_env",
         ":type_info",
         ":unwrap_meta_type",
@@ -291,7 +291,6 @@ cc_library(
     srcs = ["typecheck_invocation.cc"],
     hdrs = ["typecheck_invocation.h"],
     deps = [
-        ":concrete_type",
         ":deduce",
         ":deduce_ctx",
         ":deduce_utils",
@@ -299,6 +298,7 @@ cc_library(
         ":parametric_constraint",
         ":parametric_env",
         ":scoped_fn_stack_entry",
+        ":type",
         ":type_and_parametric_env",
         ":type_info",
         ":unwrap_meta_type",
@@ -337,11 +337,11 @@ cc_library(
     srcs = ["typecheck_module.cc"],
     hdrs = ["typecheck_module.h"],
     deps = [
-        ":concrete_type",
         ":deduce",
         ":deduce_ctx",
         ":maybe_explain_error",
         ":scoped_fn_stack_entry",
+        ":type",
         ":type_info",
         ":type_mismatch_error_data",
         ":typecheck_function",
@@ -452,11 +452,11 @@ cc_test(
 )
 
 cc_library(
-    name = "concrete_type_zero_value",
-    srcs = ["concrete_type_zero_value.cc"],
-    hdrs = ["concrete_type_zero_value.h"],
+    name = "type_zero_value",
+    srcs = ["type_zero_value.cc"],
+    hdrs = ["type_zero_value.h"],
     deps = [
-        ":concrete_type",
+        ":type",
         ":type_info",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -499,8 +499,8 @@ cc_library(
     srcs = ["type_info_to_proto.cc"],
     hdrs = ["type_info_to_proto.h"],
     deps = [
-        ":concrete_type",
         ":parametric_expression",
+        ":type",
         ":type_info",
         ":type_info_cc_proto",
         "@com_google_absl//absl/status",
@@ -541,8 +541,8 @@ cc_library(
     name = "type_and_parametric_env",
     hdrs = ["type_and_parametric_env.h"],
     deps = [
-        ":concrete_type",
         ":parametric_env",
+        ":type",
     ],
 )
 
@@ -551,8 +551,8 @@ cc_library(
     srcs = ["type_info.cc"],
     hdrs = ["type_info.h"],
     deps = [
-        ":concrete_type",
         ":parametric_env",
+        ":type",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/memory",
@@ -599,8 +599,8 @@ cc_library(
     srcs = ["parametric_bind.cc"],
     hdrs = ["parametric_bind.h"],
     deps = [
-        ":concrete_type",
         ":deduce_ctx",
+        ":type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
@@ -615,10 +615,10 @@ cc_test(
     name = "parametric_bind_test",
     srcs = ["parametric_bind_test.cc"],
     deps = [
-        ":concrete_type",
         ":deduce_ctx",
         ":parametric_bind",
         ":parametric_expression",
+        ":type",
         "@com_google_absl//absl/container:flat_hash_map",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -634,7 +634,7 @@ cc_library(
     srcs = ["unwrap_meta_type.cc"],
     hdrs = ["unwrap_meta_type.h"],
     deps = [
-        ":concrete_type",
+        ":type",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:ret_check",
@@ -704,8 +704,8 @@ cc_library(
     srcs = ["warn_on_defined_but_unused.cc"],
     hdrs = ["warn_on_defined_but_unused.h"],
     deps = [
-        ":concrete_type",
         ":deduce_ctx",
+        ":type",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -723,8 +723,8 @@ cc_library(
     srcs = ["deduce_utils.cc"],
     hdrs = ["deduce_utils.h"],
     deps = [
-        ":concrete_type",
         ":deduce_ctx",
+        ":type",
         ":type_info",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -753,8 +753,8 @@ cc_test(
     name = "deduce_utils_test",
     srcs = ["deduce_utils_test.cc"],
     deps = [
-        ":concrete_type",
         ":deduce_utils",
+        ":type",
         ":type_info",
         "@com_google_absl//absl/status",
         "//xls/common:casts",
@@ -776,10 +776,10 @@ cc_library(
     srcs = ["typecheck_function.cc"],
     hdrs = ["typecheck_function.h"],
     deps = [
-        ":concrete_type",
         ":deduce",
         ":deduce_ctx",
         ":parametric_env",
+        ":type",
         ":type_info",
         ":typecheck_invocation",
         ":unwrap_meta_type",
