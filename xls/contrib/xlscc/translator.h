@@ -1592,8 +1592,8 @@ class Translator {
     absl::flat_hash_map<const IOOp*, int64_t> return_index_for_op;
     absl::flat_hash_map<const clang::NamedDecl*, int64_t>
         return_index_for_static;
-    absl::flat_hash_map<const clang::NamedDecl*, xls::BValue>
-        state_element_for_static;
+    absl::flat_hash_map<const clang::NamedDecl*, xls::Param*>
+        state_element_for_variable;
     xls::BValue token;
     bool contains_fsm = false;
   };
@@ -1651,8 +1651,7 @@ class Translator {
   absl::Status GenerateDefaultIOOps(PreparedBlock& prepared,
                                     xls::ProcBuilder& pb,
                                     const xls::SourceInfo& body_loc);
-  absl::Status GenerateDefaultIOOp(xls::Channel* channel,
-                                   bool is_send,
+  absl::Status GenerateDefaultIOOp(xls::Channel* channel, bool is_send,
                                    std::vector<xls::BValue>& final_tokens,
                                    xls::ProcBuilder& pb,
                                    const xls::SourceInfo& loc);
@@ -1674,20 +1673,34 @@ class Translator {
     xls::BValue in_this_state;
   };
 
+  struct NextStateValue {
+    // When the condition is true for multiple next state values,
+    // the one with the lower priority is taken.
+    // Whenever more than one next value is specified,
+    // a priority must be specified, and all conditions must be valid.
+    int64_t priority = -1L;
+    std::string extra_label = "";
+    xls::BValue value;
+    // condition being invalid indicates unconditional update (literal 1)
+    xls::BValue condition;
+  };
+
   struct GenerateFSMInvocationReturn {
     xls::BValue return_value;
     xls::BValue returns_this_activation;
-    std::vector<xls::BValue> extra_next_state_values;
+    absl::btree_multimap<const xls::Param*, NextStateValue>
+        extra_next_state_values;
   };
 
   absl::StatusOr<GenerateFSMInvocationReturn> GenerateFSMInvocation(
-      PreparedBlock& prepared, xls::ProcBuilder& pb,
+      PreparedBlock& prepared, xls::ProcBuilder& pb, int nesting_level,
       const xls::SourceInfo& body_loc);
 
   struct SubFSMReturn {
     xls::BValue exit_state_condition;
     xls::BValue return_value;
-    std::vector<xls::BValue> extra_next_state_values;
+    absl::btree_multimap<const xls::Param*, NextStateValue>
+        extra_next_state_values;
   };
   // Generates a sub-FSM for a state containing a sub-proc
   // Ignores the associated IO ops (context send/receive)
@@ -1696,7 +1709,8 @@ class Translator {
       PreparedBlock& outer_prepared, xls::ProcBuilder& pb,
       const State& outer_state, const std::string& fsm_prefix,
       absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
-      xls::BValue first_ret_val, const xls::SourceInfo& body_loc);
+      xls::BValue first_ret_val, int outer_nesting_level,
+      const xls::SourceInfo& body_loc);
 
   // Generates only the listed ops. A token network will be created between
   // only these ops.
@@ -1840,13 +1854,19 @@ class Translator {
     xls::BValue do_break;
     xls::BValue first_iter;
     xls::BValue out_tuple;
-    std::vector<xls::BValue> extra_next_state_values;
+    absl::btree_multimap<const xls::Param*, NextStateValue>
+        extra_next_state_values;
   };
 
+  // If not nullptr, state_element_for_variable is used in generating the loop
+  // body, and updated for any new state elements created inside.
   absl::StatusOr<PipelinedLoopContentsReturn> GenerateIR_PipelinedLoopContents(
       const PipelinedLoopSubProc& pipelined_loop_proc, xls::ProcBuilder& pb,
       xls::BValue token_in, xls::BValue received_context_tuple,
-      xls::BValue in_state_condition, bool in_fsm);
+      xls::BValue in_state_condition, bool in_fsm,
+      absl::flat_hash_map<const clang::NamedDecl*, xls::Param*>*
+          state_element_for_variable = nullptr,
+      int nesting_level = -1);
 
   absl::Status SendLValueConditions(const std::shared_ptr<LValue>& lvalue,
                                     std::vector<xls::BValue>* lvalue_conditions,
@@ -2074,6 +2094,14 @@ class Translator {
                                                xls::BValue slice_to_write,
                                                const xls::SourceInfo& loc);
   int64_t ArrayBValueWidth(xls::BValue array_bval);
+
+  // Creates a properly ordered list of next values to pass to
+  // ProcBuilder::Build()
+  absl::StatusOr<xls::Proc*> BuildWithNextStateValueMap(
+      xls::ProcBuilder& pb, xls::BValue token,
+      const absl::btree_multimap<const xls::Param*, NextStateValue>&
+          next_state_values,
+      const xls::SourceInfo& loc);
 
  public:
   // This version is public because it needs to be accessed by CStructType

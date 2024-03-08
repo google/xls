@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstdint>
 #include <list>
 #include <memory>
@@ -46,14 +47,12 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-
-// TODO(seanhaskell): Turn this back on when dynamic state feedback lands
-// b/321982824
-#define USE_PROC_BUILDER_NEXT 0
 
 using std::shared_ptr;
 using std::string;
@@ -364,12 +363,24 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                              /*next_return_index=*/0, this_type, this_decl,
                              top_decls, body_loc));
 
-  XLS_ASSIGN_OR_RETURN(GenerateFSMInvocationReturn fsm_ret,
-                       GenerateFSMInvocation(prepared, pb, body_loc));
+  XLS_ASSIGN_OR_RETURN(
+      GenerateFSMInvocationReturn fsm_ret,
+      GenerateFSMInvocation(prepared, pb, /*nesting_level=*/0, body_loc));
 
   XLSCC_CHECK(
       fsm_ret.return_value.valid() && fsm_ret.returns_this_activation.valid(),
       body_loc);
+
+  if (generate_fsms_for_pipelined_loops_ &&
+      (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
+    xls::BValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
+    prepared.token =
+        pb.Trace(prepared.token, literal_1,
+                 /*args=*/
+                 {fsm_ret.returns_this_activation},
+                 absl::StrFormat("-- %s fsm_ret {:u}", block.name()),
+                 /*verbosity=*/0, body_loc);
+  }
 
   // Generate default ops for unused external channels
   XLS_RETURN_IF_ERROR(GenerateDefaultIOOps(prepared, pb, body_loc));
@@ -380,61 +391,48 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   CHECK(context().fb == &pb);
 
-  std::vector<xls::BValue> next_state_values;
+  absl::btree_multimap<const xls::Param*, NextStateValue> next_state_values;
+
+  std::vector<const clang::NamedDecl*> next_static_value_decls;
 
   if (this_decl != nullptr) {
-    const int64_t ret_idx = prepared.return_index_for_static.at(this_decl);
-    xls::BValue next_val =
-        GetFlexTupleField(fsm_ret.return_value, ret_idx,
-                          prepared.xls_func->return_value_count, body_loc);
-    xls::BValue prev_val = prepared.state_element_for_static.at(this_decl);
-
-#if USE_PROC_BUILDER_NEXT
-    pb.Next(/*param=*/prev_val,
-            /*value=*/next_val,
-            /*pred=*/fsm_ret.returns_this_activation, body_loc);
-#else
-    next_state_values.push_back(pb.Select(fsm_ret.returns_this_activation,
-                                          /*on_true=*/next_val,
-                                          /*on_false=*/prev_val, body_loc));
-#endif
+    next_static_value_decls.push_back(this_decl);
   }
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
+    next_static_value_decls.push_back(namedecl);
+  }
+
+  for (const clang::NamedDecl* namedecl : next_static_value_decls) {
     const int64_t ret_idx = prepared.return_index_for_static.at(namedecl);
     xls::BValue next_val =
         GetFlexTupleField(fsm_ret.return_value, ret_idx,
                           prepared.xls_func->return_value_count, body_loc);
-    xls::BValue prev_val = prepared.state_element_for_static.at(namedecl);
+    xls::Param* state_elem = prepared.state_element_for_variable.at(namedecl);
+    xls::BValue prev_val(state_elem, &pb);
 
     XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
-#if USE_PROC_BUILDER_NEXT
+
+    NextStateValue next_state_value = {.priority = 0,
+                                       .extra_label = block.name()};
+
     if (!is_on_reset) {
-      pb.Next(/*param=*/prev_val,
-              /*value=*/next_val, /*pred=*/fsm_ret.returns_this_activation,
-              body_loc);
+      next_state_value.value = next_val;
+      next_state_value.condition = fsm_ret.returns_this_activation;
     } else {
-      pb.Next(/*param=*/prev_val,
-              /*value=*/pb.Literal(xls::Value(xls::UBits(0, 1)), body_loc),
-              /*pred=*/std::nullopt, body_loc);
+      next_state_value.value = pb.Literal(xls::Value(xls::UBits(0, 1)));
     }
-#else
-    if (!is_on_reset) {
-      next_state_values.push_back(pb.Select(fsm_ret.returns_this_activation,
-                                            /*on_true=*/next_val,
-                                            /*on_false=*/prev_val, body_loc));
-    } else {
-      next_state_values.push_back(pb.Literal(xls::Value(xls::UBits(0, 1))));
-    }
-#endif
+    next_state_values.insert(
+        {prev_val.node()->As<xls::Param>(), next_state_value});
   }
 
-  for (const xls::BValue& value : fsm_ret.extra_next_state_values) {
-    next_state_values.push_back(value);
+  for (const auto& [state_elem, bval] : fsm_ret.extra_next_state_values) {
+    next_state_values.insert({state_elem, bval});
   }
 
-  return pb.Build(prepared.token, next_state_values);
+  return BuildWithNextStateValueMap(pb, prepared.token, next_state_values,
+                                    body_loc);
 }
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
@@ -637,6 +635,7 @@ absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
 
 absl::StatusOr<Translator::GenerateFSMInvocationReturn>
 Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
+                                  int nesting_level,
                                   const xls::SourceInfo& body_loc) {
   // Create a deterministic ordering for the last state elements
   // (These store the received inputs for IO operations)
@@ -768,11 +767,10 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
   go_to_next_state_by_state.resize(states.size(),
                                    pb.Literal(xls::UBits(1, 1), body_loc));
 
-  std::vector<xls::BValue> sub_fsm_next_values;
-
   xls::BValue last_ret_val;
 
-  std::vector<xls::BValue> sub_fsm_next_state_values;
+  absl::btree_multimap<const xls::Param*, NextStateValue>
+      sub_fsm_next_state_values;
 
   absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
 
@@ -843,12 +841,15 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
       sink_tokens.push_back(prepared.token);
     } else {
-      XLS_ASSIGN_OR_RETURN(SubFSMReturn sub_fsm_ret,
-                           GenerateSubFSM(prepared, pb, *state, fsm_prefix,
-                                          op_tokens, last_ret_val, body_loc));
+      XLS_ASSIGN_OR_RETURN(
+          SubFSMReturn sub_fsm_ret,
+          GenerateSubFSM(prepared, pb, *state, fsm_prefix, op_tokens,
+                         last_ret_val, /*outer_nesting_level=*/nesting_level,
+                         body_loc));
 
-      for (const xls::BValue& value : sub_fsm_ret.extra_next_state_values) {
-        sub_fsm_next_state_values.push_back(value);
+      for (const auto& [state_elem, bval] :
+           sub_fsm_ret.extra_next_state_values) {
+        sub_fsm_next_state_values.insert({state_elem, bval});
       }
 
       sink_tokens.push_back(prepared.token);
@@ -882,7 +883,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
   xls::BValue returns_this_activation_vars = go_to_next_state_by_state.at(0);
 
-  std::vector<xls::BValue> fsm_next_state_values;
+  absl::btree_multimap<const xls::Param*, NextStateValue> fsm_next_state_values;
 
   // Construct the next FSM state
   if (state_index.valid()) {
@@ -950,17 +951,14 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     std::vector<xls::BValue> next_state_elements = {next_state_index,
                                                     args_from_this_state};
 
-#if USE_PROC_BUILDER_NEXT
-    pb.Next(/*param=*/state_param,
-            /*value=*/pb.Tuple(next_state_elements, body_loc),
-            /*pred=*/std::nullopt, body_loc);
-#else
-    fsm_next_state_values.push_back(pb.Tuple(next_state_elements, body_loc));
-#endif
+    xls::BValue next_tuple = pb.Tuple(next_state_elements, body_loc);
+
+    fsm_next_state_values.insert({state_param.node()->As<xls::Param>(),
+                                  NextStateValue{.value = next_tuple}});
   }
 
-  for (const xls::BValue& value : sub_fsm_next_state_values) {
-    fsm_next_state_values.push_back(value);
+  for (const auto& [state_elem, bval] : sub_fsm_next_state_values) {
+    fsm_next_state_values.insert({state_elem, bval});
   }
 
   XLSCC_CHECK(last_ret_val.valid(), body_loc);
@@ -975,8 +973,11 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
     PreparedBlock& outer_prepared, xls::ProcBuilder& pb,
     const State& outer_state, const std::string& fsm_prefix,
     absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
-    xls::BValue first_ret_val, const xls::SourceInfo& body_loc) {
+    xls::BValue first_ret_val, int outer_nesting_level,
+    const xls::SourceInfo& body_loc) {
   XLSCC_CHECK(outer_state.in_this_state.valid(), body_loc);
+
+  const int nesting_level = outer_nesting_level + 1;
 
   // Find the sub proc for which to generate the sub FSM
   const PipelinedLoopSubProc* sub_proc_invoked = outer_state.sub_proc;
@@ -1029,7 +1030,10 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
                  /*name=*/
                  absl::StrFormat("%s_loop_contents_condition",
                                  sub_proc_invoked->name_prefix)),
-          /*in_fsm=*/true));
+          /*in_fsm=*/true,
+          /*state_element_for_variable=*/
+          &outer_prepared.state_element_for_variable,
+          /*nesting_level=*/nesting_level));
 
   outer_prepared.token = contents_ret.token_out;
 
@@ -1511,21 +1515,27 @@ Translator::GenerateIRBlockPrepare(
     XLS_ASSIGN_OR_RETURN(xls::Value this_init_val,
                          EvaluateBVal(this_cval.rvalue(), body_loc));
 
-    prepared.state_element_for_static[this_decl] =
-        pb.StateElement("this", this_init_val, body_loc);
+    xls::BValue elem_bval = pb.StateElement("this", this_init_val, body_loc);
 
-    prepared.args.push_back(prepared.state_element_for_static.at(this_decl));
+    // Don't need to worry about sharing for this, as it's only used at the top
+    // level (block as class)
+    prepared.state_element_for_variable[this_decl] =
+        elem_bval.node()->As<xls::Param>();
+    prepared.args.push_back(elem_bval);
   }
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
     const ConstValue& initval = prepared.xls_func->static_values.at(namedecl);
 
+    // Don't need to worry about sharing for this, as it's only used when a
+    // static variable is declared in the loop body
     xls::BValue state_elem = pb.StateElement(
         XLSNameMangle(clang::GlobalDecl(namedecl)), initval.rvalue(), body_loc);
 
     prepared.return_index_for_static[namedecl] = next_return_index++;
-    prepared.state_element_for_static[namedecl] = state_elem;
+    prepared.state_element_for_variable[namedecl] =
+        state_elem.node()->As<xls::Param>();
   }
 
   // This return
@@ -1598,8 +1608,9 @@ Translator::GenerateIRBlockPrepare(
         break;
       }
       case xlscc::SideEffectingParameterType::kStatic: {
-        prepared.args.push_back(
-            prepared.state_element_for_static.at(param.static_value));
+        xls::BValue bval(
+            prepared.state_element_for_variable.at(param.static_value), &pb);
+        prepared.args.push_back(bval);
         break;
       }
       default: {
@@ -1611,6 +1622,153 @@ Translator::GenerateIRBlockPrepare(
   }
 
   return std::move(temp_sf);
+}
+
+absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
+    xls::ProcBuilder& pb, xls::BValue token,
+    const absl::btree_multimap<const xls::Param*, NextStateValue>&
+        next_state_values,
+    const xls::SourceInfo& loc) {
+  const int64_t n_state_elems = pb.proc()->StateParams().size();
+
+  std::vector<xls::BValue> next_state_values_list;
+  next_state_values_list.reserve(n_state_elems);
+
+  for (xls::Param* elem : pb.proc()->StateParams()) {
+    const int64_t values_for_elem = next_state_values.count(elem);
+    XLSCC_CHECK_GE(values_for_elem, 0, loc);
+    if (values_for_elem == 0) {
+      return absl::InternalError(
+          absl::StrFormat("No next values for state element %s", elem->name()));
+    }
+    xls::BValue elem_bval(elem, &pb);
+    if (values_for_elem == 1) {
+      const NextStateValue& next_state_value =
+          next_state_values.find(elem)->second;
+      xls::BValue next_state_value_bval;
+      if (next_state_value.condition.valid()) {
+        next_state_value_bval =
+            pb.Select(next_state_value.condition,
+                      /*on_true=*/next_state_value.value,
+                      /*on_false=*/elem_bval, loc, /*name=*/
+                      absl::StrFormat("%s_next_state_value", elem->name()));
+      } else {
+        next_state_value_bval = next_state_value.value;
+      }
+      next_state_values_list.push_back(next_state_value_bval);
+      continue;
+    }
+    // More than one next value
+
+    // Sort by priority (all must have one)
+    std::vector<NextStateValue> next_state_values_sorted_by_priority;
+    next_state_values_sorted_by_priority.reserve(values_for_elem);
+    for (auto it = next_state_values.lower_bound(elem);
+         it != next_state_values.upper_bound(elem); ++it) {
+      next_state_values_sorted_by_priority.push_back(it->second);
+      if (it->second.priority < 0) {
+        return absl::InternalError(
+            absl::StrFormat("State element %s has multiple next values, but "
+                            "without a priority specified (%s)",
+                            elem->name(), it->second.extra_label));
+      }
+      if (!it->second.condition.valid()) {
+        return absl::InternalError(
+            absl::StrFormat("State element %s has multiple next values, but "
+                            "without a valid condition (%s)",
+                            elem->name(), it->second.extra_label));
+      }
+    }
+    std::sort(next_state_values_sorted_by_priority.begin(),
+              next_state_values_sorted_by_priority.end(),
+              [](const NextStateValue& a, const NextStateValue& b) {
+                return a.priority > b.priority;
+              });
+
+    // Construct the next state value
+    xls::BValue next_state_value_bval;
+
+    {
+      // Separate lists for priority select
+      std::vector<xls::BValue> conditions;
+      conditions.reserve(next_state_values_sorted_by_priority.size() + 1);
+      std::vector<xls::BValue> values;
+      values.reserve(next_state_values_sorted_by_priority.size() + 1);
+
+      // Default to no change of state when all selectors are 0
+      conditions.push_back(pb.Literal(xls::UBits(1, 1), loc));
+      values.push_back(elem_bval);
+
+      for (const NextStateValue& next_value :
+           next_state_values_sorted_by_priority) {
+        conditions.push_back(next_value.condition);
+        values.push_back(next_value.value);
+      }
+
+      // The value corresponding to the LSBit goes first here, but the MSBit
+      // goes first in Concat
+      std::reverse(values.begin(), values.end());
+
+      xls::BValue selector = pb.Concat(
+          conditions, loc,
+          /*name=*/absl::StrFormat("%s_all_conditions", elem->name()));
+
+      next_state_value_bval = pb.PrioritySelect(
+          selector, values, loc,
+          /*name=*/absl::StrFormat("%s_select_next_value", elem->name()));
+    }
+
+    XLSCC_CHECK(next_state_value_bval.valid(), loc);
+    next_state_values_list.push_back(next_state_value_bval);
+
+    // Generate asserts for same priority conditions being mutually exclusive
+    {
+      absl::btree_multimap<int64_t, xls::BValue> all_conditions_by_priority;
+
+      for (const NextStateValue& next_value :
+           next_state_values_sorted_by_priority) {
+        all_conditions_by_priority.insert(
+            {next_value.priority, next_value.condition});
+      }
+
+      // Loop through the keys (priorities)
+      for (auto priority_it = all_conditions_by_priority.begin();
+           priority_it != all_conditions_by_priority.end();
+           priority_it =
+               all_conditions_by_priority.upper_bound(priority_it->first)) {
+        // Loop through the next states in this priority
+        std::vector<xls::BValue> conditions_this_priority;
+        for (auto it =
+                 all_conditions_by_priority.lower_bound(priority_it->first);
+             it != all_conditions_by_priority.upper_bound(priority_it->first);
+             ++it) {
+          XLSCC_CHECK_EQ(priority_it->first, it->first, loc);
+          conditions_this_priority.push_back(it->second);
+        }
+
+        // Assert that one_hot(x) == x
+        xls::BValue conditions_bval =
+            pb.Concat(conditions_this_priority, loc,
+                      /*name=*/
+                      absl::StrFormat("%s_all_conditions_priority_%i",
+                                      elem->name(), priority_it->first));
+        xls::BValue one_hot_wide =
+            pb.OneHot(conditions_bval, xls::LsbOrMsb::kMsb, loc);
+        xls::BValue one_hot =
+            pb.BitSlice(one_hot_wide, /*start=*/0,
+                        /*width=*/conditions_this_priority.size(), loc);
+        token = pb.Assert(
+            token, pb.Eq(one_hot, conditions_bval, loc),
+            /*message=*/
+            absl::StrFormat("Conditions for state element %s in %s are not "
+                            "mutually exclusive for priority %i",
+                            elem->name(), pb.name(), priority_it->first),
+            /*label=*/std::nullopt, loc);
+      }
+    }
+  }
+
+  return pb.Build(token, next_state_values_list);
 }
 
 }  // namespace xlscc

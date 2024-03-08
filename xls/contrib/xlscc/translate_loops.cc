@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -48,10 +49,6 @@
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
-
-// TODO(seanhaskell): Turn this back on when dynamic state feedback lands
-// b/321982824
-#define USE_PROC_BUILDER_NEXT 0
 
 using std::shared_ptr;
 using std::string;
@@ -1084,8 +1081,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   token = pb.SendIf(context_in_channel->generated.value(), token,
                     contents_ret.do_break, contents_ret.out_tuple, loc);
 
-  XLS_RETURN_IF_ERROR(
-      pb.Build(token, contents_ret.extra_next_state_values).status());
+  XLS_RETURN_IF_ERROR(BuildWithNextStateValueMap(
+                          pb, token, contents_ret.extra_next_state_values, loc)
+                          .status());
 
   return absl::OkStatus();
 }
@@ -1094,7 +1092,10 @@ absl::StatusOr<Translator::PipelinedLoopContentsReturn>
 Translator::GenerateIR_PipelinedLoopContents(
     const PipelinedLoopSubProc& pipelined_loop_proc, xls::ProcBuilder& pb,
     xls::BValue token_in, xls::BValue received_context_tuple,
-    xls::BValue in_state_condition, bool in_fsm) {
+    xls::BValue in_state_condition, bool in_fsm,
+    absl::flat_hash_map<const clang::NamedDecl*, xls::Param*>*
+        state_element_for_variable,
+    int nesting_level) {
   const std::shared_ptr<CStructType>& context_in_cvars_struct_ctype =
       pipelined_loop_proc.context_in_cvars_struct_ctype;
   const std::shared_ptr<CStructType>& context_out_cvars_struct_ctype =
@@ -1126,6 +1127,13 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   XLSCC_CHECK(!in_fsm || in_state_condition.valid(), loc);
 
+  PreparedBlock prepared;
+
+  // Use state elements map from outer scope
+  if (state_element_for_variable != nullptr) {
+    prepared.state_element_for_variable = *state_element_for_variable;
+  }
+
   if (!in_fsm) {
     in_state_condition =
         pb.Literal(xls::UBits(1, 1), loc,
@@ -1151,11 +1159,23 @@ Translator::GenerateIR_PipelinedLoopContents(
     if (!context_field_indices.contains(decl)) {
       continue;
     }
-    const CValue& prev_value = pipelined_loop_proc.outer_variables.at(decl);
-    XLS_ASSIGN_OR_RETURN(xls::Value def, CreateDefaultRawValue(
-                                             prev_value.type(), GetLoc(*decl)));
-    state_elements_by_decl[decl] = pb.StateElement(
-        absl::StrFormat("%s_%s", name_prefix, decl->getNameAsString()), def);
+    // Only create a state element if one doesn't already exist
+    if (!prepared.state_element_for_variable.contains(decl)) {
+      const CValue& prev_value = pipelined_loop_proc.outer_variables.at(decl);
+      XLS_ASSIGN_OR_RETURN(
+          xls::Value def,
+          CreateDefaultRawValue(prev_value.type(), GetLoc(*decl)));
+
+      xls::BValue state_elem_bval = pb.StateElement(
+          absl::StrFormat("%s_%s", name_prefix, decl->getNameAsString()), def);
+
+      state_elements_by_decl[decl] = state_elem_bval;
+      prepared.state_element_for_variable[decl] =
+          state_elem_bval.node()->As<xls::Param>();
+    } else {
+      xls::Param* state_elem = prepared.state_element_for_variable.at(decl);
+      state_elements_by_decl[decl] = xls::BValue(state_elem, &pb);
+    }
   }
 
   // For utility functions like MakeStructXls()
@@ -1256,7 +1276,6 @@ Translator::GenerateIR_PipelinedLoopContents(
   }
 
   // Invoke loop over IOs
-  PreparedBlock prepared;
   prepared.xls_func = &generated_func;
   prepared.args.push_back(selected_context);
   prepared.args.push_back(lvalue_conditions_tuple);
@@ -1280,7 +1299,7 @@ Translator::GenerateIR_PipelinedLoopContents(
     context().full_condition = save_full_condition;
   }
   XLS_ASSIGN_OR_RETURN(GenerateFSMInvocationReturn fsm_ret,
-                       GenerateFSMInvocation(prepared, pb, loc));
+                       GenerateFSMInvocation(prepared, pb, nesting_level, loc));
   XLSCC_CHECK(
       fsm_ret.return_value.valid() && fsm_ret.returns_this_activation.valid(),
       loc);
@@ -1320,20 +1339,17 @@ Translator::GenerateIR_PipelinedLoopContents(
         absl::StrFormat("%s_default_update_state_cond", name_prefix));
   }
 
-#if USE_PROC_BUILDER_NEXT
-  // Construct next state
-  pb.Next(/*param=*/use_context_in, /*value=*/first_iter_next,
-          /*pred=*/update_state_condition, loc);
-  pb.Next(/*param=*/lvalue_cond_state, /*value=*/lvalue_conditions_tuple,
-          std::nullopt, loc);
-#else
-  std::vector<xls::BValue> next_state_values = {
-      /*last_iter_broke_in=*/pb.Select(update_state_condition,
-                                       /*on_true=*/do_break,
-                                       /*on_false=*/last_iter_broke_in, loc),
+  absl::btree_multimap<const xls::Param*, NextStateValue> next_state_values;
 
-      lvalue_conditions_tuple};
-#endif
+  next_state_values.insert(
+      {last_iter_broke_in.node()->As<xls::Param>(),
+       NextStateValue{.value =
+                          pb.Select(update_state_condition,
+                                    /*on_true=*/do_break,
+                                    /*on_false=*/last_iter_broke_in, loc)}});
+
+  next_state_values.insert({lvalue_cond_state.node()->As<xls::Param>(),
+                            NextStateValue{.value = lvalue_conditions_tuple}});
 
   xls::BValue update_state_elements = update_state_condition;
 
@@ -1363,23 +1379,26 @@ Translator::GenerateIR_PipelinedLoopContents(
     xls::BValue val = GetStructFieldXLS(updated_context, field_idx,
                                         *context_cvars_struct_ctype, loc);
 
+    NextStateValue next_state_value = {
+        .priority = nesting_level, .extra_label = name_prefix, .value = val};
+    xls::BValue out_bval = val;
+
     if (in_fsm) {
-      val =
+      next_state_value.condition = update_state_elements;
+      out_bval =
           pb.Select(update_state_elements,
                     /*on_true=*/val,
                     /*on_false=*/state_elements_by_decl.at(decl), loc, /*name=*/
-                    absl::StrFormat("%s_%s_next_state_value", name_prefix,
+                    absl::StrFormat("%s_%s_out_val", name_prefix,
                                     decl->getNameAsString()));
     }
-#if USE_PROC_BUILDER_NEXT
-    pb.Next(/*param=*/state_elements_by_decl.at(decl), /*value=*/val,
-            std::nullopt, loc);
-#else
-    next_state_values.push_back(val);
-#endif
+
+    next_state_values.insert(
+        {state_elements_by_decl.at(decl).node()->As<xls::Param>(),
+         next_state_value});
 
     if (context_in_field_indices.contains(decl)) {
-      out_tuple_values[context_in_field_indices.at(decl)] = val;
+      out_tuple_values[context_in_field_indices.at(decl)] = out_bval;
     }
   }
 
@@ -1394,19 +1413,24 @@ Translator::GenerateIR_PipelinedLoopContents(
         pb.TupleIndex(fsm_ret.return_value,
                       prepared.return_index_for_static.at(namedecl), loc);
 
-#if USE_PROC_BUILDER_NEXT
-    pb.Next(/*param=*/prepared.state_element_for_static.at(namedecl),
-            /*value=*/ret_next,
-            /*pred=*/update_state_condition, loc);
-#else
-    next_state_values.push_back(pb.Select(
-        update_state_elements, /*on_true=*/ret_next,
-        /*on_false=*/prepared.state_element_for_static.at(namedecl), loc));
-#endif
+    xls::BValue state_elem_bval(
+        prepared.state_element_for_variable.at(namedecl), &pb);
+
+    next_state_values.insert(
+        {state_elem_bval.node()->As<xls::Param>(),
+         NextStateValue{.priority = nesting_level,
+                        .extra_label = name_prefix,
+                        .value = ret_next,
+                        .condition = update_state_elements}});
   }
 
-  for (const xls::BValue& value : fsm_ret.extra_next_state_values) {
-    next_state_values.push_back(value);
+  for (const auto& [state_elem, bval] : fsm_ret.extra_next_state_values) {
+    next_state_values.insert({state_elem, bval});
+  }
+
+  // Update state elements map from outer scope
+  if (state_element_for_variable != nullptr) {
+    *state_element_for_variable = prepared.state_element_for_variable;
   }
 
   return PipelinedLoopContentsReturn{
