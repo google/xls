@@ -369,6 +369,15 @@ absl::Status ConvertOneFunctionIntoPackageInternal(
   return absl::OkStatus();
 }
 
+absl::Status ConvertOneFunctionIntoPackage(Module* module, Function* fn,
+                                           ImportData* import_data,
+                                           const ParametricEnv* parametric_env,
+                                           const ConvertOptions& options,
+                                           Package* package) {
+  return ConvertOneFunctionIntoPackageInternal(
+      module, fn, import_data, parametric_env, options, package);
+}
+
 absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                            std::string_view entry_function_name,
                                            ImportData* import_data,

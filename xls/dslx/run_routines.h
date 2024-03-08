@@ -107,6 +107,15 @@ struct ParseAndTestOptions {
   std::optional<int64_t> max_ticks;
 };
 
+// As above, but a subset of the options required for the ParseAndProve()
+// routine.
+struct ParseAndProveOptions {
+  std::string stdlib_path = xls::kDefaultDslxStdlibPath;
+  absl::Span<const std::filesystem::path> dslx_paths;
+  bool warnings_as_errors = true;
+  WarningKindSet warnings = kAllWarningsSet;
+};
+
 enum class TestResult : uint8_t {
   kFailedWarnings,
   kSomeFailed,
@@ -184,6 +193,12 @@ absl::StatusOr<TestResultData> ParseAndTest(std::string_view program,
                                             std::string_view module_name,
                                             std::string_view filename,
                                             const ParseAndTestOptions& options);
+
+// Parses program and attempts to prove the given quickcheck property.
+absl::StatusOr<TestResultData> ParseAndProve(
+    std::string_view program, std::string_view module_name,
+    std::string_view filename, std::string_view quickcheck_name,
+    const ParseAndProveOptions& options);
 
 struct QuickCheckResults {
   std::vector<std::vector<Value>> arg_sets;

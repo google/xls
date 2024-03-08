@@ -17,10 +17,13 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls {

@@ -42,6 +42,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
@@ -57,6 +58,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -69,6 +71,8 @@
 #include "xls/ir/events.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/solvers/z3_ir_translator.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -377,6 +381,90 @@ static absl::Status RunQuickChecksIfJitEnabled(
                    entry_module->GetQuickChecks().size())
             << "\n";
   return absl::OkStatus();
+}
+
+absl::StatusOr<TestResultData> ParseAndProve(
+    std::string_view program, std::string_view module_name,
+    std::string_view filename, std::string_view quickcheck_name,
+    const ParseAndProveOptions& options) {
+  const auto start = absl::Now();
+  TestResultData result(start, /*test_cases=*/{});
+
+  auto import_data = CreateImportData(options.stdlib_path, options.dslx_paths,
+                                      options.warnings);
+  absl::StatusOr<TypecheckedModule> tm_or =
+      ParseAndTypecheck(program, filename, module_name, &import_data);
+  if (!tm_or.ok()) {
+    if (TryPrintError(tm_or.status())) {
+      result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
+      return result;
+    }
+    return tm_or.status();
+  }
+
+  // If we're not executing, then we're just scanning for errors -- if warnings
+  // are *not* errors, just elide printing them (or e.g. we'd show warnings for
+  // files that had warnings suppressed at build time, which would gunk up build
+  // logs unnecessarily.).
+  if (options.warnings_as_errors) {
+    PrintWarnings(tm_or->warnings);
+  }
+
+  if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
+    result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
+    return result;
+  }
+
+  Module* entry_module = tm_or.value().module;
+
+  // We need to IR-convert the quickcheck property and then try to prove that
+  // the return value is always true.
+  auto qcs = entry_module->GetQuickCheckByName();
+  auto it = qcs.find(quickcheck_name);
+  if (it == qcs.end()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot find quickcheck with name `%s` in module `%s`",
+                        quickcheck_name, entry_module->name()));
+  }
+
+  Function* f = it->second->f();
+  XLS_VLOG(1) << "Found quickcheck function: " << f->identifier();
+
+  Package package(entry_module->name());
+
+  XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
+      entry_module, f, &import_data, /*parametric_env=*/nullptr,
+      ConvertOptions{}, &package));
+
+  // Note: we need this to eliminate unoptimized IR constructs that are not
+  // currently handled for translation; e.g. bounded-for-loops and non-inlined
+  // function calls.
+  XLS_RETURN_IF_ERROR(RunOptimizationPassPipeline(&package).status());
+
+  XLS_ASSIGN_OR_RETURN(std::string ir_function_name,
+                       MangleDslxName(entry_module->name(), f->identifier(),
+                                      CallingConvention::kTypical));
+  XLS_ASSIGN_OR_RETURN(xls::Function * ir_function,
+                       package.GetFunction(ir_function_name));
+
+  XLS_VLOG(1) << "Found IR function: " << ir_function->name();
+
+  XLS_ASSIGN_OR_RETURN(
+      bool proven,
+      solvers::z3::TryProve(ir_function, ir_function->return_value(),
+                            solvers::z3::Predicate::NotEqualToZero(),
+                            absl::InfiniteDuration()));
+
+  XLS_VLOG(1) << "Proven? " << (proven ? "true" : "false");
+
+  if (proven) {
+    result.Finish(TestResult::kAllPassed, absl::Now() - start);
+    return result;
+  }
+
+  // TODO(leary) we need a programmatic way to get at the counterexample.
+  result.Finish(TestResult::kSomeFailed, absl::Now() - start);
+  return result;
 }
 
 absl::StatusOr<TestResultData> ParseAndTest(

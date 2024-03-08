@@ -266,6 +266,47 @@ BOM_KIND_COMPARISON,ne,18,1,1
 BOM_KIND_COMPARISON,ne,25,1,1
 ```
 
+## [`dslx/interpreter_main`](https://github.com/google/xls/tree/main/xls/dslx/interpreter_main.cc)
+
+Interpreter for DSLX code and test-runner.
+
+When tests are run this also cross-checks that the conversion to IR and JIT
+compilation of the IR produces the same values.
+
+```
+$ bazel run -c opt //xls/dslx:interpreter_main -- $PWD/xls/dslx/stdlib/std.x
+[ RUN UNITTEST  ] sizeof_signed_test
+[            OK ]
+...
+```
+
+Note that this binary takes a command line argument `--dslx_path` which
+indicates where the binary should search for `.x` files on import (i.e. an
+import resolution path). Try to use this sparingly, but it is useful for
+pointing at installation locations where DSLX modules have been placed.
+
+In a Bazel environment this binary is encapsulated in
+[an `xls_dslx_test` target](https://google.github.io/xls/bazel_rules_macros/#xls_dslx_test)
+
+## [`dslx/prove_quickcheck_test`](https://github.com/google/xls/tree/main/xls/dslx/prove_quickcheck_test.cc)
+
+Command line utility for attempting to prove a quickcheck property via SMT
+translation. Invoke this tool as:
+
+`prove_quickcheck_main $ENTRY_FILE $QUICKCHECK_NAME`
+
+And it will attempt to prove the given quickcheck property over the entire input
+domain. Example:
+
+```
+$ bazel run -c opt //xls/dslx:prove_quickcheck_main -- $PWD/xls/dslx/stdlib/std.x convert_to_from_bools
+Proven! elapsed: 115.419669ms
+```
+
+NOTE: Currently an error code is returned if it cannot be proven, but it does
+not dump a counterexample to terminal. A temporary workaround is to use
+`--alsologtostderr --v=1` until that functionality is completed.
+
 ## [`dslx_fmt`](https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc)
 
 Auto-formatter for DSLX code (i.e. `.x` files). This is analogous to rustfmt /

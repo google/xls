@@ -480,6 +480,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx/bytecode",
         "//xls/dslx/bytecode:bytecode_cache",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
@@ -499,6 +500,8 @@ cc_library(
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:value",
+        "//xls/passes:optimization_pass_pipeline",
+        "//xls/solvers:z3_ir_translator",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -596,6 +599,33 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/ir:format_preference",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+        "@com_googlesource_code_re2//:re2",
+    ],
+)
+
+cc_binary(
+    name = "prove_quickcheck_main",
+    srcs = ["prove_quickcheck_main.cc"],
+    deps = [
+        ":command_line_utils",
+        ":run_comparator",
+        ":run_routines",
+        ":test_xml",
+        ":warning_kind",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:format_preference",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -675,9 +705,19 @@ py_test(
 py_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
-    data = [
-        ":interpreter_main",
+    data = [":interpreter_main"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
     ],
+)
+
+py_test(
+    name = "prove_quickcheck_test",
+    srcs = ["prove_quickcheck_test.py"],
+    data = [":prove_quickcheck_main"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [

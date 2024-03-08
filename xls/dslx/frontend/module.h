@@ -181,6 +181,10 @@ class Module : public AstNode {
   absl::flat_hash_map<std::string, Function*> GetFunctionByName() const {
     return GetTopWithTByName<Function>();
   }
+  absl::flat_hash_map<std::string, QuickCheck*> GetQuickCheckByName() const {
+    return GetTopWithTByName<QuickCheck>();
+  }
+
   std::vector<QuickCheck*> GetQuickChecks() const {
     return GetTopWithT<QuickCheck>();
   }
