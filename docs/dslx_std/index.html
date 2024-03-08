@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.10">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.13">
     
     
       
@@ -1105,6 +1105,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#zip" class="md-nav__link">
+    <span class="md-ellipsis">
+      zip
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#array_rev" class="md-nav__link">
     <span class="md-ellipsis">
       array_rev
@@ -1355,6 +1364,15 @@
   <a href="#stdlsb" class="md-nav__link">
     <span class="md-ellipsis">
       std::lsb
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stdmsb" class="md-nav__link">
+    <span class="md-ellipsis">
+      std::msb
     </span>
   </a>
   
@@ -2604,6 +2622,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#zip" class="md-nav__link">
+    <span class="md-ellipsis">
+      zip
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#array_rev" class="md-nav__link">
     <span class="md-ellipsis">
       array_rev
@@ -2854,6 +2881,15 @@
   <a href="#stdlsb" class="md-nav__link">
     <span class="md-ellipsis">
       std::lsb
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stdmsb" class="md-nav__link">
+    <span class="md-ellipsis">
+      std::msb
     </span>
   </a>
   
@@ -3226,6 +3262,7 @@ in a user-defined function, and thus do not live in the standard library.</p>
 <li><a href="#widening_cast-and-checked_cast">widening_cast and checked_cast</a></li>
 <li><a href="#smulp-and-umulp">smulp and umulp</a></li>
 <li><a href="#map">map</a></li>
+<li><a href="#zip">zip</a></li>
 <li><a href="#array_rev">array_rev</a></li>
 <li><a href="#const_assert">const_assert!</a></li>
 <li><a href="#clz-ctz">clz, ctz</a></li>
@@ -3257,6 +3294,7 @@ in a user-defined function, and thus do not live in the standard library.</p>
 <li><a href="#bit-manipulation-functions">Bit Manipulation Functions</a><ul>
 <li><a href="#stdto_signed-stdto_unsigned">std::to_signed &amp; std::to_unsigned</a></li>
 <li><a href="#stdlsb">std::lsb</a></li>
+<li><a href="#stdmsb">std::msb</a></li>
 <li><a href="#stdconvert_to_bits_msb0">std::convert_to_bits_msb0</a></li>
 <li><a href="#stdconvert_to_bools_lsb0">std::convert_to_bools_lsb0</a></li>
 <li><a href="#stdmask_bits">std::mask_bits</a></li>
@@ -3375,6 +3413,22 @@ built-in -- in language implementor parlance it is a <em>higher order function</
 name of the function must be referred to directly.</p>
 <p>Note: Novel higher order functions (e.g. if a user wanted to write their own
 <code>map</code>) cannot currently be written in user-level DSL code.</p>
+<h3 id="zip"><code>zip</code></h3>
+<p><code>zip</code> places elements of two same-sized arrays together in an array of 2-tuples.</p>
+<p>Its signature is: <code>zip(lhs: T[N], rhs: U[N]) -&gt; (T, U)[N]</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span>
+<span class="k">fn</span> <span class="nf">test_zip_array_size_1</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">LHS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u8</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>:<span class="p">[</span><span class="mi">42</span><span class="p">];</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">RHS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u16</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>:<span class="p">[</span><span class="mi">64</span><span class="p">];</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">WANT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">u8</span><span class="p">,</span><span class="w"> </span><span class="kt">u16</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>:<span class="p">[(</span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="mi">64</span><span class="p">)]</span>
+<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">zip</span><span class="p">(</span><span class="n">LHS</span><span class="p">,</span><span class="w"> </span><span class="n">RHS</span><span class="p">),</span><span class="w"> </span><span class="n">WANT</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="cp">#[test]</span>
+<span class="k">fn</span> <span class="nf">test_zip_array_size_2</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">zip</span><span class="p">(</span><span class="kt">u32</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>:<span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="kt">u64</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>:<span class="p">[</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">11</span><span class="p">]),</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="kt">u64</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>:<span class="p">[(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">11</span><span class="p">)]);</span>
+<span class="p">}</span>
+</code></pre></div>
 <h3 id="array_rev"><code>array_rev</code></h3>
 <p><code>array_rev</code> reverses the elements of an array.</p>
 <div class="highlight"><pre><span></span><code><span class="cp">#[test]</span>
@@ -3735,7 +3789,11 @@ convenient than) a pattern like:</p>
 <h4 id="stdlsb"><code>std::lsb</code></h4>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">lsb</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">u1</span>
 </code></pre></div>
-<p>Extracts the LSB (Least Significant Bit) from the value <code>x</code> and returns it.</p>
+<p>Extracts the LSb (Least Significant bit) from the value <code>x</code> and returns it.</p>
+<h4 id="stdmsb"><code>std::msb</code></h4>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">msb</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">u1</span>
+</code></pre></div>
+<p>Extracts the MSb (Most Significant bit) from the value <code>x</code> and returns it.</p>
 <h4 id="stdconvert_to_bits_msb0"><code>std::convert_to_bits_msb0</code></h4>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">convert_to_bits_msb0</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="kt">bool</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span>
 </code></pre></div>
@@ -3997,9 +4055,9 @@ non-negative 32-bit integers, which range from <code>0</code> to <code>2^31-1</c
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.8fd75fb4.min.js"></script>
+      <script src="../assets/javascripts/bundle.c8d2eff1.min.js"></script>
       
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       
         <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       

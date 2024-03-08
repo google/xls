@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.10">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.13">
     
     
       
@@ -1985,13 +1985,21 @@ control the scheduler.</p>
 <li><code>--worst_case_throughput=...</code> sets the worst-case throughput bound to use
     when <code>--generator=pipeline</code>. If set, allows scheduling a pipeline with
     worst-case throughput no slower than once per N cycles (assuming no stalling
-    <code>recv</code>s).</li>
+    <code>recv</code>s). If not set, defaults to 1.<p>NOTE: If set to 0 or a negative value, no throughput minimum will be
+  enforced.</p>
+</li>
+</ul>
+<ul>
 <li><code>--additional_input_delay_ps=...</code> adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
     RTL.</li>
+</ul>
+<ul>
 <li><code>--ffi_fallback_delay_ps=...</code> Delay of foreign function calls if not
     otherwise specified. If there is no measurement or configuration for the
     delay of an invoked modules, this is the value used in the scheduler.</li>
+</ul>
+<ul>
 <li><code>--io_constraints=...</code> adds constraints to the scheduler. The flag takes a
     comma-separated list of constraints of the form <code>foo:send:bar:recv:3:5</code>
     which means that sends on channel <code>foo</code> must occur between 3 and 5 cycles
@@ -2004,9 +2012,13 @@ control the scheduler.</p>
     example of the use of this, see
     <a href="https://github.com/google/xls/tree/main/xls/examples/constraint.x">this example</a> and
     the associated BUILD rule.</li>
+</ul>
+<ul>
 <li><code>explain_infeasibility</code> configures what to do if scheduling fails. If set,
     the scheduling problem is reformulated with extra slack variables in an
     attempt to explain why scheduling failed.</li>
+</ul>
+<ul>
 <li><code>infeasible_per_state_backedge_slack_pool</code> If specified, the specified value
     must be &gt; 0. Setting this configures how the scheduling problem is
     reformulated in the case that scheduling fails. If specified, this value
@@ -2017,6 +2029,8 @@ control the scheduler.</p>
     slack variable is preferred. Increasing this value should give more specific
     information about how much slack each failing backedge needs at the cost of
     less actionable and harder to understand output.</li>
+</ul>
+<ul>
 <li><code>--scheduling_options_used_textproto_file</code> is the path to write a textproto
     containing the actual configuration used for scheduling.</li>
 </ul>
@@ -2082,6 +2096,8 @@ estimation refinements in XLS. For now, FDO is disabled by default
 <li><code>--separate_lines</code> causes every subexpression to be emitted on a separate
     line. False by default.</li>
 <li><code>--multi_proc</code> causes every proc to be codegen'd.</li>
+<li><code>max_trace_verbosity</code> is the maximum verbosity allowed for traces. Traces
+    with higher verbosity are stripped from codegen output. 0 by default.</li>
 </ul>
 <h2 id="format-strings">Format Strings</h2>
 <p>For some XLS ops, flags can override their default codegen behavior via format
@@ -2265,6 +2281,15 @@ response-receive are scheduled to match the RAM's latency.</p>
     by the Z3 solver, so the output should be deterministic across machines for
     a given rlimit.</li>
 </ul>
+<ul>
+<li><code>--default_next_value_z3_rlimit</code> controls how hard our scheduling passes
+    will work to prove that state params are fully covered by their <code>next_value</code>
+    nodes, so that we can skip special handling for the case where no
+    <code>next_value</code> node triggers. This is purely an optimization; everything will
+    work correctly even if this is disabled (omitted, or set to -1). Concretely,
+    this roughly limits the number of <code>malloc</code> calls done by the Z3 solver, so
+    the output should be deterministic across machines for a given rlimit.</li>
+</ul>
 
 
 
@@ -2314,9 +2339,9 @@ response-receive are scheduled to match the RAM's latency.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.8fd75fb4.min.js"></script>
+      <script src="../assets/javascripts/bundle.c8d2eff1.min.js"></script>
       
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       
         <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       

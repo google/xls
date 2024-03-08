@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.10">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.13">
     
     
       
@@ -2043,21 +2043,21 @@ functional stack, from input DSLX down to the netlist level.</p>
 <p>The DSLX interpreter (<code>//xls/dslx:interpreter_main</code>) operates on
 DSLX <code>.x</code> files that contain both the design and unit tests to execute (present
 as <code>#[test]</code> annotated functions).</p>
-<p>The <a href="https://github.com/google/xls/tree/main/xls/examples/adler32.x">adler32</a> example
-demonstrates this: the design is encapsulated in the <code>main</code>, <code>adler32_seq</code>, and
-<code>mod</code> functions, and the samples are present in the test <code>adler32_one_char</code>
-(note that unit-style tests/interpretations of <code>adler32_seq</code> and <code>mod</code> could
-also be present).</p>
+<p>The <a href="https://github.com/google/xls/tree/main/xls/examples/adler32/adler32.x">adler32</a>
+example demonstrates this: the design is encapsulated in the <code>main</code>,
+<code>adler32_seq</code>, and <code>mod</code> functions, and the samples are present in the test
+<code>adler32_one_char</code> (note that unit-style tests/interpretations of <code>adler32_seq</code>
+and <code>mod</code> could also be present).</p>
 <p>Interpreter targets are automatically generated for <code>dslx_test()</code> targets, so no
 special declarations are necessary to wrap DSLX code.</p>
 <p>To invoke these samples, execute the following:</p>
-<div class="highlight"><pre><span></span><code>bazel build -c opt //xls/examples:adler32_dslx_test
-./bazel-bin/xls/examples/adler32_dslx_test
+<div class="highlight"><pre><span></span><code>bazel build -c opt //xls/examples/adler32:adler32_dslx_test
+./bazel-bin/xls/examples/adler32/adler32_dslx_test
 </code></pre></div>
 <p>To execute directly via the interpreter, you can instead run:</p>
 <div class="highlight"><pre><span></span><code>$ bazel build -c opt //xls/dslx/interpreter_main
 $ ./bazel-bin/xls/dslx/interpreter_main \
-    ./xls/examples/adler32.x
+    ./xls/examples/adler32/adler32.x
 </code></pre></div>
 <p>These two methods are equivalent.</p>
 <h3 id="execution-comparison">Execution comparison</h3>
@@ -2068,11 +2068,11 @@ more generally in XLS, like the fuzzer).</p>
 <p>The user may compare DSL execution to IR interpreter execution, IR JIT
 execution, or not perform IR comparison at all.</p>
 <div class="highlight"><pre><span></span><code><span class="gp">$ </span>./bazel-bin/xls/dslx/interpreter_main<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>./xls/examples/adler32.x<span class="w"> </span>--compare<span class="o">=</span>jit
+<span class="w">    </span>./xls/examples/adler32/adler32.x<span class="w"> </span>--compare<span class="o">=</span>jit
 <span class="gp">$ </span>./bazel-bin/xls/dslx/interpreter_main<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>./xls/examples/adler32.x<span class="w"> </span>--compare<span class="o">=</span>interpreter
+<span class="w">    </span>./xls/examples/adler32/adler32.x<span class="w"> </span>--compare<span class="o">=</span>interpreter
 <span class="gp">$ </span>./bazel-bin/xls/dslx/interpreter_main<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>./xls/examples/adler32.x<span class="w"> </span>--compare<span class="o">=</span>none
+<span class="w">    </span>./xls/examples/adler32/adler32.x<span class="w"> </span>--compare<span class="o">=</span>none
 </code></pre></div>
 <h2 id="ir">IR</h2>
 <p>XLS provides two means of evaluating IR - interpretation and native host
@@ -2171,9 +2171,9 @@ cell library descriptions.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.8fd75fb4.min.js"></script>
+      <script src="../assets/javascripts/bundle.c8d2eff1.min.js"></script>
       
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       
         <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       

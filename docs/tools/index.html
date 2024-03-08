@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.10">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.13">
     
     
       
@@ -1503,6 +1503,24 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dslxinterpreter_main" class="md-nav__link">
+    <span class="md-ellipsis">
+      dslx/interpreter_main
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dslxprove_quickcheck_test" class="md-nav__link">
+    <span class="md-ellipsis">
+      dslx/prove_quickcheck_test
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dslx_fmt" class="md-nav__link">
     <span class="md-ellipsis">
       dslx_fmt
@@ -2294,6 +2312,24 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dslxinterpreter_main" class="md-nav__link">
+    <span class="md-ellipsis">
+      dslx/interpreter_main
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dslxprove_quickcheck_test" class="md-nav__link">
+    <span class="md-ellipsis">
+      dslx/prove_quickcheck_test
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dslx_fmt" class="md-nav__link">
     <span class="md-ellipsis">
       dslx_fmt
@@ -2649,6 +2685,33 @@ BOM_KIND_COMPARISON,ne,11,1,1
 BOM_KIND_COMPARISON,ne,18,1,1
 BOM_KIND_COMPARISON,ne,25,1,1
 </code></pre></div>
+<h2 id="dslxinterpreter_main"><a href="https://github.com/google/xls/tree/main/xls/dslx/interpreter_main.cc"><code>dslx/interpreter_main</code></a></h2>
+<p>Interpreter for DSLX code and test-runner.</p>
+<p>When tests are run this also cross-checks that the conversion to IR and JIT
+compilation of the IR produces the same values.</p>
+<div class="highlight"><pre><span></span><code>$ bazel run -c opt //xls/dslx:interpreter_main -- $PWD/xls/dslx/stdlib/std.x
+[ RUN UNITTEST  ] sizeof_signed_test
+[            OK ]
+...
+</code></pre></div>
+<p>Note that this binary takes a command line argument <code>--dslx_path</code> which
+indicates where the binary should search for <code>.x</code> files on import (i.e. an
+import resolution path). Try to use this sparingly, but it is useful for
+pointing at installation locations where DSLX modules have been placed.</p>
+<p>In a Bazel environment this binary is encapsulated in
+<a href="https://google.github.io/xls/bazel_rules_macros/#xls_dslx_test">an <code>xls_dslx_test</code> target</a></p>
+<h2 id="dslxprove_quickcheck_test"><a href="https://github.com/google/xls/tree/main/xls/dslx/prove_quickcheck_test.cc"><code>dslx/prove_quickcheck_test</code></a></h2>
+<p>Command line utility for attempting to prove a quickcheck property via SMT
+translation. Invoke this tool as:</p>
+<p><code>prove_quickcheck_main $ENTRY_FILE $QUICKCHECK_NAME</code></p>
+<p>And it will attempt to prove the given quickcheck property over the entire input
+domain. Example:</p>
+<div class="highlight"><pre><span></span><code>$ bazel run -c opt //xls/dslx:prove_quickcheck_main -- $PWD/xls/dslx/stdlib/std.x convert_to_from_bools
+Proven! elapsed: 115.419669ms
+</code></pre></div>
+<p>NOTE: Currently an error code is returned if it cannot be proven, but it does
+not dump a counterexample to terminal. A temporary workaround is to use
+<code>--alsologtostderr --v=1</code> until that functionality is completed.</p>
 <h2 id="dslx_fmt"><a href="https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc"><code>dslx_fmt</code></a></h2>
 <p>Auto-formatter for DSLX code (i.e. <code>.x</code> files). This is analogous to rustfmt /
 clang-format.</p>
@@ -2836,9 +2899,9 @@ reference file comparisons), run:</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.8fd75fb4.min.js"></script>
+      <script src="../assets/javascripts/bundle.c8d2eff1.min.js"></script>
       
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       
         <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
