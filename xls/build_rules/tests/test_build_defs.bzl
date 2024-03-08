@@ -97,6 +97,7 @@ def _codegen_args_proto(ctx):
             "--top={}".format(ctx.attr.top),
             "--module_name={}".format(ctx.attr.module_name),
             "--reset_data_path={}".format(str(ctx.attr.reset_data_path).lower()),
+            "--register_merge_strategy={}".format(ctx.attr.register_merge_strategy),
             "--input_valid_signal=input_valid",
             "--output_valid_signal=output_valid",
             "--flop_inputs",
@@ -146,6 +147,7 @@ Example:
         "module_name": attr.string(),
         "reset_data_path": attr.bool(),
         "is_pipelined": attr.bool(),
+        "register_merge_strategy": attr.string(default = "IdentityOnly"),
         "_generate_protos": attr.label(
             default = Label("//xls/tools:generate_options_protos_main"),
             executable = True,

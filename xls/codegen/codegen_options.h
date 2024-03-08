@@ -63,6 +63,16 @@ class CodegenOptions {
     }
   }
 
+  enum class RegisterMergeStrategy : int8_t {
+    // Never merge registers even when doing so is legal.
+    kDontMerge,
+    // Merge registers only if the merged registers have the same exact same
+    // value
+    kIdentityOnly,
+
+    kDefault = kDontMerge,
+  };
+
   // The name of the top-level function or proc to generate a Verilog module
   // for. Required.
   // TODO(meheff): 2021/04/21 As this is required, perhaps this should be made a
@@ -234,6 +244,11 @@ class CodegenOptions {
     return ram_configurations_;
   }
 
+  CodegenOptions& register_merge_strategy(RegisterMergeStrategy strategy);
+  RegisterMergeStrategy register_merge_strategy() const {
+    return register_merge_strategy_;
+  }
+
   int64_t max_trace_verbosity() const { return max_trace_verbosity_; }
   CodegenOptions& set_max_trace_verbosity(int64_t value) {
     max_trace_verbosity_ = value;
@@ -264,7 +279,21 @@ class CodegenOptions {
   bool gate_recvs_ = true;
   std::vector<std::unique_ptr<RamConfiguration>> ram_configurations_;
   int64_t max_trace_verbosity_ = 0;
+  RegisterMergeStrategy register_merge_strategy_ =
+      RegisterMergeStrategy::kDefault;
 };
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const CodegenOptions::RegisterMergeStrategy s) {
+  switch (s) {
+    case CodegenOptions::RegisterMergeStrategy::kDontMerge:
+      absl::Format(&sink, "DontMerge");
+      return;
+    case CodegenOptions::RegisterMergeStrategy::kIdentityOnly:
+      absl::Format(&sink, "IdentityOnly");
+      return;
+  }
+}
 
 }  // namespace xls::verilog
 

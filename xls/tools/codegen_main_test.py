@@ -111,6 +111,22 @@ proc proc1(my_token: token, my_state: (), init={()}) {
 }
 """
 
+# Requires II of at least 2.
+HIGH_II_PROC_IR = """package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+top proc foobar_next(my_token: token, my_state: bits[32], init={0x1}) {
+    snd: token = send(my_token, my_state, channel=out, id=4)
+    recv: (token, bits[32]) = receive(snd, channel=in, id=5)
+    bts: bits[32] = tuple_index(recv, index=1, id = 6)
+    ntok : token = tuple_index(recv, index=0, id=7)
+    addit: bits[32] = add(my_state, bts, id=8)
+    next(ntok, addit)
+}
+"""
+
 
 class CodeGenMainTest(parameterized.TestCase):
 
@@ -479,6 +495,56 @@ class CodeGenMainTest(parameterized.TestCase):
         str(cm.exception.output), 'Cannot codegen multi-proc schedule.'
     )
 
+  def test_high_ii_with_register_sharing(self):
+    ir_file = self.create_tempfile(content=HIGH_II_PROC_IR)
+    output_blk = self.create_tempfile()
+    result = subprocess.run(
+        [
+            CODEGEN_MAIN_PATH,
+            '--generator=pipeline',
+            '--pipeline_stages=4',
+            '--worst_case_throughput=4',
+            '--reset=rst',
+            '--streaming_channel_data_suffix=_d',
+            '--streaming_channel_ready_suffix=_r',
+            '--delay_model=unit',
+            '--streaming_channel_valid_suffix=_v',
+            '--io_constraints=out:send:in:recv:3:3',
+            '--register_merge_strategy=None',
+            f'--output_block_ir_path={output_blk.full_path}',
+            ir_file.full_path,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8'))
+    with open(output_blk, 'r') as blk:
+      no_merge = blk.read()
+    result = subprocess.run(
+        [
+            CODEGEN_MAIN_PATH,
+            '--generator=pipeline',
+            '--pipeline_stages=4',
+            '--worst_case_throughput=4',
+            '--reset=rst',
+            '--streaming_channel_data_suffix=_d',
+            '--streaming_channel_ready_suffix=_r',
+            '--delay_model=unit',
+            '--streaming_channel_valid_suffix=_v',
+            '--io_constraints=out:send:in:recv:3:3',
+            '--register_merge_strategy=IdentityOnly',
+            f'--output_block_ir_path={output_blk.full_path}',
+            ir_file.full_path,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8'))
+    with open(output_blk, 'r') as blk:
+      merge = blk.read()
+    self.assertNotEqual(no_merge, merge)
 
 if __name__ == '__main__':
   absltest.main()

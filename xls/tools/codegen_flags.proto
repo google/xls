@@ -29,6 +29,12 @@ enum IOKindProto {
   IO_KIND_ZERO_LATENCY_BUFFER = 3;
 }
 
+enum RegisterMergeStrategyProto {
+  STRATEGY_INVALID = 0;
+  STRATEGY_DONT_MERGE = 1;
+  STRATEGY_IDENTITY_ONLY = 2;
+}
+
 // Flags passed to the codegen_main binary.
 //
 // See codegen_flags.cc ABSL_FLAG() definitions for the meaning of these fields.
@@ -61,5 +67,6 @@ message CodegenFlagsProto {
   repeated string ram_configurations = 26;
   optional bool gate_recvs = 27;
   optional bool array_index_bounds_checking = 28;
-  optional int64 max_trace_verbosity = 29;
+  optional RegisterMergeStrategyProto register_merge_strategy = 29;
+  optional int64 max_trace_verbosity = 30;
 }

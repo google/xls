@@ -144,13 +144,29 @@ ABSL_FLAG(std::optional<std::string>, codegen_options_used_textproto_file,
           std::nullopt,
           "If present, path to write a protobuf recording all codegen args "
           "used (including those set on the cmd line).");
+ABSL_FLAG(std::string, register_merge_strategy, "IdentityOnly",
+          "What strategy to use for merging registers. Options are "
+          "'IdentityOnly' and, 'DontMerge'/'None'.");
 // LINT.ThenChange(
+//   //xls/build_rules/xls_codegen_rules.bzl,
 //   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
 // )
 
 namespace xls {
 namespace {
+
+absl::StatusOr<RegisterMergeStrategyProto> MergeStrategyFromString(
+    std::string_view s) {
+  if (s == "IdentityOnly" || s == "identity") {
+    return STRATEGY_IDENTITY_ONLY;
+  }
+  if (s == "DontMerge" || s == "None" || s == "none") {
+    return STRATEGY_DONT_MERGE;
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Invalid register merge strategy %s. choices: identity, none", s));
+}
 
 // Converts flag-provided values for I/O kinds to its proto enum value.
 absl::StatusOr<IOKindProto> IOKindProtoFromString(std::string_view s) {
@@ -235,6 +251,11 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
   // Optimizations
   POPULATE_FLAG(gate_recvs);
   POPULATE_FLAG(array_index_bounds_checking);
+  XLS_ASSIGN_OR_RETURN(
+      RegisterMergeStrategyProto merge_strategy,
+      MergeStrategyFromString(absl::GetFlag(FLAGS_register_merge_strategy)));
+  any_flags_set |= FLAGS_register_merge_strategy.IsSpecifiedOnCommandLine();
+  proto.set_register_merge_strategy(merge_strategy);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
   return any_flags_set;

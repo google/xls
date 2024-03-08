@@ -29,6 +29,7 @@
 #include "xls/codegen/mulp_combining_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
 #include "xls/codegen/ram_rewrite_pass.h"
+#include "xls/codegen/register_combining_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/side_effect_condition_pass.h"
 #include "xls/codegen/signature_generation_pass.h"
@@ -37,6 +38,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/identity_removal_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
 
@@ -84,6 +86,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Update assert conditions to be guarded by pipeline_valid signals.
   top->Add<SideEffectConditionPass>();
+
+  // Deduplicate registers across mutually exclusive stages.
+  top->Add<RegisterCombiningPass>();
 
   // Remove any identity ops which might have been added earlier in the
   // pipeline.

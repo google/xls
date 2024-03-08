@@ -105,6 +105,8 @@ CODEGEN_FIELDS = {
     "max_trace_verbosity": "Maximum verbosity for traces. Traces with higher " +
                            "verbosity are stripped from codegen output. 0 by " +
                            "default.",
+    "register_merge_strategy": "The strategy to use for merging registers. Either " +
+                               "'IdentityOnly' or 'None'",
 }
 
 SCHEDULING_FIELDS = {

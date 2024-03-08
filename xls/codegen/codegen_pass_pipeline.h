@@ -30,6 +30,11 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline();
 
 // Runs the codegen pass pipeline on the given block with the given options.
 // Returns true if a change has been made by anything in the pipeline.
+//
+// Note this entrypoint should only be used by testing code. The codegen pass
+// operates on a CodegenPassUnit which includes a large amount of ancillary
+// information in addition to the block graph. Without this information some
+// codegen passes might be unable to inspect or modify the code in any deep way.
 absl::StatusOr<bool> RunCodegenPassPipeline(const CodegenPassOptions& options,
                                             Block* block);
 

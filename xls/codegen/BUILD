@@ -468,6 +468,7 @@ cc_library(
         ":mulp_combining_pass",
         ":port_legalization_pass",
         ":ram_rewrite_pass",
+        ":register_combining_pass",
         ":register_legalization_pass",
         ":side_effect_condition_pass",
         ":signature_generation_pass",
@@ -476,6 +477,7 @@ cc_library(
         "//xls/passes:dce_pass",
         "//xls/passes:identity_removal_pass",
         "//xls/passes:pass_base",
+        "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -595,6 +597,50 @@ cc_library(
 )
 
 cc_test(
+    name = "block_execution_fuzz_test",
+    srcs = ["block_execution_fuzz_test.cc"],
+    data = [
+        "//xls/examples:custom_schedule.block.ir",
+        "//xls/examples:custom_schedule.codegen_options.textproto",
+        "//xls/examples:custom_schedule.opt.ir",
+        "//xls/examples:custom_schedule.schedule_options.textproto",
+        "//xls/examples:custom_schedule.sig.textproto",
+    ],
+    deps = [
+        ":module_signature_cc_proto",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/interpreter:block_evaluator",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:register",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+        "//xls/ir:xls_type_cc_proto",
+        "//xls/ir:xls_value_cc_proto",
+        "//xls/jit:block_jit",
+        "//xls/public:ir_parser",
+        "//xls/tools:codegen",
+        "//xls/tools:codegen_flags_cc_proto",
+        "//xls/tools:scheduling_options_flags",
+        "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//fuzztest",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
     name = "register_chaining_analysis_test",
     srcs = ["register_chaining_analysis_test.cc"],
     deps = [
@@ -609,6 +655,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:register",
         "//xls/ir:source_location",
@@ -635,6 +682,7 @@ cc_library(
     srcs = ["register_combining_pass.cc"],
     hdrs = ["register_combining_pass.h"],
     deps = [
+        ":codegen_options",
         ":codegen_pass",
         ":register_chaining_analysis",
         "//xls/common/logging",

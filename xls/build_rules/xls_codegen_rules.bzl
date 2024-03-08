@@ -40,6 +40,7 @@ _DEFAULT_SCHEDULING_ARGS = {
 }
 
 _DEFAULT_CODEGEN_ARGS = {
+    "register_merge_strategy": "IdentityOnly",
 }
 
 _SYSTEM_VERILOG_FILE_EXTENSION = "sv"

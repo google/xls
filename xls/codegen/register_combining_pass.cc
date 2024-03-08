@@ -22,6 +22,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/register_chaining_analysis.h"
 #include "xls/common/logging/logging.h"
@@ -82,6 +83,11 @@ absl::Status CombineRegisters(absl::Span<const RegisterData> mutex_group,
 absl::StatusOr<bool> RegisterCombiningPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
+  if (options.codegen_options.register_merge_strategy() ==
+      CodegenOptions::RegisterMergeStrategy::kDontMerge) {
+    XLS_VLOG(2) << "Not merging any registers due to manual disabling of pass.";
+    return false;
+  }
   if (!unit->concurrent_stages) {
     return false;
   }

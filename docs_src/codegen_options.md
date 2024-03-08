@@ -401,3 +401,10 @@ response-receive are scheduled to match the RAM's latency.
     work correctly even if this is disabled (omitted, or set to -1). Concretely,
     this roughly limits the number of `malloc` calls done by the Z3 solver, so
     the output should be deterministic across machines for a given rlimit.
+
+-   `--register_merge_strategy` controls how we merge registers between stages
+    which may be shared. The options are `identity` which merges registers which
+    can be shared and contain exactly the same value and `none` which disables
+    register merging. Registers are eligible for merging if the stages they are
+    read in are not simultaneously activatable and the registers are the same
+    type.

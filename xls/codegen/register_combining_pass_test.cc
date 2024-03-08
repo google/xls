@@ -65,8 +65,12 @@ class RegisterCombiningPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(CodegenPassUnit& unit) {
     RegisterCombiningPass rcp;
     PassResults res;
-    CodegenPassOptions opt;
-    return rcp.Run(&unit, opt, {});
+    return rcp.Run(
+        &unit,
+        CodegenPassOptions{
+            .codegen_options = CodegenOptions().register_merge_strategy(
+                CodegenOptions::RegisterMergeStrategy::kIdentityOnly)},
+        {});
   }
 
   std::string NodeName(BValue n) {

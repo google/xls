@@ -199,6 +199,20 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
 
   options.gate_recvs(p.gate_recvs());
   options.array_index_bounds_checking(p.array_index_bounds_checking());
+  switch (p.register_merge_strategy()) {
+    case STRATEGY_DONT_MERGE:
+      options.register_merge_strategy(
+          verilog::CodegenOptions::RegisterMergeStrategy::kDontMerge);
+      break;
+    case STRATEGY_IDENTITY_ONLY:
+      options.register_merge_strategy(
+          verilog::CodegenOptions::RegisterMergeStrategy::kIdentityOnly);
+      break;
+    case STRATEGY_INVALID:
+    default:
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Unknown merge strategy: %v", p.register_merge_strategy()));
+  }
 
   return options;
 }

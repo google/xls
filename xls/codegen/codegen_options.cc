@@ -55,7 +55,8 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
       streaming_channel_ready_suffix_(options.streaming_channel_ready_suffix_),
       streaming_channel_valid_suffix_(options.streaming_channel_valid_suffix_),
       array_index_bounds_checking_(options.array_index_bounds_checking_),
-      gate_recvs_(options.gate_recvs_) {
+      gate_recvs_(options.gate_recvs_),
+      register_merge_strategy_(options.register_merge_strategy_) {
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
@@ -86,6 +87,7 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   streaming_channel_valid_suffix_ = options.streaming_channel_valid_suffix_;
   array_index_bounds_checking_ = options.array_index_bounds_checking_;
   gate_recvs_ = options.gate_recvs_;
+  register_merge_strategy_ = options.register_merge_strategy_;
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
@@ -258,6 +260,12 @@ CodegenOptions& CodegenOptions::ram_configurations(
   for (auto& config : ram_configurations) {
     ram_configurations_.push_back(config->Clone());
   }
+  return *this;
+}
+
+CodegenOptions& CodegenOptions::register_merge_strategy(
+    CodegenOptions::RegisterMergeStrategy strategy) {
+  register_merge_strategy_ = strategy;
   return *this;
 }
 
