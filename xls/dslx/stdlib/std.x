@@ -273,6 +273,17 @@ fn lsb_test() {
     assert_eq(u1:0, lsb(u2:0b10));
 }
 
+// Extracts the MSb (most significant bit) from the value `x` and returns it.
+pub fn msb<N: u32>(x: uN[N]) -> u1 { x[-1:] }
+
+#[test]
+fn msb_test() {
+    assert_eq(u1:0, msb(u2:0b00));
+    assert_eq(u1:0, msb(u2:0b01));
+    assert_eq(u1:1, msb(u2:0b11));
+    assert_eq(u1:1, msb(u2:0b10));
+}
+
 // Returns the absolute value of x as a signed number.
 pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] { if x < sN[BITS]:0 { -x } else { x } }
 

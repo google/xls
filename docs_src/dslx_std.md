@@ -618,7 +618,15 @@ convenient than) a pattern like:
 pub fn lsb<N: u32>(x: uN[N]) -> u1
 ```
 
-Extracts the LSB (Least Significant Bit) from the value `x` and returns it.
+Extracts the LSb (Least Significant bit) from the value `x` and returns it.
+
+#### `std::msb`
+
+```dslx-snippet
+pub fn msb<N: u32>(x: uN[N]) -> u1
+```
+
+Extracts the MSb (Most Significant bit) from the value `x` and returns it.
 
 #### `std::convert_to_bits_msb0`
 
