@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_DEVICE_RPC_STRATEGY_H_
-#define XLS_TOOLS_DEVICE_RPC_STRATEGY_H_
+#ifndef XLS_CONTRIB_ICE40_DEVICE_RPC_STRATEGY_H_
+#define XLS_CONTRIB_ICE40_DEVICE_RPC_STRATEGY_H_
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -42,4 +42,4 @@ class DeviceRpcStrategy {
 
 }  // namespace xls
 
-#endif  // XLS_TOOLS_DEVICE_RPC_STRATEGY_H_
+#endif  // XLS_CONTRIB_ICE40_DEVICE_RPC_STRATEGY_H_

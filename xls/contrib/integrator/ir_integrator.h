@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_INTEGRATOR_IR_INTEGRATOR_H_
-#define XLS_INTEGRATOR_IR_INTEGRATOR_H_
+#ifndef XLS_CONTRIB_INTEGRATOR_IR_INTEGRATOR_H_
+#define XLS_CONTRIB_INTEGRATOR_IR_INTEGRATOR_H_
 
 #include <list>
 #include <memory>
@@ -310,4 +310,4 @@ class IntegrationFunction {
 
 }  // namespace xls
 
-#endif  // XLS_INTEGRATOR_IR_INTEGRATOR_H_
+#endif  // XLS_CONTRIB_INTEGRATOR_IR_INTEGRATOR_H_

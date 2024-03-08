@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_SAMPLES_SIMPLE_VC_EXPERIMENT_H_
-#define XLS_NOC_SAMPLES_SIMPLE_VC_EXPERIMENT_H_
+#ifndef XLS_NOC_DRIVERS_SAMPLES_SIMPLE_VC_EXPERIMENT_H_
+#define XLS_NOC_DRIVERS_SAMPLES_SIMPLE_VC_EXPERIMENT_H_
 
 #include "absl/status/status.h"
 #include "xls/noc/drivers/experiment_factory.h"
@@ -25,4 +25,4 @@ absl::Status RegisterSimpleVCExperiment(ExperimentFactory& factory);
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_SAMPLES_SIMPLE_VC_EXPERIMENT_H_
+#endif  // XLS_NOC_DRIVERS_SAMPLES_SIMPLE_VC_EXPERIMENT_H_

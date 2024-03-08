@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_CARET_H_
-#define XLS_PASSES_CARET_H_
+#ifndef XLS_IR_CARET_H_
+#define XLS_IR_CARET_H_
 
 #include <functional>
 #include <optional>
@@ -72,4 +72,4 @@ std::string PrintCaret(
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_CARET_H_
+#endif  // XLS_IR_CARET_H_

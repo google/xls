@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_CONFIG_NETWORK_COMPONENT_UTILS_H_
-#define XLS_NOC_CONFIG_NETWORK_COMPONENT_UTILS_H_
+#ifndef XLS_NOC_CONFIG_NG_NETWORK_COMPONENT_UTILS_H_
+#define XLS_NOC_CONFIG_NG_NETWORK_COMPONENT_UTILS_H_
 
 #include <string>
 #include <vector>
@@ -64,4 +64,4 @@ absl::Status AddNameToComponent(
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_CONFIG_NETWORK_COMPONENT_UTILS_H_
+#endif  // XLS_NOC_CONFIG_NG_NETWORK_COMPONENT_UTILS_H_

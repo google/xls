@@ -13,8 +13,8 @@
 // limitations under the License.
 // A abstract class for an algorithm to integrate multiple functions.
 
-#ifndef XLS_INTEGRATOR_INTEGRATION_ALGORITHM_
-#define XLS_INTEGRATOR_INTEGRATION_ALGORITHM_
+#ifndef XLS_CONTRIB_INTEGRATOR_INTEGRATION_ALGORITHMS_INTEGRATION_ALGORITHM_H_
+#define XLS_CONTRIB_INTEGRATOR_INTEGRATION_ALGORITHMS_INTEGRATION_ALGORITHM_H_
 
 #include <memory>
 #include <vector>
@@ -94,4 +94,4 @@ class IntegrationAlgorithm {
 
 #include "xls/contrib/integrator/integration_algorithms/integration_algorithm_implementation.h"
 
-#endif  // XLS_INTEGRATOR_INTEGRATION_ALGORITHM_
+#endif  // XLS_CONTRIB_INTEGRATOR_INTEGRATION_ALGORITHMS_INTEGRATION_ALGORITHM_H_

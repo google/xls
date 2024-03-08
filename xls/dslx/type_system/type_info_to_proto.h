@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_INFO_TO_PROTO_H_
-#define XLS_DSLX_TYPE_INFO_TO_PROTO_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_TO_PROTO_H_
+#define XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_TO_PROTO_H_
 
 #include <string>
 
@@ -39,4 +39,4 @@ absl::StatusOr<std::string> ToHumanString(const TypeInfoProto& tip,
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_INFO_TO_PROTO_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_TO_PROTO_H_

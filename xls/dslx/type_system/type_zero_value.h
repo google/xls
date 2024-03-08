@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_ZERO_VALUE_H_
-#define XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_ZERO_VALUE_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_TYPE_ZERO_VALUE_H_
+#define XLS_DSLX_TYPE_SYSTEM_TYPE_ZERO_VALUE_H_
 
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -32,4 +32,4 @@ absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_ZERO_VALUE_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_TYPE_ZERO_VALUE_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_IR_EVALUATOR_TEST_H_
-#define XLS_IR_IR_EVALUATOR_TEST_H_
+#ifndef XLS_INTERPRETER_IR_EVALUATOR_TEST_BASE_H_
+#define XLS_INTERPRETER_IR_EVALUATOR_TEST_BASE_H_
 
 #include <functional>
 #include <string>
@@ -163,4 +163,4 @@ class IrEvaluatorTestBase
 
 }  // namespace xls
 
-#endif  // XLS_IR_IR_EVALUATOR_TEST_H_
+#endif  // XLS_INTERPRETER_IR_EVALUATOR_TEST_BASE_H_

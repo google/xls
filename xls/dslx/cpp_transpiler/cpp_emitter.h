@@ -140,4 +140,4 @@ class CppEmitter {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_CPP_TRANSPILER_CPP_EMITTER__H_
+#endif  // XLS_DSLX_CPP_TRANSPILER_CPP_EMITTER_H_

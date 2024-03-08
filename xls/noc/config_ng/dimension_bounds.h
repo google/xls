@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_CONFIG_DIMENSION_BOUNDS_H_
-#define XLS_NOC_CONFIG_DIMENSION_BOUNDS_H_
+#ifndef XLS_NOC_CONFIG_NG_DIMENSION_BOUNDS_H_
+#define XLS_NOC_CONFIG_NG_DIMENSION_BOUNDS_H_
 
 #include <vector>
 
@@ -57,4 +57,4 @@ class DimensionBounds {
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_CONFIG_DIMENSION_BOUNDS_H_
+#endif  // XLS_NOC_CONFIG_NG_DIMENSION_BOUNDS_H_

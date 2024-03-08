@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_BLOCK_METRICS_GENERATOR_H_
-#define XLS_CODEGEN_BLOCK_METRICS_GENERATOR_H_
+#ifndef XLS_CODEGEN_BLOCK_METRICS_H_
+#define XLS_CODEGEN_BLOCK_METRICS_H_
 
 #include <optional>
 
@@ -33,4 +33,4 @@ absl::StatusOr<BlockMetricsProto> GenerateBlockMetrics(
 
 }  // namespace xls::verilog
 
-#endif  // XLS_CODEGEN_BLOCK_METRICS_GENERATOR_H_
+#endif  // XLS_CODEGEN_BLOCK_METRICS_H_

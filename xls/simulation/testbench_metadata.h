@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_TESTBENCH_METADATA_H_
-#define XLS_CODEGEN_TESTBENCH_METADATA_H_
+#ifndef XLS_SIMULATION_TESTBENCH_METADATA_H_
+#define XLS_SIMULATION_TESTBENCH_METADATA_H_
 
 #include <algorithm>
 #include <cstdint>
@@ -90,4 +90,4 @@ class TestbenchMetadata {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_TESTBENCH_METADATA_H_
+#endif  // XLS_SIMULATION_TESTBENCH_METADATA_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_CONFIG_UNIDIRECTIONAL_BUTTERFLY_OPTIONS_PROTO_BUILDER_H_
-#define XLS_NOC_CONFIG_UNIDIRECTIONAL_BUTTERFLY_OPTIONS_PROTO_BUILDER_H_
+#ifndef XLS_NOC_CONFIG_NG_UNIDIRECTIONAL_BUTTERFLY_OPTIONS_PROTO_BUILDER_H_
+#define XLS_NOC_CONFIG_NG_UNIDIRECTIONAL_BUTTERFLY_OPTIONS_PROTO_BUILDER_H_
 
 #include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
@@ -61,4 +61,4 @@ class UnidirectionalButterflyOptionsProtoBuilder {
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_CONFIG_UNIDIRECTIONAL_BUTTERFLY_OPTIONS_PROTO_BUILDER_H_
+#endif  // XLS_NOC_CONFIG_NG_UNIDIRECTIONAL_BUTTERFLY_OPTIONS_PROTO_BUILDER_H_

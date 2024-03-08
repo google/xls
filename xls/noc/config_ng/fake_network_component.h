@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_CONFIG_FAKE_NETWORK_COMPONENT_H_
-#define XLS_NOC_CONFIG_FAKE_NETWORK_COMPONENT_H_
+#ifndef XLS_NOC_CONFIG_NG_FAKE_NETWORK_COMPONENT_H_
+#define XLS_NOC_CONFIG_NG_FAKE_NETWORK_COMPONENT_H_
 
 #include "xls/noc/config_ng/network_component.h"
 
@@ -33,4 +33,4 @@ class FakeNetworkComponent : public NetworkComponent {
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_CONFIG_FAKE_NETWORK_COMPONENT_H_
+#endif  // XLS_NOC_CONFIG_NG_FAKE_NETWORK_COMPONENT_H_

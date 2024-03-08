@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_COMMON_CHECK_SIMULATOR_H_
-#define XLS_COMMON_CHECK_SIMULATOR_H_
+#ifndef XLS_SIMULATION_CHECK_SIMULATOR_H_
+#define XLS_SIMULATION_CHECK_SIMULATOR_H_
 
 #include <string_view>
 
@@ -29,4 +29,4 @@ bool DefaultSimulatorSupportsSystemVerilog();
 
 }  // namespace xls
 
-#endif  // XLS_COMMON_CHECK_SIMULATOR_H_
+#endif  // XLS_SIMULATION_CHECK_SIMULATOR_H_

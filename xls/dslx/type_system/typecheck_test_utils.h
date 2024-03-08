@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_H_
-#define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_
+#define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_
 
 #include <string_view>
 
@@ -27,4 +27,4 @@ absl::StatusOr<TypecheckedModule> Typecheck(std::string_view text);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_

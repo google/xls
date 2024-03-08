@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_SYMBOLIC_BIND_H_
-#define XLS_DSLX_TYPE_SYSTEM_SYMBOLIC_BIND_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_BIND_H_
+#define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_BIND_H_
 
 #include <memory>
 #include <string>
@@ -80,4 +80,4 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_SYMBOLIC_BIND_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_BIND_H_

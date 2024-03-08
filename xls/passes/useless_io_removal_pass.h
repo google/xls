@@ -42,4 +42,4 @@ class UselessIORemovalPass : public OptimizationPass {
 
 }  // namespace xls
 
-#endif
+#endif  // XLS_PASSES_USELESS_IO_REMOVAL_PASS_H_

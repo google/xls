@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_MODULE_TESTBENCH_H_
-#define XLS_CODEGEN_MODULE_TESTBENCH_H_
+#ifndef XLS_SIMULATION_MODULE_TESTBENCH_H_
+#define XLS_SIMULATION_MODULE_TESTBENCH_H_
 
 #include <cstdint>
 #include <functional>
@@ -191,4 +191,4 @@ class ModuleTestbench {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_MODULE_TESTBENCH_H_
+#endif  // XLS_SIMULATION_MODULE_TESTBENCH_H_

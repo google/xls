@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_JIT_CHANNEL_QUEUE_TEST_BASE_H_
-#define XLS_JIT_CHANNEL_QUEUE_TEST_BASE_H_
+#ifndef XLS_INTERPRETER_CHANNEL_QUEUE_TEST_BASE_H_
+#define XLS_INTERPRETER_CHANNEL_QUEUE_TEST_BASE_H_
 
 #include <functional>
 #include <memory>
@@ -53,4 +53,4 @@ class ChannelQueueTestBase
 
 }  // namespace xls
 
-#endif  // XLS_JIT_CHANNEL_QUEUE_TEST_BASE_H_
+#endif  // XLS_INTERPRETER_CHANNEL_QUEUE_TEST_BASE_H_

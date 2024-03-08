@@ -13,8 +13,8 @@
 // limitations under the License.
 // A abstract class for an algorithm to integrate multiple functions.
 
-#ifndef XLS_INTEGRATOR_INTEGRATION_OPTIONS_
-#define XLS_INTEGRATOR_INTEGRATION_OPTIONS_
+#ifndef XLS_CONTRIB_INTEGRATOR_INTEGRATION_OPTIONS_H_
+#define XLS_CONTRIB_INTEGRATOR_INTEGRATION_OPTIONS_H_
 
 #include <iostream>
 
@@ -56,4 +56,4 @@ std::ostream& operator<<(std::ostream& os,
 
 }  // namespace xls
 
-#endif  // XLS_INTEGRATOR_INTEGRATION_OPTIONS_
+#endif  // XLS_CONTRIB_INTEGRATOR_INTEGRATION_OPTIONS_H_

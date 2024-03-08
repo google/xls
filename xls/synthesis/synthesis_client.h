@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SYNTHESIS_CLIENT_H_
-#define XLS_SYNTHESIS_CLIENT_H_
+#ifndef XLS_SYNTHESIS_SYNTHESIS_CLIENT_H_
+#define XLS_SYNTHESIS_SYNTHESIS_CLIENT_H_
 
 #include <string>
 
@@ -31,4 +31,4 @@ absl::StatusOr<CompileResponse> SynthesizeViaClient(
 }  // namespace synthesis
 }  // namespace xls
 
-#endif  // XLS_SYNTHESIS_CLIENT_H_
+#endif  // XLS_SYNTHESIS_SYNTHESIS_CLIENT_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_ARRAY_SIMPLIFICATION_H_
-#define XLS_PASSES_ARRAY_SIMPLIFICATION_H_
+#ifndef XLS_PASSES_ARRAY_SIMPLIFICATION_PASS_H_
+#define XLS_PASSES_ARRAY_SIMPLIFICATION_PASS_H_
 
 #include <cstdint>
 #include <string_view>
@@ -43,4 +43,4 @@ class ArraySimplificationPass : public OptimizationFunctionBasePass {
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_ARRAY_SIMPLIFICATION_H_
+#endif  // XLS_PASSES_ARRAY_SIMPLIFICATION_PASS_H_

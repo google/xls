@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_MAKE_STRUCT_FORMAT_DESCRIPTOR_H_
-#define XLS_DSLX_MAKE_STRUCT_FORMAT_DESCRIPTOR_H_
+#ifndef XLS_DSLX_MAKE_VALUE_FORMAT_DESCRIPTOR_H_
+#define XLS_DSLX_MAKE_VALUE_FORMAT_DESCRIPTOR_H_
 
 #include <memory>
 
@@ -27,4 +27,4 @@ MakeValueFormatDescriptor(const Type& type, FormatPreference field_preference);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_MAKE_STRUCT_FORMAT_DESCRIPTOR_H_
+#endif  // XLS_DSLX_MAKE_VALUE_FORMAT_DESCRIPTOR_H_

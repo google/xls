@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_AREA_MODEL_AREA_ESTIMATOR_H_
-#define XLS_AREA_MODEL_AREA_ESTIMATOR_H_
+#ifndef XLS_CONTRIB_INTEGRATOR_AREA_MODEL_AREA_ESTIMATOR_H_
+#define XLS_CONTRIB_INTEGRATOR_AREA_MODEL_AREA_ESTIMATOR_H_
 
 #include <memory>
 #include <string_view>
@@ -49,4 +49,4 @@ absl::StatusOr<std::unique_ptr<AreaEstimator>> GetAreaEstimatorByName(
 
 }  // namespace xls
 
-#endif  // XLS_AREA_MODEL_AREA_ESTIMATOR_H_
+#endif  // XLS_CONTRIB_INTEGRATOR_AREA_MODEL_AREA_ESTIMATOR_H_

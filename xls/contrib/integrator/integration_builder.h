@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_INTEGRATOR_INTEGRATION_BUILDER_H_
-#define XLS_INTEGRATOR_INTEGRATION_BUILDER_H_
+#ifndef XLS_CONTRIB_INTEGRATOR_INTEGRATION_BUILDER_H_
+#define XLS_CONTRIB_INTEGRATOR_INTEGRATION_BUILDER_H_
 
 #include <memory>
 #include <utility>
@@ -104,4 +104,4 @@ class IntegrationBuilder {
 
 }  // namespace xls
 
-#endif  // XLS_INTEGRATOR_INTEGRATION_BUILDER_H_
+#endif  // XLS_CONTRIB_INTEGRATOR_INTEGRATION_BUILDER_H_

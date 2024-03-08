@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_FUZZER_CPP_AST_GENERATOR_H_
-#define XLS_FUZZER_CPP_AST_GENERATOR_H_
+#ifndef XLS_FUZZER_AST_GENERATOR_H_
+#define XLS_FUZZER_AST_GENERATOR_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -718,4 +718,4 @@ class AstGenerator {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_FUZZER_CPP_AST_GENERATOR_H_
+#endif  // XLS_FUZZER_AST_GENERATOR_H_

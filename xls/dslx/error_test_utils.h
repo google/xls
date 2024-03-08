@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_ERRORS_TEST_UTILS_H_
-#define XLS_DSLX_ERRORS_TEST_UTILS_H_
+#ifndef XLS_DSLX_ERROR_TEST_UTILS_H_
+#define XLS_DSLX_ERROR_TEST_UTILS_H_
 
 #include <string>
 
@@ -51,4 +51,4 @@ MATCHER_P2(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_ERRORS_TEST_UTILS_H_
+#endif  // XLS_DSLX_ERROR_TEST_UTILS_H_

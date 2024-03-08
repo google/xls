@@ -15,8 +15,8 @@
 // API for turning XLS IR computations into Z3 solver form (so we can
 // compute/query formal properties of nodes in the XLS IR).
 
-#ifndef XLS_TOOLS_Z3_IR_TRANSLATOR_H_
-#define XLS_TOOLS_Z3_IR_TRANSLATOR_H_
+#ifndef XLS_SOLVERS_Z3_IR_TRANSLATOR_H_
+#define XLS_SOLVERS_Z3_IR_TRANSLATOR_H_
 
 #include <cstdint>
 #include <functional>
@@ -406,4 +406,4 @@ absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
 }  // namespace solvers
 }  // namespace xls
 
-#endif  // XLS_TOOLS_Z3_IR_TRANSLATOR_H_
+#endif  // XLS_SOLVERS_Z3_IR_TRANSLATOR_H_

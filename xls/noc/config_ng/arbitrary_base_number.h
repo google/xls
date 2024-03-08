@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_CONFIG_ARBITRARY_BASE_NUMBER_H_
-#define XLS_NOC_CONFIG_ARBITRARY_BASE_NUMBER_H_
+#ifndef XLS_NOC_CONFIG_NG_ARBITRARY_BASE_NUMBER_H_
+#define XLS_NOC_CONFIG_NG_ARBITRARY_BASE_NUMBER_H_
 
 #include <optional>
 #include <vector>
@@ -68,4 +68,4 @@ class ArbitraryBaseNumber {
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_CONFIG_ARBITRARY_BASE_NUMBER_H_
+#endif  // XLS_NOC_CONFIG_NG_ARBITRARY_BASE_NUMBER_H_

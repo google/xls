@@ -14,8 +14,8 @@
 
 // Builder definitions for the custom network config options proto.
 
-#ifndef XLS_NOC_CONFIG_CUSTOM_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_H_
-#define XLS_NOC_CONFIG_CUSTOM_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_H_
+#ifndef XLS_NOC_CONFIG_CUSTOM_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_BUILDER_H_
+#define XLS_NOC_CONFIG_CUSTOM_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_BUILDER_H_
 
 #include "absl/log/die_if_null.h"
 #include "xls/common/logging/logging.h"
@@ -109,4 +109,4 @@ class FullyConnectedNetworkConfigOptionsProtoBuilder {
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_CONFIG_CUSTOM_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_H_
+#endif  // XLS_NOC_CONFIG_CUSTOM_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_BUILDER_H_

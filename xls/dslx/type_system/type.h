@@ -20,8 +20,8 @@
 // Concrete types are used in both type inference deduction and interpreter
 // evaluation of the DSL.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_H_
-#define XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_TYPE_H_
+#define XLS_DSLX_TYPE_SYSTEM_TYPE_H_
 
 #include <algorithm>
 #include <cstdint>
@@ -744,4 +744,4 @@ const ParametricSymbol* TryGetParametricSymbol(const TypeDim& dim);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_TYPE_H_

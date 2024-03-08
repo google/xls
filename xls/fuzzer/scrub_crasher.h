@@ -27,4 +27,4 @@ std::string ScrubCrasher(std::string_view s);
 
 }  // namespace xls
 
-#endif  // FUZZER_SCRUB_CRASHER_H_
+#endif  // XLS_FUZZER_SCRUB_CRASHER_H_

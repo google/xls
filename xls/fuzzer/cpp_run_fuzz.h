@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_FUZZER_RUN_FUZZ_CPP_H_
-#define XLS_FUZZER_RUN_FUZZ_CPP_H_
+#ifndef XLS_FUZZER_CPP_RUN_FUZZ_H_
+#define XLS_FUZZER_CPP_RUN_FUZZ_H_
 
 #include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
 
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "xls/fuzzer/sample.h"
 
 namespace xls {
@@ -47,4 +48,4 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
 
 }  // namespace xls
 
-#endif  // XLS_FUZZER_RUN_FUZZ_CPP_H_
+#endif  // XLS_FUZZER_CPP_RUN_FUZZ_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_FRONTEND_CPP_SCANNER_H_
-#define XLS_DSLX_FRONTEND_CPP_SCANNER_H_
+#ifndef XLS_DSLX_FRONTEND_SCANNER_H_
+#define XLS_DSLX_FRONTEND_SCANNER_H_
 
 #include <cstdint>
 #include <functional>
@@ -274,4 +274,4 @@ class Scanner {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_FRONTEND_CPP_SCANNER_H_
+#endif  // XLS_DSLX_FRONTEND_SCANNER_H_

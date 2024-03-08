@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_IR_CONVERT_CPP_EXTRACT_CONVERSION_ORDER_H_
-#define XLS_DSLX_IR_CONVERT_CPP_EXTRACT_CONVERSION_ORDER_H_
+#ifndef XLS_DSLX_IR_CONVERT_EXTRACT_CONVERSION_ORDER_H_
+#define XLS_DSLX_IR_CONVERT_EXTRACT_CONVERSION_ORDER_H_
 
 #include <optional>
 #include <string>
@@ -214,4 +214,4 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_IR_CONVERT_CPP_EXTRACT_CONVERSION_ORDER_H_
+#endif  // XLS_DSLX_IR_CONVERT_EXTRACT_CONVERSION_ORDER_H_

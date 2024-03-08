@@ -147,4 +147,4 @@ int XlsJitUnpackAndPrintBuffer(const char* output_type_string, int arg_count,
 
 }  // extern "C"
 
-#endif  // XLS_JIT_LLVM_JIT_RUNTIME_H_
+#endif  // XLS_JIT_JIT_RUNTIME_H_

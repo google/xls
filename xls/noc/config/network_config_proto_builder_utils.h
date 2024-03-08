@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_NETWORK_CONFIG_PROTO_BUILDER_UTILS_H_
-#define XLS_NOC_NETWORK_CONFIG_PROTO_BUILDER_UTILS_H_
+#ifndef XLS_NOC_CONFIG_NETWORK_CONFIG_PROTO_BUILDER_UTILS_H_
+#define XLS_NOC_CONFIG_NETWORK_CONFIG_PROTO_BUILDER_UTILS_H_
 
 #include <string>
 
@@ -27,4 +27,4 @@ struct PortVirtualChannelTuple {
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_NETWORK_CONFIG_PROTO_BUILDER_UTILS_H_
+#endif  // XLS_NOC_CONFIG_NETWORK_CONFIG_PROTO_BUILDER_UTILS_H_

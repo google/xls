@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #ifndef XLS_COMMON_CASE_CONVERTERS_H_
 #define XLS_COMMON_CASE_CONVERTERS_H_
 
@@ -24,4 +25,4 @@ std::string Camelize(std::string_view input);
 
 }  // namespace xls
 
-#endif  // XLS_COMMON_CASE_CONVERTERS_
+#endif  // XLS_COMMON_CASE_CONVERTERS_H_

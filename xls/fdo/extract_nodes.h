@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SCHEDULING_EXTRACT_NODES_H_
-#define XLS_SCHEDULING_EXTRACT_NODES_H_
+#ifndef XLS_FDO_EXTRACT_NODES_H_
+#define XLS_FDO_EXTRACT_NODES_H_
 
 #include <string>
 #include <string_view>
@@ -32,4 +32,4 @@ absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
 
 }  // namespace xls
 
-#endif  // XLS_SCHEDULING_EXTRACT_NODES_H_
+#endif  // XLS_FDO_EXTRACT_NODES_H_

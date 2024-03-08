@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_EXPERIMENT_H_
-#define XLS_NOC_EXPERIMENT_H_
+#ifndef XLS_NOC_DRIVERS_EXPERIMENT_H_
+#define XLS_NOC_DRIVERS_EXPERIMENT_H_
 
 #include <functional>
 #include <limits>
@@ -395,4 +395,4 @@ Stats GetStats(absl::Span<const PacketInfo> packets);
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_EXPERIMENT_H_
+#endif  // XLS_NOC_DRIVERS_EXPERIMENT_H_

@@ -14,8 +14,8 @@
 //
 // Bindings class (name to defining AST node tracking) for use in parsing.
 
-#ifndef XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
-#define XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
+#ifndef XLS_DSLX_FRONTEND_BINDINGS_H_
+#define XLS_DSLX_FRONTEND_BINDINGS_H_
 
 #include <algorithm>
 #include <optional>
@@ -257,4 +257,4 @@ Span BoundNodeGetSpan(BoundNode bn);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
+#endif  // XLS_DSLX_FRONTEND_BINDINGS_H_

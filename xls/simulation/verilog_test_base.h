@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_VERILOG_TEST_BASE_H_
-#define XLS_CODEGEN_VERILOG_TEST_BASE_H_
+#ifndef XLS_SIMULATION_VERILOG_TEST_BASE_H_
+#define XLS_SIMULATION_VERILOG_TEST_BASE_H_
 
 #include <cctype>
 #include <filesystem>  // NOLINT
@@ -266,4 +266,4 @@ class VerilogTestBase : public VerilogTestBaseWithParam<SimulationTarget> {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_VERILOG_TEST_BASE_H_
+#endif  // XLS_SIMULATION_VERILOG_TEST_BASE_H_

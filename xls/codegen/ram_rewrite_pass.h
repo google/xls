@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_RAM_CHANNEL_REWRITE_PASS_H_
-#define XLS_CODEGEN_RAM_CHANNEL_REWRITE_PASS_H_
+#ifndef XLS_CODEGEN_RAM_REWRITE_PASS_H_
+#define XLS_CODEGEN_RAM_REWRITE_PASS_H_
 
 #include <functional>
 
@@ -51,4 +51,4 @@ using ram_rewrite_function_t = std::function<absl::StatusOr<bool>(
 
 }  // namespace xls::verilog
 
-#endif  // XLS_CODEGEN_RAM_CHANNEL_REWRITE_PASS_H_
+#endif  // XLS_CODEGEN_RAM_REWRITE_PASS_H_

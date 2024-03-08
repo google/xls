@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_LSP_LANGAUGE_SERVER_ADAPTER_H_
-#define XLS_DSLX_LSP_LANGAUGE_SERVER_ADAPTER_H_
+#ifndef XLS_DSLX_LSP_LANGUAGE_SERVER_ADAPTER_H_
+#define XLS_DSLX_LSP_LANGUAGE_SERVER_ADAPTER_H_
 
 #include <filesystem>  // NOLINT
 #include <iostream>
@@ -97,4 +97,4 @@ class LanguageServerAdapter {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_LSP_LANGAUGE_SERVER_ADAPTER_H_
+#endif  // XLS_DSLX_LSP_LANGUAGE_SERVER_ADAPTER_H_

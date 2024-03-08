@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SCHEDULING_STATE_LEGALIZATION_PASS_H_
-#define XLS_SCHEDULING_STATE_LEGALIZATION_PASS_H_
+#ifndef XLS_SCHEDULING_PROC_STATE_LEGALIZATION_PASS_H_
+#define XLS_SCHEDULING_PROC_STATE_LEGALIZATION_PASS_H_
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
@@ -46,4 +46,4 @@ class ProcStateLegalizationPass
 
 }  // namespace xls
 
-#endif  // XLS_SCHEDULING_STATE_LEGALIZATION_PASS_H_
+#endif  // XLS_SCHEDULING_PROC_STATE_LEGALIZATION_PASS_H_

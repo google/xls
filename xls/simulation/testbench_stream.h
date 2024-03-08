@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_TESTBENCH_STREAM_H_
-#define XLS_CODEGEN_TESTBENCH_STREAM_H_
+#ifndef XLS_SIMULATION_TESTBENCH_STREAM_H_
+#define XLS_SIMULATION_TESTBENCH_STREAM_H_
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
@@ -131,4 +131,4 @@ class TestbenchStreamThread {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_TESTBENCH_STREAM_H_
+#endif  // XLS_SIMULATION_TESTBENCH_STREAM_H_

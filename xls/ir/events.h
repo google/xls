@@ -98,4 +98,4 @@ absl::StatusOr<ValueT> DropInterpreterEvents(
 
 }  // namespace xls
 
-#endif  // XLS_IR_EVENTS_H
+#endif  // XLS_IR_EVENTS_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_WRAP_IO_H_
-#define XLS_TOOLS_WRAP_IO_H_
+#ifndef XLS_CONTRIB_ICE40_WRAP_IO_H_
+#define XLS_CONTRIB_ICE40_WRAP_IO_H_
 
 #include <cstdint>
 #include <string_view>
@@ -115,4 +115,4 @@ absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_TOOLS_WRAP_IO_H_
+#endif  // XLS_CONTRIB_ICE40_WRAP_IO_H_

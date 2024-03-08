@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_SAMPLES_AGGREGATE_TREE_EXPERIMENT_H_
-#define XLS_NOC_SAMPLES_AGGREGATE_TREE_EXPERIMENT_H_
+#ifndef XLS_NOC_DRIVERS_SAMPLES_AGGREGATE_TREE_EXPERIMENT_H_
+#define XLS_NOC_DRIVERS_SAMPLES_AGGREGATE_TREE_EXPERIMENT_H_
 
 #include "absl/status/status.h"
 #include "xls/noc/drivers/experiment_factory.h"
@@ -25,4 +25,4 @@ absl::Status RegisterAggregateTreeExperiment(ExperimentFactory& factory);
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_SAMPLES_AGGREGATE_TREE_EXPERIMENT_H_
+#endif  // XLS_NOC_DRIVERS_SAMPLES_AGGREGATE_TREE_EXPERIMENT_H_

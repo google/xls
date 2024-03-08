@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_UNWRAP_METATYPE_H_
-#define XLS_DSLX_TYPE_SYSTEM_UNWRAP_METATYPE_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_UNWRAP_META_TYPE_H_
+#define XLS_DSLX_TYPE_SYSTEM_UNWRAP_META_TYPE_H_
 
 #include <memory>
 #include <string_view>
@@ -39,4 +39,4 @@ absl::StatusOr<const Type*> UnwrapMetaType(const Type& t);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_UNWRAP_METATYPE_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_UNWRAP_META_TYPE_H_

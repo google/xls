@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_VISUALIZATION_IR_TO_PROTO_H_
-#define XLS_IR_VISUALIZATION_IR_TO_PROTO_H_
+#ifndef XLS_VISUALIZATION_IR_VIZ_IR_TO_PROTO_H_
+#define XLS_VISUALIZATION_IR_VIZ_IR_TO_PROTO_H_
 
 #include <optional>
 #include <string>
@@ -36,4 +36,4 @@ absl::StatusOr<xls::viz::Package> IrToProto(
 
 }  // namespace xls
 
-#endif  // XLS_IR_VISUALIZATION_IR_TO_PROTO_H_
+#endif  // XLS_VISUALIZATION_IR_VIZ_IR_TO_PROTO_H_

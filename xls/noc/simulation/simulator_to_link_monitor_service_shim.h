@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_SIMULATION_NOC_SIMULATOR_TO_LINK_MONITOR_SERVICE_SHIM_H_
-#define XLS_NOC_SIMULATION_NOC_SIMULATOR_TO_LINK_MONITOR_SERVICE_SHIM_H_
+#ifndef XLS_NOC_SIMULATION_SIMULATOR_TO_LINK_MONITOR_SERVICE_SHIM_H_
+#define XLS_NOC_SIMULATION_SIMULATOR_TO_LINK_MONITOR_SERVICE_SHIM_H_
 
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/sim_objects.h"
@@ -64,4 +64,4 @@ class NocSimulatorToLinkMonitorServiceShim
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_SIMULATION_NOC_SIMULATOR_TO_LINK_MONITOR_SERVICE_SHIM_H_
+#endif  // XLS_NOC_SIMULATION_SIMULATOR_TO_LINK_MONITOR_SERVICE_SHIM_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SYNTHESIS_YOSYS_UTIL_H_
-#define XLS_SYNTHESIS_YOSYS_UTIL_H_
+#ifndef XLS_SYNTHESIS_YOSYS_YOSYS_UTIL_H_
+#define XLS_SYNTHESIS_YOSYS_YOSYS_UTIL_H_
 
 #include <cstdint>
 #include <string>
@@ -53,4 +53,4 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output);
 }  // namespace synthesis
 }  // namespace xls
 
-#endif  // XLS_SYNTHESIS_YOSYS_UTIL_H_
+#endif  // XLS_SYNTHESIS_YOSYS_YOSYS_UTIL_H_

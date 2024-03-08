@@ -96,4 +96,4 @@ std::vector<absl::btree_set<V>> StronglyConnectedComponents(
 
 }  // namespace xls
 
-#endif  // XLS_DATA_STRUCTURES_STRONGLY_CONNECTED_COMPONENTS_H
+#endif  // XLS_DATA_STRUCTURES_STRONGLY_CONNECTED_COMPONENTS_H_

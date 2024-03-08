@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
-#define XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_H_
+#define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_H_
 
 #include <memory>
 #include <string>
@@ -67,4 +67,4 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_CONFIG_COORDINATE_H_
-#define XLS_NOC_CONFIG_COORDINATE_H_
+#ifndef XLS_NOC_CONFIG_NG_COORDINATE_H_
+#define XLS_NOC_CONFIG_NG_COORDINATE_H_
 
 #include <optional>
 #include <vector>
@@ -97,4 +97,4 @@ class Coordinate {
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_CONFIG_COORDINATE_H_
+#endif  // XLS_NOC_CONFIG_NG_COORDINATE_H_

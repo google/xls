@@ -14,8 +14,8 @@
 
 // Support for carrying information from the type inferencing phase.
 
-#ifndef XLS_DSLX_TYPE_INFO_H_
-#define XLS_DSLX_TYPE_INFO_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_H_
+#define XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_H_
 
 #include <cstdint>
 #include <memory>
@@ -389,4 +389,4 @@ inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_INFO_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
-#define XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
+#ifndef XLS_PASSES_POST_DOMINATOR_ANALYSIS_H_
+#define XLS_PASSES_POST_DOMINATOR_ANALYSIS_H_
 
 #include <memory>
 #include <vector>
@@ -67,4 +67,4 @@ class PostDominatorAnalysis {
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_POSTDOMINATOR_FUNCTION_H_
+#endif  // XLS_PASSES_POST_DOMINATOR_ANALYSIS_H_

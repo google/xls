@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_NOC_CONFIG_TREE_OPTIONS_PROTO_BUILDER_H_
-#define XLS_NOC_CONFIG_TREE_OPTIONS_PROTO_BUILDER_H_
+#ifndef XLS_NOC_CONFIG_NG_TREE_OPTIONS_PROTO_BUILDER_H_
+#define XLS_NOC_CONFIG_NG_TREE_OPTIONS_PROTO_BUILDER_H_
 
 #include "absl/types/span.h"
 #include "xls/noc/config_ng/bidirectional_tree_options_proto_builder.h"
@@ -103,4 +103,4 @@ class TreeOptionsProtoBuilder {
 
 }  // namespace xls::noc
 
-#endif  // XLS_NOC_CONFIG_TREE_OPTIONS_PROTO_BUILDER_H_
+#endif  // XLS_NOC_CONFIG_NG_TREE_OPTIONS_PROTO_BUILDER_H_

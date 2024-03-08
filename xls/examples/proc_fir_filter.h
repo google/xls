@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_EXAMPLES_PROC_FIR_FILTER_H
-#define XLS_EXAMPLES_PROC_FIR_FILTER_H
+#ifndef XLS_EXAMPLES_PROC_FIR_FILTER_H_
+#define XLS_EXAMPLES_PROC_FIR_FILTER_H_
 
 #include <string_view>
 #include <vector>

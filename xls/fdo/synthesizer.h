@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_FDO_SYNTHESIZERS_H_
-#define XLS_FDO_SYNTHESIZERS_H_
+#ifndef XLS_FDO_SYNTHESIZER_H_
+#define XLS_FDO_SYNTHESIZER_H_
 
 #include <cstdint>
 #include <string>
@@ -91,4 +91,4 @@ class YosysSynthesizer : public Synthesizer {
 }  // namespace synthesis
 }  // namespace xls
 
-#endif  // XLS_FDO_SYNTHESIZERS_H_
+#endif  // XLS_FDO_SYNTHESIZER_H_
