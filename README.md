@@ -4,7 +4,7 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/chipsalliance/silicon-notebooks/blob/main/xls-adder-openlane.ipynb) | [**Tutorials**](https://google.github.io/xls/tutorials/)
+[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/gist/proppy/9ef95f427df69f2f622e741e44ac3f5e/learn-xls-in-y-minutes.ipynb) | [**Tutorials**](https://google.github.io/xls/tutorials/)
 
 [**Conda packages**](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/latest_release_date.svg)](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/platforms.svg)](https://anaconda.org/litex-hub/xls)
 
