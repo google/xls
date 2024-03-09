@@ -37,7 +37,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
-#include "xls/dslx/test_xml.h"
+#include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/events.h"

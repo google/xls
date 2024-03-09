@@ -21,7 +21,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
-#include "xls/dslx/run_routines.h"
+#include "xls/dslx/run_routines/run_routines.h"
 
 namespace xls::dslx {
 namespace {

@@ -31,7 +31,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
-#include "xls/dslx/run_routines.h"
+#include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/warning_kind.h"
 
 ABSL_FLAG(std::string, dslx_path, "",

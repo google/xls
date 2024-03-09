@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/run_routines.h"
+#include "xls/dslx/run_routines/run_routines.h"
 
 #include <unistd.h>
 
@@ -62,7 +62,7 @@
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/test_xml.h"
+#include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"

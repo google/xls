@@ -19,15 +19,25 @@
 #include <string>
 #include <string_view>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/test_macros.h"
-#include "xls/dslx/run_routines.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/run_routines/run_routines.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/ir/events.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
 
 namespace xls::dslx {
 
 // Indicates whether the RunComparator should be comparing to the JIT's IR
 // execution or the IR interpreter's.
-enum class CompareMode {
+enum class CompareMode : uint8_t {
   kJit,
   kInterpreter,
 };

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/run_comparator.h"
+#include "xls/dslx/run_routines/run_comparator.h"
 
 #include <memory>
 #include <string>

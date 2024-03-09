@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/run_routines.h"
+#include "xls/dslx/run_routines/run_routines.h"
 
 #include <cstdint>
 #include <optional>
@@ -24,7 +24,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/run_comparator.h"
+#include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
