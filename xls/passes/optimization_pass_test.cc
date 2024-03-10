@@ -100,7 +100,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildShift0() {
   auto result = ((x >> imm) - imm_0);
   absl::StatusOr<Function*> f_or_status = b.BuildWithReturnValue(result);
   CHECK_OK(f_or_status.status());
-  return {absl::move(m), *f_or_status};
+  return {std::move(m), *f_or_status};
 }
 
 TEST(PassesTest, AddPasses) {
