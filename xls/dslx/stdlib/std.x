@@ -407,6 +407,43 @@ fn round_up_to_nearest_test() {
     assert_eq(u32:4, round_up_to_nearest(u32:4, u32:2));
 }
 
+// Returns `x` rounded up to the nearest multiple of `y`, where `y` is a known positive power of 2.
+// This functionality is the same as `round_up_to_nearest` but optimized when `y` is a power of 2.
+fn round_up_to_nearest_pow2_unsigned<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { (x + y - uN[N]:1) & -y }
+
+#[test]
+fn test_round_up_to_nearest_pow2_unsigned() {
+    assert_eq(round_up_to_nearest_pow2_unsigned(u16:0, u16:8), u16:0);
+    assert_eq(round_up_to_nearest_pow2_unsigned(u16:1, u16:8), u16:8);
+    assert_eq(round_up_to_nearest_pow2_unsigned(u16:7, u16:8), u16:8);
+    assert_eq(round_up_to_nearest_pow2_unsigned(u16:8, u16:8), u16:8);
+    assert_eq(round_up_to_nearest_pow2_unsigned(u16:9, u16:8), u16:16);
+
+    assert_eq(round_up_to_nearest_pow2_unsigned(u16:9, u16:16), u16:16);
+}
+
+// Returns `x` rounded up to the nearest multiple of `y`, where `y` is a known positive power of 2.
+// This functionality is the same as `round_up_to_nearest` but optimized when `y` is a power of 2.
+fn round_up_to_nearest_pow2_signed<N: u32>(x: sN[N], y: uN[N]) -> sN[N] {
+    (x + y as sN[N] - sN[N]:1) & -(y as sN[N])
+}
+
+#[test]
+fn test_round_up_to_pow2_signed() {
+    assert_eq(round_up_to_nearest_pow2_signed(s16:9, u16:8), s16:16);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:8, u16:8), s16:8);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:7, u16:8), s16:8);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:1, u16:8), s16:8);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:0, u16:8), s16:0);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:-1, u16:8), s16:0);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:-7, u16:8), s16:0);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:-8, u16:8), s16:-8);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:-9, u16:8), s16:-8);
+
+    assert_eq(round_up_to_nearest_pow2_signed(s16:9, u16:16), s16:16);
+    assert_eq(round_up_to_nearest_pow2_signed(s16:-9, u16:16), s16:0);
+}
+
 // Rotate `x` right by `y` bits.
 pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { (x >> y) | (x << ((N as bits[N]) - y)) }
 

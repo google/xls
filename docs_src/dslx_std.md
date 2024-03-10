@@ -830,6 +830,12 @@ pub fn round_up_to_nearest(x: u32, y: u32) -> u32
 
 Returns `x` rounded up to the nearest multiple of `y`.
 
+#### std::round_up_to_nearest_pow2_?
+
+Returns `x` rounded up to the nearest multiple of `y`, where `y` is a known
+positive power of 2. This functionality is the same as `std::round_up_to_nearest`
+but optimized when `y` is a power of 2.
+
 #### `std::?pow`
 
 ```dslx-snippet
