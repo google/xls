@@ -260,8 +260,14 @@ purpose, and correspond to the components in this XLS stack diagram:
 
 ## Community
 
-Discussions about XLS - development, debugging, usage, and anything else -
-should go to the [xls-dev mailing list](https://groups.google.com/g/xls-dev).
+Discussions about XLS - development, debugging, usage, etc:
+
+* Ideally happen in the [XLS repo GitHub
+  discussions](https://github.com/google/xls/discussions)
+* But, if you feel email is a better venue for the discussion, there is also an
+  [xls-dev mailing list](https://groups.google.com/g/xls-dev) -- please prefer
+  GitHub discussions if possible as they are searchable and can be
+  easily cross-referenced and converted to the issue tracker
 
 ## Contributors
 
@@ -269,7 +275,10 @@ The following are
 [contributors](https://github.com/google/xls/graphs/contributors) to the XLS
 project, see our
 [contributing documentation](https://google.github.io/xls/contributing/) and
-[good first issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)!
+[good first
+issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+if you're interested in contributing, or reach out via [GitHub
+discussions](https://github.com/google/xls/discussions)!
 
 *   [Albert Magyar](https://github.com/albert-magyar)
 *   [Alex Light](https://github.com/allight)
