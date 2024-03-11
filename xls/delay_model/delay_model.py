@@ -23,8 +23,7 @@ well as provide delay estimates in Python.
 import abc
 import dataclasses
 import random
-
-from typing import Sequence, List, Tuple, Callable
+from typing import Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 from scipy import optimize as opt
@@ -39,6 +38,7 @@ class Error(Exception):
 @dataclasses.dataclass
 class RawDataPoint:
   """Measurements used by RegressionEstimator and BoundingBoxEstimator."""
+
   delay_factors: List[int]
   delay_ps: int
 
@@ -46,12 +46,12 @@ class RawDataPoint:
 class Estimator(metaclass=abc.ABCMeta):
   """Base class for delay estimators.
 
-    An Estimator provides and estimate of XLS operation delay based on
-    parameters of the operation.
+  An Estimator provides and estimate of XLS operation delay based on
+  parameters of the operation.
 
-    Attributes:
-      op: The XLS op modeled by this delay estimator. The value should
-        match the name of the XLS Op enum value.  Example: 'kAdd'.
+  Attributes:
+    op: The XLS op modeled by this delay estimator. The value should match the
+      name of the XLS Op enum value.  Example: 'kAdd'.
   """
 
   def __init__(self, op: str):
@@ -97,9 +97,9 @@ class FixedEstimator(Estimator):
 class AliasEstimator(Estimator):
   """An estimator which aliases another estimator for a different op.
 
-    Operations which have very similar or identical delay characteristics (for
-    example, kSub and kAdd) can be modeled using an alias. For example, the
-    estimator for kSub could be an AliasEstimator which refers to kAdd.
+  Operations which have very similar or identical delay characteristics (for
+  example, kSub and kAdd) can be modeled using an alias. For example, the
+  estimator for kSub could be an AliasEstimator which refers to kAdd.
   """
 
   def __init__(self, op, aliased_op: str):
@@ -108,7 +108,8 @@ class AliasEstimator(Estimator):
 
   def cpp_delay_code(self, node_identifier: str) -> str:
     return 'return {}Delay({});'.format(
-        self.aliased_op.lstrip('k'), node_identifier)
+        self.aliased_op.lstrip('k'), node_identifier
+    )
 
   def operation_delay(self, operation: delay_model_pb2.Operation) -> int:
     raise NotImplementedError
@@ -118,16 +119,15 @@ def delay_factor_description(factor: delay_model_pb2.DelayFactor) -> str:
   """Returns a brief description of a delay factor."""
   e = delay_model_pb2.DelayFactor.Source
   return {
-      e.RESULT_BIT_COUNT:
-          'Result bit count',
-      e.OPERAND_BIT_COUNT:
-          'Operand %d bit count' % factor.operand_number,
-      e.OPERAND_COUNT:
-          'Operand count',
-      e.OPERAND_ELEMENT_COUNT:
-          'Operand %d element count' % factor.operand_number,
-      e.OPERAND_ELEMENT_BIT_COUNT:
+      e.RESULT_BIT_COUNT: 'Result bit count',
+      e.OPERAND_BIT_COUNT: 'Operand %d bit count' % factor.operand_number,
+      e.OPERAND_COUNT: 'Operand count',
+      e.OPERAND_ELEMENT_COUNT: (
+          'Operand %d element count' % factor.operand_number
+      ),
+      e.OPERAND_ELEMENT_BIT_COUNT: (
           'Operand %d element bit count' % factor.operand_number
+      ),
   }[factor.source]
 
 
@@ -159,8 +159,9 @@ def delay_expression_description(exp: delay_model_pb2.DelayExpression) -> str:
     return str(exp.constant)
 
 
-def _operation_delay_factor(factor: delay_model_pb2.DelayFactor,
-                            operation: delay_model_pb2.Operation) -> int:
+def _operation_delay_factor(
+    factor: delay_model_pb2.DelayFactor, operation: delay_model_pb2.Operation
+) -> int:
   """Returns the value of a delay factor extracted from an operation."""
   e = delay_model_pb2.DelayFactor.Source
   if factor.source == e.RESULT_BIT_COUNT:
@@ -180,16 +181,20 @@ def _operation_delay_factor(factor: delay_model_pb2.DelayFactor,
     return operation.operands[factor.operand_number].bit_count
 
 
-def _operation_delay_expression(expression: delay_model_pb2.DelayExpression,
-                                operation: delay_model_pb2.Operation) -> int:
+def _operation_delay_expression(
+    expression: delay_model_pb2.DelayExpression,
+    operation: delay_model_pb2.Operation,
+) -> int:
   """Returns the value of a delay expression extracted from an operation."""
   if expression.HasField('bin_op'):
     assert expression.HasField('lhs_expression')
     assert expression.HasField('rhs_expression')
-    lhs_value = _operation_delay_expression(expression.lhs_expression,
-                                            operation)
-    rhs_value = _operation_delay_expression(expression.rhs_expression,
-                                            operation)
+    lhs_value = _operation_delay_expression(
+        expression.lhs_expression, operation
+    )
+    rhs_value = _operation_delay_expression(
+        expression.rhs_expression, operation
+    )
     e = delay_model_pb2.DelayExpression.BinaryOperation
     return {
         e.ADD: lambda: lhs_value + rhs_value,
@@ -208,8 +213,9 @@ def _operation_delay_expression(expression: delay_model_pb2.DelayExpression,
   return expression.constant
 
 
-def _delay_factor_cpp_expression(factor: delay_model_pb2.DelayFactor,
-                                 node_identifier: str) -> str:
+def _delay_factor_cpp_expression(
+    factor: delay_model_pb2.DelayFactor, node_identifier: str
+) -> str:
   """Returns a C++ expression which computes a delay factor of an XLS Node*.
 
   Args:
@@ -224,25 +230,29 @@ def _delay_factor_cpp_expression(factor: delay_model_pb2.DelayFactor,
   """
   e = delay_model_pb2.DelayFactor.Source
   return {
-      e.RESULT_BIT_COUNT:
-          lambda: '{}->GetType()->GetFlatBitCount()'.format(node_identifier),
-      e.OPERAND_BIT_COUNT:
-          lambda: '{}->operand({})->GetType()->GetFlatBitCount()'.format(
-              node_identifier, factor.operand_number),
-      e.OPERAND_COUNT:
-          lambda: '{}->operand_count()'.format(node_identifier),
-      e.OPERAND_ELEMENT_COUNT:
-          lambda: '{}->operand({})->GetType()->AsArrayOrDie()->size()'.format(
-              node_identifier, factor.operand_number),
-      e.OPERAND_ELEMENT_BIT_COUNT:
-          lambda:
-          '{}->operand({})->GetType()->AsArrayOrDie()->element_type()->GetFlatBitCount()'
-          .format(node_identifier, factor.operand_number),
+      e.RESULT_BIT_COUNT: lambda: '{}->GetType()->GetFlatBitCount()'.format(
+          node_identifier
+      ),
+      e.OPERAND_BIT_COUNT: lambda: (
+          '{}->operand({})->GetType()->GetFlatBitCount()'.format(
+              node_identifier, factor.operand_number
+          )
+      ),
+      e.OPERAND_COUNT: lambda: '{}->operand_count()'.format(node_identifier),
+      e.OPERAND_ELEMENT_COUNT: lambda: (
+          '{}->operand({})->GetType()->AsArrayOrDie()->size()'.format(
+              node_identifier, factor.operand_number
+          )
+      ),
+      e.OPERAND_ELEMENT_BIT_COUNT: lambda: '{}->operand({})->GetType()->AsArrayOrDie()->element_type()->GetFlatBitCount()'.format(
+          node_identifier, factor.operand_number
+      ),
   }[factor.source]()
 
 
 def _delay_expression_cpp_expression(
-    expression: delay_model_pb2.DelayExpression, node_identifier: str) -> str:
+    expression: delay_model_pb2.DelayExpression, node_identifier: str
+) -> str:
   """Returns a C++ expression which computes a delay expression of an XLS Node*.
 
   Args:
@@ -256,32 +266,29 @@ def _delay_expression_cpp_expression(
   if expression.HasField('bin_op'):
     assert expression.HasField('lhs_expression')
     assert expression.HasField('rhs_expression')
-    lhs_value = _delay_expression_cpp_expression(expression.lhs_expression,
-                                                 node_identifier)
-    rhs_value = _delay_expression_cpp_expression(expression.rhs_expression,
-                                                 node_identifier)
+    lhs_value = _delay_expression_cpp_expression(
+        expression.lhs_expression, node_identifier
+    )
+    rhs_value = _delay_expression_cpp_expression(
+        expression.rhs_expression, node_identifier
+    )
     e = delay_model_pb2.DelayExpression.BinaryOperation
     return {
-        e.ADD:
-            lambda: '({} + {})'.format(lhs_value, rhs_value),
-        e.DIVIDE:
-            lambda: '({lhs} / ({rhs} < 1.0 ? 1.0 : {rhs}))'.format(
-                lhs=lhs_value, rhs=rhs_value),
-        e.MAX:
-            lambda: 'std::max({}, {})'.format(lhs_value, rhs_value),
-        e.MIN:
-            lambda: 'std::min({}, {})'.format(lhs_value, rhs_value),
-        e.MULTIPLY:
-            lambda: '({} * {})'.format(lhs_value, rhs_value),
-        e.POWER:
-            lambda: 'pow({}, {})'.format(lhs_value, rhs_value),
-        e.SUB:
-            lambda: '({} - {})'.format(lhs_value, rhs_value),
+        e.ADD: lambda: '({} + {})'.format(lhs_value, rhs_value),
+        e.DIVIDE: lambda: '({lhs} / ({rhs} < 1.0 ? 1.0 : {rhs}))'.format(
+            lhs=lhs_value, rhs=rhs_value
+        ),
+        e.MAX: lambda: 'std::max({}, {})'.format(lhs_value, rhs_value),
+        e.MIN: lambda: 'std::min({}, {})'.format(lhs_value, rhs_value),
+        e.MULTIPLY: lambda: '({} * {})'.format(lhs_value, rhs_value),
+        e.POWER: lambda: 'pow({}, {})'.format(lhs_value, rhs_value),
+        e.SUB: lambda: '({} - {})'.format(lhs_value, rhs_value),
     }[expression.bin_op]()
 
   if expression.HasField('factor'):
     return 'static_cast<float>({})'.format(
-        _delay_factor_cpp_expression(expression.factor, node_identifier))
+        _delay_factor_cpp_expression(expression.factor, node_identifier)
+    )
 
   assert expression.HasField('constant')
   return 'static_cast<float>({})'.format(expression.constant)
@@ -317,13 +324,15 @@ class RegressionEstimator(Estimator):
       all data points in a given test set.
   """
 
-  def __init__(self,
-               op,
-               delay_expressions: Sequence[delay_model_pb2.DelayExpression],
-               data_points: Sequence[delay_model_pb2.DataPoint],
-               num_cross_validation_folds: int = 5,
-               max_data_point_error: float = np.inf,
-               max_fold_geomean_error: float = np.inf):
+  def __init__(
+      self,
+      op,
+      delay_expressions: Sequence[delay_model_pb2.DelayExpression],
+      data_points: Sequence[delay_model_pb2.DataPoint],
+      num_cross_validation_folds: int = 5,
+      max_data_point_error: float = np.inf,
+      max_fold_geomean_error: float = np.inf,
+  ):
     super(RegressionEstimator, self).__init__(op)
     self.delay_expressions = list(delay_expressions)
     self.data_points = list(data_points)
@@ -339,19 +348,22 @@ class RegressionEstimator(Estimator):
                   _operation_delay_expression(e, dp.operation)
                   for e in self.delay_expressions
               ],
-              delay_ps=(dp.delay - dp.delay_offset)
+              delay_ps=(dp.delay - dp.delay_offset),
           )
       )
 
-    self._k_fold_cross_validation(self.raw_data_points,
-                                  num_cross_validation_folds,
-                                  max_data_point_error, max_fold_geomean_error)
+    self._k_fold_cross_validation(
+        self.raw_data_points,
+        num_cross_validation_folds,
+        max_data_point_error,
+        max_fold_geomean_error,
+    )
     self.delay_function, self.params = self._fit_curve(self.raw_data_points)
 
   @staticmethod
   def generate_k_fold_cross_validation_train_and_test_sets(
-      raw_data_points: Sequence[RawDataPoint],
-      num_cross_validation_folds: int):
+      raw_data_points: Sequence[RawDataPoint], num_cross_validation_folds: int
+  ):
     """Yields training and testing datasets for cross validation.
 
     Args:
@@ -366,12 +378,14 @@ class RegressionEstimator(Estimator):
 
     # Separate data into num_cross_validation_folds sets
     random.seed(0)
-    randomized_data_points = random.sample(raw_data_points,
-                                           len(raw_data_points))
+    randomized_data_points = random.sample(
+        raw_data_points, len(raw_data_points)
+    )
     folds = []
     for fold_idx in range(num_cross_validation_folds):
       folds.append([
-          dp for idx, dp in enumerate(randomized_data_points)
+          dp
+          for idx, dp in enumerate(randomized_data_points)
           if idx % num_cross_validation_folds == fold_idx
       ])
 
@@ -384,10 +398,13 @@ class RegressionEstimator(Estimator):
         training_dps.extend(fold_dps)
       yield training_dps, folds[test_fold_idx]
 
-  def _k_fold_cross_validation(self, raw_data_points: Sequence[RawDataPoint],
-                               num_cross_validation_folds: int,
-                               max_data_point_error: float,
-                               max_fold_geomean_error: float):
+  def _k_fold_cross_validation(
+      self,
+      raw_data_points: Sequence[RawDataPoint],
+      num_cross_validation_folds: int,
+      max_data_point_error: float,
+      max_fold_geomean_error: float,
+  ):
     """Perfroms k-fold cross validation to verify the model.
 
     An exception is raised if the model does not pass cross validation.  Note
@@ -409,20 +426,21 @@ class RegressionEstimator(Estimator):
       Error: Raised if the model does not pass cross validation.  Note
         that this function modifies self.delay_function to perform regression on
         partial data sets.
-
     """
     if max_data_point_error == np.inf and max_fold_geomean_error == np.inf:
       return
     if num_cross_validation_folds > len(raw_data_points):
-      raise Error('{}: Too few data points to cross validate: '
-                  '{} data points, {} folds'.format(self.op,
-                                                    len(raw_data_points),
-                                                    num_cross_validation_folds))
+      raise Error(
+          '{}: Too few data points to cross validate: '
+          '{} data points, {} folds'.format(
+              self.op, len(raw_data_points), num_cross_validation_folds
+          )
+      )
 
     # Perform validation for each training and testing set.
     for (
         training_dps,
-        testing_dps
+        testing_dps,
     ) in RegressionEstimator.generate_k_fold_cross_validation_train_and_test_sets(
         raw_data_points, num_cross_validation_folds=num_cross_validation_folds
     ):
@@ -439,14 +457,20 @@ class RegressionEstimator(Estimator):
         abs_dp_error = abs((predicted_delay - ydata) / ydata)
         error_product = error_product * abs_dp_error
         if abs_dp_error > max_data_point_error:
-          raise Error('{}: Regression model failed k-fold cross validation for '
-                      'data point {} with absolute error {} > max {}'.format(
-                          self.op, dp, abs_dp_error, max_data_point_error))
-      geomean_error = error_product**(1.0 / len(testing_dps))
+          raise Error(
+              '{}: Regression model failed k-fold cross validation for '
+              'data point {} with absolute error {} > max {}'.format(
+                  self.op, dp, abs_dp_error, max_data_point_error
+              )
+          )
+      geomean_error = error_product ** (1.0 / len(testing_dps))
       if geomean_error > max_fold_geomean_error:
-        raise Error('{}: Regression model failed k-fold cross validation for '
-                    'test set with geomean error {} > max {}'.format(
-                        self.op, geomean_error, max_fold_geomean_error))
+        raise Error(
+            '{}: Regression model failed k-fold cross validation for '
+            'test set with geomean error {} > max {}'.format(
+                self.op, geomean_error, max_fold_geomean_error
+            )
+        )
 
   def _fit_curve(
       self, raw_data_points: Sequence[RawDataPoint]
@@ -478,6 +502,7 @@ class RegressionEstimator(Estimator):
       x_augmented[::, 1::2] = x_arr
       x_augmented[::, 2::2] = np.log2(np.maximum(1.0, x_arr))
       return x_augmented
+
     xdata = augment_xdata(raw_xdata)
 
     # Now, the least-squares solution to the equation xdata @ p = ydata is
@@ -495,7 +520,8 @@ class RegressionEstimator(Estimator):
   def operation_delay(self, operation: delay_model_pb2.Operation) -> int:
     expressions = tuple(
         _operation_delay_expression(e, operation)
-        for e in self.delay_expressions)
+        for e in self.delay_expressions
+    )
     return int(self.delay_function(expressions))
 
   def raw_delay(self, xargs: Sequence[float]) -> float:
@@ -507,16 +533,23 @@ class RegressionEstimator(Estimator):
     for i, expression in enumerate(self.delay_expressions):
       e_str = _delay_expression_cpp_expression(expression, node_identifier)
       terms.append('{!r} * {}'.format(self.params[2 * i + 1], e_str))
-      terms.append('{w!r} * std::log2({e} < 1.0 ? 1.0 : {e})'.format(
-          w=self.params[2 * i + 2], e=e_str))
+      terms.append(
+          '{w!r} * std::log2({e} < 1.0 ? 1.0 : {e})'.format(
+              w=self.params[2 * i + 2], e=e_str
+          )
+      )
     return 'return std::round({});'.format(' + '.join(terms))
 
 
 class BoundingBoxEstimator(Estimator):
   """Bounding box estimator."""
 
-  def __init__(self, op, factors: Sequence[delay_model_pb2.DelayFactor],
-               data_points: Sequence[delay_model_pb2.DataPoint]):
+  def __init__(
+      self,
+      op,
+      factors: Sequence[delay_model_pb2.DelayFactor],
+      data_points: Sequence[delay_model_pb2.DataPoint],
+  ):
     super(BoundingBoxEstimator, self).__init__(op)
     self.delay_factors = factors
     self.data_points = list(data_points)
@@ -528,7 +561,7 @@ class BoundingBoxEstimator(Estimator):
                   _operation_delay_factor(e, dp.operation)
                   for e in self.delay_factors
               ],
-              delay_ps=(dp.delay - dp.delay_offset)
+              delay_ps=(dp.delay - dp.delay_offset),
           )
       )
 
@@ -537,19 +570,30 @@ class BoundingBoxEstimator(Estimator):
     for raw_data_point in self.raw_data_points:
       test_expr_terms = []
       for i, x_value in enumerate(raw_data_point.delay_factors):
-        test_expr_terms.append('%s <= %d' % (_delay_factor_cpp_expression(
-            self.delay_factors[i], node_identifier), x_value))
-      lines.append('if (%s) { return %d; }' %
-                   (' && '.join(test_expr_terms), raw_data_point.delay_ps))
+        test_expr_terms.append(
+            '%s <= %d'
+            % (
+                _delay_factor_cpp_expression(
+                    self.delay_factors[i], node_identifier
+                ),
+                x_value,
+            )
+        )
+      lines.append(
+          'if (%s) { return %d; }'
+          % (' && '.join(test_expr_terms), raw_data_point.delay_ps)
+      )
     lines.append(
         'return absl::UnimplementedError('
         '"Unhandled node for delay estimation: " '
-        '+ {}->ToStringWithOperandTypes());'.format(node_identifier))
+        '+ {}->ToStringWithOperandTypes());'.format(node_identifier)
+    )
     return '\n'.join(lines)
 
   def operation_delay(self, operation: delay_model_pb2.Operation) -> int:
     xargs = tuple(
-        _operation_delay_factor(f, operation) for f in self.delay_factors)
+        _operation_delay_factor(f, operation) for f in self.delay_factors
+    )
     return int(self.raw_delay(xargs))
 
   def raw_delay(self, xargs):
@@ -579,8 +623,10 @@ class LogicalEffortEstimator(Estimator):
     lines = []
     lines.append(
         'absl::StatusOr<int64_t> delay_in_ps = '
-        'DelayEstimator::GetLogicalEffortDelayInPs({}, {});'
-        .format(node_identifier, self.tau_in_ps))
+        'DelayEstimator::GetLogicalEffortDelayInPs({}, {});'.format(
+            node_identifier, self.tau_in_ps
+        )
+    )
     lines.append('if (delay_in_ps.ok()) {')
     lines.append('  return delay_in_ps.value();')
     lines.append('}')
@@ -588,8 +634,11 @@ class LogicalEffortEstimator(Estimator):
     return '\n'.join(lines)
 
 
-def _estimator_from_proto(op: str, proto: delay_model_pb2.Estimator,
-                          data_points: Sequence[delay_model_pb2.DataPoint]):
+def _estimator_from_proto(
+    op: str,
+    proto: delay_model_pb2.Estimator,
+    data_points: Sequence[delay_model_pb2.DataPoint],
+):
   """Create an Estimator from a proto."""
   if proto.HasField('fixed'):
     assert not data_points
@@ -602,20 +651,63 @@ def _estimator_from_proto(op: str, proto: delay_model_pb2.Estimator,
     keyword_dict = dict()
     if proto.regression.HasField('kfold_validator'):
       optional_args = [
-          'num_cross_validation_folds', 'max_data_point_error',
-          'max_fold_geomean_error'
+          'num_cross_validation_folds',
+          'max_data_point_error',
+          'max_fold_geomean_error',
       ]
       for arg in optional_args:
         if proto.regression.kfold_validator.HasField(arg):
           keyword_dict[arg] = getattr(proto.regression.kfold_validator, arg)
-    return RegressionEstimator(op, proto.regression.expressions, data_points,
-                               **keyword_dict)
+    return RegressionEstimator(
+        op, proto.regression.expressions, data_points, **keyword_dict
+    )
   if proto.HasField('bounding_box'):
     assert data_points
     return BoundingBoxEstimator(op, proto.bounding_box.factors, data_points)
   assert proto.HasField('logical_effort')
   assert not data_points
   return LogicalEffortEstimator(op, proto.logical_effort.tau_in_ps)
+
+
+def _is_matching_operation(
+    op: delay_model_pb2.Operation,
+    specialization: delay_model_pb2.OpModel.Specialization,
+):
+  """Check if the operation matches the specialization in kind & details."""
+  if op.specialization != specialization.kind:
+    return False
+
+  if (
+      specialization.kind
+      == delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND
+  ):
+    spec_details = specialization.details.literal_operand_details
+    op_details = op.literal_operand_details
+    if spec_details.allowed_nonliteral_operand and not set(
+        op_details.nonliteral_operand
+    ).issubset(spec_details.allowed_nonliteral_operand):
+      return False
+    if spec_details.required_literal_operand and not set(
+        op_details.literal_operand
+    ).issuperset(spec_details.required_literal_operand):
+      return False
+
+  return True
+
+
+@dataclasses.dataclass(frozen=True)
+class LiteralOperandDetails:
+  """A container for multi-modal output features of data providers."""
+
+  allowed_nonliteral_operands: frozenset[int] = frozenset()
+  required_literal_operands: frozenset[int] = frozenset()
+
+
+@dataclasses.dataclass(frozen=True)
+class SpecializationDetails:
+  """A container for multi-modal output features of data providers."""
+
+  literal_operand_details: Optional[LiteralOperandDetails] = None
 
 
 class OpModel:
@@ -631,35 +723,96 @@ class OpModel:
       case.
   """
 
-  def __init__(self, proto: delay_model_pb2.OpModel,
-               data_points: Sequence[delay_model_pb2.DataPoint]):
+  def __init__(
+      self,
+      proto: delay_model_pb2.OpModel,
+      data_points: Sequence[delay_model_pb2.DataPoint],
+  ):
     self.op = proto.op
     data_points = list(data_points)
     # Build a separate estimator for each specialization, if any.
     self.specializations = {}
     for specialization in proto.specializations:
       # pylint: disable=cell-var-from-loop
-      pred = lambda dp: dp.operation.specialization == specialization.kind
+      pred = lambda dp: _is_matching_operation(dp.operation, specialization)
+
       # Filter out the data points which correspond to the specialization.
       special_data_points = [dp for dp in data_points if pred(dp)]
       data_points = [dp for dp in data_points if not pred(dp)]
-      self.specializations[specialization.kind] = _estimator_from_proto(
-          self.op, specialization.estimator, special_data_points)
-    self.estimator = _estimator_from_proto(self.op, proto.estimator,
-                                           data_points)
+      details = None
+      if (
+          specialization.kind
+          == delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND
+      ):
+        details = SpecializationDetails(
+            LiteralOperandDetails(
+                allowed_nonliteral_operands=frozenset(
+                    specialization.details.literal_operand_details.allowed_nonliteral_operand
+                ),
+                required_literal_operands=frozenset(
+                    specialization.details.literal_operand_details.required_literal_operand
+                ),
+            )
+        )
+      self.specializations[(specialization.kind, details)] = (
+          _estimator_from_proto(
+              self.op, specialization.estimator, special_data_points
+          )
+      )
+    self.estimator = _estimator_from_proto(
+        self.op, proto.estimator, data_points
+    )
 
   def cpp_delay_function(self) -> str:
     """Return a C++ function which computes delay for an operation."""
     lines = []
-    lines.append('absl::StatusOr<int64_t> %s(Node* node) {' %
-                 self.cpp_delay_function_name())
-    for kind, estimator in self.specializations.items():
+    lines.append(
+        'absl::StatusOr<int64_t> %s(Node* node) {'
+        % self.cpp_delay_function_name()
+    )
+    nonliteral_operands_tracked = False
+    for ((kind, details), estimator) in self.specializations.items():
       if kind == delay_model_pb2.SpecializationKind.OPERANDS_IDENTICAL:
-        cond = ('std::all_of(node->operands().begin(), node->operands().end(), '
-                '[&](Node* n) { return n == node->operand(0); })')
+        cond = (
+            'std::all_of(node->operands().begin(), node->operands().end(), '
+            '[&](Node* n) { return n == node->operand(0); })'
+        )
       elif kind == delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND:
-        cond = ('std::any_of(node->operands().begin(), node->operands().end(), '
-                '[](Node* n) { return n->Is<Literal>(); })')
+        cond = (
+            'std::any_of(node->operands().begin(), node->operands().end(), '
+            '[](Node* n) { return n->Is<Literal>(); })'
+        )
+        if details and details.literal_operand_details:
+          literal_operand_details = details.literal_operand_details
+          if literal_operand_details.required_literal_operands:
+            cond = ' && '.join([
+                f'node->operand({i})->Is<Literal>()'
+                for i in literal_operand_details.required_literal_operands
+            ])
+          if literal_operand_details.allowed_nonliteral_operands:
+            if not nonliteral_operands_tracked:
+              lines.extend([
+                  'absl::flat_hash_set<int64_t> nonliteral_operands;',
+                  'for (int64_t i = 0; i < node->operands().size(); ++i) {',
+                  '  if (!node->operand(i)->Is<Literal>()) { ',
+                  '    nonliteral_operands.insert(i);',
+                  '  }',
+                  '}',
+              ])
+              nonliteral_operands_tracked = True
+            cond += (
+                ' && std::all_of('
+                'nonliteral_operands.begin(), '
+                'nonliteral_operands.end(), '
+                '[&](int64_t i) {{ '
+                '  return {};'
+                '}})'
+            ).format(
+                ' || '.join(
+                    f'i == {operand}'
+                    for operand in literal_operand_details.allowed_nonliteral_operands
+                )
+            )
       else:
         raise NotImplementedError
       lines.append('if (%s) {' % cond)
@@ -674,7 +827,8 @@ class OpModel:
 
   def cpp_delay_function_declaration(self) -> str:
     return 'absl::StatusOr<int64_t> {}(Node* node);'.format(
-        self.cpp_delay_function_name())
+        self.cpp_delay_function_name()
+    )
 
 
 class DelayModel:
@@ -692,8 +846,9 @@ class DelayModel:
 
     self.op_models = {}
     for op_model in proto.op_models:
-      self.op_models[op_model.op] = OpModel(op_model,
-                                            op_data_points.get(op_model.op, ()))
+      self.op_models[op_model.op] = OpModel(
+          op_model, op_data_points.get(op_model.op, ())
+      )
 
   def ops(self) -> Sequence[str]:
     return sorted(self.op_models.keys())

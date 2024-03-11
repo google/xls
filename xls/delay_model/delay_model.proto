@@ -33,6 +33,17 @@ enum SpecializationKind {
   HAS_LITERAL_OPERAND = 2;
 }
 
+// Describes more specifics of the condition under which the delay of the
+// operation differs. For example, if the kind is HAS_LITERAL_OPERAND, this
+// might specify that the literal operand must be operand 1.
+message LiteralOperandDetails {
+  // If none are specified, then any operand is allowed to be non-literal.
+  repeated int64 allowed_nonliteral_operand = 1;
+
+  // If none are specified, then no specific operand is required to be literal.
+  repeated int64 required_literal_operand = 2;
+}
+
 // Describes an XLS operation (xls::Node) for the purposes of delay modeling.
 message Operation {
   // XLS Op (e.g., kAdd).
@@ -58,6 +69,12 @@ message Operation {
   // the operands of the xls::Node represented by this proto are all identical,
   // this field would be OPERANDS_IDENTICAL.
   SpecializationKind specialization = 4;
+
+  message LiteralOperandInstanceDetails {
+    repeated int64 literal_operand = 1;
+    repeated int64 nonliteral_operand = 2;
+  }
+  LiteralOperandInstanceDetails literal_operand_details = 5;
 }
 
 // Describes a measured data point of the delay of an operation.
@@ -261,6 +278,12 @@ message OpModel {
   message Specialization {
     SpecializationKind kind = 1;
     Estimator estimator = 2;
+    message Details {
+      oneof specialization_details {
+        LiteralOperandDetails literal_operand_details = 1;
+      }
+    }
+    Details details = 3;
   }
   repeated Specialization specializations = 3;
 }

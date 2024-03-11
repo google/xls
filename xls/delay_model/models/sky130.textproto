@@ -193,6 +193,19 @@ op_models {
       }
     }
   }
+
+  specializations {
+    # If the selector is literal, this will compile down to pure wires.
+    kind: HAS_LITERAL_OPERAND
+    details {
+      literal_operand_details {
+        required_literal_operand: 0
+      }
+    }
+    estimator {
+      fixed: 0
+    }
+  }
 }
 op_models {
   op: "kUMul"
@@ -484,6 +497,19 @@ op_models {
       }
     }
   }
+
+  specializations {
+    # If the index is fully literal, this will compile down to pure wires.
+    kind: HAS_LITERAL_OPERAND
+    details {
+      literal_operand_details {
+        allowed_nonliteral_operand: 0
+      }
+    }
+    estimator {
+      fixed: 0
+    }
+  }
 }
 op_models {
   op: "kArrayUpdate"
@@ -513,6 +539,21 @@ op_models {
       }
     }
   }
+
+  specializations {
+    # If the selector is literal, this will compile down to (at most) an OR as
+    # wide as the number of cases... which is probably close enough to the
+    # number of operands of this OneHotSelect.
+    kind: HAS_LITERAL_OPERAND
+    details {
+      literal_operand_details {
+        required_literal_operand: 0
+      }
+    }
+    estimator {
+      alias_op: "kOr"
+    }
+  }
 }
 op_models {
   op: "kPrioritySel"
@@ -528,6 +569,19 @@ op_models {
           source: OPERAND_COUNT
         }
       }
+    }
+  }
+
+  specializations {
+    # If the selector is literal, this will compile down to pure wires.
+    kind: HAS_LITERAL_OPERAND
+    details {
+      literal_operand_details {
+        required_literal_operand: 0
+      }
+    }
+    estimator {
+      fixed: 0
     }
   }
 }

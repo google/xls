@@ -290,13 +290,100 @@ class DelayModelTest(absltest.TestCase):
             _parse_operation('op: "kBar" bit_count: 123')), 42)
     self.assertEqual(
         op_model.specializations[
-            delay_model_pb2.SpecializationKind.OPERANDS_IDENTICAL]
+            delay_model_pb2.SpecializationKind.OPERANDS_IDENTICAL, None]
         .operation_delay(_parse_operation('op: "kBar" bit_count: 123')), 123)
     self.assertEqualIgnoringWhitespace(
         op_model.cpp_delay_function(), """
           absl::StatusOr<int64_t> FooDelay(Node* node) {
             if (std::all_of(node->operands().begin(), node->operands().end(),
                 [&](Node* n) { return n == node->operand(0); })) {
+              return 123;
+            }
+            return 42;
+          }
+        """)
+
+  def test_fixed_op_model_with_specialization_details(self):
+    op_model = delay_model.OpModel(
+        text_format.Parse(
+            'op: "kFoo" estimator { fixed: 42 } '
+            'specializations {'
+            '  kind: HAS_LITERAL_OPERAND'
+            '  details {'
+            '    literal_operand_details { required_literal_operand: 0 }'
+            '  }'
+            '  estimator { fixed: 123 }'
+            '}',
+            delay_model_pb2.OpModel()), ())
+    self.assertEqual(op_model.op, 'kFoo')
+    self.assertEqual(
+        op_model.estimator.operation_delay(
+            _parse_operation('op: "kBar" bit_count: 123')), 42)
+    self.assertEqual(
+        op_model.specializations[
+            delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
+            delay_model.SpecializationDetails(
+                literal_operand_details=delay_model.LiteralOperandDetails(
+                    required_literal_operands=frozenset([0]),
+                ),
+            )]
+        .operation_delay(_parse_operation('op: "kBar" bit_count: 123')), 123)
+    self.assertEqualIgnoringWhitespace(
+        op_model.cpp_delay_function(), """
+          absl::StatusOr<int64_t> FooDelay(Node* node) {
+            if (node->operand(0)->Is<Literal>()) {
+              return 123;
+            }
+            return 42;
+          }
+        """)
+
+  def test_fixed_op_model_with_complex_specialization_details(self):
+    op_model = delay_model.OpModel(
+        text_format.Parse(
+            'op: "kFoo" estimator { fixed: 42 } '
+            'specializations {'
+            '  kind: HAS_LITERAL_OPERAND'
+            '  details {'
+            '    literal_operand_details {'
+            '      required_literal_operand: 0'
+            '      required_literal_operand: 1'
+            '      allowed_nonliteral_operand: 2'
+            '      allowed_nonliteral_operand: 3'
+            '    }'
+            '  }'
+            '  estimator { fixed: 123 }'
+            '}',
+            delay_model_pb2.OpModel()), ())
+    self.assertEqual(op_model.op, 'kFoo')
+    self.assertEqual(
+        op_model.estimator.operation_delay(
+            _parse_operation('op: "kBar" bit_count: 123')), 42)
+    self.assertEqual(
+        op_model.specializations[
+            delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
+            delay_model.SpecializationDetails(
+                literal_operand_details=delay_model.LiteralOperandDetails(
+                    allowed_nonliteral_operands=frozenset([2, 3]),
+                    required_literal_operands=frozenset([0, 1]),
+                ),
+            )]
+        .operation_delay(_parse_operation('op: "kBar" bit_count: 123')), 123)
+    self.assertEqualIgnoringWhitespace(
+        op_model.cpp_delay_function(), """
+          absl::StatusOr<int64_t> FooDelay(Node* node) {
+            absl::flat_hash_set<int64_t> nonliteral_operands;
+            for (int64_t i = 0; i < node->operands().size(); ++i) {
+              if (!node->operand(i)->Is<Literal>()) {
+                nonliteral_operands.insert(i);
+              }
+            }
+            if (node->operand(0)->Is<Literal>() &&
+                node->operand(1)->Is<Literal>() &&
+                std::all_of(
+                  nonliteral_operands.begin(),
+                  nonliteral_operands.end(),
+                  [&](int64_t i){ return i == 2 || i == 3; })) {
               return 123;
             }
             return 42;
