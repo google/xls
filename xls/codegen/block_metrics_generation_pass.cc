@@ -14,28 +14,31 @@
 
 #include "xls/codegen/block_metrics_generation_pass.h"
 
-#include "absl/strings/str_format.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/codegen/block_metrics.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/node_util.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> BlockMetricsGenerationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
-  if (!unit->signature.has_value()) {
-    return absl::InvalidArgumentError(
-        "Block metrics should be run after "
-        "signature generation.");
+  bool changed = false;
+  for (auto& [block, metadata] : unit->metadata) {
+    if (!metadata.signature.has_value()) {
+      return absl::InvalidArgumentError(
+          "Block metrics should be run after signature generation.");
+    }
+    XLS_ASSIGN_OR_RETURN(BlockMetricsProto block_metrics,
+                         GenerateBlockMetrics(block, options.delay_estimator));
+    XLS_RETURN_IF_ERROR(metadata.signature->ReplaceBlockMetrics(block_metrics));
+    changed = true;
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      BlockMetricsProto block_metrics,
-      GenerateBlockMetrics(unit->block, options.delay_estimator));
-  XLS_RETURN_IF_ERROR(unit->signature->ReplaceBlockMetrics(block_metrics));
-
-  return true;
+  return changed;
 }
 
 }  // namespace xls::verilog

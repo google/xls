@@ -100,7 +100,7 @@ TEST_F(RegisterLegalizationPassTest, KeepsUnitListsValid) {
   XLS_ASSERT_OK_AND_ASSIGN(auto* reg0, blk->GetRegister("reg0"));
   XLS_ASSERT_OK_AND_ASSIGN(auto* write0, blk->GetRegisterWrite(reg0));
   CodegenPassUnit unit(p.get(), blk);
-  unit.streaming_io_and_pipeline.pipeline_registers.push_back(
+  unit.metadata[blk].streaming_io_and_pipeline.pipeline_registers.push_back(
       {PipelineRegister{.reg = reg32,
                         .reg_write = write32->As<RegisterWrite>(),
                         .reg_read = read32.node()->As<RegisterRead>()},
@@ -110,7 +110,7 @@ TEST_F(RegisterLegalizationPassTest, KeepsUnitListsValid) {
                         .reg_read = read0.node()->As<RegisterRead>()}});
 
   XLS_ASSERT_OK(Run(unit));
-  EXPECT_THAT(unit.streaming_io_and_pipeline.pipeline_registers,
+  EXPECT_THAT(unit.metadata[blk].streaming_io_and_pipeline.pipeline_registers,
               testing::ElementsAre(testing::ElementsAre(
                   m::PipelineRegister(reg32, write32, read32.node()))));
 }

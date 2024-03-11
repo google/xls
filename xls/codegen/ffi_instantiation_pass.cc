@@ -123,41 +123,43 @@ static absl::Status InvocationReturnToInstOutputs(
 absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
-  Block* const block = unit->block;
   std::vector<Node*> to_remove;
-  for (Node* node : block->nodes()) {
-    if (!node->Is<Invoke>()) {
-      continue;
+  for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
+    for (Node* node : block->nodes()) {
+      if (!node->Is<Invoke>()) {
+        continue;
+      }
+      Invoke* const invocation = node->As<Invoke>();
+      Function* const fun = down_cast<Function*>(invocation->to_apply());
+      if (!fun || !fun->ForeignFunctionData().has_value()) {
+        return absl::InternalError(
+            absl::StrCat("Detected function call in IR. Probable cause: IR was "
+                         "not run through optimizer (opt_main) "
+                         "(Only FFI invocations are allowed here; ",
+                         invocation->to_apply()->name(), " is not)."));
+      }
+
+      // TODO(hzeller): Better ways to generate a name ?
+      const std::string inst_name = SanitizeIdentifier(
+          absl::StrCat(fun->name(), "_", invocation->GetName(), "_inst"));
+      XLS_ASSIGN_OR_RETURN(xls::Instantiation * instantiation,
+                           block->AddInstantiation(
+                               inst_name, std::make_unique<ExternInstantiation>(
+                                              inst_name, fun)));
+
+      // Params and returns of the invocation become instantiation
+      // inputs/outputs.
+      XLS_RETURN_IF_ERROR(InvocationParamsToInstInputs(block.get(), invocation,
+                                                       fun, instantiation));
+      XLS_RETURN_IF_ERROR(InvocationReturnToInstOutputs(block.get(), invocation,
+                                                        instantiation));
+
+      to_remove.push_back(invocation);
     }
-    Invoke* const invocation = node->As<Invoke>();
-    Function* const fun = down_cast<Function*>(invocation->to_apply());
-    if (!fun || !fun->ForeignFunctionData().has_value()) {
-      return absl::InternalError(
-          absl::StrCat("Detected function call in IR. Probable cause: IR was "
-                       "not run through optimizer (opt_main) "
-                       "(Only FFI invocations are allowed here; ",
-                       invocation->to_apply()->name(), " is not)."));
+
+    for (Node* n : to_remove) {
+      XLS_RETURN_IF_ERROR(block->RemoveNode(n));
     }
-
-    // TODO(hzeller): Better ways to generate a name ?
-    const std::string inst_name = SanitizeIdentifier(
-        absl::StrCat(fun->name(), "_", invocation->GetName(), "_inst"));
-    XLS_ASSIGN_OR_RETURN(
-        xls::Instantiation * instantiation,
-        block->AddInstantiation(
-            inst_name, std::make_unique<ExternInstantiation>(inst_name, fun)));
-
-    // Params and returns of the invocation become instantiation inputs/outputs.
-    XLS_RETURN_IF_ERROR(
-        InvocationParamsToInstInputs(block, invocation, fun, instantiation));
-    XLS_RETURN_IF_ERROR(
-        InvocationReturnToInstOutputs(block, invocation, instantiation));
-
-    to_remove.push_back(invocation);
-  }
-
-  for (Node* n : to_remove) {
-    XLS_RETURN_IF_ERROR(block->RemoveNode(n));
   }
   if (!to_remove.empty()) {
     unit->GcMetadata();

@@ -55,10 +55,12 @@ TEST(SignatureGeneratorTest, CombinationalBlock) {
   fb.Param("c", package.GetBitsType(0));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Concat({a, b})));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           FunctionToCombinationalBlock(f, CodegenOptions()));
 
   // Default options.
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(CodegenOptions(), f));
+                           GenerateSignature(CodegenOptions(), unit.top_block));
 
   ASSERT_EQ(sig.data_inputs().size(), 3);
 
@@ -99,15 +101,20 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
                           SchedulingOptions().pipeline_stages(4)));
 
   {
+    auto codegen_options =
+        CodegenOptions()
+            .module_name("foobar")
+            .reset("rst_n", /*asynchronous=*/false, /*active_low=*/true,
+                   /*reset_data_path=*/false)
+            .clock_name("the_clock");
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(
-            CodegenOptions()
-                .module_name("foobar")
-                .reset("rst_n", /*asynchronous=*/false, /*active_low=*/true,
-                       /*reset_data_path=*/false)
-                .clock_name("the_clock"),
-            f, schedule));
+        GenerateSignature(codegen_options, unit.top_block,
+                          unit.metadata[unit.top_block]
+                              .streaming_io_and_pipeline.node_to_stage_map));
 
     ASSERT_EQ(sig.data_inputs().size(), 2);
 
@@ -136,71 +143,105 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
 
   {
     // Adding flopping of the inputs should increase latency by one.
-    XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                             GenerateSignature(CodegenOptions()
-                                                   .module_name("foobar")
-                                                   .clock_name("the_clock")
-                                                   .flop_inputs(true),
-                                               f, schedule));
+
+    auto codegen_options = CodegenOptions()
+                               .module_name("foobar")
+                               .clock_name("the_clock")
+                               .flop_inputs(true);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionToPipelinedBlock(schedule, codegen_options, f));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleSignature sig,
+        GenerateSignature(codegen_options, unit.top_block,
+                          unit.metadata[unit.top_block]
+                              .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 4);
   }
 
   {
+    auto codegen_options = CodegenOptions()
+                               .module_name("foobar")
+                               .clock_name("the_clock")
+                               .flop_outputs(true);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionToPipelinedBlock(schedule, codegen_options, f));
+
     // Adding flopping of the outputs should increase latency by one.
-    XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                             GenerateSignature(CodegenOptions()
-                                                   .module_name("foobar")
-                                                   .clock_name("the_clock")
-                                                   .flop_outputs(true),
-                                               f, schedule));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleSignature sig,
+        GenerateSignature(codegen_options, unit.top_block,
+                          unit.metadata[unit.top_block]
+                              .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 4);
   }
 
   {
+    auto codegen_options = CodegenOptions()
+                               .module_name("foobar")
+                               .clock_name("the_clock")
+                               .flop_inputs(true)
+                               .flop_outputs(true);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionToPipelinedBlock(schedule, codegen_options, f));
+
     // Adding flopping of both inputs and outputs should increase latency by
     // two.
-    XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                             GenerateSignature(CodegenOptions()
-                                                   .module_name("foobar")
-                                                   .clock_name("the_clock")
-                                                   .flop_inputs(true)
-                                                   .flop_outputs(true),
-                                               f, schedule));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleSignature sig,
+        GenerateSignature(codegen_options, unit.top_block,
+                          unit.metadata[unit.top_block]
+                              .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 5);
   }
 
   {
     // Switching input to a zero latency buffer should reduce latency by one.
+    auto codegen_options =
+        CodegenOptions()
+            .module_name("foobar")
+            .clock_name("the_clock")
+            .flop_inputs(true)
+            .flop_inputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer)
+            .flop_outputs(true);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(
-            CodegenOptions()
-                .module_name("foobar")
-                .clock_name("the_clock")
-                .flop_inputs(true)
-                .flop_inputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer)
-                .flop_outputs(true),
-            f, schedule));
+        GenerateSignature(codegen_options, unit.top_block,
+                          unit.metadata[unit.top_block]
+                              .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 4);
   }
 
   {
-    // Switching output to a zero latency buffer should reduce latency by one.
+    // Switching output to a zero latency buffer should further reduce latency
+    // by one.
+    auto codegen_options =
+        CodegenOptions()
+            .module_name("foobar")
+            .clock_name("the_clock")
+            .flop_inputs(true)
+            .flop_inputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer)
+            .flop_outputs(true)
+            .flop_outputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(
-            CodegenOptions()
-                .module_name("foobar")
-                .clock_name("the_clock")
-                .flop_inputs(true)
-                .flop_inputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer)
-                .flop_outputs(true)
-                .flop_outputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer),
-            f, schedule));
+        GenerateSignature(codegen_options, unit.top_block,
+                          unit.metadata[unit.top_block]
+                              .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 3);
   }
@@ -258,11 +299,12 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
 
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                            ProcToPipelinedBlock(schedule, options, proc));
-  Block* block = unit.block;
+  Block* block = unit.top_block;
   XLS_VLOG_LINES(2, block->DumpIr());
 
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, block, schedule));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature sig,
+      GenerateSignature(options, block, schedule.GetCycleMap()));
 
   EXPECT_EQ(sig.proto().data_channels_size(), 4);
   {
@@ -333,8 +375,9 @@ block my_block(in: bits[32], out: (bits[32])) {
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, my_block, std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature sig,
+      GenerateSignature(options, my_block, /*cycle_map=*/{}));
   ASSERT_EQ(sig.instantiations().size(), 1);
   ASSERT_TRUE(sig.instantiations()[0].has_fifo_instantiation());
   const FifoInstantiationProto& instantiation =
@@ -377,8 +420,9 @@ block my_block(in: bits[32], out: (bits[32])) {
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, my_block, std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature sig,
+      GenerateSignature(options, my_block, /*cycle_map=*/{}));
   ASSERT_EQ(sig.instantiations().size(), 1);
   ASSERT_TRUE(sig.instantiations()[0].has_fifo_instantiation());
   const FifoInstantiationProto& instantiation =

@@ -18,14 +18,18 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
@@ -40,16 +44,15 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
-#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<ModuleSignature> GenerateSignature(
-    const CodegenOptions& options, FunctionBase* func_base,
-    const std::optional<PipelineSchedule>& schedule) {
+    const CodegenOptions& options, Block* block,
+    const absl::flat_hash_map<Node*, Stage>& stage_map) {
   std::string module_name = options.module_name().has_value()
                                 ? std::string{options.module_name().value()}
-                                : func_base->name();
+                                : block->name();
   ModuleSignatureBuilder b(module_name);
 
   // Optionally add clock and reset.
@@ -61,117 +64,127 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
                 options.reset()->active_low());
   }
 
-  if (Function* func = dynamic_cast<Function*>(func_base)) {
-    // Function given, use function params and output type to generate
-    // type signature.
-    for (Param* param : func->params()) {
-      b.AddDataInput(param->name(), param->GetType());
+  std::vector<Type*> input_types;
+  std::vector<Type*> output_types;
+
+  // Returns true if the given node is a data port (reset and valid in/out are
+  // not considered data ports).
+  auto is_data_port = [&](Node* node) {
+    if (options.reset().has_value() &&
+        node->GetName() == options.reset()->name()) {
+      return false;
     }
-    b.AddDataOutput("out", func->return_value()->GetType());
-  } else {
-    XLS_RET_CHECK(func_base->IsBlock());
-    Block* block = down_cast<Block*>(func_base);
-    std::vector<Type*> input_types;
-    std::vector<Type*> output_types;
-
-    // Returns true if the given node is a data port (reset and valid in/out are
-    // not considered data ports).
-    auto is_data_port = [&](Node* node) {
-      if (options.reset().has_value() &&
-          node->GetName() == options.reset()->name()) {
-        return false;
-      }
-      if (options.valid_control().has_value() &&
-          (node->GetName() == options.valid_control()->input_name() ||
-           node->GetName() == options.valid_control()->output_name())) {
-        return false;
-      }
-      return true;
-    };
-
-    for (const Block::Port& port : block->GetPorts()) {
-      if (std::holds_alternative<InputPort*>(port)) {
-        InputPort* input_port = std::get<InputPort*>(port);
-        if (!is_data_port(input_port)) {
-          continue;
-        }
-        input_types.push_back(input_port->GetType());
-        b.AddDataInput(input_port->GetName(), input_port->GetType());
-      } else if (std::holds_alternative<OutputPort*>(port)) {
-        OutputPort* output_port = std::get<OutputPort*>(port);
-        if (!is_data_port(output_port)) {
-          continue;
-        }
-        Type* type = output_port->operand(0)->GetType();
-        output_types.push_back(type);
-        b.AddDataOutput(output_port->GetName(), type);
-      } else {
-        // No need to do anything for the clock port.
-        XLS_RET_CHECK(std::holds_alternative<Block::ClockPort*>(port));
-      }
+    if (options.valid_control().has_value() &&
+        (node->GetName() == options.valid_control()->input_name() ||
+         node->GetName() == options.valid_control()->output_name())) {
+      return false;
     }
+    return true;
+  };
 
-    // Adds information on channels.
-    Package* p = block->package();
-    XLS_VLOG(5) << "GenerateSignature called on package:";
-    XLS_VLOG_LINES(5, p->DumpIr());
-    for (const Channel* const ch : p->channels()) {
-      XLS_VLOG(5) << absl::StreamFormat(
-          "Channel block name: %s\nblock name: %s",
-          ch->GetBlockName().value_or("<none>"), block->name());
-      if (ch->GetBlockName() != block->name()) {
+  for (const Block::Port& port : block->GetPorts()) {
+    if (std::holds_alternative<InputPort*>(port)) {
+      InputPort* input_port = std::get<InputPort*>(port);
+      if (!is_data_port(input_port)) {
         continue;
       }
-
-      if (!ch->HasCompletedBlockPortNames()) {
-        return absl::InternalError(absl::StrFormat(
-            "Unable to generate signature - channel %s associated with "
-            "block %s does not have completed metadata : %s",
-            ch->name(), block->name(), ch->ToString()));
+      input_types.push_back(input_port->GetType());
+      b.AddDataInput(input_port->GetName(), input_port->GetType());
+    } else if (std::holds_alternative<OutputPort*>(port)) {
+      OutputPort* output_port = std::get<OutputPort*>(port);
+      if (!is_data_port(output_port)) {
+        continue;
       }
-
-      CHECK(ch->kind() == ChannelKind::kStreaming ||
-            ch->kind() == ChannelKind::kSingleValue);
-
-      if (ch->kind() == ChannelKind::kStreaming) {
-        b.AddStreamingChannel(
-            ch->name(), ch->supported_ops(),
-            down_cast<const StreamingChannel*>(ch)->GetFlowControl(),
-            ch->type(), down_cast<const StreamingChannel*>(ch)->fifo_config(),
-            ch->GetDataPortName().value(), ch->GetValidPortName(),
-            ch->GetReadyPortName());
-      } else {
-        b.AddSingleValueChannel(ch->name(), ch->supported_ops(),
-                                ch->GetDataPortName().value());
-      }
+      Type* type = output_port->operand(0)->GetType();
+      output_types.push_back(type);
+      b.AddDataOutput(output_port->GetName(), type);
+    } else {
+      // No need to do anything for the clock port.
+      XLS_RET_CHECK(std::holds_alternative<Block::ClockPort*>(port));
     }
-    for (const ::xls::Instantiation* instantiation :
-         block->GetInstantiations()) {
-      if (instantiation->kind() == ::xls::InstantiationKind::kFifo) {
-        const FifoInstantiation* fifo =
-            down_cast<const FifoInstantiation*>(instantiation);
-        std::optional<std::string_view> channel_name;
-        if (fifo->channel_name().has_value()) {
-          XLS_ASSIGN_OR_RETURN(Channel * ch,
-                               p->GetChannel(*fifo->channel_name()));
-          channel_name = ch->name();
-        }
-        b.AddFifoInstantiation(p, fifo->name(), channel_name, fifo->data_type(),
-                               fifo->fifo_config());
+  }
+
+  // Adds information on channels.
+  Package* p = block->package();
+  XLS_VLOG(5) << "GenerateSignature called on package:";
+  XLS_VLOG_LINES(5, p->DumpIr());
+  for (const Channel* const ch : p->channels()) {
+    XLS_VLOG(5) << absl::StreamFormat("Channel block name: %s\nblock name: %s",
+                                      ch->GetBlockName().value_or("<none>"),
+                                      block->name());
+    if (ch->GetBlockName() != block->name()) {
+      continue;
+    }
+
+    if (!ch->HasCompletedBlockPortNames()) {
+      return absl::InternalError(absl::StrFormat(
+          "Unable to generate signature - channel %s associated with "
+          "block %s does not have completed metadata : %s",
+          ch->name(), block->name(), ch->ToString()));
+    }
+
+    CHECK(ch->kind() == ChannelKind::kStreaming ||
+          ch->kind() == ChannelKind::kSingleValue);
+
+    if (ch->kind() == ChannelKind::kStreaming) {
+      b.AddStreamingChannel(
+          ch->name(), ch->supported_ops(),
+          down_cast<const StreamingChannel*>(ch)->GetFlowControl(), ch->type(),
+          down_cast<const StreamingChannel*>(ch)->fifo_config(),
+          ch->GetDataPortName().value(), ch->GetValidPortName(),
+          ch->GetReadyPortName());
+    } else {
+      b.AddSingleValueChannel(ch->name(), ch->supported_ops(),
+                              ch->GetDataPortName().value());
+    }
+  }
+  for (const ::xls::Instantiation* instantiation : block->GetInstantiations()) {
+    if (instantiation->kind() == ::xls::InstantiationKind::kFifo) {
+      const FifoInstantiation* fifo =
+          down_cast<const FifoInstantiation*>(instantiation);
+      std::optional<std::string_view> channel_name;
+      if (fifo->channel_name().has_value()) {
+        XLS_ASSIGN_OR_RETURN(Channel * ch,
+                             p->GetChannel(*fifo->channel_name()));
+        channel_name = ch->name();
       }
+      b.AddFifoInstantiation(p, fifo->name(), channel_name, fifo->data_type(),
+                             fifo->fifo_config());
     }
   }
 
   int64_t register_levels = 0;
   if (options.flop_inputs()) {
-    register_levels += options.GetInputLatency();
+    XLS_VLOG(3) << absl::StreamFormat("Adding input latency = %d - 1.",
+                                      options.GetInputLatency());
+    // Schedule has been adjusted by MaybeAddInputOutputFlopsToSchedule(), but
+    // this does not take zero-latency buffers into account. We subtract 1 from
+    // latency only if inputs are zero-latency.
+    register_levels += options.GetInputLatency() - 1;
   }
   if (options.flop_outputs()) {
-    register_levels += options.GetOutputLatency();
+    XLS_VLOG(3) << absl::StreamFormat("Adding output latency = %d - 1.",
+                                      options.GetOutputLatency());
+    // Similar to above, if the output is flopped with zero-latency buffers we
+    // should shorten the latency.
+    register_levels += options.GetOutputLatency() - 1;
   }
-  if (schedule.has_value()) {
-    register_levels += schedule->length() - 1;
+  if (!stage_map.empty()) {
+    // The stage map generally comes from a `PipelineSchedule`. In the past, we
+    // directly used the `PipelineSchedule`, but the schedule is really an
+    // artifact of the original Function/Proc, not the converted Block. We
+    // derive the latency of the pipeline from the stage map by finding the
+    // maximum value.
+    int64_t pipeline_registers =
+        absl::c_max_element(stage_map, [](const std::pair<Node*, Stage>& lhs,
+                                          const std::pair<Node*, Stage>& rhs) {
+          return lhs.second < rhs.second;
+        })->second;
+    XLS_VLOG(3) << absl::StreamFormat("Adding pipeline registers = %d.",
+                                      pipeline_registers - 1);
+    register_levels += pipeline_registers;
   }
+  XLS_VLOG(3) << absl::StreamFormat("Register levels = %d .", register_levels);
   if (register_levels == 0 && !options.emit_as_pipeline()) {
     // Block has no registers. The block is combinational.
     b.WithCombinationalInterface();
@@ -183,7 +196,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     }
     b.WithPipelineInterface(
         register_levels,
-        /*initiation_interval=*/func_base->GetInitiationInterval().value_or(1),
+        /*initiation_interval=*/block->GetInitiationInterval().value_or(1),
         pipeline_control);
   }
 

@@ -471,7 +471,7 @@ class CodeGenMainTest(parameterized.TestCase):
           stderr=subprocess.STDOUT,
       ).decode('utf-8')
     self.assertContainsExactSubsequence(
-        str(cm.exception.output), 'Cannot codegen multi-proc schedule.'
+        str(cm.exception.output), 'Block stitching not implemented'
     )
 
   def test_multi_proc_container_has_name_of_block(self):
@@ -492,7 +492,7 @@ class CodeGenMainTest(parameterized.TestCase):
           stderr=subprocess.STDOUT,
       ).decode('utf-8')
     self.assertContainsExactSubsequence(
-        str(cm.exception.output), 'Cannot codegen multi-proc schedule.'
+        str(cm.exception.output), 'Block stitching not implemented'
     )
 
   def test_high_ii_with_register_sharing(self):

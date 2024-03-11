@@ -261,7 +261,13 @@ absl::StatusOr<CodegenResult> CodegenPipeline(
     package_pipeline_schedules_proto.mutable_schedules()->insert(
         {schedule.function_base()->name(), schedule.ToProto(*delay_estimator)});
   } else if (std::holds_alternative<PackagePipelineSchedules>(schedules)) {
-    XLS_LOG(FATAL) << "Cannot codegen multi-proc schedule.";
+    const PackagePipelineSchedules& schedule_group =
+        std::get<PackagePipelineSchedules>(schedules);
+    XLS_ASSIGN_OR_RETURN(
+        result, verilog::ToPipelineModuleText(
+                    schedule_group, p, codegen_options, delay_estimator));
+    package_pipeline_schedules_proto =
+        PackagePipelineSchedulesToProto(schedule_group, *delay_estimator);
   } else {
     XLS_LOG(FATAL) << absl::StreamFormat("Unknown schedules type (%d).",
                                          schedules.index());

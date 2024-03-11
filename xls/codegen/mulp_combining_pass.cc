@@ -15,6 +15,7 @@
 #include "xls/codegen/mulp_combining_pass.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 
 #include "absl/status/statusor.h"
@@ -91,17 +92,17 @@ absl::StatusOr<bool> MulpCombiningPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
   bool changed = false;
-  Block* block = unit->block;
-
-  for (Node* node : block->nodes()) {
-    if (std::optional<PartialProductOp*> mulp = MatchMulpAdd(node)) {
-      XLS_RETURN_IF_ERROR(
-          node->ReplaceUsesWithNew<ArithOp>(
-                  mulp.value()->operand(0), mulp.value()->operand(1),
-                  node->BitCountOrDie(),
-                  mulp.value()->op() == Op::kSMulp ? Op::kSMul : Op::kUMul)
-              .status());
-      changed = true;
+  for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
+    for (Node* node : block->nodes()) {
+      if (std::optional<PartialProductOp*> mulp = MatchMulpAdd(node)) {
+        XLS_RETURN_IF_ERROR(
+            node->ReplaceUsesWithNew<ArithOp>(
+                    mulp.value()->operand(0), mulp.value()->operand(1),
+                    node->BitCountOrDie(),
+                    mulp.value()->op() == Op::kSMulp ? Op::kSMul : Op::kUMul)
+                .status());
+        changed = true;
+      }
     }
   }
   if (changed) {

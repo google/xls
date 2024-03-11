@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <initializer_list>
+#include <memory>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -118,60 +119,68 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
   //  2) combinational functions: ops should fire every cycle. Check for
   //     this by looking for a schedule. If there's no schedule, assume that
   //     we're looking at something produced by the combinational generator.
-  bool is_function = std::holds_alternative<FunctionConversionMetadata>(
-      unit->conversion_metadata);
-  if (is_function && (!options.codegen_options.valid_control().has_value() ||
-                      !options.schedule.has_value())) {
-    return false;
-  }
   bool changed = false;
-  Block* const block = unit->block;
-  const StreamingIOPipeline& streaming_io = unit->streaming_io_and_pipeline;
-  // We need to use different signals as a guard on the op's condition for
-  // functions and procs. Procs have extra control signals to manage the channel
-  // operations. For procs, use stage_done which is asserted when all sends and
-  // receives have completed. For functions, stage_done does not exist, so use
-  // pipeline_valid.
-  // TODO(google/xls#1060): revisit this when function- and proc-specific
-  // metadata are refactored.
-  absl::Span<std::optional<Node*> const> stage_guards;
-  if (is_function) {
-    stage_guards = streaming_io.pipeline_valid;
-  } else if (streaming_io.stage_done.empty()) {
-    // If we're looking at a proc, stage_done is used for pipelined procs
-    // and stage_valid is used for combinational procs. Check if
-    // stage_done is empty- if it is, use stage_valid.
-    stage_guards = streaming_io.stage_valid;
-  } else {
-    stage_guards = streaming_io.stage_done;
-  }
-  if (stage_guards.empty()) {
-    return absl::InternalError("No stage guards found for side-effecting ops.");
-  }
-  for (Node* node : block->nodes()) {
-    XLS_ASSIGN_OR_RETURN(bool should_be_rewritten,
-                         OpShouldBeRewritten(node->op()));
-    if (!should_be_rewritten) {
+  for (std::unique_ptr<Block>& block : unit->package->blocks()) {
+    auto metadata_itr = unit->metadata.find(block.get());
+    if (metadata_itr == unit->metadata.end()) {
       continue;
     }
-    XLS_VLOG(3) << absl::StreamFormat("Rewriting condition for %v", *node);
-    auto itr = streaming_io.node_to_stage_map.find(node);
-    XLS_RET_CHECK(itr != streaming_io.node_to_stage_map.end());
-    int64_t condition_stage = itr->second;
-    XLS_VLOG(5) << absl::StreamFormat("Condition is in stage %d.",
-                                      condition_stage);
-    std::optional<Node*> stage_guard = stage_guards[condition_stage];
-    XLS_RET_CHECK(stage_guard.has_value()) << absl::StreamFormat(
-        "Stage guard not found for stage %d.", condition_stage);
-    XLS_ASSIGN_OR_RETURN(int64_t condition_operand,
-                         GetConditionOperandNumber(node));
-    XLS_ASSIGN_OR_RETURN(
-        Node * guarded_condition,
-        MakeGuardedConditionForOp(node->op(), node->operand(condition_operand),
-                                  *stage_guard, block));
-    XLS_RETURN_IF_ERROR(
-        node->ReplaceOperandNumber(condition_operand, guarded_condition));
-    changed = true;
+    const CodegenMetadata& metadata = metadata_itr->second;
+    bool is_function = std::holds_alternative<FunctionConversionMetadata>(
+        metadata.conversion_metadata);
+    if (is_function && (!options.codegen_options.valid_control().has_value() ||
+                        !options.schedule.has_value())) {
+      continue;
+    }
+    // We need to use different signals as a guard on the op's condition for
+    // functions and procs. Procs have extra control signals to manage the
+    // channel operations. For procs, use stage_done which is asserted when all
+    // sends and receives have completed. For functions, stage_done does not
+    // exist, so use pipeline_valid.
+    // TODO(google/xls#1060): revisit this when function- and proc-specific
+    // metadata are refactored.
+    absl::Span<std::optional<Node*> const> stage_guards;
+    if (is_function) {
+      stage_guards = metadata.streaming_io_and_pipeline.pipeline_valid;
+    } else if (metadata.streaming_io_and_pipeline.stage_done.empty()) {
+      // If we're looking at a proc, stage_done is used for pipelined procs
+      // and stage_valid is used for combinational procs. Check if
+      // stage_done is empty- if it is, use stage_valid.
+      stage_guards = metadata.streaming_io_and_pipeline.stage_valid;
+    } else {
+      stage_guards = metadata.streaming_io_and_pipeline.stage_done;
+    }
+    if (stage_guards.empty()) {
+      return absl::InternalError(
+          "No stage guards found for side-effecting ops.");
+    }
+    for (Node* node : block->nodes()) {
+      XLS_ASSIGN_OR_RETURN(bool should_be_rewritten,
+                           OpShouldBeRewritten(node->op()));
+      if (!should_be_rewritten) {
+        continue;
+      }
+      XLS_VLOG(3) << absl::StreamFormat("Rewriting condition for %v", *node);
+      auto itr =
+          metadata.streaming_io_and_pipeline.node_to_stage_map.find(node);
+      XLS_RET_CHECK(itr !=
+                    metadata.streaming_io_and_pipeline.node_to_stage_map.end());
+      int64_t condition_stage = itr->second;
+      XLS_VLOG(5) << absl::StreamFormat("Condition is in stage %d.",
+                                        condition_stage);
+      std::optional<Node*> stage_guard = stage_guards[condition_stage];
+      XLS_RET_CHECK(stage_guard.has_value()) << absl::StreamFormat(
+          "Stage guard not found for stage %d.", condition_stage);
+      XLS_ASSIGN_OR_RETURN(int64_t condition_operand,
+                           GetConditionOperandNumber(node));
+      XLS_ASSIGN_OR_RETURN(Node * guarded_condition,
+                           MakeGuardedConditionForOp(
+                               node->op(), node->operand(condition_operand),
+                               *stage_guard, block.get()));
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceOperandNumber(condition_operand, guarded_condition));
+      changed = true;
+    }
   }
   return changed;
 }

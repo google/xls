@@ -14,23 +14,35 @@
 
 #include "xls/codegen/signature_generation_pass.h"
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/signature_generator.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/node_util.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
-  if (unit->signature.has_value()) {
-    return absl::InvalidArgumentError("Signature already generated.");
+  bool changed = false;
+  XLS_VLOG(3) << absl::StreamFormat("Metadata has %d blocks",
+                                    unit->metadata.size());
+  for (auto& [block, metadata] : unit->metadata) {
+    if (metadata.signature.has_value()) {
+      return absl::InvalidArgumentError("Signature already generated.");
+    }
+    XLS_ASSIGN_OR_RETURN(
+        metadata.signature,
+        GenerateSignature(
+            options.codegen_options, block,
+            metadata.streaming_io_and_pipeline.node_to_stage_map));
+    changed = true;
   }
-  XLS_ASSIGN_OR_RETURN(unit->signature,
-                       GenerateSignature(options.codegen_options, unit->block,
-                                         options.schedule));
-  return true;
+  return changed;
 }
 
 }  // namespace xls::verilog

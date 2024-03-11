@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
@@ -36,32 +37,39 @@ namespace xls::verilog {
 namespace {
 
 absl::Status CheckNodeToStageMap(const CodegenPassUnit& unit) {
-  XLS_RET_CHECK_EQ(
-      unit.streaming_io_and_pipeline.node_to_stage_map.size(),
-      absl::c_count_if(
-          unit.block->nodes(),
-          [&](Node* n) {
-            return unit.streaming_io_and_pipeline.node_to_stage_map.contains(n);
-          }))
-      << "Dangling pointers present in node-id-to-stage map\n";
+  for (const auto& [block, metadata] : unit.metadata) {
+    XLS_RET_CHECK_EQ(
+        metadata.streaming_io_and_pipeline.node_to_stage_map.size(),
+        absl::c_count_if(
+            block->nodes(),
+            [&node_to_stage_map = std::as_const(
+                 metadata.streaming_io_and_pipeline.node_to_stage_map)](
+                Node* n) { return node_to_stage_map.contains(n); }))
+        << "Dangling pointers present in node-id-to-stage map\n";
+  }
   return absl::OkStatus();
 }
 
 absl::Status CheckRegisterLists(const CodegenPassUnit& unit) {
-  absl::flat_hash_set<Node*> nodes(unit.block->nodes().begin(),
-                                   unit.block->nodes().end());
-  for (const std::optional<StateRegister>& reg :
-       unit.streaming_io_and_pipeline.state_registers) {
-    if (reg) {
-      XLS_RET_CHECK(nodes.contains(reg->reg_read)) << "read of " << reg->name;
-      XLS_RET_CHECK(nodes.contains(reg->reg_write)) << "write of " << reg->name;
+  for (const auto& [block, metadata] : unit.metadata) {
+    absl::flat_hash_set<Node*> nodes(block->nodes().begin(),
+                                     block->nodes().end());
+    for (const std::optional<StateRegister>& reg :
+         metadata.streaming_io_and_pipeline.state_registers) {
+      if (reg) {
+        XLS_RET_CHECK(nodes.contains(reg->reg_read)) << "read of " << reg->name;
+        XLS_RET_CHECK(nodes.contains(reg->reg_write))
+            << "write of " << reg->name;
+      }
     }
-  }
-  for (const PipelineStageRegisters& stage :
-       unit.streaming_io_and_pipeline.pipeline_registers) {
-    for (const PipelineRegister& reg : stage) {
-      XLS_RET_CHECK(nodes.contains(reg.reg_read));
-      XLS_RET_CHECK(nodes.contains(reg.reg_write));
+    for (const PipelineStageRegisters& stage :
+         metadata.streaming_io_and_pipeline.pipeline_registers) {
+      for (const PipelineRegister& reg : stage) {
+        XLS_RET_CHECK(nodes.contains(reg.reg_read))
+            << absl::StreamFormat("read of %s", reg.reg->name());
+        XLS_RET_CHECK(nodes.contains(reg.reg_write))
+            << absl::StreamFormat("write of %s", reg.reg->name());
+      }
     }
   }
   return absl::OkStatus();
@@ -186,10 +194,11 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
 absl::Status CodegenChecker::Run(CodegenPassUnit* unit,
                                  const CodegenPassOptions& options,
                                  PassResults* results) const {
-  XLS_RETURN_IF_ERROR(CheckNodeToStageMap(*unit)) << unit->block->DumpIr();
-  XLS_RETURN_IF_ERROR(CheckRegisterLists(*unit)) << unit->block->DumpIr();
-  XLS_RETURN_IF_ERROR(
-      CheckStreamingIO(unit->streaming_io_and_pipeline, unit->block));
+  XLS_RETURN_IF_ERROR(CheckNodeToStageMap(*unit)) << unit->DumpIr();
+  for (const auto& [block, metadata] : unit->metadata) {
+    XLS_RETURN_IF_ERROR(
+        CheckStreamingIO(metadata.streaming_io_and_pipeline, block));
+  }
   return VerifyPackage(unit->package);
 }
 

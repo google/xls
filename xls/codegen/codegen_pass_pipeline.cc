@@ -47,15 +47,15 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
       "codegen", "Top level codegen pass pipeline");
   top->AddInvariantChecker<CodegenChecker>();
 
+  // Stitch multi-block designs together in a top-level block that instantiates
+  // and stitches the others.
+  top->Add<BlockStitchingPass>();
+
   // Generate the signature from the initial proc and options prior to any
   // transformations. If necessary the signature can be mutated later if the
   // proc is transformed in a way which affects its externally visible
   // interface.
   top->Add<SignatureGenerationPass>();
-
-  // Stitch multi-block designs together in a top-level block that instantiates
-  // and stitches the others.
-  top->Add<BlockStitchingPass>();
 
   // Rewrite channels that codegen options have labeled as to/from a RAM. This
   // removes ready+valid ports, instead AND-ing the request valid signal with
@@ -99,6 +99,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Final metrics collection for the final block.
   top->Add<BlockMetricsGenerationPass>();
+
+  // Check invariants at the end.
+  top->AddInvariantChecker<CodegenChecker>();
 
   return top;
 }

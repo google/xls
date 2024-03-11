@@ -25,6 +25,8 @@
 #include "xls/codegen/vast.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
@@ -56,6 +58,15 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 // information about the pipeline stages.
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, FunctionBase* module,
+    const CodegenOptions& options = BuildPipelineOptions(),
+    const DelayEstimator* delay_estimator = nullptr);
+
+// Emits the given package as a verilog module which follows the given
+// schedules. Modules are pipelined with a latency and initiation interval
+// given in the signature. If a delay estimator is provided, the signature also
+// includes delay information about the pipeline stages.
+absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
+    const PackagePipelineSchedules& schedules, Package* package,
     const CodegenOptions& options = BuildPipelineOptions(),
     const DelayEstimator* delay_estimator = nullptr);
 

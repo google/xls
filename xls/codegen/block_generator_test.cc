@@ -1173,9 +1173,9 @@ proc running_sum(tkn: token, first_cycle: bits[1], init={1}) {
                            ProcToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.block, options));
+                           GenerateVerilog(unit.top_block, options));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.block));
+                           GenerateSignature(options, unit.top_block));
 
   verilog = absl::StrCat("`include \"fifo.v\"\n\n", verilog);
 
@@ -1275,13 +1275,13 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
                            ProcToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.block, options));
+                           GenerateVerilog(unit.top_block, options));
 
   XLS_VLOG(3) << "Verilog:";
   XLS_VLOG_LINES(3, verilog);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.block));
+                           GenerateSignature(options, unit.top_block));
 
   ModuleSimulator simulator = NewModuleSimulator(verilog, sig);
 
@@ -1361,10 +1361,10 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
                            ProcToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.block, options));
+                           GenerateVerilog(unit.top_block, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.block));
+                           GenerateSignature(options, unit.top_block));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -1419,10 +1419,10 @@ proc bad_alternator(tkn: token, counter: bits[32], odd_iteration: bits[1], init=
                            ProcToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.block, options));
+                           GenerateVerilog(unit.top_block, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.block));
+                           GenerateSignature(options, unit.top_block));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -1545,7 +1545,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
   XLS_ASSERT_OK(passes->Run(&unit, codegen_pass_options, &results));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.block, options));
+                           GenerateVerilog(unit.top_block, options));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -1588,7 +1588,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
   XLS_ASSERT_OK(passes->Run(&unit, codegen_pass_options, &results));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.block, options));
+                           GenerateVerilog(unit.top_block, options));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);

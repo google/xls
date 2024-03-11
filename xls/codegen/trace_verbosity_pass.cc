@@ -15,6 +15,7 @@
 #include "xls/codegen/trace_verbosity_pass.h"
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -54,11 +55,13 @@ absl::StatusOr<bool> TraceVerbosityPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
   bool changed = false;
-  XLS_ASSIGN_OR_RETURN(
-      bool block_changed,
-      FilterVerboseTraces(unit->block,
-                          options.codegen_options.max_trace_verbosity()));
-  changed = changed || block_changed;
+  for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
+    XLS_ASSIGN_OR_RETURN(
+        bool block_changed,
+        FilterVerboseTraces(block.get(),
+                            options.codegen_options.max_trace_verbosity()));
+    changed = changed || block_changed;
+  }
 
   if (changed) {
     unit->GcMetadata();

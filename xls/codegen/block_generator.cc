@@ -38,11 +38,13 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/module_builder.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/node_expressions.h"
 #include "xls/codegen/node_representation.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -110,6 +112,40 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
 // (asynchronous/synchronous, and active high/low).
 absl::StatusOr<std::optional<ResetProto>> GetBlockResetProto(Block* block) {
   std::optional<ResetProto> reset_proto;
+
+  auto check_or_set =
+      [&reset_proto](const ResetProto& new_proto) -> absl::Status {
+    if (reset_proto.has_value()) {
+      if (reset_proto->name() != new_proto.name()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Block uses more than one reset signal: %s and %s",
+                            reset_proto->name(), new_proto.name()));
+      }
+      if (reset_proto->asynchronous() != new_proto.asynchronous()) {
+        return absl::InvalidArgumentError(
+            "Block has asynchronous and synchronous reset signals");
+      }
+      if (reset_proto->active_low() != new_proto.active_low()) {
+        return absl::InvalidArgumentError(
+            "Block has active low and active high reset signals");
+      }
+    } else {
+      reset_proto = new_proto;
+    }
+    return absl::OkStatus();
+  };
+
+  for (xls::Instantiation* inst : block->GetInstantiations()) {
+    if (inst->kind() == InstantiationKind::kBlock) {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<ResetProto> inst_reset_proto,
+          GetBlockResetProto(
+              down_cast<BlockInstantiation*>(inst)->instantiated_block()));
+      if (inst_reset_proto.has_value()) {
+        XLS_RETURN_IF_ERROR(check_or_set(*inst_reset_proto));
+      }
+    }
+  }
   for (Node* node : block->nodes()) {
     if (node->Is<RegisterWrite>()) {
       RegisterWrite* reg_write = node->As<RegisterWrite>();
@@ -119,26 +155,11 @@ absl::StatusOr<std::optional<ResetProto>> GetBlockResetProto(Block* block) {
       Node* reset_signal = reg_write->reset().value();
       Register* reg = reg_write->GetRegister();
       XLS_RET_CHECK(reg->reset().has_value());
-      if (reset_proto.has_value()) {
-        if (reset_proto->name() != reset_signal->GetName()) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Block uses more than one reset signal: %s and %s",
-              reset_proto->name(), reset_signal->GetName()));
-        }
-        if (reset_proto->asynchronous() != reg->reset()->asynchronous) {
-          return absl::InvalidArgumentError(
-              "Block has asynchronous and synchronous reset signals");
-        }
-        if (reset_proto->active_low() != reg->reset()->active_low) {
-          return absl::InvalidArgumentError(
-              "Block has active low and active high reset signals");
-        }
-      } else {
-        reset_proto = ResetProto();
-        reset_proto->set_name(reset_signal->GetName());
-        reset_proto->set_asynchronous(reg->reset()->asynchronous);
-        reset_proto->set_active_low(reg->reset()->active_low);
-      }
+      ResetProto reg_reset_proto;
+      reg_reset_proto.set_name(reset_signal->GetName());
+      reg_reset_proto.set_asynchronous(reg->reset()->asynchronous);
+      reg_reset_proto.set_active_low(reg->reset()->active_low);
+      XLS_RETURN_IF_ERROR(check_or_set(reg_reset_proto));
     }
   }
   return reset_proto;
@@ -230,8 +251,10 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
     // The number of stages should never exceed the number of nodes. In this
     // case, there is an impossible-to-pipeline graph.
     XLS_RET_CHECK_LT(node_stage.at(source), block->node_count())
-        << "Block is not a pipeline. May contain a (register) backedge or "
-           "registers are not layered";
+        << absl::StreamFormat(
+               "Node %v in stage %d! Block is not a pipeline. May contain a "
+               "(register) backedge or registers are not layered\n%s",
+               *source, node_stage.at(source), block->DumpIr());
 
     for (const Edge& edge : stage_graph.at(source)) {
       Node* target = edge.node;
@@ -301,6 +324,12 @@ class BlockGenerator {
                                const CodegenOptions& options) {
     XLS_ASSIGN_OR_RETURN(std::optional<ResetProto> reset_proto,
                          GetBlockResetProto(block));
+    if (reset_proto.has_value()) {
+      XLS_VLOG(5) << absl::StreamFormat("Reset proto for %s: %s", block->name(),
+                                        reset_proto->DebugString());
+    } else {
+      XLS_VLOG(5) << absl::StreamFormat("No reset proto for %s", block->name());
+    }
     std::optional<std::string_view> clock_name;
     if (block->GetClockPort().has_value()) {
       clock_name = block->GetClockPort()->name;

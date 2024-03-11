@@ -35,6 +35,12 @@
 
 namespace xls {
 namespace verilog {
+// Return a schedule based on the given schedule that adjusts the cycles of the
+// nodes to introduce pipeline registers immediately after input ports or
+// immediately before output ports based on the `flop_inputs` and `flop_outputs`
+// options in CodegenOptions.
+absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
+    const PipelineSchedule& schedule, const CodegenOptions& options);
 
 // Returns pipeline-stage prefixed signal name with the given string as the
 // root. For example, for root `foo` the name might be: p3_foo. Nodes in the
@@ -62,6 +68,11 @@ absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
 absl::StatusOr<CodegenPassUnit> FunctionBaseToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
     FunctionBase* f);
+
+// Converts every scheduled function/proc in `package` to pipelined blocks.
+absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
+    const PackagePipelineSchedules& schedule, const CodegenOptions& options,
+    Package* package);
 
 // Converts a function into a combinational block. Function arguments become
 // input ports, function return value becomes an output port. Returns a pointer

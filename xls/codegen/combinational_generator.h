@@ -15,18 +15,11 @@
 #ifndef XLS_CODEGEN_COMBINATIONAL_GENERATOR_H_
 #define XLS_CODEGEN_COMBINATIONAL_GENERATOR_H_
 
-#include <cstddef>
-#include <string>
-
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/name_to_bit_count.h"
-#include "xls/codegen/vast.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/function.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 namespace verilog {
@@ -36,7 +29,7 @@ namespace verilog {
 // otherwise it will be Verilog. This adds a proc to the package which
 // represents the combinational module. This proc is used for code generation.
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    FunctionBase* func, const CodegenOptions& options,
+    FunctionBase* module, const CodegenOptions& options,
     const DelayEstimator* delay_estimator = nullptr);
 
 }  // namespace verilog

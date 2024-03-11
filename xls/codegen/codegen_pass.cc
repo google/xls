@@ -25,6 +25,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "xls/codegen/module_signature.h"
+#include "xls/ir/block.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 
@@ -34,87 +36,104 @@ std::string CodegenPassUnit::DumpIr() const {
   // Dump the Package and metadata. The metadata is commented out ('//') so the
   // output is parsable.
   std::string out =
-      absl::StrFormat("// Generating code for proc: %s\n\n", block->name());
+      absl::StrFormat("// Generating code for proc: %s\n\n", name());
   absl::StrAppend(&out, package->DumpIr());
-  if (signature.has_value()) {
-    absl::StrAppend(&out, "\n\n// Module signature:\n");
-    for (auto line : absl::StrSplit(signature->ToString(), '\n')) {
-      absl::StrAppend(&out, "// ", line, "\n");
+  for (const auto& [_, block_metadata] : metadata) {
+    if (block_metadata.signature.has_value()) {
+      for (auto line :
+           absl::StrSplit(block_metadata.signature->ToString(), '\n')) {
+        absl::StrAppend(&out, "// ", line, "\n");
+      }
     }
   }
   return out;
 }
-int64_t CodegenPassUnit::GetNodeCount() const { return block->node_count(); }
+int64_t CodegenPassUnit::GetNodeCount() const {
+  return package->GetNodeCount();
+}
 
 void CodegenPassUnit::GcMetadata() {
-  absl::flat_hash_set<Node*> nodes(block->nodes().begin(),
-                                   block->nodes().end());
-  absl::erase_if(
-      streaming_io_and_pipeline.node_to_stage_map,
-      [&nodes](const auto& kv) { return !nodes.contains(kv.first); });
+  absl::flat_hash_set<Node*> nodes;
+  for (auto& [this_block, block_metadata] : metadata) {
+    nodes.clear();
+    nodes.insert(this_block->nodes().begin(), this_block->nodes().end());
+    absl::erase_if(
+        block_metadata.streaming_io_and_pipeline.node_to_stage_map,
+        [&nodes](const auto& kv) { return !nodes.contains(kv.first); });
 
-  for (std::vector<StreamingInput>& inputs : streaming_io_and_pipeline.inputs) {
-    for (StreamingInput& input : inputs) {
-      if (input.port.has_value() && !nodes.contains(*input.port)) {
-        input.port.reset();
-      }
-      if (input.signal_data.has_value() &&
-          !nodes.contains(*input.signal_data)) {
-        input.signal_data.reset();
-      }
-      if (input.signal_valid.has_value() &&
-          !nodes.contains(*input.signal_valid)) {
-        input.signal_valid.reset();
-      }
-      if (input.predicate.has_value() && !nodes.contains(*input.predicate)) {
-        input.predicate.reset();
-      }
-    }
-  }
-  for (std::vector<StreamingOutput>& outputs :
-       streaming_io_and_pipeline.outputs) {
-    for (StreamingOutput& output : outputs) {
-      if (output.port.has_value() && !nodes.contains(*output.port)) {
-        output.port.reset();
-      }
-      if (output.predicate.has_value() && !nodes.contains(*output.predicate)) {
-        output.predicate.reset();
+    for (std::vector<StreamingInput>& inputs :
+         block_metadata.streaming_io_and_pipeline.inputs) {
+      for (StreamingInput& input : inputs) {
+        if (input.port.has_value() && !nodes.contains(*input.port)) {
+          input.port.reset();
+        }
+        if (input.signal_data.has_value() &&
+            !nodes.contains(*input.signal_data)) {
+          input.signal_data.reset();
+        }
+        if (input.signal_valid.has_value() &&
+            !nodes.contains(*input.signal_valid)) {
+          input.signal_valid.reset();
+        }
+        if (input.predicate.has_value() && !nodes.contains(*input.predicate)) {
+          input.predicate.reset();
+        }
       }
     }
-  }
-  streaming_io_and_pipeline.all_active_outputs_ready.erase(
-      std::remove_if(
-          streaming_io_and_pipeline.all_active_outputs_ready.begin(),
-          streaming_io_and_pipeline.all_active_outputs_ready.end(),
-          [&nodes](const auto& node) { return !nodes.contains(node); }),
-      streaming_io_and_pipeline.all_active_outputs_ready.end());
-  streaming_io_and_pipeline.all_active_inputs_valid.erase(
-      std::remove_if(
-          streaming_io_and_pipeline.all_active_inputs_valid.begin(),
-          streaming_io_and_pipeline.all_active_inputs_valid.end(),
-          [&nodes](const auto& node) { return !nodes.contains(node); }),
-      streaming_io_and_pipeline.all_active_inputs_valid.end());
-  streaming_io_and_pipeline.all_active_states_valid.erase(
-      std::remove_if(
-          streaming_io_and_pipeline.all_active_states_valid.begin(),
-          streaming_io_and_pipeline.all_active_states_valid.end(),
-          [&nodes](const auto& node) { return !nodes.contains(node); }),
-      streaming_io_and_pipeline.all_active_states_valid.end());
-  for (std::optional<Node*>& valid : streaming_io_and_pipeline.pipeline_valid) {
-    if (valid.has_value() && !nodes.contains(*valid)) {
-      valid.reset();
+    for (std::vector<StreamingOutput>& outputs :
+         block_metadata.streaming_io_and_pipeline.outputs) {
+      for (StreamingOutput& output : outputs) {
+        if (output.port.has_value() && !nodes.contains(*output.port)) {
+          output.port.reset();
+        }
+        if (output.predicate.has_value() &&
+            !nodes.contains(*output.predicate)) {
+          output.predicate.reset();
+        }
+      }
     }
-  }
-  for (std::optional<Node*>& stage_done :
-       streaming_io_and_pipeline.stage_done) {
-    if (stage_done.has_value() && !nodes.contains(*stage_done)) {
-      stage_done.reset();
+    block_metadata.streaming_io_and_pipeline.all_active_outputs_ready.erase(
+        std::remove_if(
+            block_metadata.streaming_io_and_pipeline.all_active_outputs_ready
+                .begin(),
+            block_metadata.streaming_io_and_pipeline.all_active_outputs_ready
+                .end(),
+            [&nodes](const auto& node) { return !nodes.contains(node); }),
+        block_metadata.streaming_io_and_pipeline.all_active_outputs_ready
+            .end());
+    block_metadata.streaming_io_and_pipeline.all_active_inputs_valid.erase(
+        std::remove_if(
+            block_metadata.streaming_io_and_pipeline.all_active_inputs_valid
+                .begin(),
+            block_metadata.streaming_io_and_pipeline.all_active_inputs_valid
+                .end(),
+            [&nodes](const auto& node) { return !nodes.contains(node); }),
+        block_metadata.streaming_io_and_pipeline.all_active_inputs_valid.end());
+    block_metadata.streaming_io_and_pipeline.all_active_states_valid.erase(
+        std::remove_if(
+            block_metadata.streaming_io_and_pipeline.all_active_states_valid
+                .begin(),
+            block_metadata.streaming_io_and_pipeline.all_active_states_valid
+                .end(),
+            [&nodes](const auto& node) { return !nodes.contains(node); }),
+        block_metadata.streaming_io_and_pipeline.all_active_states_valid.end());
+    for (std::optional<Node*>& valid :
+         block_metadata.streaming_io_and_pipeline.pipeline_valid) {
+      if (valid.has_value() && !nodes.contains(*valid)) {
+        valid.reset();
+      }
     }
-  }
-  for (std::optional<Node*>& stage_valid :
-       streaming_io_and_pipeline.stage_valid) {
-    if (stage_valid.has_value() && !nodes.contains(*stage_valid)) {
-      stage_valid.reset();
+    for (std::optional<Node*>& stage_done :
+         block_metadata.streaming_io_and_pipeline.stage_done) {
+      if (stage_done.has_value() && !nodes.contains(*stage_done)) {
+        stage_done.reset();
+      }
+    }
+    for (std::optional<Node*>& stage_valid :
+         block_metadata.streaming_io_and_pipeline.stage_valid) {
+      if (stage_valid.has_value() && !nodes.contains(*stage_valid)) {
+        stage_valid.reset();
+      }
     }
   }
 }

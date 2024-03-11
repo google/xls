@@ -174,7 +174,8 @@ absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
     XLS_ASSIGN_OR_RETURN(
         verilog::CodegenPassUnit unit,
         verilog::FunctionToCombinationalBlock(tmp_f.get(), options));
-    tmp_block = unit.block;
+    XLS_RET_CHECK_NE(unit.top_block, nullptr);
+    tmp_block = unit.top_block;
   } else {
     ScheduleCycleMap cycle_map;
     for (Node* node : tmp_f->nodes()) {
@@ -195,7 +196,8 @@ absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
     XLS_ASSIGN_OR_RETURN(
         verilog::CodegenPassUnit unit,
         verilog::FunctionToPipelinedBlock(schedule, options, tmp_f.get()));
-    tmp_block = unit.block;
+    XLS_RET_CHECK_NE(unit.top_block, nullptr);
+    tmp_block = unit.top_block;
   }
 
   verilog::CodegenOptions options;

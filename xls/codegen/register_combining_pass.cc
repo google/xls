@@ -37,7 +37,7 @@ namespace xls::verilog {
 
 namespace {
 absl::Status CombineRegisters(absl::Span<const RegisterData> mutex_group,
-                              CodegenPassUnit* unit) {
+                              Block* block, CodegenMetadata& metadata) {
   XLS_RET_CHECK_GE(mutex_group.size(), 2)
       << "Attempting to combine a single register is not meaningful. Single "
          "element mutex groups should have been filtered out.";
@@ -61,43 +61,41 @@ absl::Status CombineRegisters(absl::Span<const RegisterData> mutex_group,
   }
 
   // Do cleanup.
-  for (auto& stage : unit->streaming_io_and_pipeline.pipeline_registers) {
+  for (auto& stage : metadata.streaming_io_and_pipeline.pipeline_registers) {
     std::erase_if(stage, [&](const PipelineRegister& pr) {
       return cleanup_regs.contains(pr.reg);
     });
   }
-  for (auto& state_reg : unit->streaming_io_and_pipeline.state_registers) {
+  for (auto& state_reg : metadata.streaming_io_and_pipeline.state_registers) {
     CHECK(!state_reg || !cleanup_regs.contains(state_reg->reg))
         << "Removed a state register: " << state_reg->reg->ToString();
   }
   for (Node* n : cleanup_nodes) {
-    XLS_RETURN_IF_ERROR(unit->block->RemoveNode(n)) << "can't remove " << n;
+    XLS_RETURN_IF_ERROR(block->RemoveNode(n)) << "can't remove " << n;
   }
   for (Register* r : cleanup_regs) {
-    XLS_RETURN_IF_ERROR(unit->block->RemoveRegister(r));
+    XLS_RETURN_IF_ERROR(block->RemoveRegister(r));
   }
   return absl::OkStatus();
 }
-}  // namespace
 
-absl::StatusOr<bool> RegisterCombiningPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+absl::StatusOr<bool> RunOnBlock(Block* block, CodegenMetadata& metadata,
+                                const CodegenPassOptions& options) {
   if (options.codegen_options.register_merge_strategy() ==
       CodegenOptions::RegisterMergeStrategy::kDontMerge) {
     XLS_VLOG(2) << "Not merging any registers due to manual disabling of pass.";
     return false;
   }
-  if (!unit->concurrent_stages) {
+  if (!metadata.concurrent_stages) {
     return false;
   }
   std::vector<RegisterData> candidate_registers;
-  candidate_registers.reserve(unit->block->GetRegisters().size());
+  candidate_registers.reserve(block->GetRegisters().size());
   // State registers (but not their valid/reset regs) are candidates for
   // merging.
-  XLS_VLOG(2) << unit->block->DumpIr();
+  XLS_VLOG(2) << block->DumpIr();
   for (const auto& maybe_reg :
-       unit->streaming_io_and_pipeline.state_registers) {
+       metadata.streaming_io_and_pipeline.state_registers) {
     if (maybe_reg) {
       CHECK(!maybe_reg->next_values.empty());
       auto write_stage =
@@ -119,18 +117,19 @@ absl::StatusOr<bool> RegisterCombiningPass::RunInternal(
   // pipeline registers (but not their valid/reset regs) are candidates for
   // merging.
   for (const auto& stg_regs :
-       unit->streaming_io_and_pipeline.pipeline_registers) {
+       metadata.streaming_io_and_pipeline.pipeline_registers) {
     for (const auto& reg : stg_regs) {
-      CHECK(unit->streaming_io_and_pipeline.node_to_stage_map.contains(
+      CHECK(metadata.streaming_io_and_pipeline.node_to_stage_map.contains(
           reg.reg_read))
           << reg.reg_read;
-      CHECK(unit->streaming_io_and_pipeline.node_to_stage_map.contains(
+      CHECK(metadata.streaming_io_and_pipeline.node_to_stage_map.contains(
           reg.reg_write))
           << reg.reg_write;
       Stage read_stage =
-          unit->streaming_io_and_pipeline.node_to_stage_map.at(reg.reg_read);
+          metadata.streaming_io_and_pipeline.node_to_stage_map.at(reg.reg_read);
       Stage write_stage =
-          unit->streaming_io_and_pipeline.node_to_stage_map.at(reg.reg_write);
+          metadata.streaming_io_and_pipeline.node_to_stage_map.at(
+              reg.reg_write);
       CHECK_EQ(write_stage + 1, read_stage)
           << "pipeline register skipping stage? " << reg.reg->ToString()
           << "\nread: " << reg.reg_read << "\nwrite: " << reg.reg_write;
@@ -149,15 +148,28 @@ absl::StatusOr<bool> RegisterCombiningPass::RunInternal(
   for (const RegisterData& rd : candidate_registers) {
     reg_groups.InsertAndReduce(rd);
   }
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<std::vector<RegisterData>> mutex_chains,
-      reg_groups.SplitBetweenMutexRegions(*unit->concurrent_stages, options));
+  XLS_ASSIGN_OR_RETURN(std::vector<std::vector<RegisterData>> mutex_chains,
+                       reg_groups.SplitBetweenMutexRegions(
+                           *metadata.concurrent_stages, options));
   bool changed = !mutex_chains.empty();
 
   for (const std::vector<RegisterData>& group : mutex_chains) {
-    XLS_RETURN_IF_ERROR(CombineRegisters(group, unit));
+    XLS_RETURN_IF_ERROR(CombineRegisters(group, block, metadata));
   }
 
+  return changed;
+}
+}  // namespace
+
+absl::StatusOr<bool> RegisterCombiningPass::RunInternal(
+    CodegenPassUnit* unit, const CodegenPassOptions& options,
+    PassResults* results) const {
+  bool changed = false;
+  for (auto& [block, metadata] : unit->metadata) {
+    XLS_ASSIGN_OR_RETURN(bool block_changed,
+                         RunOnBlock(block, metadata, options));
+    changed = changed || block_changed;
+  }
   if (changed) {
     unit->GcMetadata();
   }

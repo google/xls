@@ -15,20 +15,20 @@
 #ifndef XLS_CODEGEN_CODEGEN_PASS_H_
 #define XLS_CODEGEN_CODEGEN_PASS_H_
 
+#include <compare>
 #include <cstdint>
 #include <optional>
-#include <ostream>
 #include <string>
 #include <variant>
 #include <vector>
 
+#include "absl/base/nullability.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
+#include "absl/log/check.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/common/logging/logging.h"
-#include "xls/data_structures/inline_bitmap.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
 #include "xls/ir/instantiation.h"
@@ -230,8 +230,6 @@ struct StreamingIOPipeline {
 
   // Map from node to stage.
   absl::flat_hash_map<Node*, Stage> node_to_stage_map;
-
-  absl::Status VerifyNodesInBlock(Block* block) const;
 };
 
 // Plumbs a valid signal through the block. This includes:
@@ -256,37 +254,11 @@ struct ProcConversionMetadata {
   std::vector<std::optional<Node*>> valid_flops;
 };
 
-// Data structure operated on by codegen passes. Contains the IR and associated
-// metadata which may be used and mutated by passes.
-struct CodegenPassUnit {
-  CodegenPassUnit(Package* p, Block* b,
-                  std::optional<int64_t> stages = std::nullopt)
-      : package(p),
-        block(b),
-        concurrent_stages(
-            stages && *stages > 1
-                ? std::make_optional<ConcurrentStageGroups>(*stages)
-                : std::nullopt) {}
-
-  // The package containing IR to lower.
-  Package* package;
-
-  // The top-level block to generate a Verilog module for.
-  Block* block;
-
-  // Metadata for pipelined blocks.
-  // TODO(google/xls#1060): refactor so conversion_metadata is in
-  // StreamingIOPipeline and more elements are split as function- or proc-only.
+// Per-block metadata used for codegen.
+struct CodegenMetadata {
   StreamingIOPipeline streaming_io_and_pipeline;
-  // Only set when converting functions.
   std::variant<FunctionConversionMetadata, ProcConversionMetadata>
       conversion_metadata;
-
-  // Proven knowledge about which stages are active concurrently.
-  //
-  // If absent all stages should be considered potentially concurrently active
-  // with one another.
-  std::optional<ConcurrentStageGroups> concurrent_stages;
 
   // The signature is generated (and potentially mutated) during the codegen
   // process.
@@ -296,9 +268,42 @@ struct CodegenPassUnit {
   // out-of-sync with the IR.
   std::optional<ModuleSignature> signature;
 
+  // Proven knowledge about which stages are active concurrently.
+  //
+  // If absent all stages should be considered potentially concurrently active
+  // with one another.
+  std::optional<ConcurrentStageGroups> concurrent_stages;
+};
+
+// Data structure operated on by codegen passes. Contains the IR and associated
+// metadata which may be used and mutated by passes.
+struct CodegenPassUnit {
+  // Ordering for blocks lexicographically by name.
+  struct BlockByName {
+    std::strong_ordering operator()(const Block* lhs, const Block* rhs) const {
+      return lhs->name() <=> rhs->name();
+    }
+  };
+  CodegenPassUnit(Package* p, Block* b) : package(p), top_block(b) {}
+
+  // The package containing IR to lower.
+  Package* package;
+
+  // The top-level block to generate a Verilog module for.
+  absl::Nonnull<Block*> top_block;
+
+  // Metadata for pipelined blocks.
+  // TODO(google/xls#1060): refactor so conversion_metadata is in
+  // StreamingIOPipeline and more elements are split as function- or proc-only.
+  using MetadataMap = absl::btree_map<Block*, CodegenMetadata, BlockByName>;
+  MetadataMap metadata;
+
   // These methods are required by CompoundPassBase.
   std::string DumpIr() const;
-  const std::string& name() const { return block->name(); }
+  const std::string& name() const {
+    CHECK_NE(top_block, nullptr);
+    return top_block->name();
+  }
   int64_t GetNodeCount() const;
   const TransformMetrics& transform_metrics() const {
     return package->transform_metrics();
