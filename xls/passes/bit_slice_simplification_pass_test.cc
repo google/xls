@@ -837,6 +837,23 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateWithScaledIndex) {
 }
 
 TEST_F(BitSliceSimplificationPassTest,
+       BitSliceUpdateWithScaledIndexThatCanOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u23 = p->GetBitsType(23);
+  Type* u10 = p->GetBitsType(10);
+  Type* u4 = p->GetBitsType(4);
+  BValue x = fb.Param("x", u23);
+  BValue y = fb.Param("y", u10);
+  BValue z = fb.Param("z", u4);
+  BValue index = fb.UMul(fb.ZeroExtend(z, 5), fb.Literal(UBits(10, 5)));
+  fb.BitSliceUpdate(x, index, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
        BitSliceUpdateWithPowerOfTwoScaledIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -959,26 +976,27 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceSelectorMassive) {
   FunctionBuilder fb(TestName(), p.get());
   BValue bit_selector = fb.Param("x", p->GetBitsType(70));
   BValue scaled = fb.Concat({bit_selector, fb.Literal(UBits(0, 1))});
-  BValue bit_source = fb.Param("y", p->GetBitsType(8));
-  // Can only be one of first 8 bits.
-  fb.DynamicBitSlice(bit_source, scaled, 1);
+  BValue bit_source = fb.Param("y", p->GetBitsType(16));
+  // Can only be selected from the first 16 bits.
+  fb.DynamicBitSlice(bit_source, scaled, 2);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   solvers::z3::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
-  EXPECT_THAT(f->return_value(),
-              m::Select(scaled.node(), {
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                       }, m::Literal(UBits(0, 1))));
+  EXPECT_THAT(f->return_value(), m::Select(m::Concat(m::Param("x")),
+                                           {
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                           },
+                                           m::Literal(UBits(0, 2))));
 }
 
 TEST_F(BitSliceSimplificationPassTest, BitSliceCannotReachAllBits) {
@@ -987,25 +1005,21 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceCannotReachAllBits) {
   BValue bit_selector = fb.Param("x", p->GetBitsType(2));
   BValue scaled = fb.Concat({bit_selector, fb.Literal(UBits(0, 1))});
   BValue bit_source = fb.Param("y", p->GetBitsType(256));
-  // Can only be one of first 8 bits.
-  fb.DynamicBitSlice(bit_source, scaled, 1);
+  // Can only be selected from the first 16 bits.
+  fb.DynamicBitSlice(bit_source, scaled, 2);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   solvers::z3::ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 
-  EXPECT_THAT(f->return_value(),
-              m::Select(scaled.node(), {
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                           m::BitSlice(bit_source.node()),
-                                       }));
+  EXPECT_THAT(f->return_value(), m::Select(m::Concat(m::Param("x")),
+                                           {
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                               m::BitSlice(m::Param("y")),
+                                           }));
 }
 
 }  // namespace

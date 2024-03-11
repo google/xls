@@ -20,7 +20,9 @@
 #include <cstdint>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -35,74 +37,58 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/range_query_engine.h"
+#include "xls/passes/ternary_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 namespace {
 
+static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
+    FunctionBase* f, int64_t opt_level) {
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::make_unique<TernaryQueryEngine>());
+  if (opt_level >= 3) {
+    engines.push_back(std::make_unique<RangeQueryEngine>());
+  }
+  auto query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
+
+  XLS_RETURN_IF_ERROR(query_engine->Populate(f).status());
+  return std::move(query_engine);
+}
+
 // If we can identify `scaled_index` as a known multiple of `scale`, return the
 // unscaled value.
-absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(Node* scaled_index,
-                                                      int64_t scale) {
-  if (scale > 0 && IsPowerOfTwo(static_cast<uint64_t>(scale))) {
+absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
+    Node* scaled_index, int64_t scale, QueryEngine* query_engine) {
+  if (scale > 1 && IsPowerOfTwo(static_cast<uint64_t>(scale))) {
     int64_t bits_to_remove = FloorOfLog2(scale);
 
     // Check whether `scaled_index` has enough low zero-bits for us to take a
     // slice of it as the unscaled version.
-    // TODO(epastor): Implement this using a query engine.
-    switch (scaled_index->op()) {
-      default:
-        return std::nullopt;
-      case Op::kUMul: {
-        if (!scaled_index->operand(1)->Is<Literal>()) {
-          return std::nullopt;
-        }
-        XLS_ASSIGN_OR_RETURN(
-            uint64_t potential_scalar,
-            scaled_index->operand(1)->As<Literal>()->value().bits().ToUint64(),
-            std::nullopt);
-        if (potential_scalar >
-            static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-          return std::nullopt;
-        }
-        int64_t scalar = static_cast<int64_t>(potential_scalar);
-        if (scalar % scale != 0) {
-          return std::nullopt;
-        }
-        break;
-      }
-      case Op::kShll: {
-        if (!scaled_index->operand(1)->Is<Literal>()) {
-          return std::nullopt;
-        }
-        XLS_ASSIGN_OR_RETURN(
-            uint64_t shift,
-            scaled_index->operand(1)->As<Literal>()->value().bits().ToUint64(),
-            std::nullopt);
-        if (shift >= 63 || static_cast<int64_t>(shift) < bits_to_remove) {
-          return std::nullopt;
-        }
-        break;
-      }
-      case Op::kConcat: {
-        if (!scaled_index->operands().back()->Is<Literal>()) {
-          return std::nullopt;
-        }
-        Bits tail =
-            scaled_index->operands().back()->As<Literal>()->value().bits();
-        if (tail.CountTrailingZeros() < bits_to_remove) {
-          return std::nullopt;
-        }
-        break;
-      }
+    XLS_RET_CHECK(scaled_index->GetType()->IsBits());
+    TernaryVector known_bits = query_engine->GetTernary(scaled_index).Get({});
+    if (known_bits.size() < bits_to_remove) {
+      return std::nullopt;
+    }
+    if (!absl::c_all_of(
+            absl::MakeConstSpan(known_bits).subspan(0, bits_to_remove),
+            [](const TernaryValue& value) {
+              return value == TernaryValue::kKnownZero;
+            })) {
+      return std::nullopt;
     }
 
     XLS_ASSIGN_OR_RETURN(
@@ -122,10 +108,9 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(Node* scaled_index,
     return std::nullopt;
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      uint64_t potential_scalar,
-      scaled_index->operand(1)->As<Literal>()->value().bits().ToUint64(),
-      std::nullopt);
+  Bits scalar_bits = scaled_index->operand(1)->As<Literal>()->value().bits();
+  XLS_ASSIGN_OR_RETURN(uint64_t potential_scalar, scalar_bits.ToUint64(),
+                       std::nullopt);
   if (potential_scalar >
       static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     return std::nullopt;
@@ -139,8 +124,20 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(Node* scaled_index,
   if (scalar != scale) {
     return std::nullopt;
   }
+  Node* unscaled_index = scaled_index->operand(0);
+  XLS_RET_CHECK(unscaled_index->GetType()->IsBits());
 
-  return scaled_index->operand(0);
+  // If the multiplication can overflow, there's nothing we can do; the
+  // wraparound can cause all sorts of chaos.
+  Bits max_scaled_bits = Bits::AllOnes(scaled_index->BitCountOrDie());
+  Bits max_unscaled_bits = bits_ops::UDiv(max_scaled_bits, scalar_bits);
+  std::optional<Bits> upper_bound_bits =
+      query_engine->GetIntervals(unscaled_index).Get({}).UpperBound();
+  if (!upper_bound_bits.has_value() ||
+      bits_ops::UGreaterThan(*upper_bound_bits, max_unscaled_bits)) {
+    return std::nullopt;
+  }
+  return unscaled_index;
 }
 
 // Attempts to replace the given bit slice with a simpler or more canonical
@@ -618,16 +615,17 @@ absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(
   return true;
 }
 
-// Optimize dynamic_bit_slice operations with a start index scaled by the width
-// (where both evenly divide the bit count) by converting the bits[N] operand
-// into an array, updating the array, and converting the result back.
-absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice) {
+// Optimize dynamic_bit_slice operations with a start index scaled by the
+// width (where both evenly divide the bit count) by converting the bits[N]
+// operand into an array, updating the array, and converting the result back.
+absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice,
+                                                   QueryEngine* query_engine) {
   int64_t bit_count = bit_slice->to_slice()->BitCountOrDie();
   int64_t width = bit_slice->width();
   Node* start = bit_slice->start();
 
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> index,
-                       GetUnscaledIndex(start, width));
+                       GetUnscaledIndex(start, width, query_engine));
   if (!index.has_value()) {
     return false;
   }
@@ -684,7 +682,8 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice) {
   return true;
 }
 
-absl::StatusOr<bool> SimplifyDynamicBitSlice(DynamicBitSlice* bit_slice) {
+absl::StatusOr<bool> SimplifyDynamicBitSlice(DynamicBitSlice* bit_slice,
+                                             QueryEngine* query_engine) {
   XLS_ASSIGN_OR_RETURN(bool literal_bit_slice_changed,
                        SimplifyLiteralDynamicBitSlice(bit_slice));
   if (literal_bit_slice_changed) {
@@ -692,7 +691,7 @@ absl::StatusOr<bool> SimplifyDynamicBitSlice(DynamicBitSlice* bit_slice) {
   }
 
   XLS_ASSIGN_OR_RETURN(bool scaled_bit_slice_changed,
-                       SimplifyScaledDynamicBitSlice(bit_slice));
+                       SimplifyScaledDynamicBitSlice(bit_slice, query_engine));
   if (scaled_bit_slice_changed) {
     return true;
   }
@@ -703,13 +702,14 @@ absl::StatusOr<bool> SimplifyDynamicBitSlice(DynamicBitSlice* bit_slice) {
 // Optimize bit_slice_update operations with a start index scaled by the width
 // (where both evenly divide the bit count) by converting the bits[N] operand
 // into an array, updating the array, and converting the result back.
-absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update) {
+absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update,
+                                                  QueryEngine* query_engine) {
   int64_t bit_count = update->to_update()->BitCountOrDie();
   int64_t width = update->update_value()->BitCountOrDie();
   Node* start = update->start();
 
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> index,
-                       GetUnscaledIndex(start, width));
+                       GetUnscaledIndex(start, width, query_engine));
   if (!index.has_value()) {
     return false;
   }
@@ -785,15 +785,16 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update) {
   return true;
 }
 
-absl::StatusOr<bool> SimplifyBitSliceUpdate(BitSliceUpdate* update) {
-  XLS_ASSIGN_OR_RETURN(bool literal_bit_slice_changed,
+absl::StatusOr<bool> SimplifyBitSliceUpdate(BitSliceUpdate* update,
+                                            QueryEngine* query_engine) {
+  XLS_ASSIGN_OR_RETURN(bool literal_update_changed,
                        SimplifyLiteralBitSliceUpdate(update));
-  if (literal_bit_slice_changed) {
+  if (literal_update_changed) {
     return true;
   }
 
   XLS_ASSIGN_OR_RETURN(bool scaled_bit_slice_changed,
-                       SimplifyScaledBitSliceUpdate(update));
+                       SimplifyScaledBitSliceUpdate(update, query_engine));
   if (scaled_bit_slice_changed) {
     return true;
   }
@@ -808,15 +809,28 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     PassResults* results) const {
   bool changed = false;
 
-  for (Node* node : f->nodes()) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
+                       GetQueryEngine(f, opt_level_));
+
+  // Iterating through these operations in reverse topological order makes sure
+  // we don't need to re-populate the query engine between nodes.
+  //
+  // Also, since these simplifications never generate more nodes of the same
+  // type, we don't need to worry about running them to fixed-point.
+  for (Node* node : ReverseTopoSort(f)) {
+    bool node_changed = false;
     if (node->Is<DynamicBitSlice>()) {
-      XLS_ASSIGN_OR_RETURN(bool node_changed, SimplifyDynamicBitSlice(
-                                                  node->As<DynamicBitSlice>()));
-      changed = changed || node_changed;
+      XLS_ASSIGN_OR_RETURN(node_changed,
+                           SimplifyDynamicBitSlice(node->As<DynamicBitSlice>(),
+                                                   query_engine.get()));
     } else if (node->Is<BitSliceUpdate>()) {
-      XLS_ASSIGN_OR_RETURN(bool node_changed,
-                           SimplifyBitSliceUpdate(node->As<BitSliceUpdate>()));
-      changed = changed || node_changed;
+      XLS_ASSIGN_OR_RETURN(node_changed,
+                           SimplifyBitSliceUpdate(node->As<BitSliceUpdate>(),
+                                                  query_engine.get()));
+    }
+
+    if (node_changed) {
+      changed = true;
     }
   }
 
