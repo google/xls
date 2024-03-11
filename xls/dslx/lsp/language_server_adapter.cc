@@ -29,6 +29,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "external/verible/common/lsp/lsp-file-utils.h"
+#include "external/verible/common/lsp/lsp-protocol-enums.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/indent.h"
 #include "xls/common/logging/logging.h"
@@ -63,20 +64,24 @@ void AppendDiagnosticFromStatus(
     return;  // best effort. Ignore.
   }
   const PositionalErrorData& err = *extracted_error_or;
-  diagnostic_sink->push_back(
-      verible::lsp::Diagnostic{.range = ConvertSpanToLspRange(err.span),
-                               .source = kSource,
-                               .message = err.message});
+  diagnostic_sink->push_back(verible::lsp::Diagnostic{
+      .range = ConvertSpanToLspRange(err.span),
+      .severity = verible::lsp::DiagnosticSeverity::kError,
+      .has_severity = true,
+      .source = kSource,
+      .message = err.message});
 }
 
 void AppendDiagnosticFromTypecheck(
     const TypecheckedModule& module,
     std::vector<verible::lsp::Diagnostic>* diagnostic_sink) {
   for (const WarningCollector::Entry& warning : module.warnings.warnings()) {
-    diagnostic_sink->push_back(
-        verible::lsp::Diagnostic{.range = ConvertSpanToLspRange(warning.span),
-                                 .source = kSource,
-                                 .message = warning.message});
+    diagnostic_sink->push_back(verible::lsp::Diagnostic{
+        .range = ConvertSpanToLspRange(warning.span),
+        .severity = verible::lsp::DiagnosticSeverity::kWarning,
+        .has_severity = true,
+        .source = kSource,
+        .message = warning.message});
   }
 }
 

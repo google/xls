@@ -67,6 +67,7 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "@verible//common/lsp:lsp-file-utils",
         "@verible//common/lsp:lsp-protocol",
+        "@verible//common/lsp:lsp-protocol-enums",
     ],
 )
 
