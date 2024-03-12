@@ -631,32 +631,46 @@ pub fn upcast<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTI
     (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
     const FROM_SZ: u32 = u32:1 + FROM_EXP_SZ + FROM_FRACTION_SZ;
     const TO_SZ: u32 = u32:1 + TO_EXP_SZ + TO_FRACTION_SZ;
-    const_assert!(FROM_SZ < TO_SZ);  // assert that this is actually an upcast.
+    const IS_UPCAST = FROM_SZ < TO_SZ;
+    const SAME_SIZE = TO_EXP_SZ == FROM_EXP_SZ && TO_FRACTION_SZ == FROM_FRACTION_SZ;
+    const_assert!(IS_UPCAST || SAME_SIZE);
 
-    match tag(f) {
-        APFloatTag::NAN => qnan<TO_EXP_SZ, TO_FRACTION_SZ>(),
-        APFloatTag::INFINITY => inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
-        APFloatTag::ZERO => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
-        APFloatTag::SUBNORMAL => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
-        APFloatTag::NORMAL => {
-            // use `sN+1` to preserve source bexp sign.
-            const FROM_EXP_SZ_PLUS_1 = FROM_EXP_SZ + u32:1;
-            type FromExpOffsetT = sN[FROM_EXP_SZ_PLUS_1];
-            type ToExpOffsetT = sN[TO_EXP_SZ];
-            // substract `2^(FROM_EXP_SZ-1) - 1` to retrieve the true exponent.
-            const FROM_EXP_SZ_MINUS_1 = FROM_EXP_SZ - u32:1;
-            const FROM_EXP_OFFSET = (FromExpOffsetT:1 << FROM_EXP_SZ_MINUS_1) - FromExpOffsetT:1;
-            let from_exp = f.bexp as FromExpOffsetT - FROM_EXP_OFFSET;
-            // add 2^(TO_EXP_SZ-1) - 1 to contrust back offset encoded exponent.
-            const TO_EXP_SZ_MINUS_1 = TO_EXP_SZ - u32:1;
-            const TO_EXP_OFFSET = (ToExpOffsetT:1 << TO_EXP_SZ_MINUS_1) - ToExpOffsetT:1;
-            let to_bexp = (from_exp as ToExpOffsetT + TO_EXP_OFFSET) as uN[TO_EXP_SZ];
-            // shift fraction to destination size.
-            let FROM_TO_FRACTION_SHIFT = TO_FRACTION_SZ - FROM_FRACTION_SZ;
-            let to_fraction = (f.fraction as uN[TO_FRACTION_SZ]) << FROM_TO_FRACTION_SHIFT;
-            APFloat { sign: f.sign, bexp: to_bexp, fraction: to_fraction }
-        },
-        _ => fail!("unsupported_kind", qnan<TO_EXP_SZ, TO_FRACTION_SZ>()),
+    if SAME_SIZE {
+        // Force this function to reduce to either a trivial (i.e. just a `subnormals_to_zero`
+        // call) or real upcast depending on how it's parameterized. The `match` in the `else` block
+        // would otherwise obscure the fact that it's dead. The `flatten` and `unflatten` will
+        // disappear, and are necessary because it's invalid to explicitly just return `f` without a
+        // `constexpr if`-type construct.
+        subnormals_to_zero(
+            unflatten<TO_EXP_SZ, TO_FRACTION_SZ>(
+                flatten(f) as uN[u32:1 + TO_EXP_SZ + TO_FRACTION_SZ]))
+    } else {
+        match tag(f) {
+            APFloatTag::NAN => qnan<TO_EXP_SZ, TO_FRACTION_SZ>(),
+            APFloatTag::INFINITY => inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
+            APFloatTag::ZERO => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
+            APFloatTag::SUBNORMAL => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
+            APFloatTag::NORMAL => {
+                // use `sN+1` to preserve source bexp sign.
+                const FROM_EXP_SZ_PLUS_1 = FROM_EXP_SZ + u32:1;
+                type FromExpOffsetT = sN[FROM_EXP_SZ_PLUS_1];
+                type ToExpOffsetT = sN[TO_EXP_SZ];
+                // substract `2^(FROM_EXP_SZ-1) - 1` to retrieve the true exponent.
+                const FROM_EXP_SZ_MINUS_1 = FROM_EXP_SZ - u32:1;
+                const FROM_EXP_OFFSET =
+                    (FromExpOffsetT:1 << FROM_EXP_SZ_MINUS_1) - FromExpOffsetT:1;
+                let from_exp = f.bexp as FromExpOffsetT - FROM_EXP_OFFSET;
+                // add 2^(TO_EXP_SZ-1) - 1 to contrust back offset encoded exponent.
+                const TO_EXP_SZ_MINUS_1 = TO_EXP_SZ - u32:1;
+                const TO_EXP_OFFSET = (ToExpOffsetT:1 << TO_EXP_SZ_MINUS_1) - ToExpOffsetT:1;
+                let to_bexp = (from_exp as ToExpOffsetT + TO_EXP_OFFSET) as uN[TO_EXP_SZ];
+                // shift fraction to destination size.
+                let FROM_TO_FRACTION_SHIFT = TO_FRACTION_SZ - FROM_FRACTION_SZ;
+                let to_fraction = (f.fraction as uN[TO_FRACTION_SZ]) << FROM_TO_FRACTION_SHIFT;
+                APFloat { sign: f.sign, bexp: to_bexp, fraction: to_fraction }
+            },
+            _ => fail!("unsupported_kind", qnan<TO_EXP_SZ, TO_FRACTION_SZ>()),
+        }
     }
 }
 
@@ -681,6 +695,8 @@ fn upcast_test() {
     let zero_f64 = zero<F64_EXP_SZ, F64_FRACTION_SZ>(u1:0);
     let neg_denormal_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:1, ..denormal_bf16 };
     let neg_zero_f64 = zero<F64_EXP_SZ, F64_FRACTION_SZ>(u1:1);
+    let zero_bf16 = zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
+    let neg_zero_bf16 = zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
 
     assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(one_bf16), one_f64);
     assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(one_dot_5_bf16), one_dot_5_f64);
@@ -701,6 +717,10 @@ fn upcast_test() {
         zero<F64_EXP_SZ, F64_FRACTION_SZ>(u1:1));
     assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(denormal_bf16), zero_f64);
     assert_eq(upcast<F64_EXP_SZ, F64_FRACTION_SZ>(neg_denormal_bf16), neg_zero_f64);
+    assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(denormal_bf16), zero_bf16);
+    assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(neg_denormal_bf16), neg_zero_bf16);
+    assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(zero_bf16), zero_bf16);
+    assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(one_bf16), one_bf16);
 }
 
 // Returns a normalized APFloat with the given components.
