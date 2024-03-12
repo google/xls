@@ -24,6 +24,7 @@ nav:
       - Memory: 'tutorials/xlscc_memory.md'
       - State: 'tutorials/xlscc_state.md'
       - Pipelined Loops: 'tutorials/xlscc_pipelined_loops.md'
+  - FAQ: 'faq.md'
   - IR:
     - Overview: 'ir_overview.md'
     - Semantics: 'ir_semantics.md'
