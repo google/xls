@@ -700,7 +700,8 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     XLS_ASSIGN_OR_RETURN(first, PopToken());
   }
   const Token& tok = first.value();
-  XLS_VLOG(5) << "ParseTypeAnnotation; popped: " << tok.ToString();
+  XLS_VLOG(5) << "ParseTypeAnnotation; popped: " << tok.ToString()
+              << " is type keyword? " << tok.IsTypeKeyword();
 
   if (tok.IsTypeKeyword()) {  // Builtin types.
     Pos start_pos = tok.span().start();
@@ -2434,6 +2435,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,
   XLS_ASSIGN_OR_RETURN(Token obrack, PopTokenOrError(TokenKind::kOBrack));
   XLS_ASSIGN_OR_RETURN(Expr * first_dim,
                        ParseConditionalExpression(bindings, kNoRestrictions));
+
   std::vector<Expr*> dims = {first_dim};
   const char* const kContext = "at end of type dimensions";
   XLS_RETURN_IF_ERROR(

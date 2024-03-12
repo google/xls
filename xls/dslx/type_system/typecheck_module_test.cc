@@ -175,6 +175,14 @@ fn f() -> u32 { o(u32:3) }
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckTest, XbitsBinding) {
+  std::string program = R"(
+fn p<S: bool, N: u32>(x: xN[S][N]) -> (bool, u32) { (S, N) }
+fn f() -> (bool, u32)[2] { [p(u4:0), p(s8:0)] }
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckTest, ParametricPlusGlobal) {
   std::string program = R"(
 const GLOBAL = u32:4;

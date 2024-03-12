@@ -459,9 +459,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
 // should not cause a type error to occur).
 static bool IsAcceptableCast(const Type& from, const Type& to) {
-  auto is_bits = [](const Type& ct) -> bool {
-    return dynamic_cast<const BitsType*>(&ct) != nullptr;
-  };
   auto is_enum = [](const Type& ct) -> bool {
     return dynamic_cast<const EnumType*>(&ct) != nullptr;
   };
@@ -470,19 +467,19 @@ static bool IsAcceptableCast(const Type& from, const Type& to) {
     if (at == nullptr) {
       return false;
     }
-    if (is_bits(at->element_type())) {
+    if (IsBitsLike(at->element_type())) {
       return true;
     }
     return false;
   };
-  if ((is_bits_array(from) && is_bits(to)) ||
-      (is_bits(from) && is_bits_array(to))) {
+  if ((is_bits_array(from) && IsBitsLike(to)) ||
+      (IsBitsLike(from) && is_bits_array(to))) {
     return from.GetTotalBitCount() == to.GetTotalBitCount();
   }
-  if ((is_bits(from) || is_enum(from)) && is_bits(to)) {
+  if ((IsBitsLike(from) || is_enum(from)) && IsBitsLike(to)) {
     return true;
   }
-  if (is_bits(from) && is_enum(to)) {
+  if (IsBitsLike(from) && is_enum(to)) {
     return true;
   }
   return false;
@@ -784,7 +781,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToArrayType(
   XLS_ASSIGN_OR_RETURN(
       resolved,
       UnwrapMetaType(std::move(resolved), array_type->span(), "array type"));
-  if (!IsBits(*resolved)) {
+  if (!IsBitsLike(*resolved)) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Cannot use '::' on type %s -- only bits types support "
@@ -1688,13 +1685,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceBuiltinTypeAnnotation(
 
 // Converts an AST expression in "dimension position" (e.g. in an array type
 // annotation's size) and converts it into a TypeDim value that can be
-// used in a ConcreteStruct. The result is either a constexpr-evaluated value or
-// a ParametricSymbol (for a parametric binding that has not yet been defined).
+// used in (e.g.) a ConcreteStruct. The result is either a constexpr-evaluated
+// value or a ParametricSymbol (for a parametric binding that has not yet been
+// defined).
 //
 // Note: this is not capable of expressing more complex ASTs -- it assumes
 // something is either fully constexpr-evaluatable, or symbolic.
-static absl::StatusOr<TypeDim> DimToConcrete(const Expr* dim_expr,
-                                             DeduceCtx* ctx) {
+static absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
+                                                  DeduceCtx* ctx) {
   std::unique_ptr<BitsType> u32 = BitsType::MakeU32();
   auto validate_high_bit = [&u32](const Span& span, uint32_t value) {
     if ((value >> 31) == 0) {
@@ -1787,6 +1785,84 @@ static absl::StatusOr<TypeDim> DimToConcrete(const Expr* dim_expr,
           dim_expr->ToString()));
 }
 
+// As above, but converts to a TypeDim value that is boolean.
+static absl::StatusOr<TypeDim> DimToConcreteBool(const Expr* dim_expr,
+                                                 DeduceCtx* ctx) {
+  std::unique_ptr<BitsType> u1 = BitsType::MakeU1();
+
+  // We allow numbers in dimension position to go without type annotations -- we
+  // implicitly make the type of the dimension u32, as we generally do with
+  // dimension values.
+  if (auto* number = dynamic_cast<const Number*>(dim_expr)) {
+    if (number->type_annotation() == nullptr) {
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *u1));
+      ctx->type_info()->SetItem(number, *u1);
+    } else {
+      XLS_ASSIGN_OR_RETURN(auto dim_type, ctx->Deduce(number));
+      if (*dim_type != *u1) {
+        return ctx->TypeMismatchError(
+            dim_expr->span(), nullptr, *dim_type, nullptr, *u1,
+            absl::StrFormat("Dimension %s must be a `bool`/`u1`.",
+                            dim_expr->ToString()));
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
+    const bool value_bool = static_cast<bool>(value);
+    XLS_RET_CHECK_EQ(value, value_bool);
+
+    // No need to use the ConstexprEvaluator here. We've already got the goods.
+    // It'd have trouble anyway, since this number isn't type-decorated.
+    ctx->type_info()->NoteConstExpr(dim_expr,
+                                    InterpValue::MakeBool(value_bool));
+    return TypeDim::CreateBool(value_bool);
+  }
+
+  // First we check that it's a u1.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> dim_type, ctx->Deduce(dim_expr));
+  if (*dim_type != *u1) {
+    return ctx->TypeMismatchError(
+        dim_expr->span(), nullptr, *dim_type, nullptr, *u1,
+        absl::StrFormat("Dimension %s must be a `u1`.", dim_expr->ToString()));
+  }
+
+  // Now we try to constexpr evaluate it.
+  const ParametricEnv parametric_env = ctx->GetCurrentParametricEnv();
+  XLS_VLOG(5) << "Attempting to evaluate dimension expression: `"
+              << dim_expr->ToString()
+              << "` via parametric env: " << parametric_env;
+  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+      ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
+      dim_expr, dim_type.get()));
+  if (ctx->type_info()->IsKnownConstExpr(dim_expr)) {
+    XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
+                         ctx->type_info()->GetConstExpr(dim_expr));
+    XLS_ASSIGN_OR_RETURN(uint64_t int_value,
+                         constexpr_value.GetBitValueViaSign());
+    bool bool_value = static_cast<bool>(int_value);
+    XLS_RET_CHECK_EQ(bool_value, int_value);
+    return TypeDim::CreateBool(bool_value);
+  }
+
+  // If there wasn't a known constexpr we could evaluate it to at this point, we
+  // attempt to turn it into a parametric expression.
+  absl::StatusOr<std::unique_ptr<ParametricExpression>> parametric_expr_or =
+      ExprToParametric(dim_expr, ctx);
+  if (parametric_expr_or.ok()) {
+    return TypeDim(std::move(parametric_expr_or).value());
+  }
+
+  XLS_VLOG(3) << "Could not convert dim expr to parametric expr; status: "
+              << parametric_expr_or.status();
+
+  // If we can't evaluate it to a parametric expression we give an error.
+  return TypeInferenceErrorStatus(
+      dim_expr->span(), nullptr,
+      absl::StrFormat(
+          "Could not evaluate dimension expression `%s` to a constant value.",
+          dim_expr->ToString()));
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceChannelTypeAnnotation(
     const ChannelTypeAnnotation* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "DeduceChannelTypeAnnotation; node: " << node->ToString();
@@ -1803,7 +1879,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceChannelTypeAnnotation(
     std::vector<Expr*> dims = node->dims().value();
 
     for (const auto& dim : dims) {
-      XLS_ASSIGN_OR_RETURN(TypeDim concrete_dim, DimToConcrete(dim, ctx));
+      XLS_ASSIGN_OR_RETURN(TypeDim concrete_dim, DimToConcreteUsize(dim, ctx));
       node_type =
           std::make_unique<ArrayType>(std::move(node_type), concrete_dim);
     }
@@ -1828,14 +1904,25 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTupleTypeAnnotation(
 absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
     const ArrayTypeAnnotation* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "DeduceArrayTypeAnnotation; node: " << node->ToString();
-  XLS_ASSIGN_OR_RETURN(TypeDim dim, DimToConcrete(node->dim(), ctx));
 
   std::unique_ptr<Type> t;
   if (auto* element_type =
           dynamic_cast<BuiltinTypeAnnotation*>(node->element_type());
       element_type != nullptr && element_type->GetBitCount() == 0) {
-    t = std::make_unique<BitsType>(element_type->GetSignedness(),
-                                   std::move(dim));
+    XLS_VLOG(5) << "DeduceArrayTypeAnnotation; bits type constructor: "
+                << node->ToString();
+
+    std::optional<TypeDim> dim;
+    if (element_type->builtin_type() == BuiltinType::kXN) {
+      // This type constructor takes a boolean as its first array argument to
+      // indicate signedness.
+      XLS_ASSIGN_OR_RETURN(dim, DimToConcreteBool(node->dim(), ctx));
+      t = std::make_unique<BitsConstructorType>(std::move(dim).value());
+    } else {
+      XLS_ASSIGN_OR_RETURN(dim, DimToConcreteUsize(node->dim(), ctx));
+      t = std::make_unique<BitsType>(element_type->GetSignedness(),
+                                     std::move(dim).value());
+    }
   } else {
     XLS_VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
                 << node->element_type()->ToString();
@@ -1844,6 +1931,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
     XLS_ASSIGN_OR_RETURN(
         e, UnwrapMetaType(std::move(e), node->element_type()->span(),
                           "array element type position"));
+    XLS_ASSIGN_OR_RETURN(TypeDim dim, DimToConcreteUsize(node->dim(), ctx));
     t = std::make_unique<ArrayType>(std::move(e), std::move(dim));
     XLS_VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
                                       node->ToString(), t->ToString());
@@ -1895,7 +1983,8 @@ static absl::StatusOr<std::unique_ptr<Type>> ConcretizeStructAnnotation(
     XLS_VLOG(5) << "annotated_parametric: `" << annotated_parametric->ToString()
                 << "`";
 
-    XLS_ASSIGN_OR_RETURN(TypeDim ctd, DimToConcrete(annotated_parametric, ctx));
+    XLS_ASSIGN_OR_RETURN(TypeDim ctd,
+                         DimToConcreteUsize(annotated_parametric, ctx));
     parametric_env.emplace(defined_parametric->identifier(), std::move(ctd));
   }
 
@@ -1978,7 +2067,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceChannelDecl(const ChannelDecl* node,
     std::vector<Expr*> dims = node->dims().value();
 
     for (const auto& dim : dims) {
-      XLS_ASSIGN_OR_RETURN(TypeDim concrete_dim, DimToConcrete(dim, ctx));
+      XLS_ASSIGN_OR_RETURN(TypeDim concrete_dim, DimToConcreteUsize(dim, ctx));
       producer = std::make_unique<ArrayType>(std::move(producer), concrete_dim);
       consumer = std::make_unique<ArrayType>(std::move(consumer), concrete_dim);
     }

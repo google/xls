@@ -435,6 +435,10 @@ static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
     return absl::OkStatus();
   }
 
+  if (IsArrayOfBitsConstructor(*from_array)) {
+    return absl::OkStatus();
+  }
+
   // Check casting from an array to bits.
   if (from_array->element_type().GetAllDims().size() != 1) {
     return absl::InternalError(

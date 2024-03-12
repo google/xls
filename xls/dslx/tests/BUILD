@@ -173,6 +173,12 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
+dslx_lang_test(name = "parametric_signedness")
+
+dslx_lang_test(name = "xn_sizeof")
+
+dslx_lang_test(name = "xn_type_equivalence")
+
 dslx_lang_test(
     name = "parametric_shift",
     # TODO(leary): 2023-08-14 Runs into "cannot translate zero length bitvector

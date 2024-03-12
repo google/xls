@@ -489,6 +489,7 @@ cc_test(
         ":ast",
         ":ast_test_utils",
         ":module",
+        ":pos",
         "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

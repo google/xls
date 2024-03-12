@@ -25,6 +25,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast_test_utils.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 namespace {
@@ -122,9 +123,11 @@ TEST(AstTest, GetBuiltinTypeSignedness) {
   XLS_ASSERT_OK_AND_ASSIGN(is_signed,
                            GetBuiltinTypeSignedness(BuiltinType::kBits));
   EXPECT_FALSE(is_signed);
-  XLS_ASSERT_OK_AND_ASSIGN(is_signed,
-                           GetBuiltinTypeSignedness(BuiltinType::kToken));
-  EXPECT_FALSE(is_signed);
+
+  // Tokens don't have signedness.
+  EXPECT_THAT(GetBuiltinTypeSignedness(BuiltinType::kToken),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type \"token\" has no defined signedness.")));
 }
 
 TEST(AstTest, GetBuiltinTypeBitCount) {

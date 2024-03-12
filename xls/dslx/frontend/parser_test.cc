@@ -1226,6 +1226,11 @@ fn f(x: u32) -> u128 {
 })");
 }
 
+TEST_F(ParserTest, xNTypeConstructor) {
+  RoundTrip(R"(type u128 = xN[false][128];)");
+  RoundTrip(R"(type s128 = xN[true][128];)");
+}
+
 // Note: parens around the left hand side are required or we attempt to parse
 // the `u128<` as the start of a parameterized type for purposes of the cast.
 TEST_F(ParserTest, CastToTypeAliasLtIdentifier) {

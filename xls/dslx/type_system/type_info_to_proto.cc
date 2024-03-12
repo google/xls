@@ -34,6 +34,8 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -262,6 +264,14 @@ absl::StatusOr<BitsTypeProto> ToProto(const BitsType& bits_type) {
   return proto;
 }
 
+absl::StatusOr<BitsConstructorTypeProto> ToProto(
+    const BitsConstructorType& bits_type) {
+  BitsConstructorTypeProto proto;
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_is_signed(),
+                       ToProto(bits_type.is_signed()));
+  return proto;
+}
+
 // Forward decl since this is co-recursive with the ToProto() for Type
 // subtypes.
 absl::StatusOr<TypeProto> ToProto(const Type& type);
@@ -343,12 +353,15 @@ absl::StatusOr<MetaTypeProto> ToProto(const MetaType& meta_type) {
   return proto;
 }
 
+ChannelDirectionProto extracted() {
+  return ChannelDirectionProto::CHANNEL_DIRECTION_OUT;
+}
 ChannelDirectionProto ToProto(ChannelDirection d) {
   switch (d) {
     case ChannelDirection::kIn:
       return ChannelDirectionProto::CHANNEL_DIRECTION_IN;
     case ChannelDirection::kOut:
-      return ChannelDirectionProto::CHANNEL_DIRECTION_OUT;
+      return extracted();
   }
   XLS_LOG(FATAL) << "Invalid ChannelDirection: " << static_cast<int64_t>(d);
 }
@@ -367,6 +380,8 @@ absl::StatusOr<TypeProto> ToProto(const Type& type) {
   TypeProto proto;
   if (const auto* bits = dynamic_cast<const BitsType*>(&type)) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_bits_type(), ToProto(*bits));
+  } else if (const auto* bc = dynamic_cast<const BitsConstructorType*>(&type)) {
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_bits_constructor_type(), ToProto(*bc));
   } else if (const auto* fn = dynamic_cast<const FunctionType*>(&type)) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_fn_type(), ToProto(*fn));
   } else if (const auto* tuple = dynamic_cast<const TupleType*>(&type)) {

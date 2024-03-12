@@ -14,12 +14,14 @@
 
 #include "xls/dslx/type_system/type_zero_value.h"
 
+#include <cstdint>
 #include <optional>
 #include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -88,6 +90,10 @@ class MakeZeroVisitor : public TypeVisitor {
   absl::Status HandleToken(const TokenType& t) override {
     return TypeInferenceErrorStatus(span_, &t,
                                     "Cannot make a zero-value of token type.");
+  }
+  absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+    return TypeInferenceErrorStatus(
+        span_, &t, "Cannot make a zero-value of bits-constructor type.");
   }
   absl::Status HandleStruct(const StructType& t) override {
     std::vector<InterpValue> elems;

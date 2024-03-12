@@ -66,10 +66,17 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
         : bindings_(bindings), package_(package) {}
 
     absl::Status HandleArray(const ArrayType& t) override {
-      XLS_ASSIGN_OR_RETURN(xls::Type * element_type,
-                           TypeToIr(package_, t.element_type(), bindings_));
       XLS_ASSIGN_OR_RETURN(int64_t element_count,
                            ResolveDimToInt(t.size(), bindings_));
+
+      if (const auto* bc =
+              dynamic_cast<const BitsConstructorType*>(&t.element_type())) {
+        retval_ = package_->GetBitsType(element_count);
+        return absl::OkStatus();
+      }
+
+      XLS_ASSIGN_OR_RETURN(xls::Type * element_type,
+                           TypeToIr(package_, t.element_type(), bindings_));
       xls::Type* result = package_->GetArrayType(element_count, element_type);
       XLS_VLOG(5) << "Converted type to IR; concrete type: " << t
                   << " ir: " << result->ToString()
@@ -121,6 +128,11 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
     absl::Status HandleChannel(const ChannelType& t) override {
       return absl::UnimplementedError(
           "Cannot convert channel type to XLS IR type: " + t.ToString());
+    }
+    absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+      return absl::UnimplementedError(
+          "Cannot convert bits-constructor type to XLS IR type: " +
+          t.ToString());
     }
     // Note: this is a bit of a kluge, we just turn metatypes into their
     // corresponding (unwrapped) IR type.

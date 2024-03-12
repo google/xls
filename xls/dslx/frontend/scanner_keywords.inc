@@ -44,6 +44,7 @@
   X(kToken, TOKEN, "token")                \
   X(kUN, UN, "uN")                         \
   X(kSN, SN, "sN")                         \
+  X(kXN, XN, "xN")                         \
   X(kBool, BOOL, "bool")                   \
   X(kChannel, CHANNEL, "chan")             \
   /* unsigned */                           \
@@ -317,6 +318,7 @@
   X(kToken, TOKEN, "token")       \
   X(kUN, UN, "uN")                \
   X(kSN, SN, "sN")                \
+  X(kXN, XN, "xN")                \
   X(kBool, BOOL, "bool")          \
   X(kChannel, CHANNEL, "chan")    \
   XLS_DSLX_SIZED_TYPE_KEYWORDS(X) \

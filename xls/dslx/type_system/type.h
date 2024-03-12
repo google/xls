@@ -40,8 +40,10 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
@@ -74,14 +76,17 @@ class TypeDim {
     return TypeDim(InterpValue::MakeU32(value));
   }
 
+  // Creates a `u1` / `bool` `InterpValue`-based TypeDim with the given "value".
+  static TypeDim CreateBool(bool value) {
+    return TypeDim(InterpValue::MakeBool(value));
+  }
+
   explicit TypeDim(std::variant<InterpValue, OwnedParametric> value)
       : value_(std::move(value)) {}
 
   TypeDim(const TypeDim& other);
-  TypeDim& operator=(TypeDim&& other) {
-    value_ = std::move(other.value_);
-    return *this;
-  }
+  TypeDim(TypeDim&& other) = default;
+  TypeDim& operator=(TypeDim&& other) = default;
 
   TypeDim Clone() const;
 
@@ -95,8 +100,8 @@ class TypeDim {
   std::string ToString() const;
 
   bool operator==(const TypeDim& other) const;
-  bool operator==(const std::variant<int64_t, InterpValue,
-                                     const ParametricExpression*>& other) const;
+  bool operator==(const std::variant<InterpValue, const ParametricExpression*>&
+                      other) const;
   bool operator!=(const TypeDim& other) const { return !(*this == other); }
 
   const std::variant<InterpValue, OwnedParametric>& value() const {
@@ -133,6 +138,7 @@ class StructType;
 class TupleType;
 class ArrayType;
 class MetaType;
+class BitsConstructorType;
 
 // Abstract base class for a Type visitor.
 class TypeVisitor {
@@ -141,6 +147,7 @@ class TypeVisitor {
 
   virtual absl::Status HandleEnum(const EnumType& t) = 0;
   virtual absl::Status HandleBits(const BitsType& t) = 0;
+  virtual absl::Status HandleBitsConstructor(const BitsConstructorType& t) = 0;
   virtual absl::Status HandleFunction(const FunctionType& t) = 0;
   virtual absl::Status HandleChannel(const ChannelType& t) = 0;
   virtual absl::Status HandleToken(const TokenType& t) = 0;
@@ -178,6 +185,8 @@ class Type {
 
   virtual absl::Status Accept(TypeVisitor& v) const = 0;
 
+  // Note that this is type equivalence; e.g. types are equivalent and
+  // substitutable if this equality holds.
   virtual bool operator==(const Type& other) const = 0;
   bool operator!=(const Type& other) const { return !(*this == other); }
 
@@ -243,6 +252,10 @@ inline std::ostream& operator<<(std::ostream& os, const Type& t) {
 
 // Indicates that the deduced entity is a type expression -- as opposed to "an
 // expression having type T" this indicates "it was type T itself".
+//
+// For example, if you do `deduce(u32)` where `u32` is the builtin type
+// annotation, it will tell you "this thing is a type" and contain "the type is
+// u32".
 class MetaType : public Type {
  public:
   explicit MetaType(std::unique_ptr<Type> wrapped)
@@ -449,12 +462,9 @@ class ArrayType : public Type {
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   bool HasEnum() const override { return element_type_->HasEnum(); }
-  bool operator==(const Type& other) const override {
-    if (auto* o = dynamic_cast<const ArrayType*>(&other)) {
-      return size_ == o->size_ && *element_type_ == *o->element_type_;
-    }
-    return false;
-  }
+
+  bool operator==(const Type& other) const override;
+
   std::string GetDebugTypeName() const override { return "array"; }
   std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<ArrayType>(element_type_->CloneToUnique(),
@@ -516,7 +526,41 @@ class EnumType : public Type {
   std::vector<InterpValue> members_;  // Member values of the enum.
 };
 
+// This represents the type of annotations like:
+//    bits
+//    uN
+//    sN
+//    xN
+//
+// Note that the last one has parametric signedness.
+class BitsConstructorType : public Type {
+ public:
+  explicit BitsConstructorType(TypeDim is_signed);
+
+  ~BitsConstructorType() override;
+
+  absl::Status Accept(TypeVisitor& v) const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
+
+  bool operator==(const Type& other) const override;
+  std::string ToString() const override;
+  std::string GetDebugTypeName() const override;
+  bool HasEnum() const override;
+
+  std::vector<TypeDim> GetAllDims() const override;
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override;
+  std::unique_ptr<Type> CloneToUnique() const override;
+
+  const TypeDim& is_signed() const { return is_signed_; }
+
+ private:
+  TypeDim is_signed_;
+};
+
 // Represents a bits type (either signed or unsigned).
+//
+// Signedness is given by `is_signed()` and is always literal -- the type that
+// can make the signedness parametric is given in `BitsConstructorType`.
 //
 // Note that there are related helpers IsUBits() and IsSBits() for concisely
 // testing whether a `Type` is an unsigned or signed BitsType,
@@ -539,9 +583,9 @@ class BitsType : public Type {
     return std::make_unique<BitsType>(false, 1);
   }
 
-  BitsType(bool is_signed, int64_t size)
-      : BitsType(is_signed, TypeDim(InterpValue::MakeU32(size))) {}
-  BitsType(bool is_signed, TypeDim size) : is_signed_(is_signed), size_(size) {}
+  BitsType(bool is_signed, int64_t size);
+
+  BitsType(bool is_signed, TypeDim size);
 
   ~BitsType() override = default;
 
@@ -550,12 +594,7 @@ class BitsType : public Type {
   }
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  bool operator==(const Type& other) const override {
-    if (auto* t = dynamic_cast<const BitsType*>(&other)) {
-      return t->is_signed_ == is_signed_ && t->size_ == size_;
-    }
-    return false;
-  }
+  bool operator==(const Type& other) const override;
   std::string ToString() const override;
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override { return false; }
@@ -730,8 +769,30 @@ inline bool IsSBits(const Type& c) {
   }
   return false;
 }
-inline bool IsBits(const Type& c) {
-  return dynamic_cast<const BitsType*>(&c) != nullptr;
+
+inline bool IsBitsConstructor(const Type& t) {
+  return dynamic_cast<const BitsConstructorType*>(&t) != nullptr;
+}
+inline bool IsArrayOfBitsConstructor(
+    const Type& t, const BitsConstructorType** elem_type_out = nullptr) {
+  if (auto* a = dynamic_cast<const ArrayType*>(&t)) {
+    if (auto* bc =
+            dynamic_cast<const BitsConstructorType*>(&a->element_type())) {
+      if (elem_type_out != nullptr) {
+        *elem_type_out = bc;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+// This predicate should be used when we want to know if a type is effectively a
+// bits type -- this includes either the bits type itself or a sized array of
+// bits-constructor type.
+inline bool IsBitsLike(const Type& t) {
+  return dynamic_cast<const BitsType*>(&t) != nullptr ||
+         IsArrayOfBitsConstructor(t);
 }
 
 // Returns whether the given type, which should be either a bits or an enum

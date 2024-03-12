@@ -158,6 +158,10 @@ message BitsTypeProto {
   optional TypeDimProto dim = 2;
 }
 
+message BitsConstructorTypeProto {
+  optional TypeDimProto is_signed = 1;
+}
+
 message FunctionTypeProto {
   repeated TypeProto params = 1;
   optional TypeProto return_type = 2;
@@ -234,6 +238,7 @@ message TypeProto {
     EnumTypeProto enum_type = 7;
     MetaTypeProto meta_type = 8;
     ChannelTypeProto channel_type = 9;
+    BitsConstructorTypeProto bits_constructor_type = 10;
   }
 }
 

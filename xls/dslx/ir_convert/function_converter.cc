@@ -747,7 +747,8 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> input_type,
                        ResolveType(node->expr()));
-  if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
+  if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr &&
+      !IsArrayOfBitsConstructor(*input_type)) {
     return CastFromArray(node, *output_type);
   }
   XLS_ASSIGN_OR_RETURN(TypeDim new_bit_count_ctd,

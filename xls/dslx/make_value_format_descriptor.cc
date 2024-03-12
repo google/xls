@@ -139,6 +139,10 @@ MakeValueFormatDescriptor(const Type& type, FormatPreference field_preference) {
       return absl::InvalidArgumentError("Cannot format a metatype; got: " +
                                         t.ToString());
     }
+    absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+      return absl::InvalidArgumentError(
+          "Cannot format a bits constructor; got: " + t.ToString());
+    }
 
     std::unique_ptr<ValueFormatDescriptor>& result() { return result_; }
 

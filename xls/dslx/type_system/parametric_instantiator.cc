@@ -14,12 +14,9 @@
 
 #include "xls/dslx/type_system/parametric_instantiator.h"
 
-#include <cstdint>
 #include <memory>
 #include <string>
-#include <typeinfo>
 #include <utility>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"

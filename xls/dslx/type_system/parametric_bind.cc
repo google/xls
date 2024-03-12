@@ -20,10 +20,13 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
@@ -76,6 +79,24 @@ absl::Status ParametricBindArray(const ArrayType& param_type,
   XLS_RETURN_IF_ERROR(
       ParametricBind(param_type.element_type(), arg_type.element_type(), ctx));
   return ParametricBindDims(param_type, arg_type, ctx);
+}
+
+absl::Status ParametricBindBitsToConstructor(const ArrayType& param_type,
+                                             const BitsType& arg_type,
+                                             ParametricBindContext& ctx) {
+  const BitsConstructorType* bits_constructor =
+      down_cast<const BitsConstructorType*>(&param_type.element_type());
+
+  // First we bind the signedness.
+  XLS_RETURN_IF_ERROR(ParametricBindTypeDim(
+      *bits_constructor, bits_constructor->is_signed(), arg_type,
+      TypeDim::CreateBool(arg_type.is_signed()), ctx));
+
+  // Then we bind the number of bits to the array size.
+  XLS_RETURN_IF_ERROR(ParametricBindTypeDim(param_type, param_type.size(),
+                                            arg_type, arg_type.size(), ctx));
+
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -146,6 +167,8 @@ absl::Status ParametricBindTypeDim(const Type& param_type,
 
 absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
                             ParametricBindContext& ctx) {
+  XLS_VLOG(10) << "ParametricBind; param_type: " << param_type
+               << " arg_type: " << arg_type;
   auto wrong_kind = [&]() {
     std::string message = absl::StrFormat(
         "expected argument kind '%s' to match parameter kind '%s'",
@@ -153,6 +176,13 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
     return ctx.deduce_ctx.TypeMismatchError(ctx.span, nullptr, param_type,
                                             nullptr, arg_type, message);
   };
+
+  if (auto* arg = dynamic_cast<const BitsType*>(&arg_type);
+      arg != nullptr && IsArrayOfBitsConstructor(param_type)) {
+    auto* param = down_cast<const ArrayType*>(&param_type);
+    return ParametricBindBitsToConstructor(*param, *arg, ctx);
+  }
+
   if (auto* param_bits = dynamic_cast<const BitsType*>(&param_type)) {
     auto* arg_bits = dynamic_cast<const BitsType*>(&arg_type);
     if (arg_bits == nullptr) {

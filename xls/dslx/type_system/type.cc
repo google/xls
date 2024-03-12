@@ -33,9 +33,13 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/ir/bits_ops.h"
@@ -157,22 +161,23 @@ std::string TypeDim::ToString() const {
 }
 
 bool TypeDim::operator==(
-    const std::variant<int64_t, InterpValue, const ParametricExpression*>&
-        other) const {
-  if (std::holds_alternative<InterpValue>(other)) {
-    if (std::holds_alternative<InterpValue>(value_)) {
-      return std::get<InterpValue>(value_) == std::get<InterpValue>(other);
-    }
-    return false;
-  }
-  if (std::holds_alternative<const ParametricExpression*>(other)) {
-    return std::holds_alternative<std::unique_ptr<ParametricExpression>>(
-               value_) &&
-           *std::get<std::unique_ptr<ParametricExpression>>(value_) ==
-               *std::get<const ParametricExpression*>(other);
-  }
-
-  return false;
+    const std::variant<InterpValue, const ParametricExpression*>& other) const {
+  return absl::visit(
+      Visitor{
+          [this](const InterpValue& other_value) {
+            if (std::holds_alternative<InterpValue>(value_)) {
+              return std::get<InterpValue>(value_) == other_value;
+            }
+            return false;
+          },
+          [this](const ParametricExpression* other_pe) {
+            return std::holds_alternative<
+                       std::unique_ptr<ParametricExpression>>(value_) &&
+                   *std::get<std::unique_ptr<ParametricExpression>>(value_) ==
+                       *other_pe;
+          },
+      },
+      other);
 }
 
 bool TypeDim::operator==(const TypeDim& other) const {
@@ -328,7 +333,85 @@ TokenType::~TokenType() = default;
 
 MetaType::~MetaType() = default;
 
+// -- BitsConstructorType
+
+BitsConstructorType::BitsConstructorType(TypeDim is_signed)
+    : is_signed_(std::move(is_signed)) {}
+
+BitsConstructorType::~BitsConstructorType() = default;
+
+absl::Status BitsConstructorType::Accept(TypeVisitor& v) const {
+  return v.HandleBitsConstructor(*this);
+}
+
+absl::StatusOr<std::unique_ptr<Type>> BitsConstructorType::MapSize(
+    const MapFn& f) const {
+  XLS_ASSIGN_OR_RETURN(TypeDim new_is_signed, f(is_signed_));
+  return std::make_unique<BitsConstructorType>(std::move(new_is_signed));
+}
+
+bool BitsConstructorType::operator==(const Type& other) const {
+  XLS_VLOG(10) << "BitsConstructorType::operator==; this: " << ToString()
+               << " other: " << other.ToString();
+  if (auto* t = dynamic_cast<const BitsConstructorType*>(&other)) {
+    return t->is_signed_ == is_signed_;
+  }
+  if (auto* b = dynamic_cast<const BitsType*>(&other)) {
+    return TypeDim::CreateBool(b->is_signed()) == is_signed_ &&
+           b->size() == TypeDim::CreateU32(0);
+  }
+  return false;
+}
+
+std::string BitsConstructorType::ToString() const {
+  return absl::StrFormat("xN[is_signed=%s]", is_signed_.ToString());
+}
+
+std::string BitsConstructorType::GetDebugTypeName() const {
+  return "bits-constructor";
+}
+
+bool BitsConstructorType::HasEnum() const { return false; }
+
+std::vector<TypeDim> BitsConstructorType::GetAllDims() const {
+  std::vector<TypeDim> result;
+  result.push_back(is_signed_.Clone());
+  return result;
+}
+
+absl::StatusOr<TypeDim> BitsConstructorType::GetTotalBitCount() const {
+  return TypeDim::CreateU32(0);
+}
+
+std::unique_ptr<Type> BitsConstructorType::CloneToUnique() const {
+  return std::make_unique<BitsConstructorType>(is_signed_.Clone());
+}
+
 // -- BitsType
+
+BitsType::BitsType(bool is_signed, int64_t size)
+    : BitsType(is_signed,
+               TypeDim(InterpValue::MakeU32(static_cast<uint32_t>(size)))) {
+  CHECK_EQ(size, static_cast<uint32_t>(size));
+}
+
+BitsType::BitsType(bool is_signed, TypeDim size)
+    : is_signed_(is_signed), size_(std::move(size)) {}
+
+bool BitsType::operator==(const Type& other) const {
+  XLS_VLOG(10) << "BitsType::operator==; this: " << ToString()
+               << " other: " << other.ToString();
+  if (auto* t = dynamic_cast<const BitsType*>(&other)) {
+    return t->is_signed_ == is_signed_ && t->size_ == size_;
+  }
+  if (IsArrayOfBitsConstructor(other)) {
+    const auto* a = down_cast<const ArrayType*>(&other);
+    const auto* bc = down_cast<const BitsConstructorType*>(&a->element_type());
+    return a->size() == size_ &&
+           bc->is_signed() == TypeDim::CreateBool(is_signed());
+  }
+  return false;
+}
 
 absl::StatusOr<std::unique_ptr<Type>> BitsType::MapSize(
     const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
@@ -567,6 +650,26 @@ std::string ArrayType::ToString() const {
   return absl::StrFormat("%s[%s]", element_type_->ToString(), size_.ToString());
 }
 
+bool ArrayType::operator==(const Type& other) const {
+  XLS_VLOG(10) << "ArrayType::operator==; this: " << ToString()
+               << " other: " << other.ToString();
+  if (auto* o = dynamic_cast<const ArrayType*>(&other)) {
+    return size_ == o->size_ && *element_type_ == *o->element_type_;
+  }
+  if (IsBitsConstructor(element_type())) {
+    if (auto* b = dynamic_cast<const BitsType*>(&other)) {
+      const auto* bc =
+          dynamic_cast<const BitsConstructorType*>(&element_type());
+      XLS_VLOG(10) << "size: " << size() << " b->size: " << b->size()
+                   << " bc->is_signed(): " << bc->is_signed()
+                   << " b->is_signed(): " << b->is_signed();
+      return size() == b->size() &&
+             bc->is_signed() == TypeDim::CreateBool(b->is_signed());
+    }
+  }
+  return false;
+}
+
 std::vector<TypeDim> ArrayType::GetAllDims() const {
   std::vector<TypeDim> results;
   results.push_back(size_.Clone());
@@ -717,6 +820,17 @@ absl::StatusOr<bool> IsSigned(const Type& c) {
           "Signedness not present for EnumType: " + c.ToString());
     }
     return signedness.value();
+  }
+  const BitsConstructorType* bc;
+  if (IsArrayOfBitsConstructor(c, &bc)) {
+    const TypeDim& is_signed = bc->is_signed();
+    if (is_signed.IsParametric()) {
+      return absl::InvalidArgumentError(
+          "Cannot determine signedness; type has parametric signedness: " +
+          c.ToString());
+    }
+    XLS_ASSIGN_OR_RETURN(int64_t value, is_signed.GetAsInt64());
+    return value != 0;
   }
   return absl::InvalidArgumentError(
       "Cannot determined signedness; type is neither enum nor bits: " +

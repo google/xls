@@ -265,7 +265,10 @@ ParametricInstantiator::~ParametricInstantiator() {
 absl::Status ParametricInstantiator::InstantiateOneArg(int64_t i,
                                                        const Type& param_type,
                                                        const Type& arg_type) {
-  if (typeid(param_type) != typeid(arg_type)) {
+  if (IsBitsLike(param_type) && IsBitsLike(arg_type)) {
+    // We can bind a bits type to an array of some bits constructor; i.e. these
+    // are kind-compatible.
+  } else if (typeid(param_type) != typeid(arg_type)) {
     std::string message = absl::StrFormat(
         "Parameter %d and argument types are different kinds (%s vs %s).", i,
         param_type.GetDebugTypeName(), arg_type.GetDebugTypeName());

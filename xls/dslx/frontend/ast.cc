@@ -425,9 +425,13 @@ std::string BuiltinTypeToString(BuiltinType t) {
 }
 
 absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64_t width) {
-#define TEST(__enum, __name, __str, __signedness, __width) \
-  if (__signedness == is_signed && __width == width) {     \
-    return BuiltinType::__enum;                            \
+#define TEST(__enum, __name, __str, __signedness, __width)           \
+  {                                                                  \
+    std::optional<bool> signedness = __signedness;                   \
+    if (signedness.has_value() && signedness.value() == is_signed && \
+        __width == width) {                                          \
+      return BuiltinType::__enum;                                    \
+    }                                                                \
   }
   XLS_DSLX_BUILTIN_TYPE_EACH(TEST)
 #undef TEST
@@ -438,9 +442,15 @@ absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64_t width) {
 
 absl::StatusOr<bool> GetBuiltinTypeSignedness(BuiltinType type) {
   switch (type) {
-#define CASE(__enum, _unused1, _unused2, __signedness, _unused3) \
-  case BuiltinType::__enum:                                      \
-    return __signedness;
+#define CASE(__enum, _unused1, __str, __signedness, _unused3)           \
+  case BuiltinType::__enum: {                                           \
+    std::optional<bool> signedness = __signedness;                      \
+    if (!signedness.has_value()) {                                      \
+      return absl::InvalidArgumentError("Type " #__str                  \
+                                        " has no defined signedness."); \
+    }                                                                   \
+    return signedness.value();                                          \
+  }
     XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
 #undef CASE
   }
