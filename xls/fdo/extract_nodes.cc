@@ -195,7 +195,7 @@ absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
     PipelineSchedule schedule(tmp_f.get(), cycle_map, 1);
     XLS_ASSIGN_OR_RETURN(
         verilog::CodegenPassUnit unit,
-        verilog::FunctionToPipelinedBlock(schedule, options, tmp_f.get()));
+        verilog::FunctionBaseToPipelinedBlock(schedule, options, tmp_f.get()));
     XLS_RET_CHECK_NE(unit.top_block, nullptr);
     tmp_block = unit.top_block;
   }

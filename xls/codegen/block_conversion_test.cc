@@ -509,7 +509,7 @@ TEST_F(BlockConversionTest, SimplePipelinedFunction) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      FunctionToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           schedule,
           CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
               "clk"),
@@ -536,7 +536,7 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
     // No flopping inputs or outputs.
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(
+        FunctionBaseToPipelinedBlock(
             schedule,
             CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
                 "clk"),
@@ -551,7 +551,7 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
     // Flop inputs.
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(
+        FunctionBaseToPipelinedBlock(
             schedule,
             CodegenOptions().flop_inputs(true).flop_outputs(false).clock_name(
                 "clk"),
@@ -567,7 +567,7 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
     // Flop outputs.
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(
+        FunctionBaseToPipelinedBlock(
             schedule,
             CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name(
                 "clk"),
@@ -582,7 +582,7 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
     // Flop inputs and outputs.
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(
+        FunctionBaseToPipelinedBlock(
             schedule,
             CodegenOptions().flop_inputs(true).flop_outputs(true).clock_name(
                 "clk"),
@@ -609,7 +609,7 @@ TEST_F(BlockConversionTest, ZeroWidthPipeline) {
                           SchedulingOptions().pipeline_stages(3)));
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      FunctionToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           schedule,
           CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
               "clk"),
@@ -735,8 +735,8 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
   Block* block = unit.top_block;
 
   std::vector<ChannelSource> sources{
@@ -821,8 +821,8 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
   Block* block = unit.top_block;
 
   std::vector<ChannelSource> sources{
@@ -1538,8 +1538,9 @@ proc my_proc(tkn: token, st: (), init={()}) {
     options.flop_single_value_channels(true).module_name(
         "with_single_value_channel");
 
-    XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionBaseToPipelinedBlock(schedule, options, proc));
     Block* block = unit.top_block;
 
     XLS_VLOG_LINES(2, block->DumpIr());
@@ -1555,8 +1556,9 @@ proc my_proc(tkn: token, st: (), init={()}) {
     options.flop_single_value_channels(false).module_name(
         "no_single_value_channel");
 
-    XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionBaseToPipelinedBlock(schedule, options, proc));
 
     XLS_VLOG_LINES(2, unit.top_block->DumpIr());
 
@@ -1606,7 +1608,8 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
 
-    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
+    XLS_RET_CHECK_OK(
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
 
     return package_ptr;
   }
@@ -2156,7 +2159,8 @@ class SimpleRunningCounterProcTestSweepFixture
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
 
-    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
+    XLS_RET_CHECK_OK(
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
 
     return package_ptr;
   }
@@ -2352,7 +2356,8 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
 
-    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
+    XLS_RET_CHECK_OK(
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
 
     return package_ptr;
   }
@@ -2796,7 +2801,8 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
 
-    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
+    XLS_RET_CHECK_OK(
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
 
     return package_ptr;
   }
@@ -3012,7 +3018,8 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
     options.valid_control("input_valid", "output_valid");
     options.reset("rst_n", false, /*active_low=*/true, false);
 
-    XLS_EXPECT_OK(ProcToPipelinedBlock(schedule, options, proc).status());
+    XLS_EXPECT_OK(
+        FunctionBaseToPipelinedBlock(schedule, options, proc).status());
   }
 
   // Combinational test
@@ -3079,7 +3086,8 @@ class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
 
-    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
+    XLS_RET_CHECK_OK(
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
 
     return package_ptr;
   }
@@ -3283,7 +3291,7 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
-TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBlock) {
+TEST_F(BlockConversionTest, IOSignatureFunctionBaseToPipelinedBlock) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
 
@@ -3332,8 +3340,8 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBlock) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
   XLS_VLOG_LINES(2, unit.top_block->DumpIr());
 
   EXPECT_TRUE(in_single_val->HasCompletedBlockPortNames());
@@ -3455,8 +3463,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={1}) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   std::vector<ChannelSource> sources{};
   std::vector<ChannelSink> sinks{
@@ -3522,8 +3530,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   std::vector<ChannelSource> sources{
       ChannelSource("in_data", "in_valid", "in_ready", 1.0, unit.top_block),
@@ -3602,8 +3610,8 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
   XLS_VLOG(2) << "Block IR:\n" << unit.top_block->DumpIr();
 
   std::string reset_name = options.reset()->name();
@@ -3678,8 +3686,9 @@ TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {
     options.streaming_channel_ready_suffix("_ready");
     options.module_name(absl::StrFormat("pipelined_proc-%d", i));
 
-    XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionBaseToPipelinedBlock(schedule, options, proc));
     XLS_VLOG_LINES(2, unit.top_block->DumpIr());
 
     int64_t input_count = 40;
@@ -3774,8 +3783,9 @@ TEST_F(ProcConversionTestFixture, AddRandomScheduler) {
     options.streaming_channel_ready_suffix("_ready");
     options.module_name(absl::StrFormat("pipelined_proc-%d", i));
 
-    XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionBaseToPipelinedBlock(schedule, options, proc));
     XLS_VLOG_LINES(2, unit.top_block->DumpIr());
 
     int64_t input_count = 40;
@@ -3883,8 +3893,9 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
     options.streaming_channel_ready_suffix("_ready");
     options.module_name(absl::StrFormat("pipelined_proc-%d", i));
 
-    XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionBaseToPipelinedBlock(schedule, options, proc));
     XLS_VLOG_LINES(2, unit.top_block->DumpIr());
 
     int64_t input_count = 40;
@@ -4024,7 +4035,8 @@ class NonblockingReceivesProcTest : public ProcConversionTestFixture {
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
 
-    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
+    XLS_RET_CHECK_OK(
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
 
     return package_ptr;
   }
@@ -4267,8 +4279,9 @@ class ProcWithStateTest : public BlockConversionTest {
     options.valid_control("input_valid", "output_valid");
     options.reset("rst", false, false, false);
 
-    XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionBaseToPipelinedBlock(schedule, options, proc));
 
     const double io_probability = 0.5;
     const uint64_t run_cycles = 128;
@@ -4426,8 +4439,9 @@ TEST_F(ProcConversionTestFixture, RecvDataFeedingSendPredicate) {
     options.streaming_channel_ready_suffix("_ready");
     options.module_name(absl::StrFormat("pipelined_proc-%d", i));
 
-    XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        CodegenPassUnit unit,
+        FunctionBaseToPipelinedBlock(schedule, options, proc));
     XLS_VLOG_LINES(2, unit.top_block->DumpIr());
 
     int64_t input_count = 80;
@@ -4539,8 +4553,8 @@ proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("loopback_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   EXPECT_THAT(unit.top_block->GetInstantiations(),
               UnorderedElementsAre(m::Instantiation(HasSubstr("loopback"),
@@ -4594,8 +4608,8 @@ proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("loopback_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   EXPECT_THAT(
       unit.top_block->GetInstantiations(),
@@ -4646,8 +4660,8 @@ proc proc_ut(tkn: token, st: bits[32], init={0}) {
   options.add_idle_output(true);
   options.module_name("proc_ut");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   std::vector<ChannelSource> sources{};
   std::vector<ChannelSink> sinks{
@@ -4760,8 +4774,8 @@ proc proc_ut(tkn: token, st: bits[32], init={0}) {
   options.add_idle_output(true);
   options.module_name("proc_ut");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
@@ -4876,8 +4890,8 @@ top proc proc_ut(tkn: token, _ZZN4Test4mainEvE1i__1: bits[8], init={4}) {
   options.add_idle_output(true);
   options.module_name("proc_ut");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 }
 
 MATCHER_P(RegFoundInBlock, block, "") {
@@ -4932,8 +4946,8 @@ top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={0, 0}
   CodegenOptions options;
   options.reset("rst", false, false, false);
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   EXPECT_THAT(unit.metadata[unit.top_block]
                   .streaming_io_and_pipeline.pipeline_registers,
@@ -4978,8 +4992,8 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("slow_counter");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   std::vector<ChannelSource> sources{};
   std::vector<ChannelSink> sinks{
@@ -5066,8 +5080,8 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("slow_counter");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   std::vector<ChannelSource> sources{};
   std::vector<ChannelSink> sinks{
@@ -5153,7 +5167,7 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      ProcToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           ps, CodegenOptions().reset("foo", false, false, false), proc));
 
   ASSERT_TRUE(unit.metadata[unit.top_block].concurrent_stages.has_value());
@@ -5185,7 +5199,7 @@ TEST_F(BlockConversionTest, NodeToStageMapSimple) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      ProcToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           ps, CodegenOptions().reset("foo", false, false, false), proc));
 
   auto has_mapping = [](auto k, auto v) {
@@ -5244,7 +5258,7 @@ TEST_F(BlockConversionTest, NodeToStageMapMulti) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      ProcToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           ps, CodegenOptions().reset("foo", false, false, false), proc));
 
   auto has_mapping = [](auto k, auto v) {
@@ -5305,7 +5319,7 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      ProcToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           ps, CodegenOptions().reset("foo", false, false, false), proc));
 
   ASSERT_TRUE(unit.metadata[unit.top_block].concurrent_stages);
@@ -5355,7 +5369,7 @@ TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      ProcToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           ps, CodegenOptions().reset("foo", false, false, false), proc));
 
   ASSERT_TRUE(unit.metadata[unit.top_block].concurrent_stages);
@@ -5405,7 +5419,7 @@ TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      ProcToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           ps, CodegenOptions().reset("foo", false, false, false), proc));
 
   ASSERT_TRUE(unit.metadata[unit.top_block].concurrent_stages);
@@ -5482,7 +5496,7 @@ TEST_F(BlockConversionTest, CoveringRegions) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      ProcToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           ps, CodegenOptions().reset("foo", false, false, false), proc));
 
   ASSERT_TRUE(unit.metadata[unit.top_block].concurrent_stages);
@@ -5542,7 +5556,7 @@ TEST_F(BlockConversionTest, PipelineRegisterStagesKnown) {
                              {send.node(), 6}});
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      ProcToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           ps, CodegenOptions().reset("foo", false, false, false), proc));
 
   RecordProperty("blk", unit.top_block->DumpIr());

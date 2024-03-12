@@ -283,7 +283,7 @@ class RamRewritePassTest
         PipelineSchedule schedule,
         RunPipelineSchedule(proc, *delay_estimator, scheduling_options));
 
-    return ProcToPipelinedBlock(schedule, codegen_options, proc);
+    return FunctionBaseToPipelinedBlock(schedule, codegen_options, proc);
   }
 };
 
@@ -1027,8 +1027,9 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *delay_estimator, scheduling_options));
-  XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
-                       ProcToPipelinedBlock(schedule, codegen_options, proc));
+  XLS_ASSIGN_OR_RETURN(
+      CodegenPassUnit unit,
+      FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
   XLS_RET_CHECK_OK(RunCodegenPassPipeline(pass_options, unit.top_block));
   return unit.top_block;
 }

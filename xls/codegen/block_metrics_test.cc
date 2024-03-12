@@ -103,7 +103,7 @@ TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      FunctionToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           schedule,
           CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
               "clk"),
@@ -236,7 +236,7 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
-      FunctionToPipelinedBlock(
+      FunctionBaseToPipelinedBlock(
           schedule,
           CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
               "clk"),

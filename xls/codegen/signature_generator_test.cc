@@ -55,8 +55,9 @@ TEST(SignatureGeneratorTest, CombinationalBlock) {
   fb.Param("c", package.GetBitsType(0));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Concat({a, b})));
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           FunctionToCombinationalBlock(f, CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      FunctionBaseToCombinationalBlock(f, CodegenOptions()));
 
   // Default options.
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
@@ -109,7 +110,7 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
             .clock_name("the_clock");
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(schedule, codegen_options, f));
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
         GenerateSignature(codegen_options, unit.top_block,
@@ -150,7 +151,7 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
                                .flop_inputs(true);
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(schedule, codegen_options, f));
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
 
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
@@ -168,7 +169,7 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
                                .flop_outputs(true);
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(schedule, codegen_options, f));
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
 
     // Adding flopping of the outputs should increase latency by one.
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -189,7 +190,7 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(schedule, codegen_options, f));
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
 
     // Adding flopping of both inputs and outputs should increase latency by
     // two.
@@ -213,7 +214,7 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
             .flop_outputs(true);
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(schedule, codegen_options, f));
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
         GenerateSignature(codegen_options, unit.top_block,
@@ -236,7 +237,7 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
             .flop_outputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer);
     XLS_ASSERT_OK_AND_ASSIGN(
         CodegenPassUnit unit,
-        FunctionToPipelinedBlock(schedule, codegen_options, f));
+        FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
         GenerateSignature(codegen_options, unit.top_block,
@@ -297,8 +298,8 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
   Block* block = unit.top_block;
   XLS_VLOG_LINES(2, block->DumpIr());
 

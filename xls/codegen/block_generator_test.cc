@@ -1169,8 +1169,8 @@ proc running_sum(tkn: token, first_cycle: bits[1], init={1}) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("running_sum");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(unit.top_block, options));
@@ -1271,8 +1271,8 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(unit.top_block, options));
@@ -1357,8 +1357,8 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(unit.top_block, options));
@@ -1415,8 +1415,8 @@ proc bad_alternator(tkn: token, counter: bits[32], odd_iteration: bits[1], init=
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(unit.top_block, options));
@@ -1535,8 +1535,8 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
                           SchedulingOptions().pipeline_stages(1)));
   CodegenOptions options = codegen_options();
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
   std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline();
   PassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
@@ -1577,8 +1577,8 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
       RunPipelineSchedule(proc, *estimator,
                           SchedulingOptions().pipeline_stages(1)));
   CodegenOptions options = codegen_options();
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
-                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
 
   std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline();
   PassResults results;
