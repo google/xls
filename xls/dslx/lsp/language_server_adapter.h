@@ -68,11 +68,6 @@ class LanguageServerAdapter {
   std::vector<verible::lsp::Location> FindDefinitions(
       std::string_view uri, const verible::lsp::Position& position) const;
 
-  // Implements the functionality for:
-  // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
-  absl::StatusOr<std::vector<verible::lsp::TextEdit>> FormatRange(
-      std::string_view uri, const verible::lsp::Range& range) const;
-
   // Implements the functionality for full document formatting:
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting
   //

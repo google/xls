@@ -153,28 +153,6 @@ TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
             "Expected start of top-level construct; got: 'blahblahblah'");
 }
 
-TEST(LanguageServerAdapterTest, TestFormatRange) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
-  XLS_ASSERT_OK(adapter.Update(kUri, R"(fn main() -> u32 {
-  { let x = u32:42; x + x }
-})"));
-
-  const auto kInputRange =
-      verible::lsp::Range{.start = verible::lsp::Position{1, 2},
-                          .end = verible::lsp::Position{1, 27}};
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::TextEdit> edits,
-                           adapter.FormatRange(kUri, kInputRange));
-  ASSERT_EQ(edits.size(), 1);
-
-  const verible::lsp::TextEdit& edit = edits.at(0);
-  EXPECT_TRUE(edit.range == kInputRange);
-  EXPECT_EQ(edit.newText, R"(    {
-        let x = u32:42;
-        x + x
-    })");
-}
-
 TEST(LanguageServerAdapterTest, DocumentLinksAreCreatedForImports) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
   constexpr std::string_view kUri = "memfile://test.x";

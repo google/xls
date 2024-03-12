@@ -77,7 +77,6 @@ InitializeResult InitializeServer(const nlohmann::json& params) {
       {"dynamicRegistration", false},
       {"tooltipSupport", false},
   };
-  capabilities["documentRangeFormattingProvider"] = true;
   capabilities["documentFormattingProvider"] = true;
   return InitializeResult{
       .capabilities = std::move(capabilities),
@@ -193,19 +192,6 @@ absl::Status RealMain() {
           return text_edits_or.value();
         }
         LspLog() << "could not format document; status: "
-                 << text_edits_or.status() << "\n";
-        return std::vector<verible::lsp::TextEdit>{};
-      });
-
-  dispatcher.AddRequestHandler(
-      "textDocument/rangeFormatting",
-      [&](const verible::lsp::DocumentFormattingParams& params) {
-        auto text_edits_or = language_server_adapter.FormatRange(
-            params.textDocument.uri, params.range);
-        if (text_edits_or.ok()) {
-          return text_edits_or.value();
-        }
-        LspLog() << "could not format requested range: "
                  << text_edits_or.status() << "\n";
         return std::vector<verible::lsp::TextEdit>{};
       });

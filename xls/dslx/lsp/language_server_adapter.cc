@@ -196,43 +196,6 @@ LanguageServerAdapter::FormatDocument(std::string_view uri) const {
   return ResultT{};
 }
 
-absl::StatusOr<std::vector<verible::lsp::TextEdit>>
-LanguageServerAdapter::FormatRange(std::string_view uri,
-                                   const verible::lsp::Range& range) const {
-  // TODO(cdleary): 2023-05-25 We start simple, formatting only when the
-  // requested range exactly intercepts a block.
-  //
-  // Note: At least in vim the visual range selected is an exclusive limit in
-  // `:LspDocumentRangeFormat`, so if you want the last character in a line to
-  // be included it's not clear what you can do. This is annoying!
-  const Span target = ConvertLspRangeToSpan(uri, range);
-  if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
-    const Module& module = parsed->module();
-    const AstNode* intercepting_block =
-        module.FindNode(AstNodeKind::kBlock, target);
-    if (intercepting_block == nullptr) {
-      if (XLS_VLOG_IS_ON(5)) {
-        std::vector<const AstNode*> intercepting_start =
-            module.FindIntercepting(target.start());
-        for (const AstNode* node : intercepting_start) {
-          XLS_VLOG(5) << node->GetSpan().value() << " :: " << node->ToString();
-        }
-      }
-      return absl::NotFoundError(absl::StrCat(
-          "Could not find a formattable AST node with the target range: " +
-              target.ToString(),
-          " -- note that currently only single blocks are supported"));
-    }
-    std::string new_text = intercepting_block->ToString();
-    int64_t indent_level = DetermineIndentLevel(*intercepting_block->parent());
-    new_text = Indent(new_text, indent_level * kRustSpacesPerIndent);
-    return std::vector<verible::lsp::TextEdit>{
-        verible::lsp::TextEdit{.range = range, .newText = new_text}};
-  }
-  return absl::FailedPreconditionError(
-      "Language server did not have a successful prior parse to format.");
-}
-
 std::vector<verible::lsp::DocumentLink>
 LanguageServerAdapter::ProvideImportLinks(std::string_view uri) const {
   std::vector<verible::lsp::DocumentLink> result;
