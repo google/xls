@@ -31,6 +31,8 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/status/status.h"
+#include "nlohmann/json.hpp"
 #include "external/verible/common/lsp/json-rpc-dispatcher.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "external/verible/common/lsp/lsp-text-buffer.h"
@@ -76,6 +78,7 @@ InitializeResult InitializeServer(const nlohmann::json& params) {
       {"tooltipSupport", false},
   };
   capabilities["documentRangeFormattingProvider"] = true;
+  capabilities["documentFormattingProvider"] = true;
   return InitializeResult{
       .capabilities = std::move(capabilities),
       .serverInfo =
@@ -179,6 +182,19 @@ absl::Status RealMain() {
       [&](const verible::lsp::DefinitionParams& params) {
         return language_server_adapter.FindDefinitions(params.textDocument.uri,
                                                        params.position);
+      });
+
+  dispatcher.AddRequestHandler(
+      "textDocument/formatting",
+      [&](const verible::lsp::DocumentFormattingParams& params) {
+        auto text_edits_or =
+            language_server_adapter.FormatDocument(params.textDocument.uri);
+        if (text_edits_or.ok()) {
+          return text_edits_or.value();
+        }
+        LspLog() << "could not format document; status: "
+                 << text_edits_or.status() << "\n";
+        return std::vector<verible::lsp::TextEdit>{};
       });
 
   dispatcher.AddRequestHandler(

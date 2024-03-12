@@ -36,9 +36,11 @@
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/extract_module_name.h"
+#include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/lsp/document_symbols.h"
@@ -116,12 +118,22 @@ absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
   ImportData import_data =
       CreateImportData(stdlib_, dslx_paths_, kAllWarningsSet);
   const std::string& module_name = module_name_or.value();
-  absl::StatusOr<TypecheckedModule> typechecked_module = ParseAndTypecheck(
-      dslx_code, /*path=*/file_uri, /*module_name=*/module_name, &import_data);
 
-  insert_value.reset(
-      new ParseData({.import_data = std::move(import_data),
-                     .typechecked_module = std::move(typechecked_module)}));
+  std::vector<CommentData> comments;
+  absl::StatusOr<TypecheckedModule> typechecked_module =
+      ParseAndTypecheck(dslx_code, /*path=*/file_uri,
+                        /*module_name=*/module_name, &import_data, &comments);
+
+  if (typechecked_module.ok()) {
+    insert_value.reset(new ParseData{
+        std::move(import_data), TypecheckedModuleWithComments{
+                                    .tm = std::move(typechecked_module).value(),
+                                    .comments = Comments::Create(comments),
+                                }});
+  } else {
+    insert_value.reset(
+        new ParseData{std::move(import_data), typechecked_module.status()});
+  }
 
   const absl::Duration duration = absl::Now() - start;
   if (duration > absl::Milliseconds(200)) {
@@ -136,7 +148,7 @@ LanguageServerAdapter::GenerateParseDiagnostics(std::string_view uri) const {
   std::vector<verible::lsp::Diagnostic> result;
   if (const ParseData* parsed = FindParsedForUri(uri)) {
     if (parsed->ok()) {
-      const TypecheckedModule& tm = *parsed->typechecked_module;
+      const TypecheckedModule& tm = parsed->typechecked_module();
       AppendDiagnosticFromTypecheck(tm, &result);
     } else {
       AppendDiagnosticFromStatus(parsed->status(), &result);
@@ -169,6 +181,19 @@ std::vector<verible::lsp::Location> LanguageServerAdapter::FindDefinitions(
     }
   }
   return {};
+}
+
+absl::StatusOr<std::vector<verible::lsp::TextEdit>>
+LanguageServerAdapter::FormatDocument(std::string_view uri) const {
+  using ResultT = std::vector<verible::lsp::TextEdit>;
+  if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    const Module& module = parsed->module();
+    std::string new_contents = AutoFmt(module, parsed->comments());
+    return ResultT{
+        verible::lsp::TextEdit{.range = ConvertSpanToLspRange(module.span()),
+                               .newText = new_contents}};
+  }
+  return ResultT{};
 }
 
 absl::StatusOr<std::vector<verible::lsp::TextEdit>>

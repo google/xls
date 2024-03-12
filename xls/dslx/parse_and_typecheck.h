@@ -42,8 +42,8 @@ struct TypecheckedModule {
 // given to the returned `TypecheckedModule::module`. "import_data" is used to
 // get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
-    std::string_view text, std::string_view path,
-    std::string_view module_name, ImportData* import_data);
+    std::string_view text, std::string_view path, std::string_view module_name,
+    ImportData* import_data, std::vector<CommentData>* comments = nullptr);
 
 // Helper that parses and creates a new module from the given "text".
 //

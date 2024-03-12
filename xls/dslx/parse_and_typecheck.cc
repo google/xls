@@ -41,8 +41,8 @@
 namespace xls::dslx {
 
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
-    std::string_view text, std::string_view path,
-    std::string_view module_name, ImportData* import_data) {
+    std::string_view text, std::string_view path, std::string_view module_name,
+    ImportData* import_data, std::vector<CommentData>* comments) {
   XLS_RET_CHECK(import_data != nullptr);
 
   // The outermost import doesn't have a real import statement associated with
@@ -55,7 +55,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
   };
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                       ParseModule(text, path, module_name));
+                       ParseModule(text, path, module_name, comments));
   return TypecheckModule(std::move(module), path, import_data);
 }
 

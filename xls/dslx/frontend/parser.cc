@@ -255,6 +255,8 @@ absl::Status Parser::ParseModuleAttribute() {
 
 absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     Bindings* bindings) {
+  const Pos start_pos = GetPos();
+
   std::optional<Bindings> stack_bindings;
   if (bindings == nullptr) {
     stack_bindings.emplace();
@@ -457,6 +459,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   XLS_RET_CHECK(AtEof());
 
   XLS_RETURN_IF_ERROR(VerifyParentage(module_.get()));
+
+  module_->set_span(Span(start_pos, GetPos()));
+
   auto result = std::move(module_);
   module_ = nullptr;
   return result;

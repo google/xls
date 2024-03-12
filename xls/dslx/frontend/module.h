@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -88,7 +89,16 @@ class Module : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleModule(this);
   }
-  std::optional<Span> GetSpan() const override { return std::nullopt; }
+  std::optional<Span> GetSpan() const override { return span_; }
+
+  // Note: should generally only be called by the parser once the entire module
+  // has been parsed, at which point the extent (limit position) is known.
+  //
+  // Note: After module parsing, span() is safe to call as an accessor instead
+  // of GetSpan().
+  void set_span(Span span) { span_ = std::move(span); }
+
+  const Span& span() const { return span_.value(); }
 
   std::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -278,6 +288,14 @@ class Module : public AstNode {
   absl::flat_hash_map<std::string, BuiltinNameDef*> builtin_name_defs_;
 
   absl::btree_set<ModuleAnnotation> annotations_;
+
+  // The span of the module is only known once parsing has completed.
+  //
+  // Implementation note: this could be avoided by using a module builder until
+  // all values are completed/availble, but there is a lot of state to carry in
+  // the builder and marginal benefit to the builder over the
+  // partially-completed object.)
+  std::optional<Span> span_;
 };
 
 // Helper for making a ternary expression conditional. This avoids the user

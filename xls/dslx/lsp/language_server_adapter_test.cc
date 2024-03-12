@@ -14,6 +14,7 @@
 
 #include "xls/dslx/lsp/language_server_adapter.h"
 
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -21,14 +22,25 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_format.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 
-using xls::status_testing::StatusIs;
-
 namespace xls::dslx {
 namespace {
+
+using status_testing::StatusIs;
+
+std::string DebugString(const verible::lsp::Position& pos) {
+  return absl::StrFormat("Position{.line=%d, .character=%d}", pos.line,
+                         pos.character);
+}
+
+std::string DebugString(const verible::lsp::Range& range) {
+  return absl::StrFormat("Range{.start=%s, .end=%s}", DebugString(range.start),
+                         DebugString(range.end));
+}
 
 bool operator==(const verible::lsp::Position& lhs,
                 const verible::lsp::Position& rhs) {
@@ -175,6 +187,32 @@ TEST(LanguageServerAdapterTest, DocumentLinksAreCreatedForImports) {
   EXPECT_EQ(links.front().range.start.character, 7);  // link over 'std'.
   EXPECT_EQ(links.front().range.end.character, 10);
   EXPECT_TRUE(absl::StrContains(links.front().target, "stdlib/std.x"));
+}
+
+TEST(LanguageServerAdapterTest, DocumentLevelFormattingComment) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  constexpr std::string_view kUri = "memfile://test.x";
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(// Top of module comment.
+
+fn messy() {
+()// retval comment
+})"));
+  const auto kInputRange =
+      verible::lsp::Range{.start = verible::lsp::Position{0, 0},
+                          .end = verible::lsp::Position{4, 1}};
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::TextEdit> edits,
+                           adapter.FormatDocument(kUri));
+
+  ASSERT_EQ(edits.size(), 1);
+
+  const verible::lsp::TextEdit& edit = edits.at(0);
+  EXPECT_TRUE(edit.range == kInputRange) << DebugString(edit.range);
+  EXPECT_EQ(edit.newText, R"(// Top of module comment.
+
+fn messy() {
+    ()  // retval comment
+}
+)");
 }
 
 }  // namespace

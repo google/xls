@@ -24,7 +24,13 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
+#include "xls/dslx/fmt/ast_fmt.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
@@ -67,31 +73,55 @@ class LanguageServerAdapter {
   absl::StatusOr<std::vector<verible::lsp::TextEdit>> FormatRange(
       std::string_view uri, const verible::lsp::Range& range) const;
 
+  // Implements the functionality for full document formatting:
+  // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting
+  //
+  // TODO(cdleary): 2024-03-10 We may want to consider adding formatting
+  // options.
+  absl::StatusOr<std::vector<verible::lsp::TextEdit>> FormatDocument(
+      std::string_view uri) const;
+
   // Present links to imports to directly open the relevant file.
   std::vector<verible::lsp::DocumentLink> ProvideImportLinks(
       std::string_view uri) const;
 
  private:
   struct ParseData;
-  const std::string stdlib_;
-  const std::vector<std::filesystem::path> dslx_paths_;
 
   // Find parse result of opened file with given URI or nullptr, if not opened.
   const ParseData* FindParsedForUri(std::string_view uri) const;
+
+  struct TypecheckedModuleWithComments {
+    TypecheckedModule tm;
+    Comments comments;
+  };
 
   // Everything relevant for a parsed editor buffer.
   // Note, each buffer independently currently keeps track of its import data.
   // This could maybe be considered to be put in a single place.
   struct ParseData {
     ImportData import_data;
-    absl::StatusOr<TypecheckedModule> typechecked_module;
+    absl::StatusOr<TypecheckedModuleWithComments> tmc;
 
-    bool ok() const { return typechecked_module.ok(); }
-    absl::Status status() const { return typechecked_module.status(); }
+    bool ok() const { return tmc.ok(); }
+    absl::Status status() const { return tmc.status(); }
 
-    const Module& module() const { return *typechecked_module->module; }
+    const Module& module() const {
+      CHECK_OK(tmc.status());
+      return *tmc->tm.module;
+    }
+    const Comments& comments() const {
+      CHECK_OK(tmc.status());
+      return tmc->comments;
+    }
+    const TypecheckedModule& typechecked_module() const {
+      CHECK_OK(tmc.status());
+      return tmc->tm;
+    }
   };
 
+  const std::string stdlib_;
+  const std::vector<std::filesystem::path> dslx_paths_;
   absl::flat_hash_map<std::string, std::unique_ptr<ParseData>> uri_parse_data_;
 };
 
