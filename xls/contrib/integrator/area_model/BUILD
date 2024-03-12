@@ -67,14 +67,14 @@ cc_test(
     ],
 )
 
-# A srcs-less library which gathers together the models into a single
-# dependency.
+# A srcs-less library which gathers together the alwaylink=1 models into a
+# single library.
 cc_library(
     name = "models",
     srcs = [],
     deps = [
-        "area_model_ice40_lut4",  # build_cleaner: keep
-        "area_model_testing_2_point_5_mux_per_node",  # build_cleaner: keep
+        ":area_model_ice40_lut4",  # build_cleaner: keep
+        ":area_model_testing_2_point_5_mux_per_node",  # build_cleaner: keep
     ],
 )
 
