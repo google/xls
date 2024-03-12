@@ -392,10 +392,10 @@ cc_test(
     srcs = ["typecheck_module_test.cc"],
     deps = [
         ":type_info",
-        ":typecheck_module",
         ":typecheck_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

@@ -192,14 +192,18 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstantArray(
     if (Number* number = dynamic_cast<Number*>(member);
         number != nullptr && number->type_annotation() == nullptr) {
       ctx->type_info()->SetItem(member, element_type);
-      const BitsType* bits_type = dynamic_cast<const BitsType*>(&element_type);
-      if (bits_type == nullptr) {
+
+      if (std::optional<BitsLikeProperties> bits_like =
+              GetBitsLike(element_type);
+          bits_like.has_value()) {
+        XLS_RETURN_IF_ERROR(
+            TryEnsureFitsInType(*number, bits_like.value(), element_type));
+      } else {
         return TypeInferenceErrorStatus(
             number->span(), &element_type,
             absl::StrFormat("Annotated element type for array cannot be "
                             "applied to a literal number"));
       }
-      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *bits_type));
     }
   }
 
@@ -209,8 +213,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstantArray(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
                                                    DeduceCtx* ctx) {
-  std::unique_ptr<Type> type;
-
   auto note_constexpr_value = [&](const Type& type) -> absl::Status {
     if (type.HasParametricDims()) {
       return absl::OkStatus();
@@ -219,6 +221,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
     ctx->type_info()->NoteConstExpr(node, value);
     return absl::OkStatus();
   };
+
+  std::unique_ptr<Type> type;
 
   ParametricEnv bindings = ctx->GetCurrentParametricEnv();
   if (node->type_annotation() == nullptr) {
@@ -253,16 +257,18 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
                              "numeric literal type-prefix"));
   }
 
+  CHECK(type != nullptr);
   XLS_ASSIGN_OR_RETURN(type, Resolve(*type, ctx));
   XLS_RET_CHECK(!type->IsMeta());
-  BitsType* bits_type = dynamic_cast<BitsType*>(type.get());
-  if (bits_type == nullptr) {
+
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
+      bits_like.has_value()) {
+    XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, bits_like.value(), *type));
+  } else {
     return TypeInferenceErrorStatus(
         node->span(), type.get(),
         "Non-bits type used to define a numeric literal.");
   }
-
-  XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *bits_type));
   ctx->type_info()->SetItem(node, *type);
   XLS_RETURN_IF_ERROR(note_constexpr_value(*type));
   return type;

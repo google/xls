@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_replace.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
@@ -2292,6 +2293,48 @@ proc t {
           "TypeInferenceError",
           HasSubstr("Cannot resolve callee `result_in` to a function; No "
                     "function in module fake with name \"result_in\"")));
+}
+
+// Table-oriented test that lets us validate that *types on parameters* are
+// compatible with *particular values* that should be type-compatible.
+TEST(PassValueToIdentityFnTest, ParameterVsValue) {
+  constexpr std::string_view kTemplate =
+      R"(fn id(x: $PARAM_TYPE) -> $PARAM_TYPE { x }
+
+fn main() -> $VALUE_TYPE { id($VALUE_TYPE:$VALUE) }
+)";
+
+  struct TestCase {
+    std::string param_type;
+    std::string value_tye;
+    std::string value;
+  } kTestCases[] = {
+      // xN[false][8] should be type compatible with u8
+      TestCase{.param_type = "xN[false][8]", .value_tye = "u8", .value = "42"},
+      TestCase{.param_type = "u8", .value_tye = "xN[false][8]", .value = "42"},
+
+      // xN[true][8] should be type compatible with s8
+      TestCase{.param_type = "xN[true][8]", .value_tye = "s8", .value = "42"},
+      TestCase{.param_type = "s8", .value_tye = "xN[true][8]", .value = "42"},
+
+      // uN[8] should be type compatible with u8
+      TestCase{.param_type = "uN[8]", .value_tye = "u8", .value = "42"},
+      TestCase{.param_type = "u8", .value_tye = "uN[8]", .value = "42"},
+
+      // bits[8] should be type compatible with uN[8]
+      TestCase{.param_type = "uN[8]", .value_tye = "bits[8]", .value = "42"},
+      TestCase{.param_type = "bits[8]", .value_tye = "uN[8]", .value = "42"},
+  };
+
+  for (const auto& [param_type, value_type, value] : kTestCases) {
+    std::string program =
+        absl::StrReplaceAll(kTemplate, {
+                                           {"$PARAM_TYPE", param_type},
+                                           {"$VALUE_TYPE", value_type},
+                                           {"$VALUE", value},
+                                       });
+    XLS_EXPECT_OK(Typecheck(program));
+  }
 }
 
 }  // namespace

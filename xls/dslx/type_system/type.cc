@@ -265,6 +265,23 @@ absl::StatusOr<int64_t> TypeDim::GetAsInt64() const {
                    std::get<OwnedParametric>(value_)->ToString()));
 }
 
+absl::StatusOr<bool> TypeDim::GetAsBool() const {
+  if (std::holds_alternative<InterpValue>(value_)) {
+    InterpValue value = std::get<InterpValue>(value_);
+    if (!value.IsBits()) {
+      return absl::InvalidArgumentError(
+          "Cannot convert non-bits type to bool.");
+    }
+
+    XLS_RET_CHECK(!value.IsSigned());
+    return value.GetBitValueUnsigned();
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrCat("Expected concrete type dimension to be integral; got: ",
+                   std::get<OwnedParametric>(value_)->ToString()));
+}
+
 // -- Type
 
 bool Type::CompatibleWith(const Type& other) const {
@@ -852,4 +869,26 @@ absl::StatusOr<TypeDim> MetaType::GetTotalBitCount() const {
       "realizable as values; meta-type: " +
       ToString());
 }
+
+bool IsBitsLike(const Type& t) {
+  return dynamic_cast<const BitsType*>(&t) != nullptr ||
+         IsArrayOfBitsConstructor(t);
+}
+
+std::optional<BitsLikeProperties> GetBitsLike(const Type& t) {
+  if (auto* bits_type = dynamic_cast<const BitsType*>(&t);
+      bits_type != nullptr) {
+    return BitsLikeProperties{
+        .is_signed = TypeDim::CreateBool(bits_type->is_signed()),
+        .size = bits_type->size()};
+  }
+  const BitsConstructorType* bc;
+  if (IsArrayOfBitsConstructor(t, &bc)) {
+    auto* array = dynamic_cast<const ArrayType*>(&t);
+    return BitsLikeProperties{.is_signed = bc->is_signed(),
+                              .size = array->size()};
+  }
+  return std::nullopt;
+}
+
 }  // namespace xls::dslx

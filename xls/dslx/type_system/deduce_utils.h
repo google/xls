@@ -34,7 +34,15 @@
 namespace xls::dslx {
 
 // If the width is known for "type", checks that "number" fits in that type.
-absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type);
+absl::Status TryEnsureFitsInType(const Number& number,
+                                 const BitsLikeProperties& bits_like,
+                                 const Type& type);
+
+// Shorthand for the above where we know a prori the type is a `BitsType` (note
+// that there are types that are bits-like that are not exactly `BitsType`, see
+// `IsBitsLike`).
+absl::Status TryEnsureFitsInBitsType(const Number& number,
+                                     const BitsType& type);
 
 // Record that the current function being checked has a side effect and will
 // require an implicit token when converted to IR.

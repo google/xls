@@ -53,6 +53,7 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:parametric_expression",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:type_zero_value",

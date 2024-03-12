@@ -120,6 +120,9 @@ class TypeDim {
   // Retrieves the bit value of the underlying InterpValue as an int64_t.
   absl::StatusOr<int64_t> GetAsInt64() const;
 
+  // Retrieves the bit value of the underlying InterpValue as a bool.
+  absl::StatusOr<bool> GetAsBool() const;
+
  private:
   std::variant<InterpValue, OwnedParametric> value_;
 };
@@ -790,10 +793,14 @@ inline bool IsArrayOfBitsConstructor(
 // This predicate should be used when we want to know if a type is effectively a
 // bits type -- this includes either the bits type itself or a sized array of
 // bits-constructor type.
-inline bool IsBitsLike(const Type& t) {
-  return dynamic_cast<const BitsType*>(&t) != nullptr ||
-         IsArrayOfBitsConstructor(t);
-}
+bool IsBitsLike(const Type& t);
+
+struct BitsLikeProperties {
+  TypeDim is_signed;
+  TypeDim size;
+};
+
+std::optional<BitsLikeProperties> GetBitsLike(const Type& t);
 
 // Returns whether the given type, which should be either a bits or an enum
 // type, is signed.

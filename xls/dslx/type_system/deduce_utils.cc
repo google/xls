@@ -115,13 +115,21 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
   return std::get<EnumDef*>(td);
 }
 
-absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
+absl::Status TryEnsureFitsInType(const Number& number,
+                                 const BitsLikeProperties& bits_like,
+                                 const Type& type) {
   XLS_VLOG(5) << "TryEnsureFitsInType; number: " << number.ToString() << " @ "
-              << number.span() << " type: " << type;
+              << number.span();
+
+  std::optional<bool> maybe_signed;
+  if (!bits_like.is_signed.IsParametric()) {
+    maybe_signed = bits_like.is_signed.GetAsBool().value();
+  }
 
   // Characters have a `u8` type. They can support the dash (negation symbol).
   if (number.number_kind() != NumberKind::kCharacter &&
-      number.text()[0] == '-' && !type.is_signed()) {
+      number.text()[0] == '-' && maybe_signed.has_value() &&
+      !maybe_signed.value()) {
     return TypeInferenceErrorStatus(
         number.span(), &type,
         absl::StrFormat("Number %s invalid: "
@@ -129,21 +137,21 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
                         number.ToString()));
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeDim bits_dim, type.GetTotalBitCount());
-  if (!std::holds_alternative<InterpValue>(bits_dim.value())) {
+  if (bits_like.size.IsParametric()) {
     // We have to wait for the dimension to be fully resolved before we can
     // check that the number is compliant.
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_dim.GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(const int64_t bit_count, bits_like.size.GetAsInt64());
 
   // Helper to give an informative error on the appropriate range when we
   // determine the numerical value given doesn't fit into the type.
-  auto does_not_fit = [&number, &type, bit_count]() {
+  auto does_not_fit = [&]() -> absl::Status {
     std::string low;
     std::string high;
-    if (type.is_signed()) {
+    XLS_RET_CHECK(maybe_signed.has_value());
+    if (maybe_signed.value()) {
       low = BitsToString(Bits::MinSigned(bit_count),
                          FormatPreference::kSignedDecimal);
       high = BitsToString(Bits::MaxSigned(bit_count),
@@ -167,6 +175,14 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
     return does_not_fit();
   }
   return absl::OkStatus();
+}
+
+absl::Status TryEnsureFitsInBitsType(const Number& number,
+                                     const BitsType& type) {
+  std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+  XLS_RET_CHECK(bits_like.has_value())
+      << "bits type can always give bits-like properties";
+  return TryEnsureFitsInType(number, bits_like.value(), type);
 }
 
 void UseImplicitToken(DeduceCtx* ctx) {
@@ -193,14 +209,16 @@ bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
 
 absl::Status ValidateNumber(const Number& number, const Type& type) {
   XLS_VLOG(5) << "Validating " << number.ToString() << " vs " << type;
-  const BitsType* bits_type = dynamic_cast<const BitsType*>(&type);
-  if (bits_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        number.span(), &type,
-        absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
-                        type.GetDebugTypeName()));
+
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      bits_like.has_value()) {
+    return TryEnsureFitsInType(number, bits_like.value(), type);
   }
-  return TryEnsureFitsInType(number, *bits_type);
+
+  return TypeInferenceErrorStatus(
+      number.span(), &type,
+      absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
+                      type.GetDebugTypeName()));
 }
 
 // When a ColonRef's subject is a NameRef, this resolves the entity referred to

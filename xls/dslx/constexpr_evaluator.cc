@@ -49,6 +49,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_zero_value.h"
@@ -482,14 +483,19 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
       << expr.span();
   XLS_VLOG(4) << "Evaluating number: " << expr.ToString() << " @ "
               << expr.span();
-  const BitsType* bits_type = dynamic_cast<const BitsType*>(&type);
-  XLS_RET_CHECK(bits_type != nullptr)
-      << "Type for number should be 'bits' kind.";
+
+  std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+
+  XLS_RET_CHECK(bits_like.has_value())
+      << "Type for number should be bits-like; got: " << type;
+
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+
   InterpValueTag tag =
-      bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
+      is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
 
   const std::variant<InterpValue, TypeDim::OwnedParametric>& value =
-      bits_type->size().value();
+      bits_like->size.value();
   if (!std::holds_alternative<InterpValue>(value)) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot evaluate number %s as type %s is parametric",

@@ -1077,7 +1077,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
       // If the slice start is untyped, assume S32, and check it fits in that
       // size.
       XLS_RETURN_IF_ERROR(
-          TryEnsureFitsInType(*down_cast<Number*>(slice->start()), *s32));
+          TryEnsureFitsInBitsType(*down_cast<Number*>(slice->start()), *s32));
       ctx->type_info()->SetItem(slice->start(), *s32);
     }
   }
@@ -1092,7 +1092,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
       // If the slice limit is untyped, assume S32, and check it fits in that
       // size.
       XLS_RETURN_IF_ERROR(
-          TryEnsureFitsInType(*down_cast<Number*>(slice->limit()), *s32));
+          TryEnsureFitsInBitsType(*down_cast<Number*>(slice->limit()), *s32));
       ctx->type_info()->SetItem(slice->limit(), *s32);
     }
   }
@@ -1710,7 +1710,7 @@ static absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
   // dimension values.
   if (auto* number = dynamic_cast<const Number*>(dim_expr)) {
     if (number->type_annotation() == nullptr) {
-      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *u32));
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInBitsType(*number, *u32));
       ctx->type_info()->SetItem(number, *u32);
     } else {
       XLS_ASSIGN_OR_RETURN(auto dim_type, ctx->Deduce(number));
@@ -1795,7 +1795,7 @@ static absl::StatusOr<TypeDim> DimToConcreteBool(const Expr* dim_expr,
   // dimension values.
   if (auto* number = dynamic_cast<const Number*>(dim_expr)) {
     if (number->type_annotation() == nullptr) {
-      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *u1));
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInBitsType(*number, *u1));
       ctx->type_info()->SetItem(number, *u1);
     } else {
       XLS_ASSIGN_OR_RETURN(auto dim_type, ctx->Deduce(number));
