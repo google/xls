@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
@@ -34,13 +35,13 @@
 #include "xls/passes/ternary_evaluator.h"
 
 namespace xls {
-
+namespace {
 // Returns whether the operation will be computationally expensive to
 // compute. The ternary query engine is intended to be fast so the analysis of
 // these expensive operations is skipped with the effect being all bits are
 // considered unknown. Operations and limits can be added as needed when
 // pathological cases are encountered.
-static bool IsExpensiveToEvaluate(Node* node) {
+bool IsExpensiveToEvaluate(Node* node) {
   // Shifts are quadratic in the width of the operand so wide shifts are very
   // slow to evaluate in the abstract evaluator.
   return (node->op() == Op::kShrl || node->op() == Op::kShra ||
@@ -48,34 +49,35 @@ static bool IsExpensiveToEvaluate(Node* node) {
          node->GetType()->GetFlatBitCount() > 256;
 }
 
+class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
+ public:
+  using AbstractNodeEvaluator<TernaryEvaluator>::AbstractNodeEvaluator;
+  absl::Status DefaultHandler(Node* n) override {
+    // We just consider any unhandled value entirely unconstrained.
+    return SetValue(n, TernaryEvaluator::Vector(n->BitCountOrDie(),
+                                                TernaryValue::kUnknown));
+  }
+};
+
+}  // namespace
+
 absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
   TernaryEvaluator evaluator;
-  absl::flat_hash_map<Node*, TernaryEvaluator::Vector> values;
-  for (Node* node : TopoSort(f)) {
-    if (!node->GetType()->IsBits()) {
+  TernaryNodeEvaluator ternary_visitor(evaluator);
+  for (Node* n : TopoSort(f)) {
+    if (!n->GetType()->IsBits()) {
       continue;
     }
-    auto create_unknown_vector = [](Node* n) {
-      return TernaryEvaluator::Vector(n->BitCountOrDie(),
-                                      TernaryValue::kUnknown);
-    };
-    if (IsExpensiveToEvaluate(node) ||
-        std::any_of(node->operands().begin(), node->operands().end(),
+    if (IsExpensiveToEvaluate(n) ||
+        std::any_of(n->operands().begin(), n->operands().end(),
                     [](Node* o) { return !o->GetType()->IsBits(); })) {
-      values[node] = create_unknown_vector(node);
+      XLS_RETURN_IF_ERROR(ternary_visitor.DefaultHandler(n));
       continue;
     }
-
-    std::vector<TernaryEvaluator::Vector> operand_values;
-    for (Node* operand : node->operands()) {
-      operand_values.push_back(values.at(operand));
-    }
-    XLS_ASSIGN_OR_RETURN(
-        values[node],
-        AbstractEvaluate(node, operand_values, &evaluator,
-                         /*default_handler=*/create_unknown_vector));
+    XLS_RETURN_IF_ERROR(n->VisitSingleNode(&ternary_visitor));
   }
 
+  const auto& values = ternary_visitor.values();
   ReachedFixpoint rf = ReachedFixpoint::Unchanged;
   for (Node* node : f->nodes()) {
     // TODO(meheff): Handle types other than bits.

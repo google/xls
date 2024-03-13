@@ -713,6 +713,7 @@ cc_library(
         ":query_engine",
         ":ternary_evaluator",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
