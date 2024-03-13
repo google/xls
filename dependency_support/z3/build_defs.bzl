@@ -88,10 +88,12 @@ def gen_srcs():
         outs = MK_MAKE_SRCS + MK_MAKE_HDRS,
         # We can't use $(location) here, since the bundled script internally
         # makes assumptions about where files are located.
-        cmd = "cd external/z3; " +
-              "python scripts/mk_make.py; " +
+        cmd = "python3=`realpath $(PYTHON3)`; " +
+              "cd external/z3; " +
+              "$$python3 scripts/mk_make.py; " +
               "cd ../..;" +
               copy_cmds,
+        toolchains = ["@rules_python//python:current_py_toolchain"],
     )
 
     for params_hdr in PARAMS_HDRS:
@@ -101,7 +103,8 @@ def gen_srcs():
             srcs = [src_file],
             tools = ["scripts/pyg2hpp.py"],
             outs = [params_hdr],
-            cmd = "python $(location scripts/pyg2hpp.py) $< $$(dirname $@)",
+            cmd = "$(PYTHON3) $(location scripts/pyg2hpp.py) $< $$(dirname $@)",
+            toolchains = ["@rules_python//python:current_py_toolchain"],
         )
 
     for db_hdr in DB_HDRS:
@@ -111,5 +114,6 @@ def gen_srcs():
             srcs = [src],
             tools = ["scripts/mk_pat_db.py"],
             outs = [db_hdr],
-            cmd = "python $(location scripts/mk_pat_db.py) $< $@",
+            cmd = "$(PYTHON3) $(location scripts/mk_pat_db.py) $< $@",
+            toolchains = ["@rules_python//python:current_py_toolchain"],
         )
