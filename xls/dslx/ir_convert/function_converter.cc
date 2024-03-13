@@ -1820,7 +1820,6 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
           {"priority_sel", &FunctionConverter::HandleBuiltinPrioritySel},
           {"slice", &FunctionConverter::HandleBuiltinArraySlice},
-          {"bit_slice", &FunctionConverter::HandleBuiltinBitSlice},
           {"bit_slice_update", &FunctionConverter::HandleBuiltinBitSliceUpdate},
           {"rev", &FunctionConverter::HandleBuiltinRev},
           {"zip", &FunctionConverter::HandleBuiltinZip},
@@ -2860,19 +2859,6 @@ absl::Status FunctionConverter::HandleBuiltinArraySlice(
 
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->ArraySlice(arg, start, width, loc);
-  });
-  return absl::OkStatus();
-}
-
-absl::Status FunctionConverter::HandleBuiltinBitSlice(const Invocation* node) {
-  XLS_RET_CHECK_EQ(node->args().size(), 3);
-  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  XLS_ASSIGN_OR_RETURN(Bits start_bits, GetConstBits(node->args()[1]));
-  XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
-  XLS_ASSIGN_OR_RETURN(Bits width_bits, GetConstBits(node->args()[2]));
-  XLS_ASSIGN_OR_RETURN(uint64_t width, width_bits.ToUint64());
-  Def(node, [&](const SourceInfo& loc) {
-    return function_builder_->BitSlice(arg, start, width, loc);
   });
   return absl::OkStatus();
 }

@@ -30,7 +30,6 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           {"add_with_carry", {"(uN[T], uN[T]) -> (u1, uN[T])", false}},
           {"assert_eq", {"(T, T) -> ()", false}},
           {"assert_lt", {"(xN[N], xN[N]) -> ()", false}},
-          {"bit_slice", {"(uN[N], uN[U], uN[V]) -> uN[V]", false}},
           {"bit_slice_update", {"(uN[N], uN[U], uN[V]) -> uN[N]", false}},
           {"clz", {"(uN[N]) -> uN[N]", false}},
           {"ctz", {"(uN[N]) -> uN[N]", false}},

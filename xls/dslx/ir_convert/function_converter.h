@@ -364,7 +364,6 @@ class FunctionConverter {
   absl::Status HandleBuiltinArrayRev(const Invocation* node);
   absl::Status HandleBuiltinArraySize(const Invocation* node);
   absl::Status HandleBuiltinArraySlice(const Invocation* node);
-  absl::Status HandleBuiltinBitSlice(const Invocation* node);
   absl::Status HandleBuiltinBitSliceUpdate(const Invocation* node);
   absl::Status HandleBuiltinCheckedCast(const Invocation* node);
   absl::Status HandleBuiltinClz(const Invocation* node);

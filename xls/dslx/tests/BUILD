@@ -500,12 +500,6 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
-    name = "bit_slice",
-    # Note: no meaningful function to convert to IR.
-    convert_to_ir = False,
-)
-
-dslx_lang_test(
     name = "bit_slice_update",
 )
 

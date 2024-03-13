@@ -1260,18 +1260,6 @@ fn main() -> (u1, u8) {
   EXPECT_TRUE(expected.Eq(actual));
 }
 
-TEST(BytecodeInterpreterTest, BuiltinBitSlice) {
-  constexpr std::string_view kProgram = R"(
-fn main() -> u16 {
-  bit_slice(u32:0xdeadbeef, u16:8, u16:16)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
-  EXPECT_EQ(int_value, 0xadbe);
-}
-
 TEST(BytecodeInterpreterTest, BuiltinBitSliceUpdate) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {

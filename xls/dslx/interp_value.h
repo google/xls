@@ -45,7 +45,6 @@ namespace xls::dslx {
   X("array_size", kArraySize)             \
   X("assert_eq", kAssertEq)               \
   X("assert_lt", kAssertLt)               \
-  X("bit_slice", kBitSlice)               \
   X("bit_slice_update", kBitSliceUpdate)  \
   X("checked_cast", kCheckedCast)         \
   X("clz", kClz)                          \
