@@ -14,9 +14,11 @@
 
 #include "xls/ir/value_utils.h"
 
-#include <variant>
+#include <cstdint>
 
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
@@ -100,17 +102,15 @@ TEST(ValueHelperTest, ValueToLeafTypeTree) {
     XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTree<Value> ltt,
                              ValueToLeafTypeTree(ZeroOfType(type), type));
     EXPECT_TRUE(ltt.type()->IsEqualTo(type));
-    LeafTypeTree<std::monostate> shape(type);
-    LeafTypeTree<Type*> type_tree(type, shape.leaf_types());
-    leaf_type_tree::Zip<std::monostate, Type*, Value>(
-        type_tree.AsView(), ltt.AsView(),
-        [](Type* type, const Value& value) -> std::monostate {
+    XLS_EXPECT_OK(leaf_type_tree::ForEachIndex(
+        ltt.AsView(),
+        [](Type* type, const Value& value, absl::Span<const int64_t> index) {
           EXPECT_EQ(type->GetFlatBitCount(), value.GetFlatBitCount());
           EXPECT_EQ(type->IsBits(), value.IsBits());
           EXPECT_EQ(type->IsToken(), value.IsToken());
           EXPECT_TRUE(value.IsBits() || value.IsToken());
-          return std::monostate();
-        });
+          return absl::OkStatus();
+        }));
     XLS_ASSERT_OK_AND_ASSIGN(Value roundtrip,
                              LeafTypeTreeToValue(ltt.AsView()));
     EXPECT_EQ(roundtrip, ZeroOfType(type));

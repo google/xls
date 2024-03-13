@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_RANGE_QUERY_ENGINE_H_
 #define XLS_PASSES_RANGE_QUERY_ENGINE_H_
 
+#include <cstdint>
 #include <iosfwd>
 #include <optional>
 #include <string>
@@ -27,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
@@ -137,10 +139,13 @@ class RangeQueryEngine : public QueryEngine {
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
     if (!node->GetType()->IsBits()) {
-      return LeafTypeTree<TernaryVector>(node->GetType(), [](Type* leaf_type) {
-        return TernaryVector(leaf_type->GetFlatBitCount(),
-                             TernaryValue::kUnknown);
-      });
+      return LeafTypeTree<TernaryVector>::CreateFromFunction(
+                 node->GetType(),
+                 [](Type* leaf_type, absl::Span<const int64_t> index) {
+                   return TernaryVector(leaf_type->GetFlatBitCount(),
+                                        TernaryValue::kUnknown);
+                 })
+          .value();
     }
     TernaryVector tvec = ternary_ops::FromKnownBits(known_bits_.at(node),
                                                     known_bit_values_.at(node));

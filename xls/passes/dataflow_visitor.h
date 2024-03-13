@@ -16,12 +16,10 @@
 #define XLS_PASSES_DATAFLOW_VISITOR_H_
 
 #include <cstdint>
-#include <optional>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
@@ -37,13 +35,13 @@
 
 namespace xls {
 
-// Abstract base class which performs dataflow analysis of a function base. The
-// analysis flows a lattice through the graph with user defined join
+// Abstract base class which performs dataflow analysis of a function base.
+// The analysis flows a lattice through the graph with user defined join
 // operations. The join operations are used, for example, to join possible
-// selected cases in select operations.  The analysis can be used to track value
-// elements (e.g., tuple elements) through tuple, tuple-index, array, and other
-// operations. The data structure stores a LeafTypeTree<T> for each node. For
-// example, given:
+// selected cases in select operations.  The analysis can be used to track
+// value elements (e.g., tuple elements) through tuple, tuple-index, array,
+// and other operations. The data structure stores a LeafTypeTree<T> for each
+// node. For example, given:
 //
 //   x = tuple(a, b)
 //   y = tuple_index(x, 0)
@@ -60,78 +58,68 @@ namespace xls {
 //
 // Users must define the following methods:
 //
-//   * DefaultHandler: the base class includes handlers for tuple, array, select
+//   * DefaultHandler: the base class includes handlers for tuple, array,
+//   select
 //     and identity operations. The default handler is used for all other
 //     operations.
 //
-//   * AccumulateDataElement: an operation for joining multiple potential
-//   selected
-//     data sources for an operation. This operation is used, for example, to
-//     produce the value for a select operation by joining the possible selected
-//     cases.
-//
-//   * AccumulateControlElement: an operation for joining a control operand
-//   value
-//     (selector of a select operation, index of an array index operation, etc.)
-//     with the value produced by the operation (select, array_index, etc).
+//   * JoinElements: an operation for joining data sources together for an
+//      operation. This operation is used, for example, to produce the value
+//      for a select operation by joining the possible selected cases.
 //
 // Other handlers can optionally defined or overridden.
 template <typename LeafT>
 class DataflowVisitor : public DfsVisitorWithDefault {
  public:
   absl::Status HandleArray(Array* array) override {
-    // All leaf values of an array operation are statically determined, no need
-    // to join values from operands.
-    absl::InlinedVector<LeafT, 1> leaves;
+    std::vector<LeafTypeTreeView<LeafT>> elements;
     for (Node* operand : array->operands()) {
-      const LeafTypeTree<LeafT>& operand_value = GetValue(operand);
-      leaves.insert(leaves.end(), operand_value.elements().begin(),
-                    operand_value.elements().end());
+      elements.push_back(GetValue(operand));
     }
-    return SetValueFromLeafElements(array, absl::MakeSpan(leaves));
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> result,
+                         leaf_type_tree::CreateArray<LeafT>(
+                             array->GetType()->AsArrayOrDie(), elements));
+    return SetValue(array, std::move(result));
   }
 
   absl::Status HandleArrayConcat(ArrayConcat* array_concat) override {
     // All leaf values of an array-concat operation are statically determined,
     // no need to join values from operands.
-    absl::InlinedVector<LeafT, 1> leaves;
+    typename LeafTypeTree<LeafT>::DataContainerT leaves;
     for (Node* operand : array_concat->operands()) {
-      const LeafTypeTree<LeafT>& operand_value = GetValue(operand);
+      LeafTypeTreeView<LeafT> operand_value = GetValue(operand);
       leaves.insert(leaves.end(), operand_value.elements().begin(),
                     operand_value.elements().end());
     }
-    return SetValueFromLeafElements(array_concat, absl::MakeSpan(leaves));
+    return SetValueFromLeafElements(array_concat, std::move(leaves));
   }
 
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
     // The value for an array-index operation is the join of the possibly
-    // indexed values in the input array. no need to join values from operands.
-    const LeafTypeTree<LeafT>& array_value = GetValue(array_index->array());
+    // indexed values in the input array. no need to join values from
+    // operands.
+    LeafTypeTreeView<LeafT> array_value = GetValue(array_index->array());
     std::vector<int64_t> bounds =
         GetArrayBounds(array_index->array()->GetType());
-    std::optional<LeafTypeTree<LeafT>> result;
+    std::vector<LeafTypeTreeView<LeafT>> data_sources;
     XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
         array_value.AsView(), array_index->indices().size(),
         [&](LeafTypeTreeView<LeafT> element_view,
             absl::Span<const int64_t> index) {
           if (IndicesMightBeEqual(array_index->indices(), index, bounds,
                                   /*indices_clamped=*/true)) {
-            if (result.has_value()) {
-              JoinLeafDataElementsWithValue(element_view.elements(),
-                                            array_index, *result);
-            } else {
-              result = LeafTypeTree<LeafT>(array_index->GetType(),
-                                           element_view.elements());
-            }
+            data_sources.push_back(element_view);
           }
           return absl::OkStatus();
         }));
-    // Join the index operands as control values.
+    std::vector<LeafTypeTreeView<LeafT>> control_sources;
     for (Node* index : array_index->indices()) {
-      XLS_RETURN_IF_ERROR(
-          JoinControlValue(GetValue(index), array_index, *result));
+      XLS_RET_CHECK(IsLeafType(index->GetType()));
+      control_sources.push_back(GetValue(index));
     }
-    return SetValue(array_index, *result);
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> result,
+                         Join(data_sources, control_sources, array_index));
+    return SetValue(array_index, std::move(result));
   }
 
   absl::Status HandleArrayUpdate(ArrayUpdate* array_update) override {
@@ -139,33 +127,43 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     // array. Each element which could be updated is joined with the update
     // value.  indexed values in the input array. no need to join values from
     // operands.
-    LeafTypeTree<LeafT> result = GetValue(array_update->array_to_update());
+    LeafTypeTree<LeafT> result =
+        leaf_type_tree::Clone(GetValue(array_update->array_to_update()));
+    MutableLeafTypeTreeView<LeafT> result_view = result.AsMutableView();
+
     std::vector<int64_t> bounds =
         GetArrayBounds(array_update->array_to_update()->GetType());
-    const LeafTypeTree<LeafT>& update_value =
+    LeafTypeTreeView<LeafT> update_value =
         GetValue(array_update->update_value());
+    std::vector<LeafTypeTreeView<LeafT>> control_sources;
+    for (Node* index : array_update->indices()) {
+      XLS_RET_CHECK(IsLeafType(index->GetType()));
+      control_sources.push_back(GetValue(index));
+    }
     XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
-        result.AsMutableView(), array_update->indices().size(),
+        result_view, array_update->indices().size(),
         [&](MutableLeafTypeTreeView<LeafT> element_view,
             absl::Span<const int64_t> index) {
           if (IndicesAreEqual(array_update->indices(), index, bounds,
                               /*indices_clamped=*/false)) {
-            for (int64_t i = 0; i < element_view.size(); ++i) {
-              element_view.elements()[i] = update_value.elements()[i];
-            }
+            leaf_type_tree::ReplaceElements(element_view, update_value);
           } else if (IndicesMightBeEqual(array_update->indices(), index, bounds,
                                          /*indices_clamped=*/false)) {
-            JoinLeafDataElementsWithValue(update_value.elements(), array_update,
-                                          result, index);
+            return leaf_type_tree::UpdateFrom<LeafT, LeafT>(
+                element_view, update_value,
+                [&](Type* leaf_type, LeafT& element, const LeafT& other_element,
+                    absl::Span<const int64_t> index) -> absl::Status {
+                  XLS_ASSIGN_OR_RETURN(
+                      element,
+                      JoinElements(leaf_type, {&element, &other_element},
+                                   control_sources, array_update, index));
+                  return absl::OkStatus();
+                },
+                /*index_prefix=*/index);
           }
           return absl::OkStatus();
         }));
-    // Join the index operands as control values.
-    for (Node* index : array_update->indices()) {
-      XLS_RETURN_IF_ERROR(
-          JoinControlValue(GetValue(index), array_update, result));
-    }
-    return SetValue(array_update, result);
+    return SetValue(array_update, std::move(result));
   }
 
   absl::Status HandleIdentity(UnOp* identity) override {
@@ -174,49 +172,43 @@ class DataflowVisitor : public DfsVisitorWithDefault {
 
   absl::Status HandleOneHotSel(OneHotSelect* sel) override {
     // If the selector is not one-hot then the cases may be or-ed together or
-    // the result may be zero which does not fit in the lattice domain so bail.
+    // the result may be zero which does not fit in the lattice domain so
+    // bail.
     if (!sel->selector()->Is<OneHot>()) {
       return DefaultHandler(sel);
     }
 
-    LeafTypeTree<LeafT> result = GetValue(sel->cases().front());
-    for (Node* c : sel->cases().subspan(1)) {
-      XLS_RETURN_IF_ERROR(JoinDataValue(GetValue(c), sel, result));
+    std::vector<LeafTypeTreeView<LeafT>> cases;
+    for (Node* c : sel->cases()) {
+      cases.push_back(GetValue(c));
     }
-    XLS_RETURN_IF_ERROR(
-        JoinControlValue(GetValue(sel->selector()), sel, result));
-    return SetValue(sel, result);
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> result,
+                         Join(cases, {GetValue(sel->selector())}, sel));
+    return SetValue(sel, std::move(result));
   }
 
   absl::Status HandleSel(Select* sel) override {
-    std::optional<LeafTypeTree<LeafT>> result;
-    auto set_or_merge = [&](const LeafTypeTree<LeafT>& other) {
-      if (result.has_value()) {
-        return JoinDataValue(other, sel, result.value());
-      }
-      result = other;
-      return absl::OkStatus();
-    };
+    std::vector<LeafTypeTreeView<LeafT>> cases;
     for (Node* c : sel->cases()) {
-      XLS_RETURN_IF_ERROR(set_or_merge(GetValue(c)));
+      cases.push_back(GetValue(c));
     }
     if (sel->default_value().has_value()) {
-      XLS_RETURN_IF_ERROR(set_or_merge(GetValue(sel->default_value().value())));
+      cases.push_back(GetValue(sel->default_value().value()));
     }
-    XLS_RETURN_IF_ERROR(
-        JoinControlValue(GetValue(sel->selector()), sel, *result));
-    return SetValue(sel, *result);
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> result,
+                         Join(cases, {GetValue(sel->selector())}, sel));
+    return SetValue(sel, std::move(result));
   }
 
   absl::Status HandleTuple(Tuple* tuple) override {
-    // Use InlinedVector to avoid std::vector<bool> abomination.
-    absl::InlinedVector<LeafT, 1> leaves;
+    std::vector<LeafTypeTreeView<LeafT>> elements;
     for (Node* operand : tuple->operands()) {
-      const LeafTypeTree<LeafT>& operand_tree = map_.at(operand);
-      leaves.insert(leaves.end(), operand_tree.elements().begin(),
-                    operand_tree.elements().end());
+      elements.push_back(GetValue(operand));
     }
-    return SetValueFromLeafElements(tuple, absl::MakeSpan(leaves));
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> result,
+                         leaf_type_tree::CreateTuple<LeafT>(
+                             tuple->GetType()->AsTupleOrDie(), elements));
+    return SetValue(tuple, std::move(result));
   }
 
   absl::Status HandleTupleIndex(TupleIndex* tuple_index) override {
@@ -227,8 +219,8 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   }
 
   // Returns the leaf type tree value associated with `node`.
-  const LeafTypeTree<LeafT>& GetValue(Node* node) const {
-    return map_.at(node);
+  LeafTypeTreeView<LeafT> GetValue(Node* node) const {
+    return map_.at(node).AsView();
   }
 
   // Returns the moved leaf type tree value associated with `node`.
@@ -240,108 +232,76 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   }
 
  protected:
-  // Inplace join of `data_element` into `element`. Used to join potential data
-  // sources for a leaf element. This operation is used, for example, to join
-  // the possible selected cases of a select operation to produce the value of
-  // the select. `node` is the node being analyzed, `index` is the tree index of
-  // these elements.
-  //
-  // For example, for the operation `x = select(p, {a, b, c})` where x, a, b,
-  // and c are u32[42] types, AccumulateDataElement will be called as follows
-  // to compute the dataflow value for x:
-  //
-  // X: LeafTypeTree<LeafT>
-  // for i in range(0, 41):
-  //   X[i] = GetValue(a)[i]
-  //   AccumulateDataElement(GetValue(b)[i], x, {i}, X[i])
-  //   AccumulateDataElement(GetValue(c)[i], x, {i}, X[i])
-  virtual absl::Status AccumulateDataElement(const LeafT& data_element,
-                                             Node* node,
-                                             absl::Span<const int64_t> index,
-                                             LeafT& element) const = 0;
+  // Joins the elements of `data_sources` together and returns the result.
+  // This operation is used, for example, to join the leaf values of possible
+  // selected cases of a select operation to produce the value of the
+  // select. `node` is the node being analyzed, `index` is the type index of
+  // these elements. `control_sources` is the set of control inputs which
+  // affect which data element is actually selected. These include the
+  // index(es) in an array index operation or the selector of a select
+  // operation.
+  virtual absl::StatusOr<LeafT> JoinElements(
+      Type* element_type, absl::Span<const LeafT* const> data_sources,
+      absl::Span<const LeafTypeTreeView<LeafT>> control_sources, Node* node,
+      absl::Span<const int64_t> index) const = 0;
 
-  // Inplace join of `control_element` into `element`. Used to join a control
-  // source for a leaf element. This operation is used, for example, to join the
-  // selector from a select operation to value of the select. `node` is the node
-  // being analyzed, `index` is the tree index of `element` (not
-  // `control_element).
-  //
-  // For example, consider the operation `x = array_index(a, {i, j})`. Let `X`
-  // be the dataflow value computed for x using AccumulateDataElement.
-  // AccumulateControlElement will be called to accumulate the dataflow values
-  // for indices i and j into each element of X.
-  //
-  // TODO(meheff): Consider consolidating the join/accumulate methods into a
-  // single method which looks like:
-  //   absl::StatusOr<LeafTypeTree<LeafT>> Join(
-  //      Node* node,
-  //      absl::Span<const LeafTypeTree<LeafT>*> data_inputs,
-  //      absl::Span<const LeafTypeTree<LeafT>*> control_inputs);
-  // Currently this requires too much copying.
-  virtual absl::Status AccumulateControlElement(const LeafT& control_element,
-                                                Node* node,
-                                                absl::Span<const int64_t> index,
-                                                LeafT& element) const = 0;
-
-  // Inplace data join of the LeafTypeTree value `data_value` with `value`.
-  absl::Status JoinDataValue(const LeafTypeTree<LeafT>& data_value, Node* node,
-                             LeafTypeTree<LeafT>& value) {
-    return leaf_type_tree::ForEach(
-        value.AsMutableView(),
-        [&](Type* t, LeafT& element, absl::Span<const int64_t> index) {
-          return AccumulateDataElement(data_value.Get(index), node, index,
-                                       element);
-        });
-  }
-
-  // Inplace control join of the LeafTypeTree value `control_value` with
-  // `value`. `control_value` must be bits-typed. The single leaf element in
-  // `control_value` is joined with all leaf elements in `value`.
-  absl::Status JoinControlValue(const LeafTypeTree<LeafT>& control_value,
-                                Node* node, LeafTypeTree<LeafT>& value) {
-    XLS_RET_CHECK(control_value.type()->IsBits());
-    const LeafT control_element = control_value.elements().front();
-    return leaf_type_tree::ForEach(
-        value.AsMutableView(),
-        [&](Type* t, LeafT& element, absl::Span<const int64_t> index) {
-          return AccumulateControlElement(control_element, node, index,
-                                          element);
-        });
-  }
-
-  // Inplace data join of the LeafTypeTree using a span of
-  // elements. `index_prefix` can be used to limit the join to the subtree of
-  // elements with that prefix.
-  absl::Status JoinLeafDataElementsWithValue(
-      absl::Span<const LeafT> elements, Node* node, LeafTypeTree<LeafT>& value,
-      absl::Span<const int64_t> index_prefix = {}) {
-    int64_t linear_index = 0;
-    return leaf_type_tree::ForEach(
-        value.AsMutableView(index_prefix),
-        [&](Type* t, LeafT& element, absl::Span<const int64_t> index) {
-          AccumulateDataElement(elements[linear_index], node, index, element);
-          ++linear_index;
+  // Inplace join of `other` into `element`.
+  absl::Status JoinSubtreeInPlace(
+      MutableLeafTypeTreeView<LeafT> tree, LeafTypeTreeView<LeafT> other,
+      absl::Span<const LeafTypeTreeView<LeafT>> control_sources, Node* node,
+      absl::Span<const int64_t> index_of_root) const {
+    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEach(
+        tree,
+        [&](Type* element_type, LeafT& element,
+            absl::Span<const int64_t> full_index) {
+          absl::Span<const int64_t> subindex =
+              full_index.subspan(index_of_root.size());
+          JoinElementInPlace(element, other.Get(subindex), control_sources,
+                             node, full_index);
           return absl::OkStatus();
         },
-        index_prefix);
+        index_of_root));
+    return absl::OkStatus();
+  }
+
+  // Joins the given data sources with the given control sources and returns
+  // the joined value. Elements at the same type index in each data source are
+  // joined.
+  absl::StatusOr<LeafTypeTree<LeafT>> Join(
+      absl::Span<const LeafTypeTreeView<LeafT>> data_sources,
+      absl::Span<const LeafTypeTreeView<LeafT>> control_sources,
+      Node* node) const {
+    return leaf_type_tree::ZipIndex<LeafT, LeafT>(
+        data_sources,
+        [&](Type* leaf_type, absl::Span<const LeafT* const> elements,
+            absl::Span<const int64_t> index) -> absl::StatusOr<LeafT> {
+          return JoinElements(leaf_type, elements, control_sources, node,
+                              index);
+        });
   }
 
   // Sets the leaf type tree value associated with `node`.
-  absl::Status SetValue(Node* node, LeafTypeTree<LeafT> value) {
+  absl::Status SetValue(Node* node, LeafTypeTreeView<LeafT> value) {
     XLS_RET_CHECK_EQ(node->GetType(), value.type());
-    map_[node] = std::move(value);
+    map_[node] = leaf_type_tree::Clone(value);
+    return absl::OkStatus();
+  }
+  absl::Status SetValue(Node* node, LeafTypeTree<LeafT>&& value) {
+    XLS_RET_CHECK_EQ(node->GetType(), value.type());
+    map_[node] = value;
     return absl::OkStatus();
   }
 
   // Sets the leaf type tree value associated with `node`.
-  absl::Status SetValueFromLeafElements(Node* node,
-                                        absl::Span<LeafT> elements) {
-    return SetValue(node, LeafTypeTree<LeafT>(node->GetType(), elements));
+  absl::Status SetValueFromLeafElements(
+      Node* node, LeafTypeTree<LeafT>::DataContainerT&& elements) {
+    return SetValue(node, LeafTypeTree<LeafT>::CreateFromVector(
+                              node->GetType(), std::move(elements)));
   }
 
   // Returns true if `index` is definitely equal to `concrete_index`. If
-  // `index_clamped` is true then the value of `index` is clamped when it equals
-  // or exceeds `bound`.
+  // `index_clamped` is true then the value of `index` is clamped when it
+  // equals or exceeds `bound`.
   bool IndexIsEqual(Node* index, int64_t concrete_index, int64_t bound,
                     bool index_clamped) const {
     CHECK_LT(concrete_index, bound);

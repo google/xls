@@ -23,6 +23,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -225,17 +227,36 @@ TEST_F(LeafTypeTreeTest, NestedTupleType) {
   )
 ))");
 
-  LeafTypeTree<int64_t> mapped = leaf_type_tree::Map<int64_t, int64_t>(
-      tree.AsView(), [](int64_t x) { return x + 1; });
+  LeafTypeTree<int64_t> mapped =
+      leaf_type_tree::MapIndex<int64_t, int64_t>(
+          tree.AsView(),
+          [](Type* leaf_type, int64_t x, absl::Span<const int64_t> index)
+              -> absl::StatusOr<int64_t> { return x + 1; })
+          .value();
   EXPECT_THAT(mapped.elements(), ElementsAre(1, 1, 4, 1, 43, 1, 1, 78));
+
+  LeafTypeTree<int64_t> simple_mapped = leaf_type_tree::Map<int64_t, int64_t>(
+      tree.AsView(), [](int64_t x) { return 2 * x; });
+  EXPECT_THAT(simple_mapped.elements(), ElementsAre(0, 0, 6, 0, 84, 0, 0, 154));
 
   LeafTypeTree<int64_t> other_tree(tree.type());
   other_tree.Set({0, 1}, 5);
   other_tree.Set({1, 1, 1, 0}, 12);
-  LeafTypeTree<int64_t> zipped = leaf_type_tree::Zip<int64_t, int64_t, int64_t>(
-      tree.AsView(), other_tree.AsView(),
-      [](int64_t x, int64_t y) { return std::max(x, y); });
+  LeafTypeTree<int64_t> zipped =
+      leaf_type_tree::ZipIndex<int64_t, int64_t>(
+          {tree.AsView(), other_tree.AsView()},
+          [](Type* leaf_type, absl::Span<const int64_t* const> elements,
+             absl::Span<const int64_t> index) -> absl::StatusOr<int64_t> {
+            return std::max(*elements[0], *elements[1]);
+          })
+          .value();
   EXPECT_THAT(zipped.elements(), ElementsAre(0, 5, 3, 0, 42, 12, 0, 77));
+
+  LeafTypeTree<int64_t> simple_zipped = leaf_type_tree::Zip<int64_t, int64_t>(
+      tree.AsView(), other_tree.AsView(),
+      [](int64_t a, int64_t b) { return a - b; });
+  EXPECT_THAT(simple_zipped.elements(),
+              ElementsAre(0, -5, 3, 0, 42, -12, 0, 77));
 
   LeafTypeTree<int64_t> subtree = leaf_type_tree::Clone(tree.AsView({1, 1}));
   EXPECT_EQ(subtree.type()->ToString(), "(bits[1], bits[1][2])");
@@ -300,19 +321,22 @@ TEST_F(LeafTypeTreeTest, ForEachTest) {
   {
     LeafTypeTree<int64_t> tree(AsType("()"), 42);
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView(), append_to_result));
+    XLS_ASSERT_OK(
+        leaf_type_tree::ForEachIndex(tree.AsView(), append_to_result));
     EXPECT_EQ(result, "");
   }
   {
     LeafTypeTree<int64_t> tree(AsType("(((())),(),(()))"), 42);
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView(), append_to_result));
+    XLS_ASSERT_OK(
+        leaf_type_tree::ForEachIndex(tree.AsView(), append_to_result));
     EXPECT_EQ(result, "");
   }
   {
     LeafTypeTree<int64_t> tree(AsType("bits[32]"), 42);
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView(), append_to_result));
+    XLS_ASSERT_OK(
+        leaf_type_tree::ForEachIndex(tree.AsView(), append_to_result));
     EXPECT_EQ(result, "[bits[32], 42, {}]");
   }
   {
@@ -320,17 +344,20 @@ TEST_F(LeafTypeTreeTest, ForEachTest) {
     tree.Set({0}, 23);
     tree.Set({1}, 42);
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView(), append_to_result));
+    XLS_ASSERT_OK(
+        leaf_type_tree::ForEachIndex(tree.AsView(), append_to_result));
     EXPECT_EQ(result, "[bits[32], 23, {0}][bits[64], 42, {1}]");
 
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView({0}), append_to_result,
-                                          /*index_prefix=*/{0}));
+    XLS_ASSERT_OK(leaf_type_tree::ForEachIndex(tree.AsView({0}),
+                                               append_to_result,
+                                               /*index_prefix=*/{0}));
     EXPECT_EQ(result, "[bits[32], 23, {0}]");
 
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView({1}), append_to_result,
-                                          /*index_prefix=*/{1}));
+    XLS_ASSERT_OK(leaf_type_tree::ForEachIndex(tree.AsView({1}),
+                                               append_to_result,
+                                               /*index_prefix=*/{1}));
     EXPECT_EQ(result, "[bits[64], 42, {1}]");
   }
   {
@@ -338,7 +365,8 @@ TEST_F(LeafTypeTreeTest, ForEachTest) {
     tree.Set({0}, 23);
     tree.Set({1}, 42);
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView(), append_to_result));
+    XLS_ASSERT_OK(
+        leaf_type_tree::ForEachIndex(tree.AsView(), append_to_result));
     EXPECT_EQ(result, "[bits[32], 23, {0}][bits[32], 42, {1}]");
   }
   {
@@ -347,19 +375,22 @@ TEST_F(LeafTypeTreeTest, ForEachTest) {
     tree.Set({0, 1}, 2);
     tree.Set({1, 0, 0}, 3);
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView(), append_to_result));
+    XLS_ASSERT_OK(
+        leaf_type_tree::ForEachIndex(tree.AsView(), append_to_result));
     EXPECT_EQ(
         result,
         "[bits[32], 1, {0, 0}][bits[32], 2, {0, 1}][bits[32], 3, {1, 0, 0}]");
 
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView({0}), append_to_result,
-                                          /*index_prefix=*/{0}));
+    XLS_ASSERT_OK(leaf_type_tree::ForEachIndex(tree.AsView({0}),
+                                               append_to_result,
+                                               /*index_prefix=*/{0}));
     EXPECT_EQ(result, "[bits[32], 1, {0, 0}][bits[32], 2, {0, 1}]");
 
     result.clear();
-    XLS_ASSERT_OK(leaf_type_tree::ForEach(tree.AsView({0, 1}), append_to_result,
-                                          /*index_prefix=*/{0, 1}));
+    XLS_ASSERT_OK(leaf_type_tree::ForEachIndex(tree.AsView({0, 1}),
+                                               append_to_result,
+                                               /*index_prefix=*/{0, 1}));
     EXPECT_EQ(result, "[bits[32], 2, {0, 1}]");
   }
 }
@@ -664,6 +695,144 @@ TEST_F(LeafTypeTreeTest, CreateArray) {
                                AsType("bits[32][3]")->AsArrayOrDie(),
                                {foo.AsView(), bar.AsView(), foo.AsView()}));
   EXPECT_EQ(tree.ToString(), "[foo, bar, foo]");
+}
+
+TEST_F(LeafTypeTreeTest, ReplaceElements) {
+  LeafTypeTree<std::string> foo(AsType("bits[32]"),
+                                std::vector<std::string>({"foo"}));
+  LeafTypeTree<std::string> bar(AsType("bits[32]"),
+                                std::vector<std::string>({"bar"}));
+  EXPECT_EQ(foo.ToString(), "foo");
+  XLS_ASSERT_OK(
+      leaf_type_tree::ReplaceElements(foo.AsMutableView(), bar.AsView()));
+  EXPECT_EQ(foo.ToString(), "bar");
+
+  LeafTypeTree<std::string> tree(AsType("(bits[32], (bits[11], bits[12]), ())"),
+                                 std::vector<std::string>({"a", "b", "c"}));
+  LeafTypeTree<std::string> subtree(AsType("(bits[11], bits[12])"),
+                                    std::vector<std::string>({"x", "y"}));
+
+  EXPECT_EQ(tree.ToString(), "(a, (b, c), ())");
+  XLS_ASSERT_OK(leaf_type_tree::ReplaceElements(tree.AsMutableView({1}),
+                                                subtree.AsView()));
+  EXPECT_EQ(tree.ToString(), "(a, (x, y), ())");
+  XLS_ASSERT_OK(
+      leaf_type_tree::ReplaceElements(tree.AsMutableView({0}), bar.AsView()));
+  EXPECT_EQ(tree.ToString(), "(bar, (x, y), ())");
+}
+
+TEST_F(LeafTypeTreeTest, IteratorTest) {
+  {
+    LeafTypeTree<int64_t> tree(AsType("(bits[32][2], (), (())[3], bits[2])"));
+    leaf_type_tree_internal::LeafTypeTreeIterator it(tree.type());
+    EXPECT_EQ(it.ToString(),
+              "root_type=(bits[32][2], (), (())[3], bits[2]), "
+              "leaf_type=bits[32], type_index={0,0}, linear_index=0");
+    it.Advance();
+    EXPECT_EQ(it.ToString(),
+              "root_type=(bits[32][2], (), (())[3], bits[2]), "
+              "leaf_type=bits[32], type_index={0,1}, linear_index=1");
+    it.Advance();
+    EXPECT_EQ(it.ToString(),
+              "root_type=(bits[32][2], (), (())[3], bits[2]), "
+              "leaf_type=bits[2], type_index={3}, linear_index=2");
+    it.Advance();
+    EXPECT_EQ(it.ToString(),
+              "root_type=(bits[32][2], (), (())[3], bits[2]), END");
+    EXPECT_TRUE(it.AtEnd());
+  }
+  {
+    LeafTypeTree<int64_t> tree(AsType("(()[18], bits[14], bits[7])"));
+    leaf_type_tree_internal::LeafTypeTreeIterator it(tree.type());
+    EXPECT_EQ(it.ToString(),
+              "root_type=(()[18], bits[14], bits[7]), leaf_type=bits[14], "
+              "type_index={1}, linear_index=0");
+    it.Advance();
+    EXPECT_EQ(it.ToString(),
+              "root_type=(()[18], bits[14], bits[7]), leaf_type=bits[7], "
+              "type_index={2}, linear_index=1");
+    it.Advance();
+    EXPECT_EQ(it.ToString(), "root_type=(()[18], bits[14], bits[7]), END");
+    EXPECT_TRUE(it.AtEnd());
+  }
+  {
+    LeafTypeTree<int64_t> empty_tuple(AsType("()"));
+    leaf_type_tree_internal::LeafTypeTreeIterator it(empty_tuple.type());
+    EXPECT_EQ(it.ToString(), "root_type=(), END");
+    EXPECT_TRUE(it.AtEnd());
+  }
+  {
+    LeafTypeTree<int64_t> empty_tuple_tuple(AsType("(())"));
+    leaf_type_tree_internal::LeafTypeTreeIterator it(empty_tuple_tuple.type());
+    EXPECT_EQ(it.ToString(), "root_type=(()), END");
+    EXPECT_TRUE(it.AtEnd());
+  }
+  {
+    LeafTypeTree<int64_t> bits(AsType("bits[42]"));
+    leaf_type_tree_internal::LeafTypeTreeIterator it(bits.type());
+    EXPECT_EQ(it.ToString(),
+              "root_type=bits[42], leaf_type=bits[42], type_index={}, "
+              "linear_index=0");
+    it.Advance();
+    EXPECT_EQ(it.ToString(), "root_type=bits[42], END");
+    EXPECT_TRUE(it.AtEnd());
+  }
+}
+
+TEST_F(LeafTypeTreeTest, ZipMultiple) {
+  Type* type = AsType("(bits[32][2], (), (())[3], bits[2])");
+  LeafTypeTree<int64_t> input0(type, {10, 20, 30});
+  LeafTypeTree<int64_t> input1(type, {11, 21, 31});
+  LeafTypeTree<int64_t> input2(type, {12, 22, 32});
+  LeafTypeTree<std::string> result =
+      leaf_type_tree::ZipIndex<std::string, int64_t>(
+          {input0.AsView(), input1.AsView(), input2.AsView()},
+          [](Type* leaf_type, absl::Span<const int64_t* const> inputs,
+             absl::Span<const int64_t> index) -> absl::StatusOr<std::string> {
+            return absl::StrFormat(
+                "%s:%s@{%s}", leaf_type->ToString(),
+                absl::StrJoin(inputs, ",",
+                              [](std::string* s, const int64_t* v) {
+                                absl::StrAppend(s, *v);
+                              }),
+                absl::StrJoin(index, ","));
+          })
+          .value();
+  EXPECT_EQ(result.ToMultilineString(),
+            R"((
+  [
+    bits[32]:10,11,12@{0,0},
+    bits[32]:20,21,22@{0,1}
+  ],
+  (),
+  [
+    (
+      ()
+    ),
+    (
+      ()
+    ),
+    (
+      ()
+    )
+  ],
+  bits[2]:30,31,32@{3}
+))");
+}
+
+TEST_F(LeafTypeTreeTest, CreateFromFunction) {
+  Type* type = AsType("(bits[32][2], bits[2])");
+  LeafTypeTree<std::string> result =
+      LeafTypeTree<std::string>::CreateFromFunction(
+          type,
+          [](Type* leaf_type,
+             absl::Span<const int64_t> index) -> absl::StatusOr<std::string> {
+            return absl::StrFormat("%s@{%s}", leaf_type->ToString(),
+                                   absl::StrJoin(index, ","));
+          })
+          .value();
+  EXPECT_EQ(result.ToString(),
+            "([bits[32]@{0,0}, bits[32]@{0,1}], bits[2]@{1})");
 }
 
 }  // namespace

@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -64,12 +65,18 @@ bool UnionQueryEngine::IsTracked(Node* node) const {
 }
 
 LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
-  LeafTypeTree<TernaryVector> result(node->GetType(), [](Type* leaf_type) {
-    return TernaryVector(leaf_type->GetFlatBitCount(), TernaryValue::kUnknown);
-  });
+  LeafTypeTree<TernaryVector> result =
+      LeafTypeTree<TernaryVector>::CreateFromFunction(
+          node->GetType(),
+          [](Type* leaf_type,
+             absl::Span<const int64_t> index) -> absl::StatusOr<TernaryVector> {
+            return TernaryVector(leaf_type->GetFlatBitCount(),
+                                 TernaryValue::kUnknown);
+          })
+          .value();
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
-      leaf_type_tree::UpdateFrom<TernaryVector, TernaryVector>(
+      leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
           result.AsMutableView(), engine->GetTernary(node).AsView(),
           [](TernaryVector& lhs, const TernaryVector& rhs) {
             CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
@@ -97,7 +104,7 @@ LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervals(Node* node) const {
   }
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
-      leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+      leaf_type_tree::SimpleUpdateFrom<IntervalSet, IntervalSet>(
           result.AsMutableView(), engine->GetIntervals(node).AsView(),
           [](IntervalSet& lhs, const IntervalSet& rhs) {
             lhs = IntervalSet::Intersect(lhs, rhs);

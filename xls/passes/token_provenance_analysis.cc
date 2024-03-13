@@ -16,6 +16,7 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -71,7 +72,7 @@ class TokenProvenanceVisitor : public DataflowVisitor<Node*> {
     } else if (TypeHasToken(node->GetType())) {
       return TokenError(node);
     }
-    return SetValue(node, ltt);
+    return SetValue(node, std::move(ltt));
   }
 
  protected:
@@ -80,25 +81,30 @@ class TokenProvenanceVisitor : public DataflowVisitor<Node*> {
         "Node type should not contain a token: %s", node->ToString()));
   }
 
-  absl::Status AccumulateDataElement(Node* const& data_element, Node* node,
-                                     absl::Span<const int64_t> index,
-                                     Node*& element) const override {
-    // Tokens should never be joined.
-    if (data_element != nullptr || element != nullptr) {
-      return TokenError(node);
+  // Returns true if all leaf elements of each LeafTypeTeee in `trees` is null.
+  static bool AreAllElementsNull(
+      absl::Span<const LeafTypeTreeView<Node*>> trees) {
+    for (const LeafTypeTreeView<Node*> tree : trees) {
+      for (const Node* n : tree.elements()) {
+        if (n != nullptr) {
+          return false;
+        }
+      }
     }
-    return absl::OkStatus();
+    return true;
   }
 
-  absl::Status AccumulateControlElement(Node* const& control_element,
-                                        Node* node,
-                                        absl::Span<const int64_t> index,
-                                        Node*& element) const override {
+  absl::StatusOr<Node*> JoinElements(
+      Type* element_type, absl::Span<Node* const* const> data_sources,
+      absl::Span<const LeafTypeTreeView<Node*>> control_sources, Node* node,
+      absl::Span<const int64_t> index) const override {
     // Tokens should never be joined.
-    if (control_element != nullptr || element != nullptr) {
+    if (!std::all_of(data_sources.begin(), data_sources.end(),
+                     [](Node* const* n) { return *n == nullptr; }) ||
+        !AreAllElementsNull(control_sources)) {
       return TokenError(node);
     }
-    return absl::OkStatus();
+    return nullptr;
   }
 };
 

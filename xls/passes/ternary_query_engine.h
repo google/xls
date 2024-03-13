@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 #define XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 
+#include <cstdint>
 #include <optional>
 #include <utility>
 
@@ -51,10 +52,13 @@ class TernaryQueryEngine : public QueryEngine {
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
     if (!node->GetType()->IsBits()) {
-      return LeafTypeTree<TernaryVector>(node->GetType(), [](Type* leaf_type) {
-        return TernaryVector(leaf_type->GetFlatBitCount(),
-                             TernaryValue::kUnknown);
-      });
+      return LeafTypeTree<TernaryVector>::CreateFromFunction(
+                 node->GetType(),
+                 [](Type* leaf_type, absl::Span<const int64_t> index) {
+                   return TernaryVector(leaf_type->GetFlatBitCount(),
+                                        TernaryValue::kUnknown);
+                 })
+          .value();
     }
     TernaryVector ternary =
         ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));

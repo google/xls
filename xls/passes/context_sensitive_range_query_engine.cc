@@ -222,10 +222,8 @@ class BackPropagate final : public BackPropagateBase {
                                                               : UBits(0, 1))) {
       // Case: (L == R) == TRUE
       // Case: (L != R) == FALSE
-      IntervalSetTree unified =
-          leaf_type_tree::Zip<IntervalSet, IntervalSet, IntervalSet>(
-              a_intervals.AsView(), b_intervals.AsView(),
-              IntervalSet::Intersect);
+      IntervalSetTree unified = leaf_type_tree::Zip<IntervalSet, IntervalSet>(
+          a_intervals.AsView(), b_intervals.AsView(), IntervalSet::Intersect);
 
       if (absl::c_any_of(unified.elements(), [](const IntervalSet& set) {
             return set.NumberOfIntervals() == 0;
@@ -278,7 +276,7 @@ class BackPropagate final : public BackPropagateBase {
                 &IntervalSet::Complement);
         // Remove the single known precise value from the imprecise values
         // range.
-        XLS_RETURN_IF_ERROR(leaf_type_tree::ForEach(
+        XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
             imprecise_complement_interval.AsMutableView(),
             [&](Type* type, IntervalSet& imprecise,
                 absl::Span<const int64_t> location) -> absl::Status {

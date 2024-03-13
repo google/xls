@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -90,7 +91,7 @@ class NodeSourceDataflowVisitor : public DataflowVisitor<NodeSource> {
  public:
   absl::Status DefaultHandler(Node* node) override {
     LeafTypeTree<NodeSource> result(node->GetType());
-    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEach(
+    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
         result.AsMutableView(), [&](Type* element_type, NodeSource& element,
                                     absl::Span<const int64_t> index) {
           element = NodeSource(node, std::vector(index.begin(), index.end()));
@@ -100,22 +101,16 @@ class NodeSourceDataflowVisitor : public DataflowVisitor<NodeSource> {
   }
 
  protected:
-  absl::Status AccumulateDataElement(const NodeSource& data_element, Node* node,
-                                     absl::Span<const int64_t> index,
-                                     NodeSource& element) const override {
-    if (data_element != element) {
-      // The source of the element cannot be statically determined.
-      element = NodeSource(node, std::vector(index.begin(), index.end()));
+  absl::StatusOr<NodeSource> JoinElements(
+      Type* element_type, absl::Span<const NodeSource* const> data_sources,
+      absl::Span<const LeafTypeTreeView<NodeSource>> control_sources,
+      Node* node, absl::Span<const int64_t> index) const override {
+    if (std::all_of(
+            data_sources.begin(), data_sources.end(),
+            [&](const NodeSource* n) { return *n == *data_sources.front(); })) {
+      return *data_sources.front();
     }
-    return absl::OkStatus();
-  }
-
-  absl::Status AccumulateControlElement(const NodeSource& control_element,
-                                        Node* node,
-                                        absl::Span<const int64_t> index,
-                                        NodeSource& element) const override {
-    // This optimization only follows data paths.
-    return absl::OkStatus();
+    return NodeSource(node, std::vector(index.begin(), index.end()));
   }
 };
 
@@ -134,9 +129,9 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
   bool changed = false;
   // Hashmap from the LTT<NodeSource> of a node to the Node*. If two nodes have
   // the same LTT<NodeSource> they are necessarily equivalent.
-  absl::flat_hash_map<LeafTypeTree<NodeSource>, Node*> source_map;
+  absl::flat_hash_map<LeafTypeTreeView<NodeSource>, Node*> source_map;
   for (Node* node : TopoSort(func)) {
-    const LeafTypeTree<NodeSource>& source = visitor.GetValue(node);
+    LeafTypeTreeView<NodeSource> source = visitor.GetValue(node);
     XLS_VLOG(3) << absl::StrFormat("Considering `%s`: %s", node->GetName(),
                                    source.ToString());
     auto [it, inserted] = source_map.insert({source, node});

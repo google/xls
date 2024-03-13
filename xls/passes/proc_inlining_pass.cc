@@ -631,7 +631,7 @@ class ReceiveDependencyVisitor : public DataflowVisitor<std::vector<Receive*>> {
     // an element of the output might come from any operand data source.
     LeafTypeTree<std::vector<Receive*>> ltt(node->GetType(),
                                             FlattenOperandVectors(node));
-    return SetValue(node, ltt);
+    return SetValue(node, std::move(ltt));
   }
 
   absl::Status HandleReceive(Receive* receive) override {
@@ -641,7 +641,7 @@ class ReceiveDependencyVisitor : public DataflowVisitor<std::vector<Receive*>> {
                                             {receive->As<Receive>()});
     // The token element is not considered a data dependency.
     ltt.Get({0}).clear();
-    return SetValue(receive, ltt);
+    return SetValue(receive, std::move(ltt));
   }
 
   std::vector<Receive*> FlattenOperandVectors(Node* node) {
@@ -656,25 +656,23 @@ class ReceiveDependencyVisitor : public DataflowVisitor<std::vector<Receive*>> {
     return element_vec;
   }
 
-  absl::Status AccumulateDataElement(
-      const std::vector<Receive*>& data_element, Node* node,
-      absl::Span<const int64_t> index,
-      std::vector<Receive*>& element) const override {
-    absl::flat_hash_set<Receive*> set(data_element.begin(), data_element.end());
-    set.insert(element.begin(), element.end());
-    element = SetToSortedVector(set);
-    return absl::OkStatus();
-  }
-
-  absl::Status AccumulateControlElement(
-      const std::vector<Receive*>& control_element, Node* node,
-      absl::Span<const int64_t> index,
-      std::vector<Receive*>& element) const override {
-    absl::flat_hash_set<Receive*> set(control_element.begin(),
-                                      control_element.end());
-    set.insert(element.begin(), element.end());
-    element = SetToSortedVector(set);
-    return absl::OkStatus();
+  absl::StatusOr<std::vector<Receive*>> JoinElements(
+      Type* element_type,
+      absl::Span<const std::vector<Receive*>* const> data_sources,
+      absl::Span<const LeafTypeTreeView<std::vector<Receive*>>> control_sources,
+      Node* node, absl::Span<const int64_t> index) const override {
+    absl::flat_hash_set<Receive*> set;
+    for (const std::vector<Receive*>* data_source : data_sources) {
+      set.insert(data_source->begin(), data_source->end());
+    }
+    for (const LeafTypeTreeView<std::vector<Receive*>>& control_source :
+         control_sources) {
+      XLS_RET_CHECK(IsLeafType(control_source.type()));
+      const std::vector<Receive*>& control_receives =
+          control_source.elements().front();
+      set.insert(control_receives.begin(), control_receives.end());
+    }
+    return SetToSortedVector(set);
   }
 };
 

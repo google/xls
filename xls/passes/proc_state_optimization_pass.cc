@@ -36,6 +36,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/math_util.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -221,20 +222,23 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
   }
 
  protected:
-  absl::Status AccumulateDataElement(const InlineBitmap& data_element,
-                                     Node* node,
-                                     absl::Span<const int64_t> index,
-                                     InlineBitmap& element) const override {
-    element.Union(data_element);
-    return absl::OkStatus();
-  }
-
-  absl::Status AccumulateControlElement(const InlineBitmap& control_element,
-                                        Node* node,
-                                        absl::Span<const int64_t> index,
-                                        InlineBitmap& element) const override {
-    element.Union(control_element);
-    return absl::OkStatus();
+  // We are interested in tracking the dependencies of the state elements so
+  // union together all inputs (data and control sources) which represent which
+  // state elements this node depends on.
+  absl::StatusOr<InlineBitmap> JoinElements(
+      Type* element_type, absl::Span<const InlineBitmap* const> data_sources,
+      absl::Span<const LeafTypeTreeView<InlineBitmap>> control_sources,
+      Node* node, absl::Span<const int64_t> index) const override {
+    InlineBitmap element = *data_sources.front();
+    for (const InlineBitmap* data_source : data_sources.subspan(1)) {
+      element.Union(*data_source);
+    }
+    for (const LeafTypeTreeView<InlineBitmap>& control_source :
+         control_sources) {
+      XLS_RET_CHECK(IsLeafType(control_source.type()));
+      element.Union(control_source.elements().front());
+    }
+    return std::move(element);
   }
 
   Proc* proc_;
