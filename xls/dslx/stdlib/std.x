@@ -14,37 +14,32 @@
 
 // DSLX standard library routines.
 
-// TODO(tedhong): 2023-03-15 - Convert to a macro to support getting size of
-//                             arbitrary types.
-// Returns the number of bits (sizeof) of the type of the given bits value.
-pub fn sizeof_signed<N: u32>(x: sN[N]) -> u32 { N }
-
-pub fn sizeof_unsigned<N: u32>(x: uN[N]) -> u32 { N }
+pub fn sizeof<S: bool, N: u32>(x: xN[S][N]) -> u32 { N }
 
 #[test]
 fn sizeof_signed_test() {
-    assert_eq(u32:0, sizeof_signed(sN[0]:0));
-    assert_eq(u32:1, sizeof_signed(sN[1]:0));
-    assert_eq(u32:2, sizeof_signed(sN[2]:0));
+    assert_eq(u32:0, sizeof(sN[0]:0));
+    assert_eq(u32:1, sizeof(sN[1]:0));
+    assert_eq(u32:2, sizeof(sN[2]:0));
 
     //TODO(tedhong): 2023-03-15 - update frontend to support below.
-    //assert_eq(u32:0xffffffff, sizeof_signed(uN[0xffffffff]:0));
+    //assert_eq(u32:0xffffffff, sizeof(uN[0xffffffff]:0));
 }
 
 #[test]
 fn sizeof_unsigned_test() {
-    assert_eq(u32:0, sizeof_unsigned(uN[0]:0));
-    assert_eq(u32:1, sizeof_unsigned(uN[1]:0));
-    assert_eq(u32:2, sizeof_unsigned(uN[2]:0));
+    assert_eq(u32:0, sizeof(uN[0]:0));
+    assert_eq(u32:1, sizeof(uN[1]:0));
+    assert_eq(u32:2, sizeof(uN[2]:0));
 
     //TODO(tedhong): 2023-03-15 - update frontend to support below.
-    //assert_eq(u32:0xffffffff, sizeof_unsigned(uN[0xffffffff]:0));
+    //assert_eq(u32:0xffffffff, sizeof(uN[0xffffffff]:0));
 }
 
 #[test]
 fn use_sizeof_test() {
     let x = uN[32]:0xffffffff;
-    let y: uN[sizeof_unsigned(x) + u32:2] = x as uN[sizeof_unsigned(x) + u32:2];
+    let y: uN[sizeof(x) + u32:2] = x as uN[sizeof(x) + u32:2];
     assert_eq(y, uN[34]:0xffffffff);
 }
 
@@ -659,7 +654,7 @@ fn test_popcount() {
 //
 // This is the moral equivalent of:
 //
-//     x as sN[std::sizeof_unsigned(x)]
+//     x as sN[std::sizeof(x)]
 //
 // That is, you might use it when you don't want to figure out the width of x
 // in order to perform a cast, you just know that the unsigned number you have
@@ -670,10 +665,10 @@ pub fn to_signed<N: u32>(x: uN[N]) -> sN[N] { x as sN[N] }
 fn test_to_signed() {
     let x = u32:42;
     assert_eq(s32:42, to_signed(x));
-    assert_eq(x as sN[sizeof_unsigned(x)], to_signed(x));
+    assert_eq(x as sN[sizeof(x)], to_signed(x));
     let x = u8:42;
     assert_eq(s8:42, to_signed(x));
-    assert_eq(x as sN[sizeof_unsigned(x)], to_signed(x));
+    assert_eq(x as sN[sizeof(x)], to_signed(x));
 }
 
 // As with to_signed but for signed-to-unsigned conversion.
@@ -683,10 +678,10 @@ pub fn to_unsigned<N: u32>(x: sN[N]) -> uN[N] { x as uN[N] }
 fn test_to_unsigned() {
     let x = s32:42;
     assert_eq(u32:42, to_unsigned(x));
-    assert_eq(x as uN[sizeof_signed(x)], to_unsigned(x));
+    assert_eq(x as uN[sizeof(x)], to_unsigned(x));
     let x = s8:42;
     assert_eq(u8:42, to_unsigned(x));
-    assert_eq(x as uN[sizeof_signed(x)], to_unsigned(x));
+    assert_eq(x as uN[sizeof(x)], to_unsigned(x));
 }
 
 // Adds two unsigned integers and detects for overflow.
@@ -981,3 +976,14 @@ fn test_vslice() {
     assert_eq(vslice<u32:7, u32:4>(u8:0xab), u4:0xa);
     assert_eq(vslice<u32:0, u32:0>(u8:0xab), u1:1);
 }
+
+// Deprecated functions, to be removed in favor of sizeof() which is
+// signedness-parameterized.
+//
+// TODO(https://github.com/google/xls/issues/1348): 2024-03-12 Add deprecated
+// annotation to DSLX so we can tag functions that are deprecated like these
+// are.
+
+pub fn sizeof_signed<N: u32>(x: sN[N]) -> u32 { N }
+
+pub fn sizeof_unsigned<N: u32>(x: uN[N]) -> u32 { N }

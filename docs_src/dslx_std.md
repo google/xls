@@ -586,14 +586,14 @@ pub fn signed_max_value<N: u32>() -> sN[N];
 
 Returns the maximum signed or unsigned value contained in N bits.
 
-#### `std::sizeof_?`
+#### `std::sizeof`
 
 ```dslx-snippet
-pub fn sizeof_unsigned<N: u32>(x : uN[N]) -> u32
-pub fn sizeof_signed<N: u32>(x : sN[N]) -> u32
+pub fn sizeof<S: bool, N: u32>(x : xN[S][N]) -> u32
 ```
 
-Returns the number of bits (sizeof) of unsigned or signed bit value.
+Returns the number of bits (`sizeof`) of unsigned or signed bit value. The
+signature above is parameterized on the signedness of the input type.
 
 ### Bit Manipulation Functions
 
@@ -609,7 +609,7 @@ signed type, or visa-versa. This is morally equivalent to (but slightly more
 convenient than) a pattern like:
 
 ```dslx-snippet
-    x as sN[std::sizeof_unsigned(x)]
+    x as sN[std::sizeof(x)]
 ```
 
 #### `std::lsb`
