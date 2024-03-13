@@ -549,6 +549,36 @@ assuming input array operand `A`.
 
 <!-- mdformat on -->
 
+#### **`array_slice`**
+
+Returns a slice of an array.
+
+**Syntax**
+
+```
+result = array_slice(array, start, width=<width>)
+```
+
+**Types**
+
+Value    | Type
+-------- | -------------------------------------------------------------
+`array`  | Array
+`start`  | Arbitrary bits type
+`result` | Array with same `element_type` as `array` and size of `width`
+
+**Keyword arguments**
+
+Keyword | Type      | Required | Default | Description
+------- | --------- | -------- | ------- | ----------------------------------
+`width` | `int64_t` | yes      |         | Width to make the resulting array.
+
+Returns a copy of the segment of the input array consisting of the `<width>`
+consecutive elements starting from `start`. If any element in that segment is
+out-of-bounds of the original array the value at the corresponding index is the
+final element in the array. This is consistent behavior with respect to the
+index operation.
+
 #### **`array_update`**
 
 Returns a modified copy of an array.
