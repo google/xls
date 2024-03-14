@@ -1,0 +1,94 @@
+name: implementation
+description: 'DSLX to Openroad P&R'
+inputs:
+  xls_module:
+    description: 'Module in //xls/modules'
+    required: true
+    default: 'xls/modules/dma'
+  rule_ir:
+    description: 'Bazel rule to generate optimized IR'
+    required: true
+    default: 'csr_opt_ir_benchmark'
+  rule_verilog:
+    description: 'Bazel rule to generate verilog'
+    required: true
+    default: 'verilog_csr'
+  rule_synthesis:
+    description: 'Bazel rule to synthesize verilog'
+    required: true
+    default: 'csr_benchmark_synth'
+  rule_pnr:
+    description: 'Bazel rule to place and route'
+    required: true
+    default: 'csr_place_and_route'
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/cache
+
+    - name: Summary page
+      shell: bash
+      run: |
+        echo "Module ${{inputs.xls_module}}" >> $GITHUB_STEP_SUMMARY
+
+    - name: IR
+      shell: bash
+      run: |
+        bazel run --local_cpu_resources=HOST_CPUS-1 --local_ram_resources=HOST_RAM*.9 ${{inputs.xls_module}}:${{inputs.rule_ir}}
+
+    - name: Summary page
+      shell: bash
+      run: |
+        echo "Generate IR :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+
+    - name: Verilog
+      shell: bash
+      run: |
+        bazel build --local_cpu_resources=HOST_CPUS-1 --local_ram_resources=HOST_RAM*.9 ${{inputs.xls_module}}:${{inputs.rule_verilog}}
+
+    - name: Summary page
+      shell: bash
+      run: |
+        echo "Verilog codegen :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+
+    - name: Synthesis
+      shell: bash
+      run: |
+        bazel run --local_cpu_resources=HOST_CPUS-1 --local_ram_resources=HOST_RAM*.9 ${{inputs.xls_module}}:${{inputs.rule_synthesis}}
+
+    - name: Summary page
+      shell: bash
+      run: |
+        echo -n "Synthesis :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+
+    - name: P&R
+      shell: bash
+      run: |
+        bazel build --local_cpu_resources=HOST_CPUS-1 --local_ram_resources=HOST_RAM*.9 ${{inputs.xls_module}}:${{inputs.rule_pnr}}
+
+    - name: Summary page
+      shell: bash
+      run: |
+        echo -n "Place & Route :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+
+      # ${variable/character_to_replace/new_character}
+      # ${variable/ slash / underscore }
+    - name: Prepare artifact name
+      if: always()
+      shell: bash
+      run: |
+        name_input=${{inputs.xls_module}}/${{inputs.rule_ir}}
+        name_output="${name_input//\//_}"
+        echo "artifact_name=${name_output}" >> "$GITHUB_ENV"
+
+    - name: Artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: artifacts-impl-${{ env.artifact_name }}
+        path: |
+          ./bazel-bin/${{inputs.xls_module}}/*.log
+          ./bazel-bin/${{inputs.xls_module}}/*.textproto
+          ./bazel-bin/${{inputs.xls_module}}/*.ir
+          ./bazel-bin/${{inputs.xls_module}}/*.v
+          ./bazel-bin/${{inputs.xls_module}}/*.sv

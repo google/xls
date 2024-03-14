@@ -1,0 +1,23 @@
+name: free-disk
+description: 'Removes unused files from runner'
+
+# WARNING
+# This is not a 100% safe method of reclaiming space.
+# Your workflow may depend on removed files.
+
+runs:
+  using: "composite"
+  steps:
+    - name: Increase build space
+      shell: bash
+      run: |
+        echo "Before cleanup"
+        df -H
+        sudo rm -rf /usr/share/dotnet/*
+        sudo rm -rf /usr/local/lib/android/*
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        echo "After cleanup"
+        df -H

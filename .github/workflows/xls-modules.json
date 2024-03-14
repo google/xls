@@ -1,0 +1,39 @@
+{
+  "module": [
+    {
+        "xls_module": "//xls/modules/dma",
+        "rule_ir": "csr_opt_ir_benchmark",
+        "rule_verilog": "verilog_csr",
+        "rule_synthesis": "csr_benchmark_synth",
+        "rule_pnr": "csr_place_and_route"
+    },
+    {
+      "xls_module": "//xls/modules/dma",
+      "rule_ir": "axi_csr_opt_ir_benchmark",
+      "rule_verilog": "verilog_axi_csr",
+      "rule_synthesis": "axi_csr_benchmark_synth",
+      "rule_pnr": "axi_csr_place_and_route"
+    },
+    {
+      "xls_module": "//xls/modules/dma",
+      "rule_ir": "address_generator_opt_ir_benchmark",
+      "rule_verilog": "verilog_address_generator",
+      "rule_synthesis": "address_generator_benchmark_synth",
+      "rule_pnr": "address_generator_place_and_route"
+    },
+    {
+      "xls_module": "//xls/modules/dma",
+      "rule_ir": "frontend_reader_opt_ir_benchmark",
+      "rule_verilog": "verilog_frontend_reader",
+      "rule_synthesis": "frontend_reader_benchmark_synth",
+      "rule_pnr": "frontend_reader_place_and_route"
+    },
+    {
+      "xls_module": "//xls/modules/dma",
+      "rule_ir": "frontend_writer_opt_ir_benchmark",
+      "rule_verilog": "verilog_frontend_writer",
+      "rule_synthesis": "frontend_writer_benchmark_synth",
+      "rule_pnr": "frontend_writer_place_and_route"
+    }
+  ]
+}
