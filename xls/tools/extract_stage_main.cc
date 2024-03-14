@@ -18,12 +18,14 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/scheduling/extract_stage.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -61,8 +63,8 @@ static absl::Status RealMain(const std::string& ir_path,
   }
 
   XLS_ASSIGN_OR_RETURN(
-      PipelineScheduleProto proto,
-      ParseTextProtoFile<PipelineScheduleProto>(schedule_path));
+      PackagePipelineSchedulesProto proto,
+      ParseTextProtoFile<PackagePipelineSchedulesProto>(schedule_path));
   XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                        PipelineSchedule::FromProto(function, proto));
   std::vector<FunctionBase*> funcs = package->GetFunctionBases();

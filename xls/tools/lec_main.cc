@@ -42,6 +42,7 @@
 #include "xls/netlist/netlist.h"
 #include "xls/netlist/netlist.pb.h"
 #include "xls/netlist/netlist_parser.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/solvers/z3_lec.h"
 #include "xls/solvers/z3_utils.h"
@@ -252,8 +253,8 @@ static absl::Status RealMain(
   std::unique_ptr<solvers::z3::Lec> lec;
   if (!schedule_path.empty()) {
     XLS_ASSIGN_OR_RETURN(
-        PipelineScheduleProto proto,
-        ParseTextProtoFile<PipelineScheduleProto>(schedule_path));
+        PackagePipelineSchedulesProto proto,
+        ParseTextProtoFile<PackagePipelineSchedulesProto>(schedule_path));
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         PipelineSchedule::FromProto(lec_params.ir_function, proto));

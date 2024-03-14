@@ -43,7 +43,7 @@ class PipelineSchedule {
  public:
   // Reconstructs a PipelineSchedule object from a proto representation.
   static absl::StatusOr<PipelineSchedule> FromProto(
-      FunctionBase* function, const PipelineScheduleProto& proto);
+      FunctionBase* function, const PackagePipelineSchedulesProto& proto);
 
   // Builds trivial pipeline schedule with all nodes in a single stage
   static absl::StatusOr<PipelineSchedule> SingleStage(FunctionBase* function);

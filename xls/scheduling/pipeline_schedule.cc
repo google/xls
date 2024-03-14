@@ -107,9 +107,15 @@ void PipelineSchedule::RemoveNode(Node* node) {
 }
 
 absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
-    FunctionBase* function, const PipelineScheduleProto& proto) {
+    FunctionBase* function,
+    const PackagePipelineSchedulesProto& package_schedules_proto) {
+  const auto schedule_it =
+      package_schedules_proto.schedules().find(function->name());
+  if (schedule_it == package_schedules_proto.schedules().end()) {
+    return absl::InvalidArgumentError("Function does not have a schedule.");
+  }
   ScheduleCycleMap cycle_map;
-  for (const auto& stage : proto.stages()) {
+  for (const auto& stage : schedule_it->second.stages()) {
     for (const auto& timed_node : stage.timed_nodes()) {
       // NOTE: we handle timing with our estimator, so ignore timings from proto
       // but it might be useful in the future to e.g. detect regressions.
@@ -574,12 +580,12 @@ int64_t PipelineSchedule::CountFinalInteriorPipelineRegisters() const {
 PackagePipelineSchedulesFromProto(Package* p,
                                   const PackagePipelineSchedulesProto& proto) {
   PackagePipelineSchedules schedules;
-  for (const auto& [fb_name, proto_schedule] : proto.schedules()) {
+  for (const auto& [fb_name, _] : proto.schedules()) {
     XLS_VLOG(3) << absl::StreamFormat(
         "Converting proto for Functionbase with name %s", fb_name);
     XLS_ASSIGN_OR_RETURN(FunctionBase * fb, p->GetFunctionBaseByName(fb_name));
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::FromProto(fb, proto_schedule));
+                         PipelineSchedule::FromProto(fb, proto));
     schedules.insert({fb, std::move(schedule)});
   }
   return schedules;

@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <limits>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -580,8 +581,12 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
                           SchedulingOptions().pipeline_stages(3)));
 
   PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
-  XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule clone,
-                           PipelineSchedule::FromProto(func, proto));
+  PackagePipelineSchedulesProto package_schedules_proto;
+  package_schedules_proto.mutable_schedules()->emplace(func->name(),
+                                                       std::move(proto));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule clone,
+      PipelineSchedule::FromProto(func, package_schedules_proto));
   for (const Node* node : func->nodes()) {
     EXPECT_EQ(schedule.cycle(node), clone.cycle(node));
   }

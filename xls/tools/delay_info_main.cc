@@ -15,20 +15,27 @@
 // Takes in an IR file and produces an IR file that has been run through the
 // standard optimization pipeline.
 
+#include <cstdint>
 #include <iostream>
+#include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/extract_stage.h"
@@ -95,8 +102,8 @@ absl::Status RealMain(std::string_view input_path) {
     std::cout << CriticalPathToString(critical_path);
     std::cout << "\n";
   } else {
-    XLS_ASSIGN_OR_RETURN(PipelineScheduleProto proto,
-                         ParseTextProtoFile<PipelineScheduleProto>(
+    XLS_ASSIGN_OR_RETURN(PackagePipelineSchedulesProto proto,
+                         ParseTextProtoFile<PackagePipelineSchedulesProto>(
                              absl::GetFlag(FLAGS_schedule_path)));
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                          PipelineSchedule::FromProto(top, proto));
