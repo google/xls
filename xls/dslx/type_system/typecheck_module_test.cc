@@ -1187,7 +1187,7 @@ fn f(x: u7, prio: u2) -> u8 {
           HasSubstr("Expected argument 1 to 'one_hot' to be a u1; got uN[2]")));
 }
 
-TEST(TypecheckTest, OneHotSelOfSigned) {
+TEST(TypecheckTest, OneHotSelOfSignedValues) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> s4 {
   let a: s4 = s4:1;
@@ -2295,6 +2295,37 @@ proc t {
                     "function in module fake with name \"result_in\"")));
 }
 
+TEST(TypecheckErrorTest, SignedValueToBuiltinExpectingUNViaParametric) {
+  EXPECT_THAT(Typecheck(R"(
+fn p<S: bool, N: u32>() -> u32 {
+  clz(xN[S][N]:0xdeadbeef) as u32
+}
+
+fn main() -> u32 {
+  p<true, u32:32>()
+}
+)")
+                  .status(),
+              IsPosError("TypeInferenceError",
+                         HasSubstr("Want argument 0 to be unsigned; got "
+                                   "xN[is_signed=1][32] (type is signed)")));
+}
+
+// Passes a signed value to a builtin function that expects a `uN[N]`.
+TEST(TypecheckErrorTest, SignedValueToBuiltinExpectingUN) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn main() {
+  clz(s32:0xdeadbeef)
+}
+)")
+          .status(),
+      IsPosError(
+          "TypeInferenceError",
+          HasSubstr(
+              "Want argument 0 to be unsigned; got sN[32] (type is signed)")));
+}
+
 // Table-oriented test that lets us validate that *types on parameters* are
 // compatible with *particular values* that should be type-compatible.
 TEST(PassValueToIdentityFnTest, ParameterVsValue) {
@@ -2303,30 +2334,70 @@ TEST(PassValueToIdentityFnTest, ParameterVsValue) {
 
 fn main() -> $VALUE_TYPE { id($VALUE_TYPE:$VALUE) }
 )";
+  constexpr std::string_view kBuiltinTemplate = R"(
+fn builtins() -> (u1, u1, u1, u32, u32, u32, $VALUE_TYPE) {
+  let v: $PARAM_TYPE = $VALUE_TYPE:$VALUE;
+  let x = xor_reduce(v);
+  let o = or_reduce(v);
+  let a = and_reduce(v);
+  let lz = clz(v) as u32;
+  let tz = ctz(v) as u32;
+  let e = encode(v) as u32;
+  let r = rev(v);
+  (x, o, a, lz, tz, e, r)
+}
+)";
 
   struct TestCase {
     std::string param_type;
     std::string value_tye;
     std::string value;
+    // Whether we want unsigned-taking (unary) builtins to be run on the value.
+    bool want_unsigned_builtins;
   } kTestCases[] = {
       // xN[false][8] should be type compatible with u8
-      TestCase{.param_type = "xN[false][8]", .value_tye = "u8", .value = "42"},
-      TestCase{.param_type = "u8", .value_tye = "xN[false][8]", .value = "42"},
+      TestCase{.param_type = "xN[false][8]",
+               .value_tye = "u8",
+               .value = "42",
+               .want_unsigned_builtins = true},
+      TestCase{.param_type = "u8",
+               .value_tye = "xN[false][8]",
+               .value = "42",
+               .want_unsigned_builtins = true},
 
       // xN[true][8] should be type compatible with s8
-      TestCase{.param_type = "xN[true][8]", .value_tye = "s8", .value = "42"},
-      TestCase{.param_type = "s8", .value_tye = "xN[true][8]", .value = "42"},
+      TestCase{.param_type = "xN[true][8]",
+               .value_tye = "s8",
+               .value = "42",
+               .want_unsigned_builtins = false},
+      TestCase{.param_type = "s8",
+               .value_tye = "xN[true][8]",
+               .value = "42",
+               .want_unsigned_builtins = false},
 
       // uN[8] should be type compatible with u8
-      TestCase{.param_type = "uN[8]", .value_tye = "u8", .value = "42"},
-      TestCase{.param_type = "u8", .value_tye = "uN[8]", .value = "42"},
+      TestCase{.param_type = "uN[8]",
+               .value_tye = "u8",
+               .value = "42",
+               .want_unsigned_builtins = true},
+      TestCase{.param_type = "u8",
+               .value_tye = "uN[8]",
+               .value = "42",
+               .want_unsigned_builtins = true},
 
       // bits[8] should be type compatible with uN[8]
-      TestCase{.param_type = "uN[8]", .value_tye = "bits[8]", .value = "42"},
-      TestCase{.param_type = "bits[8]", .value_tye = "uN[8]", .value = "42"},
+      TestCase{.param_type = "uN[8]",
+               .value_tye = "bits[8]",
+               .value = "42",
+               .want_unsigned_builtins = true},
+      TestCase{.param_type = "bits[8]",
+               .value_tye = "uN[8]",
+               .value = "42",
+               .want_unsigned_builtins = true},
   };
 
-  for (const auto& [param_type, value_type, value] : kTestCases) {
+  for (const auto& [param_type, value_type, value, want_unsigned_builtins] :
+       kTestCases) {
     std::string program =
         absl::StrReplaceAll(kTemplate, {
                                            {"$PARAM_TYPE", param_type},
@@ -2334,6 +2405,16 @@ fn main() -> $VALUE_TYPE { id($VALUE_TYPE:$VALUE) }
                                            {"$VALUE", value},
                                        });
     XLS_EXPECT_OK(Typecheck(program));
+
+    if (want_unsigned_builtins) {
+      std::string unsigned_builtins_program =
+          absl::StrReplaceAll(kBuiltinTemplate, {
+                                                    {"$PARAM_TYPE", param_type},
+                                                    {"$VALUE_TYPE", value_type},
+                                                    {"$VALUE", value},
+                                                });
+      XLS_EXPECT_OK(Typecheck(unsigned_builtins_program));
+    }
   }
 }
 

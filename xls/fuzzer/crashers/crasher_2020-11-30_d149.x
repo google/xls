@@ -162,29 +162,29 @@
 type x8 = uN[0x1];
 type x21 = uN[0x1];
 fn main(x0: s5) -> (u1, x8[0x2], u1, s5, x21[0x1], x21[0x1], s5, u1, s5, (s5, s5, u1, s5, u1, s5, s5, s5, s5, s5, s5, s5, u1, s5), s5, s5, x8[0x1], u5, (s5,), s5) {
-  let x1: s5 = one_hot_sel(x0, [x0, x0, x0, x0, x0]);
-  let x2: s5 = one_hot_sel(x1, [x1, x1, x1, x1, x1]);
+  let x1: s5 = one_hot_sel(x0 as u5, [x0, x0, x0, x0, x0]);
+  let x2: s5 = one_hot_sel(x1 as u5, [x1, x1, x1, x1, x1]);
   let x3: s5 = !(x1);
   let x4: s5 = (x3) ^ (x1);
   let x5: u1 = (x3) <= (x1);
-  let x6: s5 = one_hot_sel(x2, [x1, x0, x4, x3, x0]);
+  let x6: s5 = one_hot_sel(x2 as u5, [x1, x0, x4, x3, x0]);
   let x7: x8[0x1] = ((x5) as x8[0x1]);
   let x9: x8[0x2] = (x7) ++ (x7);
   let x10: s5 = for (i, x): (u4, s5) in range(u4:0x0, u4:0x4) {
     x
   }(x3);
   let x11: (s5,) = (x3,);
-  let x12: s5 = one_hot_sel(x0, [x1, x6, x3, x3, x10]);
+  let x12: s5 = one_hot_sel(x0 as u5, [x1, x6, x3, x3, x10]);
   let x13: u1 = ctz(x5);
   let x14: u5 = (x12 as u5)[x5+:u5];
   let x15: (s5, s5, u1, s5, u1, s5, s5, s5, s5, s5, s5, s5, u1, s5) = (x4, x4, x13, x10, x5, x2, x6, x0, x12, x6, x10, x1, x13, x3);
   let x16: u1 = ctz(x13);
   let x17: s5 = one_hot_sel(x16, [x3]);
-  let x18: s5 = one_hot_sel(x3, [x4, x3, x10, x10, x2]);
+  let x18: s5 = one_hot_sel(x3 as u5, [x4, x3, x10, x10, x2]);
   let x19: s47 = s47:0x4000;
   let x20: x21[0x1] = ((x16) as x21[0x1]);
   let x22: s60 = s60:0x7ffffffffffffff;
-  let x23: s5 = one_hot_sel(x17, [x17, x17, x3, x2, x0]);
-  let x24: s47 = one_hot_sel(x18, [x19, x19, x19, x19, x19]);
+  let x23: s5 = one_hot_sel(x17 as u5, [x17, x17, x3, x2, x0]);
+  let x24: s47 = one_hot_sel(x18 as u5, [x19, x19, x19, x19, x19]);
   (x13, x9, x5, x6, x20, x20, x18, x13, x17, x15, x23, x6, x7, x14, x11, x23)
 }

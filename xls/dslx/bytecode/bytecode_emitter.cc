@@ -1280,25 +1280,16 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
         absl::StrCat("Could not find type for number: ", node->ToString()));
   }
 
-  const TypeDim* dim = nullptr;
-  bool is_signed = false;
-  if (auto* bits_type = dynamic_cast<BitsType*>(type_or.value());
-      bits_type != nullptr) {
-    dim = &bits_type->size();
-    is_signed = bits_type->is_signed();
-  } else if (auto* enum_type = dynamic_cast<EnumType*>(type_or.value());
-             enum_type != nullptr) {
-    dim = &enum_type->size();
-    is_signed = enum_type->is_signed();
-  }
+  std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type_or.value());
 
-  XLS_RET_CHECK(dim != nullptr) << absl::StrCat(
-      "Error in type deduction; number \"", node->ToString(),
-      "\" did not have bits or enum type: ", type_or.value()->ToString(), ".");
+  XLS_RET_CHECK(bits_like.has_value())
+      << "Not bits-like; number:" << node->ToString();
 
-  XLS_ASSIGN_OR_RETURN(int64_t dim_val, dim->GetAsInt64());
-  XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(dim_val));
-  return InterpValue::MakeBits(is_signed, bits);
+  XLS_ASSIGN_OR_RETURN(int64_t dim_val, bits_like->size.GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+
+  XLS_ASSIGN_OR_RETURN(Bits bits_value, node->GetBits(dim_val));
+  return InterpValue::MakeBits(is_signed, bits_value);
 }
 
 absl::Status BytecodeEmitter::HandleRange(const Range* node) {

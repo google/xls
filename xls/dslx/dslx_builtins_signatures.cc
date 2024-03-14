@@ -15,7 +15,9 @@
 #include "xls/dslx/dslx_builtins_signatures.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -23,6 +25,7 @@
 
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -195,37 +198,62 @@ class Checker {
     }
     return *this;
   }
-  Checker& IsBits(int64_t argno, const BitsType** out = nullptr) {
+
+  // Fluent API for checking that `argno` is bits-typed.
+  Checker& IsBits(int64_t argno) {
     if (!status_.ok()) {
       return *this;
     }
     const Type& t = GetArgType(argno);
     if (auto* a = dynamic_cast<const BitsType*>(&t)) {
-      if (out != nullptr) {
-        *out = a;
-      }
-    } else {
-      status_ = TypeInferenceErrorStatus(
-          span_, &t,
-          absl::StrFormat("Want argument %d to '%s' to be bits typed; got %s",
-                          argno, name_, t.ToString()));
+      return *this;
     }
+    status_ = TypeInferenceErrorStatus(
+        span_, &t,
+        absl::StrFormat("Want argument %d to '%s' to be bits typed; got %s",
+                        argno, name_, t.ToString()));
     return *this;
   }
-  Checker& IsUN(int64_t argno) {
+
+  Checker& IsUN(int64_t argno,
+                std::optional<BitsLikeProperties>* out = nullptr) {
     if (!status_.ok()) {
       return *this;
     }
     const Type& t = GetArgType(argno);
-    if (auto* a = dynamic_cast<const BitsType*>(&t);
-        a == nullptr || a->is_signed()) {
+    std::optional<BitsLikeProperties> bits_like = GetBitsLike(t);
+    if (bits_like.has_value()) {
+      absl::StatusOr<bool> is_signed = bits_like->is_signed.GetAsBool();
+      if (is_signed.ok()) {
+        if (is_signed.value()) {
+          status_ = TypeInferenceErrorStatus(
+              span_, &t,
+              absl::StrFormat(
+                  "Want argument %d to be unsigned; got %s (type is signed)",
+                  argno, t.ToString()));
+        }
+      } else {
+        status_ = TypeInferenceErrorStatus(
+            span_, &t,
+            absl::StrFormat("Want argument %d to be unsigned; got %s; could "
+                            "not determine signedness: %s",
+                            argno, t.ToString(),
+                            is_signed.status().ToString()));
+      }
+    } else {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
           absl::StrFormat("Want argument %d to be unsigned bits; got %s", argno,
                           t.ToString()));
     }
+
+    if (out != nullptr) {
+      *out = std::move(bits_like);
+    }
+
     return *this;
   }
+
   Checker& IsSN(int64_t argno, const BitsType** type_out = nullptr) {
     if (!status_.ok()) {
       return *this;
@@ -580,6 +608,41 @@ static void AddZipLikeSignature(
   };
 }
 
+static void AddPrioritySelLikeSignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
+  map["(uN[N], xN[M][N]) -> xN[M]"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    const ArrayType* cases;
+    std::optional<BitsLikeProperties> bits;
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                       .Len(2)
+                       .IsUN(0, &bits)
+                       .IsArray(1, &cases);
+    XLS_RETURN_IF_ERROR(checker.status());
+
+    // If the checker status is OK we should have a value for this.
+    XLS_RET_CHECK(bits.has_value());
+
+    const Type& return_type = cases->element_type();
+    checker.CheckIsBits(return_type, [&] {
+      return absl::StrFormat("Want arg 1 element type to be bits; got %s",
+                             return_type.ToString());
+    });
+    XLS_ASSIGN_OR_RETURN(
+        int64_t target,
+        std::get<InterpValue>(bits->size.value()).GetBitValueViaSign());
+    checker.CheckIsLen(*cases, target, [&] {
+      return absl::StrFormat("Bit width %d must match %s array size %s", target,
+                             cases->ToString(), cases->size().ToString());
+    });
+    XLS_RETURN_IF_ERROR(checker.status());
+    return TypeAndParametricEnv{
+        .type = std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
+                                               return_type.CloneToUnique())};
+  };
+}
+
 static absl::flat_hash_map<std::string, SignatureFn>
 PopulateSignatureToLambdaMap() {
   absl::flat_hash_map<std::string, SignatureFn> map;
@@ -593,6 +656,7 @@ PopulateSignatureToLambdaMap() {
   AddBinaryArbitraryTypeSignature(map);
   AddByteArrayAndTProducesTSignature(map);
   AddZipLikeSignature(map);
+  AddPrioritySelLikeSignature(map);
 
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
       [](const SignatureData& data,
@@ -629,32 +693,6 @@ PopulateSignatureToLambdaMap() {
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
-  };
-  map["(xN[N], xN[M][N]) -> xN[M]"] =
-      [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
-    const ArrayType* a;
-    const BitsType* b;
-    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
-                       .Len(2)
-                       .IsBits(0, &b)
-                       .IsArray(1, &a);
-    XLS_RETURN_IF_ERROR(checker.status());
-    const Type& return_type = a->element_type();
-    checker.CheckIsBits(return_type, [&] {
-      return absl::StrFormat("Want arg 1 element type to be bits; got %s",
-                             return_type.ToString());
-    });
-    XLS_ASSIGN_OR_RETURN(
-        int64_t target,
-        std::get<InterpValue>(b->size().value()).GetBitValueViaSign());
-    checker.CheckIsLen(*a, target, [&] {
-      return absl::StrFormat("Bit width %d must match %s array size %s", target,
-                             a->ToString(), a->size().ToString());
-    });
-    XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndParametricEnv{std::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), return_type.CloneToUnique())};
   };
   map["(T, T) -> ()"] =
       [](const SignatureData& data,
@@ -1001,12 +1039,10 @@ PopulateSignatureToLambdaMap() {
   map["(uN[N], uN[N]) -> (uN[N], uN[N])"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
-    const BitsType* lhs_type;
-    const BitsType* rhs_type;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
-                       .IsBits(0, &lhs_type)
-                       .IsBits(1, &rhs_type);
+                       .IsBits(0)
+                       .IsBits(1);
     XLS_RETURN_IF_ERROR(checker.status());
 
     checker.Eq(*data.arg_types[0], *data.arg_types[1], [&] {

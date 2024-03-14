@@ -14,7 +14,6 @@
 
 #include "xls/dslx/type_system/typecheck_module.h"
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,7 +21,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

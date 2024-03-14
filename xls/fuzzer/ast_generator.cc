@@ -1375,8 +1375,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
     Context* ctx) {
   XLS_ASSIGN_OR_RETURN(
       TypedExpr lhs,
-      ChooseEnvValueBits(&ctx->env, /*bit_count=*/RandomIntWithExpectedValue(
-                             5, /*lower_limit=*/1)));
+      ChooseEnvValueUBits(&ctx->env, /*bit_count=*/RandomIntWithExpectedValue(
+                              5, /*lower_limit=*/1)));
+
   LastDelayingOp last_delaying_op = lhs.last_delaying_op;
   int64_t min_stage = lhs.min_stage;
 

@@ -322,9 +322,19 @@ class AstGenerator {
   absl::StatusOr<std::pair<TypedExpr, TypedExpr>> ChooseEnvValueBitsPair(
       Env* env, std::optional<int64_t> bit_count = std::nullopt);
 
-  absl::StatusOr<TypedExpr> ChooseEnvValueUBits(Env* env) {
-    auto is_ubits = [&](const TypedExpr& e) -> bool { return IsUBits(e.type); };
-    return ChooseEnvValue(env, is_ubits);
+  absl::StatusOr<TypedExpr> ChooseEnvValueUBits(
+      Env* env, std::optional<int64_t> bit_count = std::nullopt) {
+    auto want_expr = [&](const TypedExpr& e) -> bool {
+      if (!IsUBits(e.type)) {
+        return false;
+      }
+      if (bit_count.has_value() &&
+          GetTypeBitCount(e.type) != bit_count.value()) {
+        return false;
+      }
+      return true;
+    };
+    return ChooseEnvValue(env, want_expr);
   }
 
   absl::StatusOr<TypedExpr> ChooseEnvValueArray(
