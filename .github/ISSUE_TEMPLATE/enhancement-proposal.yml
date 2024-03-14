@@ -1,0 +1,34 @@
+name: Enhancement Proposal
+description: Submit an enhancement proposal
+title: "[Enhancement]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For things that are hard to do with XLS, we'd love to hear about them! Some requests:
+        * Please keep it short
+        * Please include code samples where possible
+        * Please use pictures or diagrams where possible
+        * Focus on the problem more than the requested solution - for problems we address, we may brainstorm with you on a solution.
+  - type: textarea
+    id: what-do
+    attributes:
+      label: What's hard to do? (limit 100 words)
+      description: Provide an expression of the result you want to achieve. This can be a snippet of SystemVerilog, maybe a diagram, or a written description.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current best alternative workaround (limit 100 words)
+      description: What happens if we do nothing? What will you do instead?
+    validations:
+      required: true
+  - type: textarea
+    id: best-case
+    attributes:
+      label: Your view of the "best case XLS enhancement" (limit 100 words)
+      description: Please do include this, but don't overthink it. Focus on the result and not the "inside XLS mechanism," since there could be multiple ways to address this.
+    validations:
+      required: true
