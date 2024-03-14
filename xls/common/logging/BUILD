@@ -120,7 +120,7 @@ cc_test(
 py_test(
     name = "logging_flags_test",
     srcs = ["logging_flags_test.py"],
-    data = [":logger"],
+    data = [":log_initialization_tester"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
@@ -130,8 +130,9 @@ py_test(
 )
 
 cc_binary(
-    name = "logger",
-    srcs = ["logger.cc"],
+    name = "log_initialization_tester",
+    testonly = True,
+    srcs = ["log_initialization_tester.cc"],
     deps = [
         ":logging",
         "//xls/common:init_xls",

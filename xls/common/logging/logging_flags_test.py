@@ -19,7 +19,7 @@ import subprocess
 from xls.common import runfiles
 from xls.common import test_base
 
-LOGGER_PATH = runfiles.get_path('xls/common/logging/logger')
+LOGGER_PATH = runfiles.get_path('xls/common/logging/log_initialization_tester')
 
 
 class LoggingFlagsTest(test_base.TestCase):
@@ -120,11 +120,16 @@ class LoggingFlagsTest(test_base.TestCase):
   def test_vmodule_matches_filename_level_1(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.
     comp = subprocess.run(
-        [LOGGER_PATH, '--stderrthreshold=0', '--vmodule=logger=1'],
+        [
+            LOGGER_PATH,
+            '--stderrthreshold=0',
+            '--vmodule=log_initialization_tester=1',
+        ],
         check=True,
         encoding='utf-8',
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
@@ -137,11 +142,16 @@ class LoggingFlagsTest(test_base.TestCase):
   def test_vmodule_matches_filename_level_2(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.
     comp = subprocess.run(
-        [LOGGER_PATH, '--stderrthreshold=0', '--vmodule=logger=2'],
+        [
+            LOGGER_PATH,
+            '--stderrthreshold=0',
+            '--vmodule=log_initialization_tester=2',
+        ],
         check=True,
         encoding='utf-8',
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)

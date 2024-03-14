@@ -15,6 +15,8 @@
 // This is a test-only utility which simply logs some precanned messages at
 // various log levels using LOG and VLOG. Used for testing logging.
 
+#include <cstdlib>
+
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 
