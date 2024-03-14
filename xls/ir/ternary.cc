@@ -31,7 +31,7 @@
 
 namespace xls {
 
-std::string ToString(const TernaryVector& value) {
+std::string ToString(TernarySpan value) {
   std::string result = "0b";
   for (int64_t i = value.size() - 1; i >= 0; --i) {
     std::string symbol;
@@ -117,7 +117,7 @@ TernaryVector FromKnownBits(const Bits& known_bits,
   return result;
 }
 
-Bits ToKnownBits(const TernaryVector& ternary_vector) {
+Bits ToKnownBits(TernarySpan ternary_vector) {
   absl::InlinedVector<bool, 1> bits(ternary_vector.size());
   for (int64_t i = 0; i < bits.size(); ++i) {
     bits[i] = (ternary_vector[i] != TernaryValue::kUnknown);
@@ -125,7 +125,7 @@ Bits ToKnownBits(const TernaryVector& ternary_vector) {
   return Bits(bits);
 }
 
-Bits ToKnownBitsValues(const TernaryVector& ternary_vector) {
+Bits ToKnownBitsValues(TernarySpan ternary_vector) {
   absl::InlinedVector<bool, 1> bits(ternary_vector.size());
   for (int64_t i = 0; i < bits.size(); ++i) {
     bits[i] = (ternary_vector[i] == TernaryValue::kKnownOne);
@@ -133,8 +133,8 @@ Bits ToKnownBitsValues(const TernaryVector& ternary_vector) {
   return Bits(bits);
 }
 
-std::optional<TernaryVector> Difference(const TernaryVector& lhs,
-                                        const TernaryVector& rhs) {
+std::optional<TernaryVector> Difference(TernarySpan lhs,
+                                        TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
   const int64_t size = lhs.size();
 
@@ -157,8 +157,8 @@ std::optional<TernaryVector> Difference(const TernaryVector& lhs,
   return result;
 }
 
-absl::StatusOr<TernaryVector> Union(const TernaryVector& lhs,
-                                    const TernaryVector& rhs) {
+absl::StatusOr<TernaryVector> Union(TernarySpan lhs,
+                                    TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
   const int64_t size = lhs.size();
 
@@ -181,7 +181,7 @@ absl::StatusOr<TernaryVector> Union(const TernaryVector& lhs,
   return result;
 }
 
-absl::Status UpdateWithUnion(TernaryVector& lhs, const TernaryVector& rhs) {
+absl::Status UpdateWithUnion(TernaryVector& lhs, TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
 
   for (int64_t i = 0; i < lhs.size(); ++i) {
@@ -201,7 +201,7 @@ absl::Status UpdateWithUnion(TernaryVector& lhs, const TernaryVector& rhs) {
   return absl::OkStatus();
 }
 
-TernaryVector Intersection(const TernaryVector& lhs, const TernaryVector& rhs) {
+TernaryVector Intersection(TernarySpan lhs, TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
   const int64_t size = lhs.size();
 
@@ -218,7 +218,7 @@ TernaryVector Intersection(const TernaryVector& lhs, const TernaryVector& rhs) {
   return result;
 }
 
-void UpdateWithIntersection(TernaryVector& lhs, const TernaryVector& rhs) {
+void UpdateWithIntersection(TernaryVector& lhs, TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
 
   for (int64_t i = 0; i < lhs.size(); ++i) {
@@ -242,7 +242,7 @@ void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs) {
   }
 }
 
-int64_t NumberOfKnownBits(const TernaryVector& vec) {
+int64_t NumberOfKnownBits(TernarySpan vec) {
   int64_t result = 0;
   for (TernaryValue value : vec) {
     if (value != TernaryValue::kUnknown) {
