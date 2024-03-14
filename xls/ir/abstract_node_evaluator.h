@@ -27,6 +27,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/lsb_or_msb.h"
@@ -313,7 +314,7 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     if (result.size() > expected_width) {
       result = evaluator_.BitSlice(result, 0, expected_width);
     } else if (result.size() < expected_width) {
-      result = evaluator_.SignExtend(result, expected_width);
+      result = evaluator_.ZeroExtend(result, expected_width);
     }
     return SetValue(mul, result);
   }
