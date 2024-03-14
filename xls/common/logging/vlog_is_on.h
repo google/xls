@@ -41,16 +41,7 @@
 #ifndef XLS_COMMON_LOGGING_VLOG_IS_ON_H_
 #define XLS_COMMON_LOGGING_VLOG_IS_ON_H_
 
-#include <cstdint>
-#include <string>
-
-#include "absl/flags/declare.h"
 #include "absl/log/log.h"
-
-ABSL_DECLARE_FLAG(int32_t, v);
-// Note: Setting vmodule with absl::SetFlag is not supported. Instead use
-// absl::SetVLogLevel.
-ABSL_DECLARE_FLAG(std::string, vmodule);
 
 // We pack an int16_t verbosity level and an int16_t epoch into an
 // int32_t at every XLS_VLOG_IS_ON() call site.  The level determines

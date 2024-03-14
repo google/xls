@@ -19,7 +19,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
-#include "absl/flags/flag.h"
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
 #include "absl/log/log_entry.h"
@@ -224,10 +223,10 @@ TEST(StatusBuilderTest, LogToMultipleErrorLevelsLvalue) {
     ConvertToStatusAndIgnore(builder.Log(LogSeverity::kError) << "yes!");
 
     // This one shouldn't log because vlogging is disabled.
-    absl::SetFlag(&FLAGS_v, 0);
+    absl::SetGlobalVLogLevel(0);
     ConvertToStatusAndIgnore(builder.VLog(2) << "Non!");
 
-    absl::SetFlag(&FLAGS_v, 2);
+    absl::SetGlobalVLogLevel(2);
     ConvertToStatusAndIgnore(builder.VLog(2) << "Oui!");
   }
 }
@@ -245,10 +244,10 @@ TEST(StatusBuilderTest, LogToMultipleErrorLevelsRvalue) {
                                .Log(LogSeverity::kError)
                            << "yes!");
   // This one shouldn't log because vlogging is disabled.
-  absl::SetFlag(&FLAGS_v, 0);
+  absl::SetGlobalVLogLevel(0);
   ConvertToStatusAndIgnore(
       StatusBuilder(absl::AbortedError(""), Locs::kSecret).VLog(2) << "Non!");
-  absl::SetFlag(&FLAGS_v, 2);
+  absl::SetGlobalVLogLevel(2);
   ConvertToStatusAndIgnore(
       StatusBuilder(absl::AbortedError(""), Locs::kSecret).VLog(2) << "Oui!");
 }
@@ -372,7 +371,7 @@ TEST(StatusBuilderTest, LogEveryZeroDuration) {
 }
 
 TEST(StatusBuilderTest, VLogModuleLvalue) {
-  absl::SetFlag(&FLAGS_v, 0);
+  absl::SetGlobalVLogLevel(0);
   absl::SetVLogLevel("level0", 0);
   absl::SetVLogLevel("level1", 1);
   absl::SetVLogLevel("level2", 2);
@@ -417,7 +416,7 @@ TEST(StatusBuilderTest, VLogModuleLvalue) {
 }
 
 TEST(StatusBuilderTest, VLogModuleRvalue) {
-  absl::SetFlag(&FLAGS_v, 0);
+  absl::SetGlobalVLogLevel(0);
   absl::SetVLogLevel("level0", 0);
   absl::SetVLogLevel("level1", 1);
   absl::SetVLogLevel("level2", 2);

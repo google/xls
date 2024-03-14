@@ -30,6 +30,8 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/flags/declare.h"
+#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -75,6 +77,10 @@
 #include "xls/simulation/check_simulator.h"
 #include "xls/tools/eval_utils.h"
 #include "re2/re2.h"
+
+// These are used to forward, but also see comment below.
+ABSL_DECLARE_FLAG(int32_t, v);
+ABSL_DECLARE_FLAG(std::string, vmodule);
 
 namespace xls {
 
