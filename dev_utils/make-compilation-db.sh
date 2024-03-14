@@ -23,5 +23,14 @@ readonly COMPDB_SCRIPT="${OUTPUT_BASE}/external/com_grail_bazel_compdb/generate.
 
 python3 "${COMPDB_SCRIPT}"
 
-# Remove a gcc compiler flag that clang-tidy doesn't understand.
-sed -i -e 's/-fno-canonical-system-headers//g' compile_commands.json
+# Massage the output so that clang-tidy fully undestands the compile commands:
+# remove flags where it gets confused.
+# Also, make sure that the command also contains -xc++ (bazel sometimes does
+# not add that in libraries that don't have a *.cc file but only *.h or *.inc)
+sed -i compile_commands.json -f - <<EOF
+s/"command": "\([^ ]*\) /"command": "\1 -x c++ /  # -xc++ as first argument.
+s/ -f[^ ]*/ /g             # remove all -fxyz options
+s/ --target[^ ]*/ /g       # target platform not needed, might confuse
+s/ -stdlib=libc++/ /       # otherwise, clang-tidy does not find c++ headers
+EOF
+

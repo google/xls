@@ -1,3 +1,6 @@
+# clang-diagnostic-builtin-macro-redefined : Don't complain about bazel
+#    defining __TIMESTAMP__ and __DATE__ for hermeticity.
+#
 # readability-make-member-function-const is great, but it also suggests that
 #    in cases where we return a non-const pointer. So good to check, not by
 #    default.
@@ -31,6 +34,7 @@
 Checks: >
   clang-diagnostic-*,
   -clang-diagnostic-sign-conversion,
+  -clang-diagnostic-builtin-macro-redefined,
   clang-analyzer-*,
   abseil-*,
   -abseil-no-namespace,

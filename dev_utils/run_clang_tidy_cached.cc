@@ -23,8 +23,8 @@
 //   run_clang_tidy_cached --checks="-*,modernize-use-override" --fix
 
 #include <algorithm>
-#include <cinttypes>
-#include <csignal>
+#include <memory>
+#include <string>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -35,7 +35,11 @@
 #include <list>
 #include <map>
 #include <optional>
+#include <string_view>
+#include <system_error>  // NOLINT (filesystem error reporting)
 #include <thread>  // NOLINT for std::thread::hardware_concurrency()
+#include <utility>
+#include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -164,7 +168,7 @@ void ClangTidyProcessFiles(const fs::path& content_dir,
 int main(int argc, char* argv[]) {
   const std::string kProjectPrefix = "xls_";
   const std::string kSearchDir = "xls";
-  const std::string kFileExcludeRe = "xlscc/examples";
+  const std::string kFileExcludeRe = "xlscc/(examples|synth_only)";
 
   const std::string kTidySymlink = kProjectPrefix + "clang-tidy.out";
   const fs::path cache_dir = GetCacheDir() / "clang-tidy";
