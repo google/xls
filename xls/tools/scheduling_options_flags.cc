@@ -64,13 +64,23 @@ ABSL_FLAG(
     "If true, when `--clock_period_ps` is given but is infeasible for "
     "scheduling, search for & report the shortest feasible clock period. "
     "Otherwise, just reports whether increasing the clock period can help.");
-ABSL_FLAG(int64_t, worst_case_throughput, 1,
+ABSL_FLAG(bool, minimize_worst_case_throughput, false,
+          "If true, when `--worst_case_throughput` is not given, search for & "
+          "report the best possible worst-case throughput of the circuit "
+          "(subject to all other constraints). If `--clock_period_ps` is not "
+          "set, will first optimize for clock speed, and then find the best "
+          "possible worst-case throughput within that constraint.");
+ABSL_FLAG(std::optional<int64_t>, worst_case_throughput, std::nullopt,
           "Allow scheduling a pipeline with worst-case throughput no slower "
-          "than once per N cycles. If unspecified, enforce throughput 1. Note: "
-          "a higher value for --worst_case_throughput *decreases* the "
+          "than once per N cycles. If unspecified and "
+          "`--minimize_worst_case_throughput` is not set, enforces full "
+          "throughput.\n"
+          "Note: a higher value for --worst_case_throughput *decreases* the "
           "worst-case throughput, since this controls inverse throughput.\n"
           "\n"
-          "If zero or negative, no throughput bound will be enforced.");
+          "If zero, no throughput bound will be enforced.\n"
+          "If negative, XLS will find the fastest throughput achievable given "
+          "all other constraints specified.");
 ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each receive node.");
 ABSL_FLAG(int64_t, ffi_fallback_delay_ps, 0,
@@ -178,7 +188,13 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(clock_margin_percent);
   POPULATE_FLAG(period_relaxation_percent);
   POPULATE_FLAG(minimize_clock_on_failure);
-  POPULATE_FLAG(worst_case_throughput);
+  POPULATE_FLAG(minimize_worst_case_throughput);
+  {
+    any_flags_set |= FLAGS_worst_case_throughput.IsSpecifiedOnCommandLine();
+    proto.set_worst_case_throughput(
+        absl::GetFlag(FLAGS_worst_case_throughput)
+            .value_or(proto.minimize_worst_case_throughput() ? 0 : 1));
+  }
   POPULATE_FLAG(additional_input_delay_ps);
   POPULATE_FLAG(ffi_fallback_delay_ps);
   POPULATE_REPEATED_FLAG(io_constraints);

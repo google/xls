@@ -566,6 +566,27 @@ void SDCSchedulingModel::SetClockPeriod(int64_t clock_period_ps) {
   }
 }
 
+absl::Status SDCSchedulingModel::SetWorstCaseThroughput(
+    int64_t worst_case_throughput) {
+  if (!func_->IsProc()) {
+    return absl::UnimplementedError(
+        "SetWorstCaseThroughput only supports procs, since it controls state "
+        "backedges");
+  }
+  Proc* proc = func_->AsProcOrDie();
+
+  if (proc->GetInitiationInterval().value_or(1) == worst_case_throughput) {
+    return absl::OkStatus();
+  }
+
+  proc->SetInitiationInterval(worst_case_throughput);
+  for (auto& [nodes, constraint] : backedge_constraint_) {
+    model_.DeleteLinearConstraint(constraint);
+  }
+  backedge_constraint_.clear();
+  return AddBackedgeConstraints(BackedgeConstraint());
+}
+
 void SDCSchedulingModel::SetPipelineLength(
     std::optional<int64_t> pipeline_length) {
   if (pipeline_length.has_value()) {
@@ -973,8 +994,12 @@ absl::Status SDCScheduler::BuildError(
 
 absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
     std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
-    SchedulingFailureBehavior failure_behavior, bool check_feasibility) {
+    SchedulingFailureBehavior failure_behavior, bool check_feasibility,
+    std::optional<int64_t> worst_case_throughput) {
   model_.SetClockPeriod(clock_period_ps);
+  if (worst_case_throughput.has_value()) {
+    XLS_RETURN_IF_ERROR(model_.SetWorstCaseThroughput(*worst_case_throughput));
+  }
 
   model_.SetPipelineLength(pipeline_stages);
   if (!pipeline_stages.has_value() && !check_feasibility) {

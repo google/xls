@@ -67,6 +67,16 @@ control the scheduler.
     relaxed), XLS will find and report the minimum feasible clock period if one
     exists. If disabled, XLS will report only that the clock period was
     infeasible, potentially saving time.
+-   `--minimize_worst_case_throughput` is disabled by default. If enabled, when
+    `--worst_case_throughput` is not specified (or disabled by setting it to 0
+    or a negative value), XLS will find & report the best possible worst-case
+    throughput of the circuit (subject to all other constraints), and then
+    proceed with codegen using that worst-case throughput.
+
+    NOTE: If `--clock_period_ps` is not set, XLS will first optimize for clock
+    speed, and then find the best possible worst-case throughput within that
+    constraint.
+
 -   `--worst_case_throughput=...` sets the worst-case throughput bound to use
     when `--generator=pipeline`. If set, allows scheduling a pipeline with
     worst-case throughput no slower than once per N cycles (assuming no stalling

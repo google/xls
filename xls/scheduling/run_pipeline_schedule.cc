@@ -21,8 +21,10 @@
 #include <random>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/random/distributions.h"
@@ -241,6 +243,79 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   return min_clk_period_ps;
 }
 
+// Returns the minimum inverse worst-case throughput for which it is feasible to
+// schedule the function into a pipeline with the given number of stages and
+// target clock period.
+absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
+    FunctionBase* f, std::optional<int64_t> pipeline_stages,
+    int64_t clock_period_ps, SDCScheduler& scheduler,
+    SchedulingFailureBehavior failure_behavior) {
+  XLS_VLOG(4) << "FindMinimumWorstCaseThroughput()";
+  XLS_VLOG(4) << "  pipeline stages = "
+              << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
+                                              : "(unspecified)")
+              << ", clock period = " << clock_period_ps << " ps";
+
+  Proc* proc = f->AsProcOrDie();
+
+  // Check that it is in fact possible to schedule this function at all, with no
+  // worst-case throughput bound; if not, return a useful error.
+  XLS_ASSIGN_OR_RETURN(
+      ScheduleCycleMap schedule_cycle_map,
+      scheduler.Schedule(pipeline_stages, clock_period_ps, failure_behavior,
+                         /*check_feasibility=*/true,
+                         /*worst_case_throughput=*/0),
+      _.SetPrepend() << absl::StrFormat(
+          "Impossible to schedule %s %s as specified; ",
+          (f->IsProc() ? "proc" : "function"), f->name()));
+
+  // Extract the worst-case throughput from this schedule as an upper bound.
+  int64_t pessimistic_worst_case_throughput = 1;
+  if (f->IsProc()) {
+    using StateIndex = int64_t;
+    for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {
+      Node* const state = proc->GetStateParam(i);
+      Node* const next = proc->GetNextStateElement(i);
+      if (next == state) {
+        continue;
+      }
+      const int64_t backedge_length =
+          schedule_cycle_map[next] - schedule_cycle_map[state];
+      pessimistic_worst_case_throughput =
+          std::max(pessimistic_worst_case_throughput, backedge_length + 1);
+    }
+    for (Next* next : proc->next_values()) {
+      Node* state = next->param();
+      const int64_t backedge_length =
+          schedule_cycle_map[next] - schedule_cycle_map[state];
+      pessimistic_worst_case_throughput =
+          std::max(pessimistic_worst_case_throughput, backedge_length + 1);
+    }
+  }
+  XLS_VLOG(4) << absl::StreamFormat(
+      "Schedules at worst-case throughput %d; now binary searching over "
+      "interval [1, %d]",
+      pessimistic_worst_case_throughput, pessimistic_worst_case_throughput);
+
+  // Don't waste time explaining infeasibility for the failing points in the
+  // search.
+  failure_behavior.explain_infeasibility = false;
+  int64_t min_worst_case_throughput = BinarySearchMinTrue(
+      1, pessimistic_worst_case_throughput,
+      [&](int64_t worst_case_throughput) {
+        return scheduler
+            .Schedule(pipeline_stages, clock_period_ps, failure_behavior,
+                      /*check_feasibility=*/true,
+                      /*worst_case_throughput=*/worst_case_throughput)
+            .ok();
+      },
+      BinarySearchAssumptions::kEndKnownTrue);
+  XLS_VLOG(4) << "minimum worst-case throughput = "
+              << min_worst_case_throughput;
+
+  return min_worst_case_throughput;
+}
+
 }  // namespace
 
 absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
@@ -273,9 +348,12 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
   std::unique_ptr<SDCScheduler> sdc_scheduler;
   if (!options.clock_period_ps().has_value() ||
+      (options.minimize_worst_case_throughput().value_or(false) &&
+       f->IsProc() && f->GetInitiationInterval().value_or(1) <= 0) ||
       options.strategy() == SchedulingStrategy::SDC) {
     // We currently use the SDC scheduler to determine the minimum clock period
-    // (if not specified), even if we're not using it for the final schedule.
+    // (if not specified) and worst-case throughput (if minimization is
+    // requested), even if we're not using it for the final schedule.
     XLS_ASSIGN_OR_RETURN(sdc_scheduler,
                          SDCScheduler::Create(f, input_delay_added));
     XLS_RETURN_IF_ERROR(sdc_scheduler->AddConstraints(options.constraints()));
@@ -313,6 +391,21 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
       clock_period_ps += (clock_period_ps * relaxation_percent + 50) / 100;
     }
+  }
+
+  std::optional<int64_t> worst_case_throughput = std::nullopt;
+  if (options.minimize_worst_case_throughput().value_or(false) && f->IsProc() &&
+      f->GetInitiationInterval().value_or(1) <= 0 &&
+      absl::c_any_of(
+          options.constraints(), [](const SchedulingConstraint& constraint) {
+            return std::holds_alternative<BackedgeConstraint>(constraint);
+          })) {
+    XLS_ASSIGN_OR_RETURN(worst_case_throughput,
+                         FindMinimumWorstCaseThroughput(
+                             f, options.pipeline_stages(), clock_period_ps,
+                             *sdc_scheduler, options.failure_behavior()));
+    XLS_LOG(INFO) << "Minimized worst-case throughput for proc '" << f->name()
+                  << "': " << *worst_case_throughput;
   }
 
   ScheduleCycleMap cycle_map;
@@ -357,7 +450,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
     absl::StatusOr<ScheduleCycleMap> schedule_cycle_map =
         sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps,
-                                options.failure_behavior());
+                                options.failure_behavior(),
+                                /*check_feasibility=*/false,
+                                worst_case_throughput);
     if (!schedule_cycle_map.ok()) {
       if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
         // The scheduler was able to explain the failure; report it up.

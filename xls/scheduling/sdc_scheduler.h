@@ -65,6 +65,8 @@ class SDCSchedulingModel {
 
   void SetClockPeriod(int64_t clock_period_ps);
 
+  absl::Status SetWorstCaseThroughput(int64_t worst_case_throughput);
+
   void SetPipelineLength(std::optional<int64_t> pipeline_length);
   void MinimizePipelineLength();
 
@@ -241,7 +243,8 @@ class SDCScheduler {
   absl::StatusOr<ScheduleCycleMap> Schedule(
       std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
       SchedulingFailureBehavior failure_behavior,
-      bool check_feasibility = false);
+      bool check_feasibility = false,
+      std::optional<int64_t> worst_case_throughput = std::nullopt);
 
  private:
   SDCScheduler(FunctionBase* f, DelayMap delay_map);

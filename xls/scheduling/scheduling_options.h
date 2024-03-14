@@ -232,6 +232,7 @@ class SchedulingOptions {
       SchedulingStrategy strategy = SchedulingStrategy::SDC)
       : strategy_(strategy),
         minimize_clock_on_failure_(true),
+        minimize_worst_case_throughput_(false),
         constraints_({
             BackedgeConstraint(),
             SendThenRecvConstraint(/*minimum_latency=*/1),
@@ -299,6 +300,16 @@ class SchedulingOptions {
   }
   std::optional<bool> minimize_clock_on_failure() const {
     return minimize_clock_on_failure_;
+  }
+
+  // Sets/gets whether to find the fastest feasible worst-case throughput if the
+  // user has not specified a worst-case throughput bound.
+  SchedulingOptions& minimize_worst_case_throughput(bool value) {
+    minimize_worst_case_throughput_ = value;
+    return *this;
+  }
+  std::optional<bool> minimize_worst_case_throughput() const {
+    return minimize_worst_case_throughput_;
   }
 
   // Sets/gets the worst-case throughput bound to use when scheduling; for
@@ -484,6 +495,7 @@ class SchedulingOptions {
   std::optional<int64_t> clock_margin_percent_;
   std::optional<int64_t> period_relaxation_percent_;
   bool minimize_clock_on_failure_;
+  bool minimize_worst_case_throughput_;
   std::optional<int64_t> worst_case_throughput_;
   std::optional<int64_t> additional_input_delay_ps_;
   std::optional<int64_t> ffi_fallback_delay_ps_;

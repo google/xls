@@ -122,9 +122,17 @@ SCHEDULING_FIELDS = {
     "minimize_clock_on_error": "If true, when `--clock_period_ps` is given " +
                                "but is infeasible for scheduling, search for " +
                                "& report the shortest feasible clock period.",
+    "minimize_worst_case_throughput": "If true, when `--worst_case_throughput` " +
+                                      "is not given, search for & report the best " +
+                                      "possible worst-case throughput of the circuit " +
+                                      "(subject to all other constraints). If " +
+                                      "`--clock_period_ps` is not set, will first " +
+                                      "optimize for clock speed, and then find the best " +
+                                      "possible worst-case throughput within that constraint.",
     "worst_case_throughput": "Allow scheduling a pipeline with worst-case throughput " +
-                             "no slower than once per N cycles. If unspecified, " +
-                             "defaults to 1.\n" +
+                             "no slower than once per N cycles. If unspecified and " +
+                             "`--minimize_worst_case_throughput` is not set, defaults to 1 " +
+                             "(full throughput).\n" +
                              "\n" +
                              "If zero or negative, no throughput bound will be enforced.",
     "additional_input_delay_ps": "The additional delay added to each receive " +
