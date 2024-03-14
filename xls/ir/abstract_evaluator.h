@@ -128,6 +128,10 @@ class AbstractEvaluator {
     return BitwiseXor({a, b});
   }
 
+  Vector Gate(const Element& a, const Vector& b) {
+    return BitwiseAnd(SignExtend({a}, b.size()), b);
+  }
+
   Vector BitSlice(const Vector& input, int64_t start, int64_t width) {
     CHECK_GE(start, 0);
     CHECK_LE(start + width, input.size());
@@ -620,17 +624,18 @@ class AbstractEvaluator {
   // An implementation of PrioritySelect which takes a span of spans of Elements
   // rather than a span of Vectors. This enables the cases to be overlapping
   // spans of the same underlying vector as is used in the shift implementation.
-  Vector PrioritySelectInternal(absl::Span<const Element> selector,
-                              absl::Span<const absl::Span<const Element>> cases,
-                              bool selector_can_be_zero) {
+  Vector PrioritySelectInternal(
+      absl::Span<const Element> selector,
+      absl::Span<const absl::Span<const Element>> cases,
+      bool selector_can_be_zero) {
     CHECK_EQ(selector.size(), cases.size());
     CHECK_GT(selector.size(), 0);
     int64_t width = cases.front().size();
     Vector result(width, Zero());
     for (int64_t i = selector.size() - 1; i >= 0; --i) {
       for (int64_t j = 0; j < width; ++j) {
-        result[j] = Or(And(cases[i][j], selector[i]),
-                       And(result[j], Not(selector[i])));
+        result[j] =
+            Or(And(cases[i][j], selector[i]), And(result[j], Not(selector[i])));
       }
     }
     if (!selector_can_be_zero) {

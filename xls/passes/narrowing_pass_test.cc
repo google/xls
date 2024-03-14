@@ -67,17 +67,6 @@ class NarrowingPassTestBase : public IrTestBase {
     options.convert_array_index_to_select = 2;
     return NarrowingPass(analysis()).Run(p, options, &results);
   }
-  bool DoesRangeAnalysis() const {
-    switch (analysis()) {
-      case NarrowingPass::AnalysisType::kTernary:
-        return false;
-      case NarrowingPass::AnalysisType::kRange:
-      case NarrowingPass::AnalysisType::kRangeWithContext:
-        return true;
-      case NarrowingPass::AnalysisType::kRangeWithOptionalContext:
-        XLS_LOG(FATAL) << "Marker analysis type!";
-    }
-  }
 };
 
 class NarrowingPassTest
@@ -1076,12 +1065,8 @@ TEST_P(NarrowingPassTest, KnownZeroValueGateRemoved) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
-  if (DoesRangeAnalysis()) {
-    EXPECT_TRUE(changed);
-    EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
-  } else {
-    EXPECT_FALSE(changed);
-  }
+  EXPECT_TRUE(changed);
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
 }
 
 TEST_P(NarrowingPassTest, KnownNonZeroGateConditionRemovedIfConstant) {
@@ -1093,12 +1078,8 @@ TEST_P(NarrowingPassTest, KnownNonZeroGateConditionRemovedIfConstant) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
-  if (DoesRangeAnalysis()) {
-    EXPECT_TRUE(changed);
-    EXPECT_THAT(f->return_value(), m::Literal(UBits(12, 8)));
-  } else {
-    EXPECT_FALSE(changed);
-  }
+  EXPECT_TRUE(changed);
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(12, 8)));
 }
 
 TEST_P(NarrowingPassTest, KnownZeroGateConditionRemoved) {
@@ -1110,12 +1091,8 @@ TEST_P(NarrowingPassTest, KnownZeroGateConditionRemoved) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
-  if (DoesRangeAnalysis()) {
-    EXPECT_TRUE(changed);
-    EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
-  } else {
-    EXPECT_FALSE(changed);
-  }
+  EXPECT_TRUE(changed);
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
 }
 
 TEST_P(NarrowingPassTest, NarrowableArray) {

@@ -100,6 +100,12 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     using VectorT = AbstractEvaluatorT::Vector;
     return SetValue(eq, VectorT({evaluator_.Equals(lhs, rhs)}));
   }
+  absl::Status HandleGate(Gate* gate) override {
+    XLS_ASSIGN_OR_RETURN(auto cond, GetValue(gate->condition()));
+    XLS_ASSIGN_OR_RETURN(auto data, GetValue(gate->data()));
+    XLS_RET_CHECK_EQ(cond.size(), 1);
+    return SetValue(gate, evaluator_.Gate(cond[0], data));
+  }
   absl::Status HandleIdentity(UnOp* identity) override {
     XLS_ASSIGN_OR_RETURN(auto v, GetValue(identity->operand(0)));
     return SetValue(identity, v);

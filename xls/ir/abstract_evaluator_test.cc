@@ -168,6 +168,17 @@ TEST(AbstractEvaluatorTest, UDiv) {
   EXPECT_EQ(c.ToUint64().value(), 4);
 }
 
+TEST(AbstractEvaluatorTest, Gate) {
+  TestAbstractEvaluator eval;
+  Bits b = UBits(4, 8);
+  Bits c = FromBoxedVector(eval.Gate(BoxedBool{true}, ToBoxedVector(b)));
+  EXPECT_EQ(c.ToUint64().value(), 4);
+
+  b = UBits(4, 8);
+  c = FromBoxedVector(eval.Gate(BoxedBool{false}, ToBoxedVector(b)));
+  EXPECT_EQ(c.ToUint64().value(), 0);
+}
+
 TEST(AbstractEvaluatorTest, SDiv) {
   TestAbstractEvaluator eval;
   Bits a = SBits(4, 8);

@@ -132,5 +132,21 @@ TEST_F(TernaryQueryEngineTest, Ne) {
   EXPECT_THAT(RunOnBinaryOp("0b011", "0b011", make_ne), IsOkAndHolds("0b0"));
 }
 
+TEST_F(TernaryQueryEngineTest, Gate) {
+  auto make_gate = [](BValue lhs, BValue rhs, FunctionBuilder* fb) {
+    fb->Gate(lhs, rhs);
+  };
+  EXPECT_THAT(RunOnBinaryOp("0bX", "0b110", make_gate), IsOkAndHolds("0bXX0"));
+  EXPECT_THAT(RunOnBinaryOp("0bX", "0b111", make_gate), IsOkAndHolds("0bXXX"));
+  EXPECT_THAT(RunOnBinaryOp("0bX", "0b0X1", make_gate), IsOkAndHolds("0b0XX"));
+  EXPECT_THAT(RunOnBinaryOp("0b1", "0b110", make_gate), IsOkAndHolds("0b110"));
+  EXPECT_THAT(RunOnBinaryOp("0b1", "0b111", make_gate), IsOkAndHolds("0b111"));
+  EXPECT_THAT(RunOnBinaryOp("0b1", "0b0X1", make_gate), IsOkAndHolds("0b0X1"));
+  EXPECT_THAT(RunOnBinaryOp("0b0", "0b110", make_gate), IsOkAndHolds("0b000"));
+  EXPECT_THAT(RunOnBinaryOp("0b0", "0b111", make_gate), IsOkAndHolds("0b000"));
+  EXPECT_THAT(RunOnBinaryOp("0b0", "0b0X1", make_gate), IsOkAndHolds("0b000"));
+}
+
+
 }  // namespace
 }  // namespace xls
