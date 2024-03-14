@@ -722,7 +722,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
         pipeline->Run(package, OptimizationPassOptions(), &results).status());
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),
-                             "before optimizations", "after optimizations")
+                             "after optimizations", "before optimizations")
                             .status());
   } else {
     XLS_RET_CHECK(!absl::GetFlag(FLAGS_eval_after_each_pass))
