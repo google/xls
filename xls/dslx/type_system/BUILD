@@ -321,6 +321,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:dslx_builtins",
+        "//xls/dslx:dslx_builtins_signatures",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",

@@ -42,29 +42,6 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<Builtin> BuiltinFromString(std::string_view name) {
-#define TRY_NAME(__name, __enum) \
-  if (name == __name) {          \
-    return Builtin::__enum;      \
-  }
-  XLS_DSLX_BUILTIN_EACH(TRY_NAME)
-#undef TRY_NAME
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Name is not a DSLX builtin: \"%s\"", name));
-}
-
-std::string BuiltinToString(Builtin builtin) {
-  switch (builtin) {
-#define CASIFY(__str, __enum) \
-  case Builtin::__enum:       \
-    return __str;
-    XLS_DSLX_BUILTIN_EACH(CASIFY)
-#undef CASIFY
-  }
-  return absl::StrFormat("<invalid Builtin(%d)>",
-                         static_cast<int64_t>(builtin));
-}
-
 std::string TagToString(InterpValueTag tag) {
   switch (tag) {
     case InterpValueTag::kUBits:

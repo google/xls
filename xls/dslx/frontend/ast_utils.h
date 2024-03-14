@@ -196,8 +196,9 @@ absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
 absl::StatusOr<std::vector<const NameDef*>> CollectReferencedUnder(
     const AstNode* root, bool want_types = false);
 
-// Wrapper around the above that checks whether name_ref refers to a builtin
-// name def and whether that builtin name is a parametric function.
+// Wrapper around GetUnaryParametricBuiltinNames() that checks whether name_ref
+// refers to a builtin name def and whether that builtin name is a parametric
+// function.
 bool IsBuiltinParametricNameRef(const NameRef* name_ref);
 
 // Returns whether "node" is a "bare" number (without an explicit type

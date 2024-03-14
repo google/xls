@@ -31,75 +31,13 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 
 namespace xls::dslx {
-
-#define XLS_DSLX_BUILTIN_EACH(X)          \
-  X("add_with_carry", kAddWithCarry)      \
-  X("and_reduce", kAndReduce)             \
-  X("array_rev", kArrayRev)               \
-  X("array_size", kArraySize)             \
-  X("assert_eq", kAssertEq)               \
-  X("assert_lt", kAssertLt)               \
-  X("bit_slice_update", kBitSliceUpdate)  \
-  X("checked_cast", kCheckedCast)         \
-  X("clz", kClz)                          \
-  X("cover!", kCover)                     \
-  X("ctz", kCtz)                          \
-  X("gate!", kGate)                       \
-  X("enumerate", kEnumerate)              \
-  X("fail!", kFail)                       \
-  X("map", kMap)                          \
-  X("decode", kDecode)                    \
-  X("encode", kEncode)                    \
-  X("one_hot", kOneHot)                   \
-  X("one_hot_sel", kOneHotSel)            \
-  X("or_reduce", kOrReduce)               \
-  X("priority_sel", kPriorityhSel)        \
-  X("range", kRange)                      \
-  X("rev", kRev)                          \
-  X("zip", kZip)                          \
-  X("widening_cast", kWideningCast)       \
-  X("select", kSelect)                    \
-  X("signex", kSignex)                    \
-  X("smulp", kSMulp)                      \
-  X("slice", kSlice)                      \
-  X("trace!", kTrace)                     \
-  X("umulp", kUMulp)                      \
-  X("update", kUpdate)                    \
-  X("xor_reduce", kXorReduce)             \
-  X("join", kJoin)                        \
-  /* send/recv routines */                \
-  X("send", kSend)                        \
-  X("send_if", kSendIf)                   \
-  X("recv", kRecv)                        \
-  X("recv_if", kRecvIf)                   \
-  X("recv_nonblocking", kRecvNonBlocking) \
-  X("recv_if_nonblocking", kRecvIfNonBlocking)
-
-// Enum that represents all the DSLX builtin functions.
-//
-// Functions can be held in values, either as user defined ones or builtin ones
-// (represented via this enumerated value).
-enum class Builtin : uint8_t {
-#define ENUMIFY(__str, __enum, ...) __enum,
-  XLS_DSLX_BUILTIN_EACH(ENUMIFY)
-#undef ENUMIFY
-};
-
-absl::StatusOr<Builtin> BuiltinFromString(std::string_view name);
-
-std::string BuiltinToString(Builtin builtin);
-
-inline constexpr Builtin kAllBuiltins[] = {
-#define ELEMIFY(__str, __enum, ...) Builtin::__enum,
-    XLS_DSLX_BUILTIN_EACH(ELEMIFY)
-#undef ELEMIFY
-};
 
 // Tags a value to denote its payload.
 //

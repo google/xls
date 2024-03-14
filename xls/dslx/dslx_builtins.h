@@ -12,90 +12,86 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Describes (parametric) builtin functions and how to typecheck those builtins.
+// Has the enumeration of all the various built-in functions and associated
+// routines with that enumeration.
 
 #ifndef XLS_DSLX_DSLX_BUILTINS_H_
 #define XLS_DSLX_DSLX_BUILTINS_H_
 
 #include <cstdint>
-#include <functional>
-#include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
-#include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_constraint.h"
-#include "xls/dslx/type_system/type.h"
-#include "xls/dslx/type_system/type_and_parametric_env.h"
 
 namespace xls::dslx {
 
-// Gets the names of all the unary parametric builtins; e.g. {"ctz", "clz"}.
-const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames();
+#define XLS_DSLX_BUILTIN_EACH(X)          \
+  X("add_with_carry", kAddWithCarry)      \
+  X("and_reduce", kAndReduce)             \
+  X("array_rev", kArrayRev)               \
+  X("array_size", kArraySize)             \
+  X("assert_eq", kAssertEq)               \
+  X("assert_lt", kAssertLt)               \
+  X("bit_slice_update", kBitSliceUpdate)  \
+  X("checked_cast", kCheckedCast)         \
+  X("clz", kClz)                          \
+  X("cover!", kCover)                     \
+  X("ctz", kCtz)                          \
+  X("gate!", kGate)                       \
+  X("enumerate", kEnumerate)              \
+  X("fail!", kFail)                       \
+  X("map", kMap)                          \
+  X("decode", kDecode)                    \
+  X("encode", kEncode)                    \
+  X("one_hot", kOneHot)                   \
+  X("one_hot_sel", kOneHotSel)            \
+  X("or_reduce", kOrReduce)               \
+  X("priority_sel", kPriorityhSel)        \
+  X("range", kRange)                      \
+  X("rev", kRev)                          \
+  X("zip", kZip)                          \
+  X("widening_cast", kWideningCast)       \
+  X("select", kSelect)                    \
+  X("signex", kSignex)                    \
+  X("smulp", kSMulp)                      \
+  X("slice", kSlice)                      \
+  X("trace!", kTrace)                     \
+  X("umulp", kUMulp)                      \
+  X("update", kUpdate)                    \
+  X("xor_reduce", kXorReduce)             \
+  X("join", kJoin)                        \
+  /* send/recv routines */                \
+  X("send", kSend)                        \
+  X("send_if", kSendIf)                   \
+  X("recv", kRecv)                        \
+  X("recv_if", kRecvIf)                   \
+  X("recv_nonblocking", kRecvNonBlocking) \
+  X("recv_if_nonblocking", kRecvIfNonBlocking)
 
-// Data provided to the lambdas below (of type SignatureFn) that help us do
-// deduction and handling for parametric builtin function instantiation.
-struct SignatureData {
-  // Argument types for the parametric builtin.
-  const std::vector<const Type*>& arg_types;
-  const std::vector<dslx::Span>& arg_spans;
-  const std::vector<ExprOrType>& arg_explicit_parametrics;
-  // Name of the builtin.
-  std::string_view name;
-  // Span that we're invoking the builtin from (span for the entire invocation).
-  const Span& span;
-  // Any "higher order" parametric bindings e.g. for the callee in the case of
-  // map.
-  std::optional<std::vector<ParametricConstraint>> parametric_bindings;
-  // Callback that can be used to perform constexpr evaluation on one of the
-  // function arguments; which is requested is given by argno.
-  const std::function<absl::StatusOr<InterpValue>(int64_t argno)>&
-      constexpr_eval;
-
-  // Argument expressions -- note that these should generally not be needed by
-  // type inferencing routines for builtins, except in special cases like map()
-  // where we know an argument must be a literal function reference that we may
-  // want to use in instantiation machinery. (Even in that case ideally we'd
-  // only need the types, but we use the function in some cases for soundness
-  // checking.)
-  absl::Span<Expr* const> args;
+// Enum that represents all the DSLX builtin functions.
+//
+// Functions can be held in values, either as user defined ones or builtin ones
+// (represented via this enumerated value).
+enum class Builtin : uint8_t {
+#define ENUMIFY(__str, __enum, ...) __enum,
+  XLS_DSLX_BUILTIN_EACH(ENUMIFY)
+#undef ENUMIFY
 };
 
-// Deduction rule that determines the FunctionType and any associated symbolic
-// bindings for a parametric builtin function.
-using SignatureFn = std::function<absl::StatusOr<TypeAndParametricEnv>(
-    const SignatureData&, DeduceCtx*)>;
+absl::StatusOr<Builtin> BuiltinFromString(std::string_view name);
 
-// Returns a function that produces the type of builtin_name.
-//
-// Many builtins are parametric, and so the function type is determined (or type
-// errors are raised) based on the types that are presented to it as arguments.
-//
-// The returned function is then invoked (conceptually) as:
-//
-//     fsignature = get_fsignature(builtin_name)
-//     fn_type, parametric_env = fsignature(arg_types, builtin_name,
-//                                             invocation_span)
-//
-// Where the second line provides the argument types presented to the builtin.
-//
-// This is similar conceptually to type deduction, just the builtin functions
-// have no definitions in the source code, and sometimes we do fancier rules
-// than we currently have support for in the DSL. As parametric support grows,
-// however, one day these may all be a special "builtin" module.
-absl::StatusOr<SignatureFn> GetParametricBuiltinSignature(
-    std::string_view builtin_name);
+std::string BuiltinToString(Builtin builtin);
 
-// Wrapper around the above that checks whether name_ref refers to a builtin
-// name def and whether that builtin name is a parametric function.
-bool IsBuiltinParametricNameRef(const NameRef* name_ref);
+inline constexpr Builtin kAllBuiltins[] = {
+#define ELEMIFY(__str, __enum, ...) Builtin::__enum,
+    XLS_DSLX_BUILTIN_EACH(ELEMIFY)
+#undef ELEMIFY
+};
+
+// Gets the names of all the unary parametric builtins; e.g. {"ctz", "clz"}.
+const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames();
 
 }  // namespace xls::dslx
 
