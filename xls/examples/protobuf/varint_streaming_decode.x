@@ -119,7 +119,7 @@ pub proc varint_streaming_u32_decode<
     trace_fmt!("input_data={} input_len={}, do_input={}", input_data, input_len, do_input);
 
     let do_drop = state.drop_count != InputIdx:0;
-    if do_input && do_drop { fail!("input_and_drop", ()) } else { () };
+    assert!(!(do_input && do_drop), "input_and_drop");
 
     // Each iteration, we either shift by 1 or BIG_SHIFT. Do the shifts now and select later.
     let work_chunk_shl_1 = byte_array_shl<u32:1>(state.work_chunk, u8:0);

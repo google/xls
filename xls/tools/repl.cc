@@ -322,7 +322,7 @@ absl::Status CommandReload() {
   dslx::ImportData import_data(dslx::CreateImportData(
       /*dslx_stdlib_path=*/"",
       /*additional_search_paths=*/{},
-      /*enabled_warnings=*/dslx::kAllWarningsSet));
+      /*enabled_warnings=*/dslx::kDefaultWarningsSet));
   dslx::WarningCollector warnings(import_data.enabled_warnings());
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * type_info,
                        TypecheckModule(module.get(), &import_data, &warnings));

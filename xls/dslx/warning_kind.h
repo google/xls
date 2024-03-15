@@ -41,8 +41,9 @@ enum class WarningKind : WarningKindInt {
   kTrailingTupleAfterSemi = 1 << 8,
   kConstantNaming = 1 << 9,
   kMemberNaming = 1 << 10,
+  kShouldUseAssert = 1 << 11,
 };
-constexpr WarningKindInt kWarningKindCount = 11;
+constexpr WarningKindInt kWarningKindCount = 12;
 
 inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
@@ -56,14 +57,39 @@ inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kTrailingTupleAfterSemi,
     WarningKind::kConstantNaming,
     WarningKind::kMemberNaming,
+    WarningKind::kShouldUseAssert,
 };
 
 // Flag set datatype.
 XLS_DEFINE_STRONG_INT_TYPE(WarningKindSet, WarningKindInt);
 
 inline constexpr WarningKindSet kNoWarningsSet = WarningKindSet{0};
+
+// Note: for the "default" set of warnings to use in an application, prefer
+// `kDefaultWarningsSet` below.
 inline constexpr WarningKindSet kAllWarningsSet =
     WarningKindSet{(WarningKindInt{1} << kWarningKindCount) - 1};
+
+// Disables "warning" out of "set" and returns that updated result.
+constexpr WarningKindSet DisableWarning(WarningKindSet set,
+                                        WarningKind warning) {
+  return WarningKindSet{set.value() & ~static_cast<WarningKindInt>(warning)};
+}
+
+constexpr WarningKindSet EnableWarning(WarningKindSet set,
+                                       WarningKind warning) {
+  return WarningKindSet{set.value() | static_cast<WarningKindInt>(warning)};
+}
+
+// Returns whether "warning" is enabled in "set".
+inline bool WarningIsEnabled(WarningKindSet set, WarningKind warning) {
+  return (set.value() & static_cast<WarningKindInt>(warning)) != 0;
+}
+
+// TODO(leary): 2024-03-15 Enable "should use fail if" by default after some
+// propagation time.
+inline constexpr WarningKindSet kDefaultWarningsSet =
+    DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert);
 
 // Converts a string representation of a warnings to its corresponding enum
 // value.
@@ -76,15 +102,10 @@ absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind);
 absl::StatusOr<WarningKindSet> WarningKindSetFromDisabledString(
     std::string_view disabled_string);
 
-// Disables "warning" out of "set" and returns that updated result.
-inline WarningKindSet DisableWarning(WarningKindSet set, WarningKind warning) {
-  return WarningKindSet{set.value() & ~static_cast<WarningKindInt>(warning)};
-}
-
-// Returns whether "warning" is enabled in "set".
-inline bool WarningIsEnabled(WarningKindSet set, WarningKind warning) {
-  return (set.value() & static_cast<WarningKindInt>(warning)) != 0;
-}
+// As above, but starts with an empty set and enables warnings as they appear in
+// the string.
+absl::StatusOr<WarningKindSet> WarningKindSetFromString(
+    std::string_view enabled_string);
 
 }  // namespace xls::dslx
 

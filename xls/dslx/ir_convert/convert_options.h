@@ -40,7 +40,7 @@ struct ConvertOptions {
   // Set of warnings that are enabled.
   //
   // Note that this is only used in IR conversion routines that do typechecking.
-  WarningKindSet enabled_warnings = kAllWarningsSet;
+  WarningKindSet enabled_warnings = kDefaultWarningsSet;
 };
 
 }  // namespace xls::dslx

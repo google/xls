@@ -645,7 +645,7 @@ proc RamModel2RW<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
         // the same address with both ports.
         _ => request0.we && request1.we,
       };
-    if fatal_hazard { fail!("dual_port_memory_hazard", ()) } else { () };
+    assert!(!fatal_hazard, "dual_port_memory_hazard");
 
     // Save state in case we are READ_BEFORE_WRITE.
     let state_before_write = state;

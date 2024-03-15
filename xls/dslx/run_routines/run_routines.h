@@ -102,7 +102,7 @@ struct ParseAndTestOptions {
   std::optional<int64_t> seed = std::nullopt;
   ConvertOptions convert_options;
   bool warnings_as_errors = true;
-  WarningKindSet warnings = kAllWarningsSet;
+  WarningKindSet warnings = kDefaultWarningsSet;
   bool trace_channels = false;
   std::optional<int64_t> max_ticks;
 };
@@ -113,7 +113,7 @@ struct ParseAndProveOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths;
   bool warnings_as_errors = true;
-  WarningKindSet warnings = kAllWarningsSet;
+  WarningKindSet warnings = kDefaultWarningsSet;
 };
 
 enum class TestResult : uint8_t {

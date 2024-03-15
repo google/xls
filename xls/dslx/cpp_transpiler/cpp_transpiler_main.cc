@@ -18,12 +18,15 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/cpp_transpiler/cpp_transpiler.h"
+#include "xls/dslx/cpp_transpiler/cpp_type_generator.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
@@ -62,7 +65,7 @@ absl::Status RealMain(const std::filesystem::path& module_path,
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
   ImportData import_data(CreateImportData(
-      dslx_stdlib_path, /*additional_search_paths=*/{}, kAllWarningsSet));
+      dslx_stdlib_path, /*additional_search_paths=*/{}, kDefaultWarningsSet));
   XLS_ASSIGN_OR_RETURN(TypecheckedModule module,
                        ParseAndTypecheck(module_text, std::string(module_path),
                                          "source", &import_data));

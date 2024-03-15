@@ -16,8 +16,6 @@
 
 #include <filesystem>  // NOLINT
 #include <memory>
-#include <string>
-#include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/types/span.h"
@@ -39,7 +37,7 @@ ImportData CreateImportData(
 
 ImportData CreateImportDataForTest() {
   ImportData import_data(xls::kDefaultDslxStdlibPath,
-                         /*additional_search_paths=*/{}, kAllWarningsSet);
+                         /*additional_search_paths=*/{}, kDefaultWarningsSet);
   import_data.SetBytecodeCache(std::make_unique<BytecodeCache>(&import_data));
   return import_data;
 }
@@ -47,7 +45,7 @@ ImportData CreateImportDataForTest() {
 std::unique_ptr<ImportData> CreateImportDataPtrForTest() {
   auto import_data = absl::WrapUnique(
       new ImportData(xls::kDefaultDslxStdlibPath,
-                     /*additional_search_paths=*/{}, kAllWarningsSet));
+                     /*additional_search_paths=*/{}, kDefaultWarningsSet));
   import_data->SetBytecodeCache(
       std::make_unique<BytecodeCache>(import_data.get()));
   return import_data;

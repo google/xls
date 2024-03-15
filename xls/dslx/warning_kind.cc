@@ -50,6 +50,8 @@ absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind) {
       return "constant_naming";
     case WarningKind::kMemberNaming:
       return "member_naming";
+    case WarningKind::kShouldUseAssert:
+      return "should_use_assert";
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Invalid warning kind: ", static_cast<int>(kind)));
@@ -80,6 +82,19 @@ absl::StatusOr<WarningKindSet> WarningKindSetFromDisabledString(
   for (std::string_view s : absl::StrSplit(disabled_string, ',')) {
     XLS_ASSIGN_OR_RETURN(WarningKind k, WarningKindFromString(s));
     enabled = DisableWarning(enabled, k);
+  }
+  return enabled;
+}
+
+absl::StatusOr<WarningKindSet> WarningKindSetFromString(
+    std::string_view enabled_string) {
+  WarningKindSet enabled = kNoWarningsSet;
+  if (enabled_string.empty()) {
+    return enabled;
+  }
+  for (std::string_view s : absl::StrSplit(enabled_string, ',')) {
+    XLS_ASSIGN_OR_RETURN(WarningKind k, WarningKindFromString(s));
+    enabled = EnableWarning(enabled, k);
   }
   return enabled;
 }

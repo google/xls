@@ -858,6 +858,9 @@ class NameRef : public Expr {
     return const_cast<AstNode*>(self->GetDefiner());
   }
 
+  // Returns whether the definer node is of type `T`; e.g.
+  //
+  //  bool defined_by_fn = name_ref->DefinerIs<Function>();
   template <typename T>
   bool DefinerIs() {
     if (std::holds_alternative<BuiltinNameDef*>(name_def_)) {

@@ -16,6 +16,7 @@
 
 import re
 import subprocess as subp
+from typing import Optional, Set
 
 from absl import logging
 
@@ -34,6 +35,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
       want_err_retcode: bool = True,
       path_is_runfile: bool = True,
       alsologtostderr: bool = False,
+      *,
+      enable_warnings: Optional[Set[str]] = None,
   ) -> str:
     cmd = [
         _INTERP_PATH,
@@ -41,8 +44,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         '--warnings_as_errors={}'.format(str(warnings_as_errors).lower()),
     ]
 
+    if enable_warnings:
+      cmd.append('--enable_warnings=' + ','.join(sorted(enable_warnings)))
+
     if alsologtostderr:
-      cmd.append(' --alsologtostderr')
+      cmd.append('--alsologtostderr')
 
     logging.info('running: %s', subp.list2cmdline(cmd))
     p = subp.run(cmd, stderr=subp.PIPE, check=False, encoding='utf-8')
@@ -1028,6 +1034,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/assert_with_false_predicate.x',
     )
     self.assertIn('ABORTED: Assertion failure via assert!', stderr)
+
+  def test_warning_on_assert_pattern(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/warning_on_assert_pattern.x',
+        enable_warnings={'should_use_assert'},
+    )
+    self.assertIn('pattern should be replaced with `assert!', stderr)
 
 
 if __name__ == '__main__':

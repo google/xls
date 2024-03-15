@@ -464,11 +464,7 @@ class InterpreterTest(test_base.TestCase):
       let x0 = u32:42;
       %s
       // Make a fail label since those should be unique at function scope.
-      if x0 != u32:42 {
-        fail!("impossible", ())
-      } else {
-        ()
-      };
+      assert!(x0 == u32:42, "impossible");
       x%d
     }
     #[test]

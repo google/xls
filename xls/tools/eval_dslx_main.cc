@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
@@ -65,8 +66,9 @@ static absl::Status RealMain(
     const std::filesystem::path& dslx_path,
     const std::vector<std::filesystem::path>& additional_search_paths,
     std::string_view entry_fn_name, std::string_view args_text) {
-  dslx::ImportData import_data(dslx::CreateImportData(
-      kDefaultDslxStdlibPath, additional_search_paths, dslx::kAllWarningsSet));
+  dslx::ImportData import_data(
+      dslx::CreateImportData(kDefaultDslxStdlibPath, additional_search_paths,
+                             dslx::kDefaultWarningsSet));
 
   XLS_ASSIGN_OR_RETURN(std::vector<dslx::InterpValue> args,
                        dslx::ParseArgs(args_text));

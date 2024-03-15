@@ -48,5 +48,19 @@ TEST(WarningKindTest, InitializerListHasAllKinds) {
   EXPECT_EQ(kWarningKindCount, kAllWarningKinds.size());
 }
 
+TEST(WarningKindTest, DefaultSetAnyMissing) {
+  ASSERT_TRUE(WarningIsEnabled(kAllWarningsSet, WarningKind::kShouldUseAssert));
+
+  // Currently "should use assert" warning is disabled for propagation delay.
+  ASSERT_FALSE(
+      WarningIsEnabled(kDefaultWarningsSet, WarningKind::kShouldUseAssert));
+}
+
+TEST(WarningKindTest, WarningKindSetFromString) {
+  XLS_ASSERT_OK_AND_ASSIGN(WarningKindSet set,
+                           WarningKindSetFromString("should_use_assert"));
+  ASSERT_TRUE(WarningIsEnabled(set, WarningKind::kShouldUseAssert));
+}
+
 }  // namespace
 }  // namespace xls::dslx
