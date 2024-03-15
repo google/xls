@@ -373,22 +373,15 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   }
   auto* array_update = array_index->array()->As<ArrayUpdate>();
 
-  // The transformation cannot be done if the indices might be out of bounds (or
-  // at least it is more complicated to do correctly).
-  if (!IndicesAreDefinitelyInBounds(array_index->indices(),
-                                    array_index->array()->GetType(),
-                                    query_engine) ||
-      !IndicesAreDefinitelyInBounds(array_update->indices(),
-                                    array_update->array_to_update()->GetType(),
-                                    query_engine)) {
-    return SimplifyResult::Unchanged();
-  }
-
   // Consider case (1) above, where the array_update indices are a prefix of the
-  // array_index indices.
+  // array_index indices. If the update is in-bounds (so takes effect), we can
+  // index directly into the update value.
   if (IndicesAreDefinitelyPrefixOf(array_update->indices(),
-                                   array_index->indices(), query_engine)) {
-    // Index directly in the update value. Remove the matching prefix from the
+                                   array_index->indices(), query_engine) &&
+      IndicesAreDefinitelyInBounds(array_update->indices(),
+                                   array_update->array_to_update()->GetType(),
+                                   query_engine)) {
+    // Remove the matching prefix from the
     // front of the array-index indices because the new array-index indexes into
     // the lower dimensional update value. so
     XLS_VLOG(2) << absl::StrFormat("Array-index of array-update (case 1): %s",
@@ -401,8 +394,16 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     return SimplifyResult::Changed({new_array_index});
   }
 
+  // Consider case (2) above, where the array_index indices are definitely not
+  // an extension of the array_update indices. If the array_index is in-bounds,
+  // then we know it references an unchanged value, so we can index directly
+  // into the unchanged array. (If it's out-of-bounds, we might be clamped back
+  // to a location that's affected by the array_update.)
   if (IndicesDefinitelyNotEqual(array_update->indices(), array_index->indices(),
-                                query_engine)) {
+                                query_engine) &&
+      IndicesAreDefinitelyInBounds(array_index->indices(),
+                                   array_index->array()->GetType(),
+                                   query_engine)) {
     XLS_VLOG(2) << absl::StrFormat("Array-index of array-update (case 2): %s",
                                    array_index->ToString());
     XLS_RETURN_IF_ERROR(
