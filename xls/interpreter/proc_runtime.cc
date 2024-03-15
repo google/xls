@@ -22,13 +22,13 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
@@ -94,7 +94,7 @@ absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
     }
   }
 
-  if (XLS_VLOG_IS_ON(3)) {
+  if (VLOG_IS_ON(3)) {
     XLS_VLOG(3) << "Expected outputs produced for each channel instance:";
     for (ChannelInstance* channel_instance : output_channels) {
       XLS_VLOG(3) << absl::StreamFormat("  %s : %d",

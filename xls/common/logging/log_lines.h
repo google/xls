@@ -18,7 +18,7 @@
 #include <string_view>
 
 #include "absl/base/log_severity.h"
-#include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/logging/logging.h"
 
 namespace xls {
 namespace logging {
@@ -57,9 +57,9 @@ void LogLines(absl::LogSeverity severity, std::string_view text,
 // Like XLS_LOG_LINES, but for VLOG.
 // Example:
 //   XLS_VLOG_LINES(3, some_proto->DebugString());
-#define XLS_VLOG_LINES(LEVEL, STRING)                       \
-  do {                                                      \
-    if (XLS_VLOG_IS_ON(LEVEL)) XLS_LOG_LINES(INFO, STRING); \
+#define XLS_VLOG_LINES(LEVEL, STRING)                   \
+  do {                                                  \
+    if (VLOG_IS_ON(LEVEL)) XLS_LOG_LINES(INFO, STRING); \
   } while (false)
 
 #endif  // XLS_COMMON_LOGGING_LOG_LINES_H_

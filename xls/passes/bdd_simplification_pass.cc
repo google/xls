@@ -23,10 +23,10 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -142,7 +142,7 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
     }
     XLS_VLOG(4) << absl::StreamFormat("Considering select chain rooted at %s:",
                                       node->ToString());
-    if (XLS_VLOG_IS_ON(4)) {
+    if (VLOG_IS_ON(4)) {
       for (Select* s : select_chain) {
         XLS_VLOG(4) << absl::StreamFormat("  %s // selector: %s", s->ToString(),
                                           SelectorToString(s->selector()));

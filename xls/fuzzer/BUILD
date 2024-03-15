@@ -291,7 +291,6 @@ cc_library(
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",

@@ -14,19 +14,28 @@
 #include "xls/passes/table_switch_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <optional>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -308,7 +317,7 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     }
 
     XLS_VLOG(3) << absl::StreamFormat("Chain of length %d found", links.size());
-    if (XLS_VLOG_IS_ON(4)) {
+    if (VLOG_IS_ON(4)) {
       for (auto it = links.rbegin(); it != links.rend(); ++it) {
         XLS_VLOG(4) << absl::StreamFormat(
             "  %s = (%s == %d) ? %s : %s", it->node->GetName(),

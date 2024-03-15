@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/base/call_once.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -67,7 +68,6 @@
 #include "llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/jit/observer.h"
@@ -199,7 +199,7 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
   bool observe_asm_code =
       (jit_observer_ != nullptr &&
        jit_observer_->GetNotificationOptions().assembly_code_str);
-  if (XLS_VLOG_IS_ON(3) || observe_asm_code) {
+  if (VLOG_IS_ON(3) || observe_asm_code) {
     // The ostream and its buffer must be declared before the
     // module_pass_manager because the destrutor of the pass manager calls flush
     // on the ostream so these must be destructed *after* the pass manager. C++
@@ -373,7 +373,7 @@ class MsanHostEmuTls : public llvm::orc::DefinitionGenerator {
 
 absl::Status OrcJit::Init() {
   XLS_ASSIGN_OR_RETURN(target_machine_, CreateTargetMachine(emit_object_code_));
-  if (XLS_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     std::string triple = target_machine_->getTargetTriple().normalize();
     std::string cpu = target_machine_->getTargetCPU().str();
     std::string feature_string =

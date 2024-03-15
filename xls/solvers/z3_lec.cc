@@ -27,6 +27,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -34,7 +35,6 @@
 #include "absl/strings/str_join.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -112,7 +112,7 @@ absl::Status Lec::Init() {
   XLS_RETURN_IF_ERROR(CreateNetlistTranslator());
 
   XLS_RETURN_IF_ERROR(CollectIrInputs());
-  if (XLS_VLOG_IS_ON(2)) {
+  if (VLOG_IS_ON(2)) {
     for (const auto& pair : input_mapping_) {
       XLS_LOG(INFO) << "Stage input [IR] node: " << pair.first;
     }

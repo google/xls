@@ -14,14 +14,19 @@
 
 #include "xls/ir/call_graph.h"
 
-#include <functional>
 #include <iterator>
 #include <optional>
 #include <string_view>
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -84,7 +89,7 @@ std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base) {
   std::vector<FunctionBase*> post_order;
   DfsVisit(function_base, &visited, &post_order);
 
-  if (XLS_VLOG_IS_ON(2)) {
+  if (VLOG_IS_ON(2)) {
     XLS_VLOG(2) << absl::StreamFormat("DependentFunctions(%s):",
                                       function_base->name());
     for (FunctionBase* f : post_order) {

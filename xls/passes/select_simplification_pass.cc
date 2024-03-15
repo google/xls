@@ -27,13 +27,13 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -263,7 +263,7 @@ absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
   }
 
   XLS_VLOG(4) << "Trying to split: " << ohs->ToString();
-  if (XLS_VLOG_IS_ON(4)) {
+  if (VLOG_IS_ON(4)) {
     for (int64_t i = 0; i < ohs->cases().size(); ++i) {
       Node* cas = ohs->get_case(i);
       XLS_VLOG(4) << "  case (" << i << "): " << cas->ToString();

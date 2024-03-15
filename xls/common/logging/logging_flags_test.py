@@ -85,8 +85,8 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('ERROR message', comp.stderr)
     self.assertIn('XLS_VLOG(1) message', comp.stderr)
     self.assertNotIn('XLS_VLOG(2) message', comp.stderr)
-    self.assertIn('XLS_VLOG_IS_ON(1)', comp.stderr)
-    self.assertNotIn('XLS_VLOG_IS_ON(2)', comp.stderr)
+    self.assertIn('VLOG_IS_ON(1)', comp.stderr)
+    self.assertNotIn('VLOG_IS_ON(2)', comp.stderr)
 
   def test_vlog_level_2(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.
@@ -101,8 +101,8 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('ERROR message', comp.stderr)
     self.assertIn('XLS_VLOG(1) message', comp.stderr)
     self.assertIn('XLS_VLOG(2) message', comp.stderr)
-    self.assertIn('XLS_VLOG_IS_ON(1)', comp.stderr)
-    self.assertIn('XLS_VLOG_IS_ON(2)', comp.stderr)
+    self.assertIn('VLOG_IS_ON(1)', comp.stderr)
+    self.assertIn('VLOG_IS_ON(2)', comp.stderr)
 
   def test_vlog_level_2_but_stderrthreshold_too_high(self):
     # If stderrthreshold is not zero VLOG messages do not appear.
@@ -136,8 +136,8 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('ERROR message', comp.stderr)
     self.assertIn('XLS_VLOG(1) message', comp.stderr)
     self.assertNotIn('XLS_VLOG(2) message', comp.stderr)
-    self.assertIn('XLS_VLOG_IS_ON(1)', comp.stderr)
-    self.assertNotIn('XLS_VLOG_IS_ON(2)', comp.stderr)
+    self.assertIn('VLOG_IS_ON(1)', comp.stderr)
+    self.assertNotIn('VLOG_IS_ON(2)', comp.stderr)
 
   def test_vmodule_matches_filename_level_2(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.
@@ -158,8 +158,8 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('ERROR message', comp.stderr)
     self.assertIn('XLS_VLOG(1) message', comp.stderr)
     self.assertIn('XLS_VLOG(2) message', comp.stderr)
-    self.assertIn('XLS_VLOG_IS_ON(1)', comp.stderr)
-    self.assertIn('XLS_VLOG_IS_ON(2)', comp.stderr)
+    self.assertIn('VLOG_IS_ON(1)', comp.stderr)
+    self.assertIn('VLOG_IS_ON(2)', comp.stderr)
 
   def test_vmodule_not_matches_filename(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.

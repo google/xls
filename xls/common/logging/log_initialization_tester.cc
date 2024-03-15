@@ -17,6 +17,7 @@
 
 #include <cstdlib>
 
+#include "absl/log/log.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 
@@ -30,11 +31,11 @@ int main(int argc, char** argv) {
   XLS_VLOG(1) << "XLS_VLOG(1) message";
   XLS_VLOG(2) << "XLS_VLOG(2) message";
 
-  if (XLS_VLOG_IS_ON(1)) {
-    XLS_LOG(INFO) << "XLS_VLOG_IS_ON(1) message\n";
+  if (VLOG_IS_ON(1)) {
+    XLS_LOG(INFO) << "VLOG_IS_ON(1) message\n";
   }
-  if (XLS_VLOG_IS_ON(2)) {
-    XLS_LOG(INFO) << "XLS_VLOG_IS_ON(2) message\n";
+  if (VLOG_IS_ON(2)) {
+    XLS_LOG(INFO) << "VLOG_IS_ON(2) message\n";
   }
 
   return EXIT_SUCCESS;

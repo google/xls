@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -185,7 +186,7 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
       }
     }
 
-    if (XLS_VLOG_IS_ON(4)) {
+    if (VLOG_IS_ON(4)) {
       std::vector<std::string> terms;
       for (const AddSubLeaf& leaf : leaves) {
         if (leaf.negated) {

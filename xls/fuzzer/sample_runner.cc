@@ -47,7 +47,6 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/revision.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -222,7 +221,7 @@ absl::StatusOr<std::string> RunCommand(
   absl::Duration elapsed = timer.GetElapsedTime();
   XLS_RETURN_IF_ERROR(SetFileContents(
       run_dir / absl::StrCat(basename, ".stderr"), result.stderr));
-  if (XLS_VLOG_IS_ON(4)) {
+  if (VLOG_IS_ON(4)) {
     // stdout and stderr can be long so split them by line to avoid clipping.
     XLS_VLOG(4) << basename << " stdout:";
     XLS_VLOG_LINES(4, result.stdout);

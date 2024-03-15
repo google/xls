@@ -109,7 +109,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/common/logging/log_flags.h"
-#include "xls/common/logging/vlog_is_on.h"
 // IWYU pragma: end_exports
 
 // -----------------------------------------------------------------------------

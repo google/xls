@@ -21,8 +21,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/data_structures/min_cut.h"
 #include "xls/ir/function.h"
 
@@ -31,7 +31,7 @@ namespace sched {
 
 std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
     FunctionBase* f, absl::Span<Node* const> partitionable_nodes) {
-  if (XLS_VLOG_IS_ON(4)) {
+  if (VLOG_IS_ON(4)) {
     XLS_VLOG(4) << "Computing min-cut of function " << f->name()
                 << ", partitionable nodes:";
     for (Node* node : partitionable_nodes) {
@@ -185,7 +185,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
       }
     }
   }
-  if (XLS_VLOG_IS_ON(4)) {
+  if (VLOG_IS_ON(4)) {
     XLS_VLOG(4) << "Before cut";
     for (Node* node : partitions.first) {
       XLS_VLOG(4) << "  " << node->GetName();

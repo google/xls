@@ -28,6 +28,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -36,7 +37,6 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/stopwatch.h"
@@ -358,7 +358,7 @@ class BddStatistics {
     }
 
     std::optional<Stopwatch> stop_watch;
-    if (XLS_VLOG_IS_ON(2)) {
+    if (VLOG_IS_ON(2)) {
       stop_watch = Stopwatch();
     }
 
@@ -392,7 +392,7 @@ class BddStatistics {
         }
       }
     }
-    if (XLS_VLOG_IS_ON(5)) {
+    if (VLOG_IS_ON(5)) {
       XLS_VLOG(5) << "  " << node->GetName() << ":";
       for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
         XLS_VLOG(5) << absl::StreamFormat(

@@ -42,7 +42,6 @@
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -1040,7 +1039,7 @@ void CheckOutput(absl::Span<uint8_t const> expected_data,
                      std::tuple<std::string_view, absl::Span<uint8_t const>>>
                      extra_data) {
   CHECK_EQ(expected_data.size(), output_data.size());
-  if (XLS_VLOG_IS_ON(3)) {
+  if (VLOG_IS_ON(3)) {
     auto print_byte_vec = [](absl::Span<uint8_t const> bytes,
                              std::string_view name) {
       std::vector<std::string> strs;

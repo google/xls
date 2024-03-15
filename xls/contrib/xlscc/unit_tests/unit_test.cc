@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
@@ -41,7 +42,6 @@
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -87,7 +87,7 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
                         xabsl::SourceLocation loc,
                         std::vector<std::string_view> clang_argv,
                         int64_t max_unroll_iters) {
-  if (XLS_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     std::ostringstream input_str;
     for (const auto& [key, val] : args) {
       input_str << key << ":" << val << " ";

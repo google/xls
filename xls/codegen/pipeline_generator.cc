@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_generator.h"
@@ -28,7 +29,6 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -94,7 +94,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   XLS_VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, package->DumpIr());
-  if (XLS_VLOG_IS_ON(2)) {
+  if (VLOG_IS_ON(2)) {
     for (const auto& [_, schedule] : schedules) {
       XLS_VLOG_LINES(2, schedule.ToString());
     }

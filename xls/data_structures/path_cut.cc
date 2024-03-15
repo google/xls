@@ -28,7 +28,6 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/strong_int.h"
 
 namespace xls {

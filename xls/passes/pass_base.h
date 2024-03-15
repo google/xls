@@ -37,7 +37,6 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
@@ -387,7 +386,7 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
                                       results->invocations.size(), ir->name());
 
     TransformMetrics before_metrics;
-    if (XLS_VLOG_IS_ON(1)) {
+    if (VLOG_IS_ON(1)) {
       before_metrics = ir->transform_metrics();
     }
 

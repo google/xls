@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
@@ -863,7 +864,7 @@ absl::Status IrInterpreter::SetBitsResult(Node* node, const Bits& result) {
 }
 
 absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
-  if (XLS_VLOG_IS_ON(4) &&
+  if (VLOG_IS_ON(4) &&
       std::all_of(node->operands().begin(), node->operands().end(),
                   [this](Node* o) { return NodeValuesMap().contains(o); })) {
     XLS_VLOG(4) << absl::StreamFormat("%s operands:", node->GetName());

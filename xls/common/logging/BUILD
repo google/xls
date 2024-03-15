@@ -45,7 +45,6 @@ cc_library(
     deps = [
         ":log_flags",
         ":logging",
-        ":vlog_is_on",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -88,17 +87,9 @@ cc_library(
     visibility = ["//xls:xls_utility_users"],
     deps = [
         ":log_flags",
-        ":vlog_is_on",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
     ],
-)
-
-cc_library(
-    name = "vlog_is_on",
-    hdrs = ["vlog_is_on.h"],
-    visibility = ["//xls:xls_internal"],
-    deps = ["@com_google_absl//absl/log"],
 )
 
 py_test(
@@ -119,6 +110,7 @@ cc_binary(
     srcs = ["log_initialization_tester.cc"],
     deps = [
         ":logging",
+        "@com_google_absl//absl/log",
         "//xls/common:init_xls",
     ],
 )

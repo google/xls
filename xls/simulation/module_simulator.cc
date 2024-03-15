@@ -26,6 +26,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -34,7 +35,6 @@
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -308,7 +308,7 @@ absl::StatusOr<std::vector<ModuleSimulator::BitsMap>>
 ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   XLS_VLOG(1) << "Running Verilog module with signature:\n"
               << signature_.ToString();
-  if (XLS_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     XLS_VLOG(1) << "Arguments:\n";
     for (int64_t i = 0; i < inputs.size(); ++i) {
       const auto& input = inputs[i];
@@ -474,7 +474,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     }
   }
 
-  if (XLS_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     XLS_VLOG(1) << "Results:\n";
     for (int64_t i = 0; i < outputs.size(); ++i) {
       XLS_VLOG(1) << "  Set " << i << ":";
@@ -537,7 +537,7 @@ ModuleSimulator::CreateProcTestbench(
     std::optional<ReadyValidHoldoffs> holdoffs) const {
   XLS_VLOG(1) << "Generating testbench for Verilog module with signature:\n"
               << signature_.ToString();
-  if (XLS_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> channel_inputs_values;
     for (const auto& [channel_name, channel_values] : channel_inputs) {
       XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
@@ -650,7 +650,7 @@ ModuleSimulator::RunInputSeriesProc(
     }
   }
 
-  if (XLS_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> result_channel_values;
     for (const auto& [channel_name, channel_values] : outputs) {
       XLS_ASSIGN_OR_RETURN(

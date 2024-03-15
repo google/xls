@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -38,7 +39,6 @@
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/graph_coloring.h"
@@ -1102,7 +1102,7 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(std::vector<absl::flat_hash_set<Node*>> merge_classes,
                        ComputeMergeClasses(&p, f, scm));
 
-  if (XLS_VLOG_IS_ON(3)) {
+  if (VLOG_IS_ON(3)) {
     for (const absl::flat_hash_set<Node*>& merge_class : merge_classes) {
       if (merge_class.size() <= 1) {
         continue;

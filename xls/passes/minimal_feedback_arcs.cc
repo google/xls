@@ -25,12 +25,12 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
@@ -326,7 +326,7 @@ absl::StatusOr<absl::flat_hash_set<Channel*>> MinimalFeedbackArcs(
   // arrangement.
   StableEdgeMap successors_copy = graph.successor_edges;
 
-  if (XLS_VLOG_IS_ON(3)) {
+  if (VLOG_IS_ON(3)) {
     XLS_VLOG(3) << "Predecessors:";
     for (const auto& [key, values] : graph.predecessor_edges) {
       XLS_VLOG(3) << absl::StreamFormat("\t%v: {%s}", *key,

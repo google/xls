@@ -25,12 +25,12 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
@@ -417,7 +417,7 @@ StreamingJitBlockEvaluator::EvaluateChannelizedSequentialBlock(
           sink.SetBlockInputs(cycle, input_set, random_engine, reset));
     }
 
-    if (XLS_VLOG_IS_ON(3)) {
+    if (VLOG_IS_ON(3)) {
       XLS_VLOG(3) << absl::StrFormat("Inputs Cycle %d", cycle);
       for (const auto& [name, val] : input_set) {
         XLS_VLOG(3) << absl::StrFormat("%s: %s", name, val.ToString());
@@ -438,7 +438,7 @@ StreamingJitBlockEvaluator::EvaluateChannelizedSequentialBlock(
       XLS_RETURN_IF_ERROR(sink.GetBlockOutputs(cycle, outputs));
     }
 
-    if (XLS_VLOG_IS_ON(3)) {
+    if (VLOG_IS_ON(3)) {
       XLS_VLOG(3) << absl::StrFormat("Outputs Cycle %d", cycle);
       for (const auto& [name, val] : outputs) {
         XLS_VLOG(3) << absl::StrFormat("%s: %s", name, val.ToString());

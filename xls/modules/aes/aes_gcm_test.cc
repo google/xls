@@ -25,6 +25,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -34,7 +35,6 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/ir_parser.h"
@@ -217,7 +217,7 @@ static bool CompareBlock(const Block& expected, const Block& actual,
 
 static absl::StatusOr<bool> RunSample(JitData* jit_data,
                                       const SampleData& sample_data) {
-  if (XLS_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     XLS_LOG(INFO) << "Input plaintext:\n"
                   << FormatBlocks(sample_data.input_data, /*indent=*/4);
     XLS_LOG(INFO) << "Input AAD:\n"
@@ -229,7 +229,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
   XLS_ASSIGN_OR_RETURN(Result xls_encrypted,
                        XlsEncrypt(jit_data, sample_data, true));
 
-  if (XLS_VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(1)) {
     XLS_LOG(INFO) << "Reference ciphertext:\n"
                   << FormatBlocks(reference_encrypted.output_data,
                                   /*indent=*/4);

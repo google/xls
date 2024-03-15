@@ -316,7 +316,6 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",

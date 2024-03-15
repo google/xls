@@ -328,7 +328,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
-        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -453,7 +452,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
@@ -463,7 +461,7 @@ cc_library(
         "@llvm-project//llvm:IRPrinter",
         "@llvm-project//llvm:Instrumentation",
         "@llvm-project//llvm:JITLink",  # build_cleaner: keep
-        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:OrcJIT",  # build_cleaner: keep
         "@llvm-project//llvm:OrcShared",
         "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",
@@ -486,12 +484,12 @@ cc_library(
         ":orc_jit",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
-        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/interpreter:block_evaluator",

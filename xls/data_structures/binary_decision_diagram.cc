@@ -21,13 +21,13 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 
 namespace xls {
 
@@ -157,7 +157,7 @@ absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
   BddNodeIndex result = expr;
   XLS_VLOG(2) << "Evaluating node: " << static_cast<int64_t>(expr);
   XLS_VLOG(2) << "  expression = " << ToStringDnf(expr, /*minterm_limit=*/5);
-  if (XLS_VLOG_IS_ON(3)) {
+  if (VLOG_IS_ON(3)) {
     XLS_VLOG(3) << "  variable values: ";
     std::vector<BddNodeIndex> variables;
     for (const auto& pair : variable_values) {

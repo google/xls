@@ -30,13 +30,13 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/math_util.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/ret_check.h"
@@ -1725,7 +1725,7 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     auto range_query_engine =
         std::make_unique<ContextSensitiveRangeQueryEngine>();
 
-    if (XLS_VLOG_IS_ON(3)) {
+    if (VLOG_IS_ON(3)) {
       RangeAnalysisLog(f, *ternary_query_engine, *range_query_engine);
     }
 
@@ -1737,7 +1737,7 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
     auto range_query_engine = std::make_unique<RangeQueryEngine>();
 
-    if (XLS_VLOG_IS_ON(3)) {
+    if (VLOG_IS_ON(3)) {
       RangeAnalysisLog(f, *ternary_query_engine, *range_query_engine);
     }
 

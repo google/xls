@@ -55,7 +55,6 @@ cc_library(
         "@com_google_absl//absl/time",
         "//xls/common:indent",
         "//xls/common/logging",
-        "//xls/common/logging:vlog_is_on",
         "//xls/dslx:create_import_data",
         "//xls/dslx:extract_module_name",
         "//xls/dslx:import_data",

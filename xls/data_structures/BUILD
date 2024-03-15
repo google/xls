@@ -193,6 +193,7 @@ cc_library(
     hdrs = ["binary_decision_diagram.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -200,7 +201,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:strong_int",
         "//xls/common/logging",
-        "//xls/common/logging:vlog_is_on",
     ],
 )
 
@@ -211,6 +211,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -218,7 +219,6 @@ cc_library(
         "//xls/common:strong_int",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
     ],
 )
 
@@ -237,7 +237,6 @@ cc_library(
         "//xls/common:strong_int",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
     ],
 )
 

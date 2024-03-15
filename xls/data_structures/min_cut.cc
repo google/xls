@@ -24,12 +24,12 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 
 namespace xls {
 namespace min_cut {
@@ -239,7 +239,7 @@ int64_t AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
               CHECK_GE(e->capacity, 0);
               n = e->from;
             }
-            if (XLS_VLOG_IS_ON(4)) {
+            if (VLOG_IS_ON(4)) {
               XLS_VLOG(4) << "Augmented flow: " << augmented_flow_amount;
               std::vector<const ResidualEdge*> augmented_path;
               NodeId n = sink;

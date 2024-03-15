@@ -25,6 +25,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -39,7 +40,6 @@
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/simulation/module_simulator.h"
@@ -208,7 +208,7 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
                           absl::Span<const VerilogSimulator::MacroDefinition>
                               macro_definitions = {},
                           absl::Span<const VerilogInclude> includes = {}) {
-    if (XLS_VLOG_IS_ON(1)) {
+    if (VLOG_IS_ON(1)) {
       XLS_LOG_LINES(INFO, absl::StrCat("Actual Verilog:\n", actual));
       XLS_LOG_LINES(INFO, absl::StrCat("Expected Verilog:\n", expected));
     }

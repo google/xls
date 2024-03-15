@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -35,7 +36,6 @@
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -700,7 +700,7 @@ GetReceiveDataDependencies(Proc* inlined_proc) {
   ReceiveDependencyVisitor visitor;
   XLS_RETURN_IF_ERROR(inlined_proc->Accept(&visitor));
 
-  if (XLS_VLOG_IS_ON(3)) {
+  if (VLOG_IS_ON(3)) {
     XLS_VLOG(3) << absl::StrFormat("Receive data dependencies for proc %s:",
                                    inlined_proc->name());
     for (Node* node : TopoSort(inlined_proc)) {

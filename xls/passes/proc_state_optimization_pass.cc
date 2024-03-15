@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -34,7 +35,6 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -256,7 +256,7 @@ ComputeStateDependencies(Proc* proc) {
   for (Node* node : proc->nodes()) {
     state_dependencies.insert({node, visitor.FlattenNodeBitmaps(node)});
   }
-  if (XLS_VLOG_IS_ON(3)) {
+  if (VLOG_IS_ON(3)) {
     XLS_VLOG(3) << "State dependencies (** side-effecting operation):";
     for (Node* node : TopoSort(proc)) {
       std::vector<std::string> dependent_elements;
