@@ -324,11 +324,15 @@ class FunctionConverter {
   absl::Status HandleUdfInvocation(const Invocation* node, xls::Function* f,
                                    std::vector<BValue> args);
 
-  // Handles the fail!() builtin invocation.
+  // Handles the `fail!()` builtin invocation.
   absl::Status HandleFailBuiltin(const Invocation* node, Expr* label_expr,
                                  BValue arg);
 
-  // Handles the cover!() builtin invocation.
+  // Handles the `assert!()` builtin invocation.
+  absl::Status HandleAssertBuiltin(const Invocation* node, BValue predicate,
+                                   Expr* label_expr);
+
+  // Handles the `cover!()` builtin invocation.
   absl::Status HandleCoverBuiltin(const Invocation* node, BValue condition);
 
   // Handles an arm of a match expression.
@@ -432,6 +436,19 @@ class FunctionConverter {
     XLS_ASSIGN_OR_RETURN(TypeDefinition td, ToTypeDefinition(definer));
     return f(td);
   }
+
+  struct AssertionLabelData {
+    // The codegen-level label we'll apply to the corresponding assertion.
+    std::string label;
+
+    // The (more arbitrary text) message we'll display if the assertion fails.
+    std::string message;
+  };
+
+  // Helper that provides the label we'll use for an emitted assertion as well
+  // as the message we'll use in building the IR node.
+  absl::StatusOr<AssertionLabelData> GetAssertionLabel(
+      std::string_view caller_name, const Expr* label_expr, const Span& span);
 
   // Dereferences a type definition to either a struct definition or enum
   // definition.

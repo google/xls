@@ -798,6 +798,27 @@ dslx_lang_test(
 dslx_lang_test(name = "array_concat")
 
 dslx_lang_test(
+    name = "assert_true_predicate",
+    # TODO(https://github.com/google/xls/issues/1346): 2021-06-29 We can't
+    # lower IR assert to Z3, so we can't do opt/unopt equivalence testing yet.
+    test_ir_equivalence = False,
+)
+
+dslx_lang_test(
+    name = "assert_false_in_false_conditional",
+    # TODO(https://github.com/google/xls/issues/1346): 2021-06-29 We can't
+    # lower IR assert to Z3, so we can't do opt/unopt equivalence testing yet.
+    test_ir_equivalence = False,
+)
+
+dslx_lang_test(
+    name = "assert_false_in_true_conditional",
+    # TODO(https://github.com/google/xls/issues/1346): 2021-06-29 We can't
+    # lower IR assert to Z3, so we can't do opt/unopt equivalence testing yet.
+    test_ir_equivalence = False,
+)
+
+dslx_lang_test(
     name = "quickcheck_fn_with_fail",
     # Primarily a #[quickcheck] function.
     convert_to_ir = False,
@@ -878,8 +899,8 @@ dslx_lang_test(
 dslx_lang_test(
     name = "mod_enum_fully_qualified_match_importer",
     dslx_deps = [":mod_simple_enum_dslx"],
-    # TODO(rspringer): 2021-06-29 We can't lower fail!/assert to Z3, so we
-    # can't do opt/unopt equivalence testing yet.
+    # TODO(https://github.com/google/xls/issues/1346): 2021-06-29 We can't
+    # lower IR assert to Z3, so we can't do opt/unopt equivalence testing yet.
     test_ir_equivalence = False,
 )
 

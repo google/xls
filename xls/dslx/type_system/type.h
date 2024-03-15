@@ -42,6 +42,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
@@ -801,6 +802,22 @@ struct BitsLikeProperties {
 };
 
 std::optional<BitsLikeProperties> GetBitsLike(const Type& t);
+
+inline bool IsBitsLikeWithNBitsAndSignedness(const Type& t, bool is_signed,
+                                             uint32_t size) {
+  const TypeDim want = TypeDim::CreateU32(size);
+  if (auto* b = dynamic_cast<const BitsType*>(&t)) {
+    return b->is_signed() == is_signed && b->size() == want;
+  }
+
+  const BitsConstructorType* bc;
+  if (IsArrayOfBitsConstructor(t, &bc)) {
+    return bc->is_signed() == want &&
+           down_cast<const ArrayType&>(t).size() == want;
+  }
+
+  return false;
+}
 
 // Returns whether the given type, which should be either a bits or an enum
 // type, is signed.

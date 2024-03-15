@@ -217,7 +217,8 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     arg_spans.push_back(arg->span());
   }
 
-  if ((callee_name == "fail!" || callee_name == "cover!") &&
+  if ((callee_name == "fail!" || callee_name == "assert!" ||
+       callee_name == "cover!") &&
       caller != nullptr) {
     ctx->type_info()->NoteRequiresImplicitToken(*caller, true);
   }

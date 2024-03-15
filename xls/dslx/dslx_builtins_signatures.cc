@@ -199,6 +199,20 @@ class Checker {
     return *this;
   }
 
+  Checker& IsArrayU8(int64_t argno) {
+    const ArrayType* a = nullptr;
+    IsArray(argno, &a);
+    if (a == nullptr) {
+      return *this;
+    }
+    return CheckIsU8(a->element_type(), [&] {
+      const Type& t = GetArgType(argno);
+      return absl::StrFormat(
+          "Want argument %d to '%s' to be a u8 array; got: %s", argno, name_,
+          t.ToString());
+    });
+  }
+
   // Fluent API for checking that `argno` is bits-typed.
   Checker& IsBits(int64_t argno) {
     if (!status_.ok()) {
@@ -292,6 +306,18 @@ class Checker {
     if (auto* bits = dynamic_cast<const BitsType*>(&t); bits == nullptr) {
       status_ = TypeInferenceErrorStatus(span_, &t, make_msg());
     }
+    return *this;
+  }
+  Checker& CheckIsU8(const Type& t,
+                     const std::function<std::string()>& make_msg) {
+    if (!status_.ok()) {
+      return *this;
+    }
+
+    if (!IsBitsLikeWithNBitsAndSignedness(t, /*is_signed=*/false, /*size=*/8)) {
+      status_ = TypeInferenceErrorStatus(span_, &t, make_msg());
+    }
+
     return *this;
   }
   Checker& CheckIsLen(const ArrayType& t, int64_t target,
@@ -643,6 +669,22 @@ static void AddPrioritySelLikeSignature(
   };
 }
 
+static void AddAssertLikeSignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
+  map["(bool, u8[N]) -> ()"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
+                            .Len(2)
+                            .IsBool(0)
+                            .IsArrayU8(1)
+                            .status());
+    return TypeAndParametricEnv{
+        .type = std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
+                                               Type::MakeUnit())};
+  };
+}
+
 static absl::flat_hash_map<std::string, SignatureFn>
 PopulateSignatureToLambdaMap() {
   absl::flat_hash_map<std::string, SignatureFn> map;
@@ -657,6 +699,7 @@ PopulateSignatureToLambdaMap() {
   AddByteArrayAndTProducesTSignature(map);
   AddZipLikeSignature(map);
   AddPrioritySelLikeSignature(map);
+  AddAssertLikeSignature(map);
 
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
       [](const SignatureData& data,

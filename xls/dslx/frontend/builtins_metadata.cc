@@ -35,6 +35,8 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           {"ctz", {"(uN[N]) -> uN[N]", false}},
           {"cover!", {"(u8[N], u1) -> ()", false}},
           {"fail!", {"(u8[N], T) -> T", false}},
+          {"assert!",
+           {.signature = "(bool, u8[N]) -> ()", .is_ast_node = false}},
           {"gate!", {"(u1, T) -> T", false}},
           {"map", {"(T[N], (T) -> U) -> U[N]", false}},
           {"decode", {"<uN[M]>(uN[N]) -> uN[M]", false}},

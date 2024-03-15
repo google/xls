@@ -1378,6 +1378,15 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
       return FailureErrorStatus(bytecode.source_span(), value.ToString());
     }
+    case Builtin::kAssert: {
+      XLS_ASSIGN_OR_RETURN(InterpValue predicate, Pop());
+      XLS_ASSIGN_OR_RETURN(InterpValue label, Pop());
+      if (predicate.IsFalse()) {
+        return FailureErrorStatus(bytecode.source_span(), label.ToString());
+      }
+      stack_.Push(InterpValue::MakeUnit());
+      return absl::OkStatus();
+    }
     case Builtin::kGate:
       return RunBuiltinGate(bytecode, stack_);
     case Builtin::kMap:

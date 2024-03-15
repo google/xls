@@ -1023,6 +1023,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('ParseError: Expected start of an expression; got: +', stderr)
 
+  def test_assert_with_false_predicate(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/assert_with_false_predicate.x',
+    )
+    self.assertIn('ABORTED: Assertion failure via assert!', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

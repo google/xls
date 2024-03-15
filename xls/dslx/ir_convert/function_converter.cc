@@ -1623,6 +1623,28 @@ absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
   return absl::OkStatus();
 }
 
+absl::StatusOr<FunctionConverter::AssertionLabelData>
+FunctionConverter::GetAssertionLabel(std::string_view caller_name,
+                                     const Expr* label_expr, const Span& span) {
+  ParametricEnv bindings(parametric_env_map_);
+  XLS_RETURN_IF_ERROR(
+      ConstexprEvaluator::Evaluate(import_data_, current_type_info_,
+                                   kNoWarningCollector, bindings, label_expr));
+
+  std::optional<InterpValue> start_value =
+      current_type_info_->GetConstExprOption(label_expr);
+  XLS_RET_CHECK(start_value.has_value());
+  XLS_ASSIGN_OR_RETURN(std::optional<std::string> label,
+                       InterpValueAsString(start_value.value()));
+  XLS_RET_CHECK(label.has_value());
+
+  // TODO(cdleary): 2024-03-12 We should put the label into the assertion
+  // failure error message.
+  std::string message = absl::StrFormat("Assertion failure via %s @ %s",
+                                        caller_name, span.ToString());
+  return AssertionLabelData{.label = label.value(), .message = message};
+}
+
 absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
                                                   Expr* label_expr,
                                                   BValue arg) {
@@ -1635,22 +1657,12 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     BValue control_predicate = implicit_token_data_->create_control_predicate();
 
-    std::optional<std::string> label;
-    ParametricEnv bindings(parametric_env_map_);
-    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        import_data_, current_type_info_, kNoWarningCollector, bindings,
-        label_expr));
-
-    std::optional<InterpValue> start_value =
-        current_type_info_->GetConstExprOption(label_expr);
-    if (start_value.has_value()) {
-      XLS_ASSIGN_OR_RETURN(label, InterpValueAsString(start_value.value()));
-    }
-    std::string message = absl::StrFormat("Assertion failure via fail! @ %s",
-                              node->span().ToString());
-    BValue assert_result_token = function_builder_->Assert(
-        implicit_token_data_->entry_token,
-        function_builder_->Not(control_predicate), message, label);
+    XLS_ASSIGN_OR_RETURN(AssertionLabelData label_data,
+                         GetAssertionLabel("fail!", label_expr, node->span()));
+    BValue assert_result_token =
+        function_builder_->Assert(implicit_token_data_->entry_token,
+                                  function_builder_->Not(control_predicate),
+                                  label_data.message, label_data.label);
     implicit_token_data_->control_tokens.push_back(assert_result_token);
     tokens_.push_back(assert_result_token);
   }
@@ -1659,6 +1671,43 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
   // assertion was hit.
   Def(node,
       [&](const SourceInfo& loc) { return function_builder_->Identity(arg); });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
+                                                    BValue assert_predicate,
+                                                    Expr* label_expr) {
+  if (options_.emit_fail_as_assert) {
+    // For a fail node we both create a predicate that corresponds to the
+    // "control" leading to this DSL program point.
+    XLS_RET_CHECK(implicit_token_data_.has_value())
+        << "Invoking assert!(), but no implicit token is present for caller @ "
+        << node->span();
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    BValue control_predicate = implicit_token_data_->create_control_predicate();
+
+    // Variables:
+    // * we got to the control point (CP)
+    // * the assert predicate (AP)
+    //
+    // OK = !CP | AP
+    BValue ok = function_builder_->Or(function_builder_->Not(control_predicate),
+                                      assert_predicate);
+
+    XLS_ASSIGN_OR_RETURN(
+        AssertionLabelData label_data,
+        GetAssertionLabel("assert!", label_expr, node->span()));
+    BValue assert_result_token =
+        function_builder_->Assert(implicit_token_data_->entry_token, ok,
+                                  label_data.message, label_data.label);
+    implicit_token_data_->control_tokens.push_back(assert_result_token);
+    tokens_.push_back(assert_result_token);
+  }
+
+  // The result of the failure call is unit, the empty tuple.
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->Tuple(std::vector<BValue>());
+  });
   return absl::OkStatus();
 }
 
@@ -1763,6 +1812,13 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
         << called_name << " builtin requires two arguments";
     return HandleFailBuiltin(node, /*label_expr=*/node->args()[0],
                              /*arg=*/args[1]);
+  }
+  if (called_name == "assert!") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return HandleAssertBuiltin(node, /*predicate=*/args[0],
+                               /*label_expr=*/node->args()[1]);
   }
   if (called_name == "cover!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());

@@ -2214,6 +2214,20 @@ fn main(arg: u32) -> u32 {
 })"));
 }
 
+TEST(TypecheckTest, AssertBuiltinIsUnitType) {
+  XLS_ASSERT_OK(Typecheck(R"(fn main() {
+  assert!(true, "oh_no");
+})"));
+
+  XLS_ASSERT_OK(Typecheck(R"(fn main() {
+  assert!(true, "oh_no");
+})"));
+
+  XLS_ASSERT_OK(Typecheck(R"(fn main() {
+  let () = assert!(true, "oh_no");
+})"));
+}
+
 TEST(TypecheckTest, ConcatNilArrayOfOneU8) {
   EXPECT_THAT(Typecheck("fn f(x: (), y: u8[1]) -> () { x ++ y }").status(),
               IsPosError("XlsTypeError",

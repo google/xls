@@ -42,6 +42,7 @@ namespace xls::dslx {
   X("gate!", kGate)                       \
   X("enumerate", kEnumerate)              \
   X("fail!", kFail)                       \
+  X("assert!", kAssert)                   \
   X("map", kMap)                          \
   X("decode", kDecode)                    \
   X("encode", kEncode)                    \
