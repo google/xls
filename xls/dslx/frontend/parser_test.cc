@@ -400,8 +400,7 @@ TEST_F(ParserTest, ParseSimpleProc) {
   Scanner s{"test.x", std::string{text}};
   Parser parser{"test", &s};
   Bindings bindings;
-  auto proc_or =
-      parser.ParseProc(/*is_public=*/false, /*outer_bindings=*/bindings);
+  auto proc_or = parser.ParseProc(/*is_public=*/false, /*bindings=*/bindings);
   if (!proc_or.ok()) {
     TryPrintError(proc_or.status(),
                   [&](std::string_view path) -> absl::StatusOr<std::string> {

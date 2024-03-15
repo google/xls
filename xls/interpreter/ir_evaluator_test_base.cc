@@ -2549,23 +2549,23 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateInBounds) {
   // Index 0
   EXPECT_THAT(
       RunWithKwargsNoEvents(function,
-                            /*args=*/{{"array", make_array({1, 2, 3})},
-                                      {"idx", Value(UBits(0, 32))},
-                                      {"new_value", Value(UBits(99, 32))}}),
+                            /*kwargs=*/{{"array", make_array({1, 2, 3})},
+                                        {"idx", Value(UBits(0, 32))},
+                                        {"new_value", Value(UBits(99, 32))}}),
       IsOkAndHolds(make_array({99, 2, 3})));
   // Index 1
   EXPECT_THAT(
       RunWithKwargsNoEvents(function,
-                            /*args=*/{{"array", make_array({1, 2, 3})},
-                                      {"idx", Value(UBits(1, 32))},
-                                      {"new_value", Value(UBits(99, 32))}}),
+                            /*kwargs=*/{{"array", make_array({1, 2, 3})},
+                                        {"idx", Value(UBits(1, 32))},
+                                        {"new_value", Value(UBits(99, 32))}}),
       IsOkAndHolds(make_array({1, 99, 3})));
   // Index 2
   EXPECT_THAT(
       RunWithKwargsNoEvents(function,
-                            /*args=*/{{"array", make_array({1, 2, 3})},
-                                      {"idx", Value(UBits(2, 32))},
-                                      {"new_value", Value(UBits(99, 32))}}),
+                            /*kwargs=*/{{"array", make_array({1, 2, 3})},
+                                        {"idx", Value(UBits(2, 32))},
+                                        {"new_value", Value(UBits(99, 32))}}),
       IsOkAndHolds(make_array({1, 2, 99})));
 }
 
@@ -2753,7 +2753,7 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateWideIndexInbounds) {
                                               }));
   Value index = Value(UBits(1, 1000));
   EXPECT_THAT(RunWithKwargsNoEvents(function,
-                                    /*args=*/{{"index", index}}),
+                                    /*kwargs=*/{{"index", index}}),
               IsOkAndHolds(array_value));
 }
 
@@ -2775,7 +2775,7 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateWideIndexOutOfBounds) {
                                               }));
   Value index = Value(Bits::PowerOfTwo(900, 1000));
   EXPECT_THAT(RunWithKwargsNoEvents(function,
-                                    /*args=*/{{"index", index}}),
+                                    /*kwargs=*/{{"index", index}}),
               IsOkAndHolds(array_value));
 }
 
@@ -2795,7 +2795,7 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayConcatArraysOfBits) {
                            Value::UBitsArray({1, 2, 3, 4, 5, 1, 2}, 32));
 
   EXPECT_THAT(RunWithKwargsNoEvents(function,
-                                    /*args=*/{{"a0", a0}, {"a1", a1}}),
+                                    /*kwargs=*/{{"a0", a0}, {"a1", a1}}),
               IsOkAndHolds(ret));
 }
 
@@ -2819,7 +2819,7 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayConcatArraysOfBitsMixedOperands) {
 
   EXPECT_THAT(
       RunWithKwargsNoEvents(function,
-                            /*args=*/{{"a0", a0}, {"a1", a1}, {"a2", a2}}),
+                            /*kwargs=*/{{"a0", a0}, {"a1", a1}, {"a2", a2}}),
       IsOkAndHolds(ret));
 }
 
@@ -3017,8 +3017,8 @@ TEST_P(IrEvaluatorTestBase, AfterAllTokenArgs) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(
-      RunWithKwargsNoEvents(
-          function, /*args=*/{{"t1", Value::Token()}, {"t2", Value::Token()}}),
+      RunWithKwargsNoEvents(function, /*kwargs=*/{{"t1", Value::Token()},
+                                                  {"t2", Value::Token()}}),
       IsOkAndHolds(Value::Token()));
 }
 

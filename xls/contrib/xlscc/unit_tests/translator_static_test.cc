@@ -289,7 +289,7 @@ TEST_F(TranslatorStaticTest, StaticProc) {
                     xls::Value(xls::SBits(63, 32)),
                     xls::Value(xls::SBits(105, 32))};
 
-  ProcTest(content, block_spec, inputs, outputs, /*n_ticks = */ 3);
+  ProcTest(content, block_spec, inputs, outputs, /*min_ticks = */ 3);
 }
 
 TEST_F(TranslatorStaticTest, StaticInitListExpr) {
@@ -719,7 +719,7 @@ TEST_F(TranslatorStaticTest, OnResetScope) {
     }
 
     #pragma hls_top
-    void foo(__xls_channel<int> &out) {      
+    void foo(__xls_channel<int> &out) {
       sub(out);
       out.write((int)__xlscc_on_reset);
       sub(out);
@@ -832,7 +832,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStruct) {
         SenderThing(__xls_channel<int>& ch, int out_init = 3)
           : ch(ch), out(out_init)
         {}
-       
+
         void send(int offset) {
           ch.write(offset + out);
           ++out;
@@ -896,7 +896,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInSubroutine) {
         SenderThing(__xls_channel<int>& ch, int out_init = 3)
           : ch(ch), out(out_init)
         {}
-       
+
         void send(int offset) {
           ch.write(offset + out);
           ++out;
@@ -998,7 +998,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructConst) {
         SenderThing(__xls_channel<int>& ch, int out_init = 3)
           : ch(ch), out(out_init)
         {}
-       
+
         void send(int offset)const {
           ch.write(offset + out);
         }
@@ -1061,7 +1061,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructAssign) {
         SenderThing(__xls_channel<int>& ch, int out_init = 3)
           : ch(ch), out(out_init)
         {}
-       
+
         void send(int offset) {
           ch.write(offset + out);
           ++out;
@@ -1105,7 +1105,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructWithOnReset) {
         SenderThing(__xls_channel<int>& ch, int out_init = 3)
           : ch(ch), out(out_init)
         {}
-       
+
         void send(int offset) {
           ch.write(offset + out);
           ++out;
@@ -1143,7 +1143,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructWithOnReset2) {
         SenderThing(__xls_channel<int>& ch, int out_init = 3)
           : ch(ch), out(out_init)
         {}
-       
+
         void send(int offset) {
           ch.write(offset + out);
           ++out;

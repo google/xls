@@ -93,7 +93,7 @@ absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
           import_data, type_info, tf->fn(), std::nullopt,
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
-  return BytecodeInterpreter::Interpret(import_data, bf.get(), /*params=*/{},
+  return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{},
                                         options)
       .status();
 }

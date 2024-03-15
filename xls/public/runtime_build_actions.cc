@@ -85,7 +85,7 @@ absl::StatusOr<std::string> MangleDslxName(std::string_view module_name,
   return dslx::MangleDslxName(module_name, function_name,
                               dslx::CallingConvention::kTypical,
                               /*free_keys=*/{},
-                              /*symbolic_bindings=*/nullptr);
+                              /*parametric_env=*/nullptr);
 }
 
 absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,

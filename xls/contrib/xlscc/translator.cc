@@ -2877,7 +2877,8 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     XLSCC_CHECK("Internal consistency failure" == nullptr, loc);
   }
 
-  XLS_RETURN_IF_ERROR(AddOpToChannel(op, /*channel=*/nullptr, loc).status());
+  XLS_RETURN_IF_ERROR(
+      AddOpToChannel(op, /*channel_param=*/nullptr, loc).status());
   return std::make_pair(true, CValue());
 }
 

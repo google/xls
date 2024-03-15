@@ -166,7 +166,7 @@ void FunctionJit::InvokeUnalignedJitFunction(
   uint8_t* output_buffers[1] = {output_buffer};
   jitted_function_base_.RunUnalignedJittedFunction<kForceZeroCopy>(
       arg_buffers.data(), output_buffers, temp_buffer_.get(), events,
-      /*instance_context=*/nullptr, runtime(), /*continuation_point=*/0);
+      /*instance_context=*/nullptr, runtime(), /*continuation=*/0);
 }
 
 template void FunctionJit::InvokeUnalignedJitFunction</*kForceZeroCopy=*/false>(

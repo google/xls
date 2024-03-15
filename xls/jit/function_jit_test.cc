@@ -1110,7 +1110,7 @@ void TestPackedBitsWithType(const TypeProto& type_proto) {
   JitTempBuffer temp_buffer = jit.CreateTempBuffer();
   std::optional<int64_t> ret = jit.RunPackedJittedFunction(
       inputs.data(), outputs.data(), &temp_buffer, &events,
-      /*user_data=*/nullptr, /*jit_runtime=*/&runtime,
+      /*instance_context=*/nullptr, /*jit_runtime=*/&runtime,
       /*continuation_point=*/0);
   ASSERT_TRUE(ret.has_value());
   CheckOutput(/*expected_data=*/expected, /*output_data=*/output,
@@ -1187,7 +1187,7 @@ void TestPackedTupleWithType(const TypeProto& type_proto) {
   JitTempBuffer temp_buffer = jit.CreateTempBuffer();
   std::optional<int64_t> ret = jit.RunPackedJittedFunction(
       inputs.data(), outputs.data(), &temp_buffer, &events,
-      /*user_data=*/nullptr, /*jit_runtime=*/&runtime,
+      /*instance_context=*/nullptr, /*jit_runtime=*/&runtime,
       /*continuation_point=*/0);
   ASSERT_TRUE(ret.has_value());
   CheckOutput(/*expected_data=*/expected, /*output_data=*/output,
@@ -1258,7 +1258,7 @@ void TestPackedArrayWithType(const TypeProto& type_proto) {
     JitTempBuffer temp_buffer = jit.CreateTempBuffer();
     std::optional<int64_t> ret = jit.RunPackedJittedFunction(
         inputs.data(), outputs.data(), &temp_buffer, &events,
-        /*user_data=*/nullptr, /*jit_runtime=*/&runtime,
+        /*instance_context=*/nullptr, /*jit_runtime=*/&runtime,
         /*continuation_point=*/0);
     ASSERT_TRUE(ret.has_value());
     bits_vector[index] = old_bits_value;

@@ -398,7 +398,7 @@ TEST_F(TranslatorIOTest, SubroutineDeclMissing) {
          out.write(55);
        })";
 
-  ASSERT_THAT(SourceToIr(content, /*func=*/nullptr, /* clang_argv= */ {},
+  ASSERT_THAT(SourceToIr(content, /*pfunc=*/nullptr, /* clang_argv= */ {},
                          /* io_test_mode= */ true)
                   .status(),
               xls::status_testing::StatusIs(
@@ -1208,7 +1208,7 @@ TEST_F(TranslatorIOTest, MuxTwoInputs) {
       out.write(v);
     })";
 
-  ASSERT_THAT(SourceToIr(content, /*func=*/nullptr, /* clang_argv= */ {},
+  ASSERT_THAT(SourceToIr(content, /*pfunc=*/nullptr, /* clang_argv= */ {},
                          /* io_test_mode= */ true)
                   .status(),
               xls::status_testing::StatusIs(absl::StatusCode::kOk));

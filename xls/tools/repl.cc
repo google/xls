@@ -271,7 +271,7 @@ absl::Status UpdateIr() {
                                               dslx::ConvertOptions{}));
   XLS_ASSIGN_OR_RETURN(std::string mangled_name,
                        dslx::MangleDslxName(globals.dslx->module.get()->name(),
-                                            "main", /*free_keys=*/{}));
+                                            "main", /*convention=*/{}));
   XLS_RETURN_IF_ERROR(globals.ir_package->SetTopByName(mangled_name));
   XLS_RETURN_IF_ERROR(
       RunOptimizationPassPipeline(globals.ir_package.get()).status());
@@ -364,7 +364,7 @@ absl::StatusOr<Function*> FindFunction(std::string_view function_name,
   }
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      dslx::MangleDslxName(module->name(), function_name, /*free_keys=*/{}));
+      dslx::MangleDslxName(module->name(), function_name, /*convention=*/{}));
   if (std::optional<Function*> f = package->TryGetFunction(mangled_name)) {
     return *f;
   }

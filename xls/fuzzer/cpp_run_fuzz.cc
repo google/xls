@@ -141,7 +141,7 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
     args.insert(args.end(), extra_args.begin(), extra_args.end());
     XLS_ASSIGN_OR_RETURN(
         find_failing_input_result,
-        InvokeSubprocess(args, /*cwd=*/run_dir, /*timeout=*/timeout));
+        InvokeSubprocess(args, /*cwd=*/run_dir, /*optional_timeout=*/timeout));
     XLS_RETURN_IF_ERROR(
         SetFileContents(stderr_path, find_failing_input_result->stderr));
     if (find_failing_input_result->timeout_expired) {
@@ -166,9 +166,9 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
         "--input=" + failed_input, "sample.ir"};
     minimize_args.insert(minimize_args.end(), extra_args.begin(),
                          extra_args.end());
-    XLS_ASSIGN_OR_RETURN(
-        SubprocessResult minimize_result,
-        InvokeSubprocess(minimize_args, /*cwd=*/run_dir, /*timeout=*/timeout));
+    XLS_ASSIGN_OR_RETURN(SubprocessResult minimize_result,
+                         InvokeSubprocess(minimize_args, /*cwd=*/run_dir,
+                                          /*optional_timeout=*/timeout));
     XLS_RETURN_IF_ERROR(SetFileContents(stderr_path, minimize_result.stderr));
     if (minimize_result.timeout_expired) {
       XLS_VLOG(3) << "MinimizeIr; ir_minimizer_main timeout expired";

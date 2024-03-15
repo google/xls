@@ -76,14 +76,14 @@ JitArgumentSet JitArgumentSet::CreateInput(const JittedFunctionBase* source,
                                            absl::Span<int64_t const> sizes) {
   auto [buf, ptr] = AllocateAlignedBuffer(sizes, aligns);
   return JitArgumentSet(source, std::move(buf), std::move(ptr),
-                        /*is_input=*/true, /*is_output=*/false);
+                        /*is_inputs=*/true, /*is_outputs=*/false);
 }
 JitArgumentSet JitArgumentSet::CreateOutput(const JittedFunctionBase* source,
                                             absl::Span<int64_t const> aligns,
                                             absl::Span<int64_t const> sizes) {
   auto [buf, ptr] = AllocateAlignedBuffer(sizes, aligns);
   return JitArgumentSet(source, std::move(buf), std::move(ptr),
-                        /*is_input=*/false, /*is_output=*/true);
+                        /*is_inputs=*/false, /*is_outputs=*/true);
 }
 absl::StatusOr<JitArgumentSet> JitArgumentSet::CreateInputOutput(
     const JittedFunctionBase* source,
@@ -93,7 +93,7 @@ absl::StatusOr<JitArgumentSet> JitArgumentSet::CreateInputOutput(
   XLS_RET_CHECK(absl::c_equal(aligns[0], aligns[1]));
   auto [buf, ptr] = AllocateAlignedBuffer(sizes[0], aligns[0]);
   return JitArgumentSet(source, std::move(buf), std::move(ptr),
-                        /*is_input=*/true, /*is_output=*/true);
+                        /*is_inputs=*/true, /*is_outputs=*/true);
 }
 
 void* AllocateAligned(int64_t alignment, int64_t size) {

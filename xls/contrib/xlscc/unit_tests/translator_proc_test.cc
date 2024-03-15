@@ -1368,12 +1368,12 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
       #pragma hls_top
       void foo() {
         int a = in.read();
-        
+
         __xlscc_pipeline(1);
         for(long i=1;i<=4;++i) {
           a += i;
         }
-        
+
         out.write(a);
       }
     };
@@ -1401,13 +1401,13 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
       #pragma hls_top
       void foo() {
         int a = in.read();
-        
+
         __xlscc_pipeline(1);
         foo:
         for(long i=1;i<=4;++i) {
           a += i;
         }
-        
+
         out.write(a);
       }
     };
@@ -1436,12 +1436,12 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationAndPragma) {
       void foo() {
         int a = in.read();
 
-        
+
         #pragma hls_pipeline_init_interval 1
         __xlscc_pipeline(1);for(long i=1;i<=4;++i) {
           a += i;
         }
-        
+
         out.write(a);
       }
     };
@@ -1468,14 +1468,14 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationFarAway) {
       #pragma hls_top
       void foo() {
         int a = in.read();
-        
+
         __xlscc_pipeline(1);
-        
-        
+
+
         for(long i=1;i<=4;++i) {
           a += i;
         }
-        
+
         out.write(a);
       }
     };
@@ -1800,7 +1800,7 @@ TEST_P(TranslatorProcTest, ForPipelinedSerialIO) {
       for(long i=1;i<=4;++i) {
         a += in.read();
       }
-      
+
       #pragma hls_pipeline_init_interval 1
       for(short i=0;i<2;++i) {
         a += 3*in.read();
@@ -3923,7 +3923,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine2) {
       }
       return a;
     }
-    
+
     int sub_read(__xls_channel<int>& in2) {
       int a = 0;
       #pragma hls_pipeline_init_interval 1
@@ -4006,7 +4006,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine3) {
       }
       return a;
     }
-    
+
     int sub_read(ChannelContainer& in2) {
       int a = 0;
       #pragma hls_pipeline_init_interval 1
@@ -4990,7 +4990,7 @@ TEST_P(TranslatorProcTest, IOProcClassSubClass) {
         void wr() {
           out.write(val);
          }
-         
+
        };
 
        class Block {
@@ -5002,7 +5002,7 @@ TEST_P(TranslatorProcTest, IOProcClassSubClass) {
          void Run() {
           Sub val(out);
           #pragma hls_pipeline_init_interval 1
-          for(int i=0;i<3;++i) 
+          for(int i=0;i<3;++i)
           {
             int xx = in.read();
             val.app(xx);
@@ -5064,7 +5064,7 @@ TEST_P(TranslatorProcTest, IOProcClassSubClass2) {
         void wr() {
           out.write(val);
          }
-         
+
        };
 
        class Block {
@@ -5566,7 +5566,7 @@ TEST_P(TranslatorProcTest, IOProcClassMemberSetConstruct2) {
     struct Bar {
       __xls_channel<int, __xls_channel_dir_In>& in;
       __xls_channel<int, __xls_channel_dir_Out>& out;
-      
+
       Foo y;
 
       int Calculate() {
@@ -5740,7 +5740,7 @@ TEST_P(TranslatorProcTest, ForPipelinedWithChannelTernary) {
              __xls_channel<int>& in2,
              __xls_channel<int>& out) {
       const int dir = dir_in.read();
-    
+
       __xls_channel<int>& in = dir ? in1 : in2;
 
       int a = 0;
@@ -5818,8 +5818,8 @@ TEST_P(TranslatorProcTest, ForPipelinedWithChannelTernaryNested) {
              __xls_channel<int>& in3,
              __xls_channel<int>& out) {
       const int dir = dir_in.read();
-    
-      __xls_channel<int>& in = 
+
+      __xls_channel<int>& in =
         (dir == 0) ? in1 : ((dir == 1) ? in2 : in3);
 
       int a = 0;
@@ -5918,7 +5918,7 @@ TEST_P(TranslatorProcTest, ForPipelinedWithChannelTernaryMultiple) {
              __xls_channel<int>& out) {
       const int dirA = dirA_in.read();
       const int dirB = dirB_in.read();
-    
+
       __xls_channel<int>& inA = dirA ? in1 : in2;
       __xls_channel<int>& inB = dirB ? in2 : in1;
 
@@ -6010,7 +6010,7 @@ TEST_P(TranslatorProcTest, ForPipelinedWithChannelInStructTernary) {
              __xls_channel<int>& in2,
              __xls_channel<int>& out) {
       const int dir = dir_in.read();
-    
+
       ChannelContainer container = {.in = dir ? in1 : in2};
 
       int a = 0;
@@ -6210,7 +6210,8 @@ TEST_P(TranslatorProcTest, DebugTrace) {
              /*top_level_init_interval=*/0,
              /*top_class_name=*/"",
              /*expected_tick_status=*/absl::OkStatus(),
-             /*expected_events=*/{{"Block_proc", xls::InterpreterEvents()}});
+             /*expected_events_by_proc_name=*/
+             {{"Block_proc", xls::InterpreterEvents()}});
   }
   {
     xls::InterpreterEvents expected_events;
@@ -6222,13 +6223,14 @@ TEST_P(TranslatorProcTest, DebugTrace) {
 
     absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(9, 32))};
-    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
-             /*min_ticks = */ 1,
-             /*max_ticks=*/100,
-             /*top_level_init_interval=*/0,
-             /*top_class_name=*/"",
-             /*expected_tick_status=*/absl::OkStatus(),
-             /*expected_events=*/{{"Block_proc", expected_events}});
+    ProcTest(
+        content, /*block_spec=*/std::nullopt, inputs, outputs,
+        /*min_ticks = */ 1,
+        /*max_ticks=*/100,
+        /*top_level_init_interval=*/0,
+        /*top_class_name=*/"",
+        /*expected_tick_status=*/absl::OkStatus(),
+        /*expected_events_by_proc_name=*/{{"Block_proc", expected_events}});
   }
 }
 
@@ -6276,7 +6278,7 @@ TEST_P(TranslatorProcTest, DebugTraceInPipelinedLoop) {
         /*top_level_init_interval=*/0,
         /*top_class_name=*/"",
         /*expected_tick_status=*/absl::OkStatus(),
-        /*expected_events=*/
+        /*expected_events_by_proc_name=*/
         {{generate_fsms_for_pipelined_loops_ ? "Block_proc" : "__for_1_proc",
           expected_events}});
   }
@@ -6318,7 +6320,7 @@ TEST_P(TranslatorProcTest, NonblockingReadInSubroutine) {
         public:
          __xls_channel<int, __xls_channel_dir_In>& in;
          __xls_channel<int, __xls_channel_dir_Out>& out;
-         
+
          int ReadInSubroutine(__xls_channel<int, __xls_channel_dir_In>& in) {
           int value = 0;
           if(!in.nb_read(value)) {
@@ -6499,7 +6501,7 @@ TEST_P(TranslatorProcTest, LocalChannelPipelinedLoopDeclaredInSubroutine) {
         for(int i=0;i<1;++i) {
           xr = internal.read();
         }
-        
+
         return xr;
       }
 
@@ -6541,7 +6543,7 @@ TEST_P(TranslatorProcTest, LocalChannelPipelinedLoopUsedInSubroutine) {
         for(int i=0;i<1;++i) {
           xr = ch.read();
         }
-        
+
         return xr;
       }
 
@@ -6646,13 +6648,13 @@ TEST_P(TranslatorProcTest, LocalChannelPassUpAndDown) {
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
       __xls_channel<int, __xls_channel_dir_Out> out;
-      
+
       __xls_channel<int>& SubroutineWrite(int x) {
         static __xls_channel<int> internal;
         internal.write(x*2);
         return internal;
       }
-      
+
       int SubroutineRead(__xls_channel<int>& ch) {
         return ch.read();
       }
@@ -6758,7 +6760,7 @@ TEST_P(TranslatorProcTest, ChannelDeclaredInClassInitialized) {
            __xls_channel<int, __xls_channel_dir_Out>& out) :
         internal(internal), in(in), out(out) {
       }
-      
+
       void Run() {
         const int x = in.read();
         internal.write(x*2);
@@ -6775,9 +6777,9 @@ TEST_P(TranslatorProcTest, ChannelDeclaredInClassInitialized) {
       #pragma hls_top
       void foo() {
         static __xls_channel<int> internal;
-        
+
         Impl impl(internal, in, out);
-        
+
         impl.Run();
       }
     };
@@ -6808,7 +6810,7 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassUninitialized) {
            __xls_channel<int, __xls_channel_dir_Out>& out) :
         in(in), out(out) {
       }
-      
+
       void Run() {
         const int x = in.read();
         internal.write(x*2);
@@ -6825,7 +6827,7 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassUninitialized) {
       #pragma hls_top
       void foo() {
         static Impl impl(in, out);
-        
+
         impl.Run();
       }
     };
@@ -6856,7 +6858,7 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClass) {
            __xls_channel<int, __xls_channel_dir_Out>& out) :
         in(in), out(out) {
       }
-      
+
       void Run() {
         const int x = in.read();
         internal.write(x*2);
@@ -6873,7 +6875,7 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClass) {
       #pragma hls_top
       void foo() {
         static Impl impl(in, out);
-        
+
         impl.Run();
       }
     };
@@ -6903,7 +6905,7 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassNonStatic) {
            __xls_channel<int, __xls_channel_dir_Out>& out) :
         in(in), out(out) {
       }
-      
+
       void Run() {
         const int x = in.read();
         internal.write(x*2);
@@ -6920,7 +6922,7 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassNonStatic) {
       #pragma hls_top
       void foo() {
         Impl impl(in, out);
-        
+
         impl.Run();
       }
     };
@@ -7034,11 +7036,11 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassNonStaticAddCondition) {
       Impl(__xls_channel<int, __xls_channel_dir_Out>& out) :
         out(out) {
       }
-      
+
       void Ping(int x) {
         internal.write(x*2);
       }
-      
+
       void Pong() {
         int xr = 0;
         if(!internal.nb_read(xr)) {
@@ -7055,7 +7057,7 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassNonStaticAddCondition) {
       #pragma hls_top
       void foo() {
         static Impl impl(out);
-        
+
         const int x = in.read();
         if(x > 50) {
           impl.Ping(x);

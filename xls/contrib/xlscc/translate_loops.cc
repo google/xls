@@ -1055,7 +1055,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
 
   xls::BValue receive =
       pb.ReceiveIf(context_out_channel->generated.value(), token,
-                   /*condition=*/placeholder_cond, loc);
+                   /*pred=*/placeholder_cond, loc);
   token = pb.TupleIndex(receive, 0);
   xls::BValue received_context_tuple = pb.TupleIndex(receive, 1);
 

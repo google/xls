@@ -4350,7 +4350,7 @@ TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn2Stages) {
 
   scheduling_options.add_constraint(xls::IOConstraint(
       "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
-      /*min_latency=*/1, /* max_latency=*/1));
+      /*minimum_latency=*/1, /* maximum_latency=*/1));
 
   TestBlockWithSchedule(scheduling_options);
 }
@@ -4361,10 +4361,10 @@ TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn3Stages) {
 
   scheduling_options.add_constraint(xls::IOConstraint(
       "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
-      /*min_latency=*/1, /* max_latency=*/1));
+      /*minimum_latency=*/1, /* maximum_latency=*/1));
   scheduling_options.add_constraint(xls::IOConstraint(
       "b_in", xls::IODirection::kReceive, "c_in", xls::IODirection::kReceive,
-      /*min_latency=*/1, /* max_latency=*/1));
+      /*minimum_latency=*/1, /* maximum_latency=*/1));
 
   TestBlockWithSchedule(scheduling_options);
 }
@@ -4375,10 +4375,10 @@ TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn3StagesWithExtra) {
 
   scheduling_options.add_constraint(xls::IOConstraint(
       "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
-      /*min_latency=*/1, /* max_latency=*/1));
+      /*minimum_latency=*/1, /* maximum_latency=*/1));
   scheduling_options.add_constraint(xls::IOConstraint(
       "b_in", xls::IODirection::kReceive, "c_in", xls::IODirection::kReceive,
-      /*min_latency=*/1, /* max_latency=*/1));
+      /*minimum_latency=*/1, /* maximum_latency=*/1));
 
   TestBlockWithSchedule(scheduling_options);
 }

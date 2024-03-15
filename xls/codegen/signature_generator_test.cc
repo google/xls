@@ -378,7 +378,7 @@ block my_block(in: bits[32], out: (bits[32])) {
   options.module_name("pipelined_proc");
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleSignature sig,
-      GenerateSignature(options, my_block, /*cycle_map=*/{}));
+      GenerateSignature(options, my_block, /*stage_map=*/{}));
   ASSERT_EQ(sig.instantiations().size(), 1);
   ASSERT_TRUE(sig.instantiations()[0].has_fifo_instantiation());
   const FifoInstantiationProto& instantiation =
@@ -423,7 +423,7 @@ block my_block(in: bits[32], out: (bits[32])) {
   options.module_name("pipelined_proc");
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleSignature sig,
-      GenerateSignature(options, my_block, /*cycle_map=*/{}));
+      GenerateSignature(options, my_block, /*stage_map=*/{}));
   ASSERT_EQ(sig.instantiations().size(), 1);
   ASSERT_TRUE(sig.instantiations()[0].has_fifo_instantiation());
   const FifoInstantiationProto& instantiation =

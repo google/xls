@@ -574,7 +574,7 @@ static DocRef FmtSingleStatementBlockInline(const Block& n,
   }
 
   pieces.push_back(FmtStatement(*n.statements()[0], comments, arena,
-                                /*add_semi=*/n.trailing_semi()));
+                                /*trailing_semi=*/n.trailing_semi()));
 
   if (add_curls) {
     pieces.push_back(arena.break1());
@@ -787,8 +787,8 @@ DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces = {
       arena.Make(Keyword::kFor),
       arena.MakeNestIfFlatFits(
-          /*on_nested_flat=*/names_ref,
-          /*on_other=*/arena.MakeConcat(arena.space(), names_ref))};
+          /*on_nested_flat_ref=*/names_ref,
+          /*on_other_ref=*/arena.MakeConcat(arena.space(), names_ref))};
 
   if (n.type_annotation() != nullptr) {
     pieces.push_back(arena.colon());
@@ -801,8 +801,8 @@ DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
 
   DocRef iterable_ref = Fmt(*n.iterable(), comments, arena);
   pieces.push_back(arena.MakeNestIfFlatFits(
-      /*on_nested_flat=*/iterable_ref,
-      /*on_other=*/arena.MakeConcat(arena.space(), iterable_ref)));
+      /*on_nested_flat_ref=*/iterable_ref,
+      /*on_other_ref=*/arena.MakeConcat(arena.space(), iterable_ref)));
 
   pieces.push_back(arena.space());
   pieces.push_back(arena.ocurl());
@@ -1447,14 +1447,14 @@ DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
     // leading chars, e.g. an invocation, so we don't know with reasonable
     // confidence it'll fit on the current line.
     body = arena.MakeNestIfFlatFits(
-        /*on_nested_flat=*/rhs_doc,
-        /*on_other=*/ConcatN(arena, {arena.space(), rhs_doc}));
+        /*on_nested_flat_ref=*/rhs_doc,
+        /*on_other_ref=*/ConcatN(arena, {arena.space(), rhs_doc}));
   } else {
     // Same as above but with an aligned RHS.
     DocRef aligned_rhs = arena.MakeAlign(arena.MakeGroup(rhs_doc));
     body = arena.MakeNestIfFlatFits(
-        /*on_nested_flat=*/rhs_doc,
-        /*on_other=*/arena.MakeConcat(arena.space(), aligned_rhs));
+        /*on_nested_flat_ref=*/rhs_doc,
+        /*on_other_ref=*/arena.MakeConcat(arena.space(), aligned_rhs));
   }
 
   DocRef leader = ConcatN(arena, leader_pieces);
@@ -1618,7 +1618,8 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
                                         arena.MakeNest(parametric_guts)),
                });
     signature_pieces.push_back(arena.MakeNestIfFlatFits(
-        /*on_nested_flat=*/flat_parametrics, /*on_other=*/break_parametrics));
+        /*on_nested_flat_ref=*/flat_parametrics,
+        /*on_other_ref=*/break_parametrics));
   }
 
   {

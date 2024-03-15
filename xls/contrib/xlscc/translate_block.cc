@@ -1094,7 +1094,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
 
   xls::BValue ret_io_value = GetFlexTupleField(
       last_ret_val, return_index, prepared.xls_func->return_value_count, op_loc,
-      /*name=*/
+      /*op_name=*/
       absl::StrFormat("%s_ret_io_value", op.final_param_name));
 
   xls::BValue arg_io_val;
@@ -1348,8 +1348,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateTrace(
         args.push_back(arg);
       }
       return pb.Trace(before_token, /*condition=*/condition, args,
-                      /*message=*/op.trace_message_string, /*verbosity=*/0,
-                      op.op_location);
+                      /*format_string=*/op.trace_message_string,
+                      /*verbosity=*/0, op.op_location);
     }
     case TraceType::kAssert: {
       xls::BValue condition = pb.Not(trace_out_value, op.op_location);

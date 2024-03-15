@@ -1009,7 +1009,7 @@ TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
       fb.Param("s", p->GetBitsType(1)),
       /*cases=*/
       {fb.Literal(Value(UBits(3, 4))), fb.Literal(Value(UBits(7, 4)))},
-      /*default=*/std::nullopt);
+      /*default_value=*/std::nullopt);
   BValue array = fb.Literal(Value::ArrayOrDie({
       Value(UBits(0, 4)),
       Value(UBits(1, 4)),
@@ -1035,7 +1035,7 @@ TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
                               m::ArrayIndex(array.node(), {m::Literal(3)}),
                               m::ArrayIndex(array.node(), {m::Literal(7)}),
                           },
-                          /*default=*/std::nullopt));
+                          /*default_value=*/std::nullopt));
   }
 }
 

@@ -89,7 +89,7 @@ TEST_F(NextValueOptimizationPassTest, DeadNextValue) {
   ProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(5, 32)),
-          /*predicate=*/pb.Literal(UBits(0, 1)));
+          /*pred=*/pb.Literal(UBits(0, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -101,9 +101,9 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
   ProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(5, 32)),
-          /*predicate=*/pb.Literal(UBits(0, 1)));
+          /*pred=*/pb.Literal(UBits(0, 1)));
   pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(3, 32)),
-          /*predicate=*/pb.Literal(UBits(1, 1)));
+          /*pred=*/pb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));

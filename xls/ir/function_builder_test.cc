@@ -888,7 +888,7 @@ TEST(FunctionBuilderTest, ProcWithNextStateElement) {
   BValue x = pb.StateElement("x", Value(UBits(1, 1)));
   BValue y = pb.StateElement("y", Value(UBits(2, 32)));
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
-  BValue next = pb.Next(/*param=*/y, /*value=*/z, /*predicate=*/x);
+  BValue next = pb.Next(/*param=*/y, /*value=*/z, /*pred=*/x);
 
   XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), /*next_state=*/{x, y, z}));
   EXPECT_THAT(next.node(), m::Next(m::Param("y"), /*value=*/m::Param("z"),
@@ -901,7 +901,7 @@ TEST(FunctionBuilderTest, ProcWithNextStateElementBadPredicate) {
   BValue x = pb.StateElement("x", Value(UBits(1, 32)));
   BValue y = pb.StateElement("y", Value(UBits(2, 32)));
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
-  pb.Next(/*param=*/y, /*value=*/z, /*predicate=*/x);
+  pb.Next(/*param=*/y, /*value=*/z, /*pred=*/x);
 
   EXPECT_THAT(pb.Build(pb.GetTokenParam(),
                        /*next_state=*/{x, y, z}),

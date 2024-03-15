@@ -345,11 +345,11 @@ TEST_P(ProcRuntimeTestBase, WrappedProc) {
   BValue recv_input = pb.Receive(in_channel, pb.GetTokenParam());
   BValue send_to_accum =
       pb.Send(in_accum_channel, /*token=*/pb.TupleIndex(recv_input, 0),
-              /*data_operands=*/{pb.TupleIndex(recv_input, 1)});
+              /*data=*/{pb.TupleIndex(recv_input, 1)});
   BValue recv_from_accum = pb.Receive(out_accum_channel, send_to_accum);
   BValue send_output =
       pb.Send(out_channel, /*token=*/pb.TupleIndex(recv_from_accum, 0),
-              /*data_operands=*/{pb.TupleIndex(recv_from_accum, 1)});
+              /*data=*/{pb.TupleIndex(recv_from_accum, 1)});
   XLS_ASSERT_OK(pb.Build(send_output, {}));
 
   XLS_ASSERT_OK(CreateAccumProc("accum", /*in_channel=*/in_accum_channel,

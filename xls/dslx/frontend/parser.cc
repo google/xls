@@ -2070,7 +2070,7 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
   Pos limit_pos;
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, /*start_pos=*/nullptr,
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, /*start=*/nullptr,
                                        "after constant definition",
                                        &limit_pos));
   Span span(start_pos, limit_pos);

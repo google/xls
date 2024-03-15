@@ -97,7 +97,7 @@ NodeDependencyAnalysis NodeDependencyAnalysis::BackwardDependents(
   auto [dependents, node_ids] = AnalyzeDependents(
       fb, interesting, [](Node* node) { return node->operands(); },
       TopoSort(fb));
-  return NodeDependencyAnalysis(/*is_forward=*/false, dependents, node_ids);
+  return NodeDependencyAnalysis(/*is_forwards=*/false, dependents, node_ids);
 }
 
 NodeDependencyAnalysis NodeDependencyAnalysis::ForwardDependents(
@@ -106,7 +106,7 @@ NodeDependencyAnalysis NodeDependencyAnalysis::ForwardDependents(
   auto [dependents, node_ids] = AnalyzeDependents(
       fb, interesting, [](Node* node) { return node->users(); },
       ReverseTopoSort(fb));
-  return NodeDependencyAnalysis(/*is_forward=*/true, dependents, node_ids);
+  return NodeDependencyAnalysis(/*is_forwards=*/true, dependents, node_ids);
 }
 
 }  // namespace xls
