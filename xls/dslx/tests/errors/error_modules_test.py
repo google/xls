@@ -1017,6 +1017,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('Standard style is SCREAMING_SNAKE_CASE for constant', stderr)
 
+  def test_import_a_parse_error_module(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/import_a_parse_error_module.x',
+    )
+    self.assertIn('ParseError: Expected start of an expression; got: +', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

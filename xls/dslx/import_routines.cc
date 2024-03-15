@@ -34,10 +34,15 @@
 #include "xls/common/config/xls_config.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 
