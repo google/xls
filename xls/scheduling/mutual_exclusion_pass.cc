@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -551,9 +552,11 @@ absl::StatusOr<bool> MergeNodes(Predicates* p, FunctionBase* f,
   return false;
 }
 
-// Returns the set of channels that have operations predicated by `node`.
-absl::StatusOr<absl::flat_hash_set<Channel*>> GetControlledChannels(
-    Node* node, Predicates* p, FunctionBase* f) {
+// Returns the set of proven_mutually_exclusive channels that have operations
+// predicated by `node`.
+absl::StatusOr<absl::flat_hash_set<Channel*>>
+GetControlledProvenMutuallyExclusiveChannels(Node* node, Predicates* p,
+                                             FunctionBase* f) {
   absl::flat_hash_set<Channel*> controlled_channels;
   for (Node* predicated_node : p->GetNodesPredicatedBy(node)) {
     Channel* channel = nullptr;
@@ -568,56 +571,85 @@ absl::StatusOr<absl::flat_hash_set<Channel*>> GetControlledChannels(
     } else {
       continue;
     }
-    controlled_channels.insert(channel);
+
+    if (channel->kind() != ChannelKind::kStreaming) {
+      continue;
+    }
+    if (down_cast<StreamingChannel*>(channel)->GetStrictness() ==
+        ChannelStrictness::kProvenMutuallyExclusive) {
+      controlled_channels.insert(channel);
+    }
   }
   return controlled_channels;
 }
 
-// Checks whether `node` controls a `proven_mutually_exclusive` streaming
-// channel. For example, this can be used to determine whether a failure to
-// prove `node` mutually exclusive with another node might cause the channel
-// operations to be illegal.
-absl::StatusOr<bool> ControlsProvenMutuallyExclusiveChannel(Node* node,
-                                                            Predicates* p,
-                                                            FunctionBase* f) {
-  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Channel*> controlled_channels,
-                       GetControlledChannels(node, p, f));
-  for (Channel* channel : controlled_channels) {
-    if (channel->kind() != ChannelKind::kStreaming) {
+// Checks whether `node` controls a use of a `proven_mutually_exclusive`
+// streaming channel that is contended by another use of that channel. For
+// example, this can be used to determine whether a failure to prove `node`
+// mutually exclusive with another node might cause the channel operations to be
+// illegal.
+absl::StatusOr<bool> ControlsContendedProvenMutuallyExclusiveChannel(
+    Node* node, Predicates* p, FunctionBase* f) {
+  absl::flat_hash_set<Node*> predicated_nodes = p->GetNodesPredicatedBy(node);
+
+  // First, check if this node might control two independent operations on the
+  // same proven-mutually-exclusive channel... and collect the set of
+  // proven-mutually-exclusive channels it controls while we're at it.
+  absl::flat_hash_set<Channel*> predicated_channels;
+  for (Node* predicated_node : predicated_nodes) {
+    Channel* channel = nullptr;
+    if (predicated_node->Is<Send>()) {
+      XLS_ASSIGN_OR_RETURN(channel,
+                           f->package()->GetChannel(
+                               predicated_node->As<Send>()->channel_name()));
+    } else if (predicated_node->Is<Receive>()) {
+      XLS_ASSIGN_OR_RETURN(channel,
+                           f->package()->GetChannel(
+                               predicated_node->As<Receive>()->channel_name()));
+    } else {
       continue;
     }
-    if (down_cast<StreamingChannel*>(channel)->GetStrictness() ==
-        ChannelStrictness::kProvenMutuallyExclusive) {
+
+    if (channel->kind() != ChannelKind::kStreaming ||
+        down_cast<StreamingChannel*>(channel)->GetStrictness() !=
+            ChannelStrictness::kProvenMutuallyExclusive) {
+      continue;
+    }
+    if (predicated_channels.contains(channel)) {
       return true;
     }
+    predicated_channels.insert(channel);
   }
-  return false;
-}
+  if (predicated_channels.empty()) {
+    return false;
+  }
 
-// Checks whether the two sets of channels have a `proven_mutually_exclusive`
-// streaming channel in their intersection. For example, if nodes "a" and "b"
-// control `channels_a` and `channels_b` respectively, this can be used to check
-// whether "a" and "b" must be proven mutually exclusive for the channel
-// operations to be legal.
-absl::StatusOr<bool> ShareProvenMutuallyExclusiveChannel(
-    const absl::flat_hash_set<Channel*>& channels_a,
-    const absl::flat_hash_set<Channel*>& channels_b, Predicates* p,
-    FunctionBase* f) {
-  const absl::flat_hash_set<Channel*>* ref_channels = &channels_a;
-  const absl::flat_hash_set<Channel*>* check_channels = &channels_b;
-  if (channels_b.size() < channels_a.size()) {
-    ref_channels = &channels_b;
-    check_channels = &channels_a;
-  }
-  for (Channel* channel : *ref_channels) {
-    if (!check_channels->contains(channel)) {
+  // Next, for each proven-mutually-exclusive channel this node *does* control,
+  // check if there's any other node that controls an operation on that channel.
+  for (Node* other_node : f->nodes()) {
+    if (predicated_nodes.contains(other_node)) {
+      // Controlled by the current node; we already accounted for that above.
       continue;
     }
-    if (channel->kind() != ChannelKind::kStreaming) {
+
+    std::optional<Node*> predicate = p->GetPredicate(other_node);
+    if (!predicate.has_value() || *predicate == node) {
       continue;
     }
-    if (down_cast<StreamingChannel*>(channel)->GetStrictness() ==
-        ChannelStrictness::kProvenMutuallyExclusive) {
+
+    Channel* channel;
+    if (other_node->Is<Send>()) {
+      XLS_ASSIGN_OR_RETURN(
+          channel,
+          f->package()->GetChannel(other_node->As<Send>()->channel_name()));
+    } else if (other_node->Is<Receive>()) {
+      XLS_ASSIGN_OR_RETURN(
+          channel,
+          f->package()->GetChannel(other_node->As<Receive>()->channel_name()));
+    } else {
+      continue;
+    }
+    if (predicated_channels.contains(channel)) {
       return true;
     }
   }
@@ -922,21 +954,22 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
 
   // Determine for each predicate whether it is always false using Z3.
   // Dead nodes are mutually exclusive with all other nodes, so this can reduce
-  // the runtime  by doing only a linear amount of Z3 calls to remove
+  // the runtime by doing only a linear amount of Z3 calls to remove
   // quadratically many Z3 calls.
   for (const auto& [node, index] : predicate_nodes) {
     Z3_ast translated = translator->GetTranslation(node);
     // Check whether it's possible for `node` to need to be proven mutually
     // exclusive with some other node in order for channel operations to be
     // legal; if so, we remove the rlimit on the prover.
-    XLS_ASSIGN_OR_RETURN(bool required_for_compilation,
-                         ControlsProvenMutuallyExclusiveChannel(node, p, f));
+    XLS_ASSIGN_OR_RETURN(
+        bool required_for_compilation,
+        ControlsContendedProvenMutuallyExclusiveChannel(node, p, f));
     if (required_for_compilation) {
       XLS_LOG(INFO) << "Removing Z3's rlimit for always-false check on "
                     << node->GetName()
                     << " as mutual exclusion is required for compilation.";
     }
-    translator->SetRlimit(required_for_compilation ? 0 : z3_rlimit);
+    translator->SetRlimit(z3_rlimit);
     if (RunSolver(ctx, solvers::z3::BitVectorToBoolean(ctx, translated)) ==
         Z3_L_FALSE) {
       XLS_VLOG(3) << "Proved that " << node << " is always false";
@@ -977,8 +1010,9 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
   }
 
   for (const auto& [node_a, index_a] : predicate_nodes) {
-    XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Channel*> channels_a,
-                         GetControlledChannels(node_a, p, f));
+    XLS_ASSIGN_OR_RETURN(
+        absl::flat_hash_set<Channel*> channels_a,
+        GetControlledProvenMutuallyExclusiveChannels(node_a, p, f));
     for (const auto& [node_b, index_b] : predicate_nodes) {
       // This prevents checking `a NAND b` and then later checking `b NAND a`.
       if (index_a >= index_b) {
@@ -1006,11 +1040,12 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
       // Check whether `a` and `b` must be proven mutually exclusive in order
       // for channel operations to be legal; if so, we remove the rlimit on the
       // prover.
-      XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Channel*> channels_b,
-                           GetControlledChannels(node_b, p, f));
       XLS_ASSIGN_OR_RETURN(
-          bool required_for_compilation,
-          ShareProvenMutuallyExclusiveChannel(channels_a, channels_b, p, f));
+          absl::flat_hash_set<Channel*> channels_b,
+          GetControlledProvenMutuallyExclusiveChannels(node_b, p, f));
+      bool required_for_compilation = absl::c_any_of(
+          channels_a,
+          [&](Channel* channel) { return channels_b.contains(channel); });
       translator->SetRlimit(required_for_compilation ? 0 : z3_rlimit);
       if (required_for_compilation) {
         XLS_LOG(INFO) << "Removing Z3's rlimit for mutual exclusion between "

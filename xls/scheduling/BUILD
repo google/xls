@@ -463,6 +463,7 @@ cc_library(
     deps = [
         ":scheduling_options",
         ":scheduling_pass",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
