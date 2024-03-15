@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/topo_sort.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -53,7 +53,7 @@ TEST(NodeIteratorTest, ReordersViaDependencies) {
 
   // Literal should precede the negation in RPO although we added those nodes in
   // the opposite order.
-  NodeIterator rni = TopoSort(&f);
+  std::vector<Node*> rni = TopoSort(&f);
   auto it = rni.begin();
   EXPECT_EQ(*it, literal);
   ++it;
@@ -73,7 +73,7 @@ TEST(NodeIteratorTest, Diamond) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  NodeIterator rni = TopoSort(f);
+  std::vector<Node*> rni = TopoSort(f);
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "x");
   ++it;
@@ -107,7 +107,7 @@ TEST(NodeIteratorTest, PostOrderNotPreOrder) {
 
   XLS_ASSERT_OK(f.set_return_value(c));
 
-  NodeIterator rni = TopoSort(&f);
+  std::vector<Node*> rni = TopoSort(&f);
   auto it = rni.begin();
   EXPECT_EQ(*it, a);
   ++it;
@@ -141,7 +141,7 @@ TEST(NodeIteratorTest, TwoOfSameOperandLinks) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  NodeIterator rni = TopoSort(f);
+  std::vector<Node*> rni = TopoSort(f);
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "a");
   ++it;
@@ -163,7 +163,7 @@ TEST(NodeIteratorTest, UselessParamsUnrelatedReturn) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  NodeIterator rni = TopoSort(f);
+  std::vector<Node*> rni = TopoSort(f);
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "a");
   ++it;
@@ -196,7 +196,7 @@ TEST(NodeIteratorTest, ExtendedDiamond) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  NodeIterator rni = TopoSort(f);
+  std::vector<Node*> rni = TopoSort(f);
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "a");
   ++it;
@@ -226,8 +226,8 @@ TEST(NodeIteratorTest, ExtendedDiamondReverse) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
   // ReverseTopoSort should produce the same order but in reverse.
-  NodeIterator fwd_it = TopoSort(f);
-  NodeIterator rev_it = ReverseTopoSort(f);
+  std::vector<Node*> fwd_it = TopoSort(f);
+  std::vector<Node*> rev_it = ReverseTopoSort(f);
   std::vector<Node*> fwd(fwd_it.begin(), fwd_it.end());
   std::vector<Node*> rev(rev_it.begin(), rev_it.end());
   std::reverse(fwd.begin(), fwd.end());
@@ -266,7 +266,7 @@ TEST(NodeIteratorTest, RpoVsTopo) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, Parser::ParseFunction(program, &p));
 
-  NodeIterator rni = TopoSort(f);
+  std::vector<Node*> rni = TopoSort(f);
   auto it = rni.begin();
   EXPECT_EQ((*it)->GetName(), "a");
   ++it;

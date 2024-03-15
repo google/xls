@@ -39,9 +39,9 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
@@ -183,7 +183,7 @@ class ConditionSet {
 class ConditionMap {
  public:
   explicit ConditionMap(FunctionBase* f) {
-    std::vector<Node*> topo_sort = TopoSort(f).AsVector();
+    std::vector<Node*> topo_sort = TopoSort(f);
     for (int64_t i = 0; i < topo_sort.size(); ++i) {
       topo_index_[topo_sort[i]] = i;
       // Initially all node conditions are empty.

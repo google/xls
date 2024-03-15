@@ -26,7 +26,7 @@
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls {
 
@@ -42,7 +42,7 @@ std::tuple<absl::flat_hash_map<Node*, InlineBitmap>,
            absl::flat_hash_map<Node*, int64_t>>
 AnalyzeDependents(FunctionBase* f,
                   const absl::flat_hash_set<Node*>& interesting_nodes,
-                  Predecessors preds, const NodeIterator& node_iterator) {
+                  Predecessors preds, absl::Span<Node* const> topo_sort) {
   absl::flat_hash_map<Node*, int64_t> node_ids;
   node_ids.reserve(f->node_count());
   int64_t cnt = 0;
@@ -65,7 +65,7 @@ AnalyzeDependents(FunctionBase* f,
   int64_t bitmap_size = f->node_count();
   absl::flat_hash_map<Node*, InlineBitmap> results;
   results.reserve(f->node_count());
-  for (Node* n : node_iterator) {
+  for (Node* n : topo_sort) {
     InlineBitmap& bm = results.emplace(n, bitmap_size).first->second;
     bm.Set(node_ids[n]);
     for (Node* pred : preds(n)) {

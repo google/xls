@@ -12,23 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/topo_sort.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <deque>
-#include <memory>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "xls/common/logging/logging.h"
+#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 
 namespace xls {
 
-void NodeIterator::Initialize() {
+std::vector<Node*> ReverseTopoSort(FunctionBase* f) {
   // For topological traversal we only add nodes to the order when all of its
   // users have been scheduled.
   //
@@ -43,13 +46,13 @@ void NodeIterator::Initialize() {
   // to place into the ordering).
   //
   // NOTE: Initialize sorts reverse-topologically.  To sort topologically,
-  // reverse the this->ordered_
+  // reverse the result.
   absl::flat_hash_map<Node*, int64_t> pending_to_remaining_users;
-  pending_to_remaining_users.reserve(f_->node_count());
+  pending_to_remaining_users.reserve(f->node_count());
   std::deque<Node*> ready;
 
-  ordered_ = std::make_unique<std::vector<Node*>>();
-  ordered_->reserve(f_->node_count());
+  std::vector<Node*> ordered;
+  ordered.reserve(f->node_count());
 
   auto is_scheduled = [&](Node* n) {
     auto it = pending_to_remaining_users.find(n);
@@ -78,7 +81,7 @@ void NodeIterator::Initialize() {
   auto add_to_order = [&](Node* r) {
     XLS_VLOG(5) << "Adding node to order: " << r;
     DCHECK(all_users_scheduled(r)) << r << " users size: " << r->users().size();
-    ordered_->push_back(r);
+    ordered.push_back(r);
 
     // We want to be careful to only bump down our operands once, since we're a
     // single user, even though we may refer to them multiple times in our
@@ -104,7 +107,7 @@ void NodeIterator::Initialize() {
   };
 
   Node* return_value = nullptr;
-  for (Node* node : f_->nodes()) {
+  for (Node* node : f->nodes()) {
     if (node->users().empty()) {
       if (is_return_value(node)) {
         // Note: we special case the return value so it always comes at the
@@ -129,7 +132,7 @@ void NodeIterator::Initialize() {
     add_to_order(r);
   }
 
-  if (ordered_->size() < f_->node_count()) {
+  if (ordered.size() < f->node_count()) {
     // Not all nodes have been placed indicating a cycle in the graph. Run a
     // trivial DFS visitor which will emit an error message displaying the
     // cycle.
@@ -139,9 +142,17 @@ void NodeIterator::Initialize() {
       }
     };
     CycleChecker cycle_checker;
-    CHECK_OK(f_->Accept(&cycle_checker));
+    CHECK_OK(f->Accept(&cycle_checker));
     XLS_LOG(FATAL) << "Expected to find cycle in function base.";
   }
+
+  return ordered;
+}
+
+std::vector<Node*> TopoSort(FunctionBase* f) {
+  std::vector<Node*> ordered = ReverseTopoSort(f);
+  std::reverse(ordered.begin(), ordered.end());
+  return ordered;
 }
 
 }  // namespace xls

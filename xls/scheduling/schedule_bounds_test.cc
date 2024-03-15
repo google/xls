@@ -23,7 +23,6 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/node_iterator.h"
 
 namespace xls {
 namespace sched {

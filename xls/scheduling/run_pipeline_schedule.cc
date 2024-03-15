@@ -46,8 +46,8 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/scheduling/min_cut_scheduler.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/schedule_bounds.h"
@@ -172,7 +172,7 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 }
 absl::StatusOr<int64_t> ComputeCriticalPath(
     FunctionBase* f, const DelayEstimator& delay_estimator) {
-  return ComputeCriticalPath(TopoSort(f).AsVector(), delay_estimator);
+  return ComputeCriticalPath(TopoSort(f), delay_estimator);
 }
 
 // Returns the minimum clock period in picoseconds for which it is feasible to
@@ -533,7 +533,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
   } else {
     // Run an initial ASAP/ALAP scheduling pass, which we'll refine with the
     // chosen scheduler.
-    sched::ScheduleBounds bounds(f, TopoSort(f).AsVector(), clock_period_ps,
+    sched::ScheduleBounds bounds(f, TopoSort(f), clock_period_ps,
                                  input_delay_added);
     XLS_RETURN_IF_ERROR(TightenBounds(bounds, f, options.pipeline_stages()));
 

@@ -23,7 +23,7 @@
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls::verilog {
 namespace {

@@ -28,9 +28,9 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace xls::solvers::z3 {

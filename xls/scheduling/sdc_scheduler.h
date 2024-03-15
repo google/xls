@@ -30,7 +30,7 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -147,7 +147,7 @@ class SDCSchedulingModel {
                          slack = std::nullopt);
 
   FunctionBase* func_;
-  const NodeIterator topo_sort_;
+  const std::vector<Node*> topo_sort_;
 
   operations_research::math_opt::Model model_;
   const DelayMap& delay_map_;

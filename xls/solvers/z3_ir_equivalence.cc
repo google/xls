@@ -31,11 +31,11 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_translator.h"
 

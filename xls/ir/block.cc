@@ -46,10 +46,10 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 
 namespace xls {

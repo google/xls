@@ -42,9 +42,9 @@
 #include "xls/ir/interval_set_test_utils.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -1408,11 +1408,10 @@ TEST_F(RangeQueryEngineTest, EarlyBailout) {
   engine.SetIntervalSetTree(
       z.node(), BitsLTT(z.node(), {Interval(UBits(1, 10), UBits(5, 10))}));
 
-  auto sort = TopoSort(f);
+  std::vector<Node*> sort = TopoSort(f);
   // Get the topological sort list up to and including xy
   IntervalRangeGivens test_givens(
-      absl::MakeSpan(&*sort.AsVector().begin(),
-                     &*(absl::c_find(sort.AsVector(), xy.node()) + 1)));
+      absl::MakeSpan(&*sort.begin(), &*(absl::c_find(sort, xy.node()) + 1)));
   XLS_ASSERT_OK(engine.PopulateWithGivens(test_givens));
 
   // We should stop after calculating xy so xyz should not have any info

@@ -42,11 +42,11 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -75,7 +75,7 @@ absl::StatusOr<DelayMap> ComputeNodeDelays(
 // `distances_to_node` where `distances_to_node[y][x]` (if present) is the
 // critical-path distance from `x` to `y`.
 absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>>
-ComputeDistancesToNodes(FunctionBase* f, const NodeIterator& topo_sort,
+ComputeDistancesToNodes(FunctionBase* f, absl::Span<Node* const> topo_sort,
                         const DelayMap& delay_map) {
   absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>>
       distances_to_node;
@@ -143,7 +143,7 @@ ComputeDistancesToNodes(FunctionBase* f, const NodeIterator& topo_sort,
 // path *not* including the delay of `b` is *less than* `critical_path_period`.
 absl::flat_hash_map<Node*, std::vector<Node*>>
 ComputeCombinationalDelayConstraints(
-    FunctionBase* f, const NodeIterator& topo_sort, int64_t clock_period_ps,
+    FunctionBase* f, absl::Span<Node* const> topo_sort, int64_t clock_period_ps,
     const absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>>&
         distances_to_node,
     const DelayMap& delay_map) {

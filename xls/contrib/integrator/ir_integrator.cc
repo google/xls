@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "xls/ir/ir_parser.h"
-#include "xls/ir/node_iterator.h"
 
 namespace xls {
 

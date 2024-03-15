@@ -44,11 +44,11 @@
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/predicate_state.h"
@@ -620,7 +620,7 @@ class Analysis {
 
   absl::StatusOr<ReachedFixpoint> Execute(FunctionBase* f) {
     // Get the topological sort once so we don't recalculate it each time.
-    topo_sort_ = TopoSort(f).AsVector();
+    topo_sort_ = TopoSort(f);
     // Get the base case.
     absl::flat_hash_map<Node*, RangeData> empty;
     ContextGivens base_givens(

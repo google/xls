@@ -26,8 +26,8 @@
 #include "xls/common/strong_int.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/passes/predicate_state.h"
 
 namespace xls {

@@ -54,11 +54,11 @@
 #include "xls/ir/format_preference.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -391,7 +391,7 @@ class BlockGenerator {
       }
     } else {
       XLS_RETURN_IF_ERROR(DeclareRegisters(block_->GetRegisters()));
-      XLS_RETURN_IF_ERROR(EmitLogic(TopoSort(block_).AsVector()));
+      XLS_RETURN_IF_ERROR(EmitLogic(TopoSort(block_)));
       XLS_RETURN_IF_ERROR(AssignRegisters(block_->GetRegisters()));
     }
 

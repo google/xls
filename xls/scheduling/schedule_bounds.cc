@@ -25,7 +25,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls {
 namespace sched {

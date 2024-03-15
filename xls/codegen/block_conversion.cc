@@ -61,7 +61,6 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -69,6 +68,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -2862,7 +2862,7 @@ CloneNodesIntoPipelinedBlock(const PipelineSchedule& schedule,
 static absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
     Proc* proc, const CodegenOptions& options, Block* block) {
   CloneNodesIntoBlockHandler cloner(proc, /*stage_count=*/0, options, block);
-  XLS_RET_CHECK_OK(cloner.CloneNodes(TopoSort(proc).AsVector(), /*stage=*/0));
+  XLS_RET_CHECK_OK(cloner.CloneNodes(TopoSort(proc), /*stage=*/0));
   return cloner.GetResult();
 }
 

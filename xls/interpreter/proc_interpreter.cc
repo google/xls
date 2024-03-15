@@ -38,9 +38,9 @@
 #include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
@@ -248,7 +248,7 @@ class ProcIrInterpreter : public IrInterpreter {
 ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
     : ProcEvaluator(proc),
       queue_manager_(queue_manager),
-      execution_order_(TopoSort(proc).AsVector()) {}
+      execution_order_(TopoSort(proc)) {}
 
 std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation(
     ProcInstance* proc_instance) const {

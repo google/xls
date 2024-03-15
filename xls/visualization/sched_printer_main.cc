@@ -40,9 +40,9 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
@@ -212,7 +212,7 @@ std::string GenerateDigraphContents(
     const absl::flat_hash_set<Node*>& nodes_on_cp) {
   absl::flat_hash_map<Node*, int64_t> topo_index;
   {
-    std::vector<Node*> topo_sort = TopoSort(sched.function_base()).AsVector();
+    std::vector<Node*> topo_sort = TopoSort(sched.function_base());
     for (int64_t i = 0; i < topo_sort.size(); ++i) {
       topo_index[topo_sort[i]] = i;
     }

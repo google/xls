@@ -35,7 +35,6 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"

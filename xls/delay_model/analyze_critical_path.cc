@@ -25,8 +25,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls {
 

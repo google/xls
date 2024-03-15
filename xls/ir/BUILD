@@ -465,11 +465,11 @@ cc_library(
         "function_base.cc",
         "instantiation.cc",
         "node.cc",
-        "node_iterator.cc",
         "nodes.cc",
         "package.cc",
         "proc.cc",
         "proc_instantiation.cc",
+        "topo_sort.cc",
         "verifier.cc",
     ],
     hdrs = [
@@ -481,11 +481,11 @@ cc_library(
         "instantiation.h",
         "lsb_or_msb.h",
         "node.h",
-        "node_iterator.h",
         "nodes.h",
         "package.h",
         "proc.h",
         "proc_instantiation.h",
+        "topo_sort.h",
         "verifier.h",
     ],
     deps = [
@@ -537,8 +537,8 @@ cc_library(
 )
 
 cc_test(
-    name = "node_iterator_test",
-    srcs = ["node_iterator_test.cc"],
+    name = "topo_sort_test",
+    srcs = ["topo_sort_test.cc"],
     deps = [
         ":benchmark_support",
         ":bits",

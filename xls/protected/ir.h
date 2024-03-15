@@ -22,7 +22,9 @@
 //
 // These details are all subject to change.
 
+// IWYU pragma: begin_exports
 #include "xls/ir/function.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/topo_sort.h"
+// IWYU pragma: end_exports
 
 #endif  // XLS_PROTECTED_IR_H_

@@ -30,9 +30,10 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/function.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls {
 namespace {
@@ -95,8 +96,7 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
   auto analysis = std::make_unique<PostDominatorAnalysis>();
 
   // A reverse topological sort of the function nodes.
-  NodeIterator r = ReverseTopoSort(f);
-  std::vector<Node*> reverse_toposort(r.begin(), r.end());
+  std::vector<Node*> reverse_toposort = ReverseTopoSort(f);
 
   // Construct the postdominators for each node. Postdominators are gathered as
   // a sorted vector containing the node indices (in a reverse toposort) of the

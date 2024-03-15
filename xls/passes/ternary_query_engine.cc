@@ -28,9 +28,9 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_evaluator.h"
 

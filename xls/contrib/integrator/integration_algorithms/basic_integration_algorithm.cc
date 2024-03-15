@@ -18,7 +18,7 @@
 #include <optional>
 #include <utility>
 
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls {
 
