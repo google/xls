@@ -15,6 +15,13 @@ in a user-defined function, and thus do not live in the standard library.
 This section describes the built-in functions provided for use in the DSL that
 do not need to be explicitly imported.
 
+Some of the built-ins have exlamation marks at the end; e.g. `assert!` --
+exclamation marks in DSLX indicate built-in functions that have special
+facilities that normal functions are not capable of. This is intended to help
+the user discern when they're calling "something that will behave like a normal
+function" versus "something that has special abilities beyond normal functions,
+e.g. special side-effects".
+
 NOTE: A brief note on "Parallel Primitives": the DSL is expected to grow
 additional support for use of high-level parallel primitives over time, adding
 operators for order-insensitive reductions, scans, groupings, and similar. By
@@ -474,30 +481,53 @@ Note: `trace!` currently exists as a builtin but is in the process of being
 removed, as it provided the user with only a "global flag" way of specifying the
 desired format for output values -- `trace_fmt!` is more powerful.
 
-### `fail!`: assertion failure
+### `fail!` / `assert!`: assertion failure
 
-The `fail!` builtin indicates dataflow that should not be occurring in practice.
+The `fail!` builtin indicates a path that should not be reachable in practice.
 Its general signature is:
 
 ```
-fail!(label, fallback_value)
+fail!(label: u8[N], fallback_value: T) -> T
 ```
 
-The `fail!` builtin can be thought of as a "fatal assertion macro". It is used
-to **annotate dataflow that should not occur in practice** and, if triggered,
-should raise a fatal error in simulation (e.g. via a JIT-execution failure
-status or a Verilog assertion when running in RTL simulation).
+The `assert!` builtin is similar to fail, but takes a predicate, and does not
+produce a value:
 
-Note, however, that XLS will permit users to avoid inserting
-fatal-error-signaling hardware that correspond to this `fail!` -- assuming it
-will not be triggered in practice minimizes its cost in synthesized form. In
-this situation, **when it is "erased", it acts as the identity function**,
-propagating the `fallback_value`. This allows XLS to keep well defined semantics
+```
+assert!(predicate: bool, label: u8[N]) -> ()
+```
+
+These can be thought of as "fatal assertions", and convert to
+Verilog/SytemVerilog assertions in generated code.
+
+Note: XLS hopes to permit users to optionally insert fatal-error-signaling
+hardware that correspond to these operations. See
+https://github.com/google/xls/issues/1352
+
+`fail!` indicates a **control path that should not be reachable**, `assert!`
+gives a **predicate that should always be true** when the statement is reached.
+
+If triggered, these raise a fatal error in simulation (e.g. via a JIT-execution
+failure status or a Verilog assertion when running in RTL simulation).
+
+Assuming `fail!` will not be triggered minimizes its cost in synthesized form.
+In this situation, **when it is "erased", it acts as the identity function**,
+providing the `fallback_value`. This allows XLS to keep well defined semantics
 even when fatal assertion hardware is not present.
 
-**Example:** if only these two enum values shown should be possible (say, as a
-documented [precondition](https://en.wikipedia.org/wiki/Precondition) for
-`main`):
+**Example `assert!`:** if there is a function that should never be invoked with
+the value `42` as a precondition:
+
+```dslx
+fn main(x: u32) -> u32 {
+  assert!(x != u32:42, "x_never_forty_two");
+  x - u32:42
+}
+```
+
+**Example `fail!`:** if only these two enum values shown should be possible
+(say, as a documented [precondition](https://en.wikipedia.org/wiki/Precondition)
+for `main`):
 
 ```dslx
 enum EnumType: u2 {
@@ -509,6 +539,9 @@ fn main(x: EnumType) -> u32 {
   match x {
     EnumType::FIRST => u32:0,
     EnumType::SECOND => u32:1,
+    // This should not be reachable.
+    // But, if we synthesize hardware, under this condition the function is
+    // well-defined to give back zero.
     _ => fail!("unknown_EnumType", u32:0),
   }
 }
@@ -520,9 +553,9 @@ an error status or assertion failure respectively), but b) provides a fallback
 value to use (of the appropriate type) in case it were to happen in synthesized
 gates which did not insert fatal-error-indicating hardware.
 
-The associated label (the first argument) must be a valid Verilog identifier and
-is used for identifying the failure when lowered to SystemVerilog. At higher
-levels in the stack, it's unused.
+The associated label (e.g. the first argument to `fail!`) must be a valid
+Verilog identifier and is used for identifying the failure when lowered to
+SystemVerilog. At higher levels in the stack, it's unused.
 
 ### `cover!`
 
