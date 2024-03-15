@@ -93,7 +93,6 @@ xls_ir_verilog(
     src = ":rle_enc_opt_ir.opt.ir",
     codegen_args = {
         "module_name": "rle_enc",
-        "delay_model": "unit",
         "pipeline_stages": "2",
         "reset": "rst",
         "use_system_verilog": "false",
@@ -164,7 +163,6 @@ xls_benchmark_ir(
     src = ":rle_enc_opt_ir.opt.ir",
     benchmark_ir_args = {
         "pipeline_stages": "2",
-        "delay_model": "unit",
     },
 )
 
