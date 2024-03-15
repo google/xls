@@ -325,12 +325,12 @@ class StrongInt {
 
   // Unary operators.
   bool operator!() const { return value_ == 0; }
-  const StrongInt operator+() const { return StrongInt(value_); }
-  const StrongInt operator-() const {
+  StrongInt operator+() const { return StrongInt(value_); }
+  StrongInt operator-() const {
     ValidatorType::template ValidateNegate<ValueType>(value_);
     return StrongInt(-value_);
   }
-  const StrongInt operator~() const {
+  StrongInt operator~() const {
     ValidatorType::template ValidateBitNot<ValueType>(value_);
     return StrongInt(ValueType(~value_));
   }
@@ -341,7 +341,7 @@ class StrongInt {
     ++value_;
     return *this;
   }
-  const StrongInt operator++(int postfix_flag) {  // x++
+  StrongInt operator++(int postfix_flag) {  // x++
     ValidatorType::template ValidateAdd<ValueType>(value_, ValueType(1));
     StrongInt temp(*this);
     ++value_;
@@ -352,7 +352,7 @@ class StrongInt {
     --value_;
     return *this;
   }
-  const StrongInt operator--(int postfix_flag) {  // x--
+  StrongInt operator--(int postfix_flag) {  // x--
     ValidatorType::template ValidateSubtract<ValueType>(value_, ValueType(1));
     StrongInt temp(*this);
     --value_;

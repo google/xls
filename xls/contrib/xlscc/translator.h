@@ -83,7 +83,7 @@ class CType {
       Translator& translator, xlscc_metadata::Type* output,
       absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const;
   virtual absl::Status GetMetadataValue(Translator& translator,
-                                        const ConstValue const_value,
+                                        ConstValue const_value,
                                         xlscc_metadata::Value* output) const;
 
   template <typename Derived>
@@ -111,7 +111,7 @@ class CVoidType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
 
   bool operator==(const CType& o) const override;
@@ -129,7 +129,7 @@ class CBitsType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
 
   bool operator==(const CType& o) const override;
@@ -151,7 +151,7 @@ class CIntType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
 
   bool operator==(const CType& o) const override;
@@ -213,7 +213,7 @@ class CEnumType : public CIntType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
 
   bool operator==(const CType& o) const override;
@@ -241,7 +241,7 @@ class CBoolType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
   bool StoredAsXLSBits() const override;
@@ -258,7 +258,7 @@ class CField {
   absl::Status GetMetadata(
       Translator& translator, xlscc_metadata::StructField* output,
       absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const;
-  absl::Status GetMetadataValue(Translator* t, const ConstValue const_value,
+  absl::Status GetMetadataValue(Translator* t, ConstValue const_value,
                                 xlscc_metadata::StructFieldValue* output) const;
 
  private:
@@ -279,7 +279,7 @@ class CStructType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
   absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
@@ -314,7 +314,7 @@ class CInternalTuple : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
 
@@ -349,7 +349,7 @@ class CInstantiableTypeAlias : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   explicit operator std::string() const override;
   int GetBitWidth() const override;
@@ -370,7 +370,7 @@ class CArrayType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
@@ -393,7 +393,7 @@ class CPointerType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
@@ -414,7 +414,7 @@ class CReferenceType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
@@ -442,7 +442,7 @@ class CChannelType : public CType {
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
-                                const ConstValue const_value,
+                                ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
 
   std::shared_ptr<CType> GetItemType() const;
@@ -1749,7 +1749,7 @@ class Translator {
   //  to replace it in IR generation.
   absl::StatusOr<IOOpReturn> InterceptIOOp(
       const clang::Expr* expr, const xls::SourceInfo& loc,
-      const CValue assignment_value = CValue());
+      CValue assignment_value = CValue());
 
   // IOOp must have io_call, and op members filled in
   // This will add a parameter for IO input if needed,
@@ -1970,7 +1970,7 @@ class Translator {
       const clang::CXXConstructorDecl* constructor);
 
   absl::Status GenerateThisLValues(const clang::RecordDecl* this_struct_decl,
-                                   const std::shared_ptr<CType> thisctype,
+                                   std::shared_ptr<CType> thisctype,
                                    bool member_references_become_channels,
                                    const xls::SourceInfo& loc);
 

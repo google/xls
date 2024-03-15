@@ -442,8 +442,8 @@ class AbstractModule {
     return absl::OkStatus();
   }
 
-  const AbstractNetRef<EvalT> zero() const { return zero_; }
-  const AbstractNetRef<EvalT> one() const { return one_; }
+  AbstractNetRef<EvalT> zero() const { return zero_; }
+  AbstractNetRef<EvalT> one() const { return one_; }
 
  private:
   struct Wire {
@@ -502,7 +502,7 @@ class AbstractNetlist {
   // time.
   std::optional<const AbstractModule<EvalT>*> MaybeGetModule(
       const std::string& module_name) const;
-  const absl::Span<const std::unique_ptr<AbstractModule<EvalT>>> modules() {
+  absl::Span<const std::unique_ptr<AbstractModule<EvalT>>> modules() {
     return modules_;
   }
   absl::StatusOr<const AbstractCellLibraryEntry<EvalT>*>

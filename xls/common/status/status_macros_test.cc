@@ -454,7 +454,7 @@ class ReturnLoop {
     return LoopAgain(ops);
   }
 
-  const ReturnType return_value() { return value_; }
+  ReturnType return_value() { return value_; }
 
  private:
   virtual ReturnType LoopAgain(size_t* ops) = 0;

@@ -316,7 +316,7 @@ class ModuleBuilder {
 
   // Get a BddQueryEngine for a given node, constructing it if it hasn't already
   // been constructed for another node with the same FunctionBase.
-  absl::StatusOr<BddQueryEngine* const> GetBddForNode(Node* const node);
+  absl::StatusOr<BddQueryEngine* const> GetBddForNode(Node* node);
 
   std::string module_name_;
   VerilogFile* file_;

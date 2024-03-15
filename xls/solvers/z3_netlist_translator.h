@@ -88,7 +88,7 @@ class NetlistTranslator {
   absl::Status Translate();
   absl::Status TranslateCell(const netlist::rtl::Cell& cell);
   absl::StatusOr<Z3_ast> TranslateFunction(
-      const netlist::rtl::Cell& cell, const netlist::function::Ast ast,
+      const netlist::rtl::Cell& cell, netlist::function::Ast ast,
       const absl::flat_hash_map<std::string, Z3_ast>& state_table_values);
   absl::StatusOr<absl::flat_hash_map<std::string, Z3_ast>> TranslateStateTable(
       const netlist::rtl::Cell& cell);
