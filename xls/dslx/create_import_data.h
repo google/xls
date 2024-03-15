@@ -20,7 +20,6 @@
 
 #include <filesystem>  // NOLINT
 #include <memory>
-#include <string>
 
 #include "absl/types/span.h"
 #include "xls/dslx/import_data.h"

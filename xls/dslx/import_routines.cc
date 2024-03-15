@@ -160,7 +160,7 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
                        import_data->additional_search_paths(), import_span));
 
   XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(import_span, found_path));
-  auto clenaup = absl::MakeCleanup(
+  absl::Cleanup cleanup = absl::MakeCleanup(
       [&] { CHECK_OK(import_data->PopFromImporterStack(import_span)); });
 
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(found_path));
