@@ -54,7 +54,6 @@ namespace xls::dslx {
   X("rev", kRev)                          \
   X("zip", kZip)                          \
   X("widening_cast", kWideningCast)       \
-  X("select", kSelect)                    \
   X("signex", kSignex)                    \
   X("smulp", kSMulp)                      \
   X("slice", kSlice)                      \

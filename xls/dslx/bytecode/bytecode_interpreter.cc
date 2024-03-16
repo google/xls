@@ -44,6 +44,7 @@
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
+#include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -1438,7 +1439,6 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kDecode:
     case Builtin::kCheckedCast:
     case Builtin::kWideningCast:
-    case Builtin::kSelect:
       return absl::UnimplementedError(absl::StrFormat(
           "BytecodeInterpreter: builtin function \"%s\" not yet implemented.",
           BuiltinToString(builtin)));
