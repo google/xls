@@ -38,14 +38,32 @@ def load_external_repositories():
     repo_llvm()
     repo_rules_hdl()
 
+    # Release 2024-01-22, current as of 2024-03-14
+    # zlib is added automatically by gRPC, but the zlib BUILD file used by gRPC
+    # does not include all the source code (e.g., gzread is missing) which
+    # breaks other users of zlib like iverilog. So add zlib explicitly here with
+    # a working BUILD file.
+    # Needs to be early in this file to make sure this is the version
+    # picked -- Version 1.3.x fixes function prototype warnings in c++20.
     http_archive(
-        name = "rules_cc",
-        urls = ["https://github.com/bazelbuild/rules_cc/releases/download/0.0.5/rules_cc-0.0.5.tar.gz"],
-        sha256 = "2004c71f3e0a88080b2bd3b6d3b73b4c597116db9c9a36676d0ffad39b849214",
-        strip_prefix = "rules_cc-0.0.5",
+        name = "zlib",
+        sha256 = "50b24b47bf19e1f35d2a21ff36d2a366638cdf958219a66f30ce0861201760e6",
+        strip_prefix = "zlib-1.3.1",
+        urls = [
+            "https://github.com/madler/zlib/archive/v1.3.1.zip",
+        ],
+        build_file = "@com_google_xls//dependency_support/zlib:bundled.BUILD.bazel",
     )
 
-    # V 1.14.0 (released 2023-08-02)
+    # Released 2023-09-20, current as of 2024-03-14
+    http_archive(
+        name = "rules_cc",
+        urls = ["https://github.com/bazelbuild/rules_cc/releases/download/0.0.9/rules_cc-0.0.9.tar.gz"],
+        sha256 = "2037875b9a4456dce4a79d112a8ae885bbc4aad968e6587dca6e64f3a0900cdf",
+        strip_prefix = "rules_cc-0.0.9",
+    )
+
+    # V 1.14.0 (released 2023-08-02, current as of 2024-03-14)
     http_archive(
         name = "com_google_googletest",
         urls = ["https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip"],
@@ -53,7 +71,7 @@ def load_external_repositories():
         sha256 = "1f357c27ca988c3f7c6b4bf68a9395005ac6761f034046e9dde0896e3aba00e4",
     )
 
-    # LTS 20240116.1 (released 2024-02-12)
+    # LTS 20240116.1 (released 2024-02-12, current as of 2024-03-14)
     http_archive(
         name = "com_google_absl",
         urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.1.tar.gz"],
@@ -61,25 +79,25 @@ def load_external_repositories():
         sha256 = "3c743204df78366ad2eaf236d6631d83f6bc928d1705dd0000b872e53b73dc6a",
     )
 
+    # Released 2023-11-06, current as of 2024-03-14
     # Protobuf depends on Skylib
     # Load bazel skylib as per
     # https://github.com/bazelbuild/bazel-skylib/releases
     http_archive(
         name = "bazel_skylib",
         urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.3.0/bazel-skylib-1.3.0.tar.gz",
-            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.3.0/bazel-skylib-1.3.0.tar.gz",
+            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.5.0/bazel-skylib-1.5.0.tar.gz",
         ],
-        sha256 = "74d544d96f4a5bb630d465ca8bbcfe231e3594e5aae57e1edbf17a6eb3ca2506",
+        sha256 = "cd55a062e763b9349921f0f5db8c3933288dc8ba4f76dd9416aac68acee3cb94",
     )
 
     http_archive(
         name = "boringssl",
-        # Commit date: 2023-09-25
+        # Commit date: 2024-03-13
         # Note for updating: we need to use a commit from the main-with-bazel branch.
-        strip_prefix = "boringssl-50132857d4724991db6de99dc272acd223ed52df",
-        sha256 = "73370e90e50b61f6485b0fd0034f4e4297764f03faceb3e9d97b6e2e27b915c0",
-        urls = ["https://github.com/google/boringssl/archive/50132857d4724991db6de99dc272acd223ed52df.zip"],
+        strip_prefix = "boringssl-b84aa830c43eeac47374b2a179063250a39496ef",
+        sha256 = "c1b8d25b76d31877066650554c18049fe647f8f996fe3ed2fa61aea171bc34d1",
+        urls = ["https://github.com/google/boringssl/archive/b84aa830c43eeac47374b2a179063250a39496ef.tar.gz"],
     )
 
     # Commit on 2023-02-09
@@ -113,17 +131,22 @@ def load_external_repositories():
         sha256 = "0fb3a4916a157eb48124ef309231cecdfdd96ff54adf1660b39c0d4a9790a2c0",
     )
 
+    # Released on 2024-03-01, current as of 2024-03-14
     http_archive(
         name = "com_googlesource_code_re2",
-        sha256 = "8b4a8175da7205df2ad02e405a950a02eaa3e3e0840947cd598e92dca453199b",
-        strip_prefix = "re2-2023-06-01",
+        strip_prefix = "re2-2024-03-01",
+        sha256 = "7b2b3aa8241eac25f674e5b5b2e23d4ac4f0a8891418a2661869f736f03f57f4",
         urls = [
-            "https://github.com/google/re2/archive/refs/tags/2023-06-01.tar.gz",
-            "https://storage.googleapis.com/mirror.tensorflow.org/github.com/google/re2/archive/refs/tags/2023-06-01.tar.gz",
+            "https://github.com/google/re2/archive/refs/tags/2024-03-01.tar.gz",
         ],
+        repo_mapping = {
+            "@abseil-cpp": "@com_google_absl",
+        },
     )
 
-    # Released on 2022-12-27, current as of 2023-09-27
+    # Released on 2022-12-27.
+    # Current as of 2024-03-14 would be 6.0.0rc2, but that does not work yet
+    # with rules_hdl (it assumes rules_proto_toolchains is in repositories.bzl)
     # https://github.com/bazelbuild/rules_proto/releases/tag/5.3.0-21.7
     http_archive(
         name = "rules_proto",
@@ -154,34 +177,22 @@ def load_external_repositories():
         patches = ["@com_google_xls//dependency_support/z3:6723.patch"],
     )
 
+    # Release 2024-02-23, current as of 2023-03-14
     http_archive(
         name = "io_bazel_rules_closure",
-        sha256 = "7d206c2383811f378a5ef03f4aacbcf5f47fd8650f6abbc3fa89f3a27dd8b176",
-        strip_prefix = "rules_closure-0.10.0",
+        sha256 = "70ef2b4da987bf0d266e663d7c251eac509ff70dd65bba02d41d1e86e840a569",
+        strip_prefix = "rules_closure-0.13.0",
         urls = [
-            "https://github.com/bazelbuild/rules_closure/archive/0.10.0.tar.gz",
+            "https://github.com/bazelbuild/rules_closure/archive/0.13.0.tar.gz",
         ],
     )
 
-    # zlib is added automatically by gRPC, but the zlib BUILD file used by gRPC
-    # does not include all the source code (e.g., gzread is missing) which
-    # breaks other users of zlib like iverilog. So add zlib explicitly here with
-    # a working BUILD file.
-    http_archive(
-        name = "zlib",
-        sha256 = "f5cc4ab910db99b2bdbba39ebbdc225ffc2aa04b4057bc2817f1b94b6978cfc3",
-        strip_prefix = "zlib-1.2.11",
-        urls = [
-            "https://github.com/madler/zlib/archive/v1.2.11.zip",
-        ],
-        build_file = "@com_google_xls//dependency_support/zlib:bundled.BUILD.bazel",
-    )
-
+    # Commit from 2024-02-22
     http_archive(
         name = "linenoise",
-        sha256 = "e7dbebca81b518544bea6622d5cc1a2e6347d080793cb0ba134edc66c3822fd5",
-        strip_prefix = "linenoise-97d2850af13c339369093b78abe5265845d78220",
-        urls = ["https://github.com/antirez/linenoise/archive/97d2850af13c339369093b78abe5265845d78220.zip"],
+        sha256 = "839ed407fe0dfa5fd7dd103abfc695dee72fea2840df8d4250ad42b0e64839e8",
+        strip_prefix = "linenoise-d895173d679be70bcd8b23041fff3e458e1a3506",
+        urls = ["https://github.com/antirez/linenoise/archive/d895173d679be70bcd8b23041fff3e458e1a3506.tar.gz"],
         build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
@@ -207,13 +218,14 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
     )
 
+    # Released 2023-10-18, current as of 2024-03-14
     http_archive(
         name = "platforms",
         urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
-            "https://github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.8/platforms-0.0.8.tar.gz",
+            "https://github.com/bazelbuild/platforms/releases/download/0.0.8/platforms-0.0.8.tar.gz",
         ],
-        sha256 = "379113459b0feaf6bfbb584a91874c065078aa673222846ac765f86661c27407",
+        sha256 = "8150406605389ececb6da07cbcb509d5637a3ab9a24bc69b1101531367d89d74",
     )
 
     # Released 2024-02-22, current as of 2024-02-22.
@@ -233,29 +245,30 @@ def load_external_repositories():
         ],
     )
 
+    # Released 2023-08-31, current as of 2024-03-14.
     http_archive(
         name = "com_google_benchmark",
-        urls = ["https://github.com/google/benchmark/archive/refs/tags/v1.7.0.zip"],
-        sha256 = "e0e6a0f2a5e8971198e5d382507bfe8e4be504797d75bb7aec44b5ea368fa100",
-        strip_prefix = "benchmark-1.7.0",
+        urls = ["https://github.com/google/benchmark/archive/refs/tags/v1.8.3.tar.gz"],
+        sha256 = "6bc180a57d23d4d9515519f92b0c83d61b05b5bab188961f36ac7b06b0d9e9ce",
+        strip_prefix = "benchmark-1.8.3",
     )
 
-    # Updated 2024-02-22; latest version compatible with our current Abseil dependency.
-    FUZZTEST_COMMIT = "3c5fc5246bf9db709249eb15b43c75157d3ee568"
+    # Updated to head on 2024-03-14
+    FUZZTEST_COMMIT = "393ae75c0fca5f9892e73969da5d6bce453ad318"
     http_archive(
         name = "com_google_fuzztest",
         strip_prefix = "fuzztest-" + FUZZTEST_COMMIT,
         url = "https://github.com/google/fuzztest/archive/" + FUZZTEST_COMMIT + ".zip",
-        sha256 = "af47d1489234249e5490b068635f5aaf141e45a08e0a8a61195157db02e9b21f",
+        sha256 = "a0558ceb617d78ee93d7e6b62930b4aeebc02f1e5817d4d0dae53699f6f6c352",
     )
 
-    # Updated 2023-2-1
+    # Released 2024-01-24, current as of 2024-03-14
     http_archive(
         name = "rules_license",
         urls = [
-            "https://github.com/bazelbuild/rules_license/releases/download/0.0.4/rules_license-0.0.4.tar.gz",
+            "https://github.com/bazelbuild/rules_license/releases/download/0.0.8/rules_license-0.0.8.tar.gz",
         ],
-        sha256 = "6157e1e68378532d0241ecd15d3c45f6e5cfd98fc10846045509fb2a7cc9e381",
+        sha256 = "241b06f3097fd186ff468832150d6cc142247dc42a32aaefb56d0099895fd229",
     )
 
     # 2022-09-19
