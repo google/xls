@@ -1,6 +1,6 @@
 name: Enhancement Proposal
 description: Submit an enhancement proposal
-title: "[Enhancement]: "
+title: "[enhancement] "
 labels: ["enhancement"]
 body:
   - type: markdown
