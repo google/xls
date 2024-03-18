@@ -292,7 +292,9 @@ std::string Sample::Serialize(
       }
     }
   }
-  for (std::string_view line : absl::StrSplit(config.DebugString(), '\n')) {
+  std::string config_text;
+  CHECK(google::protobuf::TextFormat::PrintToString(config, &config_text));
+  for (std::string_view line : absl::StrSplit(config_text, '\n')) {
     lines.push_back(absl::StrFormat("// %s", line));
   }
   lines.push_back(absl::StrFormat("// %s", kEndConfig));

@@ -22,6 +22,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
@@ -70,9 +71,12 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
 
   SampleOptions ir_minimize_options = smp.options();
   ir_minimize_options.set_input_is_dslx(false);
+  std::string ir_minimize_options_str;
+  google::protobuf::TextFormat::PrintToString(ir_minimize_options.proto(),
+                                    &ir_minimize_options_str);
   XLS_RETURN_IF_ERROR(
       SetFileContents(run_dir / "ir_minimizer.options.pbtxt",
-                      ir_minimize_options.proto().DebugString()));
+                      ir_minimize_options_str));
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path sample_runner_main_path,
                        GetSampleRunnerMainPath());

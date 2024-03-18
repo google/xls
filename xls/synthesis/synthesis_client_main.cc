@@ -21,6 +21,7 @@
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -74,7 +75,10 @@ int main(int argc, char** argv) {
 
   // Examine the response
   if (compile_response_status.ok()) {
-    std::cout << compile_response_status.value().DebugString() << '\n';
+    std::string compile_response_text;
+    google::protobuf::TextFormat::PrintToString(compile_response_status.value(),
+                                      &compile_response_text);
+    std::cout << compile_response_text << '\n';
   }
   return xls::ExitStatus(compile_response_status.status());
 }

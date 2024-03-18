@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "google/protobuf/text_format.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
@@ -197,7 +198,11 @@ class ModuleSignature {
   const ModuleSignatureProto& proto() const { return proto_; }
 
   // Return the signature as the proto in text form.
-  std::string AsTextProto() const { return proto_.DebugString(); }
+  std::string AsTextProto() const {
+    std::string text_proto;
+    google::protobuf::TextFormat::PrintToString(proto_, &text_proto);
+    return text_proto;
+  }
 
   // Returns the data inputs/outputs of module. This does not include clock,
   // reset, etc. These ports necessarily exist in the proto as well but are
