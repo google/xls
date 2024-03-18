@@ -49,6 +49,9 @@ namespace {
 // given array type.
 bool IndexIsDefinitelyOutOfBounds(Node* index, ArrayType* array_type,
                                   const QueryEngine& query_engine) {
+  if (!query_engine.IsTracked(index)) {
+    return false;
+  }
   return bits_ops::UGreaterThanOrEqual(query_engine.MinUnsignedValue(index),
                                        array_type->size());
 }
@@ -57,6 +60,9 @@ bool IndexIsDefinitelyOutOfBounds(Node* index, ArrayType* array_type,
 // type.
 bool IndexIsDefinitelyInBounds(Node* index, ArrayType* array_type,
                                const QueryEngine& query_engine) {
+  if (!query_engine.IsTracked(index)) {
+    return false;
+  }
   return bits_ops::ULessThan(query_engine.MaxUnsignedValue(index),
                              array_type->size());
 }
@@ -86,7 +92,8 @@ bool IndicesAreDefinitelyEqual(absl::Span<Node* const> a,
     return false;
   }
   for (int64_t i = 0; i < a.size(); ++i) {
-    if (!query_engine.NodesKnownUnsignedEquals(a[i], b[i])) {
+    if (!query_engine.IsTracked(a[i]) || !query_engine.IsTracked(b[i]) ||
+        !query_engine.NodesKnownUnsignedEquals(a[i], b[i])) {
       return false;
     }
   }
@@ -99,7 +106,8 @@ bool IndicesDefinitelyNotEqual(absl::Span<Node* const> a,
                                absl::Span<Node* const> b,
                                const QueryEngine& query_engine) {
   for (int64_t i = 0; i < std::min(a.size(), b.size()); ++i) {
-    if (query_engine.NodesKnownUnsignedNotEquals(a[i], b[i])) {
+    if (!query_engine.IsTracked(a[i]) || !query_engine.IsTracked(b[i]) ||
+        query_engine.NodesKnownUnsignedNotEquals(a[i], b[i])) {
       return true;
     }
   }
