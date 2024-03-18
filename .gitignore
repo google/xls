@@ -1,3 +1,7 @@
 bazel-*
 .*.sw[a-z]
 __pycache__
+*~
+compile_commands.json
+xls_clang-tidy.out
+user.bazelrc

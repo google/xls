@@ -42,3 +42,6 @@ build:asan --linkopt -fsanitize=address
 #  bazel run @com_google_fuzztest//bazel:setup_configs > fuzztest.bazelrc
 #
 try-import %workspace%/fuzztest.bazelrc
+
+# https://bazel.build/configure/best-practices#bazelrc-file
+try-import %workspace%/user.bazelrc
