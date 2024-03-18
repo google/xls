@@ -151,7 +151,8 @@ bool Translator::IOChannelInCurrentFunction(IOChannel* to_find,
 
 Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
                        bool generate_fsms_for_pipelined_loops,
-      DebugIrTraceFlags debug_ir_trace_flags,
+                       bool merge_states, bool split_states_on_channel_ops,
+                       DebugIrTraceFlags debug_ir_trace_flags,
                        int64_t max_unroll_iters, int64_t warn_unroll_iters,
                        int64_t z3_rlimit, IOOpOrdering op_ordering,
                        std::unique_ptr<CCParser> existing_parser)
@@ -161,6 +162,8 @@ Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
       error_on_init_interval_(error_on_init_interval),
       error_on_uninitialized_(error_on_uninitialized),
       generate_fsms_for_pipelined_loops_(generate_fsms_for_pipelined_loops),
+      merge_states_(merge_states),
+      split_states_on_channel_ops_(split_states_on_channel_ops),
       debug_ir_trace_flags_(debug_ir_trace_flags),
       op_ordering_(op_ordering) {
   context_stack_.push_front(TranslationContext());
@@ -5194,6 +5197,12 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
   if (node->Is<xls::Param>()) {
     const xls::Param* param = node->As<xls::Param>();
     return param->GetName();
+  }
+  if (node->Is<xls::TupleIndex>()) {
+    const xls::TupleIndex* ti = node->As<xls::TupleIndex>();
+    xls::Node* tup = ti->operand(xls::TupleIndex::kArgOperand);
+    return absl::StrFormat("%s(%i)", Debug_NodeToInfix(tup, n_printed),
+                           ti->index());
   }
   if (node->Is<xls::UnOp>()) {
     const xls::UnOp* op = node->As<xls::UnOp>();

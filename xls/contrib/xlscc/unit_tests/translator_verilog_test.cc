@@ -104,6 +104,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
       /*error_on_init_interval=*/false,
       /*error_on_uninitialized=*/false,
       /*generate_fsms_for_pipelined_loops=*/false,
+      /*merge_states=*/false, /*split_states_on_channel_ops=*/false,
       /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_None,
       /*warn_unroll_iters=*/100,
       /*max_unroll_iters=*/100,
@@ -239,16 +240,17 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   XLS_ASSERT_OK(
       XlsccTestBase::ScanTempFileWithContent(content, {}, parser.get()));
 
-  std::unique_ptr<xlscc::Translator> translator(
-      new xlscc::Translator(/*error_on_init_interval=*/false,
+  std::unique_ptr<xlscc::Translator> translator(new xlscc::Translator(
+      /*error_on_init_interval=*/false,
       /*error_on_uninitialized=*/false,
       /*generate_fsms_for_pipelined_loops=*/false,
+      /*merge_states=*/false, /*split_states_on_channel_ops=*/false,
       /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_None,
-                            /*max_unroll_iters=*/100,
-                            /*warn_unroll_iters=*/100,
-                            /*z3_rlimit=*/-1,
-                            /*op_ordering=*/xlscc::IOOpOrdering::kNone,
-                            /*existing_parser=*/std::move(parser)));
+      /*max_unroll_iters=*/100,
+      /*warn_unroll_iters=*/100,
+      /*z3_rlimit=*/-1,
+      /*op_ordering=*/xlscc::IOOpOrdering::kNone,
+      /*existing_parser=*/std::move(parser)));
 
   xls::Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,

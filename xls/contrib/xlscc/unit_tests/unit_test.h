@@ -187,10 +187,18 @@ class XlsccTestBase : public xls::IrTestBase, public ::absl::LogSink {
   absl::StatusOr<std::vector<xls::Node*>> GetOpsForChannelNameContains(
       std::string_view channel);
 
+  static void GetTokenOperandsDeeply(xls::Node* node,
+                                     absl::flat_hash_set<xls::Node*>& operands);
+
+  absl::StatusOr<absl::flat_hash_map<xls::Node*, int64_t>>
+  GetStatesByIONodeForFSMProc(std::string_view func_name);
+
   std::unique_ptr<xls::Package> package_;
   std::unique_ptr<xlscc::Translator> translator_;
   xlscc::HLSBlock block_spec_;
   bool generate_fsms_for_pipelined_loops_ = false;
+  bool merge_states_ = false;
+  bool split_states_on_channel_ops_ = false;
 
  protected:
   std::vector<CapturedLogEntry> log_entries_;

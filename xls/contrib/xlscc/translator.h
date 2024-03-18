@@ -1100,7 +1100,8 @@ struct ChannelOptions {
 enum DebugIrTraceFlags {
   DebugIrTraceFlags_None = 0,
   DebugIrTraceFlags_LoopContext = 1,
-  DebugIrTraceFlags_LoopControl = 2
+  DebugIrTraceFlags_LoopControl = 2,
+  DebugIrTraceFlags_FSMStates = 4
 };
 
 class Translator {
@@ -1110,7 +1111,8 @@ class Translator {
   // Make unrolling configurable from main
   explicit Translator(
       bool error_on_init_interval = false, bool error_on_uninitialized = false,
-      bool generate_fsms_for_pipelined_loops = false,
+      bool generate_fsms_for_pipelined_loops = false, bool merge_states = false,
+      bool split_states_on_channel_ops = false,
       DebugIrTraceFlags debug_ir_trace_flags = DebugIrTraceFlags_None,
       int64_t max_unroll_iters = 1000, int64_t warn_unroll_iters = 100,
       int64_t z3_rlimit = -1, IOOpOrdering op_ordering = IOOpOrdering::kNone,
@@ -1401,6 +1403,12 @@ class Translator {
   // Generates an FSM to implement pipelined loops.
   const bool generate_fsms_for_pipelined_loops_;
 
+  // Merge states in FSM for pipelined loops.
+  const bool merge_states_;
+
+  // Split states so that IO ops on the same channel are never in the same state
+  const bool split_states_on_channel_ops_;
+
   // Bitfield indicating which debug traces to insert into the IR.
   const DebugIrTraceFlags debug_ir_trace_flags_;
 
@@ -1671,6 +1679,7 @@ class Translator {
     std::list<InvokeToGenerate> invokes_to_generate;
     const PipelinedLoopSubProc* sub_proc = nullptr;
     xls::BValue in_this_state;
+    std::set<ChannelBundle> channels_used;
   };
 
   struct NextStateValue {
@@ -1696,31 +1705,34 @@ class Translator {
       PreparedBlock& prepared, xls::ProcBuilder& pb, int nesting_level,
       const xls::SourceInfo& body_loc);
 
+  std::set<ChannelBundle> GetChannelsUsedByOp(
+      const IOOp& op, const PipelinedLoopSubProc* sub_procp,
+      const xls::SourceInfo& loc);
+  std::optional<ChannelBundle> GetChannelBundleForOp(
+      const IOOp& op, const xls::SourceInfo& loc);
+
   struct SubFSMReturn {
+    xls::BValue first_iter;
     xls::BValue exit_state_condition;
     xls::BValue return_value;
     absl::btree_multimap<const xls::Param*, NextStateValue>
         extra_next_state_values;
+    xls::BValue token_out;
   };
   // Generates a sub-FSM for a state containing a sub-proc
   // Ignores the associated IO ops (context send/receive)
   // (Currently used for pipelined loops)
   absl::StatusOr<SubFSMReturn> GenerateSubFSM(
-      PreparedBlock& outer_prepared, xls::ProcBuilder& pb,
-      const State& outer_state, const std::string& fsm_prefix,
+      PreparedBlock& outer_prepared,
+      const std::list<Translator::InvokeToGenerate>& invokes_to_generate,
+      xls::BValue origin_token, xls::ProcBuilder& pb, const State& outer_state,
+      const std::string& fsm_prefix,
       absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
       xls::BValue first_ret_val, int outer_nesting_level,
       const xls::SourceInfo& body_loc);
 
   // Generates only the listed ops. A token network will be created between
   // only these ops.
-  absl::StatusOr<xls::BValue> GenerateInvokeWithIO(
-      PreparedBlock& prepared, xls::ProcBuilder& pb,
-      const xls::SourceInfo& body_loc,
-      const std::list<InvokeToGenerate>& invokes_to_generate,
-      absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
-      xls::BValue first_ret_val);
-
   absl::StatusOr<xls::BValue> GenerateIOInvokesWithAfterOps(
       IOSchedulingOption option, xls::BValue origin_token,
       const std::list<InvokeToGenerate>& invokes_to_generate,

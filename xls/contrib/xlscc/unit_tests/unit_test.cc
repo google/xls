@@ -241,6 +241,8 @@ absl::Status XlsccTestBase::ScanFile(
       error_on_init_interval,
       /*error_on_uninitialized=*/error_on_uninitialized,
       /*generate_fsms_for_pipelined_loops=*/generate_fsms_for_pipelined_loops_,
+      /*merge_states=*/merge_states_,
+      /*split_states_on_channel_ops=*/split_states_on_channel_ops_,
       /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_None,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
@@ -502,7 +504,15 @@ void XlsccTestBase::ProcTest(
     }
 
     // Check as we go
-    bool all_output_channels_empty = true;
+    bool all_channels_empty = true;
+    for (const auto& [ch_name, values] : inputs_by_channel) {
+      if (direct_in_channels_by_name.contains(ch_name)) {
+        continue;
+      }
+      XLS_ASSERT_OK_AND_ASSIGN(xls::ChannelQueue * queue,
+                               queue_manager.GetQueueByName(ch_name));
+      all_channels_empty = all_channels_empty && queue->IsEmpty();
+    }
     for (auto& [ch_name, values] : mutable_outputs_by_channel) {
       XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * ch_out,
                                package_->GetChannel(ch_name));
@@ -514,11 +524,21 @@ void XlsccTestBase::ProcTest(
         values.pop_front();
       }
 
-      all_output_channels_empty = all_output_channels_empty && values.empty();
+      all_channels_empty = all_channels_empty && values.empty();
     }
-    if (all_output_channels_empty) {
+    if (all_channels_empty) {
       break;
     }
+  }
+
+  for (const auto& [proc_name, ref_events] : expected_events_by_proc_name) {
+    xls::InterpreterEvents got_events;
+    if (got_events_for_proc.contains(proc_name)) {
+      got_events = got_events_for_proc.at(proc_name);
+    }
+    EXPECT_EQ(ref_events.trace_msgs.size(), got_events.trace_msgs.size());
+    EXPECT_EQ(ref_events.assert_msgs.size(), got_events.assert_msgs.size());
+    EXPECT_EQ(ref_events, got_events);
   }
 
   for (const auto& [ch_name, values] : inputs_by_channel) {
@@ -541,16 +561,6 @@ void XlsccTestBase::ProcTest(
 
   EXPECT_GE(tick, min_ticks);
   EXPECT_LE(tick, max_ticks);
-
-  for (const auto& [proc_name, ref_events] : expected_events_by_proc_name) {
-    xls::InterpreterEvents got_events;
-    if (got_events_for_proc.contains(proc_name)) {
-      got_events = got_events_for_proc.at(proc_name);
-    }
-    EXPECT_EQ(ref_events.trace_msgs.size(), got_events.trace_msgs.size());
-    EXPECT_EQ(ref_events.assert_msgs.size(), got_events.assert_msgs.size());
-    EXPECT_EQ(ref_events, got_events);
-  }
 }
 
 absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
@@ -688,6 +698,97 @@ XlsccTestBase::GetOpsForChannelNameContains(std::string_view channel) {
     }
   }
   return ret;
+}
+
+void XlsccTestBase::GetTokenOperandsDeeply(
+    xls::Node* node, absl::flat_hash_set<xls::Node*>& operands) {
+  for (xls::Node* operand : node->operands()) {
+    if (operand->GetType()->IsToken()) {
+      operands.insert(operand);
+      GetTokenOperandsDeeply(operand, operands);
+    }
+  }
+}
+
+absl::StatusOr<absl::flat_hash_map<xls::Node*, int64_t>>
+XlsccTestBase::GetStatesByIONodeForFSMProc(std::string_view func_name) {
+  xls::Proc* found_proc_with_fsm = nullptr;
+  xls::Param* fsm_state_param = nullptr;
+
+  CHECK_EQ(package_->procs().size(), 1);
+  std::unique_ptr<xls::Proc>& proc = package_->procs().at(0);
+
+  const std::string st_param_name =
+      absl::StrFormat("__fsm_%s_state", func_name);
+  XLS_ASSIGN_OR_RETURN(xls::Param * state_param,
+                       proc->GetParamByName(st_param_name));
+
+  CHECK_EQ(found_proc_with_fsm, nullptr);
+  found_proc_with_fsm = proc.get();
+  fsm_state_param = state_param;
+
+  CHECK_NE(found_proc_with_fsm, nullptr);
+  CHECK_NE(fsm_state_param, nullptr);
+
+  xls::Node* state_index_node = nullptr;
+
+  for (xls::Node* node : fsm_state_param->users()) {
+    if (!node->Is<xls::TupleIndex>()) {
+      continue;
+    }
+    if (node->As<xls::TupleIndex>()->index() != 0) {
+      continue;
+    }
+    CHECK_EQ(state_index_node, nullptr);
+    state_index_node = node;
+  }
+
+  absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
+
+  auto has_token_operand = [](xls::Node* node) -> bool {
+    for (xls::Node* operand : node->operands()) {
+      if (operand->GetType()->IsToken()) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  for (xls::Node* node : state_index_node->users()) {
+    if (!node->Is<xls::CompareOp>()) {
+      continue;
+    }
+    if (node->As<xls::CompareOp>()->op() != xls::Op::kEq) {
+      continue;
+    }
+    xls::Node* literal_op = node->operand(1);
+    if (!literal_op->Is<xls::Literal>()) {
+      continue;
+    }
+    const xls::Value& literal_value = literal_op->As<xls::Literal>()->value();
+    CHECK(literal_value.IsBits());
+    XLS_ASSIGN_OR_RETURN(const int64_t state_index,
+                         literal_value.bits().ToUint64());
+
+    absl::btree_set<xls::Node*, xls::Node::NodeIdLessThan> users =
+        node->users();
+    while (!users.empty()) {
+      absl::btree_set<xls::Node*, xls::Node::NodeIdLessThan> next_users;
+
+      for (xls::Node* user : users) {
+        if (has_token_operand(user)) {
+          state_by_io_node[user] = state_index;
+          continue;
+        }
+        const auto& users_of_node = user->users();
+        next_users.insert(users_of_node.begin(), users_of_node.end());
+      }
+
+      users = next_users;
+    }
+  }
+
+  return state_by_io_node;
 }
 
 void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,

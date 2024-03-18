@@ -103,6 +103,16 @@ ABSL_FLAG(
     "Generate an FSM for pipelined loops. Non-FSM mode should be considered "
     "experimental, as it can generate semantically incorrect IR.");
 
+ABSL_FLAG(
+    bool, merge_states, true,
+    "Merge states in FSMs for pipelined loops. Increases throughput at some"
+    "potential cost.");
+
+ABSL_FLAG(bool, split_states_on_channel_ops, true,
+          "Split FSM states so that two IO operations on the same channel "
+          "cannot be in the same FSM state. This does not try to determine"
+          "mutual exclusion, so it can unnecessarily reduce throughput.");
+
 ABSL_FLAG(int, top_level_init_interval, 1,
           "Initiation interval of block top level (Run/main function)");
 
@@ -131,6 +141,9 @@ ABSL_FLAG(bool, debug_ir_trace_loop_context, false,
 
 ABSL_FLAG(bool, debug_ir_trace_loop_control, false,
           "Generate IR traces for pipelined loop control.");
+
+ABSL_FLAG(bool, debug_print_fsm_states, false,
+          "Print FSM states to XLS_LOG (try --alsologtostderr).");
 
 namespace xlscc {
 
@@ -166,11 +179,17 @@ static absl::Status Run(std::string_view cpp_path) {
     ir_trace_flags = static_cast<DebugIrTraceFlags>(
         ir_trace_flags | DebugIrTraceFlags_LoopControl);
   }
+  if (absl::GetFlag(FLAGS_debug_print_fsm_states)) {
+    ir_trace_flags = static_cast<DebugIrTraceFlags>(
+        ir_trace_flags | DebugIrTraceFlags_FSMStates);
+  }
 
   xlscc::Translator translator(
       absl::GetFlag(FLAGS_error_on_init_interval),
       absl::GetFlag(FLAGS_error_on_uninitialized),
-      absl::GetFlag(FLAGS_generate_fsms_for_pipelined_loops), ir_trace_flags,
+      absl::GetFlag(FLAGS_generate_fsms_for_pipelined_loops),
+      absl::GetFlag(FLAGS_merge_states),
+      absl::GetFlag(FLAGS_split_states_on_channel_ops), ir_trace_flags,
       absl::GetFlag(FLAGS_max_unroll_iters),
       absl::GetFlag(FLAGS_warn_unroll_iters), absl::GetFlag(FLAGS_z3_rlimit),
       io_op_token_ordering);

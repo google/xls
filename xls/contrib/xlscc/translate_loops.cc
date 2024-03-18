@@ -1370,7 +1370,6 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   std::vector<xls::BValue> out_tuple_values;
   out_tuple_values.resize(context_in_field_indices.size());
-
   for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
     if (!context_field_indices.contains(decl)) {
       continue;
@@ -1430,7 +1429,15 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   // Update state elements map from outer scope
   if (state_element_for_variable != nullptr) {
-    *state_element_for_variable = prepared.state_element_for_variable;
+    for (const auto& [decl, param] : prepared.state_element_for_variable) {
+      // Can't re-use state elements that are fed into context output,
+      // as the context output must be kept steady outside of the state
+      // containing the loop.
+      if (context_in_field_indices.contains(decl)) {
+        continue;
+      }
+      (*state_element_for_variable)[decl] = param;
+    }
   }
 
   return PipelinedLoopContentsReturn{

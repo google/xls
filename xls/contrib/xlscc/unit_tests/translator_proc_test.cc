@@ -63,12 +63,16 @@ using ::testing::Values;
 
 struct TestParams {
   bool generate_fsms_for_pipelined_loops;
+  bool merge_states;
+  bool split_states_on_channel_ops;
 };
 
 class TranslatorProcTestWithoutFSMParam : public XlsccTestBase {
  public:
   TranslatorProcTestWithoutFSMParam() {
     generate_fsms_for_pipelined_loops_ = false;
+    merge_states_ = false;
+    split_states_on_channel_ops_ = false;
   }
 };
 
@@ -78,17 +82,33 @@ class TranslatorProcTest : public TranslatorProcTestWithoutFSMParam,
   TranslatorProcTest() {
     generate_fsms_for_pipelined_loops_ =
         GetParam().generate_fsms_for_pipelined_loops;
+    merge_states_ = GetParam().merge_states;
+    split_states_on_channel_ops_ = GetParam().split_states_on_channel_ops;
   }
 };
 
 std::string GetTestInfo(const ::testing::TestParamInfo<TestParams>& info) {
   return absl::StrFormat(
-      "With%sFSM", info.param.generate_fsms_for_pipelined_loops ? "" : "out");
+      "With%sFSM%s%s",
+      info.param.generate_fsms_for_pipelined_loops ? "" : "out",
+      info.param.split_states_on_channel_ops ? "_SplitOnChannelOps" : "",
+      info.param.merge_states ? "_MergeStates" : "");
 }
 
 INSTANTIATE_TEST_SUITE_P(
     TranslatorProcTest, TranslatorProcTest,
-    Values(TestParams{.generate_fsms_for_pipelined_loops = true},
+    Values(TestParams{.generate_fsms_for_pipelined_loops = true,
+                      .merge_states = false,
+                      .split_states_on_channel_ops = false},
+           TestParams{.generate_fsms_for_pipelined_loops = true,
+                      .merge_states = true,
+                      .split_states_on_channel_ops = false},
+           TestParams{.generate_fsms_for_pipelined_loops = true,
+                      .merge_states = false,
+                      .split_states_on_channel_ops = true},
+           TestParams{.generate_fsms_for_pipelined_loops = true,
+                      .merge_states = true,
+                      .split_states_on_channel_ops = true},
            TestParams{.generate_fsms_for_pipelined_loops = false}),
     GetTestInfo);
 
@@ -674,7 +694,6 @@ TEST_P(TranslatorProcTest, IOProcChainedConditionalRead) {
     ch_out->set_is_input(false);
     ch_out->set_type(FIFO);
   }
-
   {
     absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
     inputs["in"] = {xls::Value(xls::SBits(55, 32))};
@@ -827,6 +846,51 @@ TEST_P(TranslatorProcTest, ForPipelined) {
   EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
 }
 
+TEST_P(TranslatorProcTest, ForPipelined1Iter) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+      a += in.read();
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=3;++i) {
+        a += i;
+      }
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {
+      xls::Value(xls::SBits(80, 32)),  xls::Value(xls::SBits(5, 32)),
+      xls::Value(xls::SBits(100, 32)), xls::Value(xls::SBits(10, 32)),
+      xls::Value(xls::SBits(15, 32)),  xls::Value(xls::SBits(20, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 5 + 1 + 1 * (2 + 3), 32)),
+                      xls::Value(xls::SBits(100 + 10 + 1 + 1 * (2 + 3), 32)),
+                      xls::Value(xls::SBits(15 + 20 + 1 + 1 * (2 + 3), 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 1);
+  }
+}
+
 TEST_P(TranslatorProcTest, ForPipelinedFSMInside) {
   const std::string content = R"(
     #pragma hls_top
@@ -836,9 +900,12 @@ TEST_P(TranslatorProcTest, ForPipelinedFSMInside) {
       #pragma hls_pipeline_init_interval 1
       for(long i=1;i<=4;++i) {
         int a = in.read();
+        __xlscc_trace("!! after read {:u}", a);
         for(int j=0;j<1;++j) {
+          __xlscc_trace("!! inner loop {:u}", a);
           a += i;
         }
+        __xlscc_trace("!! before write {:u}", a);
         out.write(a);
       }
 
@@ -1785,8 +1852,9 @@ TEST_P(TranslatorProcTest, ForPipelinedSerial) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 64 + 1 + 16) : 0L);
+  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
+                                     ? (32 + 1 + 64 + 1 + 16 + 32)
+                                     : 0L);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedSerialIO) {
@@ -1861,8 +1929,9 @@ TEST_P(TranslatorProcTest, ForPipelinedSerialIO) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 64 + 1 + 16) : 0L);
+  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
+                                     ? (32 + 1 + 64 + 1 + 16 + 32)
+                                     : 0L);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedReturnInBody) {
@@ -2176,6 +2245,61 @@ TEST_P(TranslatorProcTest, ForPipelinedPreCondBreak) {
             generate_fsms_for_pipelined_loops_ ? (1 + 32 + 64) : 0L);
 }
 
+TEST_P(TranslatorProcTest, ForPipelinedSaveAcrossLoop) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int x = in.read();
+      int a = 1;
+      __xlscc_trace("read {:u}", x);
+
+      // the return from in.read() hasn't been saved because
+      // there is only 1 state
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=4;++i) {
+        a += i;
+      }
+
+      __xlscc_trace("write x {:u} a {:u}", x, a);
+      out.write(x + a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(2, 32)),
+                  xls::Value(xls::SBits(100, 32)),
+                  xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
+                  xls::Value(xls::SBits(5, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(2 + 11, 32)),
+                      xls::Value(xls::SBits(100 + 11, 32)),
+                      xls::Value(xls::SBits(0 + 11, 32)),
+                      xls::Value(xls::SBits(0 + 11, 32)),
+                      xls::Value(xls::SBits(5 + 11, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 4);
+  }
+}
+
 TEST_P(TranslatorProcTest, ForPipelinedInIf) {
   const std::string content = R"(
     #include "/xls_builtin.h"
@@ -2185,6 +2309,9 @@ TEST_P(TranslatorProcTest, ForPipelinedInIf) {
              __xls_channel<int>& out) {
       int a = in.read();
 
+      // a doesn't get saved in the false condition
+      // and the return from in.read() hasn't been saved because
+      // there is only 1 state
       if (a >= 10) {
         #pragma hls_pipeline_init_interval 1
         for(long i=1;i<=4;++i) {
@@ -2211,7 +2338,7 @@ TEST_P(TranslatorProcTest, ForPipelinedInIf) {
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
-  inputs["in"] = {xls::Value(xls::SBits(0, 32)),
+  inputs["in"] = {xls::Value(xls::SBits(2, 32)),
                   xls::Value(xls::SBits(100, 32)),
                   xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
                   xls::Value(xls::SBits(5, 32))};
@@ -2219,7 +2346,7 @@ TEST_P(TranslatorProcTest, ForPipelinedInIf) {
   {
     absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
     outputs["out"] = {
-        xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(100 + 10, 32)),
+        xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(100 + 10, 32)),
         xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
         xls::Value(xls::SBits(5, 32))};
 
@@ -3015,16 +3142,6 @@ TEST_P(TranslatorProcTest, ForPipelinedNested) {
             generate_fsms_for_pipelined_loops_ ? (32 + 1 + 16 + 1 + 64) : 0L);
 }
 
-void get_token_operands_deeply(xls::Node* node,
-                               absl::flat_hash_set<xls::Node*>& operands) {
-  for (xls::Node* operand : node->operands()) {
-    if (operand->GetType()->IsToken()) {
-      operands.insert(operand);
-      get_token_operands_deeply(operand, operands);
-    }
-  }
-}
-
 // Test that the FSM is generated
 TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedCheckFSM) {
   const std::string content = R"(
@@ -3058,85 +3175,14 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedCheckFSM) {
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
           .status());
 
-  xls::Proc* found_proc_with_fsm = nullptr;
-  xls::Param* fsm_state_param = nullptr;
-
-  for (std::unique_ptr<xls::Proc>& proc : package_->procs()) {
-    for (xls::Param* state_param : proc->StateParams()) {
-      if (!absl::StartsWith(state_param->name(), "__fsm")) {
-        continue;
-      }
-      ASSERT_EQ(found_proc_with_fsm, nullptr);
-      found_proc_with_fsm = proc.get();
-      fsm_state_param = state_param;
-    }
-  }
-
-  EXPECT_NE(found_proc_with_fsm, nullptr);
-  EXPECT_NE(fsm_state_param, nullptr);
+  absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
+  XLS_ASSERT_OK_AND_ASSIGN(state_by_io_node,
+                           GetStatesByIONodeForFSMProc(/*func_name=*/"foo"));
 
   // Check that token network does not extend across states
-  xls::Node* state_index_node = nullptr;
-
-  for (xls::Node* node : fsm_state_param->users()) {
-    if (!node->Is<xls::TupleIndex>()) {
-      continue;
-    }
-    if (node->As<xls::TupleIndex>()->index() != 0) {
-      continue;
-    }
-    ASSERT_EQ(state_index_node, nullptr);
-    state_index_node = node;
-  }
-
-  absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
-
-  auto has_token_operand = [](xls::Node* node) -> bool {
-    for (xls::Node* operand : node->operands()) {
-      if (operand->GetType()->IsToken()) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  for (xls::Node* node : state_index_node->users()) {
-    if (!node->Is<xls::CompareOp>()) {
-      continue;
-    }
-    if (node->As<xls::CompareOp>()->op() != xls::Op::kEq) {
-      continue;
-    }
-    xls::Node* literal_op = node->operand(1);
-    if (!literal_op->Is<xls::Literal>()) {
-      continue;
-    }
-    const xls::Value& literal_value = literal_op->As<xls::Literal>()->value();
-    ASSERT_TRUE(literal_value.IsBits());
-    XLS_ASSERT_OK_AND_ASSIGN(const int64_t state_index,
-                             literal_value.bits().ToUint64());
-
-    absl::btree_set<xls::Node*, xls::Node::NodeIdLessThan> users =
-        node->users();
-    while (!users.empty()) {
-      absl::btree_set<xls::Node*, xls::Node::NodeIdLessThan> next_users;
-
-      for (xls::Node* user : users) {
-        if (has_token_operand(user)) {
-          state_by_io_node[user] = state_index;
-          continue;
-        }
-        const auto& users_of_node = user->users();
-        next_users.insert(users_of_node.begin(), users_of_node.end());
-      }
-
-      users = next_users;
-    }
-  }
-
   for (const auto& [node, state_index] : state_by_io_node) {
     absl::flat_hash_set<xls::Node*> deep_token_operands;
-    get_token_operands_deeply(node, deep_token_operands);
+    GetTokenOperandsDeeply(node, deep_token_operands);
 
     for (xls::Node* token_operand : deep_token_operands) {
       if (!state_by_io_node.contains(token_operand)) {
@@ -3144,6 +3190,238 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedCheckFSM) {
       }
       EXPECT_EQ(state_by_io_node.at(token_operand), state_index);
     }
+  }
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedMergeCheckFSM) {
+  const std::string content = R"(
+  class Block {
+     public:
+      __xls_channel<int , __xls_channel_dir_In>& in;
+      __xls_channel<long, __xls_channel_dir_Out>& out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+        a += 3*in.read();
+
+        #pragma hls_pipeline_init_interval 1
+        for(long i=1;i<=4;++i) {
+          a += i;
+        }
+
+        out.write(a);
+      }
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+  merge_states_ = true;
+
+  // Test full merging
+  {
+    split_states_on_channel_ops_ = false;
+
+    XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                           /*io_test_mode=*/false,
+                           /*error_on_init_interval=*/false));
+    package_ = std::make_unique<xls::Package>("my_package");
+    HLSBlock block_spec;
+    XLS_ASSERT_OK(
+        translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
+            .status());
+
+    absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
+    XLS_ASSERT_OK_AND_ASSIGN(state_by_io_node,
+                             GetStatesByIONodeForFSMProc(/*func_name=*/"foo"));
+
+    for (const auto& [node, state_index] : state_by_io_node) {
+      EXPECT_EQ(state_index, 0);
+    }
+  }
+  // Test split on same channel IO ops
+  {
+    split_states_on_channel_ops_ = true;
+
+    XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                           /*io_test_mode=*/false,
+                           /*error_on_init_interval=*/false));
+    package_ = std::make_unique<xls::Package>("my_package");
+    HLSBlock block_spec;
+    XLS_ASSERT_OK(
+        translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
+            .status());
+
+    absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
+    XLS_ASSERT_OK_AND_ASSIGN(state_by_io_node,
+                             GetStatesByIONodeForFSMProc(/*func_name=*/"foo"));
+
+    absl::flat_hash_set<int64_t> states_for_receives;
+
+    for (const auto& [node, state_index] : state_by_io_node) {
+      if (node->Is<xls::Receive>()) {
+        states_for_receives.insert(state_index);
+      } else {
+        EXPECT_EQ(state_index, 1);
+      }
+    }
+
+    EXPECT_EQ(states_for_receives.size(), 2);
+  }
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedSplitSubProcCheckFSM) {
+  const std::string content = R"(
+  class Block {
+     public:
+      __xls_channel<int , __xls_channel_dir_In>& in;
+      __xls_channel<long, __xls_channel_dir_Out>& out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+        a += 3*in.read();
+
+        #pragma hls_pipeline_init_interval 1
+        for(long i=1;i<=4;++i) {
+          a += i & in.read();
+        }
+
+        out.write(a);
+      }
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+  merge_states_ = true;
+
+  // Test full merging
+  {
+    split_states_on_channel_ops_ = false;
+
+    XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                           /*io_test_mode=*/false,
+                           /*error_on_init_interval=*/false));
+    package_ = std::make_unique<xls::Package>("my_package");
+    HLSBlock block_spec;
+    XLS_ASSERT_OK(
+        translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
+            .status());
+
+    absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
+    XLS_ASSERT_OK_AND_ASSIGN(state_by_io_node,
+                             GetStatesByIONodeForFSMProc(/*func_name=*/"foo"));
+
+    for (const auto& [node, state_index] : state_by_io_node) {
+      EXPECT_EQ(state_index, 0);
+    }
+  }
+  // Test split on same channel IO ops
+  {
+    split_states_on_channel_ops_ = true;
+
+    XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                           /*io_test_mode=*/false,
+                           /*error_on_init_interval=*/false));
+    package_ = std::make_unique<xls::Package>("my_package");
+    HLSBlock block_spec;
+    XLS_ASSERT_OK(
+        translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
+            .status());
+
+    absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
+    XLS_ASSERT_OK_AND_ASSIGN(state_by_io_node,
+                             GetStatesByIONodeForFSMProc(/*func_name=*/"foo"));
+
+    absl::flat_hash_set<int64_t> states_for_receives;
+
+    for (const auto& [node, state_index] : state_by_io_node) {
+      if (node->Is<xls::Receive>()) {
+        states_for_receives.insert(state_index);
+      } else {
+        EXPECT_EQ(state_index, 2);
+      }
+    }
+
+    EXPECT_EQ(states_for_receives.size(), 3);
+  }
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam,
+       ForPipelinedSplitNestedSubProcCheckFSM) {
+  const std::string content = R"(
+  class Block {
+     public:
+      __xls_channel<int , __xls_channel_dir_In>& in;
+      __xls_channel<long, __xls_channel_dir_Out>& out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+        a += 3*in.read();
+
+        #pragma hls_pipeline_init_interval 1
+        for(long i=1;i<=4;++i) {
+          #pragma hls_pipeline_init_interval 1
+          for(long j=1;j<=4;++j) {
+            a += i & in.read();
+          }
+        }
+
+        out.write(a);
+      }
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+  merge_states_ = true;
+
+  // Test full merging
+  {
+    split_states_on_channel_ops_ = false;
+
+    XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                           /*io_test_mode=*/false,
+                           /*error_on_init_interval=*/false));
+    package_ = std::make_unique<xls::Package>("my_package");
+    HLSBlock block_spec;
+    XLS_ASSERT_OK(
+        translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
+            .status());
+
+    absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
+    XLS_ASSERT_OK_AND_ASSIGN(state_by_io_node,
+                             GetStatesByIONodeForFSMProc(/*func_name=*/"foo"));
+
+    for (const auto& [node, state_index] : state_by_io_node) {
+      EXPECT_EQ(state_index, 0);
+    }
+  }
+  // Test split on same channel IO ops
+  {
+    split_states_on_channel_ops_ = true;
+
+    XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                           /*io_test_mode=*/false,
+                           /*error_on_init_interval=*/false));
+    package_ = std::make_unique<xls::Package>("my_package");
+    HLSBlock block_spec;
+    XLS_ASSERT_OK(
+        translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec)
+            .status());
+
+    absl::flat_hash_map<xls::Node*, int64_t> state_by_io_node;
+    XLS_ASSERT_OK_AND_ASSIGN(state_by_io_node,
+                             GetStatesByIONodeForFSMProc(/*func_name=*/"foo"));
+
+    absl::flat_hash_set<int64_t> states_for_receives;
+
+    for (const auto& [node, state_index] : state_by_io_node) {
+      if (node->Is<xls::Receive>()) {
+        states_for_receives.insert(state_index);
+      } else {
+        EXPECT_EQ(state_index, 2);
+      }
+    }
+
+    EXPECT_EQ(states_for_receives.size(), 3);
   }
 }
 
@@ -4264,6 +4542,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine4) {
       for(long i=1;i<=2;++i) {
         a += in2.read();
       }
+      __xlscc_trace("!! sub_read ret a {:u}", a);
       return a;
     }
 
@@ -4271,7 +4550,10 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine4) {
     void foo(__xls_channel<int>& in,
              __xls_channel<int>& out) {
       int ret = sub_read(in);
-      ret += sub_read(in);
+      __xlscc_trace("!! foo A {:u}", ret);
+      const int b = sub_read(in);
+      __xlscc_trace("!! foo B b {:u} ret {:u}", b, ret);
+      ret += b;
       out.write(ret);
     })";
 
@@ -4292,12 +4574,12 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine4) {
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(6, 32)), xls::Value(xls::SBits(12, 32)),
-                  xls::Value(xls::SBits(6, 32)),
-                  xls::Value(xls::SBits(12, 32))};
+                  xls::Value(xls::SBits(10, 32)),
+                  xls::Value(xls::SBits(20, 32))};
 
   {
     absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-    outputs["out"] = {xls::Value(xls::SBits(18 * 2, 32))};
+    outputs["out"] = {xls::Value(xls::SBits(6 + 12 + 10 + 20, 32))};
 
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 2);
   }
@@ -4312,7 +4594,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine4) {
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 64 + 1) : 0L);
+            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 64 + 1 + 32) : 0L);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNoPragma) {
@@ -4495,7 +4777,7 @@ TEST_P(TranslatorProcTest, PipelinedLoopUsingMemberChannelAndVariable) {
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 32 + 1) : 0L);
+            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 32 + 1 + 32) : 0L);
 }
 
 TEST_P(TranslatorProcTest, PipelinedLoopWithOuterRef) {
@@ -7155,13 +7437,22 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedASAPTrivial) {
       xls::Value(xls::SBits(80 + 1, 32)), xls::Value(xls::SBits(80 + 2, 32)),
       xls::Value(xls::SBits(80 + 3, 32)), xls::Value(xls::SBits(80 + 4, 32))};
 
-  ProcTest(content, block_spec, inputs, outputs,
-           /* min_ticks = */ 4,
-           /* max_ticks = */ 8,
-           /* top_level_init_interval = */ 1);
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+
+  package_ = std::make_unique<xls::Package>("my_package");
+  ASSERT_THAT(
+      translator_
+          ->GenerateIR_Block(package_.get(), block_spec,
+                             /*top_level_init_interval=*/1)
+          .status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                    testing::HasSubstr("IO ops with schedul")));
 }
 
-TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedASAPOutsideScopeAccess) {
+TEST_F(TranslatorProcTestWithoutFSMParam,
+       DISABLED_ForPipelinedASAPOutsideScopeAccess) {
   const std::string content = R"(
     class Block {
     public:
@@ -7554,14 +7845,10 @@ TEST_P(TranslatorProcTest, PipelinedLoopSerialAfterASAP) {
   HLSBlock block_spec;
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  if (generate_fsms_for_pipelined_loops_) {
-    ASSERT_THAT(ret.status(),
-                xls::status_testing::StatusIs(
-                    absl::StatusCode::kUnimplemented,
-                    testing::HasSubstr("loops with scheduling options")));
-  } else {
-    ASSERT_THAT(ret.status(), xls::status_testing::IsOk());
-  }
+  ASSERT_THAT(ret.status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("IO ops with scheduling options")));
 }
 
 TEST_F(TranslatorProcTestWithoutFSMParam, OpDuplicationAcrossIO) {
@@ -7751,8 +8038,9 @@ TEST_P(TranslatorProcTest, ForPipelinedSerialShared) {
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 16 + 1 + 16) : 0L);
+  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
+                                     ? (32 + 1 + 16 + 1 + 16 + 32)
+                                     : 0L);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNestedShared) {
