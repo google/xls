@@ -14,6 +14,7 @@
 
 #include "xls/dslx/lsp/lsp_type_utils.h"
 
+#include <string>
 #include <string_view>
 
 namespace xls::dslx {

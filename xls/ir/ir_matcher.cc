@@ -14,6 +14,7 @@
 
 #include "xls/ir/ir_matcher.h"
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <ostream>

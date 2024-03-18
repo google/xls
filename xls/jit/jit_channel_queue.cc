@@ -15,6 +15,7 @@
 #include "xls/jit/jit_channel_queue.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>

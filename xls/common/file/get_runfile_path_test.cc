@@ -14,6 +14,7 @@
 
 #include "xls/common/file/get_runfile_path.h"
 
+#include <filesystem>  // NOLINT
 #include <string>
 
 #include "gmock/gmock.h"

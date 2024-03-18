@@ -42,6 +42,7 @@
 #ifndef XLS_EXAMPLES_JPEG_STREAMS_H_
 #define XLS_EXAMPLES_JPEG_STREAMS_H_
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <optional>

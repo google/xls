@@ -14,6 +14,7 @@
 
 #include "xls/passes/unroll_pass.h"
 
+#include <memory>
 #include <string>
 
 #include "gmock/gmock.h"

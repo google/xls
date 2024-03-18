@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

@@ -17,8 +17,10 @@
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"

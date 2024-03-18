@@ -16,6 +16,7 @@
 #define XLS_DATA_STRUCTURES_PATH_CUT_H_
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <sstream>
 #include <string>

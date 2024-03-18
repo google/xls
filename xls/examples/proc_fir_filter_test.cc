@@ -13,6 +13,7 @@
 
 #include "xls/examples/proc_fir_filter.h"
 
+#include <memory>
 #include <string_view>
 #include <vector>
 

@@ -14,6 +14,7 @@
 
 #include "xls/public/runtime_build_actions.h"
 
+#include <string>
 #include <string_view>
 
 #include "gmock/gmock.h"

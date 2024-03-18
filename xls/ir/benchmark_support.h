@@ -16,7 +16,9 @@
 #define XLS_IR_BENCHMARK_SUPPORT_H_
 
 #include <cstdint>
+#include <optional>
 #include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

@@ -16,6 +16,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/random/random.h"
 #include "xls/common/status/status_macros.h"

@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_NG_COORDINATE_H_
 #define XLS_NOC_CONFIG_NG_COORDINATE_H_
 
+#include <initializer_list>
 #include <optional>
 #include <vector>
 

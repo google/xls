@@ -15,6 +15,7 @@
 #include "xls/noc/simulation/global_routing_table.h"
 
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

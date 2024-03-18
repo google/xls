@@ -14,11 +14,13 @@
 #include "xls/netlist/interpreter.h"
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"

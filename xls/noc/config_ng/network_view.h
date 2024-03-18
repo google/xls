@@ -16,6 +16,7 @@
 #define XLS_NOC_CONFIG_NG_NETWORK_VIEW_H_
 
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 #include "xls/noc/config_ng/network_component.h"

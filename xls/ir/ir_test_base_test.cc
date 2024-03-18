@@ -14,6 +14,7 @@
 
 #include "xls/ir/ir_test_base.h"
 
+#include <memory>
 #include <string_view>
 
 #include "gmock/gmock.h"

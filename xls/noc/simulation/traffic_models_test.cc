@@ -14,6 +14,7 @@
 
 #include "xls/noc/simulation/traffic_models.h"
 
+#include <memory>
 #include <vector>
 
 #include "gmock/gmock.h"

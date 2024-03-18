@@ -19,8 +19,10 @@
 #include <cstdint>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <thread>  // NOLINT(build/c++11)
 #include <type_traits>
+#include <vector>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/status/status.h"

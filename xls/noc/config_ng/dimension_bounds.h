@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_NG_DIMENSION_BOUNDS_H_
 #define XLS_NOC_CONFIG_NG_DIMENSION_BOUNDS_H_
 
+#include <initializer_list>
 #include <vector>
 
 #include "absl/types/span.h"

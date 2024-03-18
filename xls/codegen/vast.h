@@ -19,6 +19,7 @@
 #define XLS_CODEGEN_VAST_H_
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <ostream>

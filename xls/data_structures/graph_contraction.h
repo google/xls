@@ -16,6 +16,7 @@
 #define XLS_DATA_STRUCTURES_GRAPH_CONTRACTION_H_
 
 #include <optional>
+#include <vector>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"

@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_STRONGLY_CONNECTED_COMPONENTS_H_
 #define XLS_DATA_STRUCTURES_STRONGLY_CONNECTED_COMPONENTS_H_
 
+#include <functional>
 #include <stack>
 #include <vector>
 

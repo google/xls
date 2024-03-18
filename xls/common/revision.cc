@@ -14,6 +14,8 @@
 
 #include "xls/common/revision.h"
 
+#include <string>
+
 namespace xls {
 
 std::string GetRevision() {

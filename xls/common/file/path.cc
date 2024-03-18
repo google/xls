@@ -14,6 +14,7 @@
 
 #include "xls/common/file/path.h"
 
+#include <filesystem>  // NOLINT
 #include <system_error>
 #include <utility>
 

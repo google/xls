@@ -15,6 +15,7 @@
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <list>
 #include <memory>
 #include <optional>

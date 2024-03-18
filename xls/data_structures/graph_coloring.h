@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_GRAPH_COLORING_H_
 #define XLS_DATA_STRUCTURES_GRAPH_COLORING_H_
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>

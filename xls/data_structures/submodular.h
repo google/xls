@@ -16,6 +16,7 @@
 #define XLS_DATA_STRUCTURES_SUBMODULAR_H_
 
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <random>

@@ -15,6 +15,7 @@
 #define XLS_DSLX_FRONTEND_AST_CLONER_H_
 
 #include <memory>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

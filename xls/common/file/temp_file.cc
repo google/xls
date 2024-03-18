@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include <cstdlib>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
 #include <system_error>

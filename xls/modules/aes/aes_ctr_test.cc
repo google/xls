@@ -18,8 +18,10 @@
 
 #include <array>
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 

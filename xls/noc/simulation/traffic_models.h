@@ -15,9 +15,8 @@
 #ifndef XLS_NOC_SIMULATION_TRAFFIC_MODELS_H_
 #define XLS_NOC_SIMULATION_TRAFFIC_MODELS_H_
 
-#include <algorithm>
 #include <memory>
-#include <queue>
+#include <type_traits>
 #include <vector>
 
 #include "absl/status/statusor.h"

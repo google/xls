@@ -14,6 +14,7 @@
 
 #include "xls/solvers/z3_lec.h"
 
+#include <memory>
 #include <string>
 
 #include "gmock/gmock.h"

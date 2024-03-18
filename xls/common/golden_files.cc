@@ -14,6 +14,7 @@
 
 #include "xls/common/golden_files.h"
 
+#include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
 

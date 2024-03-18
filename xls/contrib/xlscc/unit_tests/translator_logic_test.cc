@@ -19,6 +19,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -3971,7 +3972,7 @@ TEST_F(TranslatorLogicTest, DisallowUsed) {
         (void)__xlscc_unimplemented();
         return a+3;
       }
-  
+
       int my_package(int a) {
         return foo(a);
       })";
@@ -3991,7 +3992,7 @@ TEST_F(TranslatorLogicTest, DisallowUnused) {
         __xlscc_unimplemented();
         return a+3;
       }
-  
+
       int my_package(int a) {
         return a+5;
       })";
@@ -4739,7 +4740,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass) {
   std::string_view content = R"(
     struct LeafBlock {
       int a;
-      int b;  
+      int b;
     };
 
     struct HierBlock {
@@ -4768,7 +4769,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass2) {
   std::string_view content = R"(
     struct LeafBlock {
       int a;
-      int b;  
+      int b;
     };
 
     struct HierBlock {
@@ -4920,7 +4921,7 @@ TEST_F(TranslatorLogicTest, PragmaAllowsBlankLines) {
 
 TEST_F(TranslatorLogicTest, PragmaIgnoresSpaces) {
   std::string_view content = R"(
-  #pragma    hls_top  
+  #pragma    hls_top
   int st() {
     return 1;
   })";
@@ -4929,7 +4930,7 @@ TEST_F(TranslatorLogicTest, PragmaIgnoresSpaces) {
 
 TEST_F(TranslatorLogicTest, PragmaHlsPartialUnrollTreatedAsFullUnroll) {
   std::string_view content = R"(
-  #pragma hls_top  
+  #pragma hls_top
   int st() {
     int sum = 0;
     #pragma hls_unroll  4
@@ -4943,7 +4944,7 @@ TEST_F(TranslatorLogicTest, PragmaHlsPartialUnrollTreatedAsFullUnroll) {
 
 TEST_F(TranslatorLogicTest, CommentedPragmaIgnored) {
   std::string_view content = R"(
-  // #pragma    hls_top  
+  // #pragma    hls_top
   int st() {
     return 1;
   })";
@@ -4955,7 +4956,7 @@ TEST_F(TranslatorLogicTest, CommentedPragmaIgnored) {
 
 TEST_F(TranslatorLogicTest, AllowEmptyInitializerList) {
   std::string_view content = R"(
-  #pragma hls_top  
+  #pragma hls_top
   int st() {
     int a[20] = {};
     return a[14];
@@ -4967,8 +4968,8 @@ TEST_F(TranslatorLogicTest, UnknownPragmasIgnored) {
   std::string_view content = R"(
   #pragma unknown pragma
   #pragma top
-  
-  #pragma hls_top  
+
+  #pragma hls_top
   int st() {
     return 1;
   })";
@@ -4982,7 +4983,7 @@ TEST_F(TranslatorLogicTest, UnknownPragmasIgnored) {
 TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
   std::string_view content = R"(
   #pragma unknown pragma
-  
+
   #pragma once
 
   #pragma hls_top

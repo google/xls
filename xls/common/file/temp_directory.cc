@@ -14,6 +14,7 @@
 
 #include "xls/common/file/temp_directory.h"
 
+#include <filesystem>  // NOLINT
 #include <string>
 #include <system_error>
 #include <utility>

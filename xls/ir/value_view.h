@@ -24,7 +24,10 @@
 #define XLS_IR_VALUE_VIEW_H_
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
+#include <limits>
+#include <type_traits>
 #include <vector>
 
 #include "absl/log/check.h"

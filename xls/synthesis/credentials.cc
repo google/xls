@@ -14,6 +14,8 @@
 
 #include "xls/synthesis/credentials.h"
 
+#include <memory>
+
 namespace xls {
 namespace synthesis {
 

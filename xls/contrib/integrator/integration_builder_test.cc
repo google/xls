@@ -14,6 +14,7 @@
 
 #include "xls/contrib/integrator/integration_builder.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 

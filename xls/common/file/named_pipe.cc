@@ -19,6 +19,7 @@
 
 #include <cerrno>
 #include <cstdio>
+#include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
 #include <string_view>

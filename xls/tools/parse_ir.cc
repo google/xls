@@ -16,6 +16,7 @@
 // IR text. If no argument given reads from stdin. Returns non-zero value on
 // failure and emits failing absl::Status message to stderr.
 
+#include <iostream>
 #include <string_view>
 #include <vector>
 

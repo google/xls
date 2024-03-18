@@ -17,6 +17,7 @@
 // the equivalent XLS intermediate representation (IR).
 
 #include <cstdlib>
+#include <filesystem>  // NOLINT
 #include <fstream>
 #include <iostream>
 #include <streambuf>

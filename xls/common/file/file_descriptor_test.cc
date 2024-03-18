@@ -14,6 +14,7 @@
 
 #include "xls/common/file/file_descriptor.h"
 
+#include <filesystem>  // NOLINT
 #include <utility>
 
 #include "gmock/gmock.h"

@@ -16,6 +16,7 @@
 #define XLS_IR_BIG_INT_H_
 
 #include <ostream>
+#include <string>
 #include <tuple>
 
 #include "absl/status/statusor.h"

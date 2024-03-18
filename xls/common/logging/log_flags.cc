@@ -58,4 +58,3 @@ ABSL_FLAG(bool, alsologtostderr, false,
       bool turning_on_off = absl::GetFlag(FLAGS_alsologtostderr);
       DeduceStderrThreshold(turning_on_off);
     });
-

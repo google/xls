@@ -14,8 +14,10 @@
 
 #include "xls/examples/jpeg/streams.h"
 
+#include <array>
 #include <functional>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"

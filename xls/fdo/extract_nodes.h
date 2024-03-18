@@ -15,6 +15,7 @@
 #ifndef XLS_FDO_EXTRACT_NODES_H_
 #define XLS_FDO_EXTRACT_NODES_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 

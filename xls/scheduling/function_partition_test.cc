@@ -14,6 +14,7 @@
 
 #include "xls/scheduling/function_partition.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>

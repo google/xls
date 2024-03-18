@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
+
 #include "xls/common/module_initializer.h"
 #include "xls/contrib/ice40/device_rpc_strategy_factory.h"
 #include "xls/contrib/ice40/ice40_device_rpc_strategy.h"

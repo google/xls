@@ -15,6 +15,7 @@
 #include "xls/delay_model/delay_heap.h"
 
 #include <limits>
+#include <memory>
 #include <optional>
 
 #include "gmock/gmock.h"
