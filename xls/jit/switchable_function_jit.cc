@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -68,7 +69,7 @@ SwitchableFunctionJit::Create(Function* xls_function, ExecutionType execution,
                               int64_t opt_level, JitObserver* observer) {
   if (execution == ExecutionType::kDefault) {
     execution = kRealDefaultExecutionType;
-    XLS_LOG_IF(WARNING, execution == ExecutionType::kInterpreter)
+    LOG_IF(WARNING, execution == ExecutionType::kInterpreter)
         << "Interpreter is being used in place of JIT.";
   }
   switch (execution) {

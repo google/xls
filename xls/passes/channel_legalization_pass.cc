@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -1043,7 +1044,7 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
   // If we've added an adapter, we likely want to inline it.
   // TODO(google/xls#950): remove this warning when multi-proc codegen is an
   // option.
-  XLS_LOG_IF(ERROR, changed && !options.inline_procs)
+  LOG_IF(ERROR, changed && !options.inline_procs)
       << "An adapter proc was added, but proc inlining has not been enabled. "
          "You likely want to inline the new proc!";
   return changed;

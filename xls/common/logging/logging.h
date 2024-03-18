@@ -34,7 +34,7 @@
 // your lunch.
 //
 // Many logging statements are inherently conditional.  For example,
-// `CHECK(foo)` and `XLS_LOG_IF(INFO, !foo)` do nothing if `foo` is true.
+// `CHECK(foo)` and `LOG_IF(INFO, !foo)` do nothing if `foo` is true.
 // Even seemingly unconditional statements like `XLS_LOG(INFO)` might be
 // disabled at compile-time to minimize binary size or for security reasons.
 //
@@ -48,11 +48,11 @@
 //
 //     XLS_LOG(INFO) << "Server status: " << StartServerAndReturnStatusString();
 //
-//   This is bad too; the `i++` in the `XLS_LOG_IF` condition may not be
+//   This is bad too; the `i++` in the `LOG_IF` condition may not be
 //   evaluated, which would make the loop infinite:
 //
 //     for (int i = 0; i < 1000000;)
-//       XLS_LOG_IF(INFO, i++ % 1000 == 0) << "Still working...";
+//       LOG_IF(INFO, i++ % 1000 == 0) << "Still working...";
 //
 // * Except where otherwise noted, conditions which cause a statement not to log
 //   also cause expressions not to be evaluated.  Programs may rely on this for
@@ -72,7 +72,7 @@
 //
 //     {
 //       char fox_line1[] = "Hatee-hatee-hatee-ho!";
-//       XLS_LOG_IF(ERROR, false) << "The fox says " << fox_line1;
+//       LOG_IF(ERROR, false) << "The fox says " << fox_line1;
 //       char fox_line2[] = "A-oo-oo-oo-ooo!";
 //       XLS_LOG(INFO) << "The fox also says " << fox_line2;
 //     }
@@ -180,14 +180,5 @@
 // See vlog_is_on.h for further documentation, including the usage of the
 // --vmodule flag to log at different levels in different source files.
 #define XLS_VLOG(verbose_level) VLOG(verbose_level)
-
-// `XLS_LOG_IF` adds a second argument which specifies a condition.
-// If the condition is false, nothing is logged. Example:
-//
-//   XLS_LOG_IF(INFO, num_cookies > 10) << "Got lots of cookies";
-//
-// There is no `VLOG_IF` because the order of evaluation of the arguments is
-// ambiguous and the alternate spelling with an `if`-statement is trivial.
-#define XLS_LOG_IF(severity, condition) LOG_IF(severity, condition)
 
 #endif  // XLS_COMMON_LOGGING_LOGGING_H_
