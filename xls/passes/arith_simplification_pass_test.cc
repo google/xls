@@ -1925,6 +1925,17 @@ TEST_F(ArithSimplificationPassTest, InvertedComparison) {
   }
 }
 
+TEST_F(ArithSimplificationPassTest, InvertedComparisonWithMultipleUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue lt = fb.ULt(fb.Param("x", u32), fb.Param("y", u32));
+  BValue not_lt = fb.Not(lt);
+  fb.Tuple({lt, not_lt});
+  XLS_ASSERT_OK(fb.Build().status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 TEST_F(ArithSimplificationPassTest, ULtMask) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

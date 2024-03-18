@@ -1509,7 +1509,12 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   }
 
   // Not(comparison_op(x, y)) => comparison_op_inverse(x, y)
-  if (n->op() == Op::kNot && OpIsCompare(n->operand(0)->op())) {
+  //
+  // Only perform this if the only user of `comparison_op` is the `not` because
+  // otherwise _both_ comparisons will remain in the graph which is a
+  // de-optimization.
+  if (n->op() == Op::kNot && OpIsCompare(n->operand(0)->op()) &&
+      HasSingleUse(n->operand(0))) {
     XLS_VLOG(2) << "FOUND: Not(CompareOp(x, y))";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<CompareOp>(n->operand(0)->operand(0),
