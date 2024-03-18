@@ -2247,6 +2247,19 @@ fn f(x: Point1D) -> Point1D { x }
                  HasSubstr("Parametric type being returned from function")));
 }
 
+TEST(TypecheckErrorTest, PrioritySelectOnNonBitsType) {
+  EXPECT_THAT(
+      Typecheck(R"(
+struct MyStruct { }
+
+fn f() { priority_sel(u2:0b00, MyStruct[2]:[MyStruct{}, MyStruct{}]) }
+)")
+          .status(),
+      IsPosError(
+          "TypeInferenceError",
+          HasSubstr("Want arg 1 element type to be bits; got MyStruct")));
+}
+
 TEST(TypecheckErrorTest, OperatorOnParametricBuiltin) {
   EXPECT_THAT(Typecheck(R"(
 fn f() { fail!%2 }

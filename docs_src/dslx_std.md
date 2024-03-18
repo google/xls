@@ -41,6 +41,22 @@ signature:
 fn add_with_carry<N>(x: uN[N], y: uN[N]) -> (u1, uN[N])
 ```
 
+### `array_size`
+
+`array_size` returns the number of elements in a given array-typed argument.
+
+```
+fn array_size<T: type, N: u32>(x: T[N]) -> u32
+```
+
+```dslx
+#[test]
+fn test_array_size() {
+    assert_eq(array_size(u32[3]:[0, 1, 2]), u32:3);
+    assert_eq(array_size(u8[1]:[42]), u32:1);
+}
+```
+
 ### `widening_cast` and `checked_cast`
 
 `widening_cast` and `checked_cast` cast bits-type values to bits-type values
@@ -229,12 +245,20 @@ Example usage:
 See also the
 [IR semantics for the `encode` op](./ir_semantics.md#encode).
 
+### `enumerate`
+
+Decorates elements of an array with indices. Has the following signature:
+
+```
+fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N]
+```
+
 ### `one_hot`
 
 Converts a value to one-hot form. Has the following signature:
 
 ```
-fn one_hot<N, NP1=N+1>(x: uN[N], lsb_is_prio: bool) -> uN[NP1]
+fn one_hot<N: u32, NP1:u32={N+1}>(x: uN[N], lsb_is_prio: bool) -> uN[NP1]
 ```
 
 When `lsb_is_prio` is true, the least significant bit that is set becomes the
@@ -257,7 +281,7 @@ of the selector is enabled. In cases where the selector has exactly one bit set
 (it is in one-hot form) this is equivalent to a match.
 
 ```
-fn one_hot_sel<N, M>(selector: uN[N], cases: uN[N][M]) -> uN[N]
+fn one_hot_sel(selector: uN[N], cases: xN[N][M]) -> uN[N]
 ```
 
 Evaluates each case value and `or`s each case together if the corresponding bit
@@ -265,8 +289,41 @@ in the selector is set. The first element of `cases` is included if the LSB is
 set, the second if the next least significant bit and so on. If no selector bits
 are set this evaluates to zero. This function is not generally used directly
 though the compiler will when possible synthesize the equivalent code from a
-`match` expression. This is included for testing purposes and for bespoke
+`match` expression.
+
+NOTE: This is included largely for testing purposes and for bespoke
 'intrinsic-style programming' use cases.
+
+### `priority_sel`
+
+Implements a priority selector. Has the following signature:
+
+```
+fn priority_sel(selector: uN[N], cases: xN[S][M][N]) -> xN[S][M]
+```
+
+That is, the selector is `N` bits, and we give `N` cases to choose from of
+`M`-bit values of arbitrary signedness.
+
+If the selector is zero, the zero-value (of the result type) is returned.
+
+Example usage:
+[`dslx/tests/priority_sel.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/priority_sel.x).
+
+NOTE: This operator is only defined for bits types because other types do not
+have defined or-operators, and conceptually `priority_sel` desugars to a masked
+or-reduction, which is why it produces the zero value when nothing is selected.
+
+### `range`
+
+Returns an array filled with the sequence from inclusive `START` to exclusive
+`LIMIT`. Note that `START` and `LIMIT` must be compile-time-constant values (AKA
+"constexpr"). It is compile-time-checked by the type system that `LIMIT >=
+START`.
+
+```
+fn range(START: const uN, LIMIT: const uN) -> uN[{LIMIT-START}]
+```
 
 ### `signex`
 
@@ -291,7 +348,7 @@ fn test_signex() {
 
 Note that both `s` and `u` contain the same bits in the above example.
 
-### slice
+### `slice`
 
 Array-slice built-in operation. Note that the "want" argument is *not* used as a
 value, but is just used to reflect the desired slice type. (Prior to constexprs
@@ -597,7 +654,90 @@ Additionally, it is expected that if, in the resulting Verilog, gating occurs on
 a value that originates from a flip flop, the operand gating may be promoted to
 register-based load-enable gating.
 
-## `import std`
+## `proc`-related builtins (Communicating Sequential Processes)
+
+### `join`: sequencing I/O tokens
+
+The `join` builtin "joins together" a variable number of tokens into one
+token -- this resulting token represents that an I/O operation happens "no
+earlier than" all the given tokens. That is, it establishes a `>=` event
+ordering with respect to all the parameter tokens.
+
+```
+join(token...) -> token
+```
+
+This is useful to a user that wants to sequence their I/O operations, e.g.
+ensuring that two earlier I/O operations happen before a later I/O operation can
+begin.
+
+```dslx-snippet
+    let (token0, value0) = recv(chan0);
+    let (token1, value1) = recv(chan1);
+    let joined = join(token0, token1);
+    let token2 = send(joined, chan2, another_value);
+```
+
+NOTE: this routine can only be used in the body of a `proc`.
+
+### `send`: send a value on a channel
+
+The `send` builtin sends a value on a channel, taking an I/O sequencing token
+and producing a new I/O sequencing token (which can be used to order
+communication events).
+
+```
+send(tok: token, chan<T> out, value: T) -> token
+```
+
+### `recv`: (blocking) receive of a value from a channel
+
+The `recv` builtin does a "blocking" `recv` of a value from a channel -- it is
+blocking in the sense that the current activation of the `proc` cannot complete
+until the `recv` has been performed. The token that the `recv` produces can be
+used to force a sequencing of the `recv` with respect to other I/O operations.
+
+```
+recv(tok: token, c: chan<T> in) -> (token, T)
+```
+
+### `recv_if`: conditional (blocking) receive of a value from a channel
+
+The `recv_if` builtin does a blocking receive as described in [`recv`][#recv],
+but only attempts to do so if the given predicate is true.
+
+```
+recv_if(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T)
+```
+
+### `recv_nonblocking`: non-blocking receive of a value from a channel
+
+Performs a non-blocking receive from channel `c` -- if the channel is empty the
+`default_value` is returned as the result, and the `bool` in the result
+indicates whether the value originated from the channel (i.e. `true` means the
+value came from the channel).
+
+```
+recv_nonblocking(tok: token, c: chan<T> in, default_value: T) -> (token, T, bool)
+```
+
+NOTE: non-blocking operations make a block latency sensitive and can no longer
+be described as pure "Kahn Process Networks", which means that the design's
+correctness is more sensitive to the chosen schedule, and thus design
+verification should occur on the scheduled design.
+
+### `recv_if_nonblocking`: conditional non-blocking receive of a value from a channel
+
+As `recv_nonblocking` is above, but with an additional predicate that indicates
+whether we should attempt to do the nonblocking receive from the channel. If
+this predicate is false, the default value will be provided and the returned
+boolean will be false.
+
+```
+recv_nonblocking(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T, bool)
+```
+
+## `import std`: DSLX standard library routines
 
 ### Bits Type Properties
 

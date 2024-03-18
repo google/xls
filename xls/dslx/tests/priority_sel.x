@@ -13,12 +13,21 @@
 // limitations under the License.
 
 #[test]
-fn priority_sel_raw_nums() {
+fn priority_sel_3xu4s() {
     assert_eq(u4:0, priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4]));
     assert_eq(u4:1, priority_sel(u3:0b001, u4[3]:[u4:1, u4:2, u4:4]));
     assert_eq(u4:2, priority_sel(u3:0b010, u4[3]:[u4:1, u4:2, u4:4]));
     assert_eq(u4:4, priority_sel(u3:0b100, u4[3]:[u4:1, u4:2, u4:4]));
     assert_eq(u4:1, priority_sel(u3:0b111, u4[3]:[u4:1, u4:2, u4:4]));
+}
+
+#[test]
+fn priority_sel_3xs4s() {
+    assert_eq(s4:0, priority_sel(u3:0b000, s4[3]:[s4:-1, s4:-2, s4:-4]));
+    assert_eq(s4:-1, priority_sel(u3:0b001, s4[3]:[s4:-1, s4:-2, s4:-4]));
+    assert_eq(s4:-2, priority_sel(u3:0b010, s4[3]:[s4:-1, s4:-2, s4:-4]));
+    assert_eq(s4:-4, priority_sel(u3:0b100, s4[3]:[s4:-1, s4:-2, s4:-4]));
+    assert_eq(s4:-1, priority_sel(u3:0b111, s4[3]:[s4:-1, s4:-2, s4:-4]));
 }
 
 #[test]
