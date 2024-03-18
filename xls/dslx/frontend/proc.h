@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -125,6 +126,11 @@ class Proc : public AstNode {
   Function& init() const { return *body_.init; }
   absl::Span<ProcMember* const> members() const { return body_.members; }
   absl::Span<ProcStmt const> stmts() const { return body_.stmts; }
+
+  // Note: this should be called after type checking has been performed, at
+  // which point it should be validated that the last statement, if present, is
+  // a tuple expression.
+  absl::Nullable<const XlsTuple*> GetConfigTuple() const;
 
  private:
   Span span_;

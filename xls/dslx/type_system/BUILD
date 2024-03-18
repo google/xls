@@ -122,6 +122,7 @@ cc_library(
         ":type_zero_value",
         ":unwrap_meta_type",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

@@ -24,6 +24,8 @@
 namespace xls::dslx {
 namespace {
 
+// Scenario where entry proc has a config with a "spawn" statement and a
+// trailing semicolon, with no members to configure for itself.
 TEST(TypecheckTest, ConfigSpawnTerminatingSemicolonNoMembers) {
   constexpr std::string_view kProgram = R"(
 proc foo {
@@ -39,6 +41,77 @@ proc entry {
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+// As above, but with an explicit empty tuple to configure the zero members.
+TEST(TypecheckTest, ConfigSpawnExplicitNilTupleNoMembers) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+    init { }
+    config() { }
+    next(tok: token, state: ()) { }
+}
+
+proc entry {
+    init { () }
+    config() { spawn foo(); () }
+    next (tok: token, state: ()) { () }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, ConfigTooManyElementsGiven) {
+  constexpr std::string_view kProgram = R"(
+proc entry {
+    init { () }
+    config() {
+      let (_p, c) = chan<u32>;
+      (c,)
+    }
+    next (tok: token, state: ()) { () }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("(chan(uN[32], dir=in)) vs ()")));
+}
+
+TEST(TypecheckErrorTest, ConfigTooFewElementsGiven) {
+  constexpr std::string_view kProgram = R"(
+proc entry {
+    c : chan<u32> in;
+    init { () }
+    config() {
+      ()
+    }
+    next (tok: token, state: ()) { () }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("() vs (chan(uN[32], dir=in))")));
+}
+
+TEST(TypecheckErrorTest, ConfigNonTupleGiven) {
+  constexpr std::string_view kProgram = R"(
+proc entry {
+    c : chan<u32> in;
+    init { () }
+    config() {
+      u32:42
+    }
+    next (tok: token, state: ()) { () }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "final expression in a Proc config must be a tuple with "
+                      "one element for each Proc data member")));
 }
 
 TEST(TypecheckTest, RecvIfDefaultValueWrongType) {

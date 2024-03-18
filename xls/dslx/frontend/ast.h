@@ -754,7 +754,7 @@ class Statement final : public AstNode {
 //  trailing_semi: Whether the final statement had a trailing semicolon after
 //    it.
 //
-// Note: in the degenerate case where there are no statements in the block,
+// Invariant: in the degenerate case where there are no statements in the block,
 // trailing_semi is always true.
 class Block : public Expr {
  public:

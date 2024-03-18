@@ -28,6 +28,7 @@
 #include "xls/common/indent.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
@@ -60,6 +61,20 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
 }
 
 Proc::~Proc() = default;
+
+const XlsTuple* Proc::GetConfigTuple() const {
+  const Function& config_fn = config();
+  // Note: when the block is empty, trailing_semi is always true as an
+  // invariant.
+  if (config_fn.body()->trailing_semi()) {
+    return nullptr;
+  }
+  Expr* last =
+      std::get<Expr*>(config_fn.body()->statements().back()->wrapped());
+  const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(last);
+  CHECK_NE(tuple, nullptr);
+  return tuple;
+}
 
 std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def()};

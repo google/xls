@@ -2120,28 +2120,22 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
 
   XLS_ASSIGN_OR_RETURN(Block * block, ParseBlockExpression(bindings));
 
-  Expr* final_expr;
   if (block->empty() || block->trailing_semi()) {
-    // TODO(https://github.com/google/xls/issues/1124): 2023-08-31 If the block
-    // is empty we make a fake tuple expression for the return value.
-    final_expr = module_->Make<XlsTuple>(block->span(), std::vector<Expr*>{},
-                                         /*has_trailing_comma=*/false);
-    block->AddStatement(module_->Make<Statement>(final_expr));
-    block->DisableTrailingSemi();
+    // Implicitly nil tuple as a result.
   } else {
-    final_expr = std::get<Expr*>(block->statements().back()->wrapped());
-  }
+    Expr* final_expr = std::get<Expr*>(block->statements().back()->wrapped());
 
-  XLS_VLOG(5) << "ParseProcConfig; final expr: `" << final_expr->ToString()
-              << "`";
+    if (dynamic_cast<XlsTuple*>(final_expr) == nullptr) {
+      Span final_stmt_span =
+          ToAstNode(block->statements().back()->wrapped())->GetSpan().value();
+      return ParseErrorStatus(
+          final_stmt_span,
+          "The final expression in a Proc config must be a tuple with one "
+          "element for each Proc data member.");
+    }
 
-  if (dynamic_cast<XlsTuple*>(final_expr) == nullptr) {
-    Span final_stmt_span =
-        ToAstNode(block->statements().back()->wrapped())->GetSpan().value();
-    return ParseErrorStatus(
-        final_stmt_span,
-        "The final expression in a Proc config must be a tuple with one "
-        "element for each Proc data member.");
+    XLS_VLOG(5) << "ParseProcConfig; final expr: `" << final_expr->ToString()
+                << "`";
   }
 
   NameDef* name_def = module_->Make<NameDef>(

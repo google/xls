@@ -1431,6 +1431,18 @@ TEST_F(ModuleFmtTest, SimpleProc) {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleProcEmptyConfigBlock) {
+  Run(
+      R"(pub proc p {
+    config() {  }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleProcWithMembers) {
   Run(
       R"(pub proc p {
@@ -1530,6 +1542,32 @@ pub proc q {
         let (cin, cout) = chan<u32, u32:4>;
         spawn p(cin, cout);
         ()
+    }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SimpleProcWithSpawnNoTrailingTuple) {
+  Run(
+      R"(pub proc p {
+    cin: chan<u32> in;
+    cout: chan<u32> out;
+
+    config(cin: chan<u32> in, cout: chan<u32> out) { (cin, cout) }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+
+pub proc q {
+    config() {
+        let (cin, cout) = chan<u32, u32:4>;
+        spawn p(cin, cout);
     }
 
     init { () }

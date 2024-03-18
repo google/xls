@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/nullability.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -2239,23 +2240,30 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
   // when typechecking the `next` function. Those values are the elements in the
   // `config` function's terminating XlsTuple.
   // 1. Get the last statement in the `config` function.
-  Function& config_fn = proc->config();
-  Expr* last =
-      std::get<Expr*>(config_fn.body()->statements().back()->wrapped());
-  const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(last);
-  XLS_RET_CHECK_NE(tuple, nullptr);
+  absl::Nullable<const XlsTuple*> config_tuple = proc->GetConfigTuple();
 
   // 2. Extract the value of each element and associate with the corresponding
   // Proc member (in decl. order).
   constexpr_env.clear();
-  XLS_RET_CHECK_EQ(tuple->members().size(), proc->members().size());
-  for (int i = 0; i < tuple->members().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), config_ti, ctx->warnings(),
-            ctx->GetCurrentParametricEnv(), tuple->members()[i], nullptr));
-    constexpr_env.insert({proc->members()[i], value});
+
+  if (config_tuple == nullptr) {
+    if (!proc->members().empty()) {
+      return TypeInferenceErrorStatus(
+          proc->config().span(), nullptr,
+          absl::StrFormat("Proc '%s' has %d members to configure, but no proc "
+                          "configuration tuple was provided",
+                          proc->identifier(), proc->members().size()));
+    }
+  } else {
+    XLS_RET_CHECK_EQ(config_tuple->members().size(), proc->members().size());
+    for (int i = 0; i < config_tuple->members().size(); i++) {
+      XLS_ASSIGN_OR_RETURN(InterpValue value,
+                           ConstexprEvaluator::EvaluateToValue(
+                               ctx->import_data(), config_ti, ctx->warnings(),
+                               ctx->GetCurrentParametricEnv(),
+                               config_tuple->members()[i], nullptr));
+      constexpr_env.insert({proc->members()[i], value});
+    }
   }
 
   XLS_RETURN_IF_ERROR(DeduceInstantiation(ctx, node->next(), next_args,
