@@ -11,33 +11,27 @@ module pipelined_proc(
   reg [31:0] __out_data_skid_reg;
   reg __out_data_valid_reg;
   reg __out_data_valid_skid_reg;
-  wire p0_all_active_states_valid;
-  wire __out_valid_buf;
   wire out_data_from_skid_rdy;
   wire out_data_data_valid_load_en;
   wire out_data_to_is_not_rdy;
-  wire p0_stage_done;
   wire out_data_data_is_sent_to;
   wire out_data_skid_data_load_en;
   wire out_data_skid_valid_set_zero;
   wire [31:0] out_data_select;
   wire out_data_valid_or;
-  wire pipeline_enable;
+  wire p0_stage_done;
   wire [31:0] __out_data_buf;
   wire out_data_data_valid_load_en__1;
   wire out_data_skid_valid_load_en;
-  assign p0_all_active_states_valid = 1'h1;
-  assign __out_valid_buf = in_valid & p0_all_active_states_valid & 1'h1;
   assign out_data_from_skid_rdy = ~__out_data_valid_skid_reg;
-  assign out_data_data_valid_load_en = __out_valid_buf & out_data_from_skid_rdy;
+  assign out_data_data_valid_load_en = in_valid & out_data_from_skid_rdy;
   assign out_data_to_is_not_rdy = ~out_ready;
-  assign p0_stage_done = p0_all_active_states_valid & in_valid & out_data_from_skid_rdy;
   assign out_data_data_is_sent_to = __out_data_valid_reg & out_ready & out_data_from_skid_rdy;
   assign out_data_skid_data_load_en = __out_data_valid_reg & out_data_data_valid_load_en & out_data_to_is_not_rdy;
   assign out_data_skid_valid_set_zero = __out_data_valid_skid_reg & out_ready;
   assign out_data_select = __out_data_valid_skid_reg ? __out_data_skid_reg : __out_data_reg;
   assign out_data_valid_or = __out_data_valid_reg | __out_data_valid_skid_reg;
-  assign pipeline_enable = p0_stage_done & p0_stage_done;
+  assign p0_stage_done = in_valid & out_data_from_skid_rdy;
   assign __out_data_buf = 32'h0000_0019;
   assign out_data_data_valid_load_en__1 = out_data_data_is_sent_to | out_data_data_valid_load_en;
   assign out_data_skid_valid_load_en = out_data_skid_data_load_en | out_data_skid_valid_set_zero;
@@ -50,11 +44,11 @@ module pipelined_proc(
     end else begin
       __out_data_reg <= out_data_data_valid_load_en ? __out_data_buf : __out_data_reg;
       __out_data_skid_reg <= out_data_skid_data_load_en ? __out_data_reg : __out_data_skid_reg;
-      __out_data_valid_reg <= out_data_data_valid_load_en__1 ? __out_valid_buf : __out_data_valid_reg;
+      __out_data_valid_reg <= out_data_data_valid_load_en__1 ? in_valid : __out_data_valid_reg;
       __out_data_valid_skid_reg <= out_data_skid_valid_load_en ? out_data_from_skid_rdy : __out_data_valid_skid_reg;
     end
   end
   assign out_data = out_data_select;
   assign out_valid = out_data_valid_or;
-  assign in_ready = pipeline_enable;
+  assign in_ready = p0_stage_done;
 endmodule

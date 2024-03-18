@@ -35,6 +35,7 @@
 #include "xls/codegen/signature_generation_pass.h"
 #include "xls/codegen/trace_verbosity_pass.h"
 #include "xls/ir/block.h"
+#include "xls/passes/basic_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/identity_removal_pass.h"
 #include "xls/passes/pass_base.h"
@@ -93,6 +94,10 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   // Remove any identity ops which might have been added earlier in the
   // pipeline.
   top->Add<CodegenWrapperPass>(std::make_unique<IdentityRemovalPass>());
+
+  // Do some trivial simplifications to any flow control logic added during code
+  // generation.
+  top->Add<CodegenWrapperPass>(std::make_unique<BasicSimplificationPass>());
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.
   top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());

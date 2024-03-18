@@ -9,6 +9,6 @@ module neg_proc(
   wire [31:0] negate;
   assign negate = -in_d;
   assign out_d = negate;
-  assign out_v = in_v & 1'h1 & 1'h1;
+  assign out_v = in_v;
   assign in_r = out_r;
 endmodule

@@ -20,7 +20,7 @@ TARGETS=(
 "//xls/simulation:module_testbench_test"
 "//xls/simulation:verilog_test_base_test"
 "//xls/tools:codegen_main_test"
-"//xls/tools:wrap_io_test"
+"//xls/contrib/ice40:wrap_io_test"
 "//xls/visualization/ir_viz:ir_to_proto_test"
 )
 
@@ -34,6 +34,10 @@ then
   echo "Must be run from root repo directory"
   exit 1
 fi
+
+# Some dependencies do not build properly with --spawn_strategyy=standalone so
+# build the targets normally first.
+bazel build -c opt ${TARGETS[@]}
 
 bazel test -c opt \
   --test_strategy=standalone \

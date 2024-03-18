@@ -35,6 +35,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
+#include "xls/passes/basic_simplification_pass.h"
 #include "xls/passes/bdd_cse_pass.h"
 #include "xls/passes/bdd_simplification_pass.h"
 #include "xls/passes/bit_slice_simplification_pass.h"
@@ -86,6 +87,8 @@ void AddSimplificationPasses(OptimizationCompoundPass& pass,
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<CanonicalizationPass>();
   pass.Add<DeadCodeEliminationPass>();
+  pass.Add<BasicSimplificationPass>();
+  pass.Add<DeadCodeEliminationPass>();
   pass.Add<ArithSimplificationPass>(opt_level);
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<ComparisonSimplificationPass>();
@@ -113,6 +116,8 @@ void AddSimplificationPasses(OptimizationCompoundPass& pass,
   pass.Add<ArraySimplificationPass>(opt_level);
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<CsePass>();
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<BasicSimplificationPass>();
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<ArithSimplificationPass>(opt_level);
   pass.Add<DeadCodeEliminationPass>();
@@ -173,6 +178,8 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   top->Add<NarrowingPass>(
       /*analysis=*/NarrowingPass::AnalysisType::kRangeWithOptionalContext,
       opt_level);
+  top->Add<DeadCodeEliminationPass>();
+  top->Add<BasicSimplificationPass>();
   top->Add<DeadCodeEliminationPass>();
   top->Add<ArithSimplificationPass>(opt_level);
   top->Add<DeadCodeEliminationPass>();

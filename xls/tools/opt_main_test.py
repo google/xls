@@ -75,13 +75,13 @@ class OptMainTest(test_base.TestCase):
     # The add with zero should be eliminated.
     self.assertIn('ret x', optimized_ir)
 
-  def test_run_only_arith_simp_and_dce_passes(self):
+  def test_run_only_basic_simp_and_dce_passes(self):
     # NB This used to test a deprecated --run_only_passes flag that is
     # superseeded by the --passes flag.
     ir_file = self.create_tempfile(content=DEAD_FUNCTION_IR)
 
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, '--passes=arith_simp dce', ir_file.full_path]
+        [OPT_MAIN_PATH, '--passes=basic_simp dce', ir_file.full_path]
     ).decode('utf-8')
 
     # The add with zero should be eliminated.
@@ -138,10 +138,10 @@ class OptMainTest(test_base.TestCase):
     self.assertNotIn('concat', optimized_ir)
 
   def test_explicit_pipeline(self):
-    """Check that arith_simp gets the add-zero gone."""
+    """Check that basic_simp gets the add-zero gone."""
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, ir_file.full_path, '--passes', 'arith_simp dce']
+        [OPT_MAIN_PATH, ir_file.full_path, '--passes', 'basic_simp dce']
     ).decode('utf-8')
     self.assertNotIn('bits[32] = add', optimized_ir)
 
@@ -149,7 +149,7 @@ class OptMainTest(test_base.TestCase):
     """Check that dce is not run."""
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
     optimized_ir = subprocess.check_output(
-        [OPT_MAIN_PATH, ir_file.full_path, '--passes', 'arith_simp']
+        [OPT_MAIN_PATH, ir_file.full_path, '--passes', 'basic_simp']
     ).decode('utf-8')
     # add is not removed since the DCE was not run.
     self.assertIn('bits[32] = add', optimized_ir)
@@ -163,21 +163,21 @@ class OptMainTest(test_base.TestCase):
         OPT_MAIN_PATH,
         ir_file.full_path,
         '--passes',
-        'dce dce dce dce arith_simp',
+        'dce dce dce dce basic_simp',
         '--passes_bisect_limit',
         '3',
     ]).decode('utf-8')
-    # No change since arith_simp is not run
+    # No change since basic_simp is not run
     self.assertEqual(optimized_ir, ADD_ZERO_IR)
 
   def test_bisect_limit_allows_changes(self):
-    """Check that dce is not run after arith simp."""
+    """Check that dce is not run after basic simp."""
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
     optimized_ir = subprocess.check_output([
         OPT_MAIN_PATH,
         ir_file.full_path,
         '--passes',
-        'dce arith_simp dce',
+        'dce basic_simp dce',
         '--passes_bisect_limit',
         '2',
     ]).decode('utf-8')

@@ -26,7 +26,6 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/big_int.h"
@@ -122,7 +121,7 @@ struct UnsignedDivisionConstants {
   // dividend and divisor must be < 2^N
   const int64_t N;
 
-  // multplies the dividend
+  // multiplies the dividend
   const BigInt m;
 
   // right shift amount before the multiply
@@ -608,291 +607,6 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op) {
 // Return 'true' if the IR was modified (uses of node was replaced with a
 // different expression).
 absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
-  // Pattern: Add/Sub/Or/Xor/Shift a value with 0 on the RHS.
-  if ((n->op() == Op::kAdd || n->op() == Op::kSub || n->op() == Op::kShll ||
-       n->op() == Op::kShrl || n->op() == Op::kShra) &&
-      IsLiteralZero(n->operand(1))) {
-    XLS_VLOG(2) << "FOUND: Useless operation of value with zero";
-    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-    return true;
-  }
-
-  // Returns true if all operands of 'node' are the same.
-  auto all_operands_same = [](Node* node) {
-    return std::all_of(node->operands().begin(), node->operands().end(),
-                       [node](Node* op) { return op == node->operand(0); });
-  };
-
-  // Duplicate operands of AND and OR (and their inverting forms NAND and OR)
-  // can be removed.
-  //
-  //   Op(x, y, y, x)  =>  Op(x, y)
-  if (n->Is<NaryOp>() && (n->op() == Op::kAnd || n->op() == Op::kOr ||
-                          n->op() == Op::kNand || n->op() == Op::kNor)) {
-    std::vector<Node*> unique_operands;
-    for (Node* operand : n->operands()) {
-      // This is quadratic in the number of operands, but shouldn't cause
-      // problems unless we have at least hundreds of thousands of operands
-      // which seems unlikely.
-      if (std::find(unique_operands.begin(), unique_operands.end(), operand) ==
-          unique_operands.end()) {
-        unique_operands.push_back(operand);
-      }
-    }
-    if (unique_operands.size() != n->operand_count()) {
-      XLS_VLOG(2) << "FOUND: remove duplicate operands in and/or/nand/nor";
-      XLS_RETURN_IF_ERROR(
-          n->ReplaceUsesWithNew<NaryOp>(unique_operands, n->op()).status());
-      return true;
-    }
-  }
-
-  // Single operand forms of non-inverting logical ops (AND, OR) can be
-  // replaced with the operand.
-  //
-  //   Op(x)  =>  x
-  if (n->Is<NaryOp>() && (n->op() == Op::kAnd || n->op() == Op::kOr) &&
-      n->operand_count() == 1) {
-    XLS_VLOG(2) << "FOUND: replace single operand or(x) with x";
-    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-    return true;
-  }
-
-  // Single operand forms of inverting logical ops (NAND, NOR) can be
-  // replaced with the inverted operand.
-  //
-  //   Op(x)  =>  Not(x)
-  if (n->Is<NaryOp>() && (n->op() == Op::kNor || n->op() == Op::kNand) &&
-      n->operand_count() == 1) {
-    XLS_VLOG(2) << "FOUND: replace single operand nand/nor(x) with not(x)";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
-    return true;
-  }
-
-  // All operands the same for XOR:
-  //
-  //   XOR(x, x, ...)  =>  x  // Odd number of operands.
-  //   XOR(x, x, ...)  =>  0  // Even number of operands.
-  if (n->op() == Op::kXor && all_operands_same(n)) {
-    XLS_VLOG(2) << "FOUND: replace xor(x, x, ...) with 0 or 1";
-    if (n->operand_count() % 2 == 0) {
-      // Even number of operands. Replace with zero.
-      XLS_RETURN_IF_ERROR(
-          n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
-              .status());
-    } else {
-      // Odd number of operands. Replace with XOR operand.
-      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-    }
-    return true;
-  }
-
-  // Replaces uses of n with a new node by eliminating operands for which the
-  // "predicate" holds. If the predicate holds for all operands, the
-  // NaryOpNullaryResult is used as a replacement.
-  auto eliminate_operands_where =
-      [n](std::function<bool(Node*)> predicate) -> absl::StatusOr<bool> {
-    XLS_RET_CHECK(n->Is<NaryOp>());
-    std::vector<Node*> new_operands;
-    for (Node* operand : n->operands()) {
-      if (!predicate(operand)) {
-        new_operands.push_back(operand);
-      }
-    }
-    if (new_operands.size() == n->operand_count()) {
-      return false;
-    }
-    if (new_operands.empty()) {
-      XLS_RETURN_IF_ERROR(
-          n
-              ->ReplaceUsesWithNew<Literal>(Value(DoLogicalOp(
-                  n->op(), {LogicalOpIdentity(n->op(), n->BitCountOrDie())})))
-              .status());
-    } else {
-      XLS_RETURN_IF_ERROR(
-          n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());
-    }
-    return true;
-  };
-
-  // Or(x, 0, y) => Or(x, y)
-  // Xor(x, 0, y) => Xor(x, y)
-  // Nor(x, 0, y) => Nor(x, y)
-  if ((n->op() == Op::kOr || n->op() == Op::kXor || n->op() == Op::kNor)) {
-    XLS_VLOG(2) << "FOUND: remove zero valued operands from or, nor, or, xor";
-    XLS_ASSIGN_OR_RETURN(bool changed, eliminate_operands_where(IsLiteralZero));
-    if (changed) {
-      return true;
-    }
-  }
-
-  // Or(x, -1, y) => -1
-  if (n->op() == Op::kOr && AnyOperandWhere(n, IsLiteralAllOnes)) {
-    XLS_VLOG(2) << "FOUND: replace or(..., 1, ...) with 1";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
-    return true;
-  }
-
-  // Nor(x, -1, y) => 0
-  if (n->op() == Op::kNor && AnyOperandWhere(n, IsLiteralAllOnes)) {
-    XLS_VLOG(2) << "FOUND: replace nor(..., 1, ...) with 0";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
-    return true;
-  }
-
-  // And(x, -1, y) => And(x, y)
-  // Nand(x, -1, y) => Nand(x, y)
-  if (n->op() == Op::kAnd || n->op() == Op::kNand) {
-    XLS_VLOG(2) << "FOUND: remove all-ones operands from and/nand";
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         eliminate_operands_where(IsLiteralAllOnes));
-    if (changed) {
-      return true;
-    }
-  }
-
-  // And(x, 0) => 0
-  if (n->op() == Op::kAnd && AnyOperandWhere(n, IsLiteralZero)) {
-    XLS_VLOG(2) << "FOUND: replace and(..., 0, ...) with 0";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
-    return true;
-  }
-
-  // Nand(x, 0) => 1
-  if (n->op() == Op::kNand && AnyOperandWhere(n, IsLiteralZero)) {
-    XLS_VLOG(2) << "FOUND: replace nand(..., 0, ...) with 1";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
-    return true;
-  }
-
-  auto has_inverted_operand = [&] {
-    for (Node* operand : n->operands()) {
-      if (operand->op() == Op::kNot &&
-          std::find(n->operands().begin(), n->operands().end(),
-                    operand->operand(0)) != n->operands().end()) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // And(x, Not(x)) => 0
-  // And(Not(x), x) => 0
-  //
-  // Note that this won't be found through the ternary query engine because
-  // conservatively it determines `not(UNKNOWN) = UNKNOWN`.
-  if (n->op() == Op::kAnd && has_inverted_operand()) {
-    XLS_VLOG(2) << "FOUND: replace and(x, not(x)) with 0";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
-            .status());
-    return true;
-  }
-
-  //   Or(X, Not(X), ...)  => 1...
-  //
-  // Note that this won't be found through the ternary query engine because
-  // conservatively it determines `not(UNKNOWN) = UNKNOWN`.
-  if (n->op() == Op::kOr && has_inverted_operand()) {
-    XLS_VLOG(2) << "FOUND: replace Or(x, not(x)) with 1...";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(Bits::AllOnes(n->BitCountOrDie())))
-            .status());
-    return true;
-  }
-
-  //   Add(X, Not(X)) => 1...
-  //   Add(Not(X), X) => 1...
-  //
-  // Note that this won't be found through the ternary query engine because
-  // conservatively it determines `not(UNKNOWN) = UNKNOWN`.
-  if (n->op() == Op::kAdd && n->operand_count() == 2 &&
-      has_inverted_operand()) {
-    XLS_VLOG(2) << "FOUND: replace Add(x, not(x)) with 1...";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(Bits::AllOnes(n->BitCountOrDie())))
-            .status());
-    return true;
-  }
-
-  // Xor(x, -1) => Not(x)
-  if (n->op() == Op::kXor && n->operand_count() == 2 &&
-      IsLiteralAllOnes(n->operand(1))) {
-    XLS_VLOG(2) << "FOUND: Found xor with all ones";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
-    return true;
-  }
-
-  // Sub(X, X) => Literal(0)
-  if (n->op() == Op::kSub && all_operands_same(n)) {
-    XLS_VLOG(2) << "FOUND: Sub of value with itself";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
-            .status());
-    return true;
-  }
-
-  auto is_same_opcode = [&](Node* other) { return n->op() == other->op(); };
-
-  // Flatten nested associative nary ops into their root op:
-  //
-  //   Op(Op(x, y), z)  =>  Op(x, y, z)
-  //
-  // This operation should only be performed if the only user of the nested ops
-  // is the outer op itself.
-  if (OpIsAssociative(n->op()) && n->Is<NaryOp>() &&
-      AnyOperandWhere(n, is_same_opcode)) {
-    std::vector<Node*> new_operands;
-    bool should_transform = false;
-    for (Node* operand : n->operands()) {
-      if (operand->op() == n->op() && HasSingleUse(operand)) {
-        should_transform = true;
-        for (Node* suboperand : operand->operands()) {
-          new_operands.push_back(suboperand);
-        }
-      } else {
-        new_operands.push_back(operand);
-      }
-    }
-    if (should_transform) {
-      XLS_VLOG(2) << "FOUND: flatten nested associative nary ops";
-      XLS_RETURN_IF_ERROR(
-          n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());
-      return true;
-    }
-  }
-
-  // Fold the literal values presented to the nary op.
-  //
-  //   Op(C0, x, C1)  =>  Op(C2, x) where C2 == Op(C0, C1)
-  if (OpIsCommutative(n->op()) && OpIsAssociative(n->op()) && n->Is<NaryOp>() &&
-      AnyTwoOperandsWhere(n, IsLiteral)) {
-    std::vector<Node*> new_operands;
-    Bits bits = LogicalOpIdentity(n->op(), n->BitCountOrDie());
-    for (Node* operand : n->operands()) {
-      if (operand->Is<Literal>()) {
-        bits = DoLogicalOp(n->op(),
-                           {bits, operand->As<Literal>()->value().bits()});
-      } else {
-        new_operands.push_back(operand);
-      }
-    }
-    XLS_ASSIGN_OR_RETURN(Node * literal, n->function_base()->MakeNode<Literal>(
-                                             n->loc(), Value(bits)));
-    new_operands.push_back(literal);
-    XLS_VLOG(2)
-        << "FOUND: fold literal operands of associative commutative operation";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());
-    return true;
-  }
-
   // Pattern: UDiv/UMul/SMul by a positive power of two.
   if ((n->op() == Op::kSMul || n->op() == Op::kUMul || n->op() == Op::kUDiv) &&
       n->operand(1)->Is<Literal>()) {
@@ -1015,23 +729,6 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 
   XLS_ASSIGN_OR_RETURN(bool sdiv_matched, MatchSignedDivide(n));
   if (sdiv_matched) {
-    return true;
-  }
-
-  // Pattern: Mul by 0
-  if ((n->op() == Op::kSMul || n->op() == Op::kUMul) &&
-      IsLiteralZero(n->operand(1))) {
-    XLS_VLOG(2) << "FOUND: Mul by 0";
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
-            .status());
-    return true;
-  }
-
-  // Pattern: Not(Not(x)) => x
-  if (n->op() == Op::kNot && n->operand(0)->op() == Op::kNot) {
-    XLS_VLOG(2) << "FOUND: replace not(not(x)) with x";
-    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)->operand(0)));
     return true;
   }
 
@@ -1188,14 +885,6 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
-  // Pattern: Double negative.
-  //   -(-expr)
-  if (n->op() == Op::kNeg && n->operand(0)->op() == Op::kNeg) {
-    XLS_VLOG(2) << "FOUND: Double negative";
-    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)->operand(0)));
-    return true;
-  }
-
   // We can eliminate negations that are only used in signed comparisons to
   // literals or other negations, at minimal cost.
   //
@@ -1320,25 +1009,6 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
-  // Patterns (where x is a bits[1] type):
-  //   eq(x, 1) => x
-  //   eq(x, 0) => not(x)
-  //
-  // Because eq is commutative, we can rely on the literal being on the right
-  // because of canonicalization.
-  if (n->op() == Op::kEq && n->operand(0)->GetType()->IsBits() &&
-      n->operand(0)->BitCountOrDie() == 1 && n->operand(1)->Is<Literal>()) {
-    if (IsLiteralZero(n->operand(1))) {
-      XLS_RETURN_IF_ERROR(
-          n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
-      return true;
-    }
-    XLS_VLOG(2) << "FOUND: eq comparison with bits[1]:0 or bits[1]:1";
-    XLS_RET_CHECK(IsLiteralUnsignedOne(n->operand(1)));
-    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-    return true;
-  }
-
   // Shift amounts from the front-end are often unnecessarily zero
   // extended. Strip the zero-extension (canonicalized to concat with zero):
   //
@@ -1450,33 +1120,6 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
         return true;
       }
     }
-  }
-
-  // eq(x, x) => 1
-  // ne(x, x) => 0
-  if (n->op() == Op::kEq && n->operand(0) == n->operand(1)) {
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1))).status());
-    return true;
-  }
-  if (n->op() == Op::kNe && n->operand(0) == n->operand(1)) {
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(UBits(0, 1))).status());
-    return true;
-  }
-
-  // If x and y are zero-width values:
-  //    eq(x, y) => 1
-  //    ne(x, y) => 0
-  if (n->op() == Op::kEq && n->operand(0)->GetType()->GetFlatBitCount() == 0) {
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1))).status());
-    return true;
-  }
-  if (n->op() == Op::kNe && n->operand(0)->GetType()->GetFlatBitCount() == 0) {
-    XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(Value(UBits(0, 1))).status());
-    return true;
   }
 
   // Slt(x, 0) -> msb(x)

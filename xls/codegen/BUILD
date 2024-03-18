@@ -464,6 +464,7 @@ cc_library(
         ":signature_generation_pass",
         ":trace_verbosity_pass",
         "//xls/ir",
+        "//xls/passes:basic_simplification_pass",
         "//xls/passes:dce_pass",
         "//xls/passes:identity_removal_pass",
         "//xls/passes:pass_base",

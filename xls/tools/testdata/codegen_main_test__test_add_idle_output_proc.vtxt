@@ -13,26 +13,20 @@ module neg_proc(
   reg __in_valid_reg;
   reg [31:0] __out_reg;
   reg __out_valid_reg;
-  wire p0_all_active_states_valid;
   wire out_valid_inv;
-  wire __out_vld_buf;
   wire out_valid_load_en;
   wire out_load_en;
   wire p0_stage_done;
-  wire pipeline_enable;
   wire in_valid_inv;
   wire in_valid_load_en;
   wire in_load_en;
   wire [31:0] negate;
-  assign p0_all_active_states_valid = 1'h1;
   assign out_valid_inv = ~__out_valid_reg;
-  assign __out_vld_buf = __in_valid_reg & p0_all_active_states_valid & 1'h1;
   assign out_valid_load_en = out_rdy | out_valid_inv;
-  assign out_load_en = __out_vld_buf & out_valid_load_en;
-  assign p0_stage_done = p0_all_active_states_valid & __in_valid_reg & out_load_en;
-  assign pipeline_enable = p0_stage_done & p0_stage_done;
+  assign out_load_en = __in_valid_reg & out_valid_load_en;
+  assign p0_stage_done = __in_valid_reg & out_load_en;
   assign in_valid_inv = ~__in_valid_reg;
-  assign in_valid_load_en = pipeline_enable | in_valid_inv;
+  assign in_valid_load_en = p0_stage_done | in_valid_inv;
   assign in_load_en = in_vld & in_valid_load_en;
   assign negate = -__in_reg;
   always_ff @ (posedge clk) begin
@@ -45,11 +39,11 @@ module neg_proc(
       __in_reg <= in_load_en ? in : __in_reg;
       __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
       __out_reg <= out_load_en ? negate : __out_reg;
-      __out_valid_reg <= out_valid_load_en ? __out_vld_buf : __out_valid_reg;
+      __out_valid_reg <= out_valid_load_en ? __in_valid_reg : __out_valid_reg;
     end
   end
   assign out = __out_reg;
   assign out_vld = __out_valid_reg;
   assign in_rdy = in_load_en;
-  assign idle = ~(in_vld | __in_valid_reg | __out_valid_reg | 1'h0);
+  assign idle = ~(in_vld | __in_valid_reg | __out_valid_reg);
 endmodule

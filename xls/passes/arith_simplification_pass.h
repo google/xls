@@ -25,9 +25,8 @@
 
 namespace xls {
 
-// class ArithSimplificationPass analyzes the IR and finds some
-// simple patterns it can simplify, e.g., things like mul by 1,
-// add of 0, etc.
+// This pass performes various arithmetic optimizations such as replacement of
+// divide by a constant with non-divide operations.
 class ArithSimplificationPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "arith_simp";

@@ -26,6 +26,7 @@ cc_library(
     deps = [
         ":arith_simplification_pass",
         ":array_simplification_pass",
+        ":basic_simplification_pass",
         ":bdd_cse_pass",
         ":bdd_simplification_pass",
         ":bit_slice_simplification_pass",
@@ -2538,6 +2539,53 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:value",
+    ],
+)
+
+cc_library(
+    name = "basic_simplification_pass",
+    srcs = ["basic_simplification_pass.cc"],
+    hdrs = ["basic_simplification_pass.h"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_registry",
+        ":pass_base",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+    ],
+)
+
+cc_test(
+    name = "basic_simplification_pass_test",
+    srcs = ["basic_simplification_pass_test.cc"],
+    deps = [
+        ":basic_simplification_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "//xls/solvers:z3_ir_equivalence",
+        "//xls/solvers:z3_ir_equivalence_testutils",
     ],
 )
 

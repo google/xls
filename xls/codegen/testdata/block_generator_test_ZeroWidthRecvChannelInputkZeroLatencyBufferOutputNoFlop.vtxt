@@ -8,23 +8,19 @@ module pipelined_proc(
   output wire in_ready
 );
   reg __in_data_valid_skid_reg;
-  wire p0_all_active_states_valid;
   wire in_data_valid_or;
   wire p0_stage_done;
-  wire pipeline_enable;
   wire in_data_from_skid_rdy;
   wire in_data_to_is_not_rdy;
   wire in_data_skid_data_load_en;
   wire in_data_skid_valid_set_zero;
   wire in_data_skid_valid_load_en;
-  assign p0_all_active_states_valid = 1'h1;
   assign in_data_valid_or = in_valid | __in_data_valid_skid_reg;
-  assign p0_stage_done = p0_all_active_states_valid & in_data_valid_or & out_ready;
-  assign pipeline_enable = p0_stage_done & p0_stage_done;
+  assign p0_stage_done = in_data_valid_or & out_ready;
   assign in_data_from_skid_rdy = ~__in_data_valid_skid_reg;
-  assign in_data_to_is_not_rdy = ~pipeline_enable;
+  assign in_data_to_is_not_rdy = ~p0_stage_done;
   assign in_data_skid_data_load_en = in_valid & in_data_from_skid_rdy & in_data_to_is_not_rdy;
-  assign in_data_skid_valid_set_zero = __in_data_valid_skid_reg & pipeline_enable;
+  assign in_data_skid_valid_set_zero = __in_data_valid_skid_reg & p0_stage_done;
   assign in_data_skid_valid_load_en = in_data_skid_data_load_en | in_data_skid_valid_set_zero;
   always @ (posedge clk) begin
     if (rst) begin
@@ -34,6 +30,6 @@ module pipelined_proc(
     end
   end
   assign out_data = 32'h0000_0019;
-  assign out_valid = in_data_valid_or & p0_all_active_states_valid & 1'h1;
+  assign out_valid = in_data_valid_or;
   assign in_ready = in_data_from_skid_rdy;
 endmodule

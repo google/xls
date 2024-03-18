@@ -7,13 +7,9 @@ module pipelined_proc(
   output wire out_valid,
   output wire in_ready
 );
-  wire p0_all_active_states_valid;
   wire p0_stage_done;
-  wire pipeline_enable;
-  assign p0_all_active_states_valid = 1'h1;
-  assign p0_stage_done = p0_all_active_states_valid & in_valid & out_ready;
-  assign pipeline_enable = p0_stage_done & p0_stage_done;
+  assign p0_stage_done = in_valid & out_ready;
   assign out_data = 32'h0000_0019;
-  assign out_valid = in_valid & p0_all_active_states_valid & 1'h1;
-  assign in_ready = pipeline_enable;
+  assign out_valid = in_valid;
+  assign in_ready = p0_stage_done;
 endmodule
