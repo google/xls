@@ -1656,6 +1656,38 @@ cc_library(
 )
 
 cc_library(
+    name = "value_builder",
+    srcs = ["value_builder.cc"],
+    hdrs = ["value_builder.h"],
+    deps = [
+        ":bits",
+        ":value",
+        "//xls/common:visitor",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "value_builder_test",
+    srcs = ["value_builder_test.cc"],
+    deps = [
+        ":bits",
+        ":value",
+        ":value_builder",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "elaboration",
     srcs = ["elaboration.cc"],
     hdrs = ["elaboration.h"],

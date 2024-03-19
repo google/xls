@@ -88,6 +88,8 @@ class Value {
 
   // As above, but as a precondition all elements must be known to be of the
   // same type.
+  //
+  // Prefer using ValueBuilder for construction.
   static Value ArrayOrDie(absl::Span<const Value> elements) {
     return Array(elements).value();
   }
@@ -95,6 +97,8 @@ class Value {
   // Construct an array using the given elements. Ownership of the vector is
   // transferred to the Value. DCHECK fails if not all elements are the same
   // type.
+  //
+  // Prefer using ValueBuilder for construction.
   static Value ArrayOwned(std::vector<Value>&& elements) {
     for (int64_t i = 1; i < elements.size(); ++i) {
       DCHECK(elements[0].SameTypeAs(elements[i]));
