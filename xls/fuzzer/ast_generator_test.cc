@@ -25,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -79,14 +80,14 @@ TEST(AstGeneratorTest, BitsTypeGetMetadata) {
   g.module_ = std::make_unique<Module>("test_module", /*fs_path=*/std::nullopt);
 
   TypeAnnotation* u7 = g.MakeTypeAnnotation(false, 7);
-  XLS_LOG(INFO) << "u7: " << u7->ToString();
+  LOG(INFO) << "u7: " << u7->ToString();
   XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_count, g.BitsTypeGetBitCount(u7));
   XLS_ASSERT_OK_AND_ASSIGN(bool is_signed, g.BitsTypeIsSigned(u7));
   EXPECT_EQ(bit_count, 7);
   EXPECT_EQ(is_signed, false);
 
   TypeAnnotation* s129 = g.MakeTypeAnnotation(true, 129);
-  XLS_LOG(INFO) << "s129: " << s129->ToString();
+  LOG(INFO) << "s129: " << s129->ToString();
   XLS_ASSERT_OK_AND_ASSIGN(bit_count, g.BitsTypeGetBitCount(s129));
   XLS_ASSERT_OK_AND_ASSIGN(is_signed, g.BitsTypeIsSigned(s129));
   EXPECT_EQ(bit_count, 129);
@@ -116,7 +117,7 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
   AstGeneratorOptions options;
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, rng);
-    XLS_LOG(INFO) << "Generating sample: " << i;
+    LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", module_name));
@@ -138,7 +139,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
       R"(next\(x[0-9]+: token, x[0-9]+: \(\)\))";
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, rng);
-    XLS_LOG(INFO) << "Generating sample: " << i;
+    LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", module_name));
@@ -163,7 +164,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
       R"(next\(x[0-9]+: token, x[0-9]+: []0-9a-zA-Z_, ()[]+\))";
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, rng);
-    XLS_LOG(INFO) << "Generating sample: " << i;
+    LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", module_name));

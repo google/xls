@@ -33,6 +33,7 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
     ],
 )

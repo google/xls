@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -77,8 +78,8 @@ absl::Status RunComparator::RunComparison(Package* ir_package,
   //
   // TODO(amfv): 2021-03-18 Extend IR conversion to include those functions.
   if (!get_result.has_value()) {
-    XLS_LOG(WARNING) << "Could not find " << ir_name
-                     << " function for JIT comparison";
+    LOG(WARNING) << "Could not find " << ir_name
+                 << " function for JIT comparison";
     return absl::OkStatus();
   }
 

@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -172,7 +173,7 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_PROC_MEMBER;
   }
   // Fatal since enum class values should not be out of range.
-  XLS_LOG(FATAL) << "Out of range AstNodeKind: " << static_cast<int64_t>(kind);
+  LOG(FATAL) << "Out of range AstNodeKind: " << static_cast<int64_t>(kind);
 }
 
 PosProto ToProto(const Pos& pos) {
@@ -363,7 +364,7 @@ ChannelDirectionProto ToProto(ChannelDirection d) {
     case ChannelDirection::kOut:
       return extracted();
   }
-  XLS_LOG(FATAL) << "Invalid ChannelDirection: " << static_cast<int64_t>(d);
+  LOG(FATAL) << "Invalid ChannelDirection: " << static_cast<int64_t>(d);
 }
 
 absl::StatusOr<ChannelTypeProto> ToProto(const ChannelType& channel_type) {

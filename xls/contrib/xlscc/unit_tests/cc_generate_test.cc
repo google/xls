@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
@@ -53,8 +54,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (!positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat(
-        "Expected: %s -seed=1 -cc_filepath=xxx", argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected: %s -seed=1 -cc_filepath=xxx",
+                                      argv[0]);
   }
   int seed = absl::GetFlag(FLAGS_seed);
   std::string cc_filepath = absl::GetFlag(FLAGS_cc_filepath);

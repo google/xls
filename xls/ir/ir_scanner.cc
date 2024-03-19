@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -349,7 +350,7 @@ class Tokenizer {
           std::string char_str = absl::ascii_iscntrl(current())
                                      ? absl::StrFormat("\\x%02x", current())
                                      : std::string(1, current());
-          XLS_LOG(ERROR) << "IR text with error: " << str_;
+          LOG(ERROR) << "IR text with error: " << str_;
           return absl::InvalidArgumentError(absl::StrFormat(
               "Invalid character in IR text \"%s\" @ %s", char_str,
               TokenPos{lineno(), colno()}.ToHumanString()));

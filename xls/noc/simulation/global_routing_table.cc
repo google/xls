@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
@@ -206,7 +207,7 @@ absl::Status DistributedRoutingTable::DumpRouterRoutingTable(
       routing_tables_.at(network_id.id());
   XLS_ASSIGN_OR_RETURN(NetworkParam network_param,
                        network_parameters_->GetNetworkParam(network_id));
-  XLS_LOG(INFO) << "Routing table for network: " << network_param.GetName();
+  LOG(INFO) << "Routing table for network: " << network_param.GetName();
   for (const NetworkComponentId& nc_id : network.GetNetworkComponentIds()) {
     const NetworkComponent& nc = network.GetNetworkComponent(nc_id);
     if (nc.kind() != NetworkComponentKind::kRouter) {
@@ -214,10 +215,10 @@ absl::Status DistributedRoutingTable::DumpRouterRoutingTable(
     }
     XLS_ASSIGN_OR_RETURN(NetworkComponentParam nc_param,
                          network_parameters_->GetNetworkComponentParam(nc_id));
-    XLS_LOG(INFO) << "Routing table for network component: "
-                  << std::get<RouterParam>(nc_param).GetName();
-    XLS_LOG(INFO) << "Input Port Name | Input VC Name | Sink Name | Output "
-                     "Port Name | Output VC Name";
+    LOG(INFO) << "Routing table for network component: "
+              << std::get<RouterParam>(nc_param).GetName();
+    LOG(INFO) << "Input Port Name | Input VC Name | Sink Name | Output "
+                 "Port Name | Output VC Name";
     RouterRoutingTable& router_routing_table = nc_routing_tables.at(nc_id.id());
     for (PortId input_port_id : nc.GetInputPortIds()) {
       XLS_ASSIGN_OR_RETURN(PortParam input_port_param,
@@ -252,7 +253,7 @@ absl::Status DistributedRoutingTable::DumpRouterRoutingTable(
           std::string_view output_port_name = output_port_param.GetName();
           std::vector<VirtualChannelParam> output_vc_params =
               output_port_param.GetVirtualChannels();
-          XLS_LOG(INFO)
+          LOG(INFO)
               << input_port_name << "   " << vc_name << "   "
               << std::get<NetworkInterfaceSinkParam>(sink_param).GetName()
               << "   " << output_port_name << "   "
@@ -321,7 +322,7 @@ DistributedRoutingTableBuilderBase::BuildPortAndVirtualChannelIndices(
     int64_t output_port_index = 0;
 
     for (Port& ports : nc.GetPorts()) {
-      // This function assigns port indicies in-order.
+      // This function assigns port indices in-order.
       if (ports.direction() == PortDirection::kInput) {
         XLS_RET_CHECK_OK(port_index_builder.SetPortIndex(
             ports.id(), ports.direction(), input_port_index));

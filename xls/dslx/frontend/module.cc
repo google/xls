@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -235,8 +236,8 @@ std::optional<ModuleMember*> Module::FindMemberWithName(
     } else if (std::holds_alternative<ConstAssert*>(member)) {
       continue;  // These have no name / binding.
     } else {
-      XLS_LOG(FATAL) << "Unhandled module member variant: "
-                     << ToAstNode(member)->GetNodeTypeName();
+      LOG(FATAL) << "Unhandled module member variant: "
+                 << ToAstNode(member)->GetNodeTypeName();
     }
   }
   return std::nullopt;

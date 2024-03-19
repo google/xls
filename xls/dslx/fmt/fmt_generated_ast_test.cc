@@ -18,6 +18,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -64,7 +65,7 @@ TEST_P(FmtGeneratedAstTest, RunShard) {
         ObeysAutoFmtOpportunisticPostcondition(stringified, autoformatted);
     if (maybe_violation.has_value()) {
       FAIL() << "autofmt postcondition violation";
-      XLS_LOG(ERROR) << "= shard " << GetParam() << " sample " << i << ":";
+      LOG(ERROR) << "= shard " << GetParam() << " sample " << i << ":";
       XLS_LOG_LINES(ERROR, stringified);
     }
   }

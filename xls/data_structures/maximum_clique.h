@@ -22,6 +22,7 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -87,8 +88,7 @@ absl::StatusOr<absl::btree_set<V, Compare>> MaximumClique(
       result.insert(vertex);
     }
     if ((value != 1.0) && (value != 0.0)) {
-      XLS_LOG(WARNING) << "maximum clique ILP gave non-zero/one answer: "
-                       << value;
+      LOG(WARNING) << "maximum clique ILP gave non-zero/one answer: " << value;
     }
   }
 

@@ -22,6 +22,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -42,9 +43,8 @@ bool TryPrintError(
   }
   absl::StatusOr<PositionalErrorData> data_or = GetPositionalErrorData(status);
   if (!data_or.ok()) {
-    XLS_LOG(ERROR)
-        << "Could not extract a textual position from error message: " << status
-        << ": " << data_or.status();
+    LOG(ERROR) << "Could not extract a textual position from error message: "
+               << status << ": " << data_or.status();
     return false;
   }
   auto& data = data_or.value();
@@ -55,7 +55,7 @@ bool TryPrintError(
       is_tty ? PositionalErrorColor::kErrorColor
              : PositionalErrorColor::kNoColor);
   if (!print_status.ok()) {
-    XLS_LOG(ERROR) << "Could not print positional error: " << print_status;
+    LOG(ERROR) << "Could not print positional error: " << print_status;
   }
   return print_status.ok();
 }

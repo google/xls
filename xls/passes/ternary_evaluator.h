@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_TERNARY_EVALUATOR_H_
 #define XLS_PASSES_TERNARY_EVALUATOR_H_
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/abstract_evaluator.h"
@@ -39,7 +40,7 @@ class TernaryEvaluator
       case TernaryValue::kUnknown:
         return TernaryValue::kUnknown;
     }
-    XLS_LOG(FATAL) << "Impossible ternary value: " << input;
+    LOG(FATAL) << "Impossible ternary value: " << input;
   }
 
   TernaryValue And(const TernaryValue& a, const TernaryValue& b) const {

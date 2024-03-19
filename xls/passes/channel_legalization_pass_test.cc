@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -91,8 +92,8 @@ std::string_view PassVariantName(PassVariant pass_variant) {
     case PassVariant::RunChannelLegalizationPassOnly:
       return "RunChannelLegalizationPassOnly";
   }
-  XLS_LOG(ERROR) << absl::StreamFormat("Unexpected value for PassVariant: %d",
-                                       static_cast<int>(pass_variant));
+  LOG(ERROR) << absl::StreamFormat("Unexpected value for PassVariant: %d",
+                                   static_cast<int>(pass_variant));
   return "<unknown>";
 }
 

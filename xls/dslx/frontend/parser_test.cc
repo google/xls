@@ -26,6 +26,7 @@
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -1758,7 +1759,7 @@ fn main(x: u32) -> u32 {
   Parser parser{"test", &s};
   absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
   ASSERT_FALSE(module_or.ok()) << module_or.status();
-  XLS_LOG(INFO) << "status: " << module_or.status();
+  LOG(INFO) << "status: " << module_or.status();
   EXPECT_THAT(module_or.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("A fail label must be unique")));

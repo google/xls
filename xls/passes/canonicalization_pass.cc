@@ -18,6 +18,7 @@
 #include <optional>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -64,7 +65,7 @@ Op CompareOpCommuted(Op op) {
     case Op::kULt:
       return Op::kUGt;
     default:
-      XLS_LOG(FATAL) << "Op is not comparison: " << OpToString(op);
+      LOG(FATAL) << "Op is not comparison: " << OpToString(op);
   }
 }
 

@@ -25,6 +25,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -156,7 +157,7 @@ void PrintWarnings(const WarningCollector& warnings) {
         e.span, e.message, std::cerr, /*get_file_contents=*/nullptr,
         PositionalErrorColor::kWarningColor);
     if (!print_status.ok()) {
-      XLS_LOG(WARNING) << "Could not print warning: " << print_status;
+      LOG(WARNING) << "Could not print warning: " << print_status;
     }
   }
 }

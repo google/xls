@@ -24,6 +24,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
@@ -70,8 +71,7 @@ class QueryEngineTest : public IrTestBase,
       XLS_RETURN_IF_ERROR(engine->Populate(f).status());
       return engine;
     }
-    XLS_LOG(FATAL)
-        << "Update QueryEngineTest::GetEngine to match QueryEngineType";
+    LOG(FATAL) << "Update QueryEngineTest::GetEngine to match QueryEngineType";
   }
 
   // Create a BValue with known bits equal to the given ternary vector. Created

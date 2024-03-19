@@ -48,6 +48,7 @@ cc_binary(
         "//xls/synthesis:synthesis_service_cc_grpc",
         "@at_clifford_yosys//:json11",
         "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",

@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -61,7 +62,7 @@ TEST(SampleExperimentsTest, SimpleVCExperiment) {
 
   std::vector<ExperimentData> experiment_data(4);
   for (int64_t i = 0; i < experiment.GetSweeps().GetStepCount(); ++i) {
-    XLS_LOG(INFO) << absl::StreamFormat("Experiment Step %d", i);
+    LOG(INFO) << absl::StreamFormat("Experiment Step %d", i);
     XLS_ASSERT_OK_AND_ASSIGN(experiment_data.at(i), experiment.RunStep(i));
     XLS_EXPECT_OK(experiment_data.at(i).metrics.DebugDump());
   }
@@ -185,7 +186,7 @@ TEST(SampleExperimentsTest, AggregateTreeTest) {
 
   std::vector<ExperimentData> experiment_data(step_count);
   for (int64_t i = 0; i < step_count; ++i) {
-    XLS_LOG(INFO) << absl::StreamFormat("Experiment Step %d", i);
+    LOG(INFO) << absl::StreamFormat("Experiment Step %d", i);
     XLS_ASSERT_OK_AND_ASSIGN(experiment_data.at(i), experiment.RunStep(i));
     XLS_EXPECT_OK(experiment_data.at(i).metrics.DebugDump());
   }

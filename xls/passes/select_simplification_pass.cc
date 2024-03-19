@@ -115,8 +115,8 @@ BitSource GetBitSource(Node* node, int64_t bit_index,
       }
       offset += operand->BitCountOrDie();
     }
-    XLS_LOG(FATAL) << "Bit index " << bit_index << " too large for "
-                   << node->ToString();
+    LOG(FATAL) << "Bit index " << bit_index << " too large for "
+               << node->ToString();
   } else if (node->Is<Literal>()) {
     return node->As<Literal>()->value().bits().Get(bit_index);
   } else if (node->GetType()->IsBits() &&

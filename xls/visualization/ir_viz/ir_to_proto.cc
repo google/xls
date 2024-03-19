@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -199,8 +200,8 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
       node_to_critical_path_entry[entry.node] = &entry;
     }
   } else {
-    XLS_LOG(WARNING) << "Could not analyze critical path for function: "
-                     << critical_path.status();
+    LOG(WARNING) << "Could not analyze critical path for function: "
+                 << critical_path.status();
   }
 
   BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);

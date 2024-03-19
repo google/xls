@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
@@ -188,13 +189,13 @@ class FunctionFmtTest : public testing::Test {
     std::optional<AutoFmtPostconditionViolation> maybe_violation =
         ObeysAutoFmtOpportunisticPostcondition(original, formatted);
     if (maybe_violation.has_value() && opportunistic_postcondition) {
-      XLS_LOG(ERROR) << "= original";
+      LOG(ERROR) << "= original";
       XLS_LOG_LINES(ERROR, original);
-      XLS_LOG(ERROR) << "= autofmt";
+      LOG(ERROR) << "= autofmt";
       XLS_LOG_LINES(ERROR, formatted);
-      XLS_LOG(ERROR) << "= original (transformed)";
+      LOG(ERROR) << "= original (transformed)";
       XLS_LOG_LINES(ERROR, maybe_violation->original_transformed);
-      XLS_LOG(ERROR) << "= autofmt (transformed)";
+      LOG(ERROR) << "= autofmt (transformed)";
       XLS_LOG_LINES(ERROR, maybe_violation->autofmt_transformed);
       return absl::InternalError(
           "Sample did not obey auto-formatting postcondition");
@@ -914,9 +915,9 @@ class ModuleFmtTest : public testing::Test {
       std::optional<AutoFmtPostconditionViolation> maybe_violation =
           ObeysAutoFmtOpportunisticPostcondition(input, got);
       if (maybe_violation.has_value()) {
-        XLS_LOG(ERROR) << "= original (transformed)";
+        LOG(ERROR) << "= original (transformed)";
         XLS_LOG_LINES(ERROR, maybe_violation->original_transformed);
-        XLS_LOG(ERROR) << "= autofmt (transformed)";
+        LOG(ERROR) << "= autofmt (transformed)";
         XLS_LOG_LINES(ERROR, maybe_violation->autofmt_transformed);
         FAIL() << "auto-formatter postcondition was violated";
       }

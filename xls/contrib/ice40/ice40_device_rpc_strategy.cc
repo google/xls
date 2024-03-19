@@ -28,6 +28,7 @@
 #include <system_error>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -182,8 +183,8 @@ absl::Status Ice40DeviceRpcStrategy::Connect(int64_t device_ordinal) {
         "Already connected to an ICE40 device.");
   }
   XLS_ASSIGN_OR_RETURN(std::string path, FindPath(device_ordinal));
-  XLS_LOG(INFO) << "Found path: " << path
-                << " for ICE40 device ordinal: " << device_ordinal;
+  LOG(INFO) << "Found path: " << path
+            << " for ICE40 device ordinal: " << device_ordinal;
 
   // TODO(leary): 2019-04-07 Probably want a way to have the user set or a way
   // to automatically discover the appropriate baud rate for the design
@@ -241,8 +242,8 @@ absl::Status Ice40DeviceRpcStrategy::Connect(int64_t device_ordinal) {
   speed_t input_speed = cfgetispeed(&t);
   speed_t output_speed = cfgetospeed(&t);
 
-  XLS_LOG(INFO) << "input speed:  " << SpeedString(input_speed);
-  XLS_LOG(INFO) << "output speed: " << SpeedString(output_speed);
+  LOG(INFO) << "input speed:  " << SpeedString(input_speed);
+  LOG(INFO) << "output speed: " << SpeedString(output_speed);
 
   XLS_VLOG(1) << "input modes:   " << InputModesToString(t.c_iflag);
   XLS_VLOG(1) << "control modes: " << ControlModesToString(t.c_cflag);

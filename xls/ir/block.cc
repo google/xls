@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -112,8 +113,7 @@ static int64_t GetPortPosition(Node* n, const Block* block) {
     }
     i++;
   }
-  XLS_LOG(FATAL) << absl::StreamFormat("Node %s is not a port node",
-                                       n->GetName());
+  LOG(FATAL) << absl::StreamFormat("Node %s is not a port node", n->GetName());
 }
 
 // Return the priority of a node for the purposes of dump order. Nodes with
@@ -726,7 +726,7 @@ absl::StatusOr<Block*> Block::Clone(
           cloned_block->AddBlockInstantiation(
               block_inst->name(), block_inst->instantiated_block()));
     } else {
-      XLS_LOG(FATAL) << "InstantiationKind not yet supported: " << inst->kind();
+      LOG(FATAL) << "InstantiationKind not yet supported: " << inst->kind();
     }
   }
 

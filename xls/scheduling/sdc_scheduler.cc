@@ -827,8 +827,8 @@ math_opt::LinearConstraint SDCSchedulingModel::DiffGreaterThanConstraint(
 math_opt::LinearConstraint SDCSchedulingModel::DiffEqualsConstraint(
     Node* x, Node* y, int64_t diff, std::string_view name) {
   if (x == y) {
-    XLS_LOG(FATAL) << "DiffEqualsConstraint: " << x->GetName() << " - "
-                   << y->GetName() << " = " << diff << " is unsatisfiable";
+    LOG(FATAL) << "DiffEqualsConstraint: " << x->GetName() << " - "
+               << y->GetName() << " = " << diff << " is unsatisfiable";
   }
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) == static_cast<double>(diff),

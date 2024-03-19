@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -109,9 +110,9 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.empty()) {
-    XLS_LOG(QFATAL) << "Wrong number of command-line arguments; got "
-                    << args.size() << ": `" << absl::StrJoin(args, " ")
-                    << "`; want " << argv[0] << " <input-file>";
+    LOG(QFATAL) << "Wrong number of command-line arguments; got " << args.size()
+                << ": `" << absl::StrJoin(args, " ") << "`; want " << argv[0]
+                << " <input-file>";
   }
 
   return xls::ExitStatus(xls::dslx::RealMain(std::filesystem::path(args[0])));

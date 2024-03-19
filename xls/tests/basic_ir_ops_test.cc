@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -275,8 +276,8 @@ top fn main(x: bits[3]) -> bits[4] {
       {0b111, 0b0100},
   };
   for (auto example : examples) {
-    XLS_LOG(INFO) << "Example: " << example.input << " = "
-                  << std::bitset<32>(example.input);
+    LOG(INFO) << "Example: " << example.input << " = "
+              << std::bitset<32>(example.input);
     RunAndExpectEq({{"x", example.input}}, example.output, text);
   }
 }
@@ -363,7 +364,7 @@ TEST_F(BasicOpsTest, Clz) {
       {0b011, 1},
   };
   for (auto example : examples) {
-    XLS_LOG(INFO) << "Example: " << example.input;
+    LOG(INFO) << "Example: " << example.input;
     RunAndExpectEq({{"x", example.input}}, example.output, text);
   }
 }

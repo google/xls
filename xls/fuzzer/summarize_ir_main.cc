@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -139,7 +140,7 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (!positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << "Usage:\n" << kUsage;
+    LOG(QFATAL) << "Usage:\n" << kUsage;
   }
 
   return xls::ExitStatus(xls::RealMain(absl::GetFlag(FLAGS_unoptimized_ir),

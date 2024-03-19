@@ -203,7 +203,7 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
     // The ostream and its buffer must be declared before the
     // module_pass_manager because the destrutor of the pass manager calls flush
     // on the ostream so these must be destructed *after* the pass manager. C++
-    // guarantees that the destructors are called in reverse order the obects
+    // guarantees that the destructors are called in reverse order the objects
     // are declared.
     llvm::SmallVector<char, 0> stream_buffer;
     llvm::raw_svector_ostream ostream(stream_buffer);
@@ -325,7 +325,7 @@ void* GetMsanTLSAddr(void* ctx) {
     case kRetvalTlsEntry:
       return absl::bit_cast<void*>(&__msan_retval_tls);
     default:
-      XLS_LOG(ERROR) << "Unexpected TLS addr request: " << ctx;
+      LOG(ERROR) << "Unexpected TLS addr request: " << ctx;
       return nullptr;
   }
 }

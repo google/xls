@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -57,7 +58,7 @@ ScopedErrorHandler::~ScopedErrorHandler() {
   g_handler->status_ = absl::InternalError(absl::StrFormat(
       "Z3 error @ %s:%d: %s", g_handler->source_location_.file_name(),
       g_handler->source_location_.line(), Z3_get_error_msg(c, e)));
-  XLS_LOG(ERROR) << g_handler->status_;
+  LOG(ERROR) << g_handler->status_;
 }
 
 namespace {
@@ -204,8 +205,7 @@ Z3_sort TypeToSort(Z3_context ctx, const Type& type) {
       return CreateTupleSort(ctx, TupleType(/*members=*/{}));
     }
     default:
-      XLS_LOG(FATAL) << "Unsupported type kind: "
-                     << TypeKindToString(type.kind());
+      LOG(FATAL) << "Unsupported type kind: " << TypeKindToString(type.kind());
   }
 }
 

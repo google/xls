@@ -64,6 +64,7 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:span",
         "//xls/common:init_xls",
         "//xls/common/logging",

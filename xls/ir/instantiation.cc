@@ -21,6 +21,7 @@
 #include <string_view>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -48,8 +49,7 @@ std::string InstantiationKindToString(InstantiationKind kind) {
     case InstantiationKind::kExtern:
       return "extern";
   }
-  XLS_LOG(FATAL) << "Invalid instantiation kind: "
-                 << static_cast<int64_t>(kind);
+  LOG(FATAL) << "Invalid instantiation kind: " << static_cast<int64_t>(kind);
 }
 
 absl::StatusOr<InstantiationKind> StringToInstantiationKind(

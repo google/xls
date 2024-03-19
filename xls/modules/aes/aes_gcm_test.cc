@@ -218,10 +218,9 @@ static bool CompareBlock(const Block& expected, const Block& actual,
 static absl::StatusOr<bool> RunSample(JitData* jit_data,
                                       const SampleData& sample_data) {
   if (VLOG_IS_ON(1)) {
-    XLS_LOG(INFO) << "Input plaintext:\n"
-                  << FormatBlocks(sample_data.input_data, /*indent=*/4);
-    XLS_LOG(INFO) << "Input AAD:\n"
-                  << FormatBlocks(sample_data.aad, /*indent=*/4);
+    LOG(INFO) << "Input plaintext:\n"
+              << FormatBlocks(sample_data.input_data, /*indent=*/4);
+    LOG(INFO) << "Input AAD:\n" << FormatBlocks(sample_data.aad, /*indent=*/4);
   }
 
   XLS_ASSIGN_OR_RETURN(Result reference_encrypted,
@@ -230,15 +229,14 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
                        XlsEncrypt(jit_data, sample_data, true));
 
   if (VLOG_IS_ON(1)) {
-    XLS_LOG(INFO) << "Reference ciphertext:\n"
-                  << FormatBlocks(reference_encrypted.output_data,
-                                  /*indent=*/4);
-    XLS_LOG(INFO) << "Reference auth tag:\n    "
-                  << FormatBlock(reference_encrypted.auth_tag);
-    XLS_LOG(INFO) << "XLS ciphertext:\n"
-                  << FormatBlocks(xls_encrypted.output_data, /*indent=*/4);
-    XLS_LOG(INFO) << "XLS auth tag:\n    "
-                  << FormatBlock(xls_encrypted.auth_tag);
+    LOG(INFO) << "Reference ciphertext:\n"
+              << FormatBlocks(reference_encrypted.output_data,
+                              /*indent=*/4);
+    LOG(INFO) << "Reference auth tag:\n    "
+              << FormatBlock(reference_encrypted.auth_tag);
+    LOG(INFO) << "XLS ciphertext:\n"
+              << FormatBlocks(xls_encrypted.output_data, /*indent=*/4);
+    LOG(INFO) << "XLS auth tag:\n    " << FormatBlock(xls_encrypted.auth_tag);
   }
 
   if (reference_encrypted.output_data.size() !=

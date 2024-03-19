@@ -31,6 +31,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -140,7 +141,7 @@ int GetFieldWidth(FieldDescriptor::Type type) {
     default:
       break;
   }
-  XLS_LOG(FATAL) << "Should not get here!";
+  LOG(FATAL) << "Should not get here!";
 }
 
 bool IsFieldSigned(FieldDescriptor::Type type) {
@@ -161,7 +162,7 @@ bool IsFieldSigned(FieldDescriptor::Type type) {
     default:
       break;
   }
-  XLS_LOG(FATAL) << "Should not get here!";
+  LOG(FATAL) << "Should not get here!";
 }
 
 // Returns the [integral] value contained in the specified field (...of the
@@ -207,7 +208,7 @@ uint64_t GetFieldValue(const Message& message, const Reflection& reflection,
     default:
       break;
   }
-  XLS_LOG(FATAL) << "Should not get here!";
+  LOG(FATAL) << "Should not get here!";
 }
 
 // Returns the name of the described type with any parent elements prepended,
@@ -240,11 +241,11 @@ class DbErrorCollector : public google::protobuf::compiler::MultiFileErrorCollec
  public:
   void AddError(const std::string& filename, int line, int column,
                 const std::string& message) override {
-    XLS_LOG(ERROR) << message;
+    LOG(ERROR) << message;
   }
   void AddWarning(const std::string& filename, int line, int column,
                   const std::string& message) override {
-    XLS_LOG(WARNING) << message;
+    LOG(WARNING) << message;
   }
 };
 
@@ -254,13 +255,13 @@ class PoolErrorCollector : public DescriptorPool::ErrorCollector {
   void AddError(const std::string& filename, const std::string& element_name,
                 const Message* descriptor, ErrorLocation location,
                 const std::string& message) override {
-    XLS_LOG(ERROR) << message;
+    LOG(ERROR) << message;
   }
 
   void AddWarning(const std::string& filename, const std::string& element_name,
                   const Message* descriptor, ErrorLocation location,
                   const std::string& message) override {
-    XLS_LOG(WARNING) << message;
+    LOG(WARNING) << message;
   }
 };
 

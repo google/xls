@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Defines the ScopedMockLog class (using gMock), which is convenient
-// for testing code that uses XLS_LOG().
+// for testing code that uses LOG().
 
 #ifndef XLS_COMMON_LOGGING_SCOPED_MOCK_LOG_H_
 #define XLS_COMMON_LOGGING_SCOPED_MOCK_LOG_H_

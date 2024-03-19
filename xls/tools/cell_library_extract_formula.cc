@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/exit_status.h"
@@ -78,7 +79,7 @@ absl::Status RealMain(std::string_view path, std::string_view cell_name,
     auto read_start = absl::Now();
     XLS_ASSIGN_OR_RETURN(text, GetFileContents(path));
     auto read_end = absl::Now();
-    XLS_LOG(INFO) << "Read delta: " << (read_end - read_start);
+    LOG(INFO) << "Read delta: " << (read_end - read_start);
     make_cs = [&] { return CharStream::FromText(std::move(text.value())); };
   }
 
@@ -92,17 +93,17 @@ absl::Status RealMain(std::string_view path, std::string_view cell_name,
   auto start = absl::Now();
   XLS_ASSIGN_OR_RETURN(auto library, parser.ParseLibrary());
   auto end = absl::Now();
-  XLS_LOG(INFO) << "Parse delta: " << (end - start);
+  LOG(INFO) << "Parse delta: " << (end - start);
 
   // Look for the cell we're interested in so we can dump its boolean formula.
   for (const Block* entry : library->GetSubBlocks("cell")) {
     if (!entry->args.empty() && entry->args[0] == cell_name) {
       // Note how long it took for us to find the cell.
       auto end2 = absl::Now();
-      XLS_LOG(INFO) << "Query delta: " << (end2 - end);
+      LOG(INFO) << "Query delta: " << (end2 - end);
 
-      XLS_LOG(INFO) << "Found cell with " << entry->CountEntries("pin")
-                    << " pin entries";
+      LOG(INFO) << "Found cell with " << entry->CountEntries("pin")
+                << " pin entries";
       return DumpOutputPinExpressions(cell_name, *entry);
     }
   }
@@ -122,8 +123,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 2 || positional_arguments[0].empty()) {
-    XLS_LOG(QFATAL) << "Expected arguments: " << argv[0]
-                    << " <lib_path> <cell_name>";
+    LOG(QFATAL) << "Expected arguments: " << argv[0]
+                << " <lib_path> <cell_name>";
   }
 
   return xls::ExitStatus(xls::netlist::cell_lib::RealMain(

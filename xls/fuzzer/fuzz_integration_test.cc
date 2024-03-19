@@ -22,6 +22,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -95,9 +96,9 @@ TEST(FuzzIntegrationTest, Fuzzing) {
   uint64_t seed = absl::GetFlag(FLAGS_seed);
   if (absl::GetFlag(FLAGS_use_nondeterministic_seed)) {
     seed = absl::Uniform<uint64_t>(absl::BitGen());
-    XLS_LOG(INFO) << "Random seed (generated nondeterministically): " << seed;
+    LOG(INFO) << "Random seed (generated nondeterministically): " << seed;
   } else {
-    XLS_LOG(INFO) << "Random seed specified via flag: " << seed;
+    LOG(INFO) << "Random seed specified via flag: " << seed;
   }
   std::mt19937_64 rng{seed};
 
@@ -142,13 +143,13 @@ TEST(FuzzIntegrationTest, Fuzzing) {
                      &run_time, &sample_count]() -> bool {
     if (target_duration.has_value()) {
       if (run_time.GetElapsedTime() >= *target_duration) {
-        XLS_LOG(INFO) << "Ran for target duration of " << *target_duration
-                      << ". Exiting.";
+        LOG(INFO) << "Ran for target duration of " << *target_duration
+                  << ". Exiting.";
         return false;
       }
     } else {
       if (sample_count >= target_sample_count) {
-        XLS_LOG(INFO) << "Generated target number of samples. Exiting.";
+        LOG(INFO) << "Generated target number of samples. Exiting.";
         return false;
       }
     }
@@ -156,7 +157,7 @@ TEST(FuzzIntegrationTest, Fuzzing) {
   };
 
   while (keep_going()) {
-    XLS_LOG(INFO) << "Running sample " << sample_count++;
+    LOG(INFO) << "Running sample " << sample_count++;
     XLS_ASSERT_OK_AND_ASSIGN(TempDirectory run_dir, TempDirectory::Create());
     absl::Status status =
         GenerateSampleAndRun(rng, ast_generator_options, sample_options,
@@ -165,7 +166,7 @@ TEST(FuzzIntegrationTest, Fuzzing) {
                              absl::GetFlag(FLAGS_force_failure))
             .status();
     if (!status.ok()) {
-      XLS_LOG(ERROR) << "Sample failed: " << status;
+      LOG(ERROR) << "Sample failed: " << status;
       crasher_count += 1;
     }
 

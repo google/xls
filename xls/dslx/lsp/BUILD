@@ -32,6 +32,7 @@ cc_library(
     srcs = ["find_definition.cc"],
     hdrs = ["find_definition.h"],
     deps = [
+        "@com_google_absl//absl/log",
         "//xls/common/logging",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",

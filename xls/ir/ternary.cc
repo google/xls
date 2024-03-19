@@ -22,6 +22,7 @@
 
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -63,7 +64,7 @@ std::string ToString(const TernaryValue& value) {
     case TernaryValue::kUnknown:
       return "TernaryValue::kUnknown";
   }
-  XLS_LOG(FATAL) << "Invalid ternary value: " << static_cast<int>(value);
+  LOG(FATAL) << "Invalid ternary value: " << static_cast<int>(value);
 }
 
 absl::StatusOr<TernaryVector> StringToTernaryVector(std::string_view s) {

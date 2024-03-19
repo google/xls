@@ -21,8 +21,8 @@ namespace xls {
 //
 // std::variant<int, string> v = 3;
 // absl::visit(Visitor{
-//   [](int) { XLS_LOG(INFO) << "It's an int"; }
-//   [](string&) { XLS_LOG(INFO) << "It's a string"; }
+//   [](int) { LOG(INFO) << "It's an int"; }
+//   [](string&) { LOG(INFO) << "It's a string"; }
 // }, v);
 //
 // See https://en.cppreference.com/w/cpp/utility/variant/visit example #4.

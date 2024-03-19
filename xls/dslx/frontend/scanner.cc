@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -107,7 +108,7 @@ static uint8_t HexCharToU8(char hex_char) {
   if ('A' <= hex_char && hex_char <= 'F') {
     return hex_char - 'A' + 10;
   }
-  XLS_LOG(FATAL) << "Non-hex character received: " << hex_char;
+  LOG(FATAL) << "Non-hex character received: " << hex_char;
 }
 
 // Returns the next character literal.

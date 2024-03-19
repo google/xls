@@ -436,7 +436,7 @@ absl::Status WriteMainWrapper(Function* f, FunctionJit* jit,
       llvm::Function::LinkageTypes::ExternalLinkage,
       jit->GetJittedFunctionName(), &mod);
   // A little function to call 'write' if it's linked or do a volatile
-  // read/write if its not to prevent optimization shennanigans.
+  // read/write if it's not to prevent optimization shennanigans.
   llvm::Function* write_output_func = llvm::Function::Create(
       llvm::FunctionType::get(int64_type, {raw_ptr_type}, /*isVarArg=*/false),
       llvm::Function::LinkageTypes::InternalLinkage, "write_output", &mod);
@@ -934,8 +934,8 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
   if (positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
-                                          argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
+                                      argv[0]);
   }
   QCHECK(absl::GetFlag(FLAGS_input_validator_expr).empty() ||
          absl::GetFlag(FLAGS_input_validator_path).empty())

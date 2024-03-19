@@ -19,6 +19,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -87,7 +88,7 @@ int main(int argc, char* argv[]) {
   std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.size() != 1) {
-    XLS_LOG(QFATAL) << "A single module file must be specified.";
+    LOG(QFATAL) << "A single module file must be specified.";
   }
 
   std::string output_header_path = absl::GetFlag(FLAGS_output_header_path);

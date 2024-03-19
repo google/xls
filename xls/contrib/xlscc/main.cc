@@ -28,6 +28,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -348,8 +349,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
-    XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s CPP_FILE",
-                                          argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s CPP_FILE",
+                                      argv[0]);
   }
   std::string_view cpp_path = positional_arguments[0];
   return xls::ExitStatus(xlscc::Run(cpp_path));

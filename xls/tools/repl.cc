@@ -35,6 +35,7 @@
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 // TODO(taktoa): 2021-03-10 maybe switch to https://github.com/injinj/linecook
+#include "absl/log/log.h"
 #include "linenoise.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
@@ -554,8 +555,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
-    XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s DSLX_FILE",
-                                          argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s DSLX_FILE",
+                                      argv[0]);
   }
 
   std::string_view dslx_path = positional_arguments[0];
@@ -570,7 +571,7 @@ int main(int argc, char** argv) {
     history_path = home;
     history_path += "/.cache/xls/repl-history";
   } else {
-    XLS_LOG(QFATAL)
+    LOG(QFATAL)
         << "Could not find a path to put history in;"
         << " please define XLS_HISTORY_PATH (to /dev/null if necessary).";
   }

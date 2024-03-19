@@ -20,6 +20,7 @@
 #include <variant>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -93,7 +94,7 @@ class PredicateState {
                                       return s->get_case(arm_index());
                                     },
                                     [](std::nullptr_t) -> Node* {
-                                      XLS_LOG(FATAL) << "Unreachable";
+                                      LOG(FATAL) << "Unreachable";
                                       return nullptr;
                                     }},
                        node_);

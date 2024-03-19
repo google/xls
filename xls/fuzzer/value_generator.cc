@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -184,7 +185,7 @@ Bits GenerateBits(absl::BitGenRef bit_gen, int64_t bit_count) {
       return Bits::FromBitmap(std::move(bitmap));
     }
     default:
-      XLS_LOG(FATAL) << "Impossible choice: " << choice;
+      LOG(FATAL) << "Impossible choice: " << choice;
   }
 }
 

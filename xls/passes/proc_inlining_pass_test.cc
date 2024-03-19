@@ -30,6 +30,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -2093,7 +2094,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
                     .status());
   {
     // Inner proc does not receive on the first *two* ticks (i.e., doesn't
-    // receive data). The FIFO depth is 1 but that is insufficent to prevent
+    // receive data). The FIFO depth is 1 but that is insufficient to prevent
     // data loss.
     //
     //   u32: st = 0
@@ -2699,15 +2700,15 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
       EvalAndExpect(p.get(), {{"in", {2, 5, 7}}}, {{"out", {10, 19, 25}}})
           .status());
 
-  XLS_LOG(INFO) << "================= BEFORE";
-  XLS_LOG(INFO) << p->DumpIr();
+  LOG(INFO) << "================= BEFORE";
+  LOG(INFO) << p->DumpIr();
 
   ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
 
-  XLS_LOG(INFO) << "================= AFTER";
-  XLS_LOG(INFO) << p->DumpIr();
+  LOG(INFO) << "================= AFTER";
+  LOG(INFO) << p->DumpIr();
 
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(), {{"in", {2, 5, 7}}}, {{"out", {10, 19, 25}}})
@@ -3981,7 +3982,7 @@ proc output_passthrough(tkn: token, state:(), init={()}) {
   )";
 
   for (int64_t fifo_depth : {0, 1}) {
-    XLS_LOG(INFO) << "fifo_depth: " << fifo_depth << "\n";
+    LOG(INFO) << "fifo_depth: " << fifo_depth << "\n";
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Package> p,
         ParsePackage(absl::Substitute(ir_text, fifo_depth)));
@@ -4050,7 +4051,7 @@ proc output_passthrough(tkn: token, state: bits[1], init={1}) {
   )";
 
   for (int64_t fifo_depth : {0, 1}) {
-    XLS_LOG(INFO) << "fifo_depth: " << fifo_depth << "\n";
+    LOG(INFO) << "fifo_depth: " << fifo_depth << "\n";
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Package> p,
         ParsePackage(absl::Substitute(ir_text, fifo_depth)));

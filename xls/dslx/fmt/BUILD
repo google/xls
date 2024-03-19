@@ -55,6 +55,7 @@ cc_library(
     deps = [
         ":pretty_print",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -82,6 +83,7 @@ cc_test(
         ":ast_fmt",
         ":pretty_print",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -107,8 +109,8 @@ cc_test(
     shard_count = 50,
     deps = [
         ":ast_fmt",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
-        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",

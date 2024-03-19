@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -35,7 +36,7 @@ std::string ChannelOpsToString(ChannelOps ops) {
     case ChannelOps::kSendReceive:
       return "send_receive";
   }
-  XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(ops);
+  LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(ops);
 }
 
 absl::StatusOr<ChannelOps> StringToChannelOps(std::string_view str) {

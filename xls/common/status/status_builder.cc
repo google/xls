@@ -155,7 +155,7 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
                                 ? rep_->verbose_level
                                 : absl::LogEntry::kNoVerboseLevel;
   if (sink) {
-    XLS_LOG(LEVEL(severity))
+    LOG(LEVEL(severity))
             .AtLocation(loc_.file_name(), loc_.line())
             .ToSinkAlso(sink)
             .WithVerbosity(verbose_level)
@@ -163,7 +163,7 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
   } else {
     // sink == nullptr indicates not to call ToSinkAlso(), which dies if sink is
     // nullptr. Unfortunately, this means we reproduce the above macro call.
-    XLS_LOG(LEVEL(severity))
+    LOG(LEVEL(severity))
             .AtLocation(loc_.file_name(), loc_.line())
             .WithVerbosity(verbose_level)
         << status << maybe_stack_trace;

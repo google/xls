@@ -114,7 +114,7 @@ absl::Status Lec::Init() {
   XLS_RETURN_IF_ERROR(CollectIrInputs());
   if (VLOG_IS_ON(2)) {
     for (const auto& pair : input_mapping_) {
-      XLS_LOG(INFO) << "Stage input [IR] node: " << pair.first;
+      LOG(INFO) << "Stage input [IR] node: " << pair.first;
     }
   }
   XLS_RETURN_IF_ERROR(BindNetlistInputs());
@@ -280,7 +280,7 @@ absl::Status Lec::AddConstraints(Function* constraints) {
 }
 
 bool Lec::Run() {
-  XLS_LOG(INFO) << "Beginning execution";
+  LOG(INFO) << "Beginning execution";
   satisfiable_ = Z3_solver_check(ctx(), solver_.value()) == Z3_L_TRUE;
   if (satisfiable_) {
     model_ = Z3_solver_get_model(ctx(), solver_.value());
@@ -364,8 +364,7 @@ absl::flat_hash_map<std::string, Z3_ast> Lec::FlattenNetlistInputs() {
       auto status_or_cell = module_->ResolveCell(name);
       if (!status_or_cell.ok()) {
         XLS_VLOG(3) << "Could not resolve input cell: " << name << "; skipping";
-        XLS_LOG(INFO) << "Could not resolve input cell: " << name
-                      << "; skipping";
+        LOG(INFO) << "Could not resolve input cell: " << name << "; skipping";
         continue;
       }
 

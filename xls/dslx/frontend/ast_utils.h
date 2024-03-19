@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -116,7 +117,7 @@ inline ToVariantType TryWidenVariant(const std::variant<FromTypes...>& v) {
     return std::get<TryT>(v);
   }
   if constexpr (N == 0) {
-    XLS_LOG(FATAL) << "Could not find variant in FromTypes.";
+    LOG(FATAL) << "Could not find variant in FromTypes.";
   } else {
     return TryWidenVariant<N - 1, ToVariantType>(v);
   }

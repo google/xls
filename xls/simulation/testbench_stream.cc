@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -163,7 +164,7 @@ void TestbenchStreamThread::RunInputStream(
     absl::StatusOr<FileLineWriter> writer =
         FileLineWriter::Create(named_pipe_.path());
     if (!writer.ok()) {
-      XLS_LOG(ERROR) << absl::StrFormat(
+      LOG(ERROR) << absl::StrFormat(
           "FileLineWriter creation failed for stream `%s`: %s", stream_.name,
           writer.status().message());
       MaybeSetError(writer.status());
@@ -202,7 +203,7 @@ void TestbenchStreamThread::RunOutputStream(
     absl::StatusOr<FileLineReader> reader =
         FileLineReader::Create(named_pipe_.path());
     if (!reader.ok()) {
-      XLS_LOG(ERROR) << absl::StrFormat(
+      LOG(ERROR) << absl::StrFormat(
           "FileLineReader creation failed for stream `%s`: %s", stream_.name,
           reader.status().message());
       MaybeSetError(reader.status());
@@ -211,9 +212,8 @@ void TestbenchStreamThread::RunOutputStream(
     while (true) {
       absl::StatusOr<std::optional<std::string>> line = reader->ReadLine();
       if (!line.ok()) {
-        XLS_LOG(ERROR) << absl::StrFormat("Error reading from stream `%s`: %s",
-                                          stream_.name,
-                                          line.status().message());
+        LOG(ERROR) << absl::StrFormat("Error reading from stream `%s`: %s",
+                                      stream_.name, line.status().message());
         MaybeSetError(line.status());
         break;
       }
@@ -230,8 +230,8 @@ void TestbenchStreamThread::RunOutputStream(
       // TODO(meheff): 2023/11/8 Support capturing X values.
       if (absl::StrContains(line->value(), "x") ||
           absl::StrContains(line->value(), "X")) {
-        XLS_LOG(ERROR) << absl::StrFormat("Stream `%s` produced an X value",
-                                          stream_.name);
+        LOG(ERROR) << absl::StrFormat("Stream `%s` produced an X value",
+                                      stream_.name);
         MaybeSetError(absl::InvalidArgumentError(
             absl::StrFormat("Stream `%s` produced an X value: %s", stream_.name,
                             line->value())));
@@ -241,7 +241,7 @@ void TestbenchStreamThread::RunOutputStream(
           line->value(), FormatPreference::kHex,
           /*bit_count=*/stream_.width);
       if (!value.ok()) {
-        XLS_LOG(ERROR) << absl::StrFormat(
+        LOG(ERROR) << absl::StrFormat(
             "Unabled to convert value from stream `%s` into Bits: %s",
             stream_.name, status_.message());
         MaybeSetError(value.status());

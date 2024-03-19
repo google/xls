@@ -518,6 +518,7 @@ cc_test(
         ":float32_ldexp_jit_wrapper",
         ":float32_test_utils",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",

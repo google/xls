@@ -22,6 +22,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/module_signature.h"
@@ -151,8 +152,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
-    XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s IR_FILE",
-                                          argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s IR_FILE",
+                                      argv[0]);
   }
   std::string_view ir_path = positional_arguments[0];
   return xls::ExitStatus(xls::RealMain(ir_path));

@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -1597,7 +1598,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       case TokenKind::kMinus: unop_kind = UnopKind::kNegate; break;
       // clang-format on
       default:
-        XLS_LOG(FATAL) << "Inconsistent unary operation token kind.";
+        LOG(FATAL) << "Inconsistent unary operation token kind.";
     }
     Span span(start_pos, GetPos());
     lhs = module_->Make<Unop>(span, unop_kind, arg);

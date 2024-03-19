@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -878,7 +879,7 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
     // Asserts are a SystemVerilog only feature.
     // TODO(meheff): 2021/02/27 We should raise an error here or possibly emit a
     // construct like: if (!condition) $display("Assert failed ...");
-    XLS_LOG(WARNING) << "Asserts are only supported in SystemVerilog.";
+    LOG(WARNING) << "Asserts are only supported in SystemVerilog.";
     return UnrepresentedSentinel();
   }
   if (clock() == nullptr) {
@@ -985,7 +986,7 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitCover(
     xls::Cover* cover, Expression* condition) {
   if (!options_.use_system_verilog()) {
     // Coverpoints are a SystemVerilog only feature.
-    XLS_LOG(WARNING) << "Coverpoints are only supported in SystemVerilog.";
+    LOG(WARNING) << "Coverpoints are only supported in SystemVerilog.";
     return UnrepresentedSentinel();
   }
   if (clk_ == nullptr) {
@@ -1216,7 +1217,7 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
       return absl::StrFormat("%s_%db", OpToString(node->op()),
                              node->BitCountOrDie());
     default:
-      XLS_LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
+      LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
   }
 }
 
@@ -1763,7 +1764,7 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       func = DefineSDivFunction(node, function_name, functions_section_);
       break;
     default:
-      XLS_LOG(FATAL) << "Cannot define node as function: " << node->ToString();
+      LOG(FATAL) << "Cannot define node as function: " << node->ToString();
   }
   node_functions_[function_name] = func;
   return func;

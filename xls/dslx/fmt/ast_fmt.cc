@@ -29,6 +29,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -303,8 +304,8 @@ DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
     return Fmt(*t, comments, arena);
   }
 
-  XLS_LOG(FATAL) << "handle type annotation: " << n.ToString()
-                 << " type: " << n.GetNodeTypeName();
+  LOG(FATAL) << "handle type annotation: " << n.ToString()
+             << " type: " << n.GetNodeTypeName();
 }
 
 DocRef Fmt(const TypeAlias& n, const Comments& comments, DocArena& arena) {
@@ -1170,7 +1171,7 @@ DocRef Fmt(const SplatStructInstance& n, const Comments& comments,
        arena.break1(), arena.dot_dot(), Fmt(*n.splatted(), comments, arena),
        arena.break1(), arena.ccurl()});
 
-  XLS_LOG(FATAL) << "handle splat struct instance: " << n.ToString();
+  LOG(FATAL) << "handle splat struct instance: " << n.ToString();
 }
 
 DocRef Fmt(const String& n, const Comments& comments, DocArena& arena) {
@@ -1286,7 +1287,7 @@ DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const UnrollFor& n, const Comments& comments, DocArena& arena) {
-  XLS_LOG(FATAL) << "handle unroll for: " << n.ToString();
+  LOG(FATAL) << "handle unroll for: " << n.ToString();
 }
 
 DocRef Fmt(const ZeroMacro& n, const Comments& comments, DocArena& arena) {

@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -83,7 +84,7 @@ TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
     case 2:
       return UBits(0b01010101, /*bit_count=*/8);
   }
-  XLS_LOG(FATAL) << "Unreachable.";
+  LOG(FATAL) << "Unreachable.";
 }
 
 /* static */ Bits TruthTable::RunNaryOp(Op op,
@@ -100,7 +101,7 @@ TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
     case Op::kXor:
       return bits_ops::NaryXor(operands);
     default:
-      XLS_LOG(FATAL) << "Unhandled nary logical operation: " << op;
+      LOG(FATAL) << "Unhandled nary logical operation: " << op;
   }
 }
 
@@ -167,7 +168,7 @@ bool TruthTable::MatchesSymmetrical(
       return original == operands[i];
     }
   }
-  XLS_LOG(FATAL) << "Unreachable.";
+  LOG(FATAL) << "Unreachable.";
 }
 
 absl::StatusOr<Node*> TruthTable::CreateReplacement(
@@ -443,7 +444,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
           result = bits_ops::Not(operands[0]);
           break;
         default:
-          XLS_LOG(FATAL) << "Expected node to be logical bitwise: " << node;
+          LOG(FATAL) << "Expected node to be logical bitwise: " << node;
       }
     }
     memoized_results[node] = result;

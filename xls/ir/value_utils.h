@@ -17,6 +17,7 @@
 
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
@@ -84,7 +85,7 @@ inline bool ValueConformsToType(const Value& value, Type* type) {
     case ValueKind::kToken:
       return type->IsToken();
     default:
-      XLS_LOG(FATAL) << "Invalid value kind: " << value.kind();
+      LOG(FATAL) << "Invalid value kind: " << value.kind();
   }
 }
 

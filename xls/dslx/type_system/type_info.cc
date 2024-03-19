@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
@@ -67,9 +68,10 @@ InvocationData::InvocationData(
   };
   if (caller != nullptr && !is_fn_in_parametric_proc() &&
       !ContainedWithinFunction(*node, *caller)) {
-    XLS_LOG(FATAL) << "Invocation node: `" << node->ToString() << "` @ "
-                   << node->span() << " is not contained within caller: "
-                   << caller->identifier() << " @ " << caller->span();
+    LOG(FATAL) << "Invocation node: `" << node->ToString() << "` @ "
+               << node->span()
+               << " is not contained within caller: " << caller->identifier()
+               << " @ " << caller->span();
   }
 
   for (const auto& [env, _] : env_to_callee_data_) {

@@ -965,9 +965,9 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
         bool required_for_compilation,
         ControlsContendedProvenMutuallyExclusiveChannel(node, p, f));
     if (required_for_compilation) {
-      XLS_LOG(INFO) << "Removing Z3's rlimit for always-false check on "
-                    << node->GetName()
-                    << " as mutual exclusion is required for compilation.";
+      LOG(INFO) << "Removing Z3's rlimit for always-false check on "
+                << node->GetName()
+                << " as mutual exclusion is required for compilation.";
     }
     translator->SetRlimit(z3_rlimit);
     if (RunSolver(ctx, solvers::z3::BitVectorToBoolean(ctx, translated)) ==
@@ -1048,9 +1048,9 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
           [&](Channel* channel) { return channels_b.contains(channel); });
       translator->SetRlimit(required_for_compilation ? 0 : z3_rlimit);
       if (required_for_compilation) {
-        XLS_LOG(INFO) << "Removing Z3's rlimit for mutual exclusion between "
-                      << node_a->GetName() << " and " << node_b->GetName()
-                      << " as mutual exclusion is required for compilation.";
+        LOG(INFO) << "Removing Z3's rlimit for mutual exclusion between "
+                  << node_a->GetName() << " and " << node_b->GetName()
+                  << " as mutual exclusion is required for compilation.";
       }
       Z3_lbool satisfiable = RunSolver(ctx, a_and_b);
 

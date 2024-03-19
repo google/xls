@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "grpcpp/security/server_credentials.h"
 #include "grpcpp/server.h"
@@ -113,8 +114,8 @@ void RealMain() {
   builder.AddListeningPort(server_address, creds);
   builder.RegisterService(&service);
   std::unique_ptr<::grpc::Server> server(builder.BuildAndStart());
-  XLS_LOG(INFO) << "Serving on port: " << port;
-  XLS_LOG(INFO) << "synthesis_target: " << synthesis_target;
+  LOG(INFO) << "Serving on port: " << port;
+  LOG(INFO) << "synthesis_target: " << synthesis_target;
   server->Wait();
 }
 

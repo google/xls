@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -319,7 +320,7 @@ Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
                                   width);
     }
     default:
-      XLS_LOG(FATAL) << "Unsupported/unimplemented op: " << node->op();
+      LOG(FATAL) << "Unsupported/unimplemented op: " << node->op();
   }
 }
 
@@ -357,7 +358,7 @@ Booleanifier::Vector Booleanifier::UnpackParam(Type* type, BValue bv_node) {
       return result;
     }
     default:
-      XLS_LOG(FATAL) << "Unsupported/unimplemened param kind: " << type->kind();
+      LOG(FATAL) << "Unsupported/unimplemened param kind: " << type->kind();
   }
 }
 
@@ -401,7 +402,7 @@ BValue Booleanifier::PackReturnValue(absl::Span<const Element> bits,
       return builder_.Tuple(elements);
     }
     default:
-      XLS_LOG(FATAL) << "Unsupported/unimplemented type kind: " << type->kind();
+      LOG(FATAL) << "Unsupported/unimplemented type kind: " << type->kind();
   }
 }
 

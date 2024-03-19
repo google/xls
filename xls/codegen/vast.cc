@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -1095,8 +1096,8 @@ static std::string CaseTypeToString(CaseType case_type) {
       keyword = "casez";
       break;
     default:
-      XLS_LOG(FATAL) << "Unexpected CaseKeyword with value "
-                     << static_cast<int>(case_type.keyword);
+      LOG(FATAL) << "Unexpected CaseKeyword with value "
+                 << static_cast<int>(case_type.keyword);
   }
 
   if (case_type.modifier.has_value()) {
@@ -1106,8 +1107,8 @@ static std::string CaseTypeToString(CaseType case_type) {
         modifier = "unique";
         break;
       default:
-        XLS_LOG(FATAL) << "Unexpected CaseModifier with value "
-                       << static_cast<int>(*case_type.modifier);
+        LOG(FATAL) << "Unexpected CaseModifier with value "
+                   << static_cast<int>(*case_type.modifier);
     }
     return absl::StrCat(modifier, " ", keyword);
   }

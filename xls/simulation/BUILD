@@ -298,6 +298,7 @@ cc_library(
     hdrs = ["check_simulator.h"],
     deps = [
         "//xls/common/logging",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
     ],
 )
@@ -369,6 +370,7 @@ cc_library(
         "//xls/ir:number_parser",
         "//xls/ir:source_location",
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",

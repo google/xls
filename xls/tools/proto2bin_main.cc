@@ -19,6 +19,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/exit_status.h"
@@ -61,9 +62,8 @@ absl::StatusOr<std::unique_ptr<google::protobuf::Message>> MakeProtoForMessageTy
 absl::Status RealMain(std::string_view textproto_path,
                       std::string_view message_type,
                       std::string_view output_path) {
-  XLS_LOG(INFO) << absl::StrFormat(
-      "Converting type %s textproto %s to binproto %s", message_type,
-      textproto_path, output_path);
+  LOG(INFO) << absl::StrFormat("Converting type %s textproto %s to binproto %s",
+                               message_type, textproto_path, output_path);
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<google::protobuf::Message> proto,
                        MakeProtoForMessageType(message_type));
@@ -86,18 +86,18 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
-    XLS_LOG(QFATAL) << absl::StreamFormat(
-        "Expected invocation: %s TEXT_PROTO_FILE", argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s TEXT_PROTO_FILE",
+                                      argv[0]);
   }
 
   std::string_view text_proto_path = positional_arguments[0];
 
   if (absl::GetFlag(FLAGS_message).empty()) {
-    XLS_LOG(QFATAL) << "--message (proto message type) required.";
+    LOG(QFATAL) << "--message (proto message type) required.";
   }
 
   if (absl::GetFlag(FLAGS_output).empty()) {
-    XLS_LOG(QFATAL) << "--output (binary proto output file path) required.";
+    LOG(QFATAL) << "--output (binary proto output file path) required.";
   }
 
   return xls::ExitStatus(xls::RealMain(text_proto_path,

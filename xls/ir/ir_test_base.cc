@@ -20,6 +20,7 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -86,7 +87,7 @@ Node* IrTestBase::FindNode(std::string_view name, Package* package) {
       }
     }
   }
-  XLS_LOG(FATAL) << "No node named " << name << " in package:\n" << *package;
+  LOG(FATAL) << "No node named " << name << " in package:\n" << *package;
 }
 
 Node* IrTestBase::FindNode(std::string_view name, FunctionBase* function) {
@@ -95,7 +96,7 @@ Node* IrTestBase::FindNode(std::string_view name, FunctionBase* function) {
       return node;
     }
   }
-  XLS_LOG(FATAL) << "No node named " << name << " in function:\n" << *function;
+  LOG(FATAL) << "No node named " << name << " in function:\n" << *function;
 }
 
 bool IrTestBase::HasNode(std::string_view name, Package* package) {
@@ -124,8 +125,7 @@ Function* IrTestBase::FindFunction(std::string_view name, Package* package) {
       return function.get();
     }
   }
-  XLS_LOG(FATAL) << "No function named " << name << " in package:\n"
-                 << *package;
+  LOG(FATAL) << "No function named " << name << " in package:\n" << *package;
 }
 
 Proc* IrTestBase::FindProc(std::string_view name, Package* package) {
@@ -134,7 +134,7 @@ Proc* IrTestBase::FindProc(std::string_view name, Package* package) {
       return proc.get();
     }
   }
-  XLS_LOG(FATAL) << "No proc named " << name << " in package:\n" << *package;
+  LOG(FATAL) << "No proc named " << name << " in package:\n" << *package;
 }
 
 Block* IrTestBase::FindBlock(std::string_view name, Package* package) {
@@ -143,7 +143,7 @@ Block* IrTestBase::FindBlock(std::string_view name, Package* package) {
       return block.get();
     }
   }
-  XLS_LOG(FATAL) << "No block named " << name << " in package:\n" << *package;
+  LOG(FATAL) << "No block named " << name << " in package:\n" << *package;
 }
 
 void IrTestBase::RunAndExpectEq(

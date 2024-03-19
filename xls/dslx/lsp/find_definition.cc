@@ -18,6 +18,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -55,9 +56,8 @@ std::optional<Span> FindDefinition(const Module& m, const Pos& selected) {
     return defs.at(0)->GetSpan();
   }
   if (defs.size() > 1) {
-    XLS_LOG(WARNING)
-        << "Multiple name references found intercepting at position: "
-        << selected;
+    LOG(WARNING) << "Multiple name references found intercepting at position: "
+                 << selected;
   }
 
   return std::nullopt;

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -390,7 +391,7 @@ absl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
     // to guard the input to avoid overshifting.
     return result;
   }
-  // If operand value is greater than the width of the output, zero shoud be
+  // If operand value is greater than the width of the output, zero should be
   // emitted.
   return file->Ternary(
       file->GreaterThanEquals(
@@ -740,7 +741,7 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kGate:
       return unimplemented();
   }
-  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
+  LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
 }
 
 bool ShouldInlineExpressionIntoMultipleUses(Node* node) {

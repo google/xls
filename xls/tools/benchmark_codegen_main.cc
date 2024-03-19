@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -229,7 +230,7 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 3) {
-    XLS_LOG(QFATAL) << absl::StreamFormat(
+    LOG(QFATAL) << absl::StreamFormat(
         "Expected invocation:\n  %s OPT_IR_FILE BLOCK_IR_FILE VERILOG_FILE",
         argv[0]);
   }

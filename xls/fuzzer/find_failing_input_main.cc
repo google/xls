@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -108,8 +109,8 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
   if (positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
-                                          argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
+                                      argv[0]);
   }
   QCHECK(!absl::GetFlag(FLAGS_input_file).empty());
   return xls::ExitStatus(

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -125,9 +126,9 @@ int main(int argc, char* argv[]) {
   std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.size() != 1) {
-    XLS_LOG(QFATAL) << "Wrong number of command-line arguments; got "
-                    << args.size() << ": `" << absl::StrJoin(args, " ")
-                    << "`; want " << argv[0] << " <input-file>";
+    LOG(QFATAL) << "Wrong number of command-line arguments; got " << args.size()
+                << ": `" << absl::StrJoin(args, " ") << "`; want " << argv[0]
+                << " <input-file>";
   }
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -169,7 +170,7 @@ int64_t Value::GetFlatBitCount() const {
     }
     return size() * element(0).GetFlatBitCount();
   }
-  XLS_LOG(FATAL) << "Invalid value kind: " << kind();
+  LOG(FATAL) << "Invalid value kind: " << kind();
 }
 
 bool Value::IsAllZeros() const {
@@ -183,7 +184,7 @@ bool Value::IsAllZeros() const {
       }
     }
   } else {
-    XLS_LOG(FATAL) << "Invalid value kind: " << kind();
+    LOG(FATAL) << "Invalid value kind: " << kind();
   }
   return true;
 }
@@ -199,7 +200,7 @@ bool Value::IsAllOnes() const {
       }
     }
   } else {
-    XLS_LOG(FATAL) << "Invalid value kind: " << kind();
+    LOG(FATAL) << "Invalid value kind: " << kind();
   }
   return true;
 }
@@ -230,7 +231,7 @@ std::string Value::ToString(FormatPreference preference) const {
     case ValueKind::kToken:
       return "token";
   }
-  XLS_LOG(FATAL) << "Value has invalid kind: " << static_cast<int>(kind_);
+  LOG(FATAL) << "Value has invalid kind: " << static_cast<int>(kind_);
 }
 
 void Value::FlattenTo(BitPushBuffer* buffer) const {
@@ -248,7 +249,7 @@ void Value::FlattenTo(BitPushBuffer* buffer) const {
     case ValueKind::kInvalid:
       break;
   }
-  XLS_LOG(FATAL) << "Invalid value kind: " << ValueKindToString(kind_);
+  LOG(FATAL) << "Invalid value kind: " << ValueKindToString(kind_);
 }
 
 absl::StatusOr<std::vector<Value>> Value::GetElements() const {
@@ -291,7 +292,7 @@ std::string Value::ToHumanString(FormatPreference preference) const {
     case ValueKind::kToken:
       return "token";
   }
-  XLS_LOG(FATAL) << "Invalid value kind: " << ValueKindToString(kind_);
+  LOG(FATAL) << "Invalid value kind: " << ValueKindToString(kind_);
 }
 
 bool Value::SameTypeAs(const Value& other) const {
@@ -319,7 +320,7 @@ bool Value::SameTypeAs(const Value& other) const {
     case ValueKind::kInvalid:
       break;
   }
-  XLS_LOG(FATAL) << "Invalid value encountered: " << ValueKindToString(kind());
+  LOG(FATAL) << "Invalid value encountered: " << ValueKindToString(kind());
 }
 
 absl::StatusOr<ValueProto> Value::AsProto() const {

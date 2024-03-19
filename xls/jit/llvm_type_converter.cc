@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/Support/Alignment.h"
@@ -69,8 +70,8 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
     // like a normal data-type.
     llvm_type = GetTokenType();
   } else {
-    XLS_LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
-                                   xls_type->ToString());
+    LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
+                               xls_type->ToString());
   }
   return llvm_type;
 }
@@ -123,7 +124,7 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
         llvm::ArrayType::get(element_type, type->getArrayNumElements()),
         elements);
   }
-  XLS_LOG(FATAL) << "Unknown value kind: " << value.kind();
+  LOG(FATAL) << "Unknown value kind: " << value.kind();
 }
 
 llvm::Constant* LlvmTypeConverter::ZeroOfType(llvm::Type* type) {

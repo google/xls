@@ -26,6 +26,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -550,8 +551,8 @@ Z3_ast IrTranslator::ZeroOfSort(Z3_sort sort) {
       return CreateTuple(sort, elements);
     }
     default:
-      XLS_LOG(FATAL) << "Unknown/unsupported sort kind: "
-                     << static_cast<int>(sort_kind);
+      LOG(FATAL) << "Unknown/unsupported sort kind: "
+                 << static_cast<int>(sort_kind);
   }
 }
 
@@ -1054,8 +1055,7 @@ std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value,
       return flattened;
     }
     default:
-      XLS_LOG(FATAL) << "Unsupported type kind: "
-                     << TypeKindToString(type->kind());
+      LOG(FATAL) << "Unsupported type kind: " << TypeKindToString(type->kind());
   }
 }
 
@@ -1107,8 +1107,7 @@ Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<const Z3_ast> flat,
       return CreateTuple(tuple_type, elements);
     }
     default:
-      XLS_LOG(FATAL) << "Unsupported type kind: "
-                     << TypeKindToString(type->kind());
+      LOG(FATAL) << "Unsupported type kind: " << TypeKindToString(type->kind());
   }
 }
 

@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -81,7 +82,7 @@ absl::StatusOr<std::vector<Value>> RandomFunctionArguments(
 
   Type* validator_return = validator->GetType()->return_type();
   if (!validator_return->IsBits() || validator_return->GetFlatBitCount() != 1) {
-    XLS_LOG(INFO) << "VR: " << validator_return->ToString();
+    LOG(INFO) << "VR: " << validator_return->ToString();
     return absl::InvalidArgumentError(
         "Function argument validator must return a single bit value.");
   }

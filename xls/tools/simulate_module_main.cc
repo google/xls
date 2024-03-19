@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
@@ -193,7 +194,7 @@ int main(int argc, char** argv) {
     } else if (verilog_path.extension() == ".sv") {
       file_type = xls::verilog::FileType::kSystemVerilog;
     } else {
-      XLS_LOG(QFATAL) << absl::StreamFormat(
+      LOG(QFATAL) << absl::StreamFormat(
           "Unable to determine file type from filename `%s`. Expected `.v` or "
           "`.sv` file extension.",
           verilog_path);
@@ -204,8 +205,8 @@ int main(int argc, char** argv) {
     } else if (absl::GetFlag(FLAGS_file_type) == "system_verilog") {
       file_type = xls::verilog::FileType::kSystemVerilog;
     } else {
-      XLS_LOG(QFATAL) << "Invalid value for --file_type. Expected `verilog` or "
-                         "`system_verilog`.";
+      LOG(QFATAL) << "Invalid value for --file_type. Expected `verilog` or "
+                     "`system_verilog`.";
     }
   }
 

@@ -24,7 +24,7 @@ namespace xls {
 // simply connected with "\n". Useful for simple debug output.
 //
 // Example:
-//     XLS_LOG(INFO) << "@@stacktrace\n" << GetSymbolizedStackTraceAsString(10);
+//     LOG(INFO) << "@@stacktrace\n" << GetSymbolizedStackTraceAsString(10);
 //
 std::string GetSymbolizedStackTraceAsString(int max_depth = 50,
                                             int skip_count = 0,

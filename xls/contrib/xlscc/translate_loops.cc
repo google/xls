@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -210,7 +211,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
                        max_unroll_iters_));
     }
     if (nIters == warn_unroll_iters_) {
-      XLS_LOG(WARNING) << ErrorMessage(
+      LOG(WARNING) << ErrorMessage(
           loc, "Loop unrolling has reached %i iterations", warn_unroll_iters_);
     }
 
@@ -257,8 +258,8 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
     // Print slow unrolling warning
     const absl::Duration elapsed_time = stopwatch.GetElapsedTime();
     if (elapsed_time > absl::Seconds(0.1) && elapsed_time > slowest_iter) {
-      XLS_LOG(WARNING) << ErrorMessage(
-          loc, "Slow loop unrolling iteration %i: %v", nIters, elapsed_time);
+      LOG(WARNING) << ErrorMessage(loc, "Slow loop unrolling iteration %i: %v",
+                                   nIters, elapsed_time);
       slowest_iter = elapsed_time;
     }
   }

@@ -291,6 +291,7 @@ cc_library(
     srcs = ["string_to_int.cc"],
     hdrs = ["string_to_int.h"],
     deps = [
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -555,6 +556,7 @@ cc_library(
         ":source_location",
         ":update_golden_files_flag",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "//xls/common/file:filesystem",
@@ -576,6 +578,7 @@ cc_library(
     hdrs = ["stopwatch.h"],
     deps = [
         "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/time",
         "//xls/common/logging",
     ],

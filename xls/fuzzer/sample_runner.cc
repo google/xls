@@ -842,12 +842,12 @@ absl::Status SampleRunner::RunFromFiles(
       break;
   }
   if (!status.ok()) {
-    XLS_LOG(ERROR) << "Exception when running sample: " << status.ToString();
+    LOG(ERROR) << "Exception when running sample: " << status.ToString();
     XLS_RETURN_IF_ERROR(
         SetFileContents(run_dir_ / "exception.txt", status.ToString()));
   }
   if (status.code() == absl::StatusCode::kFailedPrecondition) {
-    XLS_LOG(ERROR)
+    LOG(ERROR)
         << "Precondition failed, sample is not valid in the fuzz domain due to "
         << status;
     status = absl::OkStatus();

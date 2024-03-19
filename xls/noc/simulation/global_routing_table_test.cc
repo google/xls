@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -34,9 +35,9 @@ namespace {
 void LogRoute(std::string_view route_name,
               absl::Span<const NetworkComponentId> route,
               const NocParameters& params) {
-  XLS_LOG(INFO) << route_name << " is ...";
+  LOG(INFO) << route_name << " is ...";
   for (int64_t i = 0; i < route.size(); ++i) {
-    XLS_LOG(INFO) << absl::StrFormat(
+    LOG(INFO) << absl::StrFormat(
         "%d : %s %x", i,
         absl::visit([](auto nc) { return nc.GetName(); },
                     *params.GetNetworkComponentParam(route[i])),
@@ -45,7 +46,7 @@ void LogRoute(std::string_view route_name,
 }
 
 TEST(GlobalRoutingTableTest, Index) {
-  XLS_LOG(INFO) << "Setting up network ...";
+  LOG(INFO) << "Setting up network ...";
   NetworkConfigProtoBuilder builder("Test");
 
   // Network:
@@ -109,8 +110,8 @@ TEST(GlobalRoutingTableTest, Index) {
   builder.WithLink("LinkB3").WithSourcePort("Bout2").WithSinkPort("RecvPort3");
 
   XLS_ASSERT_OK_AND_ASSIGN(NetworkConfigProto nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto;
-  XLS_LOG(INFO) << "Done ...";
+  LOG(INFO) << nc_proto;
+  LOG(INFO) << "Done ...";
 
   // Build and assign simulation objects
   NetworkManager graph;
@@ -123,7 +124,7 @@ TEST(GlobalRoutingTableTest, Index) {
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
-  XLS_LOG(INFO) << "Network Graph Complete ...";
+  LOG(INFO) << "Network Graph Complete ...";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId routera_id,
@@ -227,7 +228,7 @@ TEST(GlobalRoutingTableTest, RouterLoop) {
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
-  XLS_LOG(INFO) << "Network Graph Complete ...";
+  LOG(INFO) << "Network Graph Complete ...";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId routera_id,
@@ -293,7 +294,7 @@ TEST(GlobalRoutingTableTest, MultiplePathsBetweenRouters) {
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
-  XLS_LOG(INFO) << "Network Graph Complete ...";
+  LOG(INFO) << "Network Graph Complete ...";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId routera_id,
@@ -393,7 +394,7 @@ TEST(GlobalRoutingTableTest, MultiplePathsBetweenRoutersWithLoop0) {
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
-  XLS_LOG(INFO) << "Network Graph Complete ...";
+  LOG(INFO) << "Network Graph Complete ...";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId routera_id,
@@ -491,7 +492,7 @@ TEST(GlobalRoutingTableTest, MultiplePathsBetweenRoutersWithLoop1) {
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
-  XLS_LOG(INFO) << "Network Graph Complete ...";
+  LOG(INFO) << "Network Graph Complete ...";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId routera_id,

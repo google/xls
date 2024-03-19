@@ -29,6 +29,7 @@
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/globals.h"
+#include "absl/log/log.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
@@ -103,7 +104,7 @@ ABSL_FLAG(
     "might be \"dfe dce [ ident_remove const_fold dce canon dce arith dce "
     "comparison_simp ] loop_unroll map_inline\". This should not be used "
     "with --skip_passes. If this is given the standard optimization "
-    "pipeline is ignored entierly, care should be taken to ensure the "
+    "pipeline is ignored entirely, care should be taken to ensure the "
     "given pipeline will run in reasonable amount of time. See the map in "
     "passes/optimization_pass_pipeline.cc for pass mappings. Available "
     "passes shown by running with --list_passes");
@@ -212,8 +213,8 @@ int main(int argc, char **argv) {
     return 0;
   }
   if (positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <path>",
-                                          argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <path>",
+                                      argv[0]);
   }
 
   return xls::ExitStatus(xls::tools::RealMain(positional_arguments[0]));

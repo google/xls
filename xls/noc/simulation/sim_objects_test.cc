@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config/network_config.pb.h"
@@ -38,7 +39,7 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
-  XLS_LOG(INFO) << "Network Checks Complete";
+  LOG(INFO) << "Network Checks Complete";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId routera_id,
@@ -127,7 +128,7 @@ TEST(SimObjectsTest, TreeNetwork0) {
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
-  XLS_LOG(INFO) << "Network Graph Complete ...";
+  LOG(INFO) << "Network Graph Complete ...";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId routera_id,

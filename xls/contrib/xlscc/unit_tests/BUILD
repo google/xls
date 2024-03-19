@@ -384,6 +384,7 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],

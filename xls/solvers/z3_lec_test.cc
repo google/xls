@@ -256,7 +256,7 @@ endmodule
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Lec> lec,
                              Lec::CreateForStage(params, schedule, i));
     ASSERT_TRUE(lec->Run());
-    XLS_LOG(INFO) << "Pass stage " << i;
+    LOG(INFO) << "Pass stage " << i;
   }
 }
 
@@ -348,7 +348,7 @@ endmodule
     } else {
       ASSERT_TRUE(lec->Run());
     }
-    XLS_LOG(INFO) << "Pass stage " << i;
+    LOG(INFO) << "Pass stage " << i;
   }
 }
 
@@ -498,10 +498,10 @@ endmodule
                              Lec::CreateForStage(params, schedule, i));
     bool foo = lec->Run();
     if (!foo) {
-      XLS_LOG(INFO) << lec->ResultToString();
+      LOG(INFO) << lec->ResultToString();
     }
     ASSERT_TRUE(foo);
-    XLS_LOG(INFO) << "Pass stage " << i;
+    LOG(INFO) << "Pass stage " << i;
   }
 }
 

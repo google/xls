@@ -21,6 +21,7 @@
 #include <string_view>
 #include <variant>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -43,7 +44,7 @@ std::string ChannelKindToString(ChannelKind kind) {
     case ChannelKind::kSingleValue:
       return "single_value";
   }
-  XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(kind);
+  LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(kind);
 }
 
 absl::StatusOr<ChannelKind> StringToChannelKind(std::string_view str) {
@@ -111,7 +112,7 @@ std::string FlowControlToString(FlowControl fc) {
     case FlowControl::kReadyValid:
       return "ready_valid";
   }
-  XLS_LOG(FATAL) << "Invalid flow control value: " << static_cast<int64_t>(fc);
+  LOG(FATAL) << "Invalid flow control value: " << static_cast<int64_t>(fc);
 }
 
 absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str) {

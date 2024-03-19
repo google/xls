@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -111,11 +112,11 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1 || positional_arguments[0].empty()) {
-    XLS_LOG(QFATAL) << "Expected one position argument (IR path): " << argv[0]
-                    << " <ir_path>";
+    LOG(QFATAL) << "Expected one position argument (IR path): " << argv[0]
+                << " <ir_path>";
   }
   if (absl::GetFlag(FLAGS_delay_model).empty()) {
-    XLS_LOG(QFATAL) << "--delay_model is required";
+    LOG(QFATAL) << "--delay_model is required";
   }
 
   return xls::ExitStatus(xls::RealMain(

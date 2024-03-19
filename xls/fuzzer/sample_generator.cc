@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -399,7 +400,7 @@ absl::StatusOr<Sample> GenerateSample(
   absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data);
   if (!tm.ok()) {
-    XLS_LOG(ERROR) << "Generated sample failed to parse.";
+    LOG(ERROR) << "Generated sample failed to parse.";
     XLS_LOG_LINES(ERROR, dslx_text);
     return tm.status();
   }

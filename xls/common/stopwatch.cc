@@ -17,6 +17,7 @@
 #include <chrono>  // NOLINT
 
 #include "absl/base/no_destructor.h"
+#include "absl/log/log.h"
 #include "absl/time/time.h"
 #include "xls/common/logging/logging.h"
 
@@ -46,7 +47,7 @@ steady_clock_t::duration ToSteadyDuration(absl::Duration d) {
 class RealTimeSteadyClock final : public SteadyClock {
  public:
   ~RealTimeSteadyClock() override {
-    XLS_LOG(FATAL) << "RealTimeSteadyClock should never be destroyed";
+    LOG(FATAL) << "RealTimeSteadyClock should never be destroyed";
   }
 
   SteadyTime Now() override { return SteadyTime::Now(); }

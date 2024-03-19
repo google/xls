@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/text_format.h"
@@ -61,8 +62,8 @@ int main(int argc, char** argv) {
 
   // Check that input Verilog is provided, and get it
   if (positional_arguments.size() != 1) {
-    XLS_LOG(QFATAL) << absl::StrCat("Expected invocation: ", argv[0],
-                                    " [flags] VERILOG_FILE\n");
+    LOG(QFATAL) << absl::StrCat("Expected invocation: ", argv[0],
+                                " [flags] VERILOG_FILE\n");
   }
   std::string_view vpath = positional_arguments[0];
   absl::StatusOr<std::string> verilog_contents = xls::GetFileContents(vpath);

@@ -264,6 +264,7 @@ cc_library(
     hdrs = ["random_value.h"],
     deps = [
         ":ir_interpreter",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/status",

@@ -23,6 +23,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -58,7 +59,7 @@ absl::Status GenerateAndRunSamples(
     std::optional<int64_t> sample_count,
     const std::optional<absl::Duration>& duration, bool force_failure) {
   int64_t crashers = 0;
-  XLS_LOG(INFO) << "--- Started worker " << worker_number;
+  LOG(INFO) << "--- Started worker " << worker_number;
   Stopwatch stopwatch;
 
   std::optional<std::filesystem::path> summary_file;
@@ -75,9 +76,9 @@ absl::Status GenerateAndRunSamples(
   } else {
     // Choose a nondeterministic seed.
     rng_seed = absl::Uniform<uint64_t>(absl::BitGen());
-    XLS_LOG(INFO) << kBlueText << "--- NOTE: Worker #" << worker_number
-                  << " chose a nondeterministic seed for value generation: "
-                  << absl::StreamFormat("0x%16X", rng_seed) << kDefaultColor;
+    LOG(INFO) << kBlueText << "--- NOTE: Worker #" << worker_number
+              << " chose a nondeterministic seed for value generation: "
+              << absl::StreamFormat("0x%16X", rng_seed) << kDefaultColor;
   }
   std::mt19937_64 rng{rng_seed};
 
@@ -99,12 +100,11 @@ absl::Status GenerateAndRunSamples(
                              run_dir, crasher_dir, summary_file, force_failure)
             .status();
     if (!sample_status.ok()) {
-      XLS_LOG(INFO)
-          << kRedText
-          << absl::StreamFormat(
-                 "--- Worker #%d noted crasher #%d for sample number %d",
-                 worker_number, crashers, sample)
-          << kDefaultColor;
+      LOG(INFO) << kRedText
+                << absl::StreamFormat(
+                       "--- Worker #%d noted crasher #%d for sample number %d",
+                       worker_number, crashers, sample)
+                << kDefaultColor;
       crashers++;
     }
 
@@ -129,26 +129,26 @@ absl::Status GenerateAndRunSamples(
         metrics.push_back(
             absl::StrFormat("running for %s", absl::FormatDuration(elapsed)));
       }
-      XLS_LOG(INFO) << absl::StreamFormat("--- Worker #%d: %s", worker_number,
-                                          absl::StrJoin(metrics, ", "));
+      LOG(INFO) << absl::StreamFormat("--- Worker #%d: %s", worker_number,
+                                      absl::StrJoin(metrics, ", "));
     }
 
     if (duration.has_value() && elapsed >= *duration) {
-      XLS_LOG(INFO) << absl::StreamFormat(
-          "--- Worker #%d: Ran for %s. Exiting.", worker_number,
-          absl::FormatDuration(elapsed));
+      LOG(INFO) << absl::StreamFormat("--- Worker #%d: Ran for %s. Exiting.",
+                                      worker_number,
+                                      absl::FormatDuration(elapsed));
       break;
     }
     ++sample;
     if (sample_count.has_value() && sample >= *sample_count) {
-      XLS_LOG(INFO) << absl::StreamFormat(
+      LOG(INFO) << absl::StreamFormat(
           "--- Worker #%d: Ran %d samples. Exiting.", worker_number, sample);
       break;
     }
   }
 
   absl::Duration elapsed = stopwatch.GetElapsedTime();
-  XLS_LOG(INFO) << absl::StreamFormat(
+  LOG(INFO) << absl::StreamFormat(
       "--- Worker #%d finished! %d samples; %d crashers; %.2f samples/s; ran "
       "for %s",
       worker_number, sample, crashers,
@@ -187,11 +187,11 @@ absl::Status ParallelGenerateAndRunSamples(
     });
   }
   for (int64_t i = 0; i < workers.size(); ++i) {
-    XLS_LOG(INFO) << "-- Waiting on worker " << i;
+    LOG(INFO) << "-- Waiting on worker " << i;
     workers[i]->Join();
     if (!worker_status[i].ok()) {
-      XLS_LOG(ERROR) << kRedText << "-- Worker #" << i
-                     << " failed: " << worker_status[i] << kDefaultColor;
+      LOG(ERROR) << kRedText << "-- Worker #" << i
+                 << " failed: " << worker_status[i] << kDefaultColor;
     }
   }
   return absl::OkStatus();

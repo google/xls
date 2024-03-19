@@ -24,6 +24,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -105,7 +106,7 @@ absl::Status WriteIrSummaries(const std::filesystem::path& run_dir,
                        GetXlsRunfilePath(kSummarizeIrMainPath));
   std::string timing_str;
   if (!google::protobuf::TextFormat::PrintToString(timing, &timing_str)) {
-    XLS_LOG(ERROR) << "Failed to serialize timing: " << timing.DebugString();
+    LOG(ERROR) << "Failed to serialize timing: " << timing.DebugString();
   }
   std::vector<std::string> argv = {
       summarize_ir_main_path,
@@ -133,7 +134,7 @@ absl::Status WriteIrSummaries(const std::filesystem::path& run_dir,
   absl::StatusOr<SubprocessResult> result =
       SubprocessErrorAsStatus(InvokeSubprocess(argv, /*cwd=*/run_dir));
   if (!result.ok()) {
-    XLS_LOG(ERROR) << "Failed to write IR summaries: " << result.status();
+    LOG(ERROR) << "Failed to write IR summaries: " << result.status();
   }
   return absl::OkStatus();
 }
@@ -150,7 +151,7 @@ absl::StatusOr<std::filesystem::path> SaveCrasher(
   std::string hex_digest = absl::BytesToHexString({digest.data(), 4});
 
   std::filesystem::path sample_crasher_dir = crasher_dir / hex_digest;
-  XLS_LOG(INFO) << "Saving crasher to " << sample_crasher_dir;
+  LOG(INFO) << "Saving crasher to " << sample_crasher_dir;
   // TODO(epastor): 2023-09-28 - Make sure this preserves permissions.
   std::filesystem::copy(run_dir, sample_crasher_dir,
                         std::filesystem::copy_options::recursive);
@@ -269,12 +270,12 @@ absl::StatusOr<Sample> GenerateSampleAndRun(
     return smp;
   }
 
-  XLS_LOG(ERROR) << "Sample failed: " << status;
+  LOG(ERROR) << "Sample failed: " << status;
   if (crasher_dir.has_value()) {
     XLS_ASSIGN_OR_RETURN(std::filesystem::path sample_crasher_dir,
                          SaveCrasher(run_dir, smp, status, *crasher_dir));
     if (!absl::IsDeadlineExceeded(status)) {
-      XLS_LOG(INFO) << "Attempting to minimize IR...";
+      LOG(INFO) << "Attempting to minimize IR...";
       std::optional<absl::Duration> timeout =
           sample_options.timeout_seconds().has_value()
               ? std::optional<absl::Duration>(
@@ -285,11 +286,11 @@ absl::StatusOr<Sample> GenerateSampleAndRun(
           MinimizeIr(smp, run_dir, /*inject_jit_result=*/std::nullopt,
                      timeout));
       if (minimized_path.has_value()) {
-        XLS_LOG(INFO) << "...minimization successful; output at "
-                      << *minimized_path;
+        LOG(INFO) << "...minimization successful; output at "
+                  << *minimized_path;
         std::filesystem::copy(*minimized_path, sample_crasher_dir);
       } else {
-        XLS_LOG(INFO) << "...minimization failed.";
+        LOG(INFO) << "...minimization failed.";
       }
     }
   }

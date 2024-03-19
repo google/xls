@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -57,7 +58,7 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
                      crasher.ir_channel_names());
   }
 
-  XLS_LOG(INFO) << "Running crasher in directory " << run_dir;
+  LOG(INFO) << "Running crasher in directory " << run_dir;
   return RunSample(crasher, run_dir);
 }
 
@@ -71,7 +72,7 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(usage, argc, argv);
   if (positional_arguments.size() != 1) {
-    XLS_LOG(QFATAL) << usage;
+    LOG(QFATAL) << usage;
     return EXIT_FAILURE;
   }
 

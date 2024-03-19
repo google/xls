@@ -19,6 +19,7 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -56,7 +57,7 @@ Token Token::Identifier(const std::string& s, int64_t pos) {
 Scanner::Scanner(std::string function) : function_(function), current_pos_(0) {
   std::string_view stripped = absl::StripAsciiWhitespace(function_);
   if (stripped != function_) {
-    XLS_LOG(WARNING)
+    LOG(WARNING)
         << "Function '" << function_ << "' has leading or trailing spaces. "
         << "Per the Liberty spec, spaces are AND, which are invalid here. "
         << "These spaces will be dropped.";

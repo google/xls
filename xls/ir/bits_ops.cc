@@ -23,6 +23,7 @@
 
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -591,7 +592,7 @@ Bits LogicalOpIdentity(Op op, int64_t width) {
     case Op::kXor:
       return Bits(width);
     default:
-      XLS_LOG(FATAL) << "NaryOpIdentity got non-nary op:" << OpToString(op);
+      LOG(FATAL) << "NaryOpIdentity got non-nary op:" << OpToString(op);
   }
 }
 
@@ -609,7 +610,7 @@ Bits DoLogicalOp(Op op, absl::Span<const Bits> operands) {
     case Op::kNor:
       return bits_ops::NaryNor(operands);
     default:
-      XLS_LOG(FATAL) << "DoNaryBitOp got non-nary op: " << OpToString(op);
+      LOG(FATAL) << "DoNaryBitOp got non-nary op: " << OpToString(op);
   }
 }
 

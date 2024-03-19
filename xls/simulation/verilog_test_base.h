@@ -244,7 +244,7 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
   //
   // If UseSystemVerilog() is true the file extension will be ".sv" or ".v"
   // otherwise. test_file_name should be the name of the test file without the
-  // .cc extension. testdata_dir should the path the the testdata directory
+  // .cc extension. testdata_dir should the path the testdata directory
   // relative to the XLS source top.
   virtual std::filesystem::path GoldenFilePath(
       std::string_view test_file_name,

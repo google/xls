@@ -27,6 +27,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -404,8 +405,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
                          FindMinimumWorstCaseThroughput(
                              f, options.pipeline_stages(), clock_period_ps,
                              *sdc_scheduler, options.failure_behavior()));
-    XLS_LOG(INFO) << "Minimized worst-case throughput for proc '" << f->name()
-                  << "': " << *worst_case_throughput;
+    LOG(INFO) << "Minimized worst-case throughput for proc '" << f->name()
+              << "': " << *worst_case_throughput;
   }
 
   ScheduleCycleMap cycle_map;
@@ -464,7 +465,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
         if (options.minimize_clock_on_failure().value_or(true)) {
           // Find the smallest clock period that would have worked.
-          XLS_LOG(ERROR)
+          LOG(ERROR)
               << "Unable to schedule with the specified clock period; finding "
                  "the shortest feasible clock period...";
           int64_t target_clock_period_ps = clock_period_ps + 1;

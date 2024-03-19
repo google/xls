@@ -24,6 +24,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -70,7 +71,7 @@ Op CompareOpInverse(Op op) {
     case Op::kULt:
       return Op::kUGe;
     default:
-      XLS_LOG(FATAL) << "Op is not comparison: " << OpToString(op);
+      LOG(FATAL) << "Op is not comparison: " << OpToString(op);
   }
 }
 

@@ -33,6 +33,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -584,8 +585,8 @@ static bool DefinitelyMeaninglessExpression(Expr* e) {
   absl::StatusOr<std::vector<AstNode*>> nodes_under_e =
       CollectUnder(e, /*want_types=*/true);
   if (!nodes_under_e.ok()) {
-    XLS_LOG(WARNING) << "Could not collect nodes under `" << e->ToString()
-                     << "`; status: " << nodes_under_e.status();
+    LOG(WARNING) << "Could not collect nodes under `" << e->ToString()
+                 << "`; status: " << nodes_under_e.status();
     return false;
   }
   for (AstNode* n : nodes_under_e.value()) {
@@ -2402,7 +2403,7 @@ class DeduceVisitor : public AstNodeVisitor {
 
  private:
   absl::Status Fatal(const AstNode* n) {
-    XLS_LOG(FATAL) << "Got unhandled AST node for deduction: " << n->ToString();
+    LOG(FATAL) << "Got unhandled AST node for deduction: " << n->ToString();
   }
 
   DeduceCtx* ctx_;

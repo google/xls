@@ -119,6 +119,7 @@ cc_binary(
         ":cpp_transpiler",
         ":cpp_type_generator",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",

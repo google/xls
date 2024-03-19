@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/status_macros.h"
@@ -296,7 +297,7 @@ BomKindProto OpToBomKind(Op op) {
       // warn when we add a new op.
   }
 
-  XLS_LOG(FATAL) << "OpToBomKind: unsupported op: " << OpToString(op);
+  LOG(FATAL) << "OpToBomKind: unsupported op: " << OpToString(op);
 }
 
 // Generate a BOM entry for a single node.

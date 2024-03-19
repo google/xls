@@ -79,6 +79,7 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
                 ":unit_test",
                 "@com_google_absl//absl/container:inlined_vector",
                 "@com_google_absl//absl/log:check",
+                "@com_google_absl//absl/log",
                 "@com_google_absl//absl/flags:flag",
                 "@com_google_absl//absl/status:statusor",
                 "@com_google_absl//absl/strings",

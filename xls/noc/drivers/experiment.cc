@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -113,20 +114,20 @@ Stats GetStats(absl::Span<const PacketInfo> packets) {
 }  // namespace internal
 
 absl::Status ExperimentMetrics::DebugDump() const {
-  XLS_LOG(INFO) << "Dumping Metrics ...";
+  LOG(INFO) << "Dumping Metrics ...";
 
   for (auto& [name, val] : float_metrics_) {
-    XLS_LOG(INFO) << absl::StreamFormat("%s : %g", name, val);
+    LOG(INFO) << absl::StreamFormat("%s : %g", name, val);
   }
 
   for (auto& [name, val] : integer_metrics_) {
-    XLS_LOG(INFO) << absl::StreamFormat("%s : %g", name, val);
+    LOG(INFO) << absl::StreamFormat("%s : %g", name, val);
   }
 
   for (auto& [name, val] : integer_integer_map_metrics_) {
-    XLS_LOG(INFO) << absl::StreamFormat("%s :", name);
+    LOG(INFO) << absl::StreamFormat("%s :", name);
     for (auto& [key, value] : val) {
-      XLS_LOG(INFO) << absl::StreamFormat("%g , %g", key, value);
+      LOG(INFO) << absl::StreamFormat("%g , %g", key, value);
     }
   }
 

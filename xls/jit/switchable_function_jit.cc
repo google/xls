@@ -79,7 +79,7 @@ SwitchableFunctionJit::Create(Function* xls_function, ExecutionType execution,
       return SwitchableFunctionJit::CreateJit(xls_function, opt_level,
                                               observer);
     case ExecutionType::kDefault:
-      XLS_LOG(FATAL) << "Unreachable";
+      LOG(FATAL) << "Unreachable";
   }
 }
 

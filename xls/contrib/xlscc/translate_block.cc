@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -765,14 +766,14 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
   XLSCC_CHECK(!states.empty(), body_loc);
 
   if (debug_ir_trace_flags_ & DebugIrTraceFlags_FSMStates) {
-    XLS_LOG(INFO) << absl::StrFormat(
-        "States for %s at %s:\n", prepared.xls_func->xls_func->name().c_str(),
-        LocString(body_loc).c_str());
+    LOG(INFO) << absl::StrFormat("States for %s at %s:\n",
+                                 prepared.xls_func->xls_func->name().c_str(),
+                                 LocString(body_loc).c_str());
     for (const std::unique_ptr<State>& state : states) {
-      XLS_LOG(INFO) << absl::StrFormat("-- state %li: sub_proc %p\n",
-                                       state->index, state->sub_proc);
+      LOG(INFO) << absl::StrFormat("-- state %li: sub_proc %p\n", state->index,
+                                   state->sub_proc);
       for (const InvokeToGenerate& invoke : state->invokes_to_generate) {
-        XLS_LOG(INFO) << absl::StrFormat(
+        LOG(INFO) << absl::StrFormat(
             "---- invoke ch %s\n", invoke.op.channel
                                        ? invoke.op.channel->unique_name.c_str()
                                        : "(null)");

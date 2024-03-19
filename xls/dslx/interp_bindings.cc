@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -54,7 +55,7 @@ namespace xls::dslx {
   if (std::holds_alternative<Module*>(e)) {
     return "Module";
   }
-  XLS_LOG(FATAL) << "Unhandled binding entry variant.";
+  LOG(FATAL) << "Unhandled binding entry variant.";
 }
 
 InterpBindings::InterpBindings(const InterpBindings* parent) : parent_(parent) {

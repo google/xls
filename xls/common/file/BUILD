@@ -151,6 +151,7 @@ cc_library(
     hdrs = ["temp_directory.h"],
     visibility = ["//xls:xls_utility_users"],
     deps = [
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
@@ -174,6 +175,7 @@ cc_library(
     srcs = ["temp_file.cc"],
     hdrs = ["temp_file.h"],
     deps = [
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:strerror",
@@ -188,6 +190,7 @@ cc_library(
     hdrs = ["named_pipe.h"],
     deps = [
         ":file_descriptor",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",

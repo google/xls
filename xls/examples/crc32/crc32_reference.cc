@@ -18,6 +18,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -47,8 +48,7 @@ int main(int argc, char** argv) {
   std::string input = absl::GetFlag(FLAGS_input);
   absl::Span<const uint8_t> data(absl::bit_cast<uint8_t*>(input.data()),
                                  input.size());
-  XLS_LOG(INFO) << "Performing CRC on " << data.size()
-                << " byte(s) of input data.";
+  LOG(INFO) << "Performing CRC on " << data.size() << " byte(s) of input data.";
   uint32_t result = Crc32Reference(data, absl::GetFlag(FLAGS_polynomial));
   std::cout << std::hex << result << '\n';
   return 0;

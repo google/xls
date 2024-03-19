@@ -127,7 +127,7 @@ Value JitRuntime::UnpackBufferInternal(const uint8_t* buffer,
     case TypeKind::kToken:
       return Value::Token();
     default:
-      XLS_LOG(FATAL) << "Unsupported XLS Value kind: " << result_type->kind();
+      LOG(FATAL) << "Unsupported XLS Value kind: " << result_type->kind();
   }
 }
 
@@ -191,7 +191,7 @@ void JitRuntime::BlitValueToBufferInternal(const Value& value, const Type* type,
   } else if (value.IsToken()) {
     // Tokens contain no data.
   } else {
-    XLS_LOG(FATAL) << "Unsupported XLS Value kind: " << value.kind();
+    LOG(FATAL) << "Unsupported XLS Value kind: " << value.kind();
   }
 }
 
@@ -201,8 +201,8 @@ int64_t XlsJitGetArgBufferSize(int arg_count, const char** input_args) {
   absl::StatusOr<std::unique_ptr<xls::JitRuntime>> runtime_or =
       xls::JitRuntime::Create();
   if (!runtime_or.ok()) {
-    XLS_LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: % s\n ",
-                                         runtime_or.status().message());
+    LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: % s\n ",
+                                     runtime_or.status().message());
     return -1;
   }
 
@@ -211,8 +211,8 @@ int64_t XlsJitGetArgBufferSize(int arg_count, const char** input_args) {
   for (int i = 1; i < arg_count; i++) {
     auto status_or_value = xls::Parser::ParseTypedValue(input_args[i]);
     if (!status_or_value.ok()) {
-      XLS_LOG(ERROR) << absl::StreamFormat("Unable to parse value: %s\n",
-                                           status_or_value.status().message());
+      LOG(ERROR) << absl::StreamFormat("Unable to parse value: %s\n",
+                                       status_or_value.status().message());
       return -2;
     }
 
@@ -235,8 +235,8 @@ int64_t XlsJitPackArgs(int arg_count, const char** input_args,
   absl::StatusOr<std::unique_ptr<xls::JitRuntime>> runtime_or =
       xls::JitRuntime::Create();
   if (!runtime_or.ok()) {
-    XLS_LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: %s\n",
-                                         runtime_or.status().message());
+    LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: %s\n",
+                                     runtime_or.status().message());
     return -1;
   }
 
@@ -268,8 +268,8 @@ int XlsJitUnpackAndPrintBuffer(const char* output_type_string, int arg_count,
   absl::StatusOr<std::unique_ptr<xls::JitRuntime>> runtime_or =
       xls::JitRuntime::Create();
   if (!runtime_or.ok()) {
-    XLS_LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: %s\n",
-                                         runtime_or.status().message());
+    LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: %s\n",
+                                     runtime_or.status().message());
     return -1;
   }
 

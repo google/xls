@@ -353,12 +353,12 @@ static absl::Status LogInterpreterEvents(std::string_view entity_name,
   for (const xls::TraceMessage& msg : events.trace_msgs) {
     std::string unescaped_msg;
     XLS_RET_CHECK(absl::CUnescape(msg.message, &unescaped_msg));
-    XLS_LOG(INFO) << "Proc " << entity_name << " trace: " << unescaped_msg;
+    LOG(INFO) << "Proc " << entity_name << " trace: " << unescaped_msg;
   }
   for (const auto& msg : events.assert_msgs) {
     std::string unescaped_msg;
     XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
-    XLS_LOG(INFO) << "Proc " << entity_name << " assert: " << unescaped_msg;
+    LOG(INFO) << "Proc " << entity_name << " assert: " << unescaped_msg;
   }
   return absl::OkStatus();
 }
@@ -415,8 +415,8 @@ void XlsccTestBase::ProcTest(
     EXPECT_EQ(package_text, text) << "Failed determinism test";
   }
 
-  XLS_LOG(INFO) << "Package IR: ";
-  XLS_LOG(INFO) << package_text;
+  LOG(INFO) << "Package IR: ";
+  LOG(INFO) << package_text;
 
   absl::flat_hash_set<std::string> direct_in_channels_by_name;
   for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
@@ -438,13 +438,13 @@ void XlsccTestBase::ProcTest(
           for (const xls::Value& value : values) {
             value_str << value.ToString() << " ";
           }
-          XLS_LOG(INFO) << "-- " << name.c_str() << ": " << value_str.str();
+          LOG(INFO) << "-- " << name.c_str() << ": " << value_str.str();
         }
       };
 
-  XLS_LOG(INFO) << "Inputs:";
+  LOG(INFO) << "Inputs:";
   print_list(inputs_by_channel);
-  XLS_LOG(INFO) << "Outputs:";
+  LOG(INFO) << "Outputs:";
   print_list(outputs_by_channel);
 
   xls::ChannelQueueManager& queue_manager = interpreter->queue_manager();
@@ -455,9 +455,8 @@ void XlsccTestBase::ProcTest(
                              queue_manager.GetQueueByName(ch_name));
 
     for (const xls::Value& value : values) {
-      XLS_LOG(INFO) << absl::StrFormat("Writing %s on channel %s",
-                                       value.ToString(),
-                                       queue->channel()->name());
+      LOG(INFO) << absl::StrFormat("Writing %s on channel %s", value.ToString(),
+                                   queue->channel()->name());
       XLS_ASSERT_OK(queue->Write(value));
     }
   }
@@ -465,9 +464,9 @@ void XlsccTestBase::ProcTest(
   absl::flat_hash_map<std::string, std::list<xls::Value>>
       mutable_outputs_by_channel = outputs_by_channel;
 
-  XLS_LOG(INFO) << "State at start ";
+  LOG(INFO) << "State at start ";
   for (const auto& proc : package_->procs()) {
-    XLS_LOG(INFO) << absl::StrFormat(
+    LOG(INFO) << absl::StrFormat(
         "[%s]: %s", proc->name(),
         absl::StrFormat(
             "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
@@ -478,7 +477,7 @@ void XlsccTestBase::ProcTest(
 
   int tick = 1;
   for (; tick < max_ticks; ++tick) {
-    XLS_LOG(INFO) << "Before tick " << tick;
+    LOG(INFO) << "Before tick " << tick;
 
     interpreter->ClearInterpreterEvents();
     ASSERT_EQ(interpreter->Tick(), expected_tick_status);
@@ -495,9 +494,9 @@ void XlsccTestBase::ProcTest(
       }
     }
 
-    XLS_LOG(INFO) << "State after tick " << tick;
+    LOG(INFO) << "State after tick " << tick;
     for (const auto& proc : package_->procs()) {
-      XLS_LOG(INFO) << absl::StrFormat(
+      LOG(INFO) << absl::StrFormat(
           "[%s]: %s", proc->name(),
           absl::StrFormat(
               "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
@@ -800,8 +799,8 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                            SourceToIr(content, &func, /* clang_argv= */ {},
                                       /* io_test_mode= */ true));
 
-  XLS_LOG(INFO) << "Package IR: ";
-  XLS_LOG(INFO) << ir_src;
+  LOG(INFO) << "Package IR: ";
+  LOG(INFO) << ir_src;
 
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
 

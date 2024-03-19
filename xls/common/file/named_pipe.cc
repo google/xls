@@ -25,6 +25,7 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -112,7 +113,7 @@ NamedPipe::NamedPipe(NamedPipe&& other) : path_(std::move(other.path_)) {
 void NamedPipe::Cleanup() {
   if (!path_.empty()) {
     if (unlink(path_.c_str()) != 0) {
-      XLS_LOG(ERROR) << "Failed remove named pipe " << path_;
+      LOG(ERROR) << "Failed remove named pipe " << path_;
     }
   }
 }

@@ -24,6 +24,7 @@
 #include <system_error>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
@@ -123,7 +124,7 @@ TempFile::TempFile(const std::filesystem::path& path) : path_(path) {}
 void TempFile::Cleanup() {
   if (!path_.empty()) {
     if (unlink(path_.c_str()) != 0) {
-      XLS_LOG(ERROR) << "Failed to delete temporary file " << path_;
+      LOG(ERROR) << "Failed to delete temporary file " << path_;
     }
   }
 }

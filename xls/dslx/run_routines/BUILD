@@ -24,6 +24,7 @@ cc_library(
     hdrs = ["run_routines.h"],
     deps = [
         ":test_xml",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -121,6 +122,7 @@ cc_library(
     deps = [
         ":run_routines",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",

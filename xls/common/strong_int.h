@@ -153,7 +153,7 @@ struct NullStrongIntValidator {
   //
   //   template<typename T, typename U>
   //   static void ValidateInit(U arg) {
-  //     if (arg < 0) XLS_LOG(FATAL) << "arg < 0";
+  //     if (arg < 0) LOG(FATAL) << "arg < 0";
   //   }
   //
   //   template<typename T, typename U>

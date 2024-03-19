@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
@@ -51,13 +52,13 @@ int main(int argc, char** argv) {
 
   if (!absl::GetFlag(FLAGS_scheduling_options_used_textproto_file) &&
       !absl::GetFlag(FLAGS_codegen_options_used_textproto_file)) {
-    XLS_LOG(QFATAL)
+    LOG(QFATAL)
         << "Requires at least one of --scheduling_options_used_textproto_file "
            "or --codegen_options_used_textproto_file";
   }
 
   if (!positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << "Expected invocation: " << argv[0];
+    LOG(QFATAL) << "Expected invocation: " << argv[0];
   }
 
   return xls::ExitStatus(xls::RealMain());

@@ -20,6 +20,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/strip.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -48,9 +49,9 @@ void ExpectEqualToGoldenFile(const std::filesystem::path& golden_file_path,
         std::filesystem::path(xls_source_dir).remove_filename();
     std::filesystem::path abs_path = xls_source_pardir / golden_file_path;
 
-    XLS_LOG(INFO) << "Updating golden file; abs_path: " << abs_path;
+    LOG(INFO) << "Updating golden file; abs_path: " << abs_path;
     CHECK_OK(SetFileContents(abs_path, text));
-    XLS_LOG(INFO) << "Updated golden file: " << golden_file_path;
+    LOG(INFO) << "Updated golden file: " << golden_file_path;
   } else {
     XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path abs_path,
                              GetXlsRunfilePath(golden_file_path));

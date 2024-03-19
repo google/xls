@@ -24,6 +24,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
@@ -216,9 +217,8 @@ absl::Status NetlistTranslator::TranslateCell(const Cell& cell) {
       for (const auto& cell_output : cell.outputs()) {
         if (cell_output.name == module_output->name()) {
           if (translated_.contains(cell_output.netref)) {
-            XLS_LOG(INFO) << "Skipping translation of "
-                          << cell_output.netref->name()
-                          << "; already translated.";
+            LOG(INFO) << "Skipping translation of "
+                      << cell_output.netref->name() << "; already translated.";
           } else {
             translated_[cell_output.netref] = translation;
           }
@@ -370,9 +370,9 @@ NetlistTranslator::TranslateStateTable(const Cell& cell) {
 
       if (signal != StateTableSignal::kHigh &&
           signal != StateTableSignal::kLow) {
-        XLS_LOG(WARNING) << "Non-high or -low output signal encountered: "
-                         << cell.name() << ":" << output_name << ": "
-                         << static_cast<int>(signal);
+        LOG(WARNING) << "Non-high or -low output signal encountered: "
+                     << cell.name() << ":" << output_name << ": "
+                     << static_cast<int>(signal);
         continue;
       }
 

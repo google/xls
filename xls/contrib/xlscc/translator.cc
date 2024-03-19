@@ -39,6 +39,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -1264,7 +1265,7 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
           field_type));
     }
   } else {
-    XLS_LOG(WARNING) << ErrorMessage(
+    LOG(WARNING) << ErrorMessage(
         GetLoc(*cxx_record),
         "Warning: interpreting definition-less struct '%s' as empty",
         signature->base()->getNameAsString());
@@ -2868,7 +2869,7 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
       XLS_ASSIGN_OR_RETURN(bool arg_contains_lvalues,
                            arg_cval.type()->ContainsLValues(*this));
       if (arg_contains_lvalues) {
-        XLS_LOG(WARNING) << ErrorMessage(
+        LOG(WARNING) << ErrorMessage(
             loc, "Only R-Value part of argument %i will be traced", arg);
       }
       tuple_parts.push_back(arg_cval.rvalue());
@@ -3703,7 +3704,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
           Assign(expr_args[pi], CValue(unpacked_returns.front(), ctype), loc));
 
       if (context().any_writes_generated) {
-        XLS_LOG(WARNING) << ErrorMessage(
+        LOG(WARNING) << ErrorMessage(
             loc,
             "Memory write in call-by-reference will generate a read and a "
             "write. Is this intended here?");
@@ -4576,7 +4577,7 @@ absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node,
                      "interpreter was: %s",
                      status.message()));
     if (do_check) {
-      XLS_LOG(ERROR) << err.ToString();
+      LOG(ERROR) << err.ToString();
     } else {
       return err;
     }
@@ -5391,7 +5392,7 @@ absl::Status Translator::CheckInitIntervalValidity(int initiation_interval_arg,
     if (error_on_init_interval_) {
       return absl::UnimplementedError(message);
     }
-    XLS_LOG(WARNING) << message;
+    LOG(WARNING) << message;
   }
   return absl::OkStatus();
 }

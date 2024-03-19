@@ -26,6 +26,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -398,7 +399,7 @@ static std::string_view GetChannelName(const Node* node) {
     case Op::kSend:
       return node->As<::xls::Send>()->channel_name();
     default:
-      XLS_LOG(FATAL) << "Node is not a channel node: " << node->ToString();
+      LOG(FATAL) << "Node is not a channel node: " << node->ToString();
   }
 }
 

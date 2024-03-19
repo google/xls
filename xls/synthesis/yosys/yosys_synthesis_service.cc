@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -74,7 +75,7 @@ YosysSynthesisServiceImpl::RunSubprocess(
       SubprocessResultToStrings(
           SubprocessErrorAsStatus(InvokeSubprocess(args)));
   if (!stdout_stderr_status.ok()) {
-    XLS_LOG(ERROR) << stdout_stderr_status.status();
+    LOG(ERROR) << stdout_stderr_status.status();
     const int64_t kMaxMessageSize = 1024;
     auto prune_error_message = [](std::string_view message) -> std::string {
       if (message.size() >= kMaxMessageSize) {
@@ -190,7 +191,7 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
     std::string yosys_cmd =
         absl::StrFormat("synth_%s -top %s -json %s", synthesis_target_,
                         request->top_module_name(), synth_json_path.string());
-    XLS_LOG(INFO) << "yosys cmd: " << yosys_cmd;
+    LOG(INFO) << "yosys cmd: " << yosys_cmd;
     XLS_ASSIGN_OR_RETURN(
         string_pair,
         RunSubprocess({yosys_path_, "-p", yosys_cmd, verilog_path.string()}));
@@ -200,7 +201,7 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
     std::string yosys_tcl = BuildYosysTcl(request, verilog_path,
                                            synth_json_path, synth_verilog_path);
     XLS_RETURN_IF_ERROR(SetFileContents(yosys_tcl_path, yosys_tcl));
-    XLS_LOG(INFO) << "Running Yosys:  command file: " << yosys_tcl_path;
+    LOG(INFO) << "Running Yosys:  command file: " << yosys_tcl_path;
     XLS_ASSIGN_OR_RETURN(string_pair,
                          RunSubprocess({yosys_path_, "-c", yosys_tcl_path}));
   }
@@ -281,8 +282,8 @@ absl::Status YosysSynthesisServiceImpl::RunNextPNR(
   XLS_ASSIGN_OR_RETURN(int64_t max_frequency_hz,
                        ParseNextpnrOutput(nextpnr_stderr));
   result->set_max_frequency_hz(max_frequency_hz);
-  XLS_LOG(INFO) << "max_frequency_mhz: "
-                << (static_cast<double>(max_frequency_hz) / 1e6);
+  LOG(INFO) << "max_frequency_mhz: "
+            << (static_cast<double>(max_frequency_hz) / 1e6);
 
   return absl::OkStatus();
 }
@@ -370,7 +371,7 @@ absl::Status YosysSynthesisServiceImpl::RunSTA(
   sta_cmd = BuildSTACmds(request, netlist_path);
   XLS_RETURN_IF_ERROR(SetFileContents(sta_cmd_path, sta_cmd));
 
-  XLS_LOG(INFO) << "Running OpenSTA: command file: " << sta_cmd_path;
+  LOG(INFO) << "Running OpenSTA: command file: " << sta_cmd_path;
 
   std::pair<std::string, std::string> string_pair;
 

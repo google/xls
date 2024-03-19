@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -44,7 +45,7 @@ static void GatherValueLeaves(const Value& value, std::vector<Bits>* leaves) {
       }
       break;
     default:
-      XLS_LOG(FATAL) << "Invalid value kind: " << value.kind();
+      LOG(FATAL) << "Invalid value kind: " << value.kind();
   }
 }
 

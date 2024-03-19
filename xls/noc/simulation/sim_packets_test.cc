@@ -14,6 +14,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -87,7 +88,7 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
     TimedDataFlit timed_flit{cycle_to_send, flit};
 
     XLS_ASSERT_OK(sim_send_port_0->SendFlitAtTime(timed_flit));
-    XLS_LOG(INFO) << ++cycle_to_send;
+    LOG(INFO) << ++cycle_to_send;
   }
 
   for (int64_t i = 0; i < 10; ++i) {

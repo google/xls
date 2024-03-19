@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
@@ -143,7 +144,7 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f) {
     };
     CycleChecker cycle_checker;
     CHECK_OK(f->Accept(&cycle_checker));
-    XLS_LOG(FATAL) << "Expected to find cycle in function base.";
+    LOG(FATAL) << "Expected to find cycle in function base.";
   }
 
   return ordered;

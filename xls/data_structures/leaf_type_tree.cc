@@ -177,8 +177,7 @@ std::optional<Type*> FirstLeafIndex(Type* type, std::vector<int64_t>* index) {
       return leaf_type;
     }
   }
-  XLS_LOG(FATAL)
-      << "Tuple should have had leaf element due to leaf_count() > 0.";
+  LOG(FATAL) << "Tuple should have had leaf element due to leaf_count() > 0.";
 }
 
 // For aggregate types, returns the type of the element at the given index.

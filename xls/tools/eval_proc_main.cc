@@ -34,6 +34,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -115,7 +116,7 @@ ABSL_FLAG(
     "}\n"
     "where CHANNEL_NAME is the name of the channel and VALUE is one XLS Value "
     "in human-readable form. There is one VALUE per line. There may be zero or "
-    "more occurences of VALUE for a channel. The file may contain one or more "
+    "more occurrences of VALUE for a channel. The file may contain one or more "
     "channels. One of 'inputs_for_channels', 'inputs_for_all_channels', or "
     "'proto_inputs_for_all_channels' can be defined.");
 ABSL_FLAG(
@@ -127,7 +128,7 @@ ABSL_FLAG(
     "}\n"
     "where CHANNEL_NAME is the name of the channel and VALUE is one XLS Value "
     "in human-readable form. There is one VALUE per line. There may be zero or "
-    "more occurences of VALUE for a channel. The file may contain one or more "
+    "more occurrences of VALUE for a channel. The file may contain one or more "
     "channels. Either 'expected_outputs_for_channels' or "
     "'expected_outputs_for_all_channels' can be defined.\n"
     "For procs, when 'expected_outputs_for_channels', "
@@ -219,14 +220,14 @@ static absl::Status EvaluateProcs(
       XLS_RETURN_IF_ERROR(in_queue->Write(value));
     }
     if (absl::GetFlag(FLAGS_show_trace)) {
-      XLS_LOG(INFO) << "Channel " << channel_name << " has " << values.size()
-                    << " inputs";
+      LOG(INFO) << "Channel " << channel_name << " has " << values.size()
+                << " inputs";
     }
   }
   if (absl::GetFlag(FLAGS_show_trace)) {
     for (const auto& [channel_name, values] : expected_outputs_for_channels) {
-      XLS_LOG(INFO) << "Channel " << channel_name << " has " << values.size()
-                    << " outputs";
+      LOG(INFO) << "Channel " << channel_name << " has " << values.size()
+                << " outputs";
     }
   }
 
@@ -234,7 +235,7 @@ static absl::Status EvaluateProcs(
 
   for (int64_t this_ticks : ticks) {
     if (absl::GetFlag(FLAGS_show_trace)) {
-      XLS_LOG(INFO) << "Resetting proc state";
+      LOG(INFO) << "Resetting proc state";
     }
     runtime->ResetState();
 
@@ -253,7 +254,7 @@ static absl::Status EvaluateProcs(
                                queue_manager.GetQueueByName(channel_name));
           ostr << channel_name << "[" << in_queue->GetSize() << "] " << " ";
         }
-        XLS_LOG(INFO) << "Tick " << i << ": " << ostr.str();
+        LOG(INFO) << "Tick " << i << ": " << ostr.str();
       }
       // Don't double print events (traces, assertions, etc)
       runtime->ClearInterpreterEvents();
@@ -265,7 +266,7 @@ static absl::Status EvaluateProcs(
           XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
                                queue_manager.GetQueueByName(channel_name));
 
-          XLS_LOG(INFO) << absl::StreamFormat(
+          LOG(INFO) << absl::StreamFormat(
               "out_queue[%s]: size %li, reference values %li", channel_name,
               out_queue->GetSize(), values.size());
         }
@@ -273,7 +274,7 @@ static absl::Status EvaluateProcs(
           XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
                                queue_manager.GetQueueByName(channel_name));
 
-          XLS_LOG(INFO) << absl::StreamFormat(
+          LOG(INFO) << absl::StreamFormat(
               "in_queue[%s]: size %li, reference values %li", channel_name,
               in_queue->GetSize(), values.size());
         }
@@ -339,7 +340,7 @@ static absl::Status EvaluateProcs(
             processed_count, value.ToString(), out_val->ToString());
       } else {
         if (absl::GetFlag(FLAGS_show_trace)) {
-          XLS_LOG(INFO) << absl::StreamFormat(
+          LOG(INFO) << absl::StreamFormat(
               "Matched (channel=%s) after %d outputs", channel_name,
               processed_count);
         }
@@ -470,8 +471,8 @@ InterpretBlockSignature(
       continue;
     } else {
       port_name = port.name();
-      XLS_LOG(WARNING) << "Warning: Assuming port " << port_name
-                       << " is single value, or direct, input";
+      LOG(WARNING) << "Warning: Assuming port " << port_name
+                   << " is single value, or direct, input";
       CHECK(this_port_input);
       ready_valid = false;
       channel_info[port_name].port_input = true;
@@ -538,19 +539,19 @@ class MemoryModel {
     }
     read_this_tick_ = cells_[addr];
     if (show_trace_) {
-      XLS_LOG(INFO) << "Memory Model: Initiated read " << name_ << "[" << addr
-                    << "] = " << read_this_tick_.value();
+      LOG(INFO) << "Memory Model: Initiated read " << name_ << "[" << addr
+                << "] = " << read_this_tick_.value();
     }
     return absl::OkStatus();
   }
   Value GetValueReadLastTick() const {
     if (show_trace_) {
       if (read_last_tick_.has_value()) {
-        XLS_LOG(INFO) << "Memory Model: Got read last value " << name_ << " = "
-                      << read_last_tick_.value();
+        LOG(INFO) << "Memory Model: Got read last value " << name_ << " = "
+                  << read_last_tick_.value();
       } else {
-        XLS_LOG(INFO) << "Memory Model: Got read last default " << name_
-                      << " = " << read_disabled_value_;
+        LOG(INFO) << "Memory Model: Got read last default " << name_ << " = "
+                  << read_disabled_value_;
       }
     }
     return read_last_tick_.has_value() ? read_last_tick_.value()
@@ -572,8 +573,8 @@ class MemoryModel {
           name_, addr, value.GetFlatBitCount(), cells_[0].GetFlatBitCount()));
     }
     if (show_trace_) {
-      XLS_LOG(INFO) << "Memory Model: Initiated write " << name_ << "[" << addr
-                    << "] = " << value;
+      LOG(INFO) << "Memory Model: Initiated write " << name_ << "[" << addr
+                << "] = " << value;
     }
     write_this_tick_ = std::make_pair(addr, value);
     return absl::OkStatus();
@@ -581,9 +582,9 @@ class MemoryModel {
   absl::Status Tick() {
     if (write_this_tick_.has_value()) {
       if (show_trace_) {
-        XLS_LOG(INFO) << "Memory Model: Committed write " << name_ << "["
-                      << write_this_tick_->first
-                      << "] = " << write_this_tick_->second;
+        LOG(INFO) << "Memory Model: Committed write " << name_ << "["
+                  << write_this_tick_->first
+                  << "] = " << write_this_tick_->second;
       }
       cells_[write_this_tick_->first] = write_this_tick_->second;
       write_this_tick_.reset();
@@ -709,8 +710,8 @@ static absl::Status RunBlock(
     const bool resetting = (cycle == 0);
 
     if (show_trace && ((cycle < 30) || (cycle % 100 == 0))) {
-      XLS_LOG(INFO) << "Cycle[" << cycle << "]: resetting? " << resetting
-                    << " matched outputs " << matched_outputs;
+      LOG(INFO) << "Cycle[" << cycle << "]: resetting? " << resetting
+                << " matched outputs " << matched_outputs;
     }
 
     absl::flat_hash_set<std::string> asserted_valids;
@@ -720,7 +721,7 @@ static absl::Status RunBlock(
       input_set[signature.reset().name()] = Value(
           xls::UBits((resetting ^ signature.reset().active_low()) ? 1 : 0, 1));
     } else {
-      XLS_LOG(WARNING) << "No reset found in signature!";
+      LOG(WARNING) << "No reset found in signature!";
     }
 
     for (const auto& [name, _] : inputs_for_channels) {
@@ -789,8 +790,8 @@ static absl::Status RunBlock(
 
       if (vld_value && rdy_value) {
         if (show_trace) {
-          XLS_LOG(INFO) << "Channel Model: Consuming input for " << name << ": "
-                        << queue.front().ToString();
+          LOG(INFO) << "Channel Model: Consuming input for " << name << ": "
+                    << queue.front().ToString();
         }
         queue.pop();
         asserted_valids.erase(name);
@@ -815,8 +816,8 @@ static absl::Status RunBlock(
         const Value& data_value = outputs.at(info.channel_data);
         const Value& match_value = queue.front();
         if (show_trace) {
-          XLS_LOG(INFO) << "Channel Model: Consuming output for " << name
-                        << ": " << data_value << ", remaining " << queue.size();
+          LOG(INFO) << "Channel Model: Consuming output for " << name << ": "
+                    << data_value << ", remaining " << queue.size();
         }
         if (match_value != data_value) {
           return absl::UnknownError(absl::StrFormat(
@@ -1036,8 +1037,8 @@ static absl::Status RealMain(
 
   if (backend != "block_jit" && backend != "block_interpreter" &&
       !model_memories.empty()) {
-    XLS_LOG(QFATAL) << "Only block interpreter supports memory models "
-                       "specified to eval_proc_main";
+    LOG(QFATAL) << "Only block interpreter supports memory models "
+                   "specified to eval_proc_main";
   }
 
   if (backend == "serial_jit") {
@@ -1076,7 +1077,7 @@ static absl::Status RealMain(
                     memory_write_data_suffix, idle_channel_name, random_seed,
                     prob_input_valid_assert, show_trace, output_stats_path);
   }
-  XLS_LOG(QFATAL) << "Unknown backend type";
+  LOG(QFATAL) << "Unknown backend type";
 }
 
 }  // namespace xls
@@ -1085,31 +1086,30 @@ int main(int argc, char* argv[]) {
   std::vector<std::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
   if (positional_args.size() != 1) {
-    XLS_LOG(QFATAL) << "One (and only one) IR file must be given.";
+    LOG(QFATAL) << "One (and only one) IR file must be given.";
   }
 
   std::string backend = absl::GetFlag(FLAGS_backend);
   if (backend != "serial_jit" && backend != "ir_interpreter" &&
       backend != "block_interpreter" && backend != "block_jit") {
-    XLS_LOG(QFATAL) << "Unrecognized backend choice.";
+    LOG(QFATAL) << "Unrecognized backend choice.";
   }
 
   if ((backend == "block_interpreter" || backend == "block_jit") &&
       absl::GetFlag(FLAGS_block_signature_proto).empty()) {
-    XLS_LOG(QFATAL) << "Block evaluation requires --block_signature_proto.";
+    LOG(QFATAL) << "Block evaluation requires --block_signature_proto.";
   }
 
   std::vector<int64_t> ticks;
   for (const std::string& run_str : absl::GetFlag(FLAGS_ticks)) {
     int ticks_int;
     if (!absl::SimpleAtoi(run_str.c_str(), &ticks_int)) {
-      XLS_LOG(QFATAL) << "Couldn't parse run description in --ticks: "
-                      << run_str;
+      LOG(QFATAL) << "Couldn't parse run description in --ticks: " << run_str;
     }
     ticks.push_back(ticks_int);
   }
   if (ticks.empty()) {
-    XLS_LOG(QFATAL) << "--ticks must be specified.";
+    LOG(QFATAL) << "--ticks must be specified.";
   }
 
   if (absl::c_count(
@@ -1118,9 +1118,9 @@ int main(int argc, char* argv[]) {
               absl::GetFlag(FLAGS_inputs_for_all_channels).empty() &&
               absl::GetFlag(FLAGS_proto_inputs_for_all_channels).empty()},
           false) > 1) {
-    XLS_LOG(QFATAL) << "Only one of --inputs_for_channels, "
-                       "--inputs_for_all_channels, and "
-                       "--proto_inputs_for_all_channels must be set.";
+    LOG(QFATAL) << "Only one of --inputs_for_channels, "
+                   "--inputs_for_all_channels, and "
+                   "--proto_inputs_for_all_channels must be set.";
   }
 
   if (absl::c_count(
@@ -1130,9 +1130,9 @@ int main(int argc, char* argv[]) {
               absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels)
                   .empty()},
           false) > 1) {
-    XLS_LOG(QFATAL) << "Only one of --expected_outputs_for_channels, "
-                       "--expected_outputs_for_all_channels, and "
-                       "--expected_proto_outputs_for_all_channels must be set.";
+    LOG(QFATAL) << "Only one of --expected_outputs_for_channels, "
+                   "--expected_outputs_for_all_channels, and "
+                   "--expected_proto_outputs_for_all_channels must be set.";
   }
 
   return xls::ExitStatus(xls::RealMain(

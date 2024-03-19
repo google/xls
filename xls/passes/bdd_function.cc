@@ -280,7 +280,7 @@ bool ShouldEvaluate(Node* node) {
     case Op::kBitSliceUpdate:
       return false;
   }
-  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
+  LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
 }
 
 // Data structure which aggregates BDD performance statistics across ops.

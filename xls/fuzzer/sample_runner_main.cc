@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/exit_status.h"
@@ -101,7 +102,7 @@ int main(int argc, char** argv) {
       << "--input_file is required.";
 
   if (positional_arguments.size() > 1) {
-    XLS_LOG(QFATAL) << "Usage:\n" << kUsage;
+    LOG(QFATAL) << "Usage:\n" << kUsage;
   }
 
   std::filesystem::path run_dir;

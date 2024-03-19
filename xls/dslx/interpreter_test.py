@@ -215,7 +215,7 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
-    # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
+    # Trace is logged with LOG(INFO) so log to stderr to capture output.
     cmd = [
         _INTERP_PATH, '--compare=none', '--alsologtostderr',
         program_file.full_path

@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -825,8 +826,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() || positional_arguments[0].empty()) {
-    XLS_LOG(QFATAL) << "Expected path argument with IR: " << argv[0]
-                    << " <ir_path>";
+    LOG(QFATAL) << "Expected path argument with IR: " << argv[0]
+                << " <ir_path>";
   }
 
   return xls::ExitStatus(xls::RealMain(positional_arguments[0]));

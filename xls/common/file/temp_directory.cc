@@ -19,6 +19,7 @@
 #include <system_error>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
@@ -28,8 +29,7 @@ namespace xls {
 TempDirectory::~TempDirectory() {
   absl::Status cleanup_status = std::move(*this).Cleanup();
   if (!cleanup_status.ok()) {
-    XLS_LOG(ERROR) << "Failed to clean up temporary directory: "
-                   << cleanup_status;
+    LOG(ERROR) << "Failed to clean up temporary directory: " << cleanup_status;
   }
 }
 
@@ -79,8 +79,7 @@ TempDirectory::TempDirectory(TempDirectory&& other)
 TempDirectory& TempDirectory::operator=(TempDirectory&& other) {
   absl::Status cleanup_status = std::move(*this).Cleanup();
   if (!cleanup_status.ok()) {
-    XLS_LOG(ERROR) << "Failed to clean up temporary directory: "
-                   << cleanup_status;
+    LOG(ERROR) << "Failed to clean up temporary directory: " << cleanup_status;
   }
   path_ = std::move(other.path_);
   other.path_ = std::filesystem::path();

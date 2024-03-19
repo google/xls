@@ -32,6 +32,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -217,7 +218,7 @@ class DataType : public VastNode {
   virtual bool is_signed() const { return false; }
 
   std::string Emit(LineInfo* line_info) const override {
-    XLS_LOG(FATAL) << "EmitWithIdentifier should be called rather than emit";
+    LOG(FATAL) << "EmitWithIdentifier should be called rather than emit";
   }
 
   // Returns a string which denotes this type along with an identifier for use

@@ -17,6 +17,7 @@
 
 #include "absl/base/casts.h"
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -44,8 +45,8 @@ int main(int argc, char** argv) {
   std::string input = absl::GetFlag(FLAGS_input);
   absl::Span<const uint8_t> data(absl::bit_cast<uint8_t*>(input.data()),
                                  input.size());
-  XLS_LOG(INFO) << "Performing Adler32 on " << data.size()
-                << " byte(s) of input data (string).";
+  LOG(INFO) << "Performing Adler32 on " << data.size()
+            << " byte(s) of input data (string).";
   uint32_t result = Adler32Sequential(data, data.size());
   std::cout << std::hex << result << '\n';
   return 0;

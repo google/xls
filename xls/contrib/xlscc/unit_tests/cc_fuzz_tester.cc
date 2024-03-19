@@ -27,6 +27,7 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
@@ -214,9 +215,9 @@ TEST_F(GeneratedTester, Simple) {
   std::string temp_dir;
   if (temp_dir_class.ok()) {
     temp_dir = temp_dir_class.value().path();
-    XLS_LOG(INFO) << "using temp directory: " << temp_dir;
+    LOG(INFO) << "using temp directory: " << temp_dir;
   } else {
-    XLS_LOG(QFATAL) << "Failed to create temp directory: ";
+    LOG(QFATAL) << "Failed to create temp directory: ";
   }
 
   std::srand(seed);
@@ -224,7 +225,7 @@ TEST_F(GeneratedTester, Simple) {
   if (!run_failed) {
     if (!crash_path.empty()) {
       if (!std::filesystem::create_directory(crash_path)) {
-        XLS_LOG(WARNING) << "failed to create crash path: " << crash_path;
+        LOG(WARNING) << "failed to create crash path: " << crash_path;
       }
     } else {
       crash_path = temp_dir;

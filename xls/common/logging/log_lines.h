@@ -18,7 +18,7 @@
 #include <string_view>
 
 #include "absl/base/log_severity.h"
-#include "xls/common/logging/logging.h"
+#include "absl/log/log.h"
 
 namespace xls {
 namespace logging {

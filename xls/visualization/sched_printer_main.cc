@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -323,7 +324,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
       // infeasible. Emit a meaningful error in this case.
       if (scheduling_options.pipeline_stages().has_value() &&
           scheduling_options.clock_period_ps().has_value()) {
-        XLS_LOG(QFATAL) << absl::StreamFormat(
+        LOG(QFATAL) << absl::StreamFormat(
             "Design cannot be scheduled in %d stages with a %dps clock.",
             scheduling_options.pipeline_stages().value(),
             scheduling_options.clock_period_ps().value());
@@ -393,8 +394,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() || positional_arguments[0].empty()) {
-    XLS_LOG(QFATAL) << "Expected path argument with IR: " << argv[0]
-                    << " <ir_path>";
+    LOG(QFATAL) << "Expected path argument with IR: " << argv[0]
+                << " <ir_path>";
   }
   CHECK_OK(xls::RealMain(positional_arguments[0]));
   return EXIT_SUCCESS;

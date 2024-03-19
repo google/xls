@@ -28,6 +28,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -920,7 +921,7 @@ absl::Status RangeQueryVisitor::HandleLiteral(Literal* literal) {
                      if (value.IsToken()) {
                        return IntervalSet::Precise(Bits(0));
                      }
-                     XLS_LOG(FATAL) << "Invalid value kind in HandleLiteral";
+                     LOG(FATAL) << "Invalid value kind in HandleLiteral";
                    }));
   return absl::OkStatus();
 }

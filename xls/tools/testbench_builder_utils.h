@@ -29,6 +29,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "absl/strings/match.h"
@@ -130,7 +131,7 @@ class Comparer<ResultT, typename std::enable_if<
                             ShouldEnableComparer<0, ResultT>::value>::type> {
  public:
   static bool Compare(const ResultT& a, const ResultT& b) {
-    XLS_LOG(ERROR) << absl::StrCat(
+    LOG(ERROR) << absl::StrCat(
         "Returning false as the testbench doesn't know how to compare "
         "these ResultTs.");
     return false;

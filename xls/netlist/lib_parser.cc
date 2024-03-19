@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
@@ -219,8 +220,8 @@ const std::string& Block::GetKVOrDie(std::string_view target_key) const {
       return kv_entry->value;
     }
   }
-  XLS_LOG(FATAL) << "Target key is not present in " << kind
-                 << " block: " << target_key;
+  LOG(FATAL) << "Target key is not present in " << kind
+             << " block: " << target_key;
 }
 
 int64_t Block::CountEntries(std::string_view target) const {

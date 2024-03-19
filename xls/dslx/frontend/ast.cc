@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -103,7 +104,7 @@ std::string_view FunctionTagToString(FunctionTag tag) {
     case FunctionTag::kProcInit:
       return "proc init";
   }
-  XLS_LOG(FATAL) << "Out-of-range function tag: " << static_cast<int>(tag);
+  LOG(FATAL) << "Out-of-range function tag: " << static_cast<int>(tag);
 }
 
 std::string_view PrecedenceToString(Precedence p) {
@@ -158,7 +159,7 @@ std::string_view PrecedenceToString(Precedence p) {
       return "weakest";
   }
 
-  XLS_LOG(FATAL) << "Invalid precedence value: " << static_cast<int>(p);
+  LOG(FATAL) << "Invalid precedence value: " << static_cast<int>(p);
 }
 
 constexpr int64_t kTargetLineChars = 80;
@@ -295,7 +296,7 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
     case AstNodeKind::kUnrollFor:
       return "unroll-for";
   }
-  XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
+  LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
 }
 
 AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
@@ -1425,7 +1426,7 @@ Precedence Binop::GetPrecedenceWithoutParens() const {
     case BinopKind::kConcat:
       return Precedence::kConcat;
   }
-  XLS_LOG(FATAL) << "Invalid binop kind: " << static_cast<int>(binop_kind_);
+  LOG(FATAL) << "Invalid binop kind: " << static_cast<int>(binop_kind_);
 }
 
 absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s) {

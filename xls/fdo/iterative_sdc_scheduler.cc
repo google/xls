@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -220,11 +221,11 @@ absl::Status RefineDelayEstimations(
     targeted_paths.push_back(path_info);
   }
 
-  XLS_LOG(INFO) << "Number of paths to evaluate is " << targeted_paths.size();
+  LOG(INFO) << "Number of paths to evaluate is " << targeted_paths.size();
   for (auto [delay, source, target] : targeted_paths) {
-    XLS_LOG(INFO) << "(" << delay << "ps) Source " << source->GetName() << " ("
-                << cycle_map.at(source) << ") to target " << target->GetName()
-                << " (" << cycle_map.at(target) << ")";
+    LOG(INFO) << "(" << delay << "ps) Source " << source->GetName() << " ("
+              << cycle_map.at(source) << ") to target " << target->GetName()
+              << " (" << cycle_map.at(target) << ")";
   }
 
   // Extract nodes from paths with given strategy.
@@ -248,12 +249,12 @@ absl::Status RefineDelayEstimations(
   for (int64_t j = 0; j < delay_list.size(); ++j) {
     const NodeSet &nodes = nodes_list[j];
     int64_t delay = delay_list[j];
-    XLS_LOG(INFO) << "(Updated delay: " << delay << "ps) Nodes: "
-                << absl::StrJoin(nodes, ", ", [](std::string *out, Node *n) {
-                     absl::StrAppend(out, n->GetName());
-                     absl::StrAppend(out, "-->");
-                     absl::StrAppend(out, n->GetUsersString());
-                   });
+    LOG(INFO) << "(Updated delay: " << delay << "ps) Nodes: "
+              << absl::StrJoin(nodes, ", ", [](std::string *out, Node *n) {
+                   absl::StrAppend(out, n->GetName());
+                   absl::StrAppend(out, "-->");
+                   absl::StrAppend(out, n->GetUsersString());
+                 });
 
     // Update delays in the delay manager with the synthesis results.
     for (Node *source : nodes) {
@@ -340,8 +341,9 @@ static absl::Status UpdateStats(
   // Show changes (nodes that moved from one stage to another)
   for (auto [node, prev_cycle] : prev_cycle_map) {
     if (cycle_map.at(node) != prev_cycle) {
-      XLS_LOG(INFO) << "*** Node " << node->GetName() << " MOVED STAGES: " <<
-                  prev_cycle << "-->" << cycle_map.at(node) << "\n";
+      LOG(INFO) << "*** Node " << node->GetName()
+                << " MOVED STAGES: " << prev_cycle << "-->"
+                << cycle_map.at(node) << "\n";
     }
   }
 
@@ -353,7 +355,7 @@ static absl::Status UpdateStats(
     }
   }
   for (auto& [cycle, node_count] : histo) {
-    XLS_LOG(INFO) << "Stage " << cycle << ": " << node_count << " nodes";
+    LOG(INFO) << "Stage " << cycle << ": " << node_count << " nodes";
   }
 
   // Count flops at pipeline stage crossings
@@ -368,7 +370,7 @@ static absl::Status UpdateStats(
       crossing_bits += node->GetType()->GetFlatBitCount();
     }
   }
-  XLS_LOG(INFO) << "FLOPS: " << crossing_bits << "\n";
+  LOG(INFO) << "FLOPS: " << crossing_bits << "\n";
 
   return absl::OkStatus();
 }
@@ -481,9 +483,9 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
                          delay_manager.GetLongestPath(path_extract_options));
     auto [critical_delay, critical_source, critical_target] = critical_path;
     if (critical_delay > 0) {
-      XLS_LOG(INFO) << "SDC iteration " << i << " critical path delay is "
-                  << critical_delay << "ps: " << critical_source->GetName()
-                  << " -> " << critical_target->GetName();
+      LOG(INFO) << "SDC iteration " << i << " critical path delay is "
+                << critical_delay << "ps: " << critical_source->GetName()
+                << " -> " << critical_target->GetName();
     }
 
     // Run delay estimation refinement except the last iteration.

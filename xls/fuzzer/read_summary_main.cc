@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -281,7 +282,7 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat(
+    LOG(QFATAL) << absl::StreamFormat(
         "Expected invocation: %s [SUMMARY_FILE...]", argv[0]);
   }
 

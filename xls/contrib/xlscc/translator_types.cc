@@ -25,6 +25,7 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -54,7 +55,7 @@ absl::StatusOr<bool> CType::ContainsLValues(Translator& translator) const {
 CType::operator std::string() const { return "CType"; }
 
 xls::Type* CType::GetXLSType(xls::Package* /*package*/) const {
-  XLS_LOG(FATAL) << "GetXLSType() unsupported in CType base class";
+  LOG(FATAL) << "GetXLSType() unsupported in CType base class";
   return nullptr;
 }
 
@@ -478,7 +479,7 @@ absl::Status CInstantiableTypeAlias::GetMetadataValue(
 }
 
 int CInstantiableTypeAlias::GetBitWidth() const {
-  XLS_LOG(FATAL) << "GetBitWidth() unsupported for CInstantiableTypeAlias";
+  LOG(FATAL) << "GetBitWidth() unsupported for CInstantiableTypeAlias";
   return 0;
 }
 
@@ -611,7 +612,7 @@ CStructType::operator std::string() const {
 }
 
 bool CStructType::operator==(const CType& o) const {
-  XLS_LOG(FATAL) << "operator== unsupported on structs";
+  LOG(FATAL) << "operator== unsupported on structs";
   return false;
 }
 

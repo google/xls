@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -186,11 +187,11 @@ int main(int argc, char** argv) {
       argc, argv);
 
   if (!positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << "Unexpected positional arguments: "
-                    << absl::StrJoin(positional_arguments, ", ");
+    LOG(QFATAL) << "Unexpected positional arguments: "
+                << absl::StrJoin(positional_arguments, ", ");
   }
   if (absl::GetFlag(FLAGS_simulate) && !absl::GetFlag(FLAGS_codegen)) {
-    XLS_LOG(QFATAL) << "Must specify --codegen when --simulate is given.";
+    LOG(QFATAL) << "Must specify --codegen when --simulate is given.";
   }
 
   return xls::ExitStatus(xls::RealMain({

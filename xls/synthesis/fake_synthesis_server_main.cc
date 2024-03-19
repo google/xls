@@ -18,6 +18,7 @@
 #include <string>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -100,7 +101,7 @@ void RealMain() {
   builder.AddListeningPort(server_address, creds);
   builder.RegisterService(&service);
   std::unique_ptr<::grpc::Server> server(builder.BuildAndStart());
-  XLS_LOG(INFO) << "Serving on port: " << port;
+  LOG(INFO) << "Serving on port: " << port;
   server->Wait();
 }
 

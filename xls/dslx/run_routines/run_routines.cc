@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -493,7 +494,7 @@ absl::StatusOr<TestResultData> ParseAndTest(
     } else {
       // If we can't extract positional data we log the error and put the error
       // status into the "failed" prompted.
-      XLS_LOG(ERROR) << "Internal error: " << status;
+      LOG(ERROR) << "Internal error: " << status;
       suffix = absl::StrCat(": internal error: ", status.ToString());
       one_liner = suffix;
     }
@@ -657,7 +658,7 @@ std::string_view TestResultToString(TestResult tr) {
     case TestResult::kParseOrTypecheckError:
       return "parse-or-typecheck-error";
   }
-  XLS_LOG(FATAL) << "Invalid test result value: " << static_cast<int>(tr);
+  LOG(FATAL) << "Invalid test result value: " << static_cast<int>(tr);
 }
 
 }  // namespace xls::dslx

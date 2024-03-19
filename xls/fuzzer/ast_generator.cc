@@ -35,6 +35,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
@@ -405,7 +406,7 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
                            .requires_default_value = false};
   }
 
-  XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
+  LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
 }
 
 }  // namespace
@@ -579,7 +580,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
           .min_stage = min_stage};
   }
 
-  XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op_type);
+  LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op_type);
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Context* ctx) {
@@ -2375,7 +2376,7 @@ int OpProbability(OpChoice op) {
     case kEndSentinel:
       return 0;
   }
-  XLS_LOG(FATAL) << "Invalid op choice: " << static_cast<int64_t>(op);
+  LOG(FATAL) << "Invalid op choice: " << static_cast<int64_t>(op);
 }
 
 absl::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
@@ -2507,7 +2508,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t call_depth,
         generated = GenerateBitSliceUpdate(ctx);
         break;
       case kEndSentinel:
-        XLS_LOG(FATAL) << "Should not have selected end sentinel";
+        LOG(FATAL) << "Should not have selected end sentinel";
     }
   }
 
@@ -2554,7 +2555,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
       case kOneHot:
         return "one_hot";
     }
-    XLS_LOG(FATAL) << "Invalid kind: " << kind;
+    LOG(FATAL) << "Invalid kind: " << kind;
   };
 
   std::vector<UnopBuiltin> choices = {kRev, kDecode};

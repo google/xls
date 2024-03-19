@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -349,23 +350,24 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
           pragmas.find(absl::AsciiStrToLower(name));
       if (it != pragmas.end()) {
         if (name != absl::AsciiStrToLower(name)) {
-          XLS_LOG(WARNING) << "#pragma must be lowercase: " << line;
+          LOG(WARNING) << "#pragma must be lowercase: " << line;
           continue;
         }
         if (!absl::StartsWith(name, "hls_")) {
-          XLS_LOG(WARNING) << "WARNING: #pragma '" << name
-                           << "' requires 'hls_' prefix";
+          LOG(WARNING) << "WARNING: #pragma '" << name
+                       << "' requires 'hls_' prefix";
           prev_location = PragmaLoc("", -1);
           continue;
         }
         // Snip out hls_
         std::string_view short_name = name.substr(4);
         if (pragma_line->args.size() > 1) {
-          XLS_LOG(WARNING)
-              << "WARNING: #pragma '" << short_name << "' has exra arguments '"
-              << absl::StrJoin(
-                     absl::MakeConstSpan(pragma_line->args).subspan(1), ",")
-              << "' that will be ignored";
+          LOG(WARNING) << "WARNING: #pragma '" << short_name
+                       << "' has exra arguments '"
+                       << absl::StrJoin(
+                              absl::MakeConstSpan(pragma_line->args).subspan(1),
+                              ",")
+                       << "' that will be ignored";
         }
         const PragmaLoc location(filename, lineno);
         prev_location = location;
@@ -401,7 +403,7 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
               } else if (params == "top") {
                 hls_pragmas_[location] = Pragma(Pragma_Top);
               } else {
-                XLS_LOG(WARNING)
+                LOG(WARNING)
                     << "Ignoring unknown #pragma hls_design: " << params;
               }
             } else {
@@ -415,18 +417,18 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
               break;
             }
             if (params == "no") {
-              XLS_LOG(WARNING) << "Ignoring #pragma hls_unroll no (at "
-                               << filename << ":" << lineno
-                               << "). Pragma is "
-                                  "not needed and has no effect.";
+              LOG(WARNING) << "Ignoring #pragma hls_unroll no (at " << filename
+                           << ":" << lineno
+                           << "). Pragma is "
+                              "not needed and has no effect.";
               break;
             }
             if (!absl::SimpleAtoi(params, &arg) || (arg <= 0)) {
               if (arg == 0) {
-                XLS_LOG(WARNING) << "Ignoring #pragma hls_unroll 0 (at "
-                                 << filename << ":" << lineno
-                                 << "). Pragma is "
-                                    "not needed and has no effect.";
+                LOG(WARNING) << "Ignoring #pragma hls_unroll 0 (at " << filename
+                             << ":" << lineno
+                             << "). Pragma is "
+                                "not needed and has no effect.";
                 break;
               }
               return absl::InvalidArgumentError(
@@ -435,8 +437,8 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
                                   " At %s:%i",
                                   params, short_name, filename, lineno));
             }
-            XLS_LOG(WARNING) << "Partial unroll not yet supported: "
-                             << "fully unrolling";
+            LOG(WARNING) << "Partial unroll not yet supported: "
+                         << "fully unrolling";
             hls_pragmas_[location] = Pragma(pragma_val, arg);
             break;
           case Pragma_Null:
@@ -452,8 +454,8 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
         }
       } else if (pragmas.find(absl::StrCat(
                      "hls_", absl::AsciiStrToLower(name))) != pragmas.end()) {
-        XLS_LOG(WARNING) << "WARNING: #pragma '" << name
-                         << "' requires 'hls_' prefix";
+        LOG(WARNING) << "WARNING: #pragma '" << name
+                     << "' requires 'hls_' prefix";
         prev_location = PragmaLoc("", -1);
       }
       // Ignore unknown pragmas

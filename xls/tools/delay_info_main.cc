@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -144,8 +145,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <path>",
-                                          argv[0]);
+    LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <path>",
+                                      argv[0]);
   }
 
   return xls::ExitStatus(xls::tools::RealMain(positional_arguments[0]));

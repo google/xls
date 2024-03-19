@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -98,7 +99,7 @@ int main(int argc, char** argv) {
 
   if (positional_arguments.size() != 1 || positional_arguments[0].empty() ||
       absl::GetFlag(FLAGS_subject).empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat(
+    LOG(QFATAL) << absl::StreamFormat(
         "Expected invocation:\n  %s <path> -subject <node>\n", argv[0]);
   }
 

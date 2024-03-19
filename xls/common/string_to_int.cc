@@ -17,6 +17,7 @@
 #include <limits>
 #include <string_view>
 
+#include "absl/log/log.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
@@ -92,7 +93,7 @@ absl::StatusOr<int64_t> StrTo64Base(std::string_view s, int base) {
         break;
       }
       default:
-        XLS_LOG(FATAL) << "Invalid base: " << base;
+        LOG(FATAL) << "Invalid base: " << base;
     }
     if (digit >= base) {
       return error();

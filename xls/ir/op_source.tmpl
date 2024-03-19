@@ -2,15 +2,16 @@
 
 #include <string_view>
 
-#include "xls/common/logging/logging.h"
-#include "absl/status/statusor.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
+#include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 
 namespace xls {
 
 Op FromOpProto(OpProto op_proto) {
   switch (op_proto) {
-    case OP_INVALID: XLS_LOG(FATAL) << "OP_INVALID received"; break;
+    case OP_INVALID: LOG(FATAL) << "OP_INVALID received"; break;
 {% for op in spec.OPS -%}
     case OP_{{ op.name.upper() }}: return Op::{{ op.enum_name }};
 {% endfor -%}
@@ -18,7 +19,7 @@ Op FromOpProto(OpProto op_proto) {
     // addition to the "real" ones above, which is why the enumeration above is
     // not exhaustive.
     default:
-      XLS_LOG(FATAL) << "Invalid OpProto: " << static_cast<int64_t>(op_proto);
+      LOG(FATAL) << "Invalid OpProto: " << static_cast<int64_t>(op_proto);
   }
 }
 
@@ -28,7 +29,7 @@ OpProto ToOpProto(Op op) {
     case Op::{{ op.enum_name }}: return OP_{{ op.name.upper() }};
 {% endfor -%}
   }
-  XLS_LOG(FATAL) << "Invalid Op: " << static_cast<int64_t>(op);
+  LOG(FATAL) << "Invalid Op: " << static_cast<int64_t>(op);
 }
 
 std::string OpToString(Op op) {
@@ -40,7 +41,7 @@ std::string OpToString(Op op) {
       });
   auto found = op_map->find(op);
   if (found == op_map->end()) {
-    XLS_LOG(FATAL) << "OpToString(" << static_cast<uint64_t>(op)
+    LOG(FATAL) << "OpToString(" << static_cast<uint64_t>(op)
                << ") failed, unknown op";
   }
   return found->second;

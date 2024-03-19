@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
@@ -101,9 +102,8 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
   if (std::holds_alternative<Import*>(bn)) {
     return &std::get<Import*>(bn)->name_def();
   }
-  XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
-                 << ToAstNode(bn)->ToString() << " "
-                 << ToAstNode(bn)->GetNodeTypeName();
+  LOG(FATAL) << "Unsupported BoundNode variant: " << ToAstNode(bn)->ToString()
+             << " " << ToAstNode(bn)->GetNodeTypeName();
 }
 
 Span BoundNodeGetSpan(BoundNode bn) {
@@ -134,8 +134,7 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
   if (std::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
   if (std::holds_alternative<Import*>(bn)) { return "Import"; }
   // clang-format on
-  XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
-                 << ToAstNode(bn)->ToString();
+  LOG(FATAL) << "Unsupported BoundNode variant: " << ToAstNode(bn)->ToString();
 }
 
 Bindings::Bindings(Bindings* parent) : parent_(parent) {

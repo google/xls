@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -129,9 +130,9 @@ int main(int argc, char* argv[]) {
   std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.empty()) {
-    XLS_LOG(QFATAL) << "Wrong number of command-line arguments; got "
-                    << args.size() << ": `" << absl::StrJoin(args, " ")
-                    << "`; want " << argv[0] << " <input-file>";
+    LOG(QFATAL) << "Wrong number of command-line arguments; got " << args.size()
+                << ": `" << absl::StrJoin(args, " ") << "`; want " << argv[0]
+                << " <input-file>";
   }
   // "-" is a special path that is shorthand for /dev/stdin. Update here as
   // there isn't a better place later.

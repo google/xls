@@ -24,18 +24,18 @@
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
 
-  XLS_LOG(INFO) << "INFO message";
-  XLS_LOG(WARNING) << "WARNING message";
-  XLS_LOG(ERROR) << "ERROR message";
+  LOG(INFO) << "INFO message";
+  LOG(WARNING) << "WARNING message";
+  LOG(ERROR) << "ERROR message";
 
   XLS_VLOG(1) << "XLS_VLOG(1) message";
   XLS_VLOG(2) << "XLS_VLOG(2) message";
 
   if (VLOG_IS_ON(1)) {
-    XLS_LOG(INFO) << "VLOG_IS_ON(1) message\n";
+    LOG(INFO) << "VLOG_IS_ON(1) message\n";
   }
   if (VLOG_IS_ON(2)) {
-    XLS_LOG(INFO) << "VLOG_IS_ON(2) message\n";
+    LOG(INFO) << "VLOG_IS_ON(2) message\n";
   }
 
   return EXIT_SUCCESS;

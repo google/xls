@@ -97,6 +97,7 @@ cc_library(
     hdrs = ["maximum_clique.h"],
     deps = [
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",

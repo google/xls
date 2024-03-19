@@ -32,7 +32,7 @@ namespace xls::verilog {
     case IOKind::kZeroLatencyBuffer:
       return "kZeroLatencyBuffer";
   }
-  XLS_LOG(FATAL) << "Invalid IOKind: " << static_cast<int64_t>(kind);
+  LOG(FATAL) << "Invalid IOKind: " << static_cast<int64_t>(kind);
 }
 
 CodegenOptions::CodegenOptions(const CodegenOptions& options)

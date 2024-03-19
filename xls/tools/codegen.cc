@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -65,7 +66,7 @@ verilog::CodegenOptions::IOKind ToIOKind(IOKindProto p) {
     case IO_KIND_ZERO_LATENCY_BUFFER:
       return verilog::CodegenOptions::IOKind::kZeroLatencyBuffer;
     default:
-      XLS_LOG(FATAL) << "Invalid IOKindProto value: " << static_cast<int>(p);
+      LOG(FATAL) << "Invalid IOKindProto value: " << static_cast<int>(p);
   }
 }
 
@@ -269,8 +270,8 @@ absl::StatusOr<CodegenResult> CodegenPipeline(
     package_pipeline_schedules_proto =
         PackagePipelineSchedulesToProto(schedule_group, *delay_estimator);
   } else {
-    XLS_LOG(FATAL) << absl::StreamFormat("Unknown schedules type (%d).",
-                                         schedules.index());
+    LOG(FATAL) << absl::StreamFormat("Unknown schedules type (%d).",
+                                     schedules.index());
   }
 
   if (codegen_time != nullptr) {

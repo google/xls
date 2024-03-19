@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -80,7 +81,7 @@ struct TheStruct {
         return ExtractBitVectorMetadata(member.type);
       }
     }
-    XLS_LOG(FATAL) << "Unknown field: " << name;
+    LOG(FATAL) << "Unknown field: " << name;
   };
 
   EXPECT_EQ(std::get<int64_t>(get_type_metadata("a")->bit_count), 32);

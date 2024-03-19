@@ -18,6 +18,7 @@
 #include <tuple>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
@@ -65,7 +66,7 @@ static float ComputeActual(fp::Float32Ldexp* jit_wrapper, Float32xint input) {
 
 static void LogMismatch(uint64_t index, Float32xint input, float expected,
                         float actual) {
-  XLS_LOG(ERROR) << absl::StrFormat(
+  LOG(ERROR) << absl::StrFormat(
       "Value mismatch at index %d, input %f, %d:\n"
       "  Fraction:  0x%x\n"
       "  Exponent:  0x%x\n"

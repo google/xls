@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -157,7 +158,7 @@ static std::string InterpValueBitsToString(const InterpValue& v,
     default:
       break;
   }
-  XLS_LOG(FATAL) << "Invalid tag for InterpValueBitsToString: " << v.tag();
+  LOG(FATAL) << "Invalid tag for InterpValueBitsToString: " << v.tag();
 }
 
 std::string InterpValue::ToString(bool humanize,
@@ -203,7 +204,7 @@ std::string InterpValue::ToString(bool humanize,
     case InterpValueTag::kChannel:
       return "channel";
   }
-  XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
+  LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
 absl::StatusOr<std::string> InterpValue::ToArrayString(
@@ -391,7 +392,7 @@ bool InterpValue::Eq(const InterpValue& other) const {
       // Channels are never equal.
       return false;
   }
-  XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
+  LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
 bool InterpValue::operator==(const InterpValue& rhs) const { return Eq(rhs); }
@@ -924,7 +925,7 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
           absl::StrFormat("Cannot convert channel-typed values to IR."));
     }
   }
-  XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
+  LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
 bool InterpValue::operator<(const InterpValue& rhs) const {

@@ -26,6 +26,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -210,21 +211,21 @@ void AbstractInterpreter<EvalT>::UpdateProcessedState(
   }
 
   if (dump_cell_set.contains(cell->name())) {
-    XLS_LOG(INFO) << "Cell " << cell->name() << " inputs:";
+    LOG(INFO) << "Cell " << cell->name() << " inputs:";
     if constexpr (std::is_convertible<EvalT, int>()) {
       for (const auto& input : cell->inputs()) {
-        XLS_LOG(INFO) << "   " << input.netref->name() << " : "
-                      << static_cast<int>(
-                             processed_cells.at(cell)->inputs.at(input.netref));
+        LOG(INFO) << "   " << input.netref->name() << " : "
+                  << static_cast<int>(
+                         processed_cells.at(cell)->inputs.at(input.netref));
       }
 
-      XLS_LOG(INFO) << "Cell " << cell->name() << " outputs:";
+      LOG(INFO) << "Cell " << cell->name() << " outputs:";
       for (const auto& output : cell->outputs()) {
-        XLS_LOG(INFO) << "   " << output.netref->name() << " : "
-                      << static_cast<int>(wires[output.netref]);
+        LOG(INFO) << "   " << output.netref->name() << " : "
+                  << static_cast<int>(wires[output.netref]);
       }
     } else {
-      XLS_LOG(INFO) << "Cell " << cell->name() << " inputs are not printable.";
+      LOG(INFO) << "Cell " << cell->name() << " inputs are not printable.";
     }
   }
 }

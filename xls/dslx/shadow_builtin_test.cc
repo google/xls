@@ -17,6 +17,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -58,7 +59,7 @@ fn test_main() {
     if (name == "assert_eq") {
       continue;  // Used in our expectation.
     }
-    XLS_LOG(INFO) << "builtin: " << name;
+    LOG(INFO) << "builtin: " << name;
     std::string program = absl::StrFormat(kTemplate, name, name);
     ParseAndTestOptions options;
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -91,7 +92,7 @@ fn test_main() {
     if (name == "assert_eq") {
       continue;  // Used in our expectation.
     }
-    XLS_LOG(INFO) << "builtin: " << name;
+    LOG(INFO) << "builtin: " << name;
     std::string program = absl::StrFormat(kTemplate, name, name);
     ParseAndTestOptions options;
     XLS_ASSERT_OK_AND_ASSIGN(

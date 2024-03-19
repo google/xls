@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
@@ -132,7 +133,7 @@ ABSL_FLAG(bool, can_extract_segments, false,
           "transform entirely removes some segment of logic and makes a new "
           "function which contains only that piece of logic. It does this by "
           "selecting a random node in a function/proc, creating a new package "
-          "with with a new function. This new function then has the "
+          "with a new function. This new function then has the "
           "expression used to compute the node copied in and this new package "
           "is used as the sample to check. This new function is marked as (and "
           "named identically to) TOP and all other code is removed. This "
@@ -327,8 +328,8 @@ absl::StatusOr<bool> StillFails(
   if (test_cache != nullptr) {
     auto it = test_cache->find(ir_text);
     if (it != test_cache->end()) {
-      XLS_LOG(INFO) << absl::StreamFormat("Found result in cache (failed = %d)",
-                                          it->second);
+      LOG(INFO) << absl::StreamFormat("Found result in cache (failed = %d)",
+                                      it->second);
       return it->second;
     }
   }
@@ -444,7 +445,7 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
     }
     return true;
   }
-  XLS_LOG(FATAL) << "RemoveDeadParameters only handles procs and functions";
+  LOG(FATAL) << "RemoveDeadParameters only handles procs and functions";
 }
 
 enum class SimplificationResult {
@@ -544,7 +545,7 @@ std::vector<Node*> ImplicitlyUsed(FunctionBase* fb) {
     result.push_back(p->NextToken());
     return result;
   }
-  XLS_LOG(FATAL) << "ImplicitlyUsed only supports functions and procs";
+  LOG(FATAL) << "ImplicitlyUsed only supports functions and procs";
 }
 
 // Removes a random subset of elements from a compound typed value. That is,
@@ -734,8 +735,8 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
     *which_transform = passes.at(pass_no)->short_name();
     return SimplificationResult::kDidChange;
   }
-  XLS_LOG(INFO) << "Running " << passes.at(pass_no)->short_name()
-                << " did not change graph.";
+  LOG(INFO) << "Running " << passes.at(pass_no)->short_name()
+            << " did not change graph.";
   return SimplificationResult::kDidNotChange;
 }
 
@@ -1180,7 +1181,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
 
   // Clean up any initial garbage and see if it still fails.
   {
-    XLS_LOG(INFO) << "=== Cleaning up initial garbage";
+    LOG(INFO) << "=== Cleaning up initial garbage";
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                          ParsePackage(knownf_ir_text));
     FunctionBase* main = package->GetTop().value();
@@ -1194,9 +1195,9 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     if (still_fails) {
       knownf_ir_text = cleaned_up_ir_text;
     } else {
-      XLS_LOG(INFO) << "=== Original main function does not fail after cleanup";
+      LOG(INFO) << "=== Original main function does not fail after cleanup";
     }
-    XLS_LOG(INFO) << "=== Done cleaning up initial garbage";
+    LOG(INFO) << "=== Done cleaning up initial garbage";
   }
 
   // If so, we start simplifying via this seeded RNG.
@@ -1218,21 +1219,21 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
   std::vector<CandidateChange> candidate_changes;
   while (true) {
     if (failed_simplification_attempts >= failed_attempt_limit) {
-      XLS_LOG(INFO) << "Hit failed-simplification-attempt-limit: "
-                    << failed_simplification_attempts;
+      LOG(INFO) << "Hit failed-simplification-attempt-limit: "
+                << failed_simplification_attempts;
       // Used up all our attempts for this state.
       break;
     }
-    XLS_LOG(INFO) << "Nodes left " << package->GetNodeCount() << " in "
-                  << package->GetFunctionBases().size() << " FunctionBases";
-    XLS_LOG(INFO) << "Total attempts " << total_attempts << "/"
-                  << total_attempt_limit;
-    XLS_LOG(INFO) << "Failed attempt count " << failed_simplification_attempts
-                  << "/" << failed_attempt_limit;
+    LOG(INFO) << "Nodes left " << package->GetNodeCount() << " in "
+              << package->GetFunctionBases().size() << " FunctionBases";
+    LOG(INFO) << "Total attempts " << total_attempts << "/"
+              << total_attempt_limit;
+    LOG(INFO) << "Failed attempt count " << failed_simplification_attempts
+              << "/" << failed_attempt_limit;
 
     total_attempts++;
     if (total_attempts >= total_attempt_limit) {
-      XLS_LOG(INFO) << "Hit total-attempt-limit: " << total_attempts;
+      LOG(INFO) << "Hit total-attempt-limit: " << total_attempts;
       break;
     }
 
@@ -1262,7 +1263,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
 
     // If we cannot change it, we're done.
     if (simplification.result == SimplificationResult::kCannotChange) {
-      XLS_LOG(INFO) << "Cannot simplify any further, done!";
+      LOG(INFO) << "Cannot simplify any further, done!";
       break;
     }
 
@@ -1292,13 +1293,13 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
         // No need to test again yet.
         continue;
       }
-      XLS_LOG(INFO) << "Hit failed-attempts-between-tests-limit, checking if "
-                       "the candidate still fails: "
-                    << failed_attempts_between_tests_limit;
+      LOG(INFO) << "Hit failed-attempts-between-tests-limit, checking if "
+                   "the candidate still fails: "
+                << failed_attempts_between_tests_limit;
       failed_attempts_between_tests = 0;
     } else {
       CHECK(simplification.result == SimplificationResult::kDidChange);
-      XLS_LOG(INFO) << "Trying " << which_transform << " on " << candidate_name;
+      LOG(INFO) << "Trying " << which_transform << " on " << candidate_name;
       if (simplification.in_place()) {
         XLS_RETURN_IF_ERROR(CleanUp(candidate, can_remove_params));
       }
@@ -1326,8 +1327,8 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     if (!still_fails) {
       // Test earlier changes to see if they were failing, and discard the ones
       // that aren't.
-      XLS_LOG(INFO) << "Latest candidate no longer fails; trying earlier "
-                       "untested candidates";
+      LOG(INFO) << "Latest candidate no longer fails; trying earlier "
+                   "untested candidates";
       XLS_ASSIGN_OR_RETURN(
           int64_t first_non_failing,
           BinarySearchMinTrueWithStatus(
@@ -1340,17 +1341,17 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
                 return !still_fails;
               },
               BinarySearchAssumptions::kEndKnownTrue));
-      XLS_LOG(INFO) << "Discarded "
-                    << (candidate_changes.size() - first_non_failing)
-                    << " candidates, leaving " << first_non_failing;
+      LOG(INFO) << "Discarded "
+                << (candidate_changes.size() - first_non_failing)
+                << " candidates, leaving " << first_non_failing;
       candidate_changes.erase(candidate_changes.begin() + first_non_failing,
                               candidate_changes.end());
     }
     if (candidate_changes.empty()) {
       failed_simplification_attempts++;
-      XLS_LOG(INFO) << "Sample no longer fails.";
-      XLS_LOG(INFO) << "Failed simplification attempts now: "
-                    << failed_simplification_attempts;
+      LOG(INFO) << "Sample no longer fails.";
+      LOG(INFO) << "Failed simplification attempts now: "
+                << failed_simplification_attempts;
       // That simplification caused it to stop failing, but keep going with the
       // last known failing version and seeing if we can find something else
       // from there.
@@ -1399,8 +1400,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1 || positional_arguments[0].empty()) {
-    XLS_LOG(QFATAL) << "Expected path argument with IR: " << argv[0]
-                    << " <ir_path>";
+    LOG(QFATAL) << "Expected path argument with IR: " << argv[0]
+                << " <ir_path>";
   }
 
   QCHECK(!absl::GetFlag(FLAGS_test_executable).empty() ^

@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
@@ -54,7 +55,7 @@ Value ValueOfType(Type* type,
     case TypeKind::kToken:
       return Value::Token();
   }
-  XLS_LOG(FATAL) << "Invalid kind: " << type->kind();
+  LOG(FATAL) << "Invalid kind: " << type->kind();
 }
 
 void ValueLeafNodes(const Value& value,

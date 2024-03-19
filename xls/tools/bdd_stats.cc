@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/clock.h"
@@ -153,7 +154,7 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() && absl::GetFlag(FLAGS_benchmarks).empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat(
+    LOG(QFATAL) << absl::StreamFormat(
         "Expected invocation:\n  %s <path>\n  %s "
         "--benchmarks=<benchmark-names>",
         argv[0], argv[0]);

@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -140,7 +141,7 @@ TypeDim TypeDim::Clone() const {
     return TypeDim(
         std::get<std::unique_ptr<ParametricExpression>>(value_)->Clone());
   }
-  XLS_LOG(FATAL) << "Impossible TypeDim value variant.";
+  LOG(FATAL) << "Impossible TypeDim value variant.";
 }
 
 std::string TypeDim::ToString() const {
