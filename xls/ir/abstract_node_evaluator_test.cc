@@ -37,7 +37,7 @@ struct BoxedBool {
   bool operator==(const BoxedBool& other) const { return value == other.value; }
 };
 
-Bits FromBoxedVector(const std::vector<BoxedBool>& input) {
+Bits FromBoxedVector(absl::Span<BoxedBool const> input) {
   BitsRope rope(input.size());
   for (BoxedBool bit : input) {
     rope.push_back(bit.value);

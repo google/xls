@@ -180,9 +180,9 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     return SetValue(or_reduce, evaluator_.OrReduce(args));
   }
   absl::Status HandleReverse(UnOp* reverse) override {
-    XLS_ASSIGN_OR_RETURN(auto v, GetValue(reverse->operand(0)));
-    absl::c_reverse(v);
-    return SetValue(reverse, v);
+    XLS_ASSIGN_OR_RETURN(auto vec, GetOwnedValue(reverse->operand(0)));
+    absl::c_reverse(vec);
+    return SetValue(reverse, vec);
   }
   absl::Status HandleSDiv(BinOp* div) override {
     XLS_ASSIGN_OR_RETURN(auto lhs, GetValue(div->operand(0)));
@@ -237,7 +237,7 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
   absl::Status HandleSel(Select* sel) override {
     XLS_ASSIGN_OR_RETURN(auto args, GetValueList(sel->cases()));
     XLS_ASSIGN_OR_RETURN(auto selector, GetValue(sel->selector()));
-    std::optional<typename AbstractEvaluatorT::Vector> default_value;
+    std::optional<typename AbstractEvaluatorT::Span> default_value;
     if (sel->default_value()) {
       XLS_ASSIGN_OR_RETURN(default_value, GetValue(*sel->default_value()));
     }
@@ -333,15 +333,22 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     return values_;
   }
 
-  absl::StatusOr<typename AbstractEvaluatorT::Vector> GetValue(Node* n) const {
+  absl::StatusOr<typename AbstractEvaluatorT::Span> GetValue(Node* n) const {
     XLS_RET_CHECK(values_.contains(n)) << n;
     return values_.at(n);
   }
 
+  absl::StatusOr<typename AbstractEvaluatorT::Vector> GetOwnedValue(
+      Node* n) const {
+    XLS_RET_CHECK(values_.contains(n)) << n;
+    XLS_ASSIGN_OR_RETURN(auto span, GetValue(n));
+    return typename AbstractEvaluatorT::Vector(span.begin(), span.end());
+  }
+
  protected:
-  absl::StatusOr<std::vector<typename AbstractEvaluatorT::Vector>> GetValueList(
+  absl::StatusOr<std::vector<typename AbstractEvaluatorT::Span>> GetValueList(
       absl::Span<Node* const> nodes) {
-    std::vector<typename AbstractEvaluatorT::Vector> args;
+    std::vector<typename AbstractEvaluatorT::Span> args;
     args.reserve(nodes.size());
     for (Node* op : nodes) {
       XLS_ASSIGN_OR_RETURN(auto op_vec, GetValue(op));
@@ -354,6 +361,10 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     XLS_RET_CHECK(!values_.contains(n)) << n;
     values_[n] = std::move(v);
     return absl::OkStatus();
+  }
+
+  absl::Status SetValue(Node* n, typename AbstractEvaluatorT::Span v) {
+    return SetValue(n, evaluator_.SpanToVec(v));
   }
 
  private:
@@ -406,7 +417,7 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
         << node << "@op" << i;
   }
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&v));
-  return v.GetValue(node);
+  return v.GetOwnedValue(node);
 }
 
 }  // namespace xls

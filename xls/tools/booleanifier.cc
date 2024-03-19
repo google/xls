@@ -167,7 +167,9 @@ Booleanifier::Vector Booleanifier::HandleArrayIndex(
           array, start_offset + i * element_size, element_size));
     }
   }
-  return evaluator_->Select(node_map_.at(indices[0]), cases, cases.back());
+  return evaluator_->Select(node_map_.at(indices[0]),
+                            evaluator_->SpanOfVectorsToVectorOfSpans(cases),
+                            cases.back());
 }
 
 Booleanifier::Vector Booleanifier::HandleArrayUpdate(

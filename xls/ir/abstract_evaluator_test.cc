@@ -45,7 +45,7 @@ std::vector<BoxedBool> ToBoxedVector(const Bits& input) {
   return output;
 }
 
-Bits FromBoxedVector(const std::vector<BoxedBool>& input) {
+Bits FromBoxedVector(absl::Span<BoxedBool const> input) {
   BitsRope rope(input.size());
   for (BoxedBool bit : input) {
     rope.push_back(bit.value);
@@ -350,7 +350,9 @@ TEST(AbstractEvaluatorTest, PrioritySelect) {
     }
     EXPECT_EQ(UBits(expected, cases.front().bit_count()),
               FromBoxedVector(eval.PrioritySelect(
-                  ToBoxedVector(selector), boxed_cases, selector_can_be_zero)));
+                  ToBoxedVector(selector),
+                  eval.SpanOfVectorsToVectorOfSpans(boxed_cases),
+                  selector_can_be_zero)));
   };
 
   test_eq(0x00FF, UBits(1, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, false);

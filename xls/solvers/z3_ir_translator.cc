@@ -1144,8 +1144,9 @@ absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
   return HandleSelect(
       one_hot, [&evaluator](const std::vector<Z3_ast>& selector,
                             const std::vector<std::vector<Z3_ast>>& cases) {
-        return evaluator.OneHotSelect(selector, cases,
-                                      /*selector_can_be_zero=*/true);
+        return evaluator.OneHotSelect(
+            selector, evaluator.SpanOfVectorsToVectorOfSpans(cases),
+            /*selector_can_be_zero=*/true);
       });
 }
 
@@ -1154,8 +1155,9 @@ absl::Status IrTranslator::HandlePrioritySel(PrioritySelect* sel) {
   return HandleSelect(
       sel, [&evaluator](const std::vector<Z3_ast>& selector,
                         const std::vector<std::vector<Z3_ast>>& cases) {
-        return evaluator.PrioritySelect(selector, cases,
-                                        /*selector_can_be_zero=*/true);
+        return evaluator.PrioritySelect(
+            selector, evaluator.SpanOfVectorsToVectorOfSpans(cases),
+            /*selector_can_be_zero=*/true);
       });
 }
 
@@ -1171,7 +1173,9 @@ absl::Status IrTranslator::HandleSel(Select* sel) {
       default_value = FlattenValue(sel->default_value().value()->GetType(),
                                    GetValue(sel->default_value().value()));
     }
-    return evaluator.Select(selector, cases, default_value);
+    return evaluator.Select(selector,
+                            evaluator.SpanOfVectorsToVectorOfSpans(cases),
+                            default_value);
   });
 }
 
