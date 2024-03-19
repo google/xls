@@ -17,11 +17,14 @@
 
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
@@ -570,6 +573,83 @@ absl::StatusOr<LeafTypeTree<T>> CreateArray(
     }
   }
   return LeafTypeTree<T>::CreateFromVector(array_type, std::move(data_vector));
+}
+
+// Create an array-typed LeafTypeTree where the data values of the array
+// elements is the concatenation of the given array-typed LTT in `elements`.
+template <typename T>
+absl::StatusOr<LeafTypeTree<T>> ConcatArray(
+    ArrayType* result_array_type,
+    absl::Span<const LeafTypeTreeView<T>> elements) {
+  auto check_all_elements = [&](auto f) {
+    return absl::c_accumulate(
+        elements, absl::OkStatus(),
+        [&](absl::Status&& s, const auto& v) -> absl::Status {
+          absl::Status res = std::move(s);
+          res.Update(f(v));
+          return res;
+        });
+  };
+  XLS_RETURN_IF_ERROR(
+      check_all_elements([&](const LeafTypeTreeView<T>& v) -> absl::Status {
+        XLS_ASSIGN_OR_RETURN(ArrayType * vt, v.type()->AsArray());
+        XLS_RET_CHECK(
+            result_array_type->element_type()->IsEqualTo(vt->element_type()))
+            << "Incompatible array element types: "
+            << result_array_type->element_type() << " vs "
+            << vt->element_type();
+        return absl::OkStatus();
+      }));
+  // NB Since we've already verified that the element-type matches on all
+  // entries if the leaf-count sum of the elements matches the leaf-count sum of
+  // the result then the number of array elements must also match.
+  XLS_RET_CHECK_EQ(
+      result_array_type->leaf_count(),
+      absl::c_accumulate(elements, int64_t{0},
+                         [](int64_t acc, const LeafTypeTreeView<T>& ltt) {
+                           return acc + ltt.type()->leaf_count();
+                         }))
+      << "Leaf count mismatch.";
+  typename LeafTypeTree<T>::DataContainerT result;
+  result.reserve(result_array_type->leaf_count());
+  for (const LeafTypeTreeView<T>& ltt : elements) {
+    absl::c_copy(ltt.elements(), std::back_inserter(result));
+  }
+  return LeafTypeTree<T>::CreateFromVector(result_array_type,
+                                           std::move(result));
+}
+
+// Create an array-typed LeafTypeTree where the data values of the array
+// elements is the slice of `source` starting at `start` and extending to the
+// size of `result_array_type`. If the slice would run off the end of `source`
+// it repeats the last element of `source`. This matches the behavior of
+// array-index.
+template <typename T>
+absl::StatusOr<LeafTypeTree<T>> SliceArray(ArrayType* result_array_type,
+                                           const LeafTypeTreeView<T> source,
+                                           int64_t start) {
+  XLS_RET_CHECK_EQ(result_array_type->element_type(),
+                   source.type()->AsArrayOrDie()->element_type());
+  XLS_RET_CHECK_GE(start, 0);
+  XLS_RET_CHECK_GT(source.type()->AsArrayOrDie()->size(), 0);
+  typename LeafTypeTree<T>::DataContainerT result;
+  result.reserve(source.AsView({0}).size() * result_array_type->size());
+  auto add_all = [&](LeafTypeTreeView<T> v) {
+    absl::c_copy(v.elements(), std::back_inserter(result));
+  };
+  int64_t source_size = source.type()->AsArrayOrDie()->size();
+  for (int64_t i = 0; i < result_array_type->size(); ++i) {
+    // Don't get confused by overflow. It would be better to use std::add_sat
+    // but that's only in c++26
+    if (start < source_size && start + i < source_size && start + i >= start) {
+      add_all(source.AsView({start + i}));
+    } else {
+      // Repeat of last element
+      add_all(source.AsView({source.type()->AsArrayOrDie()->size() - 1}));
+    }
+  }
+  return LeafTypeTree<T>::CreateFromVector(result_array_type,
+                                           std::move(result));
 }
 
 // Create a tuple-typed LeafTypeTree where the data values of the array

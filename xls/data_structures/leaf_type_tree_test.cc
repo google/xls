@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -695,6 +696,94 @@ TEST_F(LeafTypeTreeTest, CreateArray) {
                                AsType("bits[32][3]")->AsArrayOrDie(),
                                {foo.AsView(), bar.AsView(), foo.AsView()}));
   EXPECT_EQ(tree.ToString(), "[foo, bar, foo]");
+}
+
+TEST_F(LeafTypeTreeTest, ConcatArray) {
+  LeafTypeTree<std::string> alpha(AsType("bits[32]"),
+                                  std::vector<std::string>({"alpha"}));
+  LeafTypeTree<std::string> bravo(AsType("bits[32]"),
+                                  std::vector<std::string>({"bravo"}));
+  LeafTypeTree<std::string> charlie(AsType("bits[32]"),
+                                    std::vector<std::string>({"charlie"}));
+  LeafTypeTree<std::string> delta(AsType("bits[32]"),
+                                  std::vector<std::string>({"delta"}));
+  LeafTypeTree<std::string> echo(AsType("bits[32]"),
+                                 std::vector<std::string>({"echo"}));
+  LeafTypeTree<std::string> foxtrot(AsType("bits[32]"),
+                                    std::vector<std::string>({"foxtrot"}));
+  LeafTypeTree<std::string> golf(AsType("bits[32]"),
+                                 std::vector<std::string>({"golf"}));
+  LeafTypeTree<std::string> hotel(AsType("bits[32]"),
+                                  std::vector<std::string>({"hotel"}));
+  LeafTypeTree<std::string> india(AsType("bits[32]"),
+                                  std::vector<std::string>({"india"}));
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTree<std::string> ab,
+                           leaf_type_tree::CreateArray<std::string>(
+                               AsType("bits[32][2]")->AsArrayOrDie(),
+                               {alpha.AsView(), bravo.AsView()}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LeafTypeTree<std::string> cde,
+      leaf_type_tree::CreateArray<std::string>(
+          AsType("bits[32][3]")->AsArrayOrDie(),
+          {charlie.AsView(), delta.AsView(), echo.AsView()}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LeafTypeTree<std::string> fghi,
+      leaf_type_tree::CreateArray<std::string>(
+          AsType("bits[32][4]")->AsArrayOrDie(),
+          {foxtrot.AsView(), golf.AsView(), hotel.AsView(), india.AsView()}));
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTree<std::string> abcdefghi,
+                           leaf_type_tree::ConcatArray<std::string>(
+                               AsType("bits[32][9]")->AsArrayOrDie(),
+                               {ab.AsView(), cde.AsView(), fghi.AsView()}));
+  EXPECT_EQ(
+      abcdefghi.ToString(),
+      "[alpha, bravo, charlie, delta, echo, foxtrot, golf, hotel, india]");
+}
+
+TEST_F(LeafTypeTreeTest, SliceArray) {
+  LeafTypeTree<std::string> alpha(AsType("bits[32]"),
+                                  std::vector<std::string>({"alpha"}));
+  LeafTypeTree<std::string> bravo(AsType("bits[32]"),
+                                  std::vector<std::string>({"bravo"}));
+  LeafTypeTree<std::string> charlie(AsType("bits[32]"),
+                                    std::vector<std::string>({"charlie"}));
+  LeafTypeTree<std::string> delta(AsType("bits[32]"),
+                                  std::vector<std::string>({"delta"}));
+  LeafTypeTree<std::string> echo(AsType("bits[32]"),
+                                 std::vector<std::string>({"echo"}));
+  LeafTypeTree<std::string> foxtrot(AsType("bits[32]"),
+                                    std::vector<std::string>({"foxtrot"}));
+  LeafTypeTree<std::string> golf(AsType("bits[32]"),
+                                 std::vector<std::string>({"golf"}));
+  LeafTypeTree<std::string> hotel(AsType("bits[32]"),
+                                  std::vector<std::string>({"hotel"}));
+  LeafTypeTree<std::string> india(AsType("bits[32]"),
+                                  std::vector<std::string>({"india"}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LeafTypeTree<std::string> abcdefghi,
+      leaf_type_tree::CreateArray<std::string>(
+          AsType("bits[32][9]")->AsArrayOrDie(),
+          {alpha.AsView(), bravo.AsView(), charlie.AsView(), delta.AsView(),
+           echo.AsView(), foxtrot.AsView(), golf.AsView(), hotel.AsView(),
+           india.AsView()}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTree<std::string> ghiiii,
+                           leaf_type_tree::SliceArray<std::string>(
+                               AsType("bits[32][6]")->AsArrayOrDie(),
+                               abcdefghi.AsView(), /*start=*/6));
+  EXPECT_EQ(ghiiii.ToString(), "[golf, hotel, india, india, india, india]");
+  XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTree<std::string> bcd,
+                           leaf_type_tree::SliceArray<std::string>(
+                               AsType("bits[32][3]")->AsArrayOrDie(),
+                               abcdefghi.AsView(), /*start=*/1));
+  EXPECT_EQ(bcd.ToString(), "[bravo, charlie, delta]");
+  // Don't be confused by overflow of start
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LeafTypeTree<std::string> iiiiii,
+      leaf_type_tree::SliceArray<std::string>(
+          AsType("bits[32][6]")->AsArrayOrDie(), abcdefghi.AsView(),
+          /*start=*/std::numeric_limits<int64_t>::max() - 2));
+  EXPECT_EQ(iiiiii.ToString(), "[india, india, india, india, india, india]");
 }
 
 TEST_F(LeafTypeTreeTest, ReplaceElements) {

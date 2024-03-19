@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <ostream>
 #include <sstream>
@@ -25,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -750,13 +752,9 @@ absl::Status RangeQueryVisitor::HandleArray(Array* array) {
 absl::Status RangeQueryVisitor::HandleArrayConcat(ArrayConcat* array_concat) {
   INITIALIZE_OR_SKIP(array_concat);
   std::vector<LeafTypeTree<IntervalSet>> children;
-  for (Node* element : array_concat->operands()) {
-    LeafTypeTree<IntervalSet> concatee = GetIntervalSetTree(element);
-    const int64_t arr_size = element->GetType()->AsArrayOrDie()->size();
-    for (int32_t i = 0; i < arr_size; ++i) {
-      children.push_back(leaf_type_tree::Clone(concatee.AsView({i})));
-    }
-  }
+  children.reserve(array_concat->operand_count());
+  absl::c_transform(array_concat->operands(), std::back_inserter(children),
+                    [&](Node* n) { return GetIntervalSetTree(n); });
   // TODO(https://github.com/google/xls/issues/1334): Replace range query API to
   // take/return LeafTypeTree views rather than copying these objects all the
   // time.
@@ -768,7 +766,7 @@ absl::Status RangeQueryVisitor::HandleArrayConcat(ArrayConcat* array_concat) {
 
   XLS_ASSIGN_OR_RETURN(
       LeafTypeTree<IntervalSet> result,
-      leaf_type_tree::CreateArray<IntervalSet>(
+      leaf_type_tree::ConcatArray<IntervalSet>(
           array_concat->GetType()->AsArrayOrDie(), children_views));
   SetIntervalSetTree(array_concat, result);
   return absl::OkStatus();
