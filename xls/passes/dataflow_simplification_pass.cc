@@ -37,6 +37,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -152,5 +153,7 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
   }
   return changed;
 }
+
+REGISTER_OPT_PASS(DataflowSimplificationPass);
 
 }  // namespace xls

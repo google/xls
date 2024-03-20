@@ -2660,6 +2660,7 @@ cc_library(
     deps = [
         ":dataflow_visitor",
         ":optimization_pass",
+        ":optimization_pass_registry",
         ":pass_base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",

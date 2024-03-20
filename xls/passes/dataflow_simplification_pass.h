@@ -34,8 +34,9 @@ namespace xls {
 //    array_index(array_update(A, x, index={42}), index={42})  =>  x
 class DataflowSimplificationPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "dataflow";
   explicit DataflowSimplificationPass()
-      : OptimizationFunctionBasePass("dataflow", "Dataflow Optimization") {}
+      : OptimizationFunctionBasePass(kName, "Dataflow Optimization") {}
   ~DataflowSimplificationPass() override = default;
 
  protected:
