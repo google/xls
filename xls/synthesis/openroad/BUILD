@@ -30,6 +30,7 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@at_clifford_yosys//:json11",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -48,6 +49,7 @@ cc_binary(
         "//xls/synthesis:synthesis_service_cc_grpc",
         "@at_clifford_yosys//:json11",
         "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

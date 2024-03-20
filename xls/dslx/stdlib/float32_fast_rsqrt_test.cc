@@ -17,6 +17,7 @@
 #include <cmath>
 #include <limits>
 
+#include "absl/flags/flag.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"

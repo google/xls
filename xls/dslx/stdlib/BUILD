@@ -570,6 +570,7 @@ cc_test(
     deps = [
         ":float32_fast_rsqrt_jit_wrapper",
         ":float32_test_utils",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",
