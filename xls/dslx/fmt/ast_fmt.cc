@@ -423,7 +423,7 @@ DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
   const Expr& lhs = *n.lhs();
   Precedence lhs_precedence = lhs.GetPrecedence();
   std::vector<DocRef> pieces;
-  if (WeakerThan(lhs_precedence, op_precedence)) {
+  if (WeakerThan(lhs_precedence, op_precedence) && IsInfix(lhs_precedence)) {
     pieces.push_back(arena.oparen());
     pieces.push_back(Fmt(lhs, comments, arena));
     pieces.push_back(arena.cparen());

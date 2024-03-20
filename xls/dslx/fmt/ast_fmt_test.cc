@@ -231,6 +231,31 @@ TEST_F(FunctionFmtTest, FormatEmptyFn) {
   EXPECT_EQ(got, "fn f() {}");
 }
 
+TEST_F(FunctionFmtTest, LogicalOrLhsForArrayIndex) {
+  const std::string_view original = "fn f(a: u32, b: u32){(a||b)[3]}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, "fn f(a: u32, b: u32) { (a || b)[3] }");
+}
+
+TEST_F(FunctionFmtTest, LogicalOrLhsForAttrIndex) {
+  const std::string_view original = "fn f(a: u32, b: u32){(a||b).attr[0]}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, "fn f(a: u32, b: u32) { (a || b).attr[0] }");
+}
+
+TEST_F(FunctionFmtTest, LogicalOrLhsForAttr) {
+  const std::string_view original = "fn f(a: u32, b: u32){(a||b).attr}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, "fn f(a: u32, b: u32) { (a || b).attr }");
+}
+
+TEST_F(FunctionFmtTest, AttrIndexChain) {
+  const std::string_view original =
+      "fn f(a: u32, b: u32, c: u32){a[0][1].b[2][3].c[4]}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmtNoPostcondition(original));
+  EXPECT_EQ(got, "fn f(a: u32, b: u32, c: u32) { a[0][1].b[2][3].c[4] }");
+}
+
 TEST_F(FunctionFmtTest, FormatLetYEqualsXFn) {
   const std::string_view original = "fn f(x:u32)->u32{let y=x;y}";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
@@ -1863,6 +1888,15 @@ fn struct_c_test() {
             }
         });
 }
+)");
+}
+
+TEST_F(ModuleFmtTest, GithubIssue1354) {
+  Run(R"(pub struct B { value: u32 }
+
+pub struct A { value: B[5] }
+
+pub fn f(a: A) -> A { if a.B[0].value == u32:0 { zero!<A>() } else { a } }
 )");
 }
 

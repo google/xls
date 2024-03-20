@@ -577,6 +577,28 @@ enum class Precedence : uint8_t {
   kWeakest = 21,
 };
 
+// Returns whether the given precedence level is for an infix operator -- if
+// not (e.g the operator is in suffix form) we may not need to emit parentheses
+// with respect to some outer precedence level that binds more weakly. E.g.
+// consider the suffix operators:
+//
+//    f().g[h] + ...
+//
+// The plus is weaker than the operator precedences on the left hand side, but
+// we still don't require parentheses, because those operators are suffix
+// operators.
+inline bool IsInfix(Precedence p) {
+  switch (p) {
+    case Precedence::kPaths:
+    case Precedence::kMethodCall:
+    case Precedence::kFieldExpression:
+    case Precedence::kFunctionCallOrArrayIndex:
+      return false;
+    default:
+      return true;
+  }
+}
+
 std::string_view PrecedenceToString(Precedence p);
 
 inline std::ostream& operator<<(std::ostream& os, Precedence p) {
