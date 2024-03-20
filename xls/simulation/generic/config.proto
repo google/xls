@@ -1,0 +1,60 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls.simulation.generic;
+
+message ConfigProto {
+  repeated string import_path = 1;
+  optional string path_to_dslx_design = 2;
+  optional string dslx_top_level_process = 3;
+  optional string path_to_ir_design = 4;
+  optional string ir_top_level_process = 5;
+  uint64 address_mask = 6;
+
+  message Channel {
+    optional string dslx_name = 1;
+    optional string ir_name = 2;
+    optional uint64 in_manager_offset = 3;
+    optional uint64 DMA_ID = 4;
+  }
+
+  message SingleValueManager {
+    uint64 base_address = 1;
+    uint64 runtime_status_offset = 2;
+    repeated Channel single_value_channels = 3;
+  }
+  optional SingleValueManager svm_config = 7;
+
+  message StreamManager {
+    uint64 base_address = 1;
+    repeated Channel stream_channels = 2;
+  }
+  optional StreamManager sm_config = 8;
+  optional StreamManager dma_sm_config = 9;
+
+  message AXIStreamLikeChannel {
+    Channel base_config = 1;
+    repeated uint64 dataIdxs = 2;
+    optional uint64 keepIdx = 3;
+    optional uint64 lastIdx = 4;
+  }
+
+  message DMAAXIStreamLikeManager {
+    uint64 base_address = 1;
+    repeated AXIStreamLikeChannel axi_channels = 2;
+  }
+  optional DMAAXIStreamLikeManager dma_axi_sm_config = 10;
+}
