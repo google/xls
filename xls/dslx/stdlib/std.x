@@ -987,3 +987,41 @@ fn test_vslice() {
 pub fn sizeof_signed<N: u32>(x: sN[N]) -> u32 { N }
 
 pub fn sizeof_unsigned<N: u32>(x: uN[N]) -> u32 { N }
+
+// Implementation of or_reduce_lsb() with choice of implementation.
+// The "do_mask_impl" template parameter chooses the implementation and is
+// subject to change while tested in different contexts.
+// Public interface is or_reduce_lsb()
+fn or_reduce_lsb_impl<DO_MASK_IMPL: bool, WIDTH: u32, N_WIDTH: u32>
+    (value: uN[WIDTH], n: uN[N_WIDTH]) -> bool {
+    if DO_MASK_IMPL {
+        // Mask the relevant bits, then compare.
+        value & ((uN[WIDTH]:1 << n) - uN[WIDTH]:1) != uN[WIDTH]:0
+    } else {
+        // shift out uninteresting bits, then compare.
+        value << (WIDTH as uN[N_WIDTH] - n) != uN[WIDTH]:0
+    }
+}
+
+#[test]
+fn or_reduce_lsb_impl_impl_test() {
+    assert_eq(false, or_reduce_lsb_impl<true>(u8:0xab, u4:0));
+    assert_eq(true, or_reduce_lsb_impl<true>(u8:0xab, u4:1));
+    assert_eq(false, or_reduce_lsb_impl<true>(u8:0xaa, u4:1));
+    assert_eq(false, or_reduce_lsb_impl<true>(u8:0xa0, u4:4));
+    assert_eq(true, or_reduce_lsb_impl<true>(u8:0xaa, u4:4));
+    assert_eq(true, or_reduce_lsb_impl<true>(u8:0xa8, u4:4));
+
+    assert_eq(false, or_reduce_lsb_impl<false>(u8:0xab, u4:0));
+    assert_eq(true, or_reduce_lsb_impl<false>(u8:0xab, u4:1));
+    assert_eq(false, or_reduce_lsb_impl<false>(u8:0xaa, u4:1));
+    assert_eq(false, or_reduce_lsb_impl<false>(u8:0xa0, u4:4));
+    assert_eq(true, or_reduce_lsb_impl<false>(u8:0xaa, u4:4));
+    assert_eq(true, or_reduce_lsb_impl<false>(u8:0xa8, u4:4));
+}
+
+// or_reduce the lower "n" bits of "value". Return 'true', if any of the "n" lower
+// bits is set.
+pub fn or_reduce_lsb<WIDTH: u32, N_WIDTH: u32>(value: uN[WIDTH], n: uN[N_WIDTH]) -> bool {
+    or_reduce_lsb_impl<true>(value, n)  // using impl. typically yielding best QoR
+}
