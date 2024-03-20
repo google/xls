@@ -28,6 +28,7 @@
 
 namespace xls {
 
+// The passes which consist of a single simplification run.
 class SimplificationPass : public OptimizationCompoundPass {
  public:
   explicit SimplificationPass(int64_t opt_level);
@@ -36,6 +37,32 @@ class SimplificationPass : public OptimizationCompoundPass {
 class FixedPointSimplificationPass : public OptimizationFixedPointCompoundPass {
  public:
   explicit FixedPointSimplificationPass(int64_t opt_level);
+};
+
+// The passes which are executed before any inlining has been performed.
+class PreInliningPassGroup : public OptimizationCompoundPass {
+ public:
+  static constexpr std::string_view kName = "pre-inlining";
+  explicit PreInliningPassGroup(int64_t opt_level);
+};
+
+// The passes which perform full function inlining.
+//
+// NB Proc-inlining is not performed by this group and is performed in the
+// PostInliningPassGroup.
+class UnrollingAndInliningPassGroup : public OptimizationCompoundPass {
+ public:
+  static constexpr std::string_view kName = "full-inlining";
+  explicit UnrollingAndInliningPassGroup(int64_t opt_level);
+};
+
+// The passes which are executed after all inlining has been performed.
+//
+// NB Proc-inlining (if enabled) is performed during this pass group.
+class PostInliningPassGroup : public OptimizationCompoundPass {
+ public:
+  static constexpr std::string_view kName = "post-inlining";
+  explicit PostInliningPassGroup(int64_t opt_level);
 };
 
 // CreateOptimizationPassPipeline connects together the various optimization
