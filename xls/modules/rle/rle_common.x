@@ -28,7 +28,7 @@ pub struct PlainData<SYMB_WIDTH: u32> {
 // Structure is used as an output from RLE encoder and
 // as an input to RLE decoder.
 pub struct CompressedData<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
-    symbol: bits[SYMBOL_WIDTH], // symbol
-    count: bits[COUNT_WIDTH],   // symbol counter
+    //                  symbol              symbol counter
+    symbol_count_pair: (bits[SYMBOL_WIDTH], bits[COUNT_WIDTH]),
     last: bool,                 // flush RLE
 }
