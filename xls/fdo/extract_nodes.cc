@@ -110,7 +110,7 @@ absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
             Type * operand_type,
             tmp_package->MapTypeFromOtherPackage(operand->GetType()));
         Node* new_param = tmp_f->AddNode(std::make_unique<Param>(
-            operand->loc(), operand->GetName(), operand_type, tmp_f.get()));
+            operand->loc(), operand_type, operand->GetName(), tmp_f.get()));
         node_map[operand] = new_param;
         new_operands.push_back(new_param);
       }
@@ -122,7 +122,7 @@ absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
           Type * node_type,
           tmp_package->MapTypeFromOtherPackage(node->GetType()));
       new_node = tmp_f->AddNode(std::make_unique<xls::Param>(
-          node->loc(), node->GetName(), node_type, tmp_f.get()));
+          node->loc(), node_type, node->GetName(), tmp_f.get()));
     } else {
       XLS_ASSIGN_OR_RETURN(new_node,
                            node->CloneInNewFunction(new_operands, tmp_f.get()));

@@ -58,7 +58,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
     XLS_ASSIGN_OR_RETURN(
         Node * args_tuple,
         integration_function->function_->MakeNodeWithName<Param>(
-            SourceInfo(), tuple_name, args_tuple_type));
+            SourceInfo(), args_tuple_type, tuple_name));
 
     // Add TupleIndex nodes inside function to unpack tuple parameter.
     int64_t parameter_index = 0;
@@ -80,8 +80,8 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
     XLS_ASSIGN_OR_RETURN(
         integration_function->global_mux_select_param_,
         integration_function->function_->MakeNodeWithName<Param>(
-            SourceInfo(), "global_mux_select",
-            integration_function->package_->GetBitsType(num_bits)));
+            SourceInfo(), integration_function->package_->GetBitsType(num_bits),
+            "global_mux_select"));
   }
 
   return std::move(integration_function);
@@ -294,7 +294,7 @@ IntegrationFunction::UnifyIntegrationNodesWithPerMuxSelect(Node* node_a,
       node_a->GetName() + "_" + node_b->GetName() + "_mux_sel";
   XLS_ASSIGN_OR_RETURN(
       Node * select, function_->MakeNodeWithName<Param>(
-                         SourceInfo(), select_name, package_->GetBitsType(1)));
+                         SourceInfo(), package_->GetBitsType(1), select_name));
   std::vector<Node*> elements = {node_a, node_b};
   XLS_ASSIGN_OR_RETURN(
       Node * mux, function_->MakeNode<Select>(SourceInfo(), select, elements,

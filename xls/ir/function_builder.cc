@@ -1005,7 +1005,7 @@ BValue FunctionBuilder::Param(std::string_view name, Type* type,
           absl::StrFormat("Parameter named \"%s\" already exists", name), loc);
     }
   }
-  return AddNode<xls::Param>(loc, name, type);
+  return AddNode<xls::Param>(loc, type, name);
 }
 
 absl::StatusOr<Function*> FunctionBuilder::Build() {

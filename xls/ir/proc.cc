@@ -237,8 +237,8 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
   // Construct the new param node, and update all trackers.
   XLS_ASSIGN_OR_RETURN(
       Param * param,
-      MakeNodeWithName<Param>(SourceInfo(), s,
-                              package()->GetTypeForValue(init_value)));
+      MakeNodeWithName<Param>(SourceInfo(),
+                              package()->GetTypeForValue(init_value), s));
   // Move the param into place (not forgetting the offset for state params,
   // since the token param is always at index 0).
   XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index + 1));
@@ -302,10 +302,10 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
     std::optional<Node*> next_state) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
   const bool is_append = (index == GetStateElementCount());
-  XLS_ASSIGN_OR_RETURN(
-      Param * param,
-      MakeNodeWithName<Param>(SourceInfo(), state_param_name,
-                              package()->GetTypeForValue(init_value)));
+  XLS_ASSIGN_OR_RETURN(Param * param,
+                       MakeNodeWithName<Param>(
+                           SourceInfo(), package()->GetTypeForValue(init_value),
+                           state_param_name));
   XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index + 1));
 
   // TODO: Remove this once fully transitioned over to `next_value` nodes.

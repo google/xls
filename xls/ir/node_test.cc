@@ -14,7 +14,6 @@
 
 #include "xls/ir/node.h"
 
-#include <cstdint>
 #include <string_view>
 #include <vector>
 
@@ -26,6 +25,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -33,9 +33,12 @@
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 
+namespace m = ::xls::op_matchers;
+
 namespace xls {
 namespace {
 
+using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
@@ -590,6 +593,21 @@ TEST_F(NodeTest, IncorrectOpClass) {
   EXPECT_DEATH(
       (void)f->MakeNode<UnOp>(SourceInfo(), x.node(), Op::kAssert),
       HasSubstr("Op `assert` is not a valid op for Node class `UnOp`"));
+}
+
+TEST_F(NodeTest, MakeParam) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("x", p->GetBitsType(32));
+  fb.Param("y", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(f->MakeNode<Param>(SourceInfo(), p->GetBitsType(32)),
+              // Node has id=3, so with no name it will be "param.3".
+              IsOkAndHolds(m::Param("param.3")));
+  EXPECT_THAT(f->MakeNodeWithName<Param>(SourceInfo(), p->GetBitsType(32), "x"),
+              // "x" is already taken, so uniquer will choose "x__1".
+              IsOkAndHolds(m::Param("x__1")));
 }
 
 }  // namespace

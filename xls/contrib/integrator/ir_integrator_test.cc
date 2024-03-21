@@ -58,10 +58,10 @@ TEST_F(IntegratorTest, MappingTestSimple) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(1)));
+                               SourceInfo(), p->GetBitsType(1), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_1,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "external_1"));
 
   // Before mapping.
   EXPECT_TRUE(integration->IntegrationFunctionOwnsNode(internal_1));
@@ -105,13 +105,13 @@ TEST_F(IntegratorTest, MappingTestMultipleNodesMapToTarget) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(1)));
+                               SourceInfo(), p->GetBitsType(1), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_1,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "external_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_2,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_1", p->GetBitsType(3)));
+                               SourceInfo(), p->GetBitsType(3), "external_1"));
 
   // Before mapping.
   EXPECT_TRUE(integration->IntegrationFunctionOwnsNode(internal_1));
@@ -167,16 +167,16 @@ TEST_F(IntegratorTest, MappingTestRepeatedMapping) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(1)));
+                               SourceInfo(), p->GetBitsType(1), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_1,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_1", p->GetBitsType(3)));
+                               SourceInfo(), p->GetBitsType(3), "external_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_2,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_2", p->GetBitsType(4)));
+                               SourceInfo(), p->GetBitsType(4), "external_2"));
 
   // Before mapping.
   EXPECT_TRUE(integration->IntegrationFunctionOwnsNode(internal_1));
@@ -245,16 +245,16 @@ TEST_F(IntegratorTest, MappingTestSetNodeMappingFailureCases) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(1)));
+                               SourceInfo(), p->GetBitsType(1), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_1,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_1", p->GetBitsType(3)));
+                               SourceInfo(), p->GetBitsType(3), "external_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_2,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_2", p->GetBitsType(4)));
+                               SourceInfo(), p->GetBitsType(4), "external_2"));
 
   // Mapping = external_1 -> MapsTo -> external_1
   // Mapping target must be internal.
@@ -507,10 +507,10 @@ TEST_F(IntegratorTest, GetIntegratedOperandsInternalNode) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * cat,
       internal_func.MakeNode<Concat>(
@@ -532,7 +532,7 @@ TEST_F(IntegratorTest, UnifyIntegrationNodesSameNode) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
 
   int64_t initial_node_count = integration->function()->node_count();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -553,7 +553,7 @@ TEST_F(IntegratorTest, UnifyIntegrationNodesSameNodeCheckMuxAdded) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
 
   int64_t initial_node_count = integration->function()->node_count();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -575,10 +575,10 @@ TEST_F(IntegratorTest, UnifyIntegrationNodesDifferentNodes) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
 
   int64_t initial_node_count = integration->function()->node_count();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -608,10 +608,10 @@ TEST_F(IntegratorTest, UnifyIntegrationNodesDifferentNodesRepeated) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
 
   int64_t initial_node_count = integration->function()->node_count();
   for (int64_t i = 0; i < 10; ++i) {
@@ -645,10 +645,10 @@ TEST_F(IntegratorTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
 
   int64_t initial_node_count = integration->function()->node_count();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -686,13 +686,13 @@ TEST_F(IntegratorTest, UnifyIntegrationNodesDifferentNodesFailureCases) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(1)));
+                               SourceInfo(), p->GetBitsType(1), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_1,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "external_1"));
 
   // Can't unify with external node.
   EXPECT_FALSE(integration->UnifyIntegrationNodes(internal_1, external_1).ok());
@@ -941,7 +941,7 @@ TEST_F(IntegratorTest, UnifyIntegrationGlobalSelectErrorCases) {
       integration->UnifyIntegrationNodes(a_add_internal, c_add_internal));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            integration->function()->MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   auto no_map_mux_result =
       integration->UnifyIntegrationNodes(unity4.node, internal_1);
   EXPECT_FALSE(no_map_mux_result.ok());
@@ -1411,7 +1411,7 @@ TEST_F(IntegratorTest, InsertNodeIntegrationNode) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            integration->function()->MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * internal_cat,
       integration->function()->MakeNode<Concat>(
@@ -1460,14 +1460,14 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesExternalNode) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_1,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "external_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * external_2,
                            external_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "external_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "external_2"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * external_sel,
-      external_func.MakeNodeWithName<Param>(SourceInfo(), "external_sel",
-                                            p->GetBitsType(1)));
+      external_func.MakeNodeWithName<Param>(SourceInfo(), p->GetBitsType(1),
+                                            "external_sel"));
   std::vector<Node*> elements = {external_1, external_2};
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * external_mux,
@@ -1490,7 +1490,7 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyNonMux) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * internal_cat,
       internal_func.MakeNode<Concat>(
@@ -1511,15 +1511,15 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyMuxDoesNotHaveTwoCases) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * internal_sel,
-      internal_func.MakeNodeWithName<Param>(SourceInfo(), "internal_sel",
-                                            p->GetBitsType(1)));
+      internal_func.MakeNodeWithName<Param>(SourceInfo(), p->GetBitsType(1),
+                                            "internal_sel"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * internal_default,
-      internal_func.MakeNodeWithName<Param>(SourceInfo(), "internal_default",
-                                            p->GetBitsType(2)));
+      internal_func.MakeNodeWithName<Param>(SourceInfo(), p->GetBitsType(2),
+                                            "internal_default"));
   std::vector<Node*> elements = {internal_1};
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_mux,
                            integration->function()->MakeNode<Select>(
@@ -1541,14 +1541,14 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyMuxSameOperands) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * internal_sel,
-      internal_func.MakeNodeWithName<Param>(SourceInfo(), "internal_sel",
-                                            p->GetBitsType(1)));
+      internal_func.MakeNodeWithName<Param>(SourceInfo(), p->GetBitsType(1),
+                                            "internal_sel"));
   XLS_ASSERT_OK(integration->UnifyIntegrationNodes(internal_1, internal_2));
   std::vector<Node*> elements = {internal_1, internal_2};
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1571,20 +1571,20 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesNonUnifyMuxDifferentOperands) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_3,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_3", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_3"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_4,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_4", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_4"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * internal_sel,
-      internal_func.MakeNodeWithName<Param>(SourceInfo(), "internal_sel",
-                                            p->GetBitsType(1)));
+      internal_func.MakeNodeWithName<Param>(SourceInfo(), p->GetBitsType(1),
+                                            "internal_sel"));
   XLS_ASSERT_OK(integration->UnifyIntegrationNodes(internal_1, internal_2));
   std::vector<Node*> elements = {internal_3, internal_4};
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1607,10 +1607,10 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesMuxHasUsers) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(
       IntegrationFunction::UnifiedNode unify_mux,
       integration->UnifyIntegrationNodes(internal_1, internal_2));
@@ -1632,10 +1632,10 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesRemoveMuxAndParam) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(
       IntegrationFunction::UnifiedNode unify_mux,
       integration->UnifyIntegrationNodes(internal_1, internal_2));
@@ -1675,10 +1675,10 @@ TEST_F(IntegratorTest, DeUnifyIntegrationNodesParamHasUsers) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            internal_func.MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(
       IntegrationFunction::UnifiedNode unify_mux,
       integration->UnifyIntegrationNodes(internal_1, internal_2));
@@ -2670,13 +2670,13 @@ TEST_F(IntegratorTest, GetSourceFunctionIndexesOfNodesMappedToNodeTest) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_1,
                            integration->function()->MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_1", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_1"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_2,
                            integration->function()->MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_2", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_2"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * internal_3,
                            integration->function()->MakeNodeWithName<Param>(
-                               SourceInfo(), "internal_3", p->GetBitsType(2)));
+                               SourceInfo(), p->GetBitsType(2), "internal_3"));
 
   XLS_ASSERT_OK(integration->SetNodeMapping(a_in1_node, internal_1));
   XLS_ASSERT_OK(integration->SetNodeMapping(c_in1_node, internal_1));

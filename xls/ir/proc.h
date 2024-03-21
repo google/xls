@@ -53,7 +53,7 @@ class Proc : public FunctionBase {
        Package* package)
       : FunctionBase(name, package),
         next_token_(AddNode(std::make_unique<Param>(
-            SourceInfo(), token_param_name, package->GetTokenType(), this))),
+            SourceInfo(), package->GetTokenType(), token_param_name, this))),
         is_new_style_proc_(false) {}
 
   // Creates a new-style proc which supports proc-scoped channels.
@@ -62,7 +62,7 @@ class Proc : public FunctionBase {
        std::string_view token_param_name, Package* package)
       : FunctionBase(name, package),
         next_token_(AddNode(std::make_unique<Param>(
-            SourceInfo(), token_param_name, package->GetTokenType(), this))),
+            SourceInfo(), package->GetTokenType(), token_param_name, this))),
         is_new_style_proc_(true) {
     for (std::unique_ptr<ChannelReference>& channel_reference : interface) {
       channel_references_.push_back(std::move(channel_reference));

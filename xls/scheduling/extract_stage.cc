@@ -50,8 +50,8 @@ absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
           new_operands.push_back(node_map.at(operand));
         } else {
           Node* new_param = new_f->AddNode(
-              std::make_unique<Param>(operand->loc(), operand->GetName(),
-                                      operand->GetType(), new_f.get()));
+              std::make_unique<Param>(operand->loc(), operand->GetType(),
+                                      operand->GetName(), new_f.get()));
           node_map[operand] = new_param;
           new_operands.push_back(new_param);
         }
@@ -60,7 +60,7 @@ absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
       Node* new_node;
       if (node->Is<Send>() || node->Is<Receive>()) {
         new_node = new_f->AddNode(std::make_unique<xls::Param>(
-            node->loc(), node->GetName(), node->GetType(), new_f.get()));
+            node->loc(), node->GetType(), node->GetName(), new_f.get()));
       } else {
         XLS_ASSIGN_OR_RETURN(
             new_node, node->CloneInNewFunction(new_operands, new_f.get()));

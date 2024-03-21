@@ -907,6 +907,7 @@ cc_test(
         ":channel_ops",
         ":function_builder",
         ":ir",
+        ":ir_matcher",
         ":ir_test_base",
         ":op",
         ":source_location",

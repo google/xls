@@ -129,11 +129,9 @@ absl::StatusOr<Node*> Param::CloneInNewFunction(absl::Span<Node* const> new_oper
                                            FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  XLS_ASSIGN_OR_RETURN(Type* new_type, 
+  XLS_ASSIGN_OR_RETURN(Type* new_type,
     new_function->package()->MapTypeFromOtherPackage(GetType()));
-  return new_function->MakeNodeWithName<Param>(loc(),
-                                      name_,
-                                      new_type);
+  return new_function->MakeNodeWithName<Param>(loc(), new_type, name_);
 }
 
 absl::StatusOr<Node*> Array::CloneInNewFunction(absl::Span<Node* const> new_operands,

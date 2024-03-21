@@ -1006,9 +1006,8 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
       XLS_ASSIGN_OR_RETURN(
           old_to_new_map[n],
           new_func->MakeNodeWithName<Param>(
-              SourceInfo(),
-              absl::StrCat("param_wrapper_for_recieve_", n->GetName()),
-              new_pkg.GetTupleType(types)));
+              SourceInfo(), new_pkg.GetTupleType(types),
+              absl::StrCat("param_wrapper_for_recieve_", n->GetName())));
     } else if (n->Is<RegisterRead>()) {
       auto maybe_type = new_pkg.MapTypeFromOtherPackage(n->GetType());
       if (!maybe_type.ok()) {
@@ -1019,9 +1018,8 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
       XLS_ASSIGN_OR_RETURN(
           old_to_new_map[n],
           new_func->MakeNodeWithName<Param>(
-              SourceInfo(),
-              absl::StrCat("param_wrapper_for_reg_read_", n->GetName()),
-              *maybe_type));
+              SourceInfo(), *maybe_type,
+              absl::StrCat("param_wrapper_for_reg_read_", n->GetName())));
     } else {
       std::vector<Node*> new_ops;
       for (Node* op : n->operands()) {
