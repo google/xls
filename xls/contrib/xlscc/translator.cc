@@ -874,8 +874,6 @@ absl::Status Translator::GenerateIR_Ctor_Initializers(
     XLSCC_CHECK(struct_type, init_loc);
 
     const auto& fields_by_name = struct_type->fields_by_name();
-    absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compounds;
-
     // Base class constructors don't have member names
     const clang::NamedDecl* member_name = nullptr;
     if (init->getMember() != nullptr) {

@@ -83,8 +83,6 @@ absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
   sched_options.synthesizer = synthesizer;
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
       CreateSchedulingPassPipeline();
-  absl::flat_hash_map<FunctionBase*, PipelineSchedule> schedules;
-
   SchedulingPassResults results;
   XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
   auto scheduling_unit =
