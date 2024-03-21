@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.13">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.14">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.7e359304.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.10ba22f1.min.css">
       
       
 
@@ -2002,6 +2002,16 @@ control the scheduler.</p>
     relaxed), XLS will find and report the minimum feasible clock period if one
     exists. If disabled, XLS will report only that the clock period was
     infeasible, potentially saving time.</li>
+<li><code>--minimize_worst_case_throughput</code> is disabled by default. If enabled, when
+    <code>--worst_case_throughput</code> is not specified (or disabled by setting it to 0
+    or a negative value), XLS will find &amp; report the best possible worst-case
+    throughput of the circuit (subject to all other constraints), and then
+    proceed with codegen using that worst-case throughput.<p>NOTE: If <code>--clock_period_ps</code> is not set, XLS will first optimize for clock
+  speed, and then find the best possible worst-case throughput within that
+  constraint.</p>
+</li>
+</ul>
+<ul>
 <li><code>--worst_case_throughput=...</code> sets the worst-case throughput bound to use
     when <code>--generator=pipeline</code>. If set, allows scheduling a pipeline with
     worst-case throughput no slower than once per N cycles (assuming no stalling
@@ -2367,7 +2377,7 @@ response-receive are scheduled to match the RAM's latency.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.c8d2eff1.min.js"></script>
+      <script src="../assets/javascripts/bundle.bd41221c.min.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       
