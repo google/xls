@@ -1598,8 +1598,7 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
     // The smaller (y) needs to be shifted.
     // Calculate the sticky bit - set to 1 if any set bits have to be shifted
     // shifted out of the fraction.
-    let dropped = wide_y << (WIDE_FRACTION as uN[EXP_SZ] - shift);
-    let sticky = (dropped != uN[WIDE_FRACTION]:0) as sN[WIDE_FRACTION];
+    let sticky = std::or_reduce_lsb(wide_y, shift) as sN[WIDE_FRACTION];
     let addend_y = (wide_y >> shift) as sN[WIDE_FRACTION] | sticky;
 
     // Step 2: Do some addition!
