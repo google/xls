@@ -15,6 +15,7 @@
 #include "xls/ir/node.h"
 
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -608,6 +609,23 @@ TEST_F(NodeTest, MakeParam) {
   EXPECT_THAT(f->MakeNodeWithName<Param>(SourceInfo(), p->GetBitsType(32), "x"),
               // "x" is already taken, so uniquer will choose "x__1".
               IsOkAndHolds(m::Param("x__1")));
+}
+
+template <typename T, typename = void>
+struct MakeNodeWillSubstituteWith : std::false_type {};
+
+template <typename T>
+struct MakeNodeWillSubstituteWith<
+    T, std::void_t<decltype(&FunctionBase::MakeNode<T>)>> : std::true_type {};
+
+TEST_F(NodeTest, MakeNodeForType) {
+  // These static_asserts() could be anywhere, but we gather them in a test for
+  // organizational purposes.
+  static_assert(MakeNodeWillSubstituteWith<Param>::value);
+  static_assert(!MakeNodeWillSubstituteWith<int>::value);
+  static_assert(!MakeNodeWillSubstituteWith<Param*>::value);
+  static_assert(!MakeNodeWillSubstituteWith<Block::ClockPort>::value);
+  static_assert(!MakeNodeWillSubstituteWith<Block::Port>::value);
 }
 
 }  // namespace

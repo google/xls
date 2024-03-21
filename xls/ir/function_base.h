@@ -117,6 +117,7 @@ class FunctionBase {
 
   // Adds a node to the set owned by this function.
   template <typename T>
+    requires(std::is_base_of_v<Node, T>)
   T* AddNode(std::unique_ptr<T> n) {
     T* ptr = n.get();
     AddNodeInternal(std::move(n));
@@ -129,6 +130,7 @@ class FunctionBase {
   // newly constructed node after it is added to the function. Returns a pointer
   // to the newly constructed node.
   template <typename NodeT, typename... Args>
+    requires(std::is_base_of_v<Node, NodeT>)
   absl::StatusOr<NodeT*> MakeNode(Args&&... args) {
     NodeT* new_node = AddNode(std::make_unique<NodeT>(
         std::forward<Args>(args)..., /*name=*/"", this));
@@ -137,6 +139,7 @@ class FunctionBase {
   }
 
   template <typename NodeT, typename... Args>
+    requires(std::is_base_of_v<Node, NodeT>)
   absl::StatusOr<NodeT*> MakeNodeWithName(Args&&... args) {
     NodeT* new_node =
         AddNode(std::make_unique<NodeT>(std::forward<Args>(args)..., this));
